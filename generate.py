@@ -46,6 +46,19 @@ SITE_DIR = ROOT / "docs"
 # hardcode a real URL before that.
 SITE_BASE_URL = "https://example-deadlineradar.test"
 
+# Placeholder for the reminder backend (reminders/server.py). This is a
+# SEPARATE service from the static Pages-hosted site -- GitHub Pages can't
+# run a backend, so the signup form's POST target needs real hosting
+# decided/plan-firsted before this can be anything but a placeholder. Kept
+# in sync conceptually with reminders/emails.py's BACKEND_BASE_URL.
+REMINDER_BACKEND_BASE_URL = "https://example-deadlineradar-api.test"
+
+# States the signup form supports -- must match reminders/server.py's
+# SUPPORTED_STATE_SLUGS exactly. New York is deliberately excluded: its
+# renewal rule depends on a fact (first-registration date) this dataset
+# doesn't have, so no reminder can be computed for it.
+REMINDER_UNSUPPORTED_STATES = {"new-york"}
+
 MONTH_NAMES = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
@@ -208,9 +221,32 @@ PAGE_CSS = """
     font-size: 0.85rem; color: var(--muted); line-height: 1.6;
   }
   code { background: rgba(127,127,127,0.15); padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.9em; }
+  .signup-form {
+    border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.4rem;
+    background: var(--card-bg); margin: 1.75rem 0;
+  }
+  .signup-form h2 { font-size: 1.1rem; margin: 0 0 0.4rem; }
+  .signup-microcopy { font-size: 0.85rem; color: var(--muted); margin: 0 0 1rem; }
+  .signup-form label {
+    display: block; font-size: 0.85rem; font-weight: 600; margin: 0.75rem 0 0.3rem;
+  }
+  .signup-form label:first-of-type { margin-top: 0; }
+  .signup-form input, .signup-form select {
+    width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: 0.95rem; font-family: inherit;
+  }
+  .signup-form-row { display: flex; gap: 0.75rem; }
+  .signup-form-row > div { flex: 1; }
+  .signup-form button {
+    margin-top: 1rem; padding: 0.6rem 1.1rem; border: none; border-radius: 6px;
+    background: var(--accent); color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+  }
+  .signup-form button:hover { opacity: 0.92; }
+  .signup-form .field-hint { font-size: 0.78rem; color: var(--muted); margin: 0.25rem 0 0; }
   @media (max-width: 480px) {
     .site-header { flex-direction: column; align-items: flex-start; }
     .callout .date { font-size: 1.4rem; }
+    .signup-form-row { flex-direction: column; gap: 0; }
   }
 """
 
@@ -228,6 +264,113 @@ def site_footer() -> str:
   <p>{esc(SITE_NAME)} by {esc(BRAND_NAME)} &middot; compiled from official state board sources
   &middot; informational, not legal or official advice.</p>
 </footer>"""
+
+
+TRUST_MICROCOPY = (
+    "We only email you deadline reminders. We never sell or share your address. Unsubscribe anytime."
+)
+
+_MONTH_OPTIONS = "\n".join(
+    f'<option value="{i}">{MONTH_NAMES[i - 1]}</option>' for i in range(1, 13)
+)
+
+
+def _extra_fields_html(state_slug: str, records: list[dict]) -> str:
+    """The state-specific fields beyond email, needed to compute THIS
+    subscriber's exact deadline. Kept in sync with reminders/server.py's
+    per-state field handling -- see that file's _handle_subscribe()."""
+    if state_slug == "california":
+        return f"""<div class="signup-form-row">
+  <div>
+    <label for="birth_month">Birth month</label>
+    <select id="birth_month" name="birth_month" required>{_MONTH_OPTIONS}</select>
+  </div>
+  <div>
+    <label for="birth_year">Birth year</label>
+    <input type="number" id="birth_year" name="birth_year" min="1900" max="2100" required placeholder="1985">
+  </div>
+</div>
+<p class="field-hint">Your renewal cycle is set by your birth month and whether your birth year is odd or even.</p>"""
+    if state_slug == "texas":
+        return f"""<label for="birth_month">Birth month</label>
+<select id="birth_month" name="birth_month" required>{_MONTH_OPTIONS}</select>
+<p class="field-hint">Texas renewal is due by the last day of your birth month, every year.</p>"""
+    if state_slug == "ohio":
+        return """<label for="cohort_group">Your cohort group</label>
+<select id="cohort_group" name="cohort_group" required>
+  <option value="">Select your group</option>
+  <option value="Group 1">Group 1</option>
+  <option value="Group 2">Group 2</option>
+  <option value="Group 3">Group 3</option>
+</select>
+<p class="field-hint">Check your license certificate or the Accountancy Board of Ohio lookup if you're not sure.</p>"""
+    computed = [r for r in records if r.get("next_deadline_computed")]
+    if len(computed) > 1:
+        options = "\n".join(
+            f'<option value="{esc(r["id"])}">{esc(r["license_type_label"])}</option>' for r in computed
+        )
+        return f"""<label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  {options}
+</select>"""
+    return ""
+
+
+def signup_form_for_state(state_slug: str, state_name: str, records: list[dict]) -> str:
+    if state_slug in REMINDER_UNSUPPORTED_STATES:
+        return ""  # no computable deadline -- see REMINDER_UNSUPPORTED_STATES docstring
+    return f"""<div class="signup-form">
+  <h2>Get reminded before this deadline</h2>
+  <p class="signup-microcopy">{esc(TRUST_MICROCOPY)}</p>
+  <form method="post" action="{esc(REMINDER_BACKEND_BASE_URL)}/subscribe">
+    <input type="hidden" name="state" value="{esc(state_slug)}">
+    <label for="email">Email address</label>
+    <input type="email" id="email" name="email" required placeholder="you@example.com">
+    {_extra_fields_html(state_slug, records)}
+    <button type="submit">Remind me</button>
+  </form>
+</div>"""
+
+
+def signup_form_homepage(by_slug: dict[str, list[dict]]) -> str:
+    """Homepage doesn't know the state yet, so it collects it via a
+    dropdown and shows/hides the right extra fields with a small vanilla-JS
+    handler -- the only JS on the whole site, used only because it clearly
+    helps usability here (per the design brief). Validation authority stays
+    server-side in reminders/server.py regardless of what this JS does."""
+    supported_slugs = sorted(s for s in by_slug if s not in REMINDER_UNSUPPORTED_STATES)
+    state_options = "\n".join(
+        f'<option value="{esc(slug)}">{esc(by_slug[slug][0]["state"])}</option>' for slug in supported_slugs
+    )
+    field_groups = "\n".join(
+        f'<div class="signup-extra-fields" data-for-state="{esc(slug)}" hidden>'
+        f'{_extra_fields_html(slug, by_slug[slug])}</div>'
+        for slug in supported_slugs
+        if _extra_fields_html(slug, by_slug[slug])
+    )
+    return f"""<div class="signup-form">
+  <h2>Get reminded before your deadline</h2>
+  <p class="signup-microcopy">{esc(TRUST_MICROCOPY)}</p>
+  <form method="post" action="{esc(REMINDER_BACKEND_BASE_URL)}/subscribe" id="homepage-signup-form">
+    <label for="home-state">Your state</label>
+    <select id="home-state" name="state" required onchange="drUpdateFields(this.value)">
+      <option value="">Select your state</option>
+      {state_options}
+    </select>
+    {field_groups}
+    <label for="home-email">Email address</label>
+    <input type="email" id="home-email" name="email" required placeholder="you@example.com">
+    <button type="submit">Remind me</button>
+  </form>
+</div>
+<script>
+function drUpdateFields(slug) {{
+  document.querySelectorAll('.signup-extra-fields').forEach(function(el) {{
+    el.hidden = (el.getAttribute('data-for-state') !== slug);
+  }});
+}}
+</script>"""
 
 
 def page_shell(title: str, meta_description: str, body: str, home_href: str) -> str:
@@ -435,6 +578,7 @@ def build_state_page(state_slug: str, records: list[dict], as_of: date) -> tuple
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
 {deadline_html}
 {trust_line(last_verified, source_url)}
+{signup_form_for_state(state_slug, state_name, records)}
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 """
     return title, page_shell(title, meta_description, body, home_href="../")
@@ -444,7 +588,7 @@ def build_state_page(state_slug: str, records: list[dict], as_of: date) -> tuple
 # Index / sitemap / robots
 # ---------------------------------------------------------------------------
 
-def build_index_page(states: list[dict], as_of: date) -> str:
+def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[dict]]) -> str:
     cards = []
     for s in sorted(states, key=lambda s: s["state"]):
         hint = "By birth month" if s["wave"] == 3 else "Fixed date"
@@ -464,6 +608,7 @@ just needs to know when their license is due.</p>
 (or, where the rule depends on your birth month, a full lookup table) computed from the
 verified renewal rule, with a link back to the official source and a "last verified" date.
 {len(states)} states covered so far, generated {esc(as_of.isoformat())}.</p>
+{signup_form_homepage(by_slug)}
 """
     return page_shell(
         f"{SITE_NAME} — CPA License Renewal Deadlines by State",
@@ -575,7 +720,7 @@ def main() -> None:
         built.append(state_meta[slug])
         print(f"wrote {SITE_DIR.name}/{slug}/index.html  ({title})")
 
-    (SITE_DIR / "index.html").write_text(build_index_page(built, as_of), encoding="utf-8")
+    (SITE_DIR / "index.html").write_text(build_index_page(built, as_of, by_slug), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/index.html  ({len(built)} states)")
 
     (SITE_DIR / "sitemap.xml").write_text(build_sitemap(built, as_of), encoding="utf-8")

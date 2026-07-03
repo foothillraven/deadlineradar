@@ -79,9 +79,32 @@
     font-size: 0.85rem; color: var(--muted); line-height: 1.6;
   }
   code { background: rgba(127,127,127,0.15); padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.9em; }
+  .signup-form {
+    border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.4rem;
+    background: var(--card-bg); margin: 1.75rem 0;
+  }
+  .signup-form h2 { font-size: 1.1rem; margin: 0 0 0.4rem; }
+  .signup-microcopy { font-size: 0.85rem; color: var(--muted); margin: 0 0 1rem; }
+  .signup-form label {
+    display: block; font-size: 0.85rem; font-weight: 600; margin: 0.75rem 0 0.3rem;
+  }
+  .signup-form label:first-of-type { margin-top: 0; }
+  .signup-form input, .signup-form select {
+    width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: 0.95rem; font-family: inherit;
+  }
+  .signup-form-row { display: flex; gap: 0.75rem; }
+  .signup-form-row > div { flex: 1; }
+  .signup-form button {
+    margin-top: 1rem; padding: 0.6rem 1.1rem; border: none; border-radius: 6px;
+    background: var(--accent); color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+  }
+  .signup-form button:hover { opacity: 0.92; }
+  .signup-form .field-hint { font-size: 0.78rem; color: var(--muted); margin: 0.25rem 0 0; }
   @media (max-width: 480px) {
     .site-header { flex-direction: column; align-items: flex-start; }
     .callout .date { font-size: 1.4rem; }
+    .signup-form-row { flex-direction: column; gap: 0; }
   }
 
 </style>
@@ -112,6 +135,92 @@ just needs to know when their license is due.</p>
 (or, where the rule depends on your birth month, a full lookup table) computed from the
 verified renewal rule, with a link back to the official source and a "last verified" date.
 10 states covered so far, generated 2026-07-03.</p>
+<div class="signup-form">
+  <h2>Get reminded before your deadline</h2>
+  <p class="signup-microcopy">We only email you deadline reminders. We never sell or share your address. Unsubscribe anytime.</p>
+  <form method="post" action="https://example-deadlineradar-api.test/subscribe" id="homepage-signup-form">
+    <label for="home-state">Your state</label>
+    <select id="home-state" name="state" required onchange="drUpdateFields(this.value)">
+      <option value="">Select your state</option>
+      <option value="california">California</option>
+<option value="florida">Florida</option>
+<option value="georgia">Georgia</option>
+<option value="illinois">Illinois</option>
+<option value="michigan">Michigan</option>
+<option value="north-carolina">North Carolina</option>
+<option value="ohio">Ohio</option>
+<option value="pennsylvania">Pennsylvania</option>
+<option value="texas">Texas</option>
+    </select>
+    <div class="signup-extra-fields" data-for-state="california" hidden><div class="signup-form-row">
+  <div>
+    <label for="birth_month">Birth month</label>
+    <select id="birth_month" name="birth_month" required><option value="1">January</option>
+<option value="2">February</option>
+<option value="3">March</option>
+<option value="4">April</option>
+<option value="5">May</option>
+<option value="6">June</option>
+<option value="7">July</option>
+<option value="8">August</option>
+<option value="9">September</option>
+<option value="10">October</option>
+<option value="11">November</option>
+<option value="12">December</option></select>
+  </div>
+  <div>
+    <label for="birth_year">Birth year</label>
+    <input type="number" id="birth_year" name="birth_year" min="1900" max="2100" required placeholder="1985">
+  </div>
+</div>
+<p class="field-hint">Your renewal cycle is set by your birth month and whether your birth year is odd or even.</p></div>
+<div class="signup-extra-fields" data-for-state="florida" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="fl-individual-odd">Individual CPA license — odd-year cohort</option>
+<option value="fl-individual-even">Individual CPA license — even-year cohort</option>
+<option value="fl-firm">Firm license</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="georgia" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ga-individual">Individual CPA license</option>
+<option value="ga-firm">Firm license</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="ohio" hidden><label for="cohort_group">Your cohort group</label>
+<select id="cohort_group" name="cohort_group" required>
+  <option value="">Select your group</option>
+  <option value="Group 1">Group 1</option>
+  <option value="Group 2">Group 2</option>
+  <option value="Group 3">Group 3</option>
+</select>
+<p class="field-hint">Check your license certificate or the Accountancy Board of Ohio lookup if you're not sure.</p></div>
+<div class="signup-extra-fields" data-for-state="texas" hidden><label for="birth_month">Birth month</label>
+<select id="birth_month" name="birth_month" required><option value="1">January</option>
+<option value="2">February</option>
+<option value="3">March</option>
+<option value="4">April</option>
+<option value="5">May</option>
+<option value="6">June</option>
+<option value="7">July</option>
+<option value="8">August</option>
+<option value="9">September</option>
+<option value="10">October</option>
+<option value="11">November</option>
+<option value="12">December</option></select>
+<p class="field-hint">Texas renewal is due by the last day of your birth month, every year.</p></div>
+    <label for="home-email">Email address</label>
+    <input type="email" id="home-email" name="email" required placeholder="you@example.com">
+    <button type="submit">Remind me</button>
+  </form>
+</div>
+<script>
+function drUpdateFields(slug) {
+  document.querySelectorAll('.signup-extra-fields').forEach(function(el) {
+    el.hidden = (el.getAttribute('data-for-state') !== slug);
+  });
+}
+</script>
 
 <footer class="site-footer">
   <p>DeadlineRadar by Ravenline &middot; compiled from official state board sources

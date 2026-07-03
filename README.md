@@ -1,7 +1,9 @@
 # DeadlineRadar — local prototype (CPA license renewal, 10 states)
 
-**Status:** local-only content-pipeline prototype. No domain, no hosting, no Stripe, no
-billing, no network calls anywhere in this directory. Nothing here is deployed or public.
+**Status:** local-only content-pipeline prototype, now paired with a local "remind me" email
+feature (see `reminders/`). No domain, no hosting, no Stripe, no billing, no real email ever
+sent, no network calls out to the public internet anywhere in this directory. Nothing here is
+deployed or public.
 Scope: CPA license renewal only. A companion "contractor licensing" vertical was scouted and
 deliberately dropped before any build: a 10-state sample found most states have no single
 state-level general-contractor license to point a page at at all (licensing is fragmented across
@@ -179,17 +181,37 @@ needed. Confirmed deploy-ready:
   `robots.txt`'s `Sitemap:` line — uses a single placeholder constant (`SITE_BASE_URL` in
   `generate.py`), swap that one line for the real `https://<user>.github.io/<repo>` URL (or a
   real domain later) once a publish go is given.
-**Still not deployed**: no repo exists for this directory yet, Pages has not been enabled anywhere,
-and the placeholder URL has not been replaced. All of that requires a repo + an explicit publish
-decision — this section documents readiness, not a deployment that happened.
+**Still not deployed**: a local git repo exists (with a placeholder `origin` remote configured,
+never pushed by this codebase — see HANDOFF.md for the identity-exposure question that's still
+unresolved on that), but Pages has not been enabled anywhere, nothing has ever been pushed by
+this codebase, and the placeholder URL has not been replaced. All of that requires an explicit
+publish decision — this section documents readiness, not a deployment that happened.
+
+## The "remind me" feature (built, dry-run only)
+
+Every state page and the homepage now carry a signup form (email + whatever state-specific
+field is needed to compute *that reader's* exact deadline — see `signup_form_for_state()` /
+`signup_form_homepage()` in `generate.py`) that feeds a local backend engine in `reminders/`:
+double opt-in, an escalating reminder schedule (60/30/14/7/3/1 days out), one-click "I've
+renewed" / unsubscribe, and a re-arm offer for the next cycle. **Full detail, architecture, and
+the compliance/PII posture live in `reminders/README.md` — read that before touching this
+feature.** In short: `DryRunSender` is the only sender wired up anywhere in this codebase
+(logs what it would send instead of sending it), subscriber emails are gitignored and never
+committed, and a real send requires a real transactional-email account + key the project
+maintainer supplies, plus an explicit go — none of that exists yet.
 
 ## Explicitly out of scope for this prototype
 
 - No domain, no DNS, no hosting, no deploy of any kind (see "GitHub Pages deploy-readiness" above
-  for what's *prepared*, which is not the same as *deployed*).
-- No Stripe, no payment processing, no billing, no email capture, no ICS file generation
-  (the DeadlineRadar pitch's paid tier) — those are deliberately deferred, capital/account-
-  creating steps, not part of proving the content pipeline.
-- No analytics, no tracking, no external JS, no CDN — the generated pages have no
-  outbound network calls of any kind either.
+  for what's *prepared*, which is not the same as *deployed*). This applies to the reminder
+  backend too — `reminders/server.py` only runs on `127.0.0.1`; it has no public host yet (see
+  `reminders/README.md` "deployment gap").
+- No Stripe, no payment processing, no billing, no ICS file generation (the DeadlineRadar
+  pitch's paid tier) — those are deliberately deferred, capital/account-creating steps, not
+  part of proving the content pipeline. (Email capture itself is now built — see above — but
+  strictly as a free reminder feature, not the paid tier.)
+- No analytics, no tracking, no external JS, no CDN — the generated static pages have no
+  outbound network calls of any kind either (the one small inline `<script>` on the homepage
+  only shows/hides form fields locally in the browser, per `reminders/README.md`).
+- No real email has ever been sent — see `reminders/README.md` for the dry-run posture.
 - 40 states not yet covered (this is the 10-state spike sample, not the full 50-state build).

@@ -1,3 +1,11 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# Real subscriber PII (email addresses) and dry-run send logs (which contain
+# the same PII, since dry-run logs exactly what WOULD have been sent). Never
+# commit either -- only subscribers.example.json (fake data) is tracked.
+reminders/subscribers.json
+reminders/dry_run_sent.log.jsonl
+reminders/*.log
+reminders/*.env

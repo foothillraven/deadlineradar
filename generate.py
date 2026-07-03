@@ -3,13 +3,19 @@
 DeadlineRadar -- CPA license renewal static site generator (LOCAL PROTOTYPE)
 
 Reads data/cpa_deadlines.json (hand-verified, sourced 2026-07-03) and renders:
-  - site/[state-slug]/index.html   one page per state
-  - site/index.html                directory of all state pages
-  - site/sitemap.xml                XML sitemap (placeholder domain, no network calls)
-  - site/robots.txt                allow-all, points at the sitemap
+  - docs/[state-slug]/index.html   one page per state
+  - docs/index.html                directory of all state pages
+  - docs/sitemap.xml               XML sitemap (placeholder domain, no network calls)
+  - docs/robots.txt                allow-all, points at the sitemap
 
 Python stdlib only. No network calls. No real domain. No payment/Stripe code.
 This script proves the ingest -> normalize -> generate pipeline; it is not a server.
+
+Design pass (2026-07-03): presentation layer only -- header/wordmark, styled
+callouts, zebra tables, dark mode, mobile-responsive grid, prominent trust
+line, fixed footer. NONE of the date-math, staleness-guard, or data-loading
+logic below changed in this pass -- see the "Main" section, unchanged from
+the prior build.
 
 Usage:
     python generate.py
@@ -67,7 +73,7 @@ def fmt_date_iso(d: date) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Wave-3 (birth-month) table computation
+# Wave-3 (birth-month) table computation -- UNCHANGED this pass
 # ---------------------------------------------------------------------------
 
 def next_birth_month_parity_date(as_of: date, month: int, parity: str) -> date:
@@ -117,14 +123,114 @@ def build_texas_table(as_of: date) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# HTML helpers
+# HTML helpers -- presentation layer, redesigned this pass
 # ---------------------------------------------------------------------------
+
+SITE_NAME = "DeadlineRadar"
+SITE_TAGLINE = "CPA license renewal deadlines by state — verified and kept current"
+BRAND_NAME = "Ravenline"
+
 
 def esc(s: str) -> str:
     return html.escape(str(s), quote=True)
 
 
-def page_shell(title: str, meta_description: str, body: str) -> str:
+PAGE_CSS = """
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1a2129; --muted: #5b6572; --border: #d8dee5;
+    --accent: #1f5fbf; --accent-bg: #eaf1fc; --card-bg: #f7f9fb;
+    --trust-bg: #fff8e6; --trust-border: #e3c476; --row-alt: #f3f5f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151a; --fg: #e7ebf0; --muted: #9aa5b1; --border: #2a323c;
+      --accent: #7fb0ff; --accent-bg: #1b2836; --card-bg: #1a1f26;
+      --trust-bg: #26210f; --trust-border: #5a4a20; --row-alt: #171b21;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    max-width: 800px; margin: 0 auto; padding: 0 1.25rem 3rem;
+    line-height: 1.55; color: var(--fg); background: var(--bg);
+  }
+  a { color: var(--accent); }
+  .site-header {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem;
+    padding: 1.5rem 0 1rem; border-bottom: 1px solid var(--border); margin-bottom: 1.75rem;
+  }
+  .wordmark { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; }
+  .wordmark a { color: var(--fg); text-decoration: none; }
+  .tagline { color: var(--muted); font-size: 0.92rem; flex: 1 1 auto; }
+  .by-line { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
+  h1 { font-size: 1.7rem; margin: 0 0 0.3rem; line-height: 1.25; }
+  .subhead { color: var(--muted); margin: 0 0 1.5rem; }
+  .intro { margin: 0 0 1.25rem; }
+  .callout {
+    border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 8px;
+    padding: 1.15rem 1.4rem; background: var(--card-bg); margin: 1.4rem 0;
+  }
+  .callout + .callout { margin-top: 1rem; }
+  .callout .label {
+    font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .callout .date { font-size: 1.7rem; font-weight: 700; margin: 0.2rem 0 0.5rem; }
+  .callout .rule { margin: 0; }
+  .table-wrap {
+    overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; min-width: 420px; }
+  th, td { padding: 0.6rem 0.8rem; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { background: var(--accent-bg); font-weight: 700; }
+  tbody tr:nth-child(even) { background: var(--row-alt); }
+  tbody tr:last-child td { border-bottom: none; }
+  .trust-line {
+    border: 1px solid var(--trust-border); background: var(--trust-bg); border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
+  }
+  .backlink { display: inline-block; margin-top: 0.5rem; font-size: 0.92rem; }
+  .how-it-works { color: var(--muted); font-size: 0.92rem; margin: 1.25rem 0 1.75rem; }
+  .state-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.85rem; margin: 0 0 2rem; list-style: none; padding: 0;
+  }
+  .state-card {
+    display: block; border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1rem;
+    background: var(--card-bg); text-decoration: none; color: var(--fg);
+  }
+  .state-card:hover { border-color: var(--accent); }
+  .state-card .state-name { font-weight: 700; margin-bottom: 0.2rem; }
+  .state-card .state-hint { font-size: 0.85rem; color: var(--muted); }
+  .site-footer {
+    margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
+    font-size: 0.85rem; color: var(--muted); line-height: 1.6;
+  }
+  code { background: rgba(127,127,127,0.15); padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.9em; }
+  @media (max-width: 480px) {
+    .site-header { flex-direction: column; align-items: flex-start; }
+    .callout .date { font-size: 1.4rem; }
+  }
+"""
+
+
+def site_header(home_href: str) -> str:
+    return f"""<header class="site-header">
+  <div class="wordmark"><a href="{esc(home_href)}">{esc(SITE_NAME)}</a></div>
+  <div class="tagline">{esc(SITE_TAGLINE)}</div>
+  <div class="by-line">by {esc(BRAND_NAME)}</div>
+</header>"""
+
+
+def site_footer() -> str:
+    return f"""<footer class="site-footer">
+  <p>{esc(SITE_NAME)} by {esc(BRAND_NAME)} &middot; compiled from official state board sources
+  &middot; informational, not legal or official advice.</p>
+</footer>"""
+
+
+def page_shell(title: str, meta_description: str, body: str, home_href: str) -> str:
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -133,61 +239,24 @@ def page_shell(title: str, meta_description: str, body: str) -> str:
 <title>{esc(title)}</title>
 <meta name="description" content="{esc(meta_description)}">
 <style>
-  :root {{ color-scheme: light dark; }}
-  body {{
-    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-    max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
-    line-height: 1.5; color: #1a1a1a; background: #fff;
-  }}
-  @media (prefers-color-scheme: dark) {{
-    body {{ color: #e8e8e8; background: #14161a; }}
-    a {{ color: #7db8ff; }}
-    .deadline-box {{ background: #1f232a; border-color: #333; }}
-    table {{ border-color: #333; }}
-    th {{ background: #1f232a; }}
-    .disclaimer {{ background: #241f14; border-color: #5a4a20; }}
-  }}
-  h1 {{ font-size: 1.6rem; margin-bottom: 0.25rem; }}
-  .subhead {{ color: #666; margin-top: 0; margin-bottom: 1.5rem; }}
-  .deadline-box {{
-    border: 1px solid #ccc; border-radius: 8px; padding: 1.25rem 1.5rem;
-    background: #f6f8fa; margin: 1.5rem 0;
-  }}
-  .deadline-box .date {{ font-size: 1.6rem; font-weight: 700; margin: 0.25rem 0; }}
-  .disclaimer {{
-    border: 1px solid #e0c060; background: #fff8e0; border-radius: 8px;
-    padding: 1rem 1.25rem; margin: 2rem 0; font-size: 0.95rem;
-  }}
-  .verified {{ font-size: 0.9rem; color: #666; margin-top: 0.5rem; }}
-  table {{ border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.95rem; }}
-  th, td {{ border: 1px solid #ccc; padding: 0.5rem 0.65rem; text-align: left; }}
-  th {{ background: #f0f0f0; }}
-  footer {{ margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ccc; font-size: 0.85rem; color: #666; }}
-  .backlink {{ display: inline-block; margin-top: 1rem; }}
-  code {{ background: rgba(127,127,127,0.15); padding: 0.1em 0.3em; border-radius: 3px; }}
+{PAGE_CSS}
 </style>
 </head>
 <body>
+{site_header(home_href)}
 {body}
-<footer>
-  <p>DeadlineRadar is a local prototype. This page is generated content, not legal or
-  professional advice. Verify every deadline directly with the state board before relying on it.</p>
-</footer>
+{site_footer()}
 </body>
 </html>
 """
 
 
-def disclaimer_block(source_url: str) -> str:
-    return f"""<div class="disclaimer">
-  <strong>Always confirm with the official state board.</strong> License requirements and
-  deadlines can change. This page is a convenience summary, not a substitute for the
-  official source: <a href="{esc(source_url)}">{esc(source_url)}</a>.
+def trust_line(last_verified: str, source_url: str) -> str:
+    return f"""<div class="trust-line">
+  <strong>Last verified: {esc(last_verified)}</strong> &middot; always confirm with the
+  <a href="{esc(source_url)}">official state board</a> before relying on this date. License
+  requirements and deadlines can change.
 </div>"""
-
-
-def verified_line(last_verified: str) -> str:
-    return f'<p class="verified">Last verified: {esc(last_verified)}</p>'
 
 
 # ---------------------------------------------------------------------------
@@ -199,10 +268,10 @@ def render_simple_deadline_records(records: list[dict]) -> str:
     parts = []
     for r in records:
         d = date.fromisoformat(r["next_deadline_computed"])
-        parts.append(f"""<div class="deadline-box">
-  <div>{esc(r['license_type_label'])}</div>
+        parts.append(f"""<div class="callout">
+  <div class="label">{esc(r['license_type_label'])}</div>
   <div class="date">{esc(fmt_date(d))}</div>
-  <div>{esc(r['cycle_description'])}</div>
+  <p class="rule">{esc(r['cycle_description'])}</p>
 </div>""")
     return "\n".join(parts)
 
@@ -210,10 +279,10 @@ def render_simple_deadline_records(records: list[dict]) -> str:
 def render_data_gap_records(records: list[dict]) -> str:
     parts = []
     for r in records:
-        parts.append(f"""<div class="deadline-box">
-  <div>{esc(r['license_type_label'])}</div>
+        parts.append(f"""<div class="callout">
+  <div class="label">{esc(r['license_type_label'])}</div>
   <div class="date">Date not confirmed</div>
-  <div>{esc(r['cycle_description'])}</div>
+  <p class="rule">{esc(r['cycle_description'])}</p>
   <p><em>{esc(r.get('data_gap_note', ''))}</em></p>
 </div>""")
     return "\n".join(parts)
@@ -225,18 +294,22 @@ def render_ohio(record: dict) -> str:
         f"<td><strong>{esc(fmt_date(date.fromisoformat(g['next_deadline'])))}</strong></td></tr>"
         for g in record["cohort_groups"]
     )
-    return f"""<div class="deadline-box">
-  <div>{esc(record['license_type_label'])}</div>
-  <p>{esc(record['cycle_description'])}</p>
+    return f"""<div class="callout">
+  <div class="label">{esc(record['license_type_label'])}</div>
+  <p class="rule">{esc(record['cycle_description'])}</p>
   <p>{esc(record.get('grace_period_note', ''))}</p>
+</div>
+<div class="table-wrap">
   <table>
-    <tr><th>Cohort group</th><th>Years due</th><th>Next deadline</th></tr>
+    <thead><tr><th>Cohort group</th><th>Years due</th><th>Next deadline</th></tr></thead>
+    <tbody>
     {rows}
+    </tbody>
   </table>
-  <p>Not sure which group you're in? Your license certificate or the
-  <a href="{esc(record['source_url'])}">Accountancy Board of Ohio lookup</a> will show your
-  assigned group.</p>
-</div>"""
+</div>
+<p>Not sure which group you're in? Your license certificate or the
+<a href="{esc(record['source_url'])}">Accountancy Board of Ohio lookup</a> will show your
+assigned group.</p>"""
 
 
 def render_california(record: dict, as_of: date) -> str:
@@ -246,17 +319,21 @@ def render_california(record: dict, as_of: date) -> str:
         f"<td>{esc(r['even_birth_year_next_deadline'])}</td></tr>"
         for r in table
     )
-    return f"""<div class="deadline-box">
-  <p>{esc(record['cycle_description'])}</p>
+    return f"""<div class="callout">
+  <p class="rule">{esc(record['cycle_description'])}</p>
   <p><strong>Find your row:</strong> look up your birth month below, then use the
   odd-birth-year or even-birth-year column depending on the year you were born.</p>
+</div>
+<div class="table-wrap">
   <table>
-    <tr><th>Birth month</th><th>Next deadline (odd birth year)</th><th>Next deadline (even birth year)</th></tr>
+    <thead><tr><th>Birth month</th><th>Next deadline (odd birth year)</th><th>Next deadline (even birth year)</th></tr></thead>
+    <tbody>
     {rows}
+    </tbody>
   </table>
-  <p>Example: born in March of an odd year (e.g. 1985)? Your next deadline is the
-  odd-birth-year date on the March row.</p>
-</div>"""
+</div>
+<p>Example: born in March of an odd year (e.g. 1985)? Your next deadline is the
+odd-birth-year date on the March row.</p>"""
 
 
 def render_texas(record: dict, as_of: date) -> str:
@@ -265,20 +342,24 @@ def render_texas(record: dict, as_of: date) -> str:
         f"<tr><td>{esc(r['month'])}</td><td>{esc(r['next_deadline'])}</td></tr>"
         for r in table
     )
-    return f"""<div class="deadline-box">
-  <p>{esc(record['cycle_description'])}</p>
+    return f"""<div class="callout">
+  <p class="rule">{esc(record['cycle_description'])}</p>
   <p><strong>Find your row:</strong> look up your birth month below for your next renewal date.
   Texas renewal is annual, so this repeats every year on the same month.</p>
+</div>
+<div class="table-wrap">
   <table>
-    <tr><th>Birth month</th><th>Next renewal deadline</th></tr>
+    <thead><tr><th>Birth month</th><th>Next renewal deadline</th></tr></thead>
+    <tbody>
     {rows}
+    </tbody>
   </table>
 </div>"""
 
 
 def render_new_york(record: dict) -> str:
-    return f"""<div class="deadline-box">
-  <p>{esc(record['cycle_description'])}</p>
+    return f"""<div class="callout">
+  <p class="rule">{esc(record['cycle_description'])}</p>
   <p><strong>This one can't be looked up from your birth month alone.</strong>
   {esc(record['computation']['note'])}</p>
   <p>To find your exact triennial registration due date, check your registration
@@ -306,7 +387,6 @@ def compute_title_year(state_slug: str, records: list[dict]) -> int | None:
 def build_state_page(state_slug: str, records: list[dict], as_of: date) -> tuple[str, str]:
     """Returns (title, html_body) for a state's page."""
     state_name = records[0]["state"]
-    wave = min(r["wave"] for r in records)
     source_url = records[0]["source_url"]
     last_verified = records[0]["last_verified"]
 
@@ -352,13 +432,12 @@ def build_state_page(state_slug: str, records: list[dict], as_of: date) -> tuple
             deadline_html += "\n" + render_data_gap_records(gapped)
 
     body = f"""<h1>{esc(title)}</h1>
-<p class="subhead">Wave {wave} — {esc(state_name)} CPA license renewal</p>
+<p class="subhead">{esc(state_name)} CPA license renewal</p>
 {deadline_html}
-{verified_line(last_verified)}
-{disclaimer_block(source_url)}
+{trust_line(last_verified, source_url)}
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 """
-    return title, page_shell(title, meta_description, body)
+    return title, page_shell(title, meta_description, body, home_href="../")
 
 
 # ---------------------------------------------------------------------------
@@ -366,24 +445,32 @@ def build_state_page(state_slug: str, records: list[dict], as_of: date) -> tuple
 # ---------------------------------------------------------------------------
 
 def build_index_page(states: list[dict], as_of: date) -> str:
-    rows = []
+    cards = []
     for s in sorted(states, key=lambda s: s["state"]):
-        rows.append(
-            f'<li><a href="{esc(s["state_slug"])}/">{esc(s["state"])} — '
-            f'CPA License Renewal Deadline</a> <span style="color:#888">(wave {s["wave"]})</span></li>'
+        hint = "By birth month" if s["wave"] == 3 else "Fixed date"
+        cards.append(
+            f'<a class="state-card" href="{esc(s["state_slug"])}/">'
+            f'<div class="state-name">{esc(s["state"])}</div>'
+            f'<div class="state-hint">{esc(hint)}</div></a>'
         )
-    body = f"""<h1>DeadlineRadar — CPA License Renewal Deadlines</h1>
-<p class="subhead">One page per state. Local prototype, {len(states)} states, generated {esc(as_of.isoformat())}.</p>
-<ul>
-{chr(10).join(rows)}
-</ul>
-<p class="verified">This is a local, no-domain, no-billing content pipeline prototype — see the
-project README for scope and how to add a state.</p>
+    body = f"""<h1>CPA License Renewal Deadlines by State</h1>
+<p class="intro">Find your state's CPA license renewal deadline, sourced and verified against
+the official state board of accountancy. Built for CPAs, firm administrators, and anyone who
+just needs to know when their license is due.</p>
+<div class="state-grid">
+{chr(10).join(cards)}
+</div>
+<p class="how-it-works">How it works: each state page shows the actual next renewal deadline
+(or, where the rule depends on your birth month, a full lookup table) computed from the
+verified renewal rule, with a link back to the official source and a "last verified" date.
+{len(states)} states covered so far, generated {esc(as_of.isoformat())}.</p>
 """
     return page_shell(
-        "DeadlineRadar — CPA License Renewal Deadlines by State",
-        "Directory of CPA license renewal deadline pages by state, generated from verified state-board data.",
+        f"{SITE_NAME} — CPA License Renewal Deadlines by State",
+        "Find your state's CPA license renewal deadline, verified against the official state "
+        "board of accountancy. One page per state, kept current.",
         body,
+        home_href="./",
     )
 
 
@@ -414,7 +501,7 @@ Sitemap: {SITE_BASE_URL}/sitemap.xml
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Main -- UNCHANGED this pass (data loading, staleness guards, file writes)
 # ---------------------------------------------------------------------------
 
 STALENESS_THRESHOLD_DAYS = 30

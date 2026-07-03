@@ -4,63 +4,118 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DeadlineRadar — CPA License Renewal Deadlines by State</title>
-<meta name="description" content="Directory of CPA license renewal deadline pages by state, generated from verified state-board data.">
+<meta name="description" content="Find your state&#x27;s CPA license renewal deadline, verified against the official state board of accountancy. One page per state, kept current.">
 <style>
-  :root { color-scheme: light dark; }
-  body {
-    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-    max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
-    line-height: 1.5; color: #1a1a1a; background: #fff;
+
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1a2129; --muted: #5b6572; --border: #d8dee5;
+    --accent: #1f5fbf; --accent-bg: #eaf1fc; --card-bg: #f7f9fb;
+    --trust-bg: #fff8e6; --trust-border: #e3c476; --row-alt: #f3f5f7;
   }
   @media (prefers-color-scheme: dark) {
-    body { color: #e8e8e8; background: #14161a; }
-    a { color: #7db8ff; }
-    .deadline-box { background: #1f232a; border-color: #333; }
-    table { border-color: #333; }
-    th { background: #1f232a; }
-    .disclaimer { background: #241f14; border-color: #5a4a20; }
+    :root {
+      --bg: #12151a; --fg: #e7ebf0; --muted: #9aa5b1; --border: #2a323c;
+      --accent: #7fb0ff; --accent-bg: #1b2836; --card-bg: #1a1f26;
+      --trust-bg: #26210f; --trust-border: #5a4a20; --row-alt: #171b21;
+    }
   }
-  h1 { font-size: 1.6rem; margin-bottom: 0.25rem; }
-  .subhead { color: #666; margin-top: 0; margin-bottom: 1.5rem; }
-  .deadline-box {
-    border: 1px solid #ccc; border-radius: 8px; padding: 1.25rem 1.5rem;
-    background: #f6f8fa; margin: 1.5rem 0;
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    max-width: 800px; margin: 0 auto; padding: 0 1.25rem 3rem;
+    line-height: 1.55; color: var(--fg); background: var(--bg);
   }
-  .deadline-box .date { font-size: 1.6rem; font-weight: 700; margin: 0.25rem 0; }
-  .disclaimer {
-    border: 1px solid #e0c060; background: #fff8e0; border-radius: 8px;
-    padding: 1rem 1.25rem; margin: 2rem 0; font-size: 0.95rem;
+  a { color: var(--accent); }
+  .site-header {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem;
+    padding: 1.5rem 0 1rem; border-bottom: 1px solid var(--border); margin-bottom: 1.75rem;
   }
-  .verified { font-size: 0.9rem; color: #666; margin-top: 0.5rem; }
-  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.95rem; }
-  th, td { border: 1px solid #ccc; padding: 0.5rem 0.65rem; text-align: left; }
-  th { background: #f0f0f0; }
-  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ccc; font-size: 0.85rem; color: #666; }
-  .backlink { display: inline-block; margin-top: 1rem; }
-  code { background: rgba(127,127,127,0.15); padding: 0.1em 0.3em; border-radius: 3px; }
+  .wordmark { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; }
+  .wordmark a { color: var(--fg); text-decoration: none; }
+  .tagline { color: var(--muted); font-size: 0.92rem; flex: 1 1 auto; }
+  .by-line { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
+  h1 { font-size: 1.7rem; margin: 0 0 0.3rem; line-height: 1.25; }
+  .subhead { color: var(--muted); margin: 0 0 1.5rem; }
+  .intro { margin: 0 0 1.25rem; }
+  .callout {
+    border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 8px;
+    padding: 1.15rem 1.4rem; background: var(--card-bg); margin: 1.4rem 0;
+  }
+  .callout + .callout { margin-top: 1rem; }
+  .callout .label {
+    font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .callout .date { font-size: 1.7rem; font-weight: 700; margin: 0.2rem 0 0.5rem; }
+  .callout .rule { margin: 0; }
+  .table-wrap {
+    overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; min-width: 420px; }
+  th, td { padding: 0.6rem 0.8rem; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { background: var(--accent-bg); font-weight: 700; }
+  tbody tr:nth-child(even) { background: var(--row-alt); }
+  tbody tr:last-child td { border-bottom: none; }
+  .trust-line {
+    border: 1px solid var(--trust-border); background: var(--trust-bg); border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
+  }
+  .backlink { display: inline-block; margin-top: 0.5rem; font-size: 0.92rem; }
+  .how-it-works { color: var(--muted); font-size: 0.92rem; margin: 1.25rem 0 1.75rem; }
+  .state-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.85rem; margin: 0 0 2rem; list-style: none; padding: 0;
+  }
+  .state-card {
+    display: block; border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1rem;
+    background: var(--card-bg); text-decoration: none; color: var(--fg);
+  }
+  .state-card:hover { border-color: var(--accent); }
+  .state-card .state-name { font-weight: 700; margin-bottom: 0.2rem; }
+  .state-card .state-hint { font-size: 0.85rem; color: var(--muted); }
+  .site-footer {
+    margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
+    font-size: 0.85rem; color: var(--muted); line-height: 1.6;
+  }
+  code { background: rgba(127,127,127,0.15); padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.9em; }
+  @media (max-width: 480px) {
+    .site-header { flex-direction: column; align-items: flex-start; }
+    .callout .date { font-size: 1.4rem; }
+  }
+
 </style>
 </head>
 <body>
-<h1>DeadlineRadar — CPA License Renewal Deadlines</h1>
-<p class="subhead">One page per state. Local prototype, 10 states, generated 2026-07-03.</p>
-<ul>
-<li><a href="california/">California — CPA License Renewal Deadline</a> <span style="color:#888">(wave 3)</span></li>
-<li><a href="florida/">Florida — CPA License Renewal Deadline</a> <span style="color:#888">(wave 1)</span></li>
-<li><a href="georgia/">Georgia — CPA License Renewal Deadline</a> <span style="color:#888">(wave 1)</span></li>
-<li><a href="illinois/">Illinois — CPA License Renewal Deadline</a> <span style="color:#888">(wave 1)</span></li>
-<li><a href="michigan/">Michigan — CPA License Renewal Deadline</a> <span style="color:#888">(wave 1)</span></li>
-<li><a href="new-york/">New York — CPA License Renewal Deadline</a> <span style="color:#888">(wave 3)</span></li>
-<li><a href="north-carolina/">North Carolina — CPA License Renewal Deadline</a> <span style="color:#888">(wave 1)</span></li>
-<li><a href="ohio/">Ohio — CPA License Renewal Deadline</a> <span style="color:#888">(wave 2)</span></li>
-<li><a href="pennsylvania/">Pennsylvania — CPA License Renewal Deadline</a> <span style="color:#888">(wave 1)</span></li>
-<li><a href="texas/">Texas — CPA License Renewal Deadline</a> <span style="color:#888">(wave 3)</span></li>
-</ul>
-<p class="verified">This is a local, no-domain, no-billing content pipeline prototype — see the
-project README for scope and how to add a state.</p>
+<header class="site-header">
+  <div class="wordmark"><a href="./">DeadlineRadar</a></div>
+  <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>
+  <div class="by-line">by Ravenline</div>
+</header>
+<h1>CPA License Renewal Deadlines by State</h1>
+<p class="intro">Find your state's CPA license renewal deadline, sourced and verified against
+the official state board of accountancy. Built for CPAs, firm administrators, and anyone who
+just needs to know when their license is due.</p>
+<div class="state-grid">
+<a class="state-card" href="california/"><div class="state-name">California</div><div class="state-hint">By birth month</div></a>
+<a class="state-card" href="florida/"><div class="state-name">Florida</div><div class="state-hint">Fixed date</div></a>
+<a class="state-card" href="georgia/"><div class="state-name">Georgia</div><div class="state-hint">Fixed date</div></a>
+<a class="state-card" href="illinois/"><div class="state-name">Illinois</div><div class="state-hint">Fixed date</div></a>
+<a class="state-card" href="michigan/"><div class="state-name">Michigan</div><div class="state-hint">Fixed date</div></a>
+<a class="state-card" href="new-york/"><div class="state-name">New York</div><div class="state-hint">By birth month</div></a>
+<a class="state-card" href="north-carolina/"><div class="state-name">North Carolina</div><div class="state-hint">Fixed date</div></a>
+<a class="state-card" href="ohio/"><div class="state-name">Ohio</div><div class="state-hint">Fixed date</div></a>
+<a class="state-card" href="pennsylvania/"><div class="state-name">Pennsylvania</div><div class="state-hint">Fixed date</div></a>
+<a class="state-card" href="texas/"><div class="state-name">Texas</div><div class="state-hint">By birth month</div></a>
+</div>
+<p class="how-it-works">How it works: each state page shows the actual next renewal deadline
+(or, where the rule depends on your birth month, a full lookup table) computed from the
+verified renewal rule, with a link back to the official source and a "last verified" date.
+10 states covered so far, generated 2026-07-03.</p>
 
-<footer>
-  <p>DeadlineRadar is a local prototype. This page is generated content, not legal or
-  professional advice. Verify every deadline directly with the state board before relying on it.</p>
+<footer class="site-footer">
+  <p>DeadlineRadar by Ravenline &middot; compiled from official state board sources
+  &middot; informational, not legal or official advice.</p>
 </footer>
 </body>
 </html>

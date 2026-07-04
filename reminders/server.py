@@ -305,6 +305,11 @@ class Handler(BaseHTTPRequestHandler):
 
         email = (form.get("email") or "").strip()
         state_slug = (form.get("state") or "").strip()
+        # Optional, purely cosmetic (an email greeting) -- control chars
+        # already rejected above for every field including this one; cap
+        # length here too (store.add_pending() re-sanitizes again,
+        # defense-in-depth, see its own docstring).
+        first_name = (form.get("first_name") or "").strip()[:store.MAX_FIRST_NAME_LEN] or None
 
         if not _valid_email(email):
             self._error_page(400, "That doesn't look like a valid email address.")
@@ -380,6 +385,17 @@ class Handler(BaseHTTPRequestHandler):
             self._error_page(503, f"Signups are temporarily paused: {exc}")
             return
 
+        # Same "probe before persist" reasoning as the deadline-computability
+        # check below: if no real mailing address is configured yet,
+        # emails.confirmation_email() would hard-fail with a RuntimeError --
+        # correct (CAN-SPAM requires a real address, never a placeholder),
+        # but checking BEFORE store.add_pending() means a misconfigured
+        # deploy never leaves an orphaned pending record with no
+        # confirmation email ever sent.
+        if not emails.mailing_address_configured():
+            self._error_page(503, "Signups are temporarily paused: service configuration incomplete.")
+            return
+
         # Validate deadline-computability on a THROWAWAY probe BEFORE ever
         # persisting anything. Previously this created the store record
         # first and validated after -- a malformed-but-form-valid submission
@@ -400,7 +416,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, _SUBSCRIBE_SUCCESS_PAGE)
             return
 
-        probe = store.add_pending(email, state_slug, deadline_fields)
+        probe = store.add_pending(email, state_slug, deadline_fields, first_name=first_name)
         result = compute_subscriber_deadline(probe, date.today())
         if result is None:
             # Should be unreachable given the probe check above (same
@@ -413,7 +429,9 @@ class Handler(BaseHTTPRequestHandler):
         confirm_url = f"{emails.BACKEND_BASE_URL}/confirm?token={probe['confirm_token']}"
         unsubscribe_url = f"{emails.BACKEND_BASE_URL}/unsubscribe?token={probe['unsubscribe_token']}"
         _, state_name = result
-        email_content = emails.confirmation_email(state_name, confirm_url, unsubscribe_url)
+        email_content = emails.confirmation_email(
+            state_name, confirm_url, unsubscribe_url, first_name=probe.get("first_name")
+        )
         sender_module.get_sender().send(
             probe["email"], email_content["subject"], email_content["text_body"], email_content["html_body"]
         )
@@ -450,7 +468,13 @@ class Handler(BaseHTTPRequestHandler):
         # one: only send this stop-confirmation email if the subscriber had
         # actually been confirmed at some point. A pending subscriber's
         # unsubscribe is honored silently, with no second email.
-        if subscriber.get("confirmed_at") is not None:
+        # Only send a notification if BOTH a stop-confirmation email is
+        # actually warranted (subscriber was confirmed at some point) AND a
+        # real mailing address is configured. The stop/unsubscribe itself
+        # (store.stop() above) has already happened either way -- honoring
+        # a stop instantly is the priority; a missing address should only
+        # ever suppress the notification email, never the underlying action.
+        if subscriber.get("confirmed_at") is not None and emails.mailing_address_configured():
             state_name = subscriber["state_slug"].replace("-", " ").title()
             # Found by adversarial review: this previously passed "" as the
             # unsubscribe_url, so the stop-confirmation email's footer rendered
@@ -458,8 +482,12 @@ class Handler(BaseHTTPRequestHandler):
             # that didn't have a real one. Build it the same way every other
             # handler does.
             unsubscribe_url = f"{emails.BACKEND_BASE_URL}/unsubscribe?token={subscriber['unsubscribe_token']}"
-            email_content = emails.stop_confirmation_email("unsubscribed", state_name, None, unsubscribe_url)
-            sender_module.get_sender().send(subscriber["email"], email_content["subject"], email_content["text_body"], None)
+            email_content = emails.stop_confirmation_email(
+                "unsubscribed", state_name, None, unsubscribe_url, first_name=subscriber.get("first_name")
+            )
+            sender_module.get_sender().send(
+                subscriber["email"], email_content["subject"], email_content["text_body"], email_content["html_body"]
+            )
         self._send(200, _html_page("Unsubscribed", "<h1>Done</h1><p>You're unsubscribed, instantly and permanently.</p>"))
 
     def _handle_renewed(self, token: str | None) -> None:
@@ -473,8 +501,16 @@ class Handler(BaseHTTPRequestHandler):
         state_name = subscriber["state_slug"].replace("-", " ").title()
         rearm_url = f"{emails.BACKEND_BASE_URL}/rearm?token={subscriber['unsubscribe_token']}"
         unsubscribe_url = f"{emails.BACKEND_BASE_URL}/unsubscribe?token={subscriber['unsubscribe_token']}"
-        email_content = emails.stop_confirmation_email("renewed", state_name, rearm_url, unsubscribe_url)
-        sender_module.get_sender().send(subscriber["email"], email_content["subject"], email_content["text_body"], None)
+        # Same posture as _handle_unsubscribe above: the stop itself already
+        # happened (store.stop() call), a missing mailing address only ever
+        # suppresses the notification email, never the underlying action.
+        if emails.mailing_address_configured():
+            email_content = emails.stop_confirmation_email(
+                "renewed", state_name, rearm_url, unsubscribe_url, first_name=subscriber.get("first_name")
+            )
+            sender_module.get_sender().send(
+                subscriber["email"], email_content["subject"], email_content["text_body"], email_content["html_body"]
+            )
         self._send(200, _html_page(
             "Nice work",
             "<h1>Congrats on renewing</h1><p>All reminders for this deadline are stopped. "

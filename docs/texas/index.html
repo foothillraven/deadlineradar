@@ -154,6 +154,8 @@
     <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
     <!-- Reserved for Cloudflare Turnstile once a public endpoint + site key exist -- see reminders/HOSTING_PROPOSAL.md. Empty/absent is treated as "not configured yet," not as a failed check. -->
     <input type="hidden" name="cf-turnstile-response" value="">
+    <label for="first_name">First name (optional)</label>
+    <input type="text" id="first_name" name="first_name" maxlength="60" autocomplete="given-name" placeholder="For a personal greeting, e.g. David">
     <label for="email">Email address</label>
     <input type="email" id="email" name="email" required placeholder="you@example.com">
     <label for="birth_month">Birth month</label>

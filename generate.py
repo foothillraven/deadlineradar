@@ -338,6 +338,16 @@ def _extra_fields_html(state_slug: str, records: list[dict]) -> str:
 #      code changes needed on either side.
 _HONEYPOT_FIELD_NAME = "hp_website"
 
+# Optional first-name field so reminder emails can greet by name ("Hi
+# David,") instead of the generic "Hi there," -- never required. `maxlength`
+# must match reminders/store.py's MAX_FIRST_NAME_LEN; validation authority
+# stays server-side (reminders/server.py) regardless of this attribute.
+_FIRST_NAME_FIELD_HTML = (
+    '<label for="{id_prefix}first_name">First name (optional)</label>\n'
+    '    <input type="text" id="{id_prefix}first_name" name="first_name" maxlength="60" '
+    'autocomplete="given-name" placeholder="For a personal greeting, e.g. David">'
+)
+
 _BOT_DEFENSE_FIELDS_HTML = (
     f'<div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;'
     f'height:0;width:0;overflow:hidden;">'
@@ -361,6 +371,7 @@ def signup_form_for_state(state_slug: str, state_name: str, records: list[dict])
   <form method="post" action="{esc(REMINDER_BACKEND_BASE_URL)}/subscribe">
     <input type="hidden" name="state" value="{esc(state_slug)}">
     {_BOT_DEFENSE_FIELDS_HTML}
+    {_FIRST_NAME_FIELD_HTML.format(id_prefix="")}
     <label for="email">Email address</label>
     <input type="email" id="email" name="email" required placeholder="you@example.com">
     {_extra_fields_html(state_slug, records)}
@@ -395,6 +406,7 @@ def signup_form_homepage(by_slug: dict[str, list[dict]]) -> str:
       <option value="">Select your state</option>
       {state_options}
     </select>
+    {_FIRST_NAME_FIELD_HTML.format(id_prefix="home-")}
     {field_groups}
     <label for="home-email">Email address</label>
     <input type="email" id="home-email" name="email" required placeholder="you@example.com">

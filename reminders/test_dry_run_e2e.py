@@ -15,6 +15,7 @@ and deletes them when done, whether the test passes or fails.
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import sys
 import threading
@@ -35,6 +36,13 @@ TEST_LOG_PATH = HERE / "_test_dry_run_sent.log.jsonl"
 TEST_CB_STATE_PATH = HERE / "_test_send_circuit_breaker_state.json"
 TEST_CB_ALERT_LOG_PATH = HERE / "_test_circuit_breaker_alerts.log.jsonl"
 TEST_HTTP_PORT = 8799
+TEST_HTTP_PORT_2 = 8798
+
+# A fake, obviously-test-only mailing address -- NEVER a real one. Set as the
+# test override for every test in this suite EXCEPT the ones that
+# specifically verify the hard-fail-when-unset behavior (Part 23), which
+# clear it deliberately and restore it afterward.
+TEST_MAILING_ADDRESS = "123 Test Fixture Way, Testville, TS 00000 (fake -- test suite only)"
 
 FAILURES: list[str] = []
 
@@ -54,6 +62,12 @@ def reset_storage() -> None:
     # Also reset the in-memory per-IP rate limiter between tests -- otherwise
     # an earlier test's hammering would bleed into a later test's quota.
     server_module._RATE_LIMIT_HITS.clear()
+    # This suite exercises real email-building code paths (emails.py now
+    # hard-fails without a mailing address -- see Part 23 below, which is
+    # the ONE test group that deliberately clears this). Every other test
+    # needs a fake-but-configured address so it can exercise the rest of the
+    # send path without hitting that hard-fail.
+    emails.set_test_mailing_address_override(TEST_MAILING_ADDRESS)
     for p in (TEST_STORE_PATH, TEST_LOG_PATH, TEST_CB_STATE_PATH, TEST_CB_ALERT_LOG_PATH):
         if p.exists():
             p.unlink()
@@ -232,11 +246,11 @@ def test_scheduler_gap_never_regresses_to_less_urgent_tier() -> None:
     check("exactly 2 reminders fired across the gap (7-day tier, then 1-day tier -- not 3-day)",
           len(tone_order_fired) == 2, f"got {len(tone_order_fired)}: {tone_order_fired}")
     if len(tone_order_fired) == 2:
-        check("first fire was the 7-day tone", "One week left" in tone_order_fired[0], tone_order_fired[0])
+        check("first fire was the 7-day tone", "One week to go" in tone_order_fired[0], tone_order_fired[0])
         check("second fire (after the gap) jumped straight to the 1-day tone, skipping stale 3-day",
-              "Tomorrow is the deadline" in tone_order_fired[1], tone_order_fired[1])
+              "final reminder for this deadline" in tone_order_fired[1], tone_order_fired[1])
         check("the STALE 3-day tone never fired at all across the gap",
-              not any("Three days left" in s for s in tone_order_fired))
+              not any("Just a few days left" in s for s in tone_order_fired))
 
     # And once the most urgent tier has fired, running the scheduler again
     # even further past the deadline must never fire anything less urgent.
@@ -799,6 +813,336 @@ def test_http_server_smoke() -> None:
         thread.join(timeout=2)
 
 
+def test_mailing_address_hard_fail_and_override() -> None:
+    print("\n== Part 23 (v2): mailing address hard-fails when unset; override affects only the test self-test path ==")
+    reset_storage()  # sets the test override to TEST_MAILING_ADDRESS
+
+    ok_email = emails.confirmation_email("Michigan", "https://x/confirm?token=t", "https://x/unsub?token=t")
+    check("email builds successfully when a (test) address is configured", bool(ok_email["text_body"]))
+    check(
+        "old leaked dev placeholder string never appears anywhere in a built email",
+        "REQUIRED BEFORE ANY REAL SEND" not in ok_email["text_body"]
+        and "REQUIRED BEFORE ANY REAL SEND" not in ok_email["html_body"],
+    )
+
+    emails.clear_test_mailing_address_override()
+    saved_env = os.environ.pop(emails.MAILING_ADDRESS_ENV_VAR, None)
+    try:
+        check(
+            "mailing_address_configured() is False with no override and no env var",
+            emails.mailing_address_configured() is False,
+        )
+
+        def _expect_hard_fail(label: str, fn) -> None:
+            try:
+                fn()
+                check(f"{label} raises RuntimeError with no address configured", False, "did not raise")
+            except RuntimeError as exc:
+                check(f"{label} raises RuntimeError with no address configured", True)
+                check(
+                    f"{label}'s hard-fail error message itself contains no placeholder address text",
+                    "[MAILING ADDRESS" not in str(exc),
+                )
+
+        _expect_hard_fail(
+            "confirmation_email",
+            lambda: emails.confirmation_email("Michigan", "https://x/confirm?token=t", "https://x/unsub?token=t"),
+        )
+        _expect_hard_fail(
+            "reminder_email",
+            lambda: emails.reminder_email(
+                "Michigan", "July 31, 2027", 30, 30, "https://x/renewed?token=t", "https://x/unsub?token=t"
+            ),
+        )
+        _expect_hard_fail(
+            "stop_confirmation_email",
+            lambda: emails.stop_confirmation_email("unsubscribed", "Michigan", None, "https://x/unsub?token=t"),
+        )
+    finally:
+        if saved_env is not None:
+            os.environ[emails.MAILING_ADDRESS_ENV_VAR] = saved_env
+        emails.set_test_mailing_address_override(TEST_MAILING_ADDRESS)  # restore suite default for later tests
+
+
+def test_first_name_greeting_and_sanitization() -> None:
+    print("\n== Part 24 (v2): optional first-name greeting, safe fallback, and injection resistance ==")
+    reset_storage()
+
+    with_name = emails.confirmation_email(
+        "Ohio", "https://x/confirm?token=t", "https://x/unsub?token=t", first_name="Priya"
+    )
+    check("greeting uses the first name when provided (text)", "Hi Priya," in with_name["text_body"])
+    check("greeting uses the first name when provided (html)", "Hi Priya," in with_name["html_body"])
+
+    blank = emails.confirmation_email(
+        "Ohio", "https://x/confirm?token=t", "https://x/unsub?token=t", first_name=None
+    )
+    check("falls back to 'Hi there,' when blank (text)", "Hi there," in blank["text_body"])
+    check("falls back to 'Hi there,' when blank (html)", "Hi there," in blank["html_body"])
+
+    whitespace_only = emails.confirmation_email(
+        "Ohio", "https://x/confirm?token=t", "https://x/unsub?token=t", first_name="   "
+    )
+    check("whitespace-only first name treated as blank, not rendered literally", "Hi there," in whitespace_only["text_body"])
+
+    # HTML-injection attempt in the name -- must render as inert escaped
+    # text, never as live markup, and must not corrupt the page structure.
+    malicious_name = "<script>alert(1)</script><b>bold</b>"
+    injected = emails.confirmation_email(
+        "Ohio", "https://x/confirm?token=t", "https://x/unsub?token=t", first_name=malicious_name
+    )
+    check("raw <script> tag never appears unescaped in the html body", "<script>alert(1)</script>" not in injected["html_body"])
+    check(
+        "escaped form of the payload IS present (proves it rendered, not silently dropped)",
+        "&lt;script&gt;" in injected["html_body"],
+    )
+    check(
+        "html document is still exactly one well-formed shell after injection attempt",
+        injected["html_body"].count("<html") == 1 and injected["html_body"].strip().endswith("</html>"),
+    )
+    # Plain-text body never HTML-escapes -- a name should render as literal
+    # text there (there's no markup to inject into in a text/plain body).
+    check(
+        "plain-text body shows the name literally, not HTML-entity-escaped",
+        malicious_name.strip() in injected["text_body"] and "&lt;" not in injected["text_body"],
+    )
+
+    long_name = "A" * 500
+    check(
+        f"emails._safe_first_name caps length at {emails.MAX_FIRST_NAME_LEN} chars",
+        len(emails._safe_first_name(long_name)) == emails.MAX_FIRST_NAME_LEN,
+    )
+    check(
+        f"store._sanitize_first_name caps length at {store.MAX_FIRST_NAME_LEN} chars",
+        len(store._sanitize_first_name(long_name)) == store.MAX_FIRST_NAME_LEN,
+    )
+    check(
+        "store._sanitize_first_name strips embedded control characters (e.g. an embedded newline)",
+        store._sanitize_first_name("Jo\nhn") == "John",
+    )
+
+    # End-to-end through store.add_pending() -- the sanitizer actually runs
+    # on the persisted record, not just when called directly.
+    sub = store.add_pending("nametest@example.invalid", "michigan", {}, first_name="  Riley  ")
+    check("add_pending() persists a trimmed first_name", sub["first_name"] == "Riley")
+    sub_blank = store.add_pending("nametest2@example.invalid", "michigan", {}, first_name=None)
+    check("add_pending() persists first_name=None when omitted", sub_blank["first_name"] is None)
+
+
+def test_html_branding_buttons_and_dark_mode() -> None:
+    print("\n== Part 25 (v2): branded HTML template -- buttons instead of raw URLs, dark mode, mobile ==")
+    reset_storage()
+
+    confirm_url = "https://example-deadlineradar-api.test/confirm?token=abcdefghijklmnopqrstuvwxyzABCDEFGH0123456789"
+    unsub_url = "https://example-deadlineradar-api.test/unsubscribe?token=abcdefghijklmnopqrstuvwxyzABCDEFGH0123456789"
+    email = emails.confirmation_email("Michigan", confirm_url, unsub_url)
+    html_body = email["html_body"]
+
+    check("html_body is populated (multipart, not text-only)", bool(html_body))
+    check("a styled button anchor is present", 'class="dr-btn"' in html_body)
+    check("the confirm URL is the button's real href", f'href="{confirm_url}"' in html_body)
+    # The core fix: a raw URL must never be the user-visible LABEL of a
+    # link -- i.e. never appear immediately followed by "</a>", the way a
+    # naively-linkified raw URL would render.
+    check(
+        "the raw confirm URL is never used as an anchor's own visible text",
+        f">{confirm_url}</a>" not in html_body,
+    )
+    check("button label text is human copy, not a URL", "Confirm my email" in html_body)
+    check("dark-mode media query present", "prefers-color-scheme: dark" in html_body)
+    check("mobile-responsive media query present", "max-width: 600px" in html_body)
+    check(
+        "a plain-text fallback is also present and DOES contain the raw URL (expected for text/plain)",
+        bool(email["text_body"]) and confirm_url in email["text_body"],
+    )
+    check(
+        "html_body is a single, complete HTML document",
+        html_body.strip().startswith("<!doctype html>") and html_body.strip().endswith("</html>"),
+    )
+    check("no internal placeholder token leaks into the html footer", "REQUIRED BEFORE ANY REAL SEND" not in html_body)
+    check("wordmark links to the real live site, not the inert API placeholder", emails.SITE_URL in html_body)
+
+
+def test_server_first_name_and_address_precheck_http() -> None:
+    print("\n== Part 26 (v2): first-name field + mailing-address precheck over the real HTTP server ==")
+    reset_storage()
+    httpd = HTTPServer(("127.0.0.1", TEST_HTTP_PORT_2), server_module.Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    time.sleep(0.3)
+    base = f"http://127.0.0.1:{TEST_HTTP_PORT_2}"
+
+    try:
+        form_data = urllib.parse.urlencode({
+            "email": "namehttp-test@example.invalid", "state": "michigan", "first_name": "  Alex  ",
+        }).encode()
+        req = urllib.request.Request(f"{base}/subscribe", data=form_data, method="POST")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            check("POST /subscribe with a first_name still returns 200", resp.status == 200)
+        subs = json.loads(TEST_STORE_PATH.read_text(encoding="utf-8"))
+        matching = [s for s in subs if s["email"] == "namehttp-test@example.invalid"]
+        check(
+            "subscriber persisted with the trimmed first name via the real HTTP path",
+            len(matching) == 1 and matching[0].get("first_name") == "Alex",
+        )
+
+        form_data2 = urllib.parse.urlencode({"email": "nonamehttp-test@example.invalid", "state": "michigan"}).encode()
+        req2 = urllib.request.Request(f"{base}/subscribe", data=form_data2, method="POST")
+        with urllib.request.urlopen(req2, timeout=3) as resp2:
+            check("POST /subscribe with NO first_name still returns 200 (it's optional)", resp2.status == 200)
+        subs2 = json.loads(TEST_STORE_PATH.read_text(encoding="utf-8"))
+        matching2 = [s for s in subs2 if s["email"] == "nonamehttp-test@example.invalid"]
+        check(
+            "subscriber persisted with first_name=None when the field is omitted",
+            len(matching2) == 1 and matching2[0].get("first_name") is None,
+        )
+
+        emails.clear_test_mailing_address_override()
+        try:
+            form_data3 = urllib.parse.urlencode({"email": "noaddress-test@example.invalid", "state": "michigan"}).encode()
+            req3 = urllib.request.Request(f"{base}/subscribe", data=form_data3, method="POST")
+            try:
+                urllib.request.urlopen(req3, timeout=3)
+                check("POST /subscribe with no mailing address configured is rejected", False, "expected an HTTP error, got 200")
+            except urllib.error.HTTPError as e:
+                check("POST /subscribe with no mailing address configured is rejected with 503", e.code == 503, f"got {e.code}")
+            subs3 = json.loads(TEST_STORE_PATH.read_text(encoding="utf-8"))
+            matching3 = [s for s in subs3 if s["email"] == "noaddress-test@example.invalid"]
+            check(
+                "no orphaned pending record created when the address precheck blocks the signup",
+                len(matching3) == 0,
+            )
+        finally:
+            emails.set_test_mailing_address_override(TEST_MAILING_ADDRESS)
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+
+
+def test_sendgrid_click_tracking_disabled() -> None:
+    print("\n== Part 27 (v2): SendGrid payload disables click + open tracking ==")
+    captured: dict = {}
+
+    class _FakeResponse:
+        status = 202
+        headers = {"X-Message-Id": "fake-id"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b""
+
+    def fake_urlopen(req, timeout=10):
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return _FakeResponse()
+
+    real_urlopen = urllib.request.urlopen
+    urllib.request.urlopen = fake_urlopen
+    try:
+        s = sender_module.SendGridSender(
+            api_key="fake-key-not-real", from_email="noreply@deadline-radar.com", from_name="DeadlineRadar"
+        )
+        ok = s.send("someone@example.invalid", "Test subject", "text body", "<p>html body</p>")
+        check("SendGridSender.send() reports success against the faked transport", ok is True)
+    finally:
+        urllib.request.urlopen = real_urlopen
+
+    tracking = captured.get("body", {}).get("tracking_settings", {})
+    check("tracking_settings present in the outbound SendGrid payload", bool(tracking))
+    check("click_tracking.enable is False", tracking.get("click_tracking", {}).get("enable") is False)
+    check("click_tracking.enable_text is False", tracking.get("click_tracking", {}).get("enable_text") is False)
+    check("open_tracking.enable is False", tracking.get("open_tracking", {}).get("enable") is False)
+
+
+def test_degenerate_address_rejected_and_override_caller_restricted() -> None:
+    """Regression tests for two real gaps an independent adversarial pass
+    found in the v2 build: (1) an env var containing ONLY zero-width/
+    whitespace-like characters (or just a couple of ordinary characters)
+    passed the old bare `.strip()` truthiness check, and (2)
+    set_test_mailing_address_override() had no actual runtime enforcement
+    of "only run_live_selftest.py may call this," just a docstring."""
+    print("\n== Part 28 (v2 regression): degenerate mailing addresses rejected; override caller restricted ==")
+    emails.clear_test_mailing_address_override()
+    saved_env = os.environ.pop(emails.MAILING_ADDRESS_ENV_VAR, None)
+    try:
+        zero_width_space = chr(0x200B)  # U+200B, explicit codepoint -- avoids any source-encoding ambiguity
+        degenerates = [
+            zero_width_space * 3,               # zero-width-space-only (the exact bug an adversarial pass found)
+            ".",                                 # single ordinary character
+            "   ",                               # whitespace-only
+            zero_width_space + " " + zero_width_space,  # mixed zero-width + ordinary space
+        ]
+        for degenerate in degenerates:
+            os.environ[emails.MAILING_ADDRESS_ENV_VAR] = degenerate
+            check(
+                f"degenerate address {degenerate!r} does NOT count as configured",
+                emails.mailing_address_configured() is False,
+            )
+        os.environ[emails.MAILING_ADDRESS_ENV_VAR] = "123 Real Enough Street, Sometown, ST 00000"
+        check("a normal-length real-looking address DOES count as configured", emails.mailing_address_configured() is True)
+    finally:
+        os.environ.pop(emails.MAILING_ADDRESS_ENV_VAR, None)
+        if saved_env is not None:
+            os.environ[emails.MAILING_ADDRESS_ENV_VAR] = saved_env
+        emails.set_test_mailing_address_override(TEST_MAILING_ADDRESS)
+
+    # Exercise the REAL enforcement path: run the setter from a frame whose
+    # __file__ is NOT on the allow-list (this test file itself IS on the
+    # allow-list, so calling it directly here would prove nothing -- exec()
+    # gives us a fresh frame with attacker-controlled globals to simulate an
+    # unauthorized caller without needing a separate on-disk module).
+    fake_globals = {"emails": emails, "__file__": "some_unrelated_module.py"}
+    try:
+        exec("emails.set_test_mailing_address_override('attacker-supplied placeholder')", fake_globals)
+        check("a caller not on the allow-list is refused", False, "did not raise")
+    except RuntimeError:
+        check("a caller not on the allow-list is refused", True)
+    check(
+        "the refused call did NOT poison the module-level override state",
+        emails._TEST_MAILING_ADDRESS_OVERRIDE == TEST_MAILING_ADDRESS,
+    )
+
+
+def test_scheduler_one_bad_subscriber_does_not_abort_the_batch() -> None:
+    print("\n== Part 29 (v2 regression): a mid-batch email-build failure doesn't crash the whole scheduler run ==")
+    reset_storage()
+    sub_a = store.add_pending("batch-a@example.invalid", "michigan", {})
+    store.confirm(sub_a["confirm_token"])
+    sub_b = store.add_pending("batch-b@example.invalid", "michigan", {})
+    store.confirm(sub_b["confirm_token"])
+
+    result = scheduler.compute_subscriber_deadline(sub_a, date(2026, 7, 3))
+    deadline_date, _ = result
+    sim_today = deadline_date - timedelta(days=60)
+
+    real_reminder_email = emails.reminder_email
+    call_count = {"n": 0}
+
+    def flaky_reminder_email(*args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise RuntimeError("simulated mid-run failure for the FIRST subscriber only")
+        return real_reminder_email(*args, **kwargs)
+
+    emails.reminder_email = flaky_reminder_email
+    try:
+        test_sender = sender_module.DryRunSender()
+        summary = scheduler.run_once(as_of=sim_today, sender=test_sender)
+    finally:
+        emails.reminder_email = real_reminder_email
+
+    check("the run recorded exactly 1 error for the failing subscriber", len(summary["errors"]) == 1, summary["errors"])
+    check(
+        "the run still SENT to the second, unaffected subscriber (batch didn't abort)",
+        summary["sent"] == 1,
+        f"summary={summary}",
+    )
+
+
 def main() -> None:
     print("DeadlineRadar reminders -- end-to-end DRY-RUN test (no real email will be sent)")
     try:
@@ -824,6 +1168,13 @@ def main() -> None:
         test_honeypot_whitespace_only_value_still_blocked()
         test_circuit_breaker_holds_cap_under_concurrency()
         test_suppression_lifts_after_a_genuine_later_confirm()
+        test_mailing_address_hard_fail_and_override()
+        test_first_name_greeting_and_sanitization()
+        test_html_branding_buttons_and_dark_mode()
+        test_server_first_name_and_address_precheck_http()
+        test_sendgrid_click_tracking_disabled()
+        test_degenerate_address_rejected_and_override_caller_restricted()
+        test_scheduler_one_bad_subscriber_does_not_abort_the_batch()
     finally:
         for p in (TEST_STORE_PATH, TEST_LOG_PATH, TEST_CB_STATE_PATH, TEST_CB_ALERT_LOG_PATH):
             if p.exists():

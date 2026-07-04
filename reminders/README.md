@@ -1,8 +1,63 @@
 # DeadlineRadar reminders — the "remind me" feature
 
-**Status: built, dry-run tested end-to-end, abuse-hardened (2026-07-03 audit), NOT
-deployed. Zero real emails have ever been sent — `DryRunSender` (now wrapped in a send
-circuit breaker) is the only sender wired up anywhere in this codebase.**
+**Status: built, dry-run tested end-to-end, abuse-hardened (2026-07-03 audit), template
+v2 shipped (2026-07-03 email overhaul), NOT deployed. Zero real emails have ever been sent
+to anyone other than one project-maintainer-controlled address in a hard-whitelisted,
+gated live self-test — `DryRunSender` (wrapped in a send circuit breaker) remains the
+only sender wired up in `get_sender()` anywhere in this codebase.**
+
+## Email template v2 (2026-07-03)
+
+The v1 live self-test landed in the inbox (SPF/DKIM passed) but looked unpolished: raw
+tracking URLs rendered as giant blue walls of text, a dev TODO placeholder leaked into
+the live footer, and the copy was templated/redundant. Fixed in `emails.py`:
+
+- **Branded HTML + plain-text multipart.** Every email now returns a real `html_body`
+  (previously always `None`) alongside `text_body`. The HTML template reuses the static
+  site's own CSS custom-property values (`generate.py`'s `PAGE_CSS`), dark-mode-aware via
+  `@media (prefers-color-scheme: dark)`, and mobile-responsive.
+- **Buttons instead of raw URLs.** Action links ("Confirm my email," "Stop these
+  reminders," "Remind me next time") render as styled anchor buttons in the HTML view; a
+  small "Unsubscribe" text link sits in the footer. **SendGrid click AND open tracking
+  are now explicitly disabled** (`sender.py`'s `SendGridSender`) — these are transactional
+  emails, not marketing, and click-tracking's URL-rewrite was exactly what mangled the
+  displayed hrefs in v1.
+- **The leaked dev placeholder is gone.** `emails.py` no longer contains any
+  `MAILING_ADDRESS_PLACEHOLDER` string that could reach an email. Every email-building
+  function now calls `_mailing_address()` first, which **raises `RuntimeError`** unless a
+  real address is configured via the `REMINDERS_MAILING_ADDRESS` env var. The **only**
+  way to get a non-real value through is `set_test_mailing_address_override()`, which is
+  itself technically restricted (not just documented) to being called from
+  `run_live_selftest.py` or `test_dry_run_e2e.py` — any other caller gets refused with a
+  `RuntimeError`. `server.py`'s `/subscribe` handler checks `mailing_address_configured()`
+  *before* creating a pending record (so a misconfigured deploy can't orphan records), and
+  `scheduler.py`'s `run_once()` hard-stops the whole batch at the top if unconfigured.
+- **Optional first-name greeting.** The signup form (both `generate.py` variants) gained
+  an optional `first_name` field. Emails greet "Hi {FirstName}," when set, "Hi there,"
+  when blank. Treated as untrusted input throughout: `store.py`'s
+  `_sanitize_first_name()` and `emails.py`'s `_safe_first_name()` both independently
+  strip, drop non-printable characters (closes a zero-width/RTLO smuggling path), and cap
+  length at `MAX_FIRST_NAME_LEN` (60); `emails.py` HTML-escapes it for the HTML body and
+  never escapes it for the plain-text body (there's no markup to inject into there).
+- **Copy polish.** Em-dashes, not `--`; each escalation tier (60/30/14/7/3/1) has a
+  distinct, non-redundant lead phrase that never restates the exact day count (that's
+  `when_phrase`'s job, computed once from the real value — kept deliberately separate
+  from the tier's tone, same reasoning as the original day-count correctness fix below).
+
+An independent adversarial pass (a fresh agent, no access to this codebase's own tests,
+attacking the real running code) found and this build fixed two real gaps: (1) an
+`REMINDERS_MAILING_ADDRESS` env var containing ONLY zero-width/format characters (or a
+single ordinary character) passed the original bare `.strip()` truthiness check —
+`_mailing_address()` now requires the cleaned string to be at least
+`MIN_MAILING_ADDRESS_LEN` (10) characters after stripping whitespace and non-printable
+characters; (2) `scheduler.run_once()`'s per-subscriber loop didn't catch a `RuntimeError`
+from `emails.reminder_email()`, so one subscriber hitting the mailing-address hard-fail
+mid-batch would abort evaluation of every remaining subscriber that run — now caught and
+recorded as a per-subscriber error, consistent with the loop's existing "one bad record
+must not kill the whole run" design. Both have dedicated regression tests (Parts 28-29).
+The pass also confirmed HELD: first-name HTML/script injection (21+ payloads, real
+rendering + real HTTP requests), and HTML-template structural robustness (no payload ever
+produced anything but one well-formed document).
 
 ## What this is
 
@@ -192,10 +247,11 @@ backend host exists.
    an environment variable can silently trigger.
 2. **A real physical mailing address for the email footer.** CAN-SPAM legally requires a valid
    physical postal address in every commercial email — this is not something that can be
-   fabricated. The current placeholder (`MAILING_ADDRESS_PLACEHOLDER` in `emails.py`) is
-   deliberately impossible to miss so a real send could never accidentally go out without a real
-   address in it. A PO box or a commercial mail-receiving agency is the normal solution for a
-   project like this.
+   fabricated. `emails.py` no longer has a placeholder string at all: every email-building function
+   calls `_mailing_address()`, which raises `RuntimeError` unless a real address is set via the
+   `REMINDERS_MAILING_ADDRESS` environment variable, so a real send cannot go out with a fake or
+   missing address (see "Email template v2" above). A PO box or a commercial mail-receiving agency
+   is the normal solution for a project like this.
 3. **A hosting decision for the backend** (see "deployment gap" above).
 4. Anything that costs money or stands up a public endpoint is gated on explicit approval — none
    of the above happens without that.
@@ -221,13 +277,19 @@ HTTP smoke test — an actual `HTTPServer` instance, real `urllib` requests, not
 against `/health`, `/subscribe`, and `/confirm`, including invalid-input rejection paths. Test
 storage/log files are isolated from the real ones and deleted whether the run passes or fails.
 
-**96/96 checks pass**, including 3 regression tests (Parts 8-10) added after an earlier
-adversarial review found and this build fixed 3 real correctness bugs the *original*
-33-check suite didn't catch (because it only ever advanced the clock to exact threshold
-boundaries), 7 attack-simulation test groups (Parts 11-17) from the 2026-07-03
-abuse-hardening audit's first pass, and 5 more regression-test groups (Parts 18-22) added
-after an independent adversarial workflow broke 5 of those 7 rows on a second,
-separate pass — see "Abuse-hardening" above for the full story of what each attacks:
+**150/150 checks pass** (up from 96/96 before the email template v2 pass), including 3
+regression tests (Parts 8-10) added after an earlier adversarial review found and this
+build fixed 3 real correctness bugs the *original* 33-check suite didn't catch (because
+it only ever advanced the clock to exact threshold boundaries), 7 attack-simulation test
+groups (Parts 11-17) from the 2026-07-03 abuse-hardening audit's first pass, 5 more
+regression-test groups (Parts 18-22) added after an independent adversarial workflow broke
+5 of those 7 rows on a second, separate pass, and 7 new test groups (Parts 23-29) added for
+the email template v2 pass — mailing-address hard-fail + override behavior, first-name
+greeting/sanitization/injection-resistance, HTML branding/buttons/dark-mode, the
+first-name + mailing-address server integration over real HTTP, SendGrid tracking
+disablement, and 2 regression tests for the exact gaps a fresh independent adversarial
+pass found in the v2 build (see "Email template v2" above) — see "Abuse-hardening" above
+for the full story of what each earlier attack targets:
 
 1. **Reminder emails showed the wrong "days from now"** whenever a subscriber's first evaluation
    didn't land exactly on a threshold (e.g. confirmed 40 days out, crossing the 60-day tier,

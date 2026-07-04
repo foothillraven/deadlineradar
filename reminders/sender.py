@@ -63,13 +63,31 @@ class SendGridSender(EmailSender):
     exists so the shape is ready the moment a real key exists, not so it
     runs today. Uses only the Python standard library (urllib) so this
     repo stays dependency-free until a real send is actually authorized;
-    swap in the official `sendgrid` package at that point if preferred."""
+    swap in the official `sendgrid` package at that point if preferred.
+
+    Click and open tracking are explicitly disabled on every send (see
+    `tracking_settings` in send() below) -- these are transactional emails,
+    not marketing, and SendGrid's click-tracking rewrite is what mangled
+    action links into long tracking-domain URLs in the v1 self-test."""
 
     API_URL = "https://api.sendgrid.com/v3/mail/send"
 
-    def __init__(self, api_key: str | None = None, from_email: str = "reminders@example.invalid"):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        from_email: str = "reminders@example.invalid",
+        from_name: str | None = None,
+    ):
         self.api_key = api_key or os.environ.get("SENDGRID_API_KEY")
         self.from_email = from_email
+        self.from_name = from_name
+        # Diagnostic-only, set by the most recent send() call -- NEVER
+        # includes the API key. Lets a caller report the exact SendGrid
+        # error string (e.g. a 401/403 body) without this class needing to
+        # print anything itself.
+        self.last_status: int | None = None
+        self.last_error: str | None = None
+        self.last_message_id: str | None = None
         if not self.api_key:
             raise RuntimeError(
                 "SendGridSender requires SENDGRID_API_KEY in the environment. "
@@ -82,11 +100,27 @@ class SendGridSender(EmailSender):
         import urllib.request
         import urllib.error
 
+        from_field = {"email": self.from_email}
+        if self.from_name:
+            from_field["name"] = self.from_name
         payload = {
             "personalizations": [{"to": [{"email": to_email}]}],
-            "from": {"email": self.from_email},
+            "from": from_field,
             "subject": subject,
             "content": [{"type": "text/plain", "value": text_body}],
+            # These are transactional reminders, not marketing -- click
+            # tracking has no analytics value here and actively hurts the
+            # product: it rewrites every href to a long redirect URL through
+            # a SendGrid tracking domain, which is exactly what made action
+            # links look like giant, phishing-style tracking URLs when
+            # rendered (the v1 self-test's #1 reported problem). Open
+            # tracking (a 1x1 pixel) is disabled for the same
+            # "transactional, not marketing" reasoning -- no analytics need
+            # justifies adding tracking infrastructure to a CAN-SPAM email.
+            "tracking_settings": {
+                "click_tracking": {"enable": False, "enable_text": False},
+                "open_tracking": {"enable": False},
+            },
         }
         if html_body:
             payload["content"].append({"type": "text/html", "value": html_body})
@@ -99,10 +133,27 @@ class SendGridSender(EmailSender):
             },
             method="POST",
         )
+        self.last_status = None
+        self.last_error = None
+        self.last_message_id = None
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
+                self.last_status = resp.status
+                self.last_message_id = resp.headers.get("X-Message-Id")
                 return 200 <= resp.status < 300
-        except urllib.error.HTTPError:
+        except urllib.error.HTTPError as exc:
+            self.last_status = exc.code
+            try:
+                body = exc.read().decode("utf-8", errors="replace")
+            except Exception:  # noqa: BLE001 -- diagnostic best-effort only
+                body = "<could not read error body>"
+            # SendGrid error bodies are JSON describing what's wrong with the
+            # request/key -- never includes the key itself (the key is sent
+            # only in the outbound Authorization header, never echoed back).
+            self.last_error = f"HTTP {exc.code}: {body}"
+            return False
+        except urllib.error.URLError as exc:
+            self.last_error = f"Network error: {exc.reason}"
             return False
 
 
@@ -220,6 +271,43 @@ class CircuitBreakerSender(EmailSender):
         # pre-existing semantic (the counter reflects attempted sends, not
         # confirmed-successful ones) -- not a new behavior introduced by
         # the lock.
+        return self.wrapped.send(to_email, subject, text_body, html_body)
+
+
+class WhitelistedSender(EmailSender):
+    """Wraps another sender with a HARD, technically-enforced recipient
+    whitelist. Built for a live-provider self-test where a real API key is
+    wired up but the ONLY acceptable recipient is a single pre-approved
+    address -- any other recipient is refused BEFORE the wrapped sender
+    (and therefore the real network call) is ever touched, so a bug
+    elsewhere (a bad loop, a wrong variable, a leftover real subscriber
+    record) can never actually reach a real third party during a test.
+
+    This is deliberately NOT wired into get_sender() below and must never
+    become the permanent default without an explicit go that also removes
+    (not just widens) this whitelist -- see the 2026-07-03 SendGrid
+    self-test directive in Orchestrator/outbox. Refusals are logged locally
+    without ever printing the refused recipient's raw address (PII-locality
+    posture, same as the rest of this module) -- only that a refusal
+    happened and how many, which is enough to catch a bug without adding a
+    second place a real email address could leak to a local log."""
+
+    def __init__(self, wrapped: EmailSender, allowed_recipients: set[str]):
+        self.wrapped = wrapped
+        self._allowed = {e.strip().lower() for e in allowed_recipients}
+        self.refused_count = 0
+
+    def send(self, to_email: str, subject: str, text_body: str, html_body: str | None = None) -> bool:
+        normalized = (to_email or "").strip().lower()
+        if normalized not in self._allowed:
+            self.refused_count += 1
+            print(
+                f"[WHITELIST BLOCK] refused a send to a non-whitelisted recipient "
+                f"({self.refused_count} refused so far this run) -- only "
+                f"{len(self._allowed)} address(es) are permitted for this test.",
+                flush=True,
+            )
+            return False
         return self.wrapped.send(to_email, subject, text_body, html_body)
 
 

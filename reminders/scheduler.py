@@ -162,6 +162,17 @@ def run_once(as_of: date | None = None, sender: sender_module.EmailSender | None
     waiting real days. Returns a summary dict for logging/testing."""
     real_today = as_of or date.today()
     check_data_freshness(real_today if as_of is None else date.today())
+    # Same HARD-STOP posture as check_data_freshness() above: a real
+    # reminder email requires a real mailing address (CAN-SPAM), and this is
+    # an offline batch job, not a per-request handler -- silently skipping
+    # every subscriber's due reminder would look like "ran successfully, 0
+    # sent" and mask a real configuration gap. Refuse the whole run instead.
+    if not emails.mailing_address_configured():
+        raise SystemExit(
+            f"REFUSING TO RUN SCHEDULER: no real mailing address configured ({emails.MAILING_ADDRESS_ENV_VAR} "
+            "is unset). CAN-SPAM requires a real physical address in every commercial email -- set it "
+            "before running real reminders."
+        )
     active_sender = sender or sender_module.get_sender()
 
     summary = {"checked": 0, "sent": 0, "skipped_no_deadline": 0, "skipped_grace_period": 0, "errors": []}
@@ -214,14 +225,27 @@ def run_once(as_of: date | None = None, sender: sender_module.EmailSender | None
 
         renewed_url = f"{emails.BACKEND_BASE_URL}/renewed?token={subscriber['renewed_token']}"
         unsubscribe_url = f"{emails.BACKEND_BASE_URL}/unsubscribe?token={subscriber['unsubscribe_token']}"
-        email = emails.reminder_email(
-            state_name=state_name,
-            deadline_date_str=fmt_date(deadline_date),
-            threshold=threshold,
-            actual_days_remaining=days_remaining,
-            renewed_url=renewed_url,
-            unsubscribe_url=unsubscribe_url,
-        )
+        try:
+            email = emails.reminder_email(
+                state_name=state_name,
+                deadline_date_str=fmt_date(deadline_date),
+                threshold=threshold,
+                actual_days_remaining=days_remaining,
+                renewed_url=renewed_url,
+                unsubscribe_url=unsubscribe_url,
+                first_name=subscriber.get("first_name"),
+            )
+        except RuntimeError as exc:
+            # Found by adversarial review: emails.reminder_email() can raise
+            # (e.g. mailing_address_configured() was true when this run
+            # started but became false mid-run) -- letting that propagate
+            # uncaught would abort every REMAINING subscriber in this batch,
+            # contradicting this loop's own "one bad record must not kill
+            # the whole run" design. The top-of-run_once() precheck already
+            # prevents starting a run with no address configured at all;
+            # this is defense-in-depth for the narrower mid-run case.
+            summary["errors"].append({"subscriber_id": subscriber["id"], "error": f"email build failed: {exc}"})
+            continue
         ok = active_sender.send(subscriber["email"], email["subject"], email["text_body"], email["html_body"])
         if ok:
             store.mark_reminder_sent(subscriber["id"], threshold)

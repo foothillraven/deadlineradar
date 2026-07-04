@@ -43,6 +43,18 @@ ESCALATION_THRESHOLDS_DAYS = [60, 30, 14, 7, 3, 1]
 # "check your email" response with no email actually sent.
 SIGNUP_COOLDOWN_HOURS = 24
 
+# Optional first-name field (server.py already validates length/control
+# chars on every form field before this runs) -- capped again here,
+# defense-in-depth, since this is what renders into an email greeting.
+MAX_FIRST_NAME_LEN = 60
+
+
+def _sanitize_first_name(first_name: str | None) -> str | None:
+    if not first_name:
+        return None
+    name = "".join(ch for ch in first_name.strip() if ch.isprintable())[:MAX_FIRST_NAME_LEN]
+    return name or None
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -171,13 +183,17 @@ def is_permanently_suppressed(email: str) -> bool:
     return True
 
 
-def add_pending(email: str, state_slug: str, deadline_fields: dict) -> dict:
+def add_pending(email: str, state_slug: str, deadline_fields: dict, first_name: str | None = None) -> dict:
     """Create a new pending-confirmation subscriber. `deadline_fields` is a
     small dict of whatever the signup form collected beyond email+state --
     e.g. {"license_type_id": "fl-individual-odd"} for a fixed-date state, or
     {"birth_month": 3, "birth_year_parity": "odd"} for California, or
     {"cohort_group": "Group 2"} for Ohio. The scheduler uses this to compute
     THIS subscriber's specific next deadline.
+
+    `first_name` is OPTIONAL, purely cosmetic (an email greeting), and
+    sanitized again here even though server.py already validates it --
+    never trust that blindly, see `_sanitize_first_name()`.
 
     Does not send anything -- that's the caller's job (server.py), so this
     module stays pure storage with no email-sending side effects."""
@@ -187,6 +203,7 @@ def add_pending(email: str, state_slug: str, deadline_fields: dict) -> dict:
         "email": email,
         "state_slug": state_slug,
         "deadline_fields": deadline_fields,
+        "first_name": _sanitize_first_name(first_name),
         "status": STATUS_PENDING,
         "confirm_token": _new_token(),
         "unsubscribe_token": _new_token(),

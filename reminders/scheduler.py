@@ -246,7 +246,9 @@ def run_once(as_of: date | None = None, sender: sender_module.EmailSender | None
             # this is defense-in-depth for the narrower mid-run case.
             summary["errors"].append({"subscriber_id": subscriber["id"], "error": f"email build failed: {exc}"})
             continue
-        ok = active_sender.send(subscriber["email"], email["subject"], email["text_body"], email["html_body"])
+        ok = active_sender.send(
+            subscriber["email"], email["subject"], email["text_body"], email["html_body"], email.get("headers")
+        )
         if ok:
             store.mark_reminder_sent(subscriber["id"], threshold)
             summary["sent"] += 1

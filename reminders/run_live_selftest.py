@@ -1,10 +1,14 @@
 """
 DeadlineRadar reminders -- LIVE SendGrid self-test, hard-gated to a single
 whitelisted recipient. v1 ran per the orchestrator's 2026-07-03T20:05
-directive (project maintainer's go at 20:10). v2 (this version) rebuilds
-the templates per the 20:20 "email template overhaul" directive + the 20:30
-clarification on first-name (approved) and mailing address (still pending,
-handled below).
+directive (project maintainer's go at 20:10). v2 rebuilt the templates per
+the 20:20 "email template overhaul" directive + the 20:30 clarification on
+first-name (approved) and mailing address (still pending, handled below).
+This version layers in the 2026-07-04T00:05 "urgency done right" directive
+on top of v2 (subjects escalate in specificity/firmness per tier, deadline
+front-loaded; the 1-day tier only carries high-importance transport
+headers) -- see emails.py's `_reminder_subject()` / `HIGH_IMPORTANCE_HEADERS`
+for the actual logic; this script just exercises it end-to-end.
 
 WHAT THIS DOES: sends the full real email sequence (confirmation, six
 escalating reminders, one stop-confirmation -- 8 real SendGrid sends total)
@@ -99,17 +103,20 @@ def build_sender() -> tuple[sender_module.WhitelistedSender, sender_module.SendG
 
 def send_and_report(sender, real_sendgrid, stage: str, email: dict, results: list) -> None:
     tagged_subject = f"[TEST] {stage}: {email['subject']}"
-    ok = sender.send(WHITELISTED_RECIPIENT, tagged_subject, email["text_body"], email.get("html_body"))
+    headers = email.get("headers") or {}
+    ok = sender.send(WHITELISTED_RECIPIENT, tagged_subject, email["text_body"], email.get("html_body"), headers)
     results.append({
         "stage": stage,
         "subject": tagged_subject,
+        "high_importance": bool(headers),
         "sent_ok": ok,
         "sendgrid_status": real_sendgrid.last_status,
         "sendgrid_message_id": real_sendgrid.last_message_id,
         "sendgrid_error": real_sendgrid.last_error,
     })
     status = "OK" if ok else "FAILED"
-    print(f"[{status}] {stage} -- status={real_sendgrid.last_status} "
+    priority_note = " [HIGH-IMPORTANCE headers set]" if headers else ""
+    print(f"[{status}] {stage}{priority_note} -- status={real_sendgrid.last_status} "
           f"message_id={real_sendgrid.last_message_id} error={real_sendgrid.last_error}")
 
 
@@ -198,6 +205,19 @@ def main() -> None:
     print("=== Results summary (no API key ever printed) ===")
     for r in results:
         print(r)
+
+    # Self-check, not just a print: exactly ONE stage (the 1-day reminder
+    # tier) must carry high-importance headers -- if this drifts to zero or
+    # more than one, the "reserve it for when it's genuinely warranted"
+    # directive is being violated silently.
+    high_importance_stages = [r["stage"] for r in results if r["high_importance"]]
+    print()
+    print(f"High-importance stages this run: {high_importance_stages}")
+    if high_importance_stages != ["Reminder (1-day tier)"]:
+        raise SystemExit(
+            f"SELF-TEST INTEGRITY FAILURE: expected exactly the 1-day reminder tier to carry "
+            f"high-importance headers, got {high_importance_stages!r}."
+        )
 
 
 if __name__ == "__main__":

@@ -1,10 +1,11 @@
 # DeadlineRadar reminders — the "remind me" feature
 
 **Status: built, dry-run tested end-to-end, abuse-hardened (2026-07-03 audit), template
-v2 shipped (2026-07-03 email overhaul), NOT deployed. Zero real emails have ever been sent
-to anyone other than one project-maintainer-controlled address in a hard-whitelisted,
-gated live self-test — `DryRunSender` (wrapped in a send circuit breaker) remains the
-only sender wired up in `get_sender()` anywhere in this codebase.**
+v2 shipped (2026-07-03 email overhaul), v2.1 shipped (2026-07-04 "urgency done right" —
+escalating subjects + 1-day-only high-importance headers), NOT deployed. Zero real emails
+have ever been sent to anyone other than one project-maintainer-controlled address in a
+hard-whitelisted, gated live self-test — `DryRunSender` (wrapped in a send circuit
+breaker) remains the only sender wired up in `get_sender()` anywhere in this codebase.**
 
 ## Email template v2 (2026-07-03)
 
@@ -58,6 +59,62 @@ must not kill the whole run" design. Both have dedicated regression tests (Parts
 The pass also confirmed HELD: first-name HTML/script injection (21+ payloads, real
 rendering + real HTTP requests), and HTML-template structural robustness (no payload ever
 produced anything but one well-formed document).
+
+## Email template v2.1 — "urgency done right" (2026-07-04)
+
+Per the orchestrator's 2026-07-04T00:05 directive (the project maintainer's ask: make the
+reminders read as urgent, the correct way, not the spammy way), layered on top of v2 without
+rebuilding the template:
+
+- **Specific, escalating, deadline-front-loaded subject lines.** Every subject states the
+  actual countdown or date, never a vague phrase — `emails._reminder_subject()` builds it from
+  `actual_days_remaining` (the TRUE remaining count), never the tier's `threshold`, for the same
+  non-negotiable reason as the body's `when_phrase`: stating the threshold instead of the real
+  count is the exact bug an earlier adversarial pass found and fixed for the body copy; the
+  subject must not reintroduce it. Tone escalates in **firmness**, never in formatting tricks —
+  no ALL CAPS, no "!!!", no clickbait:
+  - **60-day:** calm heads-up — `"Your {State} CPA license expires in {N} days ({date})"`.
+  - **30/14/7-day:** firmer — `"...renewal is due in {N} days ({date}) — a good time to start"`.
+  - **3-day:** pointed — the plain due-date statement itself, no softening tag.
+  - **1-day:** a distinct format — `"Tomorrow: your {State} CPA license renewal is due"`, with
+    accurate fallbacks (`"Today:"` / `"Overdue:"` / `"In {N} days:"`) for the scheduler-gap
+    catch-up cases where the final tier can fire with 0, negative, or more than 1 day actually
+    remaining — it never claims "Tomorrow" for a day count that isn't actually tomorrow.
+- **High-importance transport headers on the 1-day tier ONLY.** `emails.HIGH_IMPORTANCE_HEADERS`
+  (`Importance: High`, `X-Priority: 1`, `X-MSMail-Priority: High`) is attached exclusively to the
+  1-day reminder — every other tier, plus the confirmation and stop-confirmation emails, stays at
+  normal priority. Flagging every email high-priority is a cry-wolf signal that hurts inbox
+  placement; reserving it for the one genuinely final reminder is the point. `sender.py`'s entire
+  chain (`DryRunSender`, `SendGridSender`, `CircuitBreakerSender`, `WhitelistedSender`) now
+  accepts and forwards an optional `headers` dict; `SendGridSender` attaches it to
+  `personalizations[0]["headers"]` (SendGrid's per-recipient custom-header field, not a top-level
+  one) only when headers are actually present — a headers-less send has no `"headers"` key on the
+  personalization at all, not an empty dict.
+- **Primary-inbox placement stays protected.** No copy or structural change in this pass touches
+  the transactional framing, multipart text+HTML shape, or the absence of spam-trigger phrasing
+  that already got v2 landing in the project maintainer's Primary inbox — this pass is additive
+  (subject text + one optional header dict), not a rebuild.
+- `run_live_selftest.py` now asserts this itself: it fails loudly (`SystemExit`) if any stage
+  other than the 1-day reminder ends up carrying high-importance headers, rather than relying on
+  a human noticing in their inbox.
+- **26 new regression checks** (Parts 30–31 in `test_dry_run_e2e.py`): every tier's subject tone
+  and framing, the 1-day tier's accurate day-word fallbacks, headers scoped to exactly one tier,
+  and — separately — that the headers dict actually reaches the wire through every sender
+  wrapper (not just that `emails.py` builds it correctly). **192/192 checks pass** (up from 166).
+- An independent adversarial pass (fresh agent, blind to this session's own new tests) directly
+  exercised the subject/header logic across the full aligned + edge-case matrix (including
+  scheduler-gap catch-up landing the 1-day tier far from exactly 1 day remaining), confirmed no
+  subject ever contradicts the true day count, confirmed `HIGH_IMPORTANCE_HEADERS` is copied
+  fresh per call (a caller mutating one returned dict can't corrupt a later call), and confirmed
+  every existing hardening defense is unweakened by the new `headers` parameter. Found zero code
+  bugs. **It did, however, cause a real incident**: while verifying `run_live_selftest.py`'s
+  behavior it ran the script directly rather than only inspecting it, triggering 8 real SendGrid
+  sends (correct content, correct single high-importance tier, whitelist held, scratch files
+  cleaned up) to the hard-whitelisted self-test address — disclosed in full in this session's
+  outbox report, since it was a real, irreversible external action taken without being
+  the deliberately-planned, singly-reported self-test run this task asked for. The lesson (also
+  logged in HANDOFF): a review agent instructed to be "read-only" must be told explicitly not to
+  execute side-effecting scripts, not left to infer it.
 
 ## What this is
 

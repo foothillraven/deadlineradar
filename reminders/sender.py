@@ -29,9 +29,23 @@ CIRCUIT_BREAKER_ALERT_LOG_PATH = pathlib.Path(__file__).resolve().parent / "circ
 
 
 class EmailSender:
-    """Abstract interface. `send()` returns True on success."""
+    """Abstract interface. `send()` returns True on success.
 
-    def send(self, to_email: str, subject: str, text_body: str, html_body: str | None = None) -> bool:
+    `headers` is an optional dict of extra transport headers (e.g. the
+    high-importance headers `emails.py` attaches to the 1-day reminder tier
+    only -- see `emails.HIGH_IMPORTANCE_HEADERS`). Every implementation below
+    must accept and forward it unchanged; a sender that silently drops it
+    would make the "final tier only" priority flag never actually reach a
+    real inbox."""
+
+    def send(
+        self,
+        to_email: str,
+        subject: str,
+        text_body: str,
+        html_body: str | None = None,
+        headers: dict | None = None,
+    ) -> bool:
         raise NotImplementedError
 
 
@@ -41,13 +55,21 @@ class DryRunSender(EmailSender):
     without risking a single real email going out. This is the only sender
     wired up until a real transactional-email account exists."""
 
-    def send(self, to_email: str, subject: str, text_body: str, html_body: str | None = None) -> bool:
+    def send(
+        self,
+        to_email: str,
+        subject: str,
+        text_body: str,
+        html_body: str | None = None,
+        headers: dict | None = None,
+    ) -> bool:
         entry = {
             "sent_at": datetime.now(timezone.utc).isoformat(),
             "to": to_email,
             "subject": subject,
             "text_body": text_body,
             "html_body": html_body,
+            "headers": headers or {},
             "mode": "DRY_RUN -- not actually sent",
         }
         DRY_RUN_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -96,15 +118,32 @@ class SendGridSender(EmailSender):
                 "should choose DryRunSender explicitly if that's what they want."
             )
 
-    def send(self, to_email: str, subject: str, text_body: str, html_body: str | None = None) -> bool:
+    def send(
+        self,
+        to_email: str,
+        subject: str,
+        text_body: str,
+        html_body: str | None = None,
+        headers: dict | None = None,
+    ) -> bool:
         import urllib.request
         import urllib.error
 
         from_field = {"email": self.from_email}
         if self.from_name:
             from_field["name"] = self.from_name
+        personalization = {"to": [{"email": to_email}]}
+        if headers:
+            # SendGrid's v3 mail-send API attaches custom transport headers
+            # (e.g. Importance/X-Priority/X-MSMail-Priority for the 1-day
+            # reminder tier -- see emails.HIGH_IMPORTANCE_HEADERS) per
+            # personalization, not as a top-level field. Values must be
+            # strings; emails.py already builds them as strings, but stringify
+            # defensively so a future caller passing a non-string can't 400
+            # the whole send.
+            personalization["headers"] = {str(k): str(v) for k, v in headers.items()}
         payload = {
-            "personalizations": [{"to": [{"email": to_email}]}],
+            "personalizations": [personalization],
             "from": from_field,
             "subject": subject,
             "content": [{"type": "text/plain", "value": text_body}],
@@ -235,7 +274,14 @@ class CircuitBreakerSender(EmailSender):
         # to also surface on stderr for a human watching the process.
         print(f"[CIRCUIT BREAKER] {message}", flush=True)
 
-    def send(self, to_email: str, subject: str, text_body: str, html_body: str | None = None) -> bool:
+    def send(
+        self,
+        to_email: str,
+        subject: str,
+        text_body: str,
+        html_body: str | None = None,
+        headers: dict | None = None,
+    ) -> bool:
         # The load-check-increment-save sequence is the circuit breaker's
         # entire reason for existing -- it MUST be atomic across threads/
         # instances, or the cap can be blown straight past under concurrent
@@ -271,7 +317,7 @@ class CircuitBreakerSender(EmailSender):
         # pre-existing semantic (the counter reflects attempted sends, not
         # confirmed-successful ones) -- not a new behavior introduced by
         # the lock.
-        return self.wrapped.send(to_email, subject, text_body, html_body)
+        return self.wrapped.send(to_email, subject, text_body, html_body, headers)
 
 
 class WhitelistedSender(EmailSender):
@@ -297,7 +343,14 @@ class WhitelistedSender(EmailSender):
         self._allowed = {e.strip().lower() for e in allowed_recipients}
         self.refused_count = 0
 
-    def send(self, to_email: str, subject: str, text_body: str, html_body: str | None = None) -> bool:
+    def send(
+        self,
+        to_email: str,
+        subject: str,
+        text_body: str,
+        html_body: str | None = None,
+        headers: dict | None = None,
+    ) -> bool:
         normalized = (to_email or "").strip().lower()
         if normalized not in self._allowed:
             self.refused_count += 1
@@ -308,7 +361,7 @@ class WhitelistedSender(EmailSender):
                 flush=True,
             )
             return False
-        return self.wrapped.send(to_email, subject, text_body, html_body)
+        return self.wrapped.send(to_email, subject, text_body, html_body, headers)
 
 
 def get_sender() -> EmailSender:

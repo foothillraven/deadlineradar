@@ -299,6 +299,9 @@ def confirmation_email(state_name: str, confirm_url: str, unsubscribe_url: str, 
     # own docstring for why this ordering matters.
     addr = _mailing_address()
     subject = f"Confirm your {state_name} CPA renewal reminder"
+    # Normal priority -- high-importance headers are reserved for the 1-day
+    # reminder tier only (see HIGH_IMPORTANCE_HEADERS above).
+    headers: dict = {}
 
     text_body = (
         f"{_text_greeting(first_name)}\n\n"
@@ -340,7 +343,7 @@ def confirmation_email(state_name: str, confirm_url: str, unsubscribe_url: str, 
         footer_html=_html_footer(unsubscribe_url, addr),
     )
 
-    return {"subject": subject, "text_body": text_body, "html_body": html_body}
+    return {"subject": subject, "text_body": text_body, "html_body": html_body, "headers": headers}
 
 
 # `threshold` (one of 60/30/14/7/3/1) picks the urgency LEAD phrase only.
@@ -364,6 +367,71 @@ _URGENCY_LEAD = {
 }
 
 
+# ---------------------------------------------------------------------------
+# "Urgency done right" (orchestrator directive, 2026-07-04) -- specific,
+# deadline-front-loaded subject lines that escalate in FIRMNESS across tiers,
+# never in formatting tricks. No clickbait, no ALL CAPS, no "!!!": the real
+# date/countdown IS the urgency. High-importance transport headers are
+# reserved for the single most urgent tier (1-day) -- flagging every email
+# high-priority is a cry-wolf spam signal that actively hurts deliverability;
+# see sender.py for where these headers actually get attached to a send.
+# ---------------------------------------------------------------------------
+
+HIGH_IMPORTANCE_HEADERS = {
+    "Importance": "High",
+    "X-Priority": "1",
+    "X-MSMail-Priority": "High",
+}
+
+
+def _days_phrase(actual_days_remaining: int) -> str:
+    """Same day-count math as `reminder_email()`'s own `when_phrase` below --
+    kept as one function so the subject and body can never disagree about
+    the real count, the same class of bug an earlier adversarial pass found
+    when a lead phrase's own wording doubled as the displayed number."""
+    if actual_days_remaining > 0:
+        return f"in {actual_days_remaining} day{'s' if actual_days_remaining != 1 else ''}"
+    if actual_days_remaining == 0:
+        return "today"
+    return f"{-actual_days_remaining} day{'s' if actual_days_remaining != -1 else ''} ago"
+
+
+def _reminder_subject(state_name: str, threshold: int, actual_days_remaining: int, deadline_date_str: str) -> str:
+    """Built from `actual_days_remaining` (the TRUE remaining count), never
+    the threshold -- same non-negotiable rule as the body's `when_phrase`:
+    stating the threshold instead of the real count is exactly the bug an
+    earlier adversarial pass found and fixed for the body; the subject must
+    not reintroduce it, including in the threshold=1 catch-up case where a
+    scheduler gap can mean the "final" tier fires with more than 1 day, or
+    fewer than 0 days (already overdue), actually remaining."""
+    if threshold == 1:
+        if actual_days_remaining == 1:
+            lead_word = "Tomorrow"
+        elif actual_days_remaining == 0:
+            lead_word = "Today"
+        elif actual_days_remaining < 0:
+            lead_word = "Overdue"
+        else:
+            # Catch-up landed on the final tier more than a day early --
+            # stay accurate rather than claim "Tomorrow" for a false date.
+            lead_word = _days_phrase(actual_days_remaining).capitalize()
+        return f"{lead_word}: your {state_name} CPA license renewal is due"
+
+    days_phrase = _days_phrase(actual_days_remaining)
+    if threshold == 60:
+        # Calm heads-up -- softest verb, no call to action implied yet.
+        return f"Your {state_name} CPA license expires {days_phrase} ({deadline_date_str})"
+    if threshold in (30, 14, 7):
+        # Firmer: names the action window, still no pressure tactics.
+        return (
+            f"Your {state_name} CPA license renewal is due {days_phrase} ({deadline_date_str}) "
+            f"— a good time to start"
+        )
+    # threshold == 3: pointed -- the plain, unsoftened statement itself
+    # carries the urgency at this tier.
+    return f"Your {state_name} CPA license renewal is due {days_phrase} ({deadline_date_str})"
+
+
 def reminder_email(
     state_name: str,
     deadline_date_str: str,
@@ -377,7 +445,13 @@ def reminder_email(
         raise ValueError(f"threshold must be one of {sorted(_URGENCY_LEAD)}, got {threshold}")
     addr = _mailing_address()
     lead = _URGENCY_LEAD[threshold]
-    subject = f"{lead[0].upper()}{lead[1:]}: {state_name} CPA renewal due {deadline_date_str}"
+    subject = _reminder_subject(state_name, threshold, actual_days_remaining, deadline_date_str)
+    # High-importance transport headers ONLY on the final (1-day) tier --
+    # every other tier stays at normal priority. See HIGH_IMPORTANCE_HEADERS'
+    # own comment for why: flagging every email high-priority is a cry-wolf
+    # signal that hurts deliverability, so it's reserved for when it's
+    # genuinely warranted.
+    headers = dict(HIGH_IMPORTANCE_HEADERS) if threshold == 1 else {}
 
     if actual_days_remaining > 0:
         when_phrase = f"{actual_days_remaining} day{'s' if actual_days_remaining != 1 else ''} from now"
@@ -412,7 +486,7 @@ def reminder_email(
         footer_html=_html_footer(unsubscribe_url, addr),
     )
 
-    return {"subject": subject, "text_body": text_body, "html_body": html_body}
+    return {"subject": subject, "text_body": text_body, "html_body": html_body, "headers": headers}
 
 
 def stop_confirmation_email(
@@ -485,4 +559,6 @@ def stop_confirmation_email(
         footer_html=_html_footer(unsubscribe_url, addr),
     )
 
-    return {"subject": subject, "text_body": text_body, "html_body": html_body}
+    # Normal priority -- high-importance headers are reserved for the 1-day
+    # reminder tier only (see HIGH_IMPORTANCE_HEADERS above).
+    return {"subject": subject, "text_body": text_body, "html_body": html_body, "headers": {}}

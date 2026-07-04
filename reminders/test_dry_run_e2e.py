@@ -122,7 +122,12 @@ def test_core_escalation_logic() -> None:
     )
 
     log = read_dry_run_log()
-    reminder_entries = [e for e in log if "reminder" in e["subject"].lower() or "due" in e["subject"].lower()]
+    # This test path only ever calls scheduler.run_once() directly -- no
+    # confirmation/stop-confirmation email is ever built or sent here (those
+    # only happen via server.py's handlers) -- so every log entry IS a
+    # reminder email; no subject-text filter needed (and the new escalating
+    # subjects don't all share one common substring like the old ones did).
+    reminder_entries = log
     check("exactly 6 reminder emails logged (dry-run), one per threshold", len(reminder_entries) == 6,
           f"got {len(reminder_entries)}")
     check("no email was flagged as anything other than DRY_RUN", all(e["mode"].startswith("DRY_RUN") for e in log))
@@ -246,11 +251,15 @@ def test_scheduler_gap_never_regresses_to_less_urgent_tier() -> None:
     check("exactly 2 reminders fired across the gap (7-day tier, then 1-day tier -- not 3-day)",
           len(tone_order_fired) == 2, f"got {len(tone_order_fired)}: {tone_order_fired}")
     if len(tone_order_fired) == 2:
-        check("first fire was the 7-day tone", "One week to go" in tone_order_fired[0], tone_order_fired[0])
-        check("second fire (after the gap) jumped straight to the 1-day tone, skipping stale 3-day",
-              "final reminder for this deadline" in tone_order_fired[1], tone_order_fired[1])
-        check("the STALE 3-day tone never fired at all across the gap",
-              not any("Just a few days left" in s for s in tone_order_fired))
+        check("first fire was the 7-day tier's subject (deadline-front-loaded, 'in 7 days')",
+              "in 7 days" in tone_order_fired[0], tone_order_fired[0])
+        check("second fire (after the gap) jumped straight to the 1-day tier's subject "
+              "(overdue by the time it fired, correctly says so), skipping stale 3-day",
+              "your Michigan CPA license renewal is due" in tone_order_fired[1]
+              and "Overdue" in tone_order_fired[1],
+              tone_order_fired[1])
+        check("the STALE 3-day tier's subject never fired at all across the gap",
+              not any("in 3 days" in s for s in tone_order_fired))
 
     # And once the most urgent tier has fired, running the scheduler again
     # even further past the deadline must never fire anything less urgent.
@@ -1143,6 +1152,166 @@ def test_scheduler_one_bad_subscriber_does_not_abort_the_batch() -> None:
     )
 
 
+def test_urgency_subjects_and_priority_headers() -> None:
+    """Regression tests for the 2026-07-04T00:05 'urgency done right'
+    directive: escalating, deadline-front-loaded subjects per tier, and
+    high-importance transport headers reserved for the 1-day tier ONLY."""
+    print("\n== Part 30 (v2.1): escalating subjects + 1-day-only high-importance headers ==")
+    reset_storage()
+
+    def build(threshold: int, actual_days_remaining: int) -> dict:
+        return emails.reminder_email(
+            "Michigan", "July 31, 2027", threshold, actual_days_remaining,
+            "https://x/renewed?token=t", "https://x/unsub?token=t",
+        )
+
+    def is_calm(s: str) -> bool:
+        return "!" not in s and s.upper() != s  # no exclamation, not ALL-CAPS shouting
+
+    for threshold in (60, 30, 14, 7, 3, 1):
+        subject = build(threshold, threshold)["subject"]
+        check(f"tier {threshold}: subject is calm (no '!' / not ALL CAPS)", is_calm(subject), subject)
+        check(f"tier {threshold}: subject names the state and CPA license",
+              "Michigan CPA license" in subject, subject)
+        if threshold != 1:
+            check(f"tier {threshold}: subject front-loads the deadline date",
+                  "July 31, 2027" in subject, subject)
+
+    subj60 = build(60, 60)["subject"]
+    check("60-day tier: calm 'expires' framing, deadline front-loaded",
+          "expires in 60 days" in subj60, subj60)
+
+    for threshold in (30, 14, 7):
+        subj = build(threshold, threshold)["subject"]
+        check(f"{threshold}-day tier: firmer 'a good time to start' framing",
+              "a good time to start" in subj, subj)
+
+    subj3 = build(3, 3)["subject"]
+    check(
+        "3-day tier: pointed -- plain due-date statement, no softening tag",
+        "renewal is due in 3 days" in subj3 and "a good time to start" not in subj3,
+        subj3,
+    )
+
+    subj1_tomorrow = build(1, 1)["subject"]
+    check("1-day tier, exactly 1 day left: 'Tomorrow:' lead", subj1_tomorrow.startswith("Tomorrow:"), subj1_tomorrow)
+    subj1_today = build(1, 0)["subject"]
+    check("1-day tier, due today (0 left): 'Today:' lead, never claims 'Tomorrow'",
+          subj1_today.startswith("Today:"), subj1_today)
+    subj1_overdue = build(1, -3)["subject"]
+    check("1-day tier, already overdue: 'Overdue:' lead, never claims 'Tomorrow'",
+          subj1_overdue.startswith("Overdue:"), subj1_overdue)
+    subj1_early = build(1, 5)["subject"]
+    check("1-day tier, scheduler-gap catch-up landed 5 days early: stays accurate, doesn't lie 'Tomorrow'",
+          subj1_early.startswith("In 5 days:"), subj1_early)
+
+    # Headers: high-importance ONLY on the 1-day tier -- every other tier
+    # (including confirmation/stop-confirmation) stays normal priority.
+    for threshold in (60, 30, 14, 7, 3):
+        h = build(threshold, threshold)["headers"]
+        check(f"tier {threshold}: no high-importance headers (normal priority)", h == {}, h)
+    h1 = build(1, 1)["headers"]
+    check("1-day tier: Importance: High is set", h1.get("Importance") == "High", h1)
+    check("1-day tier: X-Priority: 1 is set", h1.get("X-Priority") == "1", h1)
+    check("1-day tier: X-MSMail-Priority: High is set", h1.get("X-MSMail-Priority") == "High", h1)
+
+    conf = emails.confirmation_email("Michigan", "https://x/confirm?token=t", "https://x/unsub?token=t")
+    check("confirmation email carries no high-importance headers", conf.get("headers", {}) == {}, conf.get("headers"))
+    stop = emails.stop_confirmation_email("renewed", "Michigan", None, "https://x/unsub?token=t")
+    check("stop-confirmation email carries no high-importance headers", stop.get("headers", {}) == {}, stop.get("headers"))
+
+
+def test_headers_plumbed_through_sender_chain() -> None:
+    """Regression test: the 1-day tier's high-importance headers must
+    actually reach a real send, not just exist in the dict emails.py
+    returns -- every sender wrapper in the chain (DryRunSender,
+    CircuitBreakerSender, WhitelistedSender, SendGridSender) must forward
+    `headers` unchanged rather than silently dropping it."""
+    print("\n== Part 31 (v2.1): high-importance headers actually reach the wire, through every wrapper ==")
+    reset_storage()
+
+    dry = sender_module.DryRunSender()
+    dry.send("someone@example.invalid", "subj", "text", "<p>html</p>", emails.HIGH_IMPORTANCE_HEADERS)
+    log = read_dry_run_log()
+    check("DryRunSender logs the headers dict unchanged",
+          log[-1].get("headers") == emails.HIGH_IMPORTANCE_HEADERS, log[-1].get("headers"))
+
+    dry.send("someone2@example.invalid", "subj2", "text2")
+    log2 = read_dry_run_log()
+    check("DryRunSender logs an empty headers dict when none passed", log2[-1].get("headers") == {}, log2[-1].get("headers"))
+
+    captured: dict = {}
+
+    class _FakeResponse:
+        status = 202
+        headers = {"X-Message-Id": "fake-id"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b""
+
+    def fake_urlopen(req, timeout=10):
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return _FakeResponse()
+
+    real_urlopen = urllib.request.urlopen
+    urllib.request.urlopen = fake_urlopen
+    try:
+        s = sender_module.SendGridSender(api_key="fake-key-not-real", from_email="noreply@deadline-radar.com")
+        s.send("someone@example.invalid", "subj", "text", None, emails.HIGH_IMPORTANCE_HEADERS)
+    finally:
+        urllib.request.urlopen = real_urlopen
+    sent_headers = captured.get("body", {}).get("personalizations", [{}])[0].get("headers", {})
+    check(
+        "SendGridSender attaches headers on personalizations[0], not top-level",
+        sent_headers == emails.HIGH_IMPORTANCE_HEADERS,
+        sent_headers,
+    )
+
+    captured2: dict = {}
+
+    def fake_urlopen2(req, timeout=10):
+        captured2["body"] = json.loads(req.data.decode("utf-8"))
+        return _FakeResponse()
+
+    urllib.request.urlopen = fake_urlopen2
+    try:
+        s2 = sender_module.SendGridSender(api_key="fake-key-not-real", from_email="noreply@deadline-radar.com")
+        s2.send("someone@example.invalid", "subj", "text")
+    finally:
+        urllib.request.urlopen = real_urlopen
+    check(
+        "no 'headers' key at all on the personalization when none was passed (normal-priority tiers)",
+        "headers" not in captured2.get("body", {}).get("personalizations", [{}])[0],
+        captured2.get("body", {}).get("personalizations"),
+    )
+
+    class _CapturingSender(sender_module.EmailSender):
+        def __init__(self):
+            self.last_headers = "NEVER CALLED"
+
+        def send(self, to_email, subject, text_body, html_body=None, headers=None):
+            self.last_headers = headers
+            return True
+
+    capturing = _CapturingSender()
+    breaker = sender_module.CircuitBreakerSender(capturing, daily_cap=10)
+    breaker.send("x@example.invalid", "s", "t", None, emails.HIGH_IMPORTANCE_HEADERS)
+    check("CircuitBreakerSender forwards headers to the wrapped sender unchanged",
+          capturing.last_headers == emails.HIGH_IMPORTANCE_HEADERS, capturing.last_headers)
+
+    capturing2 = _CapturingSender()
+    whitelisted = sender_module.WhitelistedSender(capturing2, allowed_recipients={"x@example.invalid"})
+    whitelisted.send("x@example.invalid", "s", "t", None, emails.HIGH_IMPORTANCE_HEADERS)
+    check("WhitelistedSender forwards headers to the wrapped sender unchanged",
+          capturing2.last_headers == emails.HIGH_IMPORTANCE_HEADERS, capturing2.last_headers)
+
+
 def main() -> None:
     print("DeadlineRadar reminders -- end-to-end DRY-RUN test (no real email will be sent)")
     try:
@@ -1175,6 +1344,8 @@ def main() -> None:
         test_sendgrid_click_tracking_disabled()
         test_degenerate_address_rejected_and_override_caller_restricted()
         test_scheduler_one_bad_subscriber_does_not_abort_the_batch()
+        test_urgency_subjects_and_priority_headers()
+        test_headers_plumbed_through_sender_chain()
     finally:
         for p in (TEST_STORE_PATH, TEST_LOG_PATH, TEST_CB_STATE_PATH, TEST_CB_ALERT_LOG_PATH):
             if p.exists():

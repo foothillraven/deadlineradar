@@ -433,7 +433,8 @@ class Handler(BaseHTTPRequestHandler):
             state_name, confirm_url, unsubscribe_url, first_name=probe.get("first_name")
         )
         sender_module.get_sender().send(
-            probe["email"], email_content["subject"], email_content["text_body"], email_content["html_body"]
+            probe["email"], email_content["subject"], email_content["text_body"], email_content["html_body"],
+            email_content.get("headers"),
         )
         self._send(200, _SUBSCRIBE_SUCCESS_PAGE)
 
@@ -486,7 +487,8 @@ class Handler(BaseHTTPRequestHandler):
                 "unsubscribed", state_name, None, unsubscribe_url, first_name=subscriber.get("first_name")
             )
             sender_module.get_sender().send(
-                subscriber["email"], email_content["subject"], email_content["text_body"], email_content["html_body"]
+                subscriber["email"], email_content["subject"], email_content["text_body"], email_content["html_body"],
+                email_content.get("headers"),
             )
         self._send(200, _html_page("Unsubscribed", "<h1>Done</h1><p>You're unsubscribed, instantly and permanently.</p>"))
 
@@ -509,7 +511,8 @@ class Handler(BaseHTTPRequestHandler):
                 "renewed", state_name, rearm_url, unsubscribe_url, first_name=subscriber.get("first_name")
             )
             sender_module.get_sender().send(
-                subscriber["email"], email_content["subject"], email_content["text_body"], email_content["html_body"]
+                subscriber["email"], email_content["subject"], email_content["text_body"], email_content["html_body"],
+                email_content.get("headers"),
             )
         self._send(200, _html_page(
             "Nice work",

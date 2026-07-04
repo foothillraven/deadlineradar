@@ -142,6 +142,9 @@
   <p class="signup-microcopy">We only email you deadline reminders. We never sell or share your address. Unsubscribe anytime.</p>
   <form method="post" action="https://example-deadlineradar-api.test/subscribe">
     <input type="hidden" name="state" value="florida">
+    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
+    <!-- Reserved for Cloudflare Turnstile once a public endpoint + site key exist -- see reminders/HOSTING_PROPOSAL.md. Empty/absent is treated as "not configured yet," not as a failed check. -->
+    <input type="hidden" name="cf-turnstile-response" value="">
     <label for="email">Email address</label>
     <input type="email" id="email" name="email" required placeholder="you@example.com">
     <label for="license_type_id">Which license?</label>

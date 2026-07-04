@@ -198,6 +198,20 @@ def run_once(as_of: date | None = None, sender: sender_module.EmailSender | None
             if threshold is None:
                 continue
 
+        # Defense-in-depth (abuse-hardening audit): all_confirmed_active()
+        # already filters to status=confirmed, but a status-field bug
+        # elsewhere (or a future code change) shouldn't be the ONLY thing
+        # standing between a permanently-unsubscribed address and a send.
+        # Check the independent suppression signal again, right here, right
+        # before the one call that actually sends.
+        if store.is_permanently_suppressed(subscriber["email"]):
+            summary["errors"].append({
+                "subscriber_id": subscriber["id"],
+                "error": "BLOCKED: email is permanently suppressed (unsubscribed) -- refusing to send "
+                         "despite status=confirmed. This indicates a data-integrity bug elsewhere.",
+            })
+            continue
+
         renewed_url = f"{emails.BACKEND_BASE_URL}/renewed?token={subscriber['renewed_token']}"
         unsubscribe_url = f"{emails.BACKEND_BASE_URL}/unsubscribe?token={subscriber['unsubscribe_token']}"
         email = emails.reminder_email(

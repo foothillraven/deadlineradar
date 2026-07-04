@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import pathlib
 import secrets
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 STORE_PATH = pathlib.Path(__file__).resolve().parent / "subscribers.json"
 
@@ -34,6 +34,14 @@ STATUS_STOPPED = "stopped"
 # tracked per-subscriber in `reminders_sent` so the same milestone never
 # fires twice even if the scheduler runs more than once a day.
 ESCALATION_THRESHOLDS_DAYS = [60, 30, 14, 7, 3, 1]
+
+# Abuse-hardening: one confirmation email per address per this window,
+# full stop -- regardless of state, regardless of how many times the form is
+# submitted. This is what stops "submit victim@x 100x" from generating 100
+# confirmation emails to a third party: only the very first submission in
+# the window can ever trigger a send; every repeat gets the same generic
+# "check your email" response with no email actually sent.
+SIGNUP_COOLDOWN_HOURS = 24
 
 
 def _now_iso() -> str:
@@ -58,6 +66,70 @@ def _save(subscribers: list[dict]) -> None:
     STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(STORE_PATH, "w", encoding="utf-8") as f:
         json.dump(subscribers, f, indent=2, ensure_ascii=False)
+
+
+def _normalize_email(email: str) -> str:
+    # Case-insensitive per the email spec's common practice (mailbox names
+    # are technically case-sensitive per RFC, but no real-world provider
+    # treats them that way) -- without this, "Victim@X.com" and
+    # "victim@x.com" would dodge cooldown/dedupe/suppression as "different"
+    # addresses.
+    return email.strip().lower()
+
+
+def within_signup_cooldown(email: str, cooldown_hours: float = SIGNUP_COOLDOWN_HOURS) -> bool:
+    """True if ANY record (any state, any status) for this normalized email
+    was created within the cooldown window. Used to block repeat-submission
+    spam -- see SIGNUP_COOLDOWN_HOURS docstring above."""
+    normalized = _normalize_email(email)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=cooldown_hours)
+    for s in _load():
+        if _normalize_email(s["email"]) != normalized:
+            continue
+        created = datetime.fromisoformat(s["created_at"])
+        if created >= cutoff:
+            return True
+    return False
+
+
+def find_active_or_pending(email: str, state_slug: str) -> dict | None:
+    """An existing PENDING or CONFIRMED record for this email+state, if any
+    -- used to refuse creating a duplicate subscriber (dedupe) even outside
+    the cooldown window."""
+    normalized = _normalize_email(email)
+    for s in _load():
+        if (
+            _normalize_email(s["email"]) == normalized
+            and s["state_slug"] == state_slug
+            and s["status"] in (STATUS_PENDING, STATUS_CONFIRMED)
+        ):
+            return s
+    return None
+
+
+def is_permanently_suppressed(email: str) -> bool:
+    """True if this email has ANY record ever stopped with
+    reason='unsubscribed'. Deliberately keys off `stop_reason` ALONE, not
+    `status` -- checking both would make this dependent on the very field a
+    hypothetical status-corruption bug could have flipped, which defeats
+    the purpose of a defense-in-depth check. `stop_reason` is set once by
+    stop() and can only ever be cleared by rearm(), which itself refuses to
+    run for reason="unsubscribed" records -- so as long as no code path
+    directly mutates stop_reason (a much narrower, more auditable
+    invariant than "status is always correct everywhere"), this holds even
+    if `status` itself gets corrupted back to "confirmed" by a bug
+    elsewhere. (Caught by the audit's own attack test: an earlier version
+    of this function required status==STOPPED too, so a simulated
+    status-corruption attack defeated the "defense in depth" claim
+    entirely -- see test_permanent_suppression_survives_a_status_bug.)
+    A fresh signup (a brand new record, new tokens, new double opt-in) is
+    unaffected by this -- that's the subscriber themselves re-initiating
+    consent, which is explicitly allowed."""
+    normalized = _normalize_email(email)
+    for s in _load():
+        if _normalize_email(s["email"]) == normalized and s.get("stop_reason") == "unsubscribed":
+            return True
+    return False
 
 
 def add_pending(email: str, state_slug: str, deadline_fields: dict) -> dict:

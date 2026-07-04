@@ -11,6 +11,13 @@ reminders/*.log
 reminders/*.log.jsonl
 reminders/.env
 reminders/*.env
+
+# Send circuit-breaker state (counts + dates only, no PII, but still
+# generated local state -- not checked in, same as the other generated
+# files above). circuit_breaker_alerts.log.jsonl already matches the
+# *.log.jsonl rule above; the state file needs its own explicit entry since
+# it doesn't match any existing pattern.
+reminders/send_circuit_breaker_state.json
 # Found by adversarial review: the test harness's own scratch files
 # (reminders/_test_subscribers.json, reminders/_test_dry_run_sent.log.jsonl)
 # didn't match any of the rules above -- *.log doesn't match *.log.jsonl,

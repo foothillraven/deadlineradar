@@ -1,7 +1,8 @@
 # DeadlineRadar reminders — the "remind me" feature
 
-**Status: built, dry-run tested end-to-end, NOT deployed. Zero real emails have ever been sent —
-`DryRunSender` is the only sender wired up anywhere in this codebase.**
+**Status: built, dry-run tested end-to-end, abuse-hardened (2026-07-03 audit), NOT
+deployed. Zero real emails have ever been sent — `DryRunSender` (now wrapped in a send
+circuit breaker) is the only sender wired up anywhere in this codebase.**
 
 ## What this is
 
@@ -67,6 +68,85 @@ cohorts, birth month + year for California, birth month for Texas, cohort group 
 York has no signup form at all** — same honesty as the static site: its rule depends on a fact
 (first-registration date) this dataset doesn't have, so no reminder can be computed for it.
 
+## Abuse-hardening (2026-07-03 audit)
+
+The product promise is zero spam — which cuts both ways. Before this ever touches a real
+inbox, it has to be safe against a STRANGER using the signup form to spam a THIRD
+PARTY (enrolling someone else's address, bombing an inbox, flooding the system with
+bots). Audited against 7 rows; each is enforced in code and has a real attack-simulation
+test in `test_dry_run_e2e.py` (Parts 11–17) that tries to actually break it, not just a
+happy-path check:
+
+1. **Double opt-in.** Already the core design (see above) — a signup can never trigger
+   more than the one confirmation email until that link is clicked. PASS, pre-existing.
+2. **Dedupe + cooldown — ADDED.** `store.within_signup_cooldown()` blocks a second
+   confirmation to the same normalized email within 24h regardless of state (closes the
+   gap this doc used to list as a known limitation); `store.find_active_or_pending()`
+   refuses to create a second pending/confirmed record for the same email+state even
+   after the cooldown expires. Both fail toward the IDENTICAL success response a real
+   signup gets, so neither creates an email-enumeration oracle. Attack test: 100 rapid
+   submissions of the same address → exactly 1 real signup, 1 email.
+3. **Bot defense — ADDED.** A hidden honeypot field (`hp_website`, rendered off-screen
+   in every form by `generate.py`) — any non-empty value silently no-ops the submission
+   behind the same fake-success response. A per-IP sliding-window rate limiter
+   (`server.py`, 5 signups / 10 min, 30 action-link clicks / 10 min) throttles scripted
+   hammering. A Cloudflare Turnstile hook (`_verify_turnstile()`) is wired but inert
+   until `TURNSTILE_SECRET_KEY` is configured — see `HOSTING_PROPOSAL.md`. Attack tests:
+   a honeypot-filled submission creates zero records/emails; hammering `/subscribe`
+   with 10 distinct emails from one IP gets exactly 5 through and 5 blocked with 429.
+4. **Send circuit breaker — ADDED.** `sender.CircuitBreakerSender` wraps every sender
+   (including `DryRunSender` — the breaker is exercised by every existing test and
+   dry-run, not bolted on only at real-send time) with a hard daily cap
+   (`REMINDERS_DAILY_SEND_CAP`, default 500/UTC-day). Once hit, every further send is
+   refused and an alert is appended to `circuit_breaker_alerts.log.jsonl` — this
+   protects the free-tier quota and, more importantly, sender reputation (a burst of
+   bogus sends is exactly what gets a domain flagged as a spammer). Attack test: a
+   3-send cap under load → exactly 3 sends succeed, 2 refused, alert written.
+5. **Permanent suppression — hardened.** Tokens were already unguessable
+   (`secrets.token_urlsafe(32)`); `store.is_permanently_suppressed()` is a NEW,
+   independent check (keyed on `stop_reason`, deliberately NOT on `status`) enforced a
+   second time at the scheduler's actual send call site, so a hypothetical future bug
+   that corrupts the `status` field back to `confirmed` still cannot resurrect a real
+   unsubscribe. This was caught refining itself: an earlier version of this check also
+   required `status == stopped`, which defeated its own "independent of status" claim —
+   the attack test (Part 15, corrupt `status` directly, bypassing `rearm()`) failed
+   against that version and is what caught it.
+6. **Input validation / sanitization — hardened.** Stricter email regex (rejects
+   whitespace/control chars/malformed domains, not just "has an @ and a dot"); every
+   submitted field is swept for control characters (closes the door on
+   header-injection/stored-XSS-style payloads) before anything is processed; the POST
+   body is capped at 8KB before it's even read (a client-controlled `Content-Length`
+   could otherwise force unbounded memory use); state-specific numeric fields
+   (birth month/year) are parsed inside `try/except ValueError` instead of letting a
+   malformed value raise uncaught. **A real bug this audit found and fixed:**
+   `_handle_subscribe()` used to call `store.add_pending()` BEFORE validating that a
+   deadline was actually computable, so a malformed-but-form-valid submission (or the
+   int-parsing crash above) could leave an orphaned, never-confirmable pending record
+   behind — now deadline-computability is checked on a throwaway probe first, and
+   nothing is persisted unless it already succeeds. **A second real bug found and
+   fixed:** `check_data_freshness()` deliberately raises `SystemExit` to hard-stop the
+   offline scheduler on stale data — correct there, but `SystemExit` isn't an
+   `Exception` subclass, so letting it propagate from a live HTTP request would have
+   killed this single-threaded server's entire process on the next signup attempt if
+   the data ever went stale. Now caught explicitly and degrades to a 503, not a process
+   exit. Attack test: a CRLF-injection payload and a SQL-injection-shaped non-numeric
+   field both get a clean 400, the server still answers `/health` afterward, and neither
+   attempt leaves a subscriber record behind.
+7. **PII locality — re-verified technically.** `.gitignore` coverage re-checked by
+   reading the actual file content (not just policy) for every generated-state file,
+   including the two new ones this audit added
+   (`send_circuit_breaker_state.json`, `circuit_breaker_alerts.log.jsonl`). Re-confirmed
+   the minimal-collection claim with a real assertion: California's signup form still
+   asks for a full birth year (to compute odd/even parity server-side, which is easier
+   for a human to answer correctly than self-reporting parity), but the actual year is
+   discarded immediately after computing parity and NEVER appears in the persisted
+   record — only `birth_year_parity` does.
+
+**Hosting note:** GitHub Pages (where `docs/` is hosted) is static-only and cannot run
+this backend. `HOSTING_PROPOSAL.md` proposes Cloudflare Workers + D1 as the natural next
+step (the project is already on Cloudflare) — a proposal only, not deployed, not
+decided. Standing up any public endpoint is a plan-first item per CLAUDE.md.
+
 ## The deployment gap (real, not yet solved — needs a decision)
 
 The static site (`docs/`) can be hosted for free on GitHub Pages. **This backend cannot** — Pages
@@ -116,9 +196,11 @@ HTTP smoke test — an actual `HTTPServer` instance, real `urllib` requests, not
 against `/health`, `/subscribe`, and `/confirm`, including invalid-input rejection paths. Test
 storage/log files are isolated from the real ones and deleted whether the run passes or fails.
 
-**39/39 checks pass**, including 3 regression tests (Parts 8-10) added after an adversarial review
-found and this build fixed 3 real correctness bugs the *original* 33-check suite didn't catch,
-because it only ever advanced the clock to exact threshold boundaries:
+**73/73 checks pass**, including 3 regression tests (Parts 8-10) added after an earlier
+adversarial review found and this build fixed 3 real correctness bugs the *original*
+33-check suite didn't catch (because it only ever advanced the clock to exact threshold
+boundaries), and 7 more attack-simulation test groups (Parts 11-17) added by the
+2026-07-03 abuse-hardening audit — see "Abuse-hardening" above for what each attacks:
 
 1. **Reminder emails showed the wrong "days from now"** whenever a subscriber's first evaluation
    didn't land exactly on a threshold (e.g. confirmed 40 days out, crossing the 60-day tier,
@@ -155,13 +237,20 @@ is `DryRunSender`.
   it means a corporate email-security link-prefetcher could in principle trigger one of these
   before a human ever opens the email. Fix path: make the `GET` show a confirmation page with a
   button that `POST`s the actual action.
-- **No de-duplication on repeat signup.** Submitting the form twice for the same email+state
-  creates two independent subscriber records, each running its own full escalation sequence —
-  a UX rough edge (duplicate reminders), not a security or PII issue.
+- ~~No de-duplication on repeat signup.~~ **Fixed in the 2026-07-03 abuse-hardening audit** —
+  see "Abuse-hardening" row 2 above (`store.within_signup_cooldown()` / `find_active_or_pending()`).
 - **No file locking on `subscribers.json`.** Every read-modify-write is a full file overwrite with
   no locking. Two overlapping requests (e.g. the scheduler running while a `/subscribe` request is
   in flight) could race. Low likelihood for a single-operator local/staged setup; worth revisiting
-  before any real-scale deployment.
+  before any real-scale deployment — moot if/when the Cloudflare D1 hosting proposal is adopted,
+  since D1 handles concurrent writes itself.
+- **The in-memory per-IP rate limiter is single-process and resets on restart.** Fine for this
+  local reference implementation; a real deployment needs a shared store (see
+  `HOSTING_PROPOSAL.md` — Cloudflare's Rate Limiting rules / Durable Objects, not an in-process dict).
+- **The 24h signup cooldown blocks a legitimate "I never got the email, let me try again" retry
+  for the same window it blocks an attacker.** Deliberate tradeoff — a dedicated "resend
+  confirmation" flow (which would need its own abuse-hardening, e.g. only resending to the
+  original address, never creating a new record) is a reasonable future addition, not built here.
 
 ## Running the backend locally (dry-run only)
 

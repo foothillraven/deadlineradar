@@ -32,6 +32,8 @@ from reminders import store, sender as sender_module, scheduler, emails, server 
 
 TEST_STORE_PATH = HERE / "_test_subscribers.json"
 TEST_LOG_PATH = HERE / "_test_dry_run_sent.log.jsonl"
+TEST_CB_STATE_PATH = HERE / "_test_send_circuit_breaker_state.json"
+TEST_CB_ALERT_LOG_PATH = HERE / "_test_circuit_breaker_alerts.log.jsonl"
 TEST_HTTP_PORT = 8799
 
 FAILURES: list[str] = []
@@ -47,7 +49,12 @@ def check(label: str, condition: bool, detail: str = "") -> None:
 def reset_storage() -> None:
     store.STORE_PATH = TEST_STORE_PATH
     sender_module.DRY_RUN_LOG_PATH = TEST_LOG_PATH
-    for p in (TEST_STORE_PATH, TEST_LOG_PATH):
+    sender_module.CIRCUIT_BREAKER_STATE_PATH = TEST_CB_STATE_PATH
+    sender_module.CIRCUIT_BREAKER_ALERT_LOG_PATH = TEST_CB_ALERT_LOG_PATH
+    # Also reset the in-memory per-IP rate limiter between tests -- otherwise
+    # an earlier test's hammering would bleed into a later test's quota.
+    server_module._RATE_LIMIT_HITS.clear()
+    for p in (TEST_STORE_PATH, TEST_LOG_PATH, TEST_CB_STATE_PATH, TEST_CB_ALERT_LOG_PATH):
         if p.exists():
             p.unlink()
 
@@ -314,6 +321,232 @@ def test_florida_multi_record_license_type() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Parts 11-17: abuse-hardening audit (2026-07-03) -- real attacks against the
+# real code, one per audited row. Each test tries to actually break the
+# defense, not just call the happy path.
+# ---------------------------------------------------------------------------
+
+def test_cooldown_and_dedupe_block_repeat_signup_spam() -> None:
+    """Attack simulation for row 2 (dedupe + cooldown). Directive's own
+    attack test: 'submit victim@x 100x -> exactly 1 email would send.'"""
+    print("\n== Part 11 (abuse-hardening row 2): cooldown+dedupe block repeat-signup spam ==")
+    reset_storage()
+    victim = "victim@example.invalid"
+
+    sent_count = 0
+    for _ in range(100):
+        if store.within_signup_cooldown(victim) or store.find_active_or_pending(victim, "michigan") is not None:
+            continue  # server.py's _handle_subscribe would no-op here too
+        store.add_pending(victim, "michigan", {})
+        sent_count += 1
+
+    check("100 rapid submissions of the same email produce at most 1 real signup", sent_count == 1, f"got {sent_count}")
+    all_records = [s for s in json.loads(TEST_STORE_PATH.read_text(encoding="utf-8")) if s["email"] == victim]
+    check("only 1 subscriber record exists for the victim after 100 submissions", len(all_records) == 1,
+          f"got {len(all_records)}")
+    check("cooldown blocks even a DIFFERENT state for the same email (can't dodge via state=)",
+          store.within_signup_cooldown(victim))
+
+
+def test_honeypot_silently_blocks_bots() -> None:
+    """Attack simulation for row 3a (honeypot). A bot that fills every field
+    (including the hidden one) must get a fake-success response and cause
+    NO record and NO email -- never a visible rejection that would teach
+    the bot to stop filling that field."""
+    print("\n== Part 12 (abuse-hardening row 3a): honeypot silently no-ops bot submissions ==")
+    reset_storage()
+    httpd = HTTPServer(("127.0.0.1", TEST_HTTP_PORT + 1), server_module.Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    time.sleep(0.3)
+    base = f"http://127.0.0.1:{TEST_HTTP_PORT + 1}"
+    try:
+        form_data = urllib.parse.urlencode({
+            "email": "bot-target@example.invalid",
+            "state": "michigan",
+            server_module.HONEYPOT_FIELD_NAME: "http://spam.example",
+        }).encode()
+        req = urllib.request.Request(f"{base}/subscribe", data=form_data, method="POST")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            body = resp.read()
+            check("honeypot-tripped submission still returns 200 (never tips off the bot)", resp.status == 200)
+            check("honeypot-tripped submission gets the IDENTICAL success page a real signup gets",
+                  b"Almost done" in body)
+        subs = json.loads(TEST_STORE_PATH.read_text(encoding="utf-8")) if TEST_STORE_PATH.exists() else []
+        matching = [s for s in subs if s["email"] == "bot-target@example.invalid"]
+        check("NO subscriber record created for the honeypot-tripped submission", len(matching) == 0,
+              f"got {len(matching)}")
+        check("NO confirmation email sent for the honeypot-tripped submission", len(read_dry_run_log()) == 0,
+              f"got {len(read_dry_run_log())}")
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+
+
+def test_rate_limit_blocks_ip_hammering() -> None:
+    """Attack simulation for row 3b (per-IP rate limit). Script-hammers
+    /subscribe with distinct emails (isolating the IP limiter from
+    cooldown/dedupe) and confirms it gets throttled, per the directive's own
+    attack test."""
+    print("\n== Part 13 (abuse-hardening row 3b): per-IP rate limit throttles script-hammering ==")
+    reset_storage()
+    httpd = HTTPServer(("127.0.0.1", TEST_HTTP_PORT + 2), server_module.Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    time.sleep(0.3)
+    base = f"http://127.0.0.1:{TEST_HTTP_PORT + 2}"
+    try:
+        max_allowed, _ = server_module.RATE_LIMIT_SUBSCRIBE
+        statuses = []
+        for i in range(max_allowed + 5):
+            form_data = urllib.parse.urlencode({"email": f"hammer{i}@example.invalid", "state": "michigan"}).encode()
+            req = urllib.request.Request(f"{base}/subscribe", data=form_data, method="POST")
+            try:
+                with urllib.request.urlopen(req, timeout=3) as resp:
+                    statuses.append(resp.status)
+            except urllib.error.HTTPError as e:
+                statuses.append(e.code)
+        allowed = [s for s in statuses if s == 200]
+        blocked = [s for s in statuses if s == 429]
+        check(f"exactly {max_allowed} requests allowed from one IP before the limit trips",
+              len(allowed) == max_allowed, f"statuses were: {statuses}")
+        check("every request past the limit is blocked (429), not silently processed",
+              len(blocked) == 5, f"statuses were: {statuses}")
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+
+
+def test_circuit_breaker_halts_after_daily_cap() -> None:
+    """Attack simulation for row 4 (send circuit breaker). Drives a
+    low-cap breaker past its limit and confirms it HALTS rather than ever
+    exceeding the cap, and that the trip is alerted, not silent."""
+    print("\n== Part 14 (abuse-hardening row 4): circuit breaker halts sends after the daily cap ==")
+    reset_storage()
+    cb = sender_module.CircuitBreakerSender(sender_module.DryRunSender(), daily_cap=3)
+    results = [cb.send(f"test{i}@example.invalid", "subject", "body") for i in range(5)]
+    check("first 3 sends succeed (under the cap)", results[:3] == [True, True, True], f"got {results}")
+    check("4th and 5th sends are refused once the cap is hit, never exceeding it",
+          results[3:] == [False, False], f"got {results}")
+    check("exactly 3 emails reached the underlying sender, never more than the cap",
+          len(read_dry_run_log()) == 3, f"got {len(read_dry_run_log())}")
+    check("the breaker tripping wrote an alert, not a silent halt", TEST_CB_ALERT_LOG_PATH.exists())
+    if TEST_CB_ALERT_LOG_PATH.exists():
+        alerts = [json.loads(line) for line in TEST_CB_ALERT_LOG_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
+        check("at least one alert entry was actually written", len(alerts) >= 1, f"got {len(alerts)}")
+
+
+def test_permanent_suppression_survives_a_status_bug() -> None:
+    """Attack simulation for row 5 (permanent suppression). Directly
+    corrupts a stopped subscriber's status field (bypassing store.rearm()
+    entirely, simulating a hypothetical future bug elsewhere) and confirms
+    the INDEPENDENT suppression check still blocks the send -- defense in
+    depth, not reliant on the status field alone."""
+    print("\n== Part 15 (abuse-hardening row 5): suppression holds even if status gets corrupted ==")
+    reset_storage()
+    sub = store.add_pending("stopped-victim@example.invalid", "michigan", {})
+    store.confirm(sub["confirm_token"])
+    result = scheduler.compute_subscriber_deadline(sub, date(2026, 7, 3))
+    deadline_date, _ = result
+    store.stop(sub["unsubscribe_token"], "unsubscribed")
+
+    # Simulate a hypothetical status-field bug: flip status back to
+    # "confirmed" by editing the store file directly, NOT via store.rearm()
+    # (which correctly refuses unsubscribed records). A real bug like this
+    # would be a defect elsewhere -- this test proves is_permanently_suppressed()
+    # is a second, independent line of defense against exactly that.
+    subs = json.loads(TEST_STORE_PATH.read_text(encoding="utf-8"))
+    for s in subs:
+        if s["id"] == sub["id"]:
+            s["status"] = store.STATUS_CONFIRMED
+    TEST_STORE_PATH.write_text(json.dumps(subs), encoding="utf-8")
+
+    check("is_permanently_suppressed() still True despite the corrupted status field",
+          store.is_permanently_suppressed("stopped-victim@example.invalid"))
+
+    test_sender = sender_module.DryRunSender()
+    # Evaluate right at the "tomorrow" threshold -- genuinely due for a real
+    # active subscriber -- to prove the block below is the suppression
+    # check firing, not simply "nothing was due yet."
+    summary = scheduler.run_once(as_of=deadline_date - timedelta(days=1), sender=test_sender)
+    check("scheduler blocks the send despite status=confirmed and a genuinely due threshold",
+          summary["sent"] == 0, f"summary was: {summary}")
+    check("the blocked send is recorded as an explicit error, not silently dropped",
+          any("suppressed" in e["error"] for e in summary["errors"]), f"errors were: {summary['errors']}")
+
+
+def test_input_validation_rejects_malformed_and_injection_payloads() -> None:
+    """Attack simulation for row 6 (input validation/sanitization). Fires a
+    header-injection-style payload and a non-numeric field at the real
+    server and confirms both are rejected cleanly -- no crash, and (fixing
+    a bug found during this audit) no orphaned pending record left behind
+    from a submission that fails validation partway through."""
+    print("\n== Part 16 (abuse-hardening row 6): malformed/injection payloads rejected, no crash, no orphan ==")
+    reset_storage()
+    httpd = HTTPServer(("127.0.0.1", TEST_HTTP_PORT + 3), server_module.Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    time.sleep(0.3)
+    base = f"http://127.0.0.1:{TEST_HTTP_PORT + 3}"
+    try:
+        payload = urllib.parse.urlencode({
+            "email": "inject@example.invalid",
+            "state": "michigan",
+            "license_type_id": "x\r\nBcc: victim2@example.invalid",
+        }).encode()
+        req = urllib.request.Request(f"{base}/subscribe", data=payload, method="POST")
+        try:
+            urllib.request.urlopen(req, timeout=3)
+            check("CRLF header-injection payload is rejected, not accepted", False, "expected an HTTP error, got 200")
+        except urllib.error.HTTPError as e:
+            check("CRLF header-injection payload is rejected with 400", e.code == 400, f"got {e.code}")
+
+        payload2 = urllib.parse.urlencode({
+            "email": "crash-attempt@example.invalid",
+            "state": "texas",
+            "birth_month": "'; DROP TABLE subscribers; --",
+        }).encode()
+        req2 = urllib.request.Request(f"{base}/subscribe", data=payload2, method="POST")
+        try:
+            urllib.request.urlopen(req2, timeout=3)
+            check("non-numeric birth_month is rejected, not accepted", False, "expected an HTTP error, got 200")
+        except urllib.error.HTTPError as e:
+            check("non-numeric birth_month is rejected with 400, not a 500 crash", e.code == 400, f"got {e.code}")
+
+        with urllib.request.urlopen(f"{base}/health", timeout=3) as resp:
+            check("server survives both attack payloads and still answers /health", resp.status == 200)
+
+        subs = json.loads(TEST_STORE_PATH.read_text(encoding="utf-8")) if TEST_STORE_PATH.exists() else []
+        check("neither attack payload left an orphaned subscriber record behind",
+              all(s["email"] not in ("inject@example.invalid", "crash-attempt@example.invalid") for s in subs),
+              f"records: {[s['email'] for s in subs]}")
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+
+
+def test_pii_locality_reverified() -> None:
+    """Re-verification for row 7 (PII locality), technically not just by
+    policy: .gitignore actually covers every generated-state file, and the
+    long-standing minimal-collection claim (birth YEAR is never persisted,
+    only parity) still holds after this audit's changes."""
+    print("\n== Part 17 (abuse-hardening row 7): PII locality + minimal-collection re-verified ==")
+    reset_storage()
+    sub = store.add_pending("ca-sub@example.invalid", "california", {"birth_month": "3", "birth_year_parity": "odd"})
+    check("California subscriber record has NO birth_year field, only parity",
+          "birth_year" not in sub["deadline_fields"], f"deadline_fields were: {sub['deadline_fields']}")
+
+    gitignore_text = (HERE.parent / ".gitignore").read_text(encoding="utf-8")
+    for pattern_name, needle in [
+        ("subscribers.json", "reminders/subscribers.json"),
+        ("dry_run_sent.log.jsonl", "reminders/dry_run_sent.log.jsonl"),
+        ("send_circuit_breaker_state.json", "reminders/send_circuit_breaker_state.json"),
+        ("*.log.jsonl (covers circuit_breaker_alerts.log.jsonl)", "*.log.jsonl"),
+    ]:
+        check(f".gitignore covers {pattern_name}", needle in gitignore_text)
+
+
+# ---------------------------------------------------------------------------
 # Part 7: real HTTP smoke test against the actual server
 # ---------------------------------------------------------------------------
 
@@ -382,8 +615,15 @@ def main() -> None:
         test_scheduler_gap_never_regresses_to_less_urgent_tier()
         test_never_notified_catchup_not_silent()
         test_http_server_smoke()
+        test_cooldown_and_dedupe_block_repeat_signup_spam()
+        test_honeypot_silently_blocks_bots()
+        test_rate_limit_blocks_ip_hammering()
+        test_circuit_breaker_halts_after_daily_cap()
+        test_permanent_suppression_survives_a_status_bug()
+        test_input_validation_rejects_malformed_and_injection_payloads()
+        test_pii_locality_reverified()
     finally:
-        for p in (TEST_STORE_PATH, TEST_LOG_PATH):
+        for p in (TEST_STORE_PATH, TEST_LOG_PATH, TEST_CB_STATE_PATH, TEST_CB_ALERT_LOG_PATH):
             if p.exists():
                 p.unlink()
 

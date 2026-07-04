@@ -317,6 +317,41 @@ def _extra_fields_html(state_slug: str, records: list[dict]) -> str:
     return ""
 
 
+
+# Abuse-hardening (2026-07-03 audit). Two bot defenses embedded directly in
+# every rendered form:
+#
+#   1. A honeypot field, invisible to a real person (off-screen, aria-hidden,
+#      excluded from tab order, autocomplete disabled so password managers
+#      never auto-fill it either) but present in the DOM like any other
+#      input -- a bot that blindly fills every field will fill this one too.
+#      server.py's _handle_subscribe() treats any non-empty value here as
+#      "this is a bot" and silently no-ops (fake success, no record, no
+#      email) rather than tipping off the bot with a visible rejection.
+#   2. A reserved (but inert) Cloudflare Turnstile response field. The
+#      widget script itself is NOT included here -- standing up a public
+#      endpoint behind Turnstile is a plan-first, not something this
+#      generator does unilaterally (see reminders/HOSTING_PROPOSAL.md). The
+#      field name matches what server.py's _verify_turnstile() already
+#      reads, so turning Turnstile on later is: (a) add the widget
+#      <script>/div here, (b) set TURNSTILE_SECRET_KEY server-side. No other
+#      code changes needed on either side.
+_HONEYPOT_FIELD_NAME = "hp_website"
+
+_BOT_DEFENSE_FIELDS_HTML = (
+    f'<div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;'
+    f'height:0;width:0;overflow:hidden;">'
+    f'<label for="{_HONEYPOT_FIELD_NAME}">Leave this field blank</label>'
+    f'<input type="text" id="{_HONEYPOT_FIELD_NAME}" name="{_HONEYPOT_FIELD_NAME}" '
+    f'tabindex="-1" autocomplete="off">'
+    f'</div>\n'
+    f'    <!-- Reserved for Cloudflare Turnstile once a public endpoint + site key exist -- '
+    f'see reminders/HOSTING_PROPOSAL.md. Empty/absent is treated as "not configured yet," '
+    f'not as a failed check. -->\n'
+    f'    <input type="hidden" name="cf-turnstile-response" value="">'
+)
+
+
 def signup_form_for_state(state_slug: str, state_name: str, records: list[dict]) -> str:
     if state_slug in REMINDER_UNSUPPORTED_STATES:
         return ""  # no computable deadline -- see REMINDER_UNSUPPORTED_STATES docstring
@@ -325,6 +360,7 @@ def signup_form_for_state(state_slug: str, state_name: str, records: list[dict])
   <p class="signup-microcopy">{esc(TRUST_MICROCOPY)}</p>
   <form method="post" action="{esc(REMINDER_BACKEND_BASE_URL)}/subscribe">
     <input type="hidden" name="state" value="{esc(state_slug)}">
+    {_BOT_DEFENSE_FIELDS_HTML}
     <label for="email">Email address</label>
     <input type="email" id="email" name="email" required placeholder="you@example.com">
     {_extra_fields_html(state_slug, records)}
@@ -353,6 +389,7 @@ def signup_form_homepage(by_slug: dict[str, list[dict]]) -> str:
   <h2>Get reminded before your deadline</h2>
   <p class="signup-microcopy">{esc(TRUST_MICROCOPY)}</p>
   <form method="post" action="{esc(REMINDER_BACKEND_BASE_URL)}/subscribe" id="homepage-signup-form">
+    {_BOT_DEFENSE_FIELDS_HTML}
     <label for="home-state">Your state</label>
     <select id="home-state" name="state" required onchange="drUpdateFields(this.value)">
       <option value="">Select your state</option>

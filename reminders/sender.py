@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import os
 import pathlib
+import threading
 from datetime import datetime, timezone
 
 DRY_RUN_LOG_PATH = pathlib.Path(__file__).resolve().parent / "dry_run_sent.log.jsonl"
@@ -105,6 +106,21 @@ class SendGridSender(EmailSender):
             return False
 
 
+# Module-level (not instance-level) lock, deliberately: get_sender() may
+# hand back a FRESH CircuitBreakerSender instance on every call, and an
+# instance-level lock would do nothing to serialize two different
+# instances racing on the SAME state file. A module-level lock serializes
+# every CircuitBreakerSender.send() call in this process regardless of how
+# many instances exist. Found by the abuse-hardening audit's own attack
+# test: without this, concurrent threads could each read the state file
+# before any of them had written their increment, letting the daily cap be
+# blown well past (measured letting through nearly 2x the configured cap
+# under a 40-thread burst) -- and a write landing mid-read from another
+# thread could crash the reader with a JSONDecodeError, since the old
+# _save_state() was a plain non-atomic overwrite.
+_CIRCUIT_BREAKER_LOCK = threading.Lock()
+
+
 class CircuitBreakerSender(EmailSender):
     """Wraps another EmailSender with a hard DAILY send cap. Protects two
     things at once: the free-tier send quota, and -- more importantly --
@@ -116,7 +132,10 @@ class CircuitBreakerSender(EmailSender):
     ever reaching the wrapped sender -- and an ALERT is appended to a local
     log so a human/monitoring can see it tripped. The cap resets at UTC
     midnight, tracked in a small local JSON state file (not PII -- just a
-    date and a count)."""
+    date and a count). The load-check-increment-save sequence is guarded by
+    a process-wide lock (`_CIRCUIT_BREAKER_LOCK`) and state-file writes are
+    atomic (write-temp-then-replace) -- see that lock's module-level
+    docstring for why both are load-bearing, not just tidiness."""
 
     DEFAULT_DAILY_CAP = 500
 
@@ -136,9 +155,19 @@ class CircuitBreakerSender(EmailSender):
             return json.load(f)
 
     def _save_state(self, state: dict) -> None:
+        # Atomic write (temp file + os.replace) rather than a direct
+        # overwrite -- so a concurrent reader (another thread, a human
+        # tailing the file, a future multi-process deployment) can never
+        # observe a half-written file and crash on invalid JSON. The
+        # _CIRCUIT_BREAKER_LOCK already prevents concurrent WRITER/WRITER
+        # races within this process; this protects READERS against
+        # partial writes regardless of what's holding (or not holding) the
+        # lock.
         CIRCUIT_BREAKER_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with open(CIRCUIT_BREAKER_STATE_PATH, "w", encoding="utf-8") as f:
+        tmp_path = CIRCUIT_BREAKER_STATE_PATH.with_suffix(".tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(state, f, indent=2)
+        os.replace(tmp_path, CIRCUIT_BREAKER_STATE_PATH)
 
     def _alert(self, message: str, count: int) -> None:
         entry = {
@@ -156,31 +185,41 @@ class CircuitBreakerSender(EmailSender):
         print(f"[CIRCUIT BREAKER] {message}", flush=True)
 
     def send(self, to_email: str, subject: str, text_body: str, html_body: str | None = None) -> bool:
-        today = self._today_key()
-        state = self._load_state()
-        count = state.get(today, 0)
+        # The load-check-increment-save sequence is the circuit breaker's
+        # entire reason for existing -- it MUST be atomic across threads/
+        # instances, or the cap can be blown straight past under concurrent
+        # sends (confirmed by the abuse-hardening audit's attack test).
+        with _CIRCUIT_BREAKER_LOCK:
+            today = self._today_key()
+            state = self._load_state()
+            count = state.get(today, 0)
 
-        if count >= self.daily_cap:
-            self._alert(
-                f"Daily send cap ({self.daily_cap}) already reached for {today} -- HALTING further sends today.",
-                count,
-            )
-            return False
+            if count >= self.daily_cap:
+                self._alert(
+                    f"Daily send cap ({self.daily_cap}) already reached for {today} -- HALTING further sends today.",
+                    count,
+                )
+                return False
 
-        count += 1
-        state[today] = count
-        # Keep the state file from growing forever -- only today's count
-        # matters for the breaker; drop any older days.
-        state = {today: count}
-        self._save_state(state)
+            count += 1
+            # Keep the state file from growing forever -- only today's count
+            # matters for the breaker; drop any older days.
+            state = {today: count}
+            self._save_state(state)
 
-        if count == self.daily_cap:
-            self._alert(
-                f"Daily send cap ({self.daily_cap}) just reached for {today} on this send -- "
-                f"halting all further sends until UTC midnight.",
-                count,
-            )
+            if count == self.daily_cap:
+                self._alert(
+                    f"Daily send cap ({self.daily_cap}) just reached for {today} on this send -- "
+                    f"halting all further sends until UTC midnight.",
+                    count,
+                )
 
+        # Deliberately OUTSIDE the lock: the underlying send (a real network
+        # call, in a non-dry-run sender) shouldn't serialize every other
+        # thread's cap-checking while it's in flight. This matches the
+        # pre-existing semantic (the counter reflects attempted sends, not
+        # confirmed-successful ones) -- not a new behavior introduced by
+        # the lock.
         return self.wrapped.send(to_email, subject, text_body, html_body)
 
 

@@ -279,11 +279,18 @@ class Handler(BaseHTTPRequestHandler):
     # -- handlers -----------------------------------------------------
 
     def _handle_subscribe(self, form: dict) -> None:
-        # Honeypot: a real human never sees or fills this field. Any
-        # non-empty value here is treated as a bot -- respond with the
+        # Honeypot: a real human never sees or fills this field. ANY
+        # non-empty raw value here is treated as a bot -- respond with the
         # IDENTICAL success page a real signup gets (never reveal
         # detection to the bot), but do nothing: no record, no email.
-        if (form.get(HONEYPOT_FIELD_NAME) or "").strip():
+        # Found by adversarial review: an earlier version checked
+        # `.strip()` truthiness, so a whitespace-only value (a single
+        # space, a tab) fooled the detector -- any bot padding the field
+        # with whitespace instead of leaving it truly empty sailed through
+        # undetected. Check the raw value's emptiness, not its
+        # stripped/truthy form.
+        honeypot_value = form.get(HONEYPOT_FIELD_NAME)
+        if honeypot_value is not None and honeypot_value != "":
             self._send(200, _SUBSCRIBE_SUCCESS_PAGE)
             return
 
@@ -434,15 +441,25 @@ class Handler(BaseHTTPRequestHandler):
         if not subscriber:
             self._error_page(404, "That link is invalid.")
             return
-        state_name = subscriber["state_slug"].replace("-", " ").title()
-        # Found by adversarial review: this previously passed "" as the
-        # unsubscribe_url, so the stop-confirmation email's footer rendered
-        # a dead, empty unsubscribe link -- the one template in the system
-        # that didn't have a real one. Build it the same way every other
-        # handler does.
-        unsubscribe_url = f"{emails.BACKEND_BASE_URL}/unsubscribe?token={subscriber['unsubscribe_token']}"
-        email_content = emails.stop_confirmation_email("unsubscribed", state_name, None, unsubscribe_url)
-        sender_module.get_sender().send(subscriber["email"], email_content["subject"], email_content["text_body"], None)
+        # Abuse-hardening audit finding (row 1): a still-pending (never
+        # confirmed) subscriber's unsubscribe_token IS legitimately reachable
+        # -- the confirmation email's own footer includes a real unsubscribe
+        # link -- so store.stop() still honors it here (permanently killing
+        # the pending signup). But "an unconfirmed signup gets exactly one
+        # email, ever" means that ONE confirmation email must stay the only
+        # one: only send this stop-confirmation email if the subscriber had
+        # actually been confirmed at some point. A pending subscriber's
+        # unsubscribe is honored silently, with no second email.
+        if subscriber.get("confirmed_at") is not None:
+            state_name = subscriber["state_slug"].replace("-", " ").title()
+            # Found by adversarial review: this previously passed "" as the
+            # unsubscribe_url, so the stop-confirmation email's footer rendered
+            # a dead, empty unsubscribe link -- the one template in the system
+            # that didn't have a real one. Build it the same way every other
+            # handler does.
+            unsubscribe_url = f"{emails.BACKEND_BASE_URL}/unsubscribe?token={subscriber['unsubscribe_token']}"
+            email_content = emails.stop_confirmation_email("unsubscribed", state_name, None, unsubscribe_url)
+            sender_module.get_sender().send(subscriber["email"], email_content["subject"], email_content["text_body"], None)
         self._send(200, _html_page("Unsubscribed", "<h1>Done</h1><p>You're unsubscribed, instantly and permanently.</p>"))
 
     def _handle_renewed(self, token: str | None) -> None:

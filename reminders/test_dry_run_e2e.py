@@ -536,14 +536,211 @@ def test_pii_locality_reverified() -> None:
     check("California subscriber record has NO birth_year field, only parity",
           "birth_year" not in sub["deadline_fields"], f"deadline_fields were: {sub['deadline_fields']}")
 
-    gitignore_text = (HERE.parent / ".gitignore").read_text(encoding="utf-8")
-    for pattern_name, needle in [
-        ("subscribers.json", "reminders/subscribers.json"),
-        ("dry_run_sent.log.jsonl", "reminders/dry_run_sent.log.jsonl"),
-        ("send_circuit_breaker_state.json", "reminders/send_circuit_breaker_state.json"),
-        ("*.log.jsonl (covers circuit_breaker_alerts.log.jsonl)", "*.log.jsonl"),
-    ]:
-        check(f".gitignore covers {pattern_name}", needle in gitignore_text)
+    # Checks actual `git check-ignore` behavior, not just gitignore text
+    # content -- the abuse-hardening audit's row 7 fix replaced an
+    # enumerated-filename list with a content-shape denylist
+    # (`reminders/*.json` / `*.jsonl` / `_*`), so asserting on the OLD exact
+    # strings would be a stale test giving a false failure on a real fix.
+    import subprocess
+    pii_paths = [
+        "reminders/subscribers.json",
+        "reminders/dry_run_sent.log.jsonl",
+        "reminders/send_circuit_breaker_state.json",
+        "reminders/circuit_breaker_alerts.log.jsonl",
+        "reminders/_attack_whatever_prefix.json",  # any future scratch prefix
+    ]
+    result = subprocess.run(
+        ["git", "check-ignore"] + pii_paths, cwd=HERE.parent, capture_output=True, text=True,
+    )
+    ignored_paths = set(result.stdout.strip().splitlines())
+    for p in pii_paths:
+        check(f"git actually ignores {p}", p in ignored_paths, f"git check-ignore output: {result.stdout!r}")
+
+    tracked_paths = ["reminders/__init__.py", "reminders/subscribers.example.json"]
+    result2 = subprocess.run(
+        ["git", "check-ignore"] + tracked_paths, cwd=HERE.parent, capture_output=True, text=True,
+    )
+    for p in tracked_paths:
+        check(f"git does NOT ignore real tracked file {p}", p not in result2.stdout, f"output: {result2.stdout!r}")
+
+
+# ---------------------------------------------------------------------------
+# Parts 18-22: regression tests for the 5 real bypasses an INDEPENDENT
+# adversarial workflow (a separate set of agents red-teaming this same
+# feature, not this file) found in the first abuse-hardening pass. Each test
+# reproduces the exact attack that broke it before the fix.
+# ---------------------------------------------------------------------------
+
+def test_pending_subscriber_cannot_bypass_double_optin() -> None:
+    """Regression test for a real bypass an independent red-team pass
+    found: a still-pending (never confirmed) subscriber could be flipped
+    all the way to status=confirmed via /renewed + /rearm using only
+    signup-time tokens, with /confirm never called -- and could get a
+    second (spurious) email via /unsubscribe before ever confirming."""
+    print("\n== Part 18 (abuse-hardening row 1 fix): pending subscriber can't bypass double opt-in ==")
+    reset_storage()
+    httpd = HTTPServer(("127.0.0.1", TEST_HTTP_PORT + 4), server_module.Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    time.sleep(0.3)
+    base = f"http://127.0.0.1:{TEST_HTTP_PORT + 4}"
+    try:
+        form_data = urllib.parse.urlencode({"email": "pending-victim@example.invalid", "state": "michigan"}).encode()
+        req = urllib.request.Request(f"{base}/subscribe", data=form_data, method="POST")
+        urllib.request.urlopen(req, timeout=3).read()
+        subs = json.loads(TEST_STORE_PATH.read_text(encoding="utf-8"))
+        pending = next(s for s in subs if s["email"] == "pending-victim@example.invalid")
+        check("subscriber created as pending, never confirmed", pending["status"] == store.STATUS_PENDING)
+        check("exactly 1 email (the confirmation) sent so far", len(read_dry_run_log()) == 1)
+
+        try:
+            urllib.request.urlopen(f"{base}/renewed?token={pending['renewed_token']}", timeout=3)
+            renewed_status = 200
+        except urllib.error.HTTPError as e:
+            renewed_status = e.code
+        check("/renewed on a never-confirmed subscriber is REFUSED (404), not honored",
+              renewed_status == 404, f"got {renewed_status}")
+        still_pending = next(s for s in json.loads(TEST_STORE_PATH.read_text(encoding="utf-8")) if s["id"] == pending["id"])
+        check("status is still pending_confirmation after the /renewed attack",
+              still_pending["status"] == store.STATUS_PENDING, f"got {still_pending['status']}")
+
+        try:
+            urllib.request.urlopen(f"{base}/rearm?token={pending['unsubscribe_token']}", timeout=3)
+            rearm_status = 200
+        except urllib.error.HTTPError as e:
+            rearm_status = e.code
+        check("/rearm on a subscriber never legitimately stopped-via-renewed is REFUSED (404)",
+              rearm_status == 404, f"got {rearm_status}")
+        check("scheduler still excludes this record (all_confirmed_active)",
+              pending["id"] not in [s["id"] for s in store.all_confirmed_active()])
+
+        with urllib.request.urlopen(f"{base}/unsubscribe?token={pending['unsubscribe_token']}", timeout=3) as resp:
+            check("/unsubscribe on a pending subscriber is still honored (200)", resp.status == 200)
+        stopped = next(s for s in json.loads(TEST_STORE_PATH.read_text(encoding="utf-8")) if s["id"] == pending["id"])
+        check("pending subscriber is now permanently stopped", stopped["status"] == store.STATUS_STOPPED)
+        check("STILL only 1 email total was ever sent to this never-confirmed address",
+              len(read_dry_run_log()) == 1, f"got {len(read_dry_run_log())}")
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+
+
+def test_gmail_style_dot_plustag_addresses_share_cooldown() -> None:
+    """Regression test for a real bypass an independent red-team pass
+    found: Gmail-style dot-insensitivity and '+tag' sub-addressing let
+    an attacker generate multiple distinct confirmation emails to the
+    SAME real inbox within the cooldown window."""
+    print("\n== Part 19 (abuse-hardening row 2 fix): Gmail dot/+tag variants share one cooldown ==")
+    reset_storage()
+    variants = [
+        "victim.name@gmail.com",
+        "victim.name+a@gmail.com",
+        "victim.name+b@gmail.com",
+        "victimname@gmail.com",
+        "vic.tim.name@gmail.com",
+    ]
+    sent_count = 0
+    for v in variants:
+        if store.within_signup_cooldown(v) or store.find_active_or_pending(v, "michigan") is not None:
+            continue
+        store.add_pending(v, "michigan", {})
+        sent_count += 1
+    check("5 Gmail dot/+tag variants of the same real inbox produce at most 1 real signup",
+          sent_count == 1, f"got {sent_count}")
+    check("an unrelated address is NOT swept into the Gmail victim's cooldown",
+          not store.within_signup_cooldown("totally-different@example.invalid"))
+
+
+def test_honeypot_whitespace_only_value_still_blocked() -> None:
+    """Regression test for a real bypass an independent red-team pass
+    found: a whitespace-only honeypot value slipped past the old
+    `.strip()`-truthiness check."""
+    print("\n== Part 20 (abuse-hardening row 3 fix): whitespace-only honeypot value still caught ==")
+    reset_storage()
+    httpd = HTTPServer(("127.0.0.1", TEST_HTTP_PORT + 5), server_module.Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    time.sleep(0.3)
+    base = f"http://127.0.0.1:{TEST_HTTP_PORT + 5}"
+    try:
+        form_data = urllib.parse.urlencode({
+            "email": "whitespace-bot@example.invalid",
+            "state": "michigan",
+            server_module.HONEYPOT_FIELD_NAME: "   ",
+        }).encode()
+        req = urllib.request.Request(f"{base}/subscribe", data=form_data, method="POST")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            check("whitespace-only honeypot submission still returns 200 (doesn't tip off the bot)",
+                  resp.status == 200)
+        subs = json.loads(TEST_STORE_PATH.read_text(encoding="utf-8")) if TEST_STORE_PATH.exists() else []
+        check("NO subscriber record created for a whitespace-only honeypot fill",
+              len([s for s in subs if s["email"] == "whitespace-bot@example.invalid"]) == 0)
+        check("NO email sent for a whitespace-only honeypot fill", len(read_dry_run_log()) == 0)
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+
+
+def test_circuit_breaker_holds_cap_under_concurrency() -> None:
+    """Regression test for a real bypass an independent red-team pass
+    found: the unlocked load-check-increment-save sequence let concurrent
+    threads blow well past the configured daily cap."""
+    print("\n== Part 21 (abuse-hardening row 4 fix): circuit breaker holds the cap under real thread concurrency ==")
+    reset_storage()
+    cap = 5
+    n_threads = 40
+    cb = sender_module.CircuitBreakerSender(sender_module.DryRunSender(), daily_cap=cap)
+    results: list = [None] * n_threads
+
+    def worker(i: int) -> None:
+        results[i] = cb.send(f"race{i}@example.invalid", "subject", "body")
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(n_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5)
+
+    true_sends = len(read_dry_run_log())
+    check(f"under {n_threads}-thread concurrency, at most {cap} sends actually went through, never more",
+          true_sends <= cap, f"got {true_sends} real sends logged (cap was {cap})")
+    check("the number of True-returning calls matches the real send count (no lost/duplicate accounting)",
+          sum(1 for r in results if r) == true_sends,
+          f"True count was {sum(1 for r in results if r)}, log had {true_sends}")
+
+
+def test_suppression_lifts_after_a_genuine_later_confirm() -> None:
+    """Regression test for a real bypass (in the over-blocking direction)
+    an independent red-team pass found: is_permanently_suppressed() used
+    to block EVERY future signup for an email that had ever unsubscribed,
+    even a wholly separate, genuinely re-confirmed later record -- a
+    product-breaking bug, not a security win."""
+    print("\n== Part 22 (abuse-hardening row 5 fix): a later, real confirm lifts suppression ==")
+    reset_storage()
+    email = "reformed-victim@example.invalid"
+    sub_a = store.add_pending(email, "florida", {"license_type_id": "fl-individual-odd"})
+    store.confirm(sub_a["confirm_token"])
+    store.stop(sub_a["unsubscribe_token"], "unsubscribed")
+    check("immediately after unsubscribing, the email is suppressed", store.is_permanently_suppressed(email))
+
+    sub_b = store.add_pending(email, "ohio", {"cohort_group": "Group 1"})
+    check("a fresh pending signup does NOT itself lift suppression (no confirm yet)",
+          store.is_permanently_suppressed(email))
+    store.confirm(sub_b["confirm_token"])
+    check("a GENUINE later confirm lifts suppression -- the person re-initiated consent",
+          not store.is_permanently_suppressed(email))
+
+    corrupted_email = "still-suppressed-if-corrupted@example.invalid"
+    sub_c = store.add_pending(corrupted_email, "michigan", {})
+    store.confirm(sub_c["confirm_token"])
+    store.stop(sub_c["unsubscribe_token"], "unsubscribed")
+    subs = json.loads(TEST_STORE_PATH.read_text(encoding="utf-8"))
+    for s in subs:
+        if s["id"] == sub_c["id"]:
+            s["status"] = store.STATUS_CONFIRMED  # corrupt status directly; confirmed_at stays pre-unsubscribe
+    TEST_STORE_PATH.write_text(json.dumps(subs), encoding="utf-8")
+    check("a status-corrupted record with NO new confirm timestamp remains suppressed (fix didn't weaken this)",
+          store.is_permanently_suppressed(corrupted_email))
 
 
 # ---------------------------------------------------------------------------
@@ -622,6 +819,11 @@ def main() -> None:
         test_permanent_suppression_survives_a_status_bug()
         test_input_validation_rejects_malformed_and_injection_payloads()
         test_pii_locality_reverified()
+        test_pending_subscriber_cannot_bypass_double_optin()
+        test_gmail_style_dot_plustag_addresses_share_cooldown()
+        test_honeypot_whitespace_only_value_still_blocked()
+        test_circuit_breaker_holds_cap_under_concurrency()
+        test_suppression_lifts_after_a_genuine_later_confirm()
     finally:
         for p in (TEST_STORE_PATH, TEST_LOG_PATH, TEST_CB_STATE_PATH, TEST_CB_ALERT_LOG_PATH):
             if p.exists():

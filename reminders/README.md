@@ -73,74 +73,99 @@ York has no signup form at all** — same honesty as the static site: its rule d
 The product promise is zero spam — which cuts both ways. Before this ever touches a real
 inbox, it has to be safe against a STRANGER using the signup form to spam a THIRD
 PARTY (enrolling someone else's address, bombing an inbox, flooding the system with
-bots). Audited against 7 rows; each is enforced in code and has a real attack-simulation
-test in `test_dry_run_e2e.py` (Parts 11–17) that tries to actually break it, not just a
-happy-path check:
+bots). Audited against 7 rows, each enforced in code with its own attack-simulation test
+in `test_dry_run_e2e.py`. **This ran in two passes, and the second one mattered as much
+as the first:**
 
-1. **Double opt-in.** Already the core design (see above) — a signup can never trigger
-   more than the one confirmation email until that link is clicked. PASS, pre-existing.
-2. **Dedupe + cooldown — ADDED.** `store.within_signup_cooldown()` blocks a second
-   confirmation to the same normalized email within 24h regardless of state (closes the
-   gap this doc used to list as a known limitation); `store.find_active_or_pending()`
-   refuses to create a second pending/confirmed record for the same email+state even
-   after the cooldown expires. Both fail toward the IDENTICAL success response a real
-   signup gets, so neither creates an email-enumeration oracle. Attack test: 100 rapid
-   submissions of the same address → exactly 1 real signup, 1 email.
-3. **Bot defense — ADDED.** A hidden honeypot field (`hp_website`, rendered off-screen
-   in every form by `generate.py`) — any non-empty value silently no-ops the submission
-   behind the same fake-success response. A per-IP sliding-window rate limiter
-   (`server.py`, 5 signups / 10 min, 30 action-link clicks / 10 min) throttles scripted
-   hammering. A Cloudflare Turnstile hook (`_verify_turnstile()`) is wired but inert
-   until `TURNSTILE_SECRET_KEY` is configured — see `HOSTING_PROPOSAL.md`. Attack tests:
-   a honeypot-filled submission creates zero records/emails; hammering `/subscribe`
-   with 10 distinct emails from one IP gets exactly 5 through and 5 blocked with 429.
-4. **Send circuit breaker — ADDED.** `sender.CircuitBreakerSender` wraps every sender
-   (including `DryRunSender` — the breaker is exercised by every existing test and
-   dry-run, not bolted on only at real-send time) with a hard daily cap
-   (`REMINDERS_DAILY_SEND_CAP`, default 500/UTC-day). Once hit, every further send is
-   refused and an alert is appended to `circuit_breaker_alerts.log.jsonl` — this
-   protects the free-tier quota and, more importantly, sender reputation (a burst of
-   bogus sends is exactly what gets a domain flagged as a spammer). Attack test: a
-   3-send cap under load → exactly 3 sends succeed, 2 refused, alert written.
-5. **Permanent suppression — hardened.** Tokens were already unguessable
-   (`secrets.token_urlsafe(32)`); `store.is_permanently_suppressed()` is a NEW,
-   independent check (keyed on `stop_reason`, deliberately NOT on `status`) enforced a
-   second time at the scheduler's actual send call site, so a hypothetical future bug
-   that corrupts the `status` field back to `confirmed` still cannot resurrect a real
-   unsubscribe. This was caught refining itself: an earlier version of this check also
-   required `status == stopped`, which defeated its own "independent of status" claim —
-   the attack test (Part 15, corrupt `status` directly, bypassing `rearm()`) failed
-   against that version and is what caught it.
-6. **Input validation / sanitization — hardened.** Stricter email regex (rejects
-   whitespace/control chars/malformed domains, not just "has an @ and a dot"); every
-   submitted field is swept for control characters (closes the door on
-   header-injection/stored-XSS-style payloads) before anything is processed; the POST
-   body is capped at 8KB before it's even read (a client-controlled `Content-Length`
-   could otherwise force unbounded memory use); state-specific numeric fields
-   (birth month/year) are parsed inside `try/except ValueError` instead of letting a
-   malformed value raise uncaught. **A real bug this audit found and fixed:**
-   `_handle_subscribe()` used to call `store.add_pending()` BEFORE validating that a
-   deadline was actually computable, so a malformed-but-form-valid submission (or the
-   int-parsing crash above) could leave an orphaned, never-confirmable pending record
-   behind — now deadline-computability is checked on a throwaway probe first, and
-   nothing is persisted unless it already succeeds. **A second real bug found and
-   fixed:** `check_data_freshness()` deliberately raises `SystemExit` to hard-stop the
-   offline scheduler on stale data — correct there, but `SystemExit` isn't an
-   `Exception` subclass, so letting it propagate from a live HTTP request would have
-   killed this single-threaded server's entire process on the next signup attempt if
-   the data ever went stale. Now caught explicitly and degrades to a 503, not a process
-   exit. Attack test: a CRLF-injection payload and a SQL-injection-shaped non-numeric
-   field both get a clean 400, the server still answers `/health` afterward, and neither
-   attempt leaves a subscriber record behind.
-7. **PII locality — re-verified technically.** `.gitignore` coverage re-checked by
-   reading the actual file content (not just policy) for every generated-state file,
-   including the two new ones this audit added
-   (`send_circuit_breaker_state.json`, `circuit_breaker_alerts.log.jsonl`). Re-confirmed
-   the minimal-collection claim with a real assertion: California's signup form still
-   asks for a full birth year (to compute odd/even parity server-side, which is easier
-   for a human to answer correctly than self-reporting parity), but the actual year is
-   discarded immediately after computing parity and NEVER appears in the persisted
-   record — only `birth_year_parity` does.
+**Pass 1** built the defenses below and wrote same-file tests (Parts 11–17) asserting
+they held. **Pass 2** was an INDEPENDENT adversarial workflow — seven separate agents,
+each handed only the row it was attacking and told to write its own fresh attack script
+(not read or trust the pass-1 tests) and try to actually break the live server/store.
+**It broke 5 of the 7 rows.** Every finding below was real, reproduced with a concrete
+request/input, and is now fixed with its own regression test (Parts 18–22) targeting the
+exact bypass found — this is the same "don't trust your own done" pattern that already
+paid off three times earlier this sprint (see HANDOFF.md), now run on this feature a
+second time on the same day.
+
+1. **Double opt-in.** Design: a signup can never trigger more than the one confirmation
+   email until that link is clicked. **Pass 2 broke this**: `store.stop()` and
+   `store.rearm()` never checked whether a subscriber had ever actually been confirmed —
+   a still-*pending* record's OWN signup-time tokens (issued before `/confirm` is ever
+   clicked) could reach `/renewed` then `/rearm` and flip all the way to
+   `status=confirmed`, after which the real scheduler sent it a live reminder — a full
+   double-opt-in bypass with no `/confirm` click anywhere in the chain. Separately,
+   `/unsubscribe` on a still-pending record triggered a SECOND email, violating "an
+   unconfirmed signup gets exactly one email, ever." **Fixed:** `stop()` now refuses
+   `reason="renewed"` unless `confirmed_at is not None` (the renewed-link is never even
+   included in the confirmation email, only in reminder emails that pending records never
+   receive, so reaching it on a pending record is never legitimate); `rearm()`
+   independently re-checks the same `confirmed_at` requirement as belt-and-suspenders;
+   `/unsubscribe` still honors a pending record's own token (the confirmation email's
+   footer legitimately contains it) but no longer sends a second email if it was never
+   confirmed.
+2. **Dedupe + cooldown.** Design: `store.within_signup_cooldown()` / `find_active_or_pending()`
+   block repeat submissions of the same address, keyed on a normalized (stripped,
+   lowercased) email. **Pass 2 broke this**: Gmail-style dot-insensitivity and `+tag`
+   sub-addressing (`victim.name@gmail.com` / `victim.name+a@gmail.com` /
+   `vic.tim.name@gmail.com`, all delivered to the same real inbox by Gmail) were treated
+   as distinct addresses, letting an attacker generate multiple confirmation-email sends
+   to one real inbox inside the cooldown window. **Fixed:** cooldown/dedupe now key on a
+   separate `_cooldown_key()` that additionally folds `+tag` suffixes and dots in the
+   local part — deliberately more aggressive than the exact address used for actual
+   delivery/storage/suppression, since over-folding here just shares a cooldown window
+   between two unrelated people (self-correcting), while under-folding is what let a
+   stranger spam a real inbox.
+3. **Bot defense.** Design: a hidden honeypot field + per-IP rate limiter. Rate limiting
+   held up completely under attack (no IP-spoofing-header bypass, no cross-bucket
+   leakage). **Pass 2 broke the honeypot**: the check used `.strip()`-truthiness, so a
+   whitespace-only fill (a single space) slipped through as "empty." **Fixed:** checks
+   the raw field value's emptiness directly (`is not None and != ""`), not its stripped
+   form.
+4. **Send circuit breaker.** Design: a hard daily cap enforced by
+   `sender.CircuitBreakerSender`. **Pass 2 broke this under concurrency**: the
+   load-check-increment-save sequence had no lock and no atomic write; a 40-thread burst
+   against a cap of 5 let through up to 14 real sends (not 5), and a write landing
+   mid-read from another thread could crash the reader with `JSONDecodeError`. **Fixed:**
+   a module-level `threading.Lock` (not instance-level — `get_sender()` can hand back a
+   fresh instance per call, so only a process-wide lock actually serializes every
+   send) now guards the whole critical section, and state-file writes are atomic
+   (temp file + `os.replace`). Regression test drives 40 real threads at a cap of 5 and
+   asserts the real send count never exceeds it.
+5. **Permanent suppression.** Design: `store.is_permanently_suppressed()`, keyed on
+   `stop_reason` rather than `status` so a hypothetical status-corruption bug can't
+   resurrect a real unsubscribe. **Pass 2 broke this in the OVER-blocking direction**:
+   the check suppressed EVERY future signup for an email that had EVER unsubscribed —
+   even a wholly separate, genuinely re-confirmed record for a different state — which
+   is a real product-breaking bug (a customer who unsubscribes once could never
+   resubscribe with that address, for anything, ever), and directly contradicts "never
+   re-emailed unless THEY re-initiate." **Fixed:** suppression now lifts if ANY record for
+   the email has a `confirmed_at` later than the most recent unsubscribe's `stopped_at` —
+   a genuine later `/confirm` click IS the person re-initiating consent. Verified this
+   didn't weaken the original defense-in-depth guarantee: a status-corrupted record with
+   no new confirm timestamp still stays suppressed (same test as before, still passing).
+6. **Input validation / sanitization.** Stricter email regex, control-character sweep,
+   8KB body cap, numeric fields parsed inside `try/except`, deadline-computability
+   checked on a throwaway probe before any record is persisted (fixes an orphaned-record
+   bug pass 1 itself found), `check_data_freshness()`'s `SystemExit` now caught explicitly
+   so stale data degrades to a 503 instead of killing the whole process. **Pass 2 could
+   not break this row** — a genuinely thorough, independent attempt (oversized fields,
+   NUL bytes, multi-address emails, RTLO/zero-width unicode, 300+ char emails, huge-int
+   and out-of-range birth months, missing/non-numeric/lying `Content-Length`) came back
+   clean. The one PASS among the five FAILs.
+7. **PII locality.** Runtime behavior was clean in both passes (no PII in stdout/HTTP
+   responses, nothing ever historically committed). **Pass 2 found a real gap in
+   `.gitignore` itself**: it enumerated exact filenames plus a `_test_*` prefix, which
+   missed any OTHER scratch-file naming convention — reproduced live, not hypothetically,
+   by a sibling attack agent's own leftover `_attack_row6_script.py` sitting untracked in
+   the working tree during the same session. **Fixed:** replaced the enumerated list with
+   a content-shape denylist (`reminders/*.json` / `*.jsonl`, with `subscribers.example.json`
+   explicitly re-included) plus a general `reminders/_*` scratch-file rule (with
+   `__init__.py` explicitly re-included so the real source file isn't dropped) — this
+   catches `_test_*`, `_attack_*`, and any future prefix automatically.
+
+**73/73 checks passed after pass 1. 96/96 pass after pass 2's fixes** (23 more checks:
+17 attack-simulation groups from pass 1, plus 5 new regression-test groups — Parts
+18–22 — targeting the exact bypasses pass 2 found, one per broken row).
 
 **Hosting note:** GitHub Pages (where `docs/` is hosted) is static-only and cannot run
 this backend. `HOSTING_PROPOSAL.md` proposes Cloudflare Workers + D1 as the natural next
@@ -196,11 +221,13 @@ HTTP smoke test — an actual `HTTPServer` instance, real `urllib` requests, not
 against `/health`, `/subscribe`, and `/confirm`, including invalid-input rejection paths. Test
 storage/log files are isolated from the real ones and deleted whether the run passes or fails.
 
-**73/73 checks pass**, including 3 regression tests (Parts 8-10) added after an earlier
+**96/96 checks pass**, including 3 regression tests (Parts 8-10) added after an earlier
 adversarial review found and this build fixed 3 real correctness bugs the *original*
 33-check suite didn't catch (because it only ever advanced the clock to exact threshold
-boundaries), and 7 more attack-simulation test groups (Parts 11-17) added by the
-2026-07-03 abuse-hardening audit — see "Abuse-hardening" above for what each attacks:
+boundaries), 7 attack-simulation test groups (Parts 11-17) from the 2026-07-03
+abuse-hardening audit's first pass, and 5 more regression-test groups (Parts 18-22) added
+after an independent adversarial workflow broke 5 of those 7 rows on a second,
+separate pass — see "Abuse-hardening" above for the full story of what each attacks:
 
 1. **Reminder emails showed the wrong "days from now"** whenever a subscriber's first evaluation
    didn't land exactly on a threshold (e.g. confirmed 40 days out, crossing the 60-day tier,

@@ -5,24 +5,35 @@ __pycache__/
 # Real subscriber PII (email addresses) and dry-run send logs (which contain
 # the same PII, since dry-run logs exactly what WOULD have been sent). Never
 # commit either -- only subscribers.example.json (fake data) is tracked.
-reminders/subscribers.json
-reminders/dry_run_sent.log.jsonl
+#
+# Abuse-hardening audit (2026-07-03) widened this from an enumerated list of
+# exact filenames/prefixes to a CONTENT-SHAPE denylist: ignore every
+# JSON/JSONL file under reminders/ (the shape every PII-bearing or generated-
+# state file in this package takes) except the one deliberately-fake example,
+# rather than trying to keep enumerating every scratch-file naming
+# convention a future test/attack script might invent. Found by the audit's
+# own attack test: the old enumerated rules (exact paths + a `_test_*`
+# prefix rule) missed a sibling agent's `_attack_row6_script.py` and a
+# same-shaped `_attack_*.json` scratch file sitting untracked in the working
+# tree during this very audit -- a live, reproduced instance of exactly the
+# gap being described, not a hypothetical.
+reminders/*.json
+!reminders/subscribers.example.json
+reminders/*.jsonl
 reminders/*.log
-reminders/*.log.jsonl
-reminders/.env
 reminders/*.env
+reminders/.env
+# Atomic-write temp files (sender.py's CircuitBreakerSender writes to a
+# .tmp file then os.replace()s it into place -- a crash mid-write could
+# leave one of these behind).
+reminders/*.tmp
 
-# Send circuit-breaker state (counts + dates only, no PII, but still
-# generated local state -- not checked in, same as the other generated
-# files above). circuit_breaker_alerts.log.jsonl already matches the
-# *.log.jsonl rule above; the state file needs its own explicit entry since
-# it doesn't match any existing pattern.
-reminders/send_circuit_breaker_state.json
-# Found by adversarial review: the test harness's own scratch files
-# (reminders/_test_subscribers.json, reminders/_test_dry_run_sent.log.jsonl)
-# didn't match any of the rules above -- *.log doesn't match *.log.jsonl,
-# and exact-path rules don't match the _test_ prefix. Test cleanup deletes
-# these on every run regardless, but this closes the defense-in-depth gap
-# for the case where a crash leaves one behind right before a careless
-# `git add .`.
-reminders/_test_*
+# Any scratch file (test harness OR ad-hoc attack/debug script, whatever
+# extension) using the leading-underscore convention this codebase already
+# uses for throwaway files -- catches `_test_*`, `_attack_*`, and any future
+# prefix automatically instead of enumerating each one as it's invented.
+# `__init__.py` is a REAL tracked source file that happens to start with an
+# underscore -- explicitly un-ignored below so this rule can't silently drop
+# it from the repo.
+reminders/_*
+!reminders/__init__.py

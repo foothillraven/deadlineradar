@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://example-deadlineradar.test/sitemap.xml
+Sitemap: https://deadline-radar.com/sitemap.xml

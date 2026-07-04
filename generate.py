@@ -44,7 +44,7 @@ SITE_DIR = ROOT / "docs"
 # Swap this single constant for the real https://<user>.github.io/<repo> URL
 # (or a real domain later) once publishing is explicitly decided -- do not
 # hardcode a real URL before that.
-SITE_BASE_URL = "https://example-deadlineradar.test"
+SITE_BASE_URL = "https://deadline-radar.com"
 
 # Placeholder for the reminder backend (reminders/server.py). This is a
 # SEPARATE service from the static Pages-hosted site -- GitHub Pages can't

@@ -173,6 +173,104 @@ def test_renewed_and_rearm_flow() -> None:
     check("an UNSUBSCRIBED (not renewed) subscriber cannot be re-armed", blocked_rearm is None)
 
 
+def test_non_aligned_signup_shows_true_days_remaining() -> None:
+    """Regression test for adversarial-review finding #1: a subscriber whose
+    first evaluation does NOT land exactly on a 60/30/14/7/3/1 boundary
+    must see their TRUE days-remaining in the email body, not the
+    threshold number that happened to fire."""
+    print("\n== Part 8 (regression): non-aligned signup shows the real day count, not the threshold ==")
+    reset_storage()
+    sub = store.add_pending("test10@example.invalid", "michigan", {})
+    store.confirm(sub["confirm_token"])
+    result = scheduler.compute_subscriber_deadline(sub, date(2026, 7, 3))
+    deadline_date, _ = result
+
+    test_sender = sender_module.DryRunSender()
+    # First-ever evaluation at 40 days out -- crosses the 60-day threshold
+    # (40 <= 60) but is NOT 60 days out. The old bug rendered "60 days from
+    # now" here; the fix must render "40 days from now".
+    scheduler.run_once(as_of=deadline_date - timedelta(days=40), sender=test_sender)
+    log = read_dry_run_log()
+    check("exactly one reminder fired on the non-aligned first evaluation", len(log) == 1, f"got {len(log)}")
+    if log:
+        body = log[0]["text_body"]
+        check("body shows the TRUE remaining days (40), not the threshold (60)",
+              "40 days from now" in body and "60 days from now" not in body,
+              f"body was: {body[:200]}")
+
+
+def test_scheduler_gap_never_regresses_to_less_urgent_tier() -> None:
+    """Regression test for adversarial-review finding #2: if the scheduler
+    skips days and jumps straight past the deadline, it must never send a
+    LESS urgent reminder after a MORE urgent one already went out."""
+    print("\n== Part 9 (regression): a scheduler gap must not cause out-of-order reminders ==")
+    reset_storage()
+    sub = store.add_pending("test11@example.invalid", "michigan", {})
+    store.confirm(sub["confirm_token"])
+    result = scheduler.compute_subscriber_deadline(sub, date(2026, 7, 3))
+    deadline_date, _ = result
+    test_sender = sender_module.DryRunSender()
+
+    # Deliberately skip day 3 (jump from day 1 back... no: simulate a gap by
+    # running 7, then jumping straight to -2 (2 days AFTER the deadline),
+    # skipping the days where 3 and 1 would naturally have fired in a
+    # gap-free run.
+    tone_order_fired = []
+    for days_out in [7, -2]:
+        summary = scheduler.run_once(as_of=deadline_date - timedelta(days=days_out), sender=test_sender)
+        if summary["sent"] > 0:
+            log = read_dry_run_log()
+            tone_order_fired.append(log[-1]["subject"])
+
+    check("exactly 2 reminders fired across the gap (7-day tier, then 1-day tier -- not 3-day)",
+          len(tone_order_fired) == 2, f"got {len(tone_order_fired)}: {tone_order_fired}")
+    if len(tone_order_fired) == 2:
+        check("first fire was the 7-day tone", "One week left" in tone_order_fired[0], tone_order_fired[0])
+        check("second fire (after the gap) jumped straight to the 1-day tone, skipping stale 3-day",
+              "Tomorrow is the deadline" in tone_order_fired[1], tone_order_fired[1])
+        check("the STALE 3-day tone never fired at all across the gap",
+              not any("Three days left" in s for s in tone_order_fired))
+
+    # And once the most urgent tier has fired, running the scheduler again
+    # even further past the deadline must never fire anything less urgent.
+    log_count_before = len(read_dry_run_log())
+    scheduler.run_once(as_of=deadline_date - timedelta(days=-3), sender=test_sender)
+    check("nothing fires after the most urgent tier already went out, no matter how much later",
+          len(read_dry_run_log()) == log_count_before)
+
+
+def test_never_notified_catchup_not_silent() -> None:
+    """Regression test for adversarial-review finding #3: a subscriber whose
+    FIRST-EVER evaluation happens past their deadline must get one final
+    catch-up reminder, not silence -- as long as it's within the wider
+    catch-up window. Beyond that window, it's correctly abandoned."""
+    print("\n== Part 10 (regression): never-notified-past-deadline gets one catch-up, not silence ==")
+    reset_storage()
+    sub = store.add_pending("test12@example.invalid", "michigan", {})
+    store.confirm(sub["confirm_token"])
+    result = scheduler.compute_subscriber_deadline(sub, date(2026, 7, 3))
+    deadline_date, _ = result
+    test_sender = sender_module.DryRunSender()
+
+    # 5 days past deadline, never notified, within the 14-day catch-up window.
+    summary = scheduler.run_once(as_of=deadline_date + timedelta(days=5), sender=test_sender)
+    check("a never-notified subscriber 5 days past deadline gets a catch-up reminder, not silence",
+          summary["sent"] == 1, f"summary was: {summary}")
+    log = read_dry_run_log()
+    if log:
+        check("catch-up email correctly shows it's overdue (5 days ago), not a future date",
+              "5 days ago" in log[0]["text_body"], log[0]["text_body"][:200])
+
+    # A SEPARATE subscriber, never notified, but 30 days past deadline --
+    # beyond the catch-up window. This one is genuinely abandoned.
+    reset_storage()
+    sub2 = store.add_pending("test13@example.invalid", "michigan", {})
+    store.confirm(sub2["confirm_token"])
+    summary2 = scheduler.run_once(as_of=deadline_date + timedelta(days=30), sender=test_sender)
+    check("a never-notified subscriber 30 days past deadline (beyond the catch-up window) is correctly skipped",
+          summary2["sent"] == 0 and summary2["skipped_grace_period"] == 1, f"summary was: {summary2}")
+
+
 def test_new_york_unsupported() -> None:
     print("\n== Part 4: New York is correctly unsupported (no fabricated deadline) ==")
     reset_storage()
@@ -280,6 +378,9 @@ def main() -> None:
         test_new_york_unsupported()
         test_birth_month_states()
         test_florida_multi_record_license_type()
+        test_non_aligned_signup_shows_true_days_remaining()
+        test_scheduler_gap_never_regresses_to_less_urgent_tier()
+        test_never_notified_catchup_not_silent()
         test_http_server_smoke()
     finally:
         for p in (TEST_STORE_PATH, TEST_LOG_PATH):

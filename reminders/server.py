@@ -180,7 +180,13 @@ class Handler(BaseHTTPRequestHandler):
             self._error_page(404, "That link is invalid.")
             return
         state_name = subscriber["state_slug"].replace("-", " ").title()
-        email_content = emails.stop_confirmation_email("unsubscribed", state_name, None, "")
+        # Found by adversarial review: this previously passed "" as the
+        # unsubscribe_url, so the stop-confirmation email's footer rendered
+        # a dead, empty unsubscribe link -- the one template in the system
+        # that didn't have a real one. Build it the same way every other
+        # handler does.
+        unsubscribe_url = f"{emails.BACKEND_BASE_URL}/unsubscribe?token={subscriber['unsubscribe_token']}"
+        email_content = emails.stop_confirmation_email("unsubscribed", state_name, None, unsubscribe_url)
         sender_module.get_sender().send(subscriber["email"], email_content["subject"], email_content["text_body"], None)
         self._send(200, _html_page("Unsubscribed", "<h1>Done</h1><p>You're unsubscribed, instantly and permanently.</p>"))
 
@@ -194,7 +200,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         state_name = subscriber["state_slug"].replace("-", " ").title()
         rearm_url = f"{emails.BACKEND_BASE_URL}/rearm?token={subscriber['unsubscribe_token']}"
-        email_content = emails.stop_confirmation_email("renewed", state_name, rearm_url, "")
+        unsubscribe_url = f"{emails.BACKEND_BASE_URL}/unsubscribe?token={subscriber['unsubscribe_token']}"
+        email_content = emails.stop_confirmation_email("renewed", state_name, rearm_url, unsubscribe_url)
         sender_module.get_sender().send(subscriber["email"], email_content["subject"], email_content["text_body"], None)
         self._send(200, _html_page(
             "Nice work",

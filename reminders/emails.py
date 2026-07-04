@@ -78,18 +78,35 @@ _URGENCY_TONE = {
 def reminder_email(
     state_name: str,
     deadline_date_str: str,
-    days_remaining: int,
+    threshold: int,
+    actual_days_remaining: int,
     renewed_url: str,
     unsubscribe_url: str,
 ) -> dict:
-    if days_remaining not in _URGENCY_TONE:
-        raise ValueError(f"days_remaining must be one of {sorted(_URGENCY_TONE)}, got {days_remaining}")
-    tone = _URGENCY_TONE[days_remaining]
+    """`threshold` (one of 60/30/14/7/3/1) picks the urgency TONE only.
+    `actual_days_remaining` is the TRUE number of days left and is what
+    gets shown in the body -- these are deliberately separate parameters.
+    Found by adversarial review: an earlier version used the threshold
+    itself as the displayed day-count, so a subscriber whose real deadline
+    was e.g. 40 days out (having first crossed the 60-day threshold, since
+    40 <= 60) got an email that said "60 days from now" -- factually wrong,
+    and understating true urgency. The real day count must always come
+    from the caller's own calculation of the calendar difference, never
+    from which escalation tier happened to fire."""
+    if threshold not in _URGENCY_TONE:
+        raise ValueError(f"threshold must be one of {sorted(_URGENCY_TONE)}, got {threshold}")
+    tone = _URGENCY_TONE[threshold]
     subject = f"{tone}: {state_name} CPA renewal due {deadline_date_str}"
+    if actual_days_remaining > 0:
+        when_phrase = f"({actual_days_remaining} day{'s' if actual_days_remaining != 1 else ''} from now)"
+    elif actual_days_remaining == 0:
+        when_phrase = "(today)"
+    else:
+        when_phrase = f"({-actual_days_remaining} day{'s' if actual_days_remaining != -1 else ''} ago)"
     text_body = (
         f"Hi,\n\n"
         f"{tone.rstrip('.')} — your {state_name} CPA license renewal is due {deadline_date_str} "
-        f"({days_remaining} day{'s' if days_remaining != 1 else ''} from now).\n\n"
+        f"{when_phrase}.\n\n"
         f"Already renewed? One click stops all further reminders for this deadline:\n"
         f"{renewed_url}\n\n"
         f"Haven't renewed yet? No action needed from us -- we'll remind you again as it gets "

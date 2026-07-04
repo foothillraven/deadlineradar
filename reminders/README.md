@@ -116,8 +116,52 @@ HTTP smoke test — an actual `HTTPServer` instance, real `urllib` requests, not
 against `/health`, `/subscribe`, and `/confirm`, including invalid-input rejection paths. Test
 storage/log files are isolated from the real ones and deleted whether the run passes or fails.
 
-**As of this build: 33/33 checks passed on the first run.** No real email was sent — the only
-sender exercised anywhere in this test is `DryRunSender`.
+**39/39 checks pass**, including 3 regression tests (Parts 8-10) added after an adversarial review
+found and this build fixed 3 real correctness bugs the *original* 33-check suite didn't catch,
+because it only ever advanced the clock to exact threshold boundaries:
+
+1. **Reminder emails showed the wrong "days from now"** whenever a subscriber's first evaluation
+   didn't land exactly on a threshold (e.g. confirmed 40 days out, crossing the 60-day tier,
+   previously said "60 days from now" instead of the true 40). Fixed by separating the threshold
+   (picks the tone) from the actual computed days-remaining (what's displayed) — see
+   `emails.reminder_email()`.
+2. **A scheduler gap could send a less-urgent reminder AFTER a more-urgent one already fired**
+   (e.g. "3 days left" arriving after "tomorrow is the deadline" already went out, because a
+   missed run left the 3-day tier technically un-sent). Fixed in `scheduler.next_due_threshold()`
+   — once the most urgent tier a subscriber has received fires, no less-urgent tier can ever fire
+   after it.
+3. **A subscriber whose first-ever evaluation happened after their deadline already passed got
+   silently zero reminders, forever.** Fixed with a bounded catch-up window (14 days past
+   deadline): a never-notified subscriber inside that window gets one final 1-day-tier reminder
+   instead of silence; beyond it, correctly abandoned as a stale signup.
+
+Also fixed as part of the same review: **the stop-confirmation email (sent after unsubscribe or
+"I've renewed") carried a dead, empty unsubscribe link** — every other email template built a real
+one from the subscriber's token, these two passed an empty string. Fixed in `server.py`.
+
+No real email was sent at any point in testing — the only sender exercised anywhere in this suite
+is `DryRunSender`.
+
+## Known limitations (found by adversarial review, not fixed this pass — documented, not hidden)
+
+- **Unsubscribe/renewed/rearm links stop working after a re-arm.** `store.rearm()` issues fresh
+  tokens for the new cycle, so a link embedded in an *already-sent* email from the prior cycle
+  (e.g. the original confirmation email) 404s after a re-arm. Not a security issue (fails closed,
+  not open), but it means an old email's unsubscribe link isn't permanently reliable the way the
+  product promise implies. Fix path: keep prior-cycle tokens valid as aliases rather than fully
+  replacing them.
+- **`/confirm`, `/unsubscribe`, `/renewed`, `/rearm` are plain `GET`s with side effects.** This is
+  an extremely common pattern (CAN-SPAM's one-click bar pushes most implementations this way), but
+  it means a corporate email-security link-prefetcher could in principle trigger one of these
+  before a human ever opens the email. Fix path: make the `GET` show a confirmation page with a
+  button that `POST`s the actual action.
+- **No de-duplication on repeat signup.** Submitting the form twice for the same email+state
+  creates two independent subscriber records, each running its own full escalation sequence —
+  a UX rough edge (duplicate reminders), not a security or PII issue.
+- **No file locking on `subscribers.json`.** Every read-modify-write is a full file overwrite with
+  no locking. Two overlapping requests (e.g. the scheduler running while a `/subscribe` request is
+  in flight) could race. Low likelihood for a single-operator local/staged setup; worth revisiting
+  before any real-scale deployment.
 
 ## Running the backend locally (dry-run only)
 

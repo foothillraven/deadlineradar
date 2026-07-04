@@ -41,12 +41,22 @@ from . import sender as sender_module
 
 DATA_PATH = pathlib.Path(__file__).resolve().parent.parent / "data" / "cpa_deadlines.json"
 
-# If a subscriber's deadline is more than this many days in the past with no
-# stop recorded, the scheduler stops sending for it rather than emailing
-# forever about a deadline nobody confirmed renewing. This is a safety net,
-# not the primary UX -- the primary UX is the 1-day reminder's "I've
-# renewed" link.
+# If a subscriber's deadline is more than this many days in the past AND
+# they've already received at least one reminder, the scheduler stops
+# sending for it rather than emailing forever about a deadline nobody
+# confirmed renewing. This is a safety net, not the primary UX -- the
+# primary UX is the 1-day reminder's "I've renewed" link.
 GRACE_PERIOD_PAST_DEADLINE_DAYS = 3
+
+# Found by adversarial review: a subscriber whose FIRST-EVER scheduler
+# evaluation happens after their deadline already passed (a real scenario --
+# a scheduler outage, a late confirmation) would previously get zero
+# reminders, silently, forever. That's worse than one late "catch-up"
+# email. Within this wider window (but still bounded -- beyond it the
+# signup is stale/abandoned and not worth reminding about), a
+# never-yet-notified subscriber gets exactly one final 1-day-tier reminder
+# instead of nothing.
+NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS = 14
 
 
 def _load_cpa_records() -> list[dict]:
@@ -125,11 +135,23 @@ def compute_subscriber_deadline(subscriber: dict, as_of: date) -> tuple[date, st
 
 
 def next_due_threshold(days_remaining: int, already_sent: list[int]) -> int | None:
-    """The single nearest (most urgent) threshold that's newly due -- see
-    module docstring for why this sends at most one reminder per run rather
-    than flooding all missed thresholds at once."""
+    """The single nearest (most urgent) threshold that's newly due.
+
+    Found by adversarial review and fixed here: this must never return a
+    LESS urgent threshold than the most urgent one already sent, or a
+    scheduler gap (the run skipping a day) can send reminders out of order
+    -- e.g. the "tomorrow" (1-day) reminder going out, then days later a
+    "three days left" (3-day) reminder arriving AFTER the deadline already
+    passed, because 3 had never technically been marked sent. Once the most
+    urgent tier fires, no less-urgent tier may ever fire after it for this
+    subscriber's current cycle."""
+    most_urgent_sent = min(already_sent) if already_sent else None
     for threshold in sorted(store.ESCALATION_THRESHOLDS_DAYS):  # ascending: 1,3,7,14,30,60
-        if days_remaining <= threshold and threshold not in already_sent:
+        if threshold in already_sent:
+            continue
+        if most_urgent_sent is not None and threshold >= most_urgent_sent:
+            continue  # would be a regression to a less-urgent tier -- never send it
+        if days_remaining <= threshold:
             return threshold
     return None
 
@@ -158,21 +180,31 @@ def run_once(as_of: date | None = None, sender: sender_module.EmailSender | None
 
         deadline_date, state_name = result
         days_remaining = (deadline_date - real_today).days
+        never_notified = not subscriber["reminders_sent"]
 
         if days_remaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS:
-            summary["skipped_grace_period"] += 1
-            continue
-
-        threshold = next_due_threshold(days_remaining, subscriber["reminders_sent"])
-        if threshold is None:
-            continue
+            if never_notified and days_remaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS:
+                # Found by adversarial review: don't let a subscriber whose
+                # first-ever evaluation lands past-deadline get silently
+                # skipped forever -- send one final catch-up at the most
+                # urgent tier instead. Beyond the wider window, give up (the
+                # elif below falls through to the normal grace-period skip).
+                threshold = min(store.ESCALATION_THRESHOLDS_DAYS)
+            else:
+                summary["skipped_grace_period"] += 1
+                continue
+        else:
+            threshold = next_due_threshold(days_remaining, subscriber["reminders_sent"])
+            if threshold is None:
+                continue
 
         renewed_url = f"{emails.BACKEND_BASE_URL}/renewed?token={subscriber['renewed_token']}"
         unsubscribe_url = f"{emails.BACKEND_BASE_URL}/unsubscribe?token={subscriber['unsubscribe_token']}"
         email = emails.reminder_email(
             state_name=state_name,
             deadline_date_str=fmt_date(deadline_date),
-            days_remaining=threshold,
+            threshold=threshold,
+            actual_days_remaining=days_remaining,
             renewed_url=renewed_url,
             unsubscribe_url=unsubscribe_url,
         )

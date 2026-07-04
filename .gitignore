@@ -8,4 +8,14 @@ __pycache__/
 reminders/subscribers.json
 reminders/dry_run_sent.log.jsonl
 reminders/*.log
+reminders/*.log.jsonl
+reminders/.env
 reminders/*.env
+# Found by adversarial review: the test harness's own scratch files
+# (reminders/_test_subscribers.json, reminders/_test_dry_run_sent.log.jsonl)
+# didn't match any of the rules above -- *.log doesn't match *.log.jsonl,
+# and exact-path rules don't match the _test_ prefix. Test cleanup deletes
+# these on every run regardless, but this closes the defense-in-depth gap
+# for the case where a crash leaves one behind right before a careless
+# `git add .`.
+reminders/_test_*

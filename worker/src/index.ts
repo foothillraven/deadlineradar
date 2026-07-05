@@ -54,7 +54,7 @@ import {
 } from "./validation";
 import { StaleDataError, checkDataFreshness, computeSubscriberDeadline, type DeadlineFields } from "./deadline";
 import * as store from "./store";
-import { buildConfirmationEmail } from "./emails";
+import { buildConfirmationEmail, buildStopConfirmationEmail } from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, sendViaSendGrid } from "./sender";
 import { StaleDataError as SchedulerStaleDataError, runReminderPass } from "./scheduler";
 
@@ -311,12 +311,41 @@ async function handleRenewed(env: Env, token: string | null): Promise<Response> 
   if (!token) return errorPage(400, "Missing link.");
   const subscriber = await store.stop(env.DB, token, "renewed");
   if (!subscriber) return errorPage(404, "That link is invalid.");
+
+  // Send a stop-confirmation email offering a one-click re-arm for next cycle.
+  // Best-effort + isolated, same posture as the confirmation send: only when a
+  // key is configured, guarded by the daily circuit breaker, and never allowed
+  // to fail the stop itself (the stop already happened above and is what
+  // matters). The re-arm link uses the unsubscribe_token, which is what
+  // store.rearm() looks the subscriber up by.
+  if (env.SENDGRID_API_KEY) {
+    try {
+      const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+      if (underCap) {
+        const rearmUrl = `${ACTION_BASE_URL}/rearm?token=${encodeURIComponent(subscriber.unsubscribe_token)}`;
+        const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(subscriber.unsubscribe_token)}`;
+        const built = buildStopConfirmationEmail(
+          "renewed",
+          stateNameFromSlug(subscriber.state_slug),
+          rearmUrl,
+          unsubscribeUrl,
+          subscriber.first_name
+        );
+        await sendViaSendGrid(env.SENDGRID_API_KEY, subscriber.email, built);
+      }
+    } catch {
+      // Swallow -- the reminders are already stopped; a follow-up email
+      // failure must not turn a successful stop into an error page.
+    }
+  }
+
   return htmlResponse(
     200,
     htmlPage(
       "Nice work",
-      "<h1>Congrats on renewing</h1><p>All reminders for this deadline are stopped. Re-arming " +
-        "for next cycle by email isn't enabled yet in this rollout phase.</p>"
+      "<h1>Congrats on renewing</h1><p>All reminders for this deadline are stopped. We've emailed " +
+        "you a confirmation &mdash; if you'd like a reminder again next cycle, there's a one-click " +
+        "link in it to opt back in.</p>"
     )
   );
 }

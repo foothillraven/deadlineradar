@@ -1,9 +1,9 @@
 /**
  * DeadlineRadar Worker -- email copy (Phase 2).
  *
- * Ported from reminders/emails.py. Only the confirmation email is ported here
- * (that is the one thing a /subscribe triggers). Reminder + stop-confirmation
- * emails belong to the Phase-3 scheduler and are intentionally NOT ported yet.
+ * Ported from reminders/emails.py: the confirmation email (/subscribe), the
+ * escalating reminder email (Phase-3 scheduler), and the stop-confirmation
+ * email (/renewed, offering an optional re-arm for next cycle).
  *
  * Every email carries, per CAN-SPAM and this project's own rules:
  *   - Sender identification in plain language (SENDER_LINE).
@@ -322,6 +322,82 @@ export function buildReminderEmail(
   );
 
   return { subject, textBody, htmlBody, headers };
+}
+
+/**
+ * Port of reminders/emails.py `stop_confirmation_email()`. Sent after a
+ * subscriber stops reminders. For reason="renewed" it congratulates them and
+ * (if a rearmUrl is given) offers a one-click re-arm for next cycle. For
+ * reason="unsubscribed" it's a plain goodbye. Normal priority.
+ */
+export function buildStopConfirmationEmail(
+  reason: "renewed" | "unsubscribed",
+  stateName: string,
+  rearmUrl: string | null,
+  unsubscribeUrl: string,
+  firstName: string | null = null
+): BuiltEmail {
+  const addr = mailingAddress();
+  const greetingText = textGreeting(firstName);
+  const greetingHtml = htmlGreeting(firstName);
+
+  let subject: string;
+  let textBody: string;
+  let htmlInner: string;
+
+  if (reason === "renewed") {
+    subject = `No more reminders for this ${stateName} renewal`;
+    textBody =
+      `${greetingText}\n\n` +
+      `Nice work -- we've stopped every reminder for this ${stateName} CPA renewal cycle. ` +
+      `You won't hear from us again about this deadline.\n\n`;
+    let htmlExtra: string;
+    if (rearmUrl) {
+      textBody +=
+        `Want a reminder next cycle too? One click re-arms it, nothing else changes:\n` +
+        `${rearmUrl}\n\n` +
+        `If you don't click that, we simply won't email you again about this.`;
+      htmlExtra =
+        `<p style="margin:0 0 20px;">${button(rearmUrl, "Remind me next time")}</p>` +
+        p(
+          "Nothing else changes if you don't click it -- we simply won't email you again about this.",
+          13,
+          LIGHT.muted
+        );
+    } else {
+      textBody += "Want reminders again someday? You're welcome to sign up fresh any time.";
+      htmlExtra = p("Want reminders again someday? You're welcome to sign up fresh any time.", 13, LIGHT.muted);
+    }
+    htmlInner =
+      `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">Nice work</h1>` +
+      p(
+        `${greetingHtml}<br><br>` +
+          `We've stopped every reminder for this ${esc(stateName)} CPA renewal cycle. You won't ` +
+          `hear from us again about this deadline.`
+      ) +
+      htmlExtra;
+  } else {
+    subject = `You're unsubscribed from ${stateName} renewal reminders`;
+    textBody =
+      `${greetingText}\n\n` +
+      `You're unsubscribed. We've stopped every reminder for this ${stateName} CPA renewal ` +
+      `immediately and permanently -- you won't hear from us again unless you sign up again ` +
+      `yourself.\n\n` +
+      `Sorry to see you go, and thanks for trying ${SITE_NAME}.`;
+    htmlInner =
+      `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `You're unsubscribed</h1>` +
+      p(
+        `${greetingHtml}<br><br>` +
+          `We've stopped every reminder for this ${esc(stateName)} CPA renewal immediately and ` +
+          `permanently &mdash; you won't hear from us again unless you sign up again yourself.`
+      ) +
+      p(`Sorry to see you go, and thanks for trying ${esc(SITE_NAME)}.`, 13, LIGHT.muted);
+  }
+
+  textBody += textFooter(unsubscribeUrl, addr);
+  const htmlBody = htmlShell(subject, htmlInner, htmlFooter(unsubscribeUrl, addr));
+  return { subject, textBody, htmlBody, headers: {} };
 }
 
 /** Port of reminders/emails.py `confirmation_email()`. */

@@ -602,3 +602,28 @@ describe("scheduler.ts runReminderPass -- one pass", () => {
     expect(sends).not.toContain(email);
   });
 });
+
+describe("emails.ts buildStopConfirmationEmail", () => {
+  it("renewed: includes the re-arm button + link and a real address", async () => {
+    const { buildStopConfirmationEmail, MAILING_ADDRESS } = await import("../src/emails");
+    const built = buildStopConfirmationEmail(
+      "renewed",
+      "California",
+      "https://deadline-radar.com/api/rearm?token=abc",
+      "https://deadline-radar.com/api/unsubscribe?token=xyz",
+      "Devin"
+    );
+    expect(built.subject.toLowerCase()).toContain("no more reminders");
+    expect(built.htmlBody).toContain("Remind me next time");
+    expect(built.htmlBody).toContain("https://deadline-radar.com/api/rearm?token=abc");
+    expect(built.textBody).toContain("https://deadline-radar.com/api/rearm?token=abc");
+    expect(built.htmlBody).toContain(MAILING_ADDRESS);
+    expect(built.htmlBody).toContain("Hi Devin,");
+  });
+  it("unsubscribed: goodbye, no re-arm button", async () => {
+    const { buildStopConfirmationEmail } = await import("../src/emails");
+    const built = buildStopConfirmationEmail("unsubscribed", "Texas", null, "https://deadline-radar.com/api/unsubscribe?token=xyz");
+    expect(built.subject.toLowerCase()).toContain("unsubscribed");
+    expect(built.htmlBody).not.toContain("Remind me next time");
+  });
+});

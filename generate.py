@@ -352,18 +352,50 @@ _FIRST_NAME_FIELD_HTML = (
     'autocomplete="given-name" placeholder="For a personal greeting, e.g. David">'
 )
 
-_BOT_DEFENSE_FIELDS_HTML = (
+# Cloudflare Turnstile site key -- PUBLIC (safe to embed in HTML; the SECRET
+# half lives only as the TURNSTILE_SECRET_KEY Worker secret). Empty string =
+# Turnstile not configured yet: the form renders the same inert hidden
+# cf-turnstile-response input it always has, and the Worker's verifyTurnstile()
+# fails OPEN (no secret set). To turn Turnstile ON, set this to the real widget
+# site key AND set the Worker secret together -- the site key must be live in
+# the HTML at the same time (or before) the secret is set, because the Worker
+# fails CLOSED once the secret exists and would otherwise reject every real
+# submission that arrives without a widget token.
+TURNSTILE_SITE_KEY = "0x4AAAAAADvxskBA78YAubz_"
+
+_HONEYPOT_HTML = (
     f'<div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;'
     f'height:0;width:0;overflow:hidden;">'
     f'<label for="{_HONEYPOT_FIELD_NAME}">Leave this field blank</label>'
     f'<input type="text" id="{_HONEYPOT_FIELD_NAME}" name="{_HONEYPOT_FIELD_NAME}" '
     f'tabindex="-1" autocomplete="off">'
-    f'</div>\n'
-    f'    <!-- Reserved for Cloudflare Turnstile once a public endpoint + site key exist -- '
-    f'see reminders/HOSTING_PROPOSAL.md. Empty/absent is treated as "not configured yet," '
-    f'not as a failed check. -->\n'
-    f'    <input type="hidden" name="cf-turnstile-response" value="">'
+    f'</div>'
 )
+
+if TURNSTILE_SITE_KEY:
+    # Real widget. Cloudflare's api.js (loaded in <head> by _turnstile_head_html)
+    # renders this div and injects the hidden `cf-turnstile-response` token input
+    # inside it on solve, which then submits with the form.
+    _BOT_DEFENSE_FIELDS_HTML = (
+        _HONEYPOT_HTML + "\n"
+        f'    <div class="cf-turnstile" data-sitekey="{esc(TURNSTILE_SITE_KEY)}"></div>'
+    )
+else:
+    _BOT_DEFENSE_FIELDS_HTML = (
+        _HONEYPOT_HTML + "\n"
+        f'    <!-- Turnstile reserved: set TURNSTILE_SITE_KEY (+ the Worker secret) to activate. '
+        f'Empty/absent is treated as "not configured yet," not as a failed check. -->\n'
+        f'    <input type="hidden" name="cf-turnstile-response" value="">'
+    )
+
+
+def _turnstile_head_html() -> str:
+    """Cloudflare Turnstile loader script for <head> -- only when a site key is
+    configured. Loading it unconditionally would be a wasted external request on
+    a page whose form has no widget to render."""
+    if not TURNSTILE_SITE_KEY:
+        return ""
+    return '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>'
 
 
 def signup_form_for_state(state_slug: str, state_name: str, records: list[dict]) -> str:
@@ -451,6 +483,7 @@ def page_shell(title: str, meta_description: str, body: str, home_href: str) -> 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{esc(title)}</title>
 <meta name="description" content="{esc(meta_description)}">
+{_turnstile_head_html()}
 <style>
 {PAGE_CSS}
 </style>

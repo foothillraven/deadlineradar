@@ -99,8 +99,8 @@ describe("/api prefix stripping (Workers Route binding)", () => {
   });
 });
 
-describe("POST /subscribe -- happy path (Phase 1 acceptance: capture without sending email)", () => {
-  it("stores a pending_confirmation row and returns the no-email-sent success page", async () => {
+describe("POST /subscribe -- happy path (capture + confirmation-email path)", () => {
+  it("stores a pending_confirmation row and returns the check-your-email success page", async () => {
     const email = `acceptance-${Date.now()}@example.com`;
     const resp = await postSubscribe(
       { email, state: "florida", license_type_id: "fl-individual-odd" },
@@ -108,8 +108,11 @@ describe("POST /subscribe -- happy path (Phase 1 acceptance: capture without sen
     );
     expect(resp.status).toBe(200);
     const body = await resp.text();
-    expect(body).toContain("Got it");
-    expect(body.toLowerCase()).not.toContain("we sent"); // must not claim an email went out
+    // The generic, path-uniform success copy (same for real signup, honeypot,
+    // cooldown, and dedupe -- so no path is an enumeration oracle). The test
+    // env has no SENDGRID_API_KEY, so no email is actually sent here; the copy
+    // is deliberately not a literal "we sent it" claim.
+    expect(body.toLowerCase()).toContain("check your email");
 
     const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
     expect(row).not.toBeNull();
@@ -490,5 +493,38 @@ describe("store.ts cooldownKey", () => {
   });
   it("does not fold across different domains", () => {
     expect(store.cooldownKey("a.b@gmail.com")).not.toBe(store.cooldownKey("a.b@other.com"));
+  });
+});
+
+describe("sender.ts checkAndCountSend -- daily circuit breaker", () => {
+  it("allows sends up to the cap, then refuses every further send that UTC day", async () => {
+    const { checkAndCountSend } = await import("../src/sender");
+    const cap = 3;
+    const results: boolean[] = [];
+    for (let i = 0; i < 5; i++) {
+      results.push(await checkAndCountSend(env.DB, cap));
+    }
+    // First `cap` allowed, everything after refused -- protects sender
+    // reputation from a burst blowing past the daily cap.
+    expect(results).toEqual([true, true, true, false, false]);
+  });
+});
+
+describe("emails.ts buildConfirmationEmail", () => {
+  it("builds a subject, both bodies, the confirm link, and a real CAN-SPAM address", async () => {
+    const { buildConfirmationEmail, MAILING_ADDRESS } = await import("../src/emails");
+    const built = buildConfirmationEmail(
+      "California",
+      "https://deadline-radar.com/api/confirm?token=abc",
+      "https://deadline-radar.com/api/unsubscribe?token=xyz",
+      "Devin"
+    );
+    expect(built.subject).toContain("California");
+    expect(built.htmlBody).toContain("https://deadline-radar.com/api/confirm?token=abc");
+    expect(built.textBody).toContain("https://deadline-radar.com/api/unsubscribe?token=xyz");
+    expect(built.htmlBody).toContain(MAILING_ADDRESS);
+    expect(built.htmlBody).toContain("Hi Devin,");
+    // No marketing claim, and the unsubscribe promise is present.
+    expect(built.textBody.toLowerCase()).toContain("unsubscribe");
   });
 });

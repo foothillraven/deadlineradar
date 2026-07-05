@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DeadlineRadar — CPA License Renewal Deadlines by State</title>
 <meta name="description" content="Find your state&#x27;s CPA license renewal deadline, verified against the official state board of accountancy. One page per state, kept current.">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <style>
 
   :root {
@@ -140,8 +141,7 @@ verified renewal rule, with a link back to the official source and a "last verif
   <p class="signup-microcopy">We only email you deadline reminders. We never sell or share your address. Unsubscribe anytime.</p>
   <form method="post" action="/api/subscribe" id="homepage-signup-form">
     <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
-    <!-- Reserved for Cloudflare Turnstile once a public endpoint + site key exist -- see reminders/HOSTING_PROPOSAL.md. Empty/absent is treated as "not configured yet," not as a failed check. -->
-    <input type="hidden" name="cf-turnstile-response" value="">
+    <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_"></div>
     <label for="home-state">Your state</label>
     <select id="home-state" name="state" required onchange="drUpdateFields(this.value)">
       <option value="">Select your state</option>

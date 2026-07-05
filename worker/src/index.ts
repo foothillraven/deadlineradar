@@ -1,19 +1,23 @@
 /**
- * DeadlineRadar Worker -- Phase 1 (capture + D1 storage ONLY).
+ * DeadlineRadar Worker -- capture + double-opt-in confirmation email.
  *
  * Endpoints, same route dispatch as reminders/server.py: POST /subscribe,
  * GET /confirm, GET /unsubscribe, GET /renewed, GET /rearm, GET /health.
  *
- * PHASE 1 HAS NO EMAIL SENDING OF ANY KIND. There is no SendGrid import, no
- * `EmailSender` interface, no outbound call to any email provider anywhere
- * in this file or anything it imports. A successful /subscribe stores a
- * `pending_confirmation` row and returns a success page -- nothing else
- * happens. Two deliberate, disclosed divergences from the Python reference
- * follow from that: the "mailing address configured" gate (server.py:395,
- * a pre-send CAN-SPAM check) is omitted since there is no send to gate; and
- * the success-page copy below is reworded so it never claims an email was
- * sent (the Python original's copy says "we sent a confirmation email,"
- * which would be false here).
+ * A successful /subscribe stores a `pending_confirmation` row and, when a
+ * SendGrid key is configured (env.SENDGRID_API_KEY), sends ONE double-opt-in
+ * confirmation email (see emails.ts / sender.ts). No further email is ever
+ * sent unless the recipient clicks the confirm link. Reminder emails belong to
+ * the Phase-3 scheduler (a cron the confirmation email promises: 60/30/14/7/3/1
+ * days out) and are NOT sent from this Worker yet. If SENDGRID_API_KEY is
+ * unset, /subscribe degrades safely to capture-only (store the row, send
+ * nothing) rather than erroring.
+ *
+ * Sending is gated on env.SENDGRID_API_KEY AND, at the network edge, on
+ * Turnstile (env.TURNSTILE_SECRET_KEY): with the secret set, a bot that can't
+ * solve the challenge never reaches the send path, so the public form can't be
+ * used to blast confirmation emails at arbitrary addresses. A per-day circuit
+ * breaker (sender.checkAndCountSend) is the last-resort cap on total sends.
  *
  * Abuse-hardening carried forward from reminders/server.py's module
  * docstring, in the same checked order:
@@ -50,6 +54,8 @@ import {
 } from "./validation";
 import { StaleDataError, checkDataFreshness, computeSubscriberDeadline, type DeadlineFields } from "./deadline";
 import * as store from "./store";
+import { buildConfirmationEmail } from "./emails";
+import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, sendViaSendGrid } from "./sender";
 
 function htmlPage(title: string, bodyHtml: string): string {
   return `<!doctype html>
@@ -71,19 +77,36 @@ function errorPage(status: number, message: string): Response {
   return htmlResponse(status, htmlPage("Error", `<p>${escapeHtml(message)}</p>`));
 }
 
-// Phase 1 note: this copy is deliberately NOT identical to
-// reminders/server.py's `_SUBSCRIBE_SUCCESS_PAGE` -- the Python original
-// says "we sent a confirmation email," which would be false here (Phase 1
-// never sends one). It still preserves the property that matters for
-// abuse-hardening: every path (real signup, honeypot no-op, cooldown/
-// dedupe no-op) returns this SAME response, so none of them is an oracle
-// an attacker could use to enumerate already-subscribed addresses.
+// Every /subscribe path (real signup, honeypot no-op, cooldown/dedupe no-op)
+// returns this SAME response, so none of them is an oracle an attacker could
+// use to enumerate already-subscribed addresses -- including that only the
+// real path actually sends a confirmation email; the copy is deliberately
+// generic ("check your email") so a no-op path returning it reveals nothing.
 const SUBSCRIBE_SUCCESS_PAGE = htmlPage(
-  "Got it",
-  "<h1>Got it</h1><p>Your signup has been recorded. This is an early rollout &mdash; automated " +
-    "confirmation and reminder emails aren't switched on yet, so you won't receive anything from " +
-    "this signup until they are.</p>"
+  "Almost there",
+  "<h1>Almost there &mdash; check your email</h1><p>Look for a confirmation link in your inbox and " +
+    "click it to start your reminders. If it's not there in a minute, check your spam folder. " +
+    "(Didn't sign up? Just ignore it &mdash; you won't hear from us again.)</p>"
 );
+
+// The Worker is bound to deadline-radar.com/api/*, so action links the
+// confirmation email points back at must include the /api prefix (the fetch
+// handler strips it again on the way in). This is the public base for
+// /confirm and /unsubscribe links.
+const ACTION_BASE_URL = "https://deadline-radar.com/api";
+
+/** "north-carolina" -> "North Carolina", "california" -> "California". */
+function stateNameFromSlug(slug: string): string {
+  return slug
+    .split("-")
+    .map((w) => (w.length > 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
+function dailySendCap(env: Env): number {
+  const n = Number.parseInt(env.REMINDERS_DAILY_SEND_CAP ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_SEND_CAP;
+}
 
 function clientIp(request: Request): string {
   return request.headers.get("cf-connecting-ip") ?? "0.0.0.0";
@@ -221,11 +244,35 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
     return htmlResponse(200, SUBSCRIBE_SUCCESS_PAGE);
   }
 
-  // NO EMAIL IS EVER SENT IN PHASE 1 -- there is no sender module, no
-  // SendGrid call path, nothing reachable from this handler that could
-  // deliver an email. The record is stored as pending_confirmation and
-  // that is the entire effect of a successful Phase-1 signup.
-  await store.addPending(env.DB, { email, stateSlug, deadlineFields, firstName });
+  const record = await store.addPending(env.DB, { email, stateSlug, deadlineFields, firstName });
+
+  // Send the double-opt-in confirmation email. Best-effort and fully isolated:
+  //   - Only when a SendGrid key is configured (absent key => capture-only).
+  //   - Guarded by the daily circuit breaker (checkAndCountSend) so a burst
+  //     can never blow past the cap and torch sender reputation.
+  //   - Wrapped so ANY failure (SendGrid down, cap hit, build error) never
+  //     turns an already-stored signup into an error response. The record is
+  //     persisted regardless; the user sees the same success page either way,
+  //     which also preserves the no-enumeration-oracle property.
+  if (env.SENDGRID_API_KEY) {
+    try {
+      const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+      if (underCap) {
+        const confirmUrl = `${ACTION_BASE_URL}/confirm?token=${encodeURIComponent(record.confirm_token)}`;
+        const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
+        const built = buildConfirmationEmail(
+          stateNameFromSlug(stateSlug),
+          confirmUrl,
+          unsubscribeUrl,
+          record.first_name
+        );
+        await sendViaSendGrid(env.SENDGRID_API_KEY, record.email, built);
+      }
+    } catch {
+      // Swallow -- the signup is stored; a confirmation-email failure is not
+      // the subscriber's problem and must not fail their request.
+    }
+  }
 
   return htmlResponse(200, SUBSCRIBE_SUCCESS_PAGE);
 }
@@ -238,8 +285,9 @@ async function handleConfirm(env: Env, token: string | null): Promise<Response> 
     200,
     htmlPage(
       "Confirmed",
-      "<h1>You're all set</h1><p>You're marked confirmed. Automated reminder emails aren't " +
-        "switched on yet in this rollout phase &mdash; that's a later, separately-approved step.</p>"
+      "<h1>You're all set</h1><p>Your email is confirmed. We'll send a reminder as your renewal " +
+        "deadline approaches &mdash; and nothing else. You can unsubscribe instantly from any email " +
+        "we send.</p>"
     )
   );
 }

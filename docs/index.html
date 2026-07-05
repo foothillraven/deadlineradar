@@ -121,12 +121,18 @@
 the official state board of accountancy. Built for CPAs, firm administrators, and anyone who
 just needs to know when their license is due.</p>
 <div class="state-grid">
+<a class="state-card" href="alabama/"><div class="state-name">Alabama</div><div class="state-hint">Fixed date</div></a>
 <a class="state-card" href="arizona/"><div class="state-name">Arizona</div><div class="state-hint">By birth month</div></a>
 <a class="state-card" href="california/"><div class="state-name">California</div><div class="state-hint">By birth month</div></a>
 <a class="state-card" href="colorado/"><div class="state-name">Colorado</div><div class="state-hint">Fixed date</div></a>
+<a class="state-card" href="connecticut/"><div class="state-name">Connecticut</div><div class="state-hint">Fixed date</div></a>
 <a class="state-card" href="florida/"><div class="state-name">Florida</div><div class="state-hint">Fixed date</div></a>
 <a class="state-card" href="georgia/"><div class="state-name">Georgia</div><div class="state-hint">Fixed date</div></a>
 <a class="state-card" href="illinois/"><div class="state-name">Illinois</div><div class="state-hint">Fixed date</div></a>
+<a class="state-card" href="indiana/"><div class="state-name">Indiana</div><div class="state-hint">Fixed date</div></a>
+<a class="state-card" href="iowa/"><div class="state-name">Iowa</div><div class="state-hint">Fixed date</div></a>
+<a class="state-card" href="kentucky/"><div class="state-name">Kentucky</div><div class="state-hint">Fixed date</div></a>
+<a class="state-card" href="louisiana/"><div class="state-name">Louisiana</div><div class="state-hint">Fixed date</div></a>
 <a class="state-card" href="maryland/"><div class="state-name">Maryland</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="massachusetts/"><div class="state-name">Massachusetts</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="michigan/"><div class="state-name">Michigan</div><div class="state-hint">Fixed date</div></a>
@@ -136,7 +142,11 @@ just needs to know when their license is due.</p>
 <a class="state-card" href="new-york/"><div class="state-name">New York</div><div class="state-hint">By birth month</div></a>
 <a class="state-card" href="north-carolina/"><div class="state-name">North Carolina</div><div class="state-hint">Fixed date</div></a>
 <a class="state-card" href="ohio/"><div class="state-name">Ohio</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="oklahoma/"><div class="state-name">Oklahoma</div><div class="state-hint">By birth month</div></a>
+<a class="state-card" href="oregon/"><div class="state-name">Oregon</div><div class="state-hint">Fixed date</div></a>
 <a class="state-card" href="pennsylvania/"><div class="state-name">Pennsylvania</div><div class="state-hint">Fixed date</div></a>
+<a class="state-card" href="south-carolina/"><div class="state-name">South Carolina</div><div class="state-hint">Fixed date</div></a>
+<a class="state-card" href="tennessee/"><div class="state-name">Tennessee</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="texas/"><div class="state-name">Texas</div><div class="state-hint">By birth month</div></a>
 <a class="state-card" href="virginia/"><div class="state-name">Virginia</div><div class="state-hint">Fixed date</div></a>
 <a class="state-card" href="washington/"><div class="state-name">Washington</div><div class="state-hint">Varies — check your license</div></a>
@@ -145,7 +155,7 @@ just needs to know when their license is due.</p>
 <p class="how-it-works">How it works: each state page shows the actual next renewal deadline
 (or, where the rule depends on your birth month, a full lookup table) computed from the
 verified renewal rule, with a link back to the official source and a "last verified" date.
-20 states covered so far, generated 2026-07-05.</p>
+30 states covered so far, generated 2026-07-05.</p>
 <div class="signup-form">
   <h2>Get reminded before your deadline</h2>
   <p class="signup-microcopy">We only email you deadline reminders. We never sell or share your address. Unsubscribe anytime.</p>
@@ -155,12 +165,18 @@ verified renewal rule, with a link back to the official source and a "last verif
     <label for="home-state">Your state</label>
     <select id="home-state" name="state" required onchange="drUpdateFields(this.value)">
       <option value="">Select your state</option>
-      <option value="arizona">Arizona</option>
+      <option value="alabama">Alabama</option>
+<option value="arizona">Arizona</option>
 <option value="california">California</option>
 <option value="colorado">Colorado</option>
+<option value="connecticut">Connecticut</option>
 <option value="florida">Florida</option>
 <option value="georgia">Georgia</option>
 <option value="illinois">Illinois</option>
+<option value="indiana">Indiana</option>
+<option value="iowa">Iowa</option>
+<option value="kentucky">Kentucky</option>
+<option value="louisiana">Louisiana</option>
 <option value="maryland">Maryland</option>
 <option value="massachusetts">Massachusetts</option>
 <option value="michigan">Michigan</option>
@@ -169,7 +185,11 @@ verified renewal rule, with a link back to the official source and a "last verif
 <option value="new-jersey">New Jersey</option>
 <option value="north-carolina">North Carolina</option>
 <option value="ohio">Ohio</option>
+<option value="oklahoma">Oklahoma</option>
+<option value="oregon">Oregon</option>
 <option value="pennsylvania">Pennsylvania</option>
+<option value="south-carolina">South Carolina</option>
+<option value="tennessee">Tennessee</option>
 <option value="texas">Texas</option>
 <option value="virginia">Virginia</option>
 <option value="washington">Washington</option>
@@ -199,6 +219,12 @@ verified renewal rule, with a link back to the official source and a "last verif
   </div>
 </div>
 <p class="field-hint">Your renewal cycle is set by your birth month and whether your birth year is odd or even.</p></div>
+<div class="signup-extra-fields" data-for-state="connecticut" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ct-individual">Individual CPA License</option>
+<option value="ct-firm">CPA Firm Permit</option>
+</select></div>
 <div class="signup-extra-fields" data-for-state="florida" hidden><label for="license_type_id">Which license?</label>
 <select id="license_type_id" name="license_type_id" required>
   <option value="">Select the one that applies to you</option>
@@ -211,6 +237,18 @@ verified renewal rule, with a link back to the official source and a "last verif
   <option value="">Select the one that applies to you</option>
   <option value="ga-individual">Individual CPA license</option>
 <option value="ga-firm">Firm license</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="indiana" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="in-individual">CPA (Individual License)</option>
+<option value="in-firm">CPA Firm Permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="louisiana" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="la-individual">CPA Individual License</option>
+<option value="la-firm">CPA Firm Permit</option>
 </select></div>
 <div class="signup-extra-fields" data-for-state="minnesota" hidden><label for="license_type_id">Which license?</label>
 <select id="license_type_id" name="license_type_id" required>
@@ -232,6 +270,12 @@ verified renewal rule, with a link back to the official source and a "last verif
   <option value="Group 3">Group 3</option>
 </select>
 <p class="field-hint">Check your license certificate or the Accountancy Board of Ohio lookup if you're not sure.</p></div>
+<div class="signup-extra-fields" data-for-state="south-carolina" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="sc-individual">Individual CPA License</option>
+<option value="sc-firm">Firm Registration (In-State/Out-of-State CPA Firm)</option>
+</select></div>
 <div class="signup-extra-fields" data-for-state="texas" hidden><label for="birth_month">Birth month</label>
 <select id="birth_month" name="birth_month" required><option value="1">January</option>
 <option value="2">February</option>
@@ -289,8 +333,11 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <footer class="site-footer">
-  <p>DeadlineRadar by Ravenline &middot; compiled from official state board sources
-  &middot; informational, not legal or official advice.</p>
+  <p>DeadlineRadar is an independent reminder service operated by Ravenline. It is not
+  affiliated with, endorsed by, or connected to NASBA, the AICPA, or any state board of
+  accountancy. Renewal dates are compiled from public sources for informational purposes only
+  &mdash; not legal, tax, or professional advice. Always confirm your exact renewal date with your
+  state board or on your license.</p>
   <p><a href="/privacy/">Privacy Policy</a> &middot; <a href="/contact/">Contact</a></p>
 </footer>
 </body>

@@ -264,8 +264,11 @@ def site_header(home_href: str) -> str:
 
 def site_footer() -> str:
     return f"""<footer class="site-footer">
-  <p>{esc(SITE_NAME)} by {esc(BRAND_NAME)} &middot; compiled from official state board sources
-  &middot; informational, not legal or official advice.</p>
+  <p>{esc(SITE_NAME)} is an independent reminder service operated by {esc(BRAND_NAME)}. It is not
+  affiliated with, endorsed by, or connected to NASBA, the AICPA, or any state board of
+  accountancy. Renewal dates are compiled from public sources for informational purposes only
+  &mdash; not legal, tax, or professional advice. Always confirm your exact renewal date with your
+  state board or on your license.</p>
   <p><a href="/privacy/">Privacy Policy</a> &middot; <a href="/contact/">Contact</a></p>
 </footer>"""
 
@@ -574,6 +577,37 @@ def render_ohio(record: dict) -> str:
 assigned group.</p>"""
 
 
+def render_cohort_group_record(record: dict) -> str:
+    """Generic cohort-group table for any non-Ohio state with cohort_groups (e.g. Oregon/Kentucky's
+    permit- or license-number-parity split) -- same table shape as render_ohio() but state-agnostic:
+    accepts either an explicit `years` list (Ohio's shape) or a plain-English `deadline_pattern`
+    string (Oregon/Kentucky's shape) per cohort group."""
+    def years_cell(g: dict) -> str:
+        if "years" in g:
+            return ", ".join(str(y) for y in g["years"])
+        return esc(g.get("deadline_pattern", ""))
+
+    rows = "\n".join(
+        f"<tr><td>{esc(g['group'])}</td><td>{years_cell(g)}</td>"
+        f"<td><strong>{esc(fmt_date(date.fromisoformat(g['next_deadline'])))}</strong></td></tr>"
+        for g in record["cohort_groups"]
+    )
+    return f"""<div class="callout">
+  <div class="label">{esc(record['license_type_label'])}</div>
+  <p class="rule">{esc(record['cycle_description'])}</p>
+</div>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Cohort group</th><th>Years due</th><th>Next deadline</th></tr></thead>
+    <tbody>
+    {rows}
+    </tbody>
+  </table>
+</div>
+<p>Not sure which group applies to you? Your license certificate or the
+<a href="{esc(record['source_url'])}">official source above</a> will show your assigned group.</p>"""
+
+
 def render_california(record: dict, as_of: date) -> str:
     table = build_california_table(as_of)
     rows = "\n".join(
@@ -688,8 +722,16 @@ def build_state_page(state_slug: str, records: list[dict], as_of: date) -> tuple
         deadline_html = render_new_york(records[0])
     else:
         computed = [r for r in records if r.get("next_deadline_computed")]
-        gapped = [r for r in records if not r.get("next_deadline_computed")]
+        cohort_records = [
+            r for r in records if not r.get("next_deadline_computed") and r.get("cohort_groups")
+        ]
+        gapped = [
+            r for r in records
+            if not r.get("next_deadline_computed") and not r.get("cohort_groups")
+        ]
         deadline_html = render_simple_deadline_records(computed)
+        for r in cohort_records:
+            deadline_html += "\n" + render_cohort_group_record(r)
         if gapped:
             deadline_html += "\n" + render_data_gap_records(gapped)
 

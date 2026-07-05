@@ -159,8 +159,8 @@ describe("POST /subscribe -- validation", () => {
     expect(resp.status).toBe(400);
   });
 
-  it("rejects an unsupported state", async () => {
-    const resp = await postSubscribe({ email: "a@example.com", state: "new-york" }, "203.0.113.12");
+  it("rejects a genuinely unsupported state slug", async () => {
+    const resp = await postSubscribe({ email: "a@example.com", state: "atlantis" }, "203.0.113.12");
     expect(resp.status).toBe(400);
   });
 
@@ -209,6 +209,92 @@ describe("POST /subscribe -- validation", () => {
       body: "",
     });
     expect(resp.status).toBe(400);
+  });
+});
+
+describe("POST /subscribe -- \"bring your own date\" (uncomputable states)", () => {
+  function futureIsoDate(daysFromNow: number): string {
+    const d = new Date(Date.now() + daysFromNow * 86_400_000);
+    return d.toISOString().slice(0, 10);
+  }
+
+  it("rejects an uncomputable state with no date supplied", async () => {
+    const resp = await postSubscribe({ email: `byod-nodate-${Date.now()}@example.com`, state: "new-york" }, "203.0.113.40");
+    expect(resp.status).toBe(400);
+  });
+
+  it("accepts a valid future date for an uncomputable state and stores deadline_source='user'", async () => {
+    const email = `byod-valid-${Date.now()}@example.com`;
+    const targetDate = futureIsoDate(200);
+    const resp = await postSubscribe(
+      { email, state: "new-jersey", license_expiration_date: targetDate },
+      "203.0.113.41"
+    );
+    expect(resp.status).toBe(200);
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
+    expect(row).not.toBeNull();
+    expect(row?.deadline_source).toBe("user");
+    expect(row?.user_deadline).toBe(targetDate);
+  });
+
+  it("rejects a past date", async () => {
+    const email = `byod-past-${Date.now()}@example.com`;
+    const resp = await postSubscribe(
+      { email, state: "new-jersey", license_expiration_date: "2020-01-01" },
+      "203.0.113.42"
+    );
+    expect(resp.status).toBe(400);
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first();
+    expect(row).toBeNull();
+  });
+
+  it("rejects today's date (must be strictly in the future)", async () => {
+    const email = `byod-today-${Date.now()}@example.com`;
+    const today = new Date().toISOString().slice(0, 10);
+    const resp = await postSubscribe(
+      { email, state: "new-jersey", license_expiration_date: today },
+      "203.0.113.43"
+    );
+    expect(resp.status).toBe(400);
+  });
+
+  it("rejects a date more than ~3.5 years out", async () => {
+    const email = `byod-toofar-${Date.now()}@example.com`;
+    const resp = await postSubscribe(
+      { email, state: "new-jersey", license_expiration_date: futureIsoDate(1400) },
+      "203.0.113.44"
+    );
+    expect(resp.status).toBe(400);
+  });
+
+  it("rejects a malformed date string instead of leniently parsing it", async () => {
+    const email = `byod-malformed-${Date.now()}@example.com`;
+    const resp = await postSubscribe(
+      { email, state: "new-jersey", license_expiration_date: "not-a-date" },
+      "203.0.113.45"
+    );
+    expect(resp.status).toBe(400);
+  });
+
+  it("rejects a calendar-invalid date (Feb 30) instead of silently rolling it over", async () => {
+    const email = `byod-invalid-cal-${Date.now()}@example.com`;
+    const resp = await postSubscribe(
+      { email, state: "new-jersey", license_expiration_date: "2027-02-30" },
+      "203.0.113.46"
+    );
+    expect(resp.status).toBe(400);
+  });
+
+  it("a computable state ignores a submitted license_expiration_date -- deadline_source stays 'computed'", async () => {
+    const email = `byod-ignored-${Date.now()}@example.com`;
+    const resp = await postSubscribe(
+      { email, state: "georgia", license_type_id: "ga-individual", license_expiration_date: futureIsoDate(100) },
+      "203.0.113.47"
+    );
+    expect(resp.status).toBe(200);
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
+    expect(row?.deadline_source).toBe("computed");
+    expect(row?.user_deadline).toBeNull();
   });
 });
 
@@ -335,6 +421,38 @@ describe("Confirm / unsubscribe / renewed / rearm lifecycle", () => {
     // /rearm with it must fail, not silently re-arm again.
     const staleRearm = await postAction(`/rearm?token=${row.unsubscribe_token}`, "203.0.113.51");
     expect(staleRearm.status).toBe(404);
+  });
+
+  it("BYOD: refuses to re-arm a user-provided-date subscriber rather than reactivating a stale date", async () => {
+    const email = `byod-rearm-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, {
+      email,
+      stateSlug: "new-jersey",
+      deadlineFields: {},
+      firstName: null,
+      deadlineSource: "user",
+      userDeadline: "2026-07-31",
+    });
+    await postAction(`/confirm?token=${rec.confirm_token}`, "203.0.113.52");
+
+    const renewedResp = await postAction(`/renewed?token=${rec.renewed_token}`, "203.0.113.53");
+    expect(renewedResp.status).toBe(200);
+    const stopped = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(rec.id).first<SubscriberRow>();
+    expect(stopped?.status).toBe(store.STATUS_STOPPED);
+    expect(stopped?.stop_reason).toBe("renewed");
+
+    // Same otherwise-eligible link a computed-state subscriber's rearm would
+    // succeed with -- this one must be refused specifically because
+    // deadline_source='user', with a tailored 400 (not the generic 404
+    // "invalid or already used").
+    const rearmResp = await postAction(`/rearm?token=${stopped?.unsubscribe_token}`, "203.0.113.54");
+    expect(rearmResp.status).toBe(400);
+    const rearmBody = await rearmResp.text();
+    expect(rearmBody.toLowerCase()).toContain("sign up again");
+
+    const afterRearmAttempt = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(rec.id).first<SubscriberRow>();
+    expect(afterRearmAttempt?.status).toBe(store.STATUS_STOPPED); // never reactivated
+    expect(afterRearmAttempt?.cycle).toBe(1); // never incremented
   });
 });
 
@@ -562,6 +680,26 @@ describe("emails.ts buildConfirmationEmail", () => {
     // No marketing claim, and the unsubscribe promise is present.
     expect(built.textBody.toLowerCase()).toContain("unsubscribe");
   });
+
+  it("BYOD: echoes the user's chosen date when provided, omits it when not", async () => {
+    const { buildConfirmationEmail } = await import("../src/emails");
+    const withDate = buildConfirmationEmail(
+      "New Jersey",
+      "https://deadline-radar.com/api/confirm?token=abc",
+      "https://deadline-radar.com/api/unsubscribe?token=xyz",
+      null,
+      "January 21, 2027"
+    );
+    expect(withDate.textBody).toContain("We'll remind you before January 21, 2027.");
+    expect(withDate.htmlBody).toContain("We'll remind you before January 21, 2027.");
+
+    const withoutDate = buildConfirmationEmail(
+      "New Jersey",
+      "https://deadline-radar.com/api/confirm?token=abc",
+      "https://deadline-radar.com/api/unsubscribe?token=xyz"
+    );
+    expect(withoutDate.textBody).not.toContain("We'll remind you before");
+  });
 });
 
 describe("scheduler.ts nextDueThreshold -- escalation logic", () => {
@@ -635,6 +773,46 @@ describe("scheduler.ts runReminderPass -- one pass", () => {
     });
     // 7 already sent, and no more-urgent tier is due yet (7 days out) -> no send.
     expect(sends).not.toContain(email);
+  });
+
+  it("fires a reminder off a user-provided deadline, skipping computeSubscriberDeadline entirely (BYOD)", async () => {
+    const { runReminderPass } = await import("../src/scheduler");
+    const email = `sched-byod-${Date.now()}@example.com`;
+    // new-jersey is UNCOMPUTABLE -- computeSubscriberDeadline(state_slug, ...)
+    // would return null for it. If the scheduler still fires the correct
+    // tier below, that proves it used the stored user_deadline directly and
+    // never fell through to the (would-be-null) computed path.
+    const rec = await store.addPending(env.DB, {
+      email,
+      stateSlug: "new-jersey",
+      deadlineFields: {},
+      firstName: "Tester",
+      deadlineSource: "user",
+      userDeadline: "2026-07-31",
+    });
+    await store.confirm(env.DB, rec.confirm_token);
+
+    const sends: { to: string; subject: string }[] = [];
+    // asOf = July 24 2026 -> stored user_deadline July 31 2026 -> 7 days remaining -> tier 7.
+    const summary = await runReminderPass(env, {
+      asOf: new Date(Date.UTC(2026, 6, 24)),
+      send: async (to, built) => {
+        sends.push({ to, subject: built.subject });
+        return true;
+      },
+    });
+
+    expect(summary.errors).toEqual([]);
+    // The strong proof this test exists for: new-jersey is uncomputable, so
+    // if the scheduler had fallen through to computeSubscriberDeadline()
+    // instead of using the stored user_deadline, THIS subscriber specifically
+    // would have been skipped_no_deadline and never sent -- it wasn't.
+    const mine = sends.find((s) => s.to === email);
+    expect(mine).toBeTruthy();
+    expect(mine?.subject).toContain("7 days");
+
+    const row = await env.DB.prepare("SELECT reminders_sent FROM subscribers WHERE id = ?1").bind(rec.id).first<{ reminders_sent: string }>();
+    expect(JSON.parse(row?.reminders_sent ?? "[]")).toContain(7);
   });
 });
 

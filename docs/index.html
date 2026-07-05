@@ -226,23 +226,44 @@ verified renewal rule, with a link back to the official source and a "last verif
     <select id="home-state" name="state" required onchange="drUpdateFields(this.value)">
       <option value="">Select your state</option>
       <option value="alabama">Alabama</option>
+<option value="arizona">Arizona</option>
 <option value="california">California</option>
+<option value="colorado">Colorado</option>
 <option value="connecticut">Connecticut</option>
+<option value="florida">Florida</option>
 <option value="georgia">Georgia</option>
+<option value="illinois">Illinois</option>
+<option value="indiana">Indiana</option>
 <option value="iowa">Iowa</option>
+<option value="kentucky">Kentucky</option>
 <option value="louisiana">Louisiana</option>
+<option value="maryland">Maryland</option>
+<option value="massachusetts">Massachusetts</option>
+<option value="michigan">Michigan</option>
 <option value="minnesota">Minnesota</option>
 <option value="missouri">Missouri</option>
+<option value="new-jersey">New Jersey</option>
+<option value="new-york">New York</option>
+<option value="north-carolina">North Carolina</option>
 <option value="ohio">Ohio</option>
 <option value="oklahoma">Oklahoma</option>
 <option value="oregon">Oregon</option>
+<option value="pennsylvania">Pennsylvania</option>
 <option value="south-carolina">South Carolina</option>
+<option value="tennessee">Tennessee</option>
 <option value="texas">Texas</option>
 <option value="virginia">Virginia</option>
+<option value="washington">Washington</option>
+<option value="wisconsin">Wisconsin</option>
     </select>
     <label for="home-first_name">First name (optional)</label>
     <input type="text" id="home-first_name" name="first_name" maxlength="60" autocomplete="given-name" placeholder="For a personal greeting, e.g. David">
-    <div class="signup-extra-fields" data-for-state="california" hidden><div class="signup-form-row">
+    <div class="signup-extra-fields" data-for-state="arizona" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="california" hidden><div class="signup-form-row">
   <div>
     <label for="birth_month">Birth month</label>
     <select id="birth_month" name="birth_month" required><option value="1">January</option>
@@ -264,18 +285,58 @@ verified renewal rule, with a link back to the official source and a "last verif
   </div>
 </div>
 <p class="field-hint">Your renewal cycle is set by your birth month and whether your birth year is odd or even.</p></div>
+<div class="signup-extra-fields" data-for-state="colorado" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="florida" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
 <div class="signup-extra-fields" data-for-state="georgia" hidden><label for="license_type_id">Which license?</label>
 <select id="license_type_id" name="license_type_id" required>
   <option value="">Select the one that applies to you</option>
   <option value="ga-individual">Individual CPA license</option>
 <option value="ga-firm">Firm license</option>
 </select></div>
+<div class="signup-extra-fields" data-for-state="illinois" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="indiana" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="kentucky" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
 <div class="signup-extra-fields" data-for-state="louisiana" hidden><label for="license_type_id">Which license?</label>
 <select id="license_type_id" name="license_type_id" required>
   <option value="">Select the one that applies to you</option>
   <option value="la-individual">CPA Individual License</option>
 <option value="la-firm">CPA Firm Permit</option>
 </select></div>
+<div class="signup-extra-fields" data-for-state="maryland" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="massachusetts" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="michigan" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
 <div class="signup-extra-fields" data-for-state="minnesota" hidden><label for="license_type_id">Which license?</label>
 <select id="license_type_id" name="license_type_id" required>
   <option value="">Select the one that applies to you</option>
@@ -288,6 +349,21 @@ verified renewal rule, with a link back to the official source and a "last verif
   <option value="mo-individual">CPA Individual License</option>
 <option value="mo-firm">CPA Firm Permit</option>
 </select></div>
+<div class="signup-extra-fields" data-for-state="new-jersey" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="new-york" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="north-carolina" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
 <div class="signup-extra-fields" data-for-state="ohio" hidden><label for="cohort_group">Your cohort group</label>
 <select id="cohort_group" name="cohort_group" required>
   <option value="">Select your group</option>
@@ -296,12 +372,22 @@ verified renewal rule, with a link back to the official source and a "last verif
   <option value="Group 3">Group 3</option>
 </select>
 <p class="field-hint">Check your license certificate or the Accountancy Board of Ohio lookup if you're not sure.</p></div>
+<div class="signup-extra-fields" data-for-state="pennsylvania" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
 <div class="signup-extra-fields" data-for-state="south-carolina" hidden><label for="license_type_id">Which license?</label>
 <select id="license_type_id" name="license_type_id" required>
   <option value="">Select the one that applies to you</option>
   <option value="sc-individual">Individual CPA License</option>
 <option value="sc-firm">Firm Registration (In-State/Out-of-State CPA Firm)</option>
 </select></div>
+<div class="signup-extra-fields" data-for-state="tennessee" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
 <div class="signup-extra-fields" data-for-state="texas" hidden><label for="birth_month">Birth month</label>
 <select id="birth_month" name="birth_month" required><option value="1">January</option>
 <option value="2">February</option>
@@ -322,6 +408,16 @@ verified renewal rule, with a link back to the official source and a "last verif
   <option value="va-individual">Individual CPA License</option>
 <option value="va-firm">CPA Firm License</option>
 </select></div>
+<div class="signup-extra-fields" data-for-state="washington" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="wisconsin" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
     <label for="home-email">Email address</label>
     <input type="email" id="home-email" name="email" required placeholder="you@example.com">
     <button type="submit">Remind me</button>

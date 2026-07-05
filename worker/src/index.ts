@@ -44,17 +44,25 @@ import {
   MAX_FIELD_LEN,
   RATE_LIMIT_ACTION,
   RATE_LIMIT_SUBSCRIBE,
-  SUPPORTED_STATE_SLUGS,
   checkRateLimit,
   escapeHtml,
   hasControlChars,
   isValidEmail,
   strictParseInt,
+  parseStrictIsoDate,
   verifyTurnstile,
 } from "./validation";
-import { StaleDataError, checkDataFreshness, computeSubscriberDeadline, type DeadlineFields } from "./deadline";
+import {
+  StaleDataError,
+  checkDataFreshness,
+  computeSubscriberDeadline,
+  isStateComputable,
+  SUPPORTED_STATE_SLUGS,
+  USER_DEADLINE_MAX_DAYS,
+  type DeadlineFields,
+} from "./deadline";
 import * as store from "./store";
-import { buildConfirmationEmail, buildStopConfirmationEmail } from "./emails";
+import { buildConfirmationEmail, buildStopConfirmationEmail, fmtDate } from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, sendViaSendGrid } from "./sender";
 import { StaleDataError as SchedulerStaleDataError, runReminderPass } from "./scheduler";
 
@@ -218,49 +226,78 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
   }
 
   let deadlineFields: DeadlineFields = {};
-  if (stateSlug === "california") {
-    const birthMonth = form.birth_month;
-    const birthYear = form.birth_year;
-    if (!birthMonth || !birthYear || birthYear.length > 4 || !/^\d+$/.test(birthYear)) {
-      return errorPage(400, "California needs your birth month and birth year.");
+  let deadlineSource: string = store.DEADLINE_SOURCE_COMPUTED;
+  let userDeadline: string | null = null;
+  const computable = isStateComputable(stateSlug);
+
+  if (computable) {
+    if (stateSlug === "california") {
+      const birthMonth = form.birth_month;
+      const birthYear = form.birth_year;
+      if (!birthMonth || !birthYear || birthYear.length > 4 || !/^\d+$/.test(birthYear)) {
+        return errorPage(400, "California needs your birth month and birth year.");
+      }
+      const birthMonthInt = strictParseInt(birthMonth);
+      const birthYearInt = strictParseInt(birthYear);
+      if (
+        birthMonthInt === null ||
+        birthYearInt === null ||
+        birthMonthInt < 1 ||
+        birthMonthInt > 12 ||
+        birthYearInt < 1900 ||
+        birthYearInt > 2100
+      ) {
+        return errorPage(400, "California needs a valid birth month and birth year.");
+      }
+      // Only the odd/even parity is ever persisted -- the full birth year is
+      // used transiently right here and discarded (PII minimization), same
+      // as server.py:345's comment.
+      const parity = birthYearInt % 2 === 1 ? "odd" : "even";
+      deadlineFields = { birth_month: String(birthMonthInt), birth_year_parity: parity };
+    } else if (stateSlug === "texas") {
+      const birthMonth = form.birth_month;
+      if (!birthMonth) return errorPage(400, "Texas needs your birth month.");
+      const birthMonthInt = strictParseInt(birthMonth);
+      if (birthMonthInt === null || birthMonthInt < 1 || birthMonthInt > 12) {
+        return errorPage(400, "Texas needs a valid birth month.");
+      }
+      deadlineFields = { birth_month: String(birthMonthInt) };
+    } else if (stateSlug === "ohio") {
+      const cohortGroup = form.cohort_group;
+      if (cohortGroup !== "Group 1" && cohortGroup !== "Group 2" && cohortGroup !== "Group 3") {
+        return errorPage(400, "Ohio needs your cohort group.");
+      }
+      deadlineFields = { cohort_group: cohortGroup };
+    } else if (form.license_type_id) {
+      const licenseTypeId = form.license_type_id;
+      if (licenseTypeId.length > MAX_FIELD_LEN) {
+        return errorPage(400, "Invalid license type.");
+      }
+      deadlineFields = { license_type_id: licenseTypeId };
     }
-    const birthMonthInt = strictParseInt(birthMonth);
-    const birthYearInt = strictParseInt(birthYear);
-    if (
-      birthMonthInt === null ||
-      birthYearInt === null ||
-      birthMonthInt < 1 ||
-      birthMonthInt > 12 ||
-      birthYearInt < 1900 ||
-      birthYearInt > 2100
-    ) {
-      return errorPage(400, "California needs a valid birth month and birth year.");
+  } else {
+    // "Bring your own date": the worker has no way to derive this state's
+    // deadline from state rules, so the subscriber supplies their own
+    // (printed on their license). The <input type="date">'s HTML min/max
+    // (generate.py) is a UX nicety only -- this is the real, authoritative
+    // check, same "validation authority stays server-side" rule this file
+    // already follows for every other per-state field.
+    const rawDate = (form.license_expiration_date ?? "").trim();
+    const parsedDate = parseStrictIsoDate(rawDate);
+    if (!parsedDate) {
+      return errorPage(400, "Please enter your license expiration date (a real calendar date).");
     }
-    // Only the odd/even parity is ever persisted -- the full birth year is
-    // used transiently right here and discarded (PII minimization), same
-    // as server.py:345's comment.
-    const parity = birthYearInt % 2 === 1 ? "odd" : "even";
-    deadlineFields = { birth_month: String(birthMonthInt), birth_year_parity: parity };
-  } else if (stateSlug === "texas") {
-    const birthMonth = form.birth_month;
-    if (!birthMonth) return errorPage(400, "Texas needs your birth month.");
-    const birthMonthInt = strictParseInt(birthMonth);
-    if (birthMonthInt === null || birthMonthInt < 1 || birthMonthInt > 12) {
-      return errorPage(400, "Texas needs a valid birth month.");
+    const now = new Date();
+    const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    if (parsedDate.getTime() <= todayUtc.getTime()) {
+      return errorPage(400, "That date has already passed -- please double-check your license.");
     }
-    deadlineFields = { birth_month: String(birthMonthInt) };
-  } else if (stateSlug === "ohio") {
-    const cohortGroup = form.cohort_group;
-    if (cohortGroup !== "Group 1" && cohortGroup !== "Group 2" && cohortGroup !== "Group 3") {
-      return errorPage(400, "Ohio needs your cohort group.");
+    const maxDate = new Date(todayUtc.getTime() + USER_DEADLINE_MAX_DAYS * 86_400_000);
+    if (parsedDate.getTime() > maxDate.getTime()) {
+      return errorPage(400, "That date looks too far out -- please double-check your license.");
     }
-    deadlineFields = { cohort_group: cohortGroup };
-  } else if (form.license_type_id) {
-    const licenseTypeId = form.license_type_id;
-    if (licenseTypeId.length > MAX_FIELD_LEN) {
-      return errorPage(400, "Invalid license type.");
-    }
-    deadlineFields = { license_type_id: licenseTypeId };
+    deadlineSource = store.DEADLINE_SOURCE_USER;
+    userDeadline = rawDate;
   }
 
   try {
@@ -277,7 +314,11 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
   // there is no orphaned-record-with-no-confirmation-email risk that gate
   // existed to prevent. See ../PHASE1_NOTES.md.
 
-  if (computeSubscriberDeadline(stateSlug, deadlineFields, new Date()) === null) {
+  // Only the computed path needs the throwaway probe -- a user-provided date
+  // was already validated directly above and doesn't go through
+  // computeSubscriberDeadline() at all (see scheduler.ts's own
+  // deadline_source branch for the read-side of this same split).
+  if (computable && computeSubscriberDeadline(stateSlug, deadlineFields, new Date()) === null) {
     return errorPage(400, "Couldn't compute a deadline from what you gave us -- please check your inputs.");
   }
 
@@ -289,7 +330,14 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
     return htmlResponse(200, SUBSCRIBE_SUCCESS_PAGE);
   }
 
-  const record = await store.addPending(env.DB, { email, stateSlug, deadlineFields, firstName });
+  const record = await store.addPending(env.DB, {
+    email,
+    stateSlug,
+    deadlineFields,
+    firstName,
+    deadlineSource,
+    userDeadline,
+  });
 
   // Send the double-opt-in confirmation email. Best-effort and fully isolated:
   //   - Only when a SendGrid key is configured (absent key => capture-only).
@@ -309,7 +357,8 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
           stateNameFromSlug(stateSlug),
           confirmUrl,
           unsubscribeUrl,
-          record.first_name
+          record.first_name,
+          record.user_deadline ? fmtDate(new Date(`${record.user_deadline}T00:00:00Z`)) : null
         );
         await sendViaSendGrid(env.SENDGRID_API_KEY, record.email, built);
       }
@@ -398,6 +447,18 @@ async function handleRearm(env: Env, token: string | null): Promise<Response> {
   if (!token) return errorPage(400, "Missing link.");
   const subscriber = await store.rearm(env.DB, token);
   if (!subscriber) {
+    // "Bring your own date" (migration 0005): a user-provided-date subscriber
+    // is a real, otherwise-eligible record that rearm() deliberately refused
+    // (see that function's own comment) -- give them an honest, specific
+    // reason rather than the generic "invalid or already used" message.
+    if (await store.isUserDateRearmBlocked(env.DB, token)) {
+      return errorPage(
+        400,
+        "Since we can't automatically know your next renewal date, we can't re-arm this reminder " +
+          "for you. When you have your new expiration date, just sign up again at " +
+          "deadline-radar.com -- it takes 10 seconds."
+      );
+    }
     return errorPage(404, "That link is invalid or already used, or this subscriber wasn't eligible to re-arm.");
   }
   return htmlResponse(

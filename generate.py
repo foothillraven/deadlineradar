@@ -69,15 +69,19 @@ _WORKER_FIELD_COMPUTED_STATES = {"california", "texas", "ohio"}
 
 
 def _state_signup_supported(state_slug: str, records: list[dict]) -> bool:
-    """Whether the reminder worker can ever compute a deadline for this
-    state's signup form, so it's safe to render the form at all. Discovered
-    2026-07-05 during the correctness-audit ship: downgrading a state's last
-    computable record to null (here, or already the case for several
-    batch-2/3 states) silently left a live signup form on its page that
-    would 400 on every real submission -- the front-end had no check against
-    the worker's actual computation capability. This replaces the old static
-    `REMINDER_UNSUPPORTED_STATES = {"new-york"}` set, which only ever
-    special-cased the one state we'd noticed, with the real, general rule."""
+    """Whether the reminder worker can compute a deadline for this state
+    FROM STATE RULES ALONE (no user-supplied date). Discovered 2026-07-05
+    during the correctness-audit ship: downgrading a state's last computable
+    record to null (here, or already the case for several batch-2/3 states)
+    silently left a live signup form on its page that would 400 on every
+    real submission -- the front-end had no check against the worker's
+    actual computation capability. Originally used to hide the form
+    entirely on a false result; as of "bring your own date" (same day, later
+    build) the form always renders now -- this function instead selects
+    WHICH extra field(s) `_extra_fields_html()` shows: the per-state
+    computed fields when true, or a plain date input when false. Mirrors
+    deadline.ts's `isStateComputable()` exactly, same underlying data, so
+    the two can't drift out of sync."""
     if state_slug in _WORKER_FIELD_COMPUTED_STATES:
         return True
     return any(r.get("next_deadline_computed") for r in records)
@@ -324,10 +328,32 @@ _MONTH_OPTIONS = "\n".join(
 )
 
 
-def _extra_fields_html(state_slug: str, records: list[dict]) -> str:
+_USER_DEADLINE_MAX_DAYS = 1280  # keep in sync with worker/src/deadline.ts's USER_DEADLINE_MAX_DAYS
+
+
+def _extra_fields_html(state_slug: str, records: list[dict], as_of: date) -> str:
     """The state-specific fields beyond email, needed to compute THIS
     subscriber's exact deadline. Kept in sync with reminders/server.py's
-    per-state field handling -- see that file's _handle_subscribe()."""
+    per-state field handling -- see that file's _handle_subscribe().
+
+    "Bring your own date" (2026-07-05): for a state the worker can't
+    auto-compute (_state_signup_supported() is false), the field is a plain
+    date input instead of any of the per-state fields below -- the
+    subscriber supplies the date printed on their own license, sidestepping
+    the data-correctness question entirely for these states. min/max are a
+    same-day UX nicety only; the worker's own server-side check (index.ts's
+    handleSubscribe(), matching this same 1-to-USER_DEADLINE_MAX_DAYS bound)
+    is the real, authoritative validation regardless of what the browser
+    enforces -- same "validation authority stays server-side" rule this
+    function's own docstring already establishes for every other field."""
+    if not _state_signup_supported(state_slug, records):
+        min_date = as_of + timedelta(days=1)
+        max_date = as_of + timedelta(days=_USER_DEADLINE_MAX_DAYS)
+        return f"""<label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="{fmt_date_iso(min_date)}" max="{fmt_date_iso(max_date)}" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p>"""
     if state_slug == "california":
         return f"""<div class="signup-form-row">
   <div>
@@ -443,9 +469,10 @@ def _turnstile_head_html() -> str:
     return '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>'
 
 
-def signup_form_for_state(state_slug: str, state_name: str, records: list[dict]) -> str:
-    if not _state_signup_supported(state_slug, records):
-        return ""  # no computable deadline -- see _state_signup_supported docstring
+def signup_form_for_state(state_slug: str, state_name: str, records: list[dict], as_of: date) -> str:
+    # "Bring your own date" (2026-07-05): the form always renders now -- see
+    # _extra_fields_html()'s own docstring for how it picks the right field(s)
+    # per state. Every state can collect a signup, computed or user-provided.
     return f"""<div class="signup-form">
   <h2>Get reminded before this deadline</h2>
   <p class="signup-microcopy">{esc(TRUST_MICROCOPY)}</p>
@@ -455,27 +482,32 @@ def signup_form_for_state(state_slug: str, state_name: str, records: list[dict])
     {_FIRST_NAME_FIELD_HTML.format(id_prefix="")}
     <label for="email">Email address</label>
     <input type="email" id="email" name="email" required placeholder="you@example.com">
-    {_extra_fields_html(state_slug, records)}
+    {_extra_fields_html(state_slug, records, as_of)}
     <button type="submit">Remind me</button>
   </form>
 </div>"""
 
 
-def signup_form_homepage(by_slug: dict[str, list[dict]]) -> str:
+def signup_form_homepage(by_slug: dict[str, list[dict]], as_of: date) -> str:
     """Homepage doesn't know the state yet, so it collects it via a
     dropdown and shows/hides the right extra fields with a small vanilla-JS
     handler -- the only JS on the whole site, used only because it clearly
     helps usability here (per the design brief). Validation authority stays
-    server-side in reminders/server.py regardless of what this JS does."""
-    supported_slugs = sorted(s for s in by_slug if _state_signup_supported(s, by_slug[s]))
+    server-side in reminders/server.py regardless of what this JS does.
+
+    "Bring your own date" (2026-07-05): every state is now a valid dropdown
+    option (previously filtered to `_state_signup_supported()`-true states
+    only) -- an uncomputable state just gets the date-input extra field
+    instead of a computed one, same as its own page."""
+    all_slugs = sorted(by_slug)
     state_options = "\n".join(
-        f'<option value="{esc(slug)}">{esc(by_slug[slug][0]["state"])}</option>' for slug in supported_slugs
+        f'<option value="{esc(slug)}">{esc(by_slug[slug][0]["state"])}</option>' for slug in all_slugs
     )
     field_groups = "\n".join(
         f'<div class="signup-extra-fields" data-for-state="{esc(slug)}" hidden>'
-        f'{_extra_fields_html(slug, by_slug[slug])}</div>'
-        for slug in supported_slugs
-        if _extra_fields_html(slug, by_slug[slug])
+        f'{_extra_fields_html(slug, by_slug[slug], as_of)}</div>'
+        for slug in all_slugs
+        if _extra_fields_html(slug, by_slug[slug], as_of)
     )
     return f"""<div class="signup-form">
   <h2>Get reminded before your deadline</h2>
@@ -778,7 +810,7 @@ def build_state_page(state_slug: str, records: list[dict], as_of: date) -> tuple
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
 {deadline_html}
 {trust_line(last_verified, source_url)}
-{signup_form_for_state(state_slug, state_name, records)}
+{signup_form_for_state(state_slug, state_name, records, as_of)}
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 """
     return title, page_shell(title, meta_description, body, home_href="../")
@@ -898,7 +930,7 @@ just needs to know when their license is due.</p>
 (or, where the rule depends on your birth month, a full lookup table) computed from the
 verified renewal rule, with a link back to the official source and a "last verified" date.
 {len(states)} states covered so far, generated {esc(as_of.isoformat())}.</p>
-{signup_form_homepage(by_slug)}
+{signup_form_homepage(by_slug, as_of)}
 <script>
 var DR_STATE_SLUGS = {json.dumps(state_slug_map)};
 {_STATE_SEARCH_JS}

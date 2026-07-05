@@ -16,6 +16,9 @@ export const STATUS_STOPPED = "stopped";
 
 export const SIGNUP_COOLDOWN_HOURS = 24; // store.py:44
 
+export const DEADLINE_SOURCE_COMPUTED = "computed";
+export const DEADLINE_SOURCE_USER = "user";
+
 export interface SubscriberRow {
   id: string;
   email: string;
@@ -33,6 +36,11 @@ export interface SubscriberRow {
   stop_reason: string | null;
   reminders_sent: string;
   cycle: number;
+  // migration 0005 -- see that file's own comment for the full rationale.
+  // 'computed' (the only value that existed before "bring your own date")
+  // or 'user'. user_deadline (ISO 'YYYY-MM-DD') is set only when 'user'.
+  deadline_source: string;
+  user_deadline: string | null;
 }
 
 function nowIso(): string {
@@ -143,6 +151,11 @@ export interface AddPendingInput {
   stateSlug: string;
   deadlineFields: Record<string, string>;
   firstName: string | null;
+  /** migration 0005. Defaults to 'computed' when omitted -- every call site
+   * that predates "bring your own date" doesn't need to change. */
+  deadlineSource?: string;
+  /** Only meaningful when deadlineSource is 'user'; null otherwise. */
+  userDeadline?: string | null;
 }
 
 /**
@@ -172,14 +185,16 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     stop_reason: null,
     reminders_sent: "[]",
     cycle: 1,
+    deadline_source: input.deadlineSource ?? DEADLINE_SOURCE_COMPUTED,
+    user_deadline: input.userDeadline ?? null,
   };
   await db
     .prepare(
       `INSERT INTO subscribers
        (id, email, cooldown_key, state_slug, deadline_fields, first_name, status,
         confirm_token, unsubscribe_token, renewed_token, created_at, confirmed_at,
-        stopped_at, stop_reason, reminders_sent, cycle)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)`
+        stopped_at, stop_reason, reminders_sent, cycle, deadline_source, user_deadline)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18)`
     )
     .bind(
       record.id,
@@ -197,7 +212,9 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
       record.stopped_at,
       record.stop_reason,
       record.reminders_sent,
-      record.cycle
+      record.cycle,
+      record.deadline_source,
+      record.user_deadline
     )
     .run();
   return record;
@@ -269,6 +286,15 @@ export async function rearm(db: D1Database, unsubscribeToken: string): Promise<S
     .bind(unsubscribeToken, STATUS_STOPPED, "renewed")
     .first<SubscriberRow>();
   if (!row) return null;
+  // "Bring your own date" (migration 0005): a user-provided date is now in
+  // the past with no way for us to derive their NEXT one automatically (a
+  // computed-state subscriber doesn't have this problem -- their state's
+  // rule naturally yields the next occurrence with no stored value needing
+  // to change). Refuse rather than silently reactivate against a stale
+  // date -- see index.ts's handleRearm(), which gives this its own tailored
+  // message via isUserDateRearmBlocked() below, distinct from "link
+  // invalid/already used".
+  if (row.deadline_source === DEADLINE_SOURCE_USER) return null;
   const newUnsubscribeToken = newToken();
   const newRenewedToken = newToken();
   await db
@@ -288,6 +314,26 @@ export async function rearm(db: D1Database, unsubscribeToken: string): Promise<S
   row.unsubscribe_token = newUnsubscribeToken;
   row.renewed_token = newRenewedToken;
   return row;
+}
+
+/**
+ * Distinguishes WHY rearm() returned null, for handleRearm()'s error copy:
+ * a genuinely invalid/already-used link vs. a real, otherwise-eligible
+ * record that was refused specifically because it's a "bring your own
+ * date" subscriber (migration 0005). Re-runs rearm()'s own eligibility
+ * query without the deadline_source restriction rather than threading a
+ * discriminated result back through rearm() itself, so rearm()'s contract
+ * (SubscriberRow | null) stays exactly what every existing caller expects.
+ */
+export async function isUserDateRearmBlocked(db: D1Database, unsubscribeToken: string): Promise<boolean> {
+  const row = await db
+    .prepare(
+      `SELECT deadline_source FROM subscribers
+       WHERE unsubscribe_token = ?1 AND status = ?2 AND stop_reason = ?3 AND confirmed_at IS NOT NULL`
+    )
+    .bind(unsubscribeToken, STATUS_STOPPED, "renewed")
+    .first<Pick<SubscriberRow, "deadline_source">>();
+  return row?.deadline_source === DEADLINE_SOURCE_USER;
 }
 
 /**

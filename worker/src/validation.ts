@@ -39,19 +39,9 @@ const EMAIL_RE =
 // stored-XSS-style payloads regardless of which field they're smuggled in.
 const CONTROL_CHAR_RE = /[\x00-\x1f\x7f]/;
 
-// server.py:75 SUPPORTED_STATE_SLUGS. New York is deliberately absent --
-// its rule needs a fact (first registration date) this dataset doesn't have.
-export const SUPPORTED_STATE_SLUGS: ReadonlySet<string> = new Set([
-  "florida",
-  "illinois",
-  "pennsylvania",
-  "georgia",
-  "north-carolina",
-  "michigan",
-  "ohio",
-  "california",
-  "texas",
-]);
+// SUPPORTED_STATE_SLUGS moved to deadline.ts (2026-07-05, "bring your own
+// date" build) -- it's computed from the same reference data deadline.ts
+// already imports, rather than a second hand-maintained copy here.
 
 export function hasControlChars(value: string): boolean {
   return CONTROL_CHAR_RE.test(value);
@@ -84,6 +74,32 @@ export function strictParseInt(value: string): number | null {
   const trimmed = value.trim();
   if (!STRICT_INT_RE.test(trimmed)) return null;
   return Number.parseInt(trimmed, 10);
+}
+
+// Whole-string YYYY-MM-DD only -- what a native <input type="date"> actually
+// submits, and strict on purpose: rejects anything Date.parse() would
+// otherwise leniently accept (e.g. "2027-6-1", "June 1 2027", a
+// datetime-with-time string) so a malformed or hand-crafted "bring your own
+// date" submission fails validation instead of silently round-tripping
+// through an unexpected format. Also rejects calendar-invalid dates (e.g.
+// "2027-02-30") by round-tripping through Date.UTC() and checking the parts
+// come back unchanged, the same defense-in-depth pattern this file already
+// uses for control characters and email format.
+const STRICT_ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+export function parseStrictIsoDate(value: string): Date | null {
+  const trimmed = value.trim();
+  const match = STRICT_ISO_DATE_RE.exec(trimmed);
+  if (!match) return null;
+  const year = Number.parseInt(match[1] as string, 10);
+  const month = Number.parseInt(match[2] as string, 10);
+  const day = Number.parseInt(match[3] as string, 10);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const d = new Date(Date.UTC(year, month - 1, day));
+  if (d.getUTCFullYear() !== year || d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) {
+    return null; // calendar-invalid (e.g. Feb 30) -- Date.UTC() silently rolled it over
+  }
+  return d;
 }
 
 /**

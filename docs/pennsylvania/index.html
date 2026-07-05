@@ -149,7 +149,25 @@
   <a href="https://www.pa.gov/agencies/dos/department-and-offices/bpoa/boards-commissions/accountancy-board/renewal-information">official state board</a> before relying on this date. License
   requirements and deadlines can change.
 </div>
-
+<div class="signup-form">
+  <h2>Get reminded before this deadline</h2>
+  <p class="signup-microcopy">We only email you deadline reminders. We never sell or share your address. Unsubscribe anytime.</p>
+  <form method="post" action="/api/subscribe">
+    <input type="hidden" name="state" value="pennsylvania">
+    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
+    <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_"></div>
+    <label for="first_name">First name (optional)</label>
+    <input type="text" id="first_name" name="first_name" maxlength="60" autocomplete="given-name" placeholder="For a personal greeting, e.g. David">
+    <label for="email">Email address</label>
+    <input type="email" id="email" name="email" required placeholder="you@example.com">
+    <label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-06" max="2030-01-05" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p>
+    <button type="submit">Remind me</button>
+  </form>
+</div>
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 
 <footer class="site-footer">

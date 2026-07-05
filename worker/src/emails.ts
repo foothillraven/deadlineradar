@@ -434,12 +434,20 @@ export function buildConfirmationEmail(
   stateName: string,
   confirmUrl: string,
   unsubscribeUrl: string,
-  firstName: string | null = null
+  firstName: string | null = null,
+  // "Bring your own date" (2026-07-05): only ever non-null on the
+  // user-provided-date path -- a computed-state signup still doesn't know a
+  // specific date at confirm-request time (computing it requires calling
+  // computeSubscriberDeadline(), which the scheduler does fresh on its own
+  // schedule, not here), same as before this feature existed.
+  deadlineDateStr: string | null = null
 ): BuiltEmail {
   // Hard-fail FIRST, before composing anything -- so a half-built email with
   // a placeholder footer can never exist.
   const addr = mailingAddress();
   const subject = `Confirm your ${stateName} CPA renewal reminder`;
+  const dateSentenceText = deadlineDateStr ? ` We'll remind you before ${deadlineDateStr}.` : "";
+  const dateSentenceHtml = deadlineDateStr ? ` We'll remind you before ${esc(deadlineDateStr)}.` : "";
 
   const textBody =
     `${textGreeting(firstName)}\n\n` +
@@ -449,7 +457,7 @@ export function buildConfirmationEmail(
     `If you don't click that link, we will never email you again -- nothing else happens ` +
     `automatically.\n\n` +
     `Once confirmed, we'll email you as the renewal date approaches: 60, 30, 14, 7, 3, and 1 day ` +
-    `before. That's the whole schedule -- no marketing, no third-party offers, ever.` +
+    `before. That's the whole schedule -- no marketing, no third-party offers, ever.${dateSentenceText}` +
     `${textFooter(unsubscribeUrl, addr)}`;
 
   const htmlBody = htmlShell(
@@ -471,7 +479,7 @@ export function buildConfirmationEmail(
       ) +
       p(
         "Once confirmed, we'll email you as the renewal date approaches: 60, 30, 14, 7, 3, and " +
-          "1 day before. That's the whole schedule &mdash; no marketing, no third-party offers, ever.",
+          `1 day before. That's the whole schedule &mdash; no marketing, no third-party offers, ever.${dateSentenceHtml}`,
         13,
         LIGHT.muted
       ),

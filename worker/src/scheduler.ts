@@ -116,7 +116,16 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
     let fields: Record<string, string>;
     try {
       fields = JSON.parse(sub.deadline_fields || "{}");
-      deadline = computeSubscriberDeadline(sub.state_slug, fields, asOf);
+      // "Bring your own date" (migration 0005): a user-provided subscriber's
+      // deadline is a literal stored value, not something to re-derive from
+      // state rules -- use it directly and skip computeSubscriberDeadline()
+      // entirely. Every escalation/threshold/grace-period rule below is
+      // completely unchanged; it only ever sees a Date, never cares how it
+      // was derived.
+      deadline =
+        sub.deadline_source === store.DEADLINE_SOURCE_USER && sub.user_deadline
+          ? new Date(`${sub.user_deadline}T00:00:00Z`)
+          : computeSubscriberDeadline(sub.state_slug, fields, asOf);
     } catch (err) {
       summary.errors.push({ subscriber_id: sub.id, error: String(err) });
       continue;

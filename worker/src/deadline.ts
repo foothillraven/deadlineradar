@@ -23,6 +23,11 @@ import cpaData from "./cpa_deadlines.json";
 
 export const STALENESS_THRESHOLD_DAYS = 30; // generate.py:701
 
+// "Bring your own date" upper bound: ~3.5 years, comfortably covering the
+// longest real renewal cycle in this dataset (triennial, 3 years) plus
+// slack -- orchestrator-approved 2026-07-05 design plan.
+export const USER_DEADLINE_MAX_DAYS = 1280;
+
 interface CpaRecord {
   id: string;
   state: string;
@@ -100,6 +105,36 @@ export function checkDataFreshness(realToday: Date): void {
 export function stateNameForSlug(slug: string): string | null {
   const r = DATA.records.find((rec) => rec.state_slug === slug);
   return r ? r.state : null;
+}
+
+/**
+ * Every state slug present in the reference data -- computed from the data
+ * itself, not a hand-maintained list. Discovered 2026-07-05 while building
+ * "bring your own date": this used to be a hardcoded 9-entry set in
+ * validation.ts (the original wave-1/2/3 states only), silently rejecting
+ * /subscribe for all 20 batch-2/3 states regardless of computability --
+ * confirmed via the test suite having zero coverage of any batch-2/3 state
+ * at all. Moved here and computed from DATA so it can never drift out of
+ * sync with the site again. New York is now INCLUDED: it was previously
+ * excluded because it has no computable rule, but "bring your own date"
+ * means every state -- computable or not -- can accept a signup now.
+ */
+export const SUPPORTED_STATE_SLUGS: ReadonlySet<string> = new Set(DATA.records.map((r) => r.state_slug));
+
+// Mirrors generate.py's `_state_signup_supported()` exactly -- same rule,
+// same underlying cpa_deadlines.json, so the site (which decides whether to
+// show the auto-compute fields vs. the "bring your own date" field) and the
+// worker (which decides whether to require/accept a user-provided date)
+// can never drift out of sync with each other.
+const FIELD_COMPUTED_STATES = new Set(["california", "texas", "ohio"]);
+
+/** Whether the worker can EVER derive a deadline for this state from state
+ * rules alone (via computeSubscriberDeadline below), with no user input
+ * beyond the per-state fields it already asks for. False means the state
+ * needs "bring your own date" instead -- see index.ts's handleSubscribe(). */
+export function isStateComputable(stateSlug: string): boolean {
+  if (FIELD_COMPUTED_STATES.has(stateSlug)) return true;
+  return DATA.records.some((r) => r.state_slug === stateSlug && r.next_deadline_computed);
 }
 
 export type DeadlineFields = Record<string, string>;

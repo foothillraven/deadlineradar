@@ -29,6 +29,19 @@ async function getAction(pathAndQuery: string, ip = "203.0.113.1"): Promise<Resp
   });
 }
 
+// Actions are now two-step: GET renders a confirmation page (no state change,
+// prefetch-safe), and only this POST performs the action. Takes the same
+// `/path?token=XXX` form as getAction and moves the token into the POST body.
+async function postAction(pathAndQuery: string, ip = "203.0.113.1"): Promise<Response> {
+  const u = new URL(`https://deadline-radar.com${pathAndQuery}`);
+  const token = u.searchParams.get("token") ?? "";
+  return SELF.fetch(`https://deadline-radar.com${u.pathname}`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": ip },
+    body: new URLSearchParams({ token }).toString(),
+  });
+}
+
 async function allSubscribers(): Promise<SubscriberRow[]> {
   const { results } = await env.DB.prepare("SELECT * FROM subscribers").all<SubscriberRow>();
   return results;
@@ -82,7 +95,7 @@ describe("/api prefix stripping (Workers Route binding)", () => {
     expect(row?.status).toBe(store.STATUS_PENDING);
   });
 
-  it("GET /api/confirm?token=... reaches the same handler as /confirm", async () => {
+  it("GET /api/confirm renders a page WITHOUT changing state (prefetch-safe); POST confirms", async () => {
     const email = `api-prefix-confirm-${Date.now()}@example.com`;
     await SELF.fetch("https://deadline-radar.com/api/subscribe", {
       method: "POST",
@@ -90,12 +103,25 @@ describe("/api prefix stripping (Workers Route binding)", () => {
       body: form({ email, state: "georgia", license_type_id: "ga-individual", hp_website: "" }),
     });
     const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
-    const resp = await SELF.fetch(`https://deadline-radar.com/api/confirm?token=${row?.confirm_token}`, {
+
+    // A GET (what an email link scanner does) must render a page but NOT confirm.
+    const getResp = await SELF.fetch(`https://deadline-radar.com/api/confirm?token=${row?.confirm_token}`, {
       headers: { "cf-connecting-ip": "203.0.113.73" },
     });
-    expect(resp.status).toBe(200);
-    const updated = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(row?.id).first<SubscriberRow>();
-    expect(updated?.status).toBe(store.STATUS_CONFIRMED);
+    expect(getResp.status).toBe(200);
+    expect(await getResp.text()).toContain("Confirm my email"); // the button, not a done page
+    const afterGet = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(row?.id).first<SubscriberRow>();
+    expect(afterGet?.status).toBe(store.STATUS_PENDING); // unchanged by the GET
+
+    // The POST (the human clicking the button) actually confirms.
+    const postResp = await SELF.fetch("https://deadline-radar.com/api/confirm", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.73" },
+      body: new URLSearchParams({ token: row?.confirm_token ?? "" }).toString(),
+    });
+    expect(postResp.status).toBe(200);
+    const afterPost = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(row?.id).first<SubscriberRow>();
+    expect(afterPost?.status).toBe(store.STATUS_CONFIRMED);
   });
 });
 
@@ -252,9 +278,9 @@ describe("Confirm / unsubscribe / renewed / rearm lifecycle", () => {
 
   it("confirm moves pending -> confirmed and is idempotent", async () => {
     const row = await signUpAndGetRow("203.0.113.40");
-    const resp1 = await getAction(`/confirm?token=${row.confirm_token}`, "203.0.113.41");
+    const resp1 = await postAction(`/confirm?token=${row.confirm_token}`, "203.0.113.41");
     expect(resp1.status).toBe(200);
-    const resp2 = await getAction(`/confirm?token=${row.confirm_token}`, "203.0.113.42");
+    const resp2 = await postAction(`/confirm?token=${row.confirm_token}`, "203.0.113.42");
     expect(resp2.status).toBe(200); // clicking twice is a no-op, not an error
 
     const updated = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(row.id).first<SubscriberRow>();
@@ -265,7 +291,7 @@ describe("Confirm / unsubscribe / renewed / rearm lifecycle", () => {
   it("REGRESSION: a never-confirmed subscriber's renewed_token cannot reach /renewed (double-opt-in bypass)", async () => {
     const row = await signUpAndGetRow("203.0.113.43");
     // row is still pending_confirmation -- confirm_token was never used.
-    const resp = await getAction(`/renewed?token=${row.renewed_token}`, "203.0.113.44");
+    const resp = await postAction(`/renewed?token=${row.renewed_token}`, "203.0.113.44");
     expect(resp.status).toBe(404);
     const updated = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(row.id).first<SubscriberRow>();
     expect(updated?.status).toBe(store.STATUS_PENDING); // unchanged
@@ -273,7 +299,7 @@ describe("Confirm / unsubscribe / renewed / rearm lifecycle", () => {
 
   it("unsubscribe on a still-pending record is honored (kills the pending signup)", async () => {
     const row = await signUpAndGetRow("203.0.113.45");
-    const resp = await getAction(`/unsubscribe?token=${row.unsubscribe_token}`, "203.0.113.46");
+    const resp = await postAction(`/unsubscribe?token=${row.unsubscribe_token}`, "203.0.113.46");
     expect(resp.status).toBe(200);
     const updated = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(row.id).first<SubscriberRow>();
     expect(updated?.status).toBe(store.STATUS_STOPPED);
@@ -282,15 +308,15 @@ describe("Confirm / unsubscribe / renewed / rearm lifecycle", () => {
 
   it("full confirm -> renewed -> rearm -> renewed-again cycle", async () => {
     const row = await signUpAndGetRow("203.0.113.47");
-    await getAction(`/confirm?token=${row.confirm_token}`, "203.0.113.48");
+    await postAction(`/confirm?token=${row.confirm_token}`, "203.0.113.48");
 
-    const renewedResp = await getAction(`/renewed?token=${row.renewed_token}`, "203.0.113.49");
+    const renewedResp = await postAction(`/renewed?token=${row.renewed_token}`, "203.0.113.49");
     expect(renewedResp.status).toBe(200);
     let updated = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(row.id).first<SubscriberRow>();
     expect(updated?.status).toBe(store.STATUS_STOPPED);
     expect(updated?.stop_reason).toBe("renewed");
 
-    const rearmResp = await getAction(`/rearm?token=${updated?.unsubscribe_token}`, "203.0.113.50");
+    const rearmResp = await postAction(`/rearm?token=${updated?.unsubscribe_token}`, "203.0.113.50");
     expect(rearmResp.status).toBe(200);
     updated = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(row.id).first<SubscriberRow>();
     expect(updated?.status).toBe(store.STATUS_CONFIRMED);
@@ -298,7 +324,7 @@ describe("Confirm / unsubscribe / renewed / rearm lifecycle", () => {
 
     // Old unsubscribe token is now stale (rotated on rearm) -- a repeat
     // /rearm with it must fail, not silently re-arm again.
-    const staleRearm = await getAction(`/rearm?token=${row.unsubscribe_token}`, "203.0.113.51");
+    const staleRearm = await postAction(`/rearm?token=${row.unsubscribe_token}`, "203.0.113.51");
     expect(staleRearm.status).toBe(404);
   });
 });
@@ -625,5 +651,35 @@ describe("emails.ts buildStopConfirmationEmail", () => {
     const built = buildStopConfirmationEmail("unsubscribed", "Texas", null, "https://deadline-radar.com/api/unsubscribe?token=xyz");
     expect(built.subject.toLowerCase()).toContain("unsubscribed");
     expect(built.htmlBody).not.toContain("Remind me next time");
+  });
+});
+
+describe("prefetch-safe actions + List-Unsubscribe", () => {
+  it("emails carry RFC 8058 one-click List-Unsubscribe headers", async () => {
+    const { buildConfirmationEmail, buildReminderEmail } = await import("../src/emails");
+    const conf = buildConfirmationEmail("California", "https://deadline-radar.com/api/confirm?token=c", "https://deadline-radar.com/api/unsubscribe?token=u");
+    expect(conf.headers["List-Unsubscribe"]).toBe("<https://deadline-radar.com/api/unsubscribe?token=u>");
+    expect(conf.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+    const rem = buildReminderEmail("California", "July 31, 2026", 30, 30, "https://deadline-radar.com/api/renewed?token=r", "https://deadline-radar.com/api/unsubscribe?token=u");
+    expect(rem.headers["List-Unsubscribe"]).toContain("token=u");
+  });
+
+  it("one-click unsubscribe: POST with token in the URL query (List-Unsubscribe=One-Click body) unsubscribes", async () => {
+    const email = `oneclick-${Date.now()}@example.com`;
+    await SELF.fetch("https://deadline-radar.com/api/subscribe", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.90" },
+      body: form({ email, state: "georgia", license_type_id: "ga-individual", hp_website: "" }),
+    });
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
+    const resp = await SELF.fetch(`https://deadline-radar.com/api/unsubscribe?token=${row?.unsubscribe_token}`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.91" },
+      body: "List-Unsubscribe=One-Click",
+    });
+    expect(resp.status).toBe(200);
+    const updated = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(row?.id).first<SubscriberRow>();
+    expect(updated?.status).toBe(store.STATUS_STOPPED);
+    expect(updated?.stop_reason).toBe("unsubscribed");
   });
 });

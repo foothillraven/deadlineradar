@@ -204,6 +204,20 @@ export interface BuiltEmail {
   headers: Record<string, string>;
 }
 
+/**
+ * RFC 8058 one-click List-Unsubscribe headers. Lets Gmail/Apple Mail show a
+ * native "Unsubscribe" that POSTs `List-Unsubscribe=One-Click` to the URL (the
+ * POST /unsubscribe handler reads the token from the URL query) -- a real
+ * one-click stop that also improves deliverability. The URL is a GET-safe
+ * landing page too, so a scanner GETting it changes nothing.
+ */
+function listUnsubHeaders(unsubscribeUrl: string): Record<string, string> {
+  return {
+    "List-Unsubscribe": `<${unsubscribeUrl}>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+  };
+}
+
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -282,8 +296,12 @@ export function buildReminderEmail(
   }
   const addr = mailingAddress();
   const subject = reminderSubject(stateName, threshold, actualDaysRemaining, deadlineDateStr);
-  // High-importance headers ONLY on the final (1-day) tier.
-  const headers = threshold === 1 ? { ...HIGH_IMPORTANCE_HEADERS } : {};
+  // High-importance headers ONLY on the final (1-day) tier; List-Unsubscribe on
+  // every reminder.
+  const headers: Record<string, string> = {
+    ...(threshold === 1 ? HIGH_IMPORTANCE_HEADERS : {}),
+    ...listUnsubHeaders(unsubscribeUrl),
+  };
 
   let whenPhrase: string;
   if (actualDaysRemaining > 0) {
@@ -397,7 +415,7 @@ export function buildStopConfirmationEmail(
 
   textBody += textFooter(unsubscribeUrl, addr);
   const htmlBody = htmlShell(subject, htmlInner, htmlFooter(unsubscribeUrl, addr));
-  return { subject, textBody, htmlBody, headers: {} };
+  return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
 }
 
 /** Port of reminders/emails.py `confirmation_email()`. */
@@ -449,5 +467,5 @@ export function buildConfirmationEmail(
     htmlFooter(unsubscribeUrl, addr)
   );
 
-  return { subject, textBody, htmlBody, headers: {} };
+  return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
 }

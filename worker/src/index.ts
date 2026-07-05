@@ -61,9 +61,53 @@ import { StaleDataError as SchedulerStaleDataError, runReminderPass } from "./sc
 function htmlPage(title: string, bodyHtml: string): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
 <style>body{font-family:-apple-system,sans-serif;max-width:520px;margin:3rem auto;padding:0 1.25rem;line-height:1.5;}</style>
 </head><body>${bodyHtml}</body></html>`;
+}
+
+// Copy for the GET confirmation pages -- the landing page an action link opens.
+// The link itself changes nothing; only the button (a POST) does. This is what
+// makes the actions prefetch-safe against email link scanners.
+const ACTION_PAGES: Record<string, { heading: string; intro: string; button: string }> = {
+  "/confirm": {
+    heading: "Confirm your email",
+    intro: "Click below to confirm your email and start your DeadlineRadar reminders.",
+    button: "Confirm my email",
+  },
+  "/unsubscribe": {
+    heading: "Unsubscribe",
+    intro: "Click below to stop all reminder emails for this deadline. This is instant and permanent.",
+    button: "Unsubscribe me",
+  },
+  "/renewed": {
+    heading: "Stop these reminders",
+    intro: "Renewed already? Click below to stop all further reminders for this deadline.",
+    button: "Yes, stop these reminders",
+  },
+  "/rearm": {
+    heading: "Turn reminders back on",
+    intro: "Click below to get reminders again for your next renewal cycle.",
+    button: "Yes, remind me next cycle",
+  },
+};
+
+const ACTION_PATHS = new Set(Object.keys(ACTION_PAGES));
+
+function actionConfirmPage(pathname: string, token: string): Response {
+  const meta = ACTION_PAGES[pathname];
+  if (!meta) return errorPage(404, "Not found.");
+  const action = `/api${pathname}`; // the Worker is bound to /api/*
+  const body =
+    `<h1>${escapeHtml(meta.heading)}</h1>` +
+    `<p>${escapeHtml(meta.intro)}</p>` +
+    `<form method="post" action="${escapeHtml(action)}" style="margin-top:1.5rem;">` +
+    `<input type="hidden" name="token" value="${escapeHtml(token)}">` +
+    `<button type="submit" style="font-size:16px;padding:12px 24px;border:0;border-radius:8px;` +
+    `background:#1f5fbf;color:#fff;font-weight:700;cursor:pointer;">${escapeHtml(meta.button)}</button>` +
+    `</form>`;
+  return htmlResponse(200, htmlPage(meta.heading, body));
 }
 
 function htmlResponse(status: number, body: string): Response {
@@ -383,34 +427,61 @@ export default {
 
     const ip = clientIp(request);
 
+    // GET on an action path renders a confirmation PAGE only -- it never
+    // changes state. Email providers (Gmail, corporate filters) automatically
+    // GET the links in a message to scan them; if the action fired on GET, a
+    // scan could silently stop/unsubscribe/re-arm a subscriber, or consume a
+    // one-time link before the human ever clicks it. The state change happens
+    // only on the POST below (the button on this page), which scanners don't do.
     if (request.method === "GET") {
-      const allowed = await checkRateLimit(env.DB, ip, "action", RATE_LIMIT_ACTION);
-      if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
-
-      const token = url.searchParams.get("token");
-      try {
-        switch (url.pathname) {
-          case "/confirm":
-            return await handleConfirm(env, token);
-          case "/unsubscribe":
-            return await handleUnsubscribe(env, token);
-          case "/renewed":
-            return await handleRenewed(env, token);
-          case "/rearm":
-            return await handleRearm(env, token);
-          default:
-            return errorPage(404, "Not found.");
-        }
-      } catch {
-        return errorPage(400, "Something went wrong processing that request.");
+      if (ACTION_PATHS.has(url.pathname)) {
+        const allowed = await checkRateLimit(env.DB, ip, "action", RATE_LIMIT_ACTION);
+        if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
+        const token = url.searchParams.get("token");
+        if (!token) return errorPage(400, "That link is missing its token.");
+        return actionConfirmPage(url.pathname, token);
       }
+      return errorPage(404, "Not found.");
     }
 
-    if (request.method === "POST" && url.pathname === "/subscribe") {
-      try {
-        return await handleSubscribe(request, env, ip);
-      } catch {
-        return errorPage(400, "Something went wrong processing that request.");
+    if (request.method === "POST") {
+      if (url.pathname === "/subscribe") {
+        try {
+          return await handleSubscribe(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
+      if (ACTION_PATHS.has(url.pathname)) {
+        const allowed = await checkRateLimit(env.DB, ip, "action", RATE_LIMIT_ACTION);
+        if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
+        // Token from the form body (our confirmation-page button) OR the URL
+        // query (RFC 8058 List-Unsubscribe one-click POST, whose body is
+        // "List-Unsubscribe=One-Click" and carries no token of its own).
+        let token = url.searchParams.get("token");
+        try {
+          const raw = await request.text();
+          if (raw.length > 0 && raw.length <= MAX_BODY_BYTES) {
+            token = new URLSearchParams(raw).get("token") ?? token;
+          }
+        } catch {
+          // keep whatever the query gave us
+        }
+        try {
+          switch (url.pathname) {
+            case "/confirm":
+              return await handleConfirm(env, token);
+            case "/unsubscribe":
+              return await handleUnsubscribe(env, token);
+            case "/renewed":
+              return await handleRenewed(env, token);
+            case "/rearm":
+              return await handleRearm(env, token);
+          }
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
       }
     }
 

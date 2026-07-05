@@ -420,9 +420,26 @@ def signup_form_homepage(by_slug: dict[str, list[dict]]) -> str:
 <script>
 function drUpdateFields(slug) {{
   document.querySelectorAll('.signup-extra-fields').forEach(function(el) {{
-    el.hidden = (el.getAttribute('data-for-state') !== slug);
+    var show = (el.getAttribute('data-for-state') === slug);
+    el.hidden = !show;
+    // Also enable/disable the controls inside each group. Toggling `hidden`
+    // alone is NOT enough: a `required` control inside a hidden group still
+    // fails HTML5 form validation on submit, and the browser cannot show a
+    // validation bubble on a non-focusable (hidden) field, so it silently
+    // refuses to submit -- the "click Remind me, nothing happens" bug. A
+    // `disabled` control is skipped by validation AND excluded from the POST,
+    // so only the visible state's extra fields are ever validated or sent.
+    el.querySelectorAll('input, select, textarea').forEach(function(field) {{
+      field.disabled = !show;
+    }});
   }});
 }}
+// Initialize on load so a browser-restored/autofilled state selection starts
+// in a consistent enabled/disabled state even if `onchange` never fires.
+document.addEventListener('DOMContentLoaded', function() {{
+  var sel = document.getElementById('home-state');
+  drUpdateFields(sel ? sel.value : '');
+}});
 </script>"""
 
 

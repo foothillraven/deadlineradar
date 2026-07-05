@@ -525,14 +525,27 @@ def render_simple_deadline_records(records: list[dict]) -> str:
     return "\n".join(parts)
 
 
+_DEFAULT_GAP_NOTE = (
+    "Your exact deadline depends on details specific to your own license -- see the official "
+    "source above for how to determine it."
+)
+
+
 def render_data_gap_records(records: list[dict]) -> str:
+    """Gap-note fallback: a record can be null/unresolved either because the state
+    doesn't publish a state-level fact (data_gap_note explains what's missing) or
+    because it depends on a per-licensee formula this dataset intentionally doesn't
+    guess at (a `computation` block, e.g. Arizona's birth-month formula) with no
+    separate data_gap_note string. Either way the callout must show SOME explanatory
+    text -- an empty note previously rendered as a blank <p><em></em></p>."""
     parts = []
     for r in records:
+        note = r.get("data_gap_note") or _DEFAULT_GAP_NOTE
         parts.append(f"""<div class="callout">
   <div class="label">{esc(r['license_type_label'])}</div>
   <div class="date">Date not confirmed</div>
   <p class="rule">{esc(r['cycle_description'])}</p>
-  <p><em>{esc(r.get('data_gap_note', ''))}</em></p>
+  <p><em>{esc(note)}</em></p>
 </div>""")
     return "\n".join(parts)
 
@@ -694,10 +707,24 @@ def build_state_page(state_slug: str, records: list[dict], as_of: date) -> tuple
 # Index / sitemap / robots
 # ---------------------------------------------------------------------------
 
+def state_hint(records: list[dict]) -> str:
+    """Homepage state-grid one-liner. Three categories, not two: a state whose
+    EVERY record is an unresolved data gap (e.g. Massachusetts/Washington/Maryland
+    firm/Colorado firm/New Jersey -- personalized or unpublished-anchor-year cases)
+    must not be mislabeled 'Fixed date', since no single date is actually shown on
+    that page. Checked against renewal_pattern/next_deadline_computed directly
+    (not `wave`) so it generalizes to any future state mixing patterns."""
+    if any(r.get("renewal_pattern") == "birth_month" for r in records):
+        return "By birth month"
+    if any(r.get("next_deadline_computed") for r in records):
+        return "Fixed date"
+    return "Varies — check your license"
+
+
 def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[dict]]) -> str:
     cards = []
     for s in sorted(states, key=lambda s: s["state"]):
-        hint = "By birth month" if s["wave"] == 3 else "Fixed date"
+        hint = state_hint(by_slug[s["state_slug"]])
         cards.append(
             f'<a class="state-card" href="{esc(s["state_slug"])}/">'
             f'<div class="state-name">{esc(s["state"])}</div>'

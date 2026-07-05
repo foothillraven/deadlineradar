@@ -2,19 +2,27 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://deadline-radar.com/</loc>
-    <lastmod>2026-07-03</lastmod>
+    <lastmod>2026-07-05</lastmod>
   </url>
   <url>
     <loc>https://deadline-radar.com/privacy/</loc>
-    <lastmod>2026-07-03</lastmod>
+    <lastmod>2026-07-05</lastmod>
   </url>
   <url>
     <loc>https://deadline-radar.com/contact/</loc>
-    <lastmod>2026-07-03</lastmod>
+    <lastmod>2026-07-05</lastmod>
+  </url>
+  <url>
+    <loc>https://deadline-radar.com/arizona/</loc>
+    <lastmod>2026-07-05</lastmod>
   </url>
   <url>
     <loc>https://deadline-radar.com/california/</loc>
     <lastmod>2026-07-03</lastmod>
+  </url>
+  <url>
+    <loc>https://deadline-radar.com/colorado/</loc>
+    <lastmod>2026-07-05</lastmod>
   </url>
   <url>
     <loc>https://deadline-radar.com/florida/</loc>
@@ -29,8 +37,28 @@
     <lastmod>2026-07-03</lastmod>
   </url>
   <url>
+    <loc>https://deadline-radar.com/maryland/</loc>
+    <lastmod>2026-07-05</lastmod>
+  </url>
+  <url>
+    <loc>https://deadline-radar.com/massachusetts/</loc>
+    <lastmod>2026-07-05</lastmod>
+  </url>
+  <url>
     <loc>https://deadline-radar.com/michigan/</loc>
     <lastmod>2026-07-03</lastmod>
+  </url>
+  <url>
+    <loc>https://deadline-radar.com/minnesota/</loc>
+    <lastmod>2026-07-05</lastmod>
+  </url>
+  <url>
+    <loc>https://deadline-radar.com/missouri/</loc>
+    <lastmod>2026-07-05</lastmod>
+  </url>
+  <url>
+    <loc>https://deadline-radar.com/new-jersey/</loc>
+    <lastmod>2026-07-05</lastmod>
   </url>
   <url>
     <loc>https://deadline-radar.com/new-york/</loc>
@@ -51,5 +79,17 @@
   <url>
     <loc>https://deadline-radar.com/texas/</loc>
     <lastmod>2026-07-03</lastmod>
+  </url>
+  <url>
+    <loc>https://deadline-radar.com/virginia/</loc>
+    <lastmod>2026-07-05</lastmod>
+  </url>
+  <url>
+    <loc>https://deadline-radar.com/washington/</loc>
+    <lastmod>2026-07-05</lastmod>
+  </url>
+  <url>
+    <loc>https://deadline-radar.com/wisconsin/</loc>
+    <lastmod>2026-07-05</lastmod>
   </url>
 </urlset>

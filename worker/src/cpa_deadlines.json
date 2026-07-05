@@ -1,6 +1,6 @@
 {
   "schema_note": "Flat array of renewal records. One state can have multiple records (different license_type, cohort, or renewal group). generate.py groups records by state_slug to build one page per state. next_deadline_computed is the actual next upcoming deadline computed from as_of_date forward -- it is NOT a static fact, it must be recomputed if this file is regenerated on a later date. null means the record's pattern is not resolvable to a single date from state-level facts alone (birth-month rules with no personalization, or a firm-cycle anchor year not present in verified source data) -- in those cases see computation/cohort_groups/data_gap_note for how the page should handle it instead of asserting a fake date.",
-  "as_of_date": "2026-07-03",
+  "as_of_date": "2026-07-05",
   "spike_source": "b3_saas/day0_spike_results.md -- 10-state Day-0/7 spike, 2026-07-03. CPA-only scope; contractor licensing dropped as structurally fragmented (no single state-level license in 6/10 sampled states).",
   "records": [
     {
@@ -207,6 +207,309 @@
       "source_url": "https://www.op.nysed.gov/",
       "last_verified": "2026-07-03",
       "wave": 3
+    },
+    {
+      "id": "nj-individual",
+      "state": "New Jersey",
+      "state_slug": "new-jersey",
+      "license_type": "individual",
+      "license_type_label": "Individual CPA License",
+      "renewal_pattern": "other",
+      "cycle_description": "Triennial (3-year) renewal cycle. The Board's own FAQ (njconsumeraffairs.gov/acc) confirms the triennial structure, that renewal notices are mailed ~60 days before the expiration date printed on the license, and that CPE (120 hours per triennial period, minimum 20/year) is tracked over the same period. It does NOT itself publish the specific current-cycle end date -- that figure (12/31/2026) came only from a trade association (njcpa.org), not the regulator, and per orchestrator review (2026-07-05) does not clear the bar for a published, board-confirmed date. Downgraded from a computed date to a data gap.",
+      "next_deadline_computed": null,
+      "data_gap_note": "NJ renews on a fixed triennial cycle ending December 31; the specific current-cycle end date is not published at the state-board level -- confirm your exact expiration on your license certificate or with the Board directly. (Independently re-checked 2026-07-05 by the orchestrator: the NJ Division of Consumer Affairs board pages confirm the triennial/120-CPE structure but do not publish 2026-12-31 as the current cycle end; that figure traced only to njcpa.org, a trade association.)",
+      "source_url": "https://www.njconsumeraffairs.gov/acc/Pages/FAQ.aspx",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "nj-firm",
+      "state": "New Jersey",
+      "state_slug": "new-jersey",
+      "license_type": "firm",
+      "license_type_label": "CPA Firm Registration/Permit",
+      "renewal_pattern": "other",
+      "cycle_description": "NJ registers accounting firms separately from individuals, and firm registration is also triennial, but whether the firm cycle is synchronized to the same Jan 1-Dec 31 calendar as individual licenses, or runs on a separate offset (e.g. July-June) schedule, could not be confirmed from any official NJ .gov source.",
+      "next_deadline_computed": null,
+      "data_gap_note": "The official Firm Registration Application PDF (njconsumeraffairs.gov) could not be parsed as readable text, and no other official Board page states firm-specific renewal dates. Unverified third-party snippets suggest an offset July-June firm cycle, but this is not confirmed. Do not publish a firm-license reminder date for New Jersey until this is confirmed directly with the Board.",
+      "source_url": "https://www.njconsumeraffairs.gov/acc/Pages/applications.aspx",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "va-individual",
+      "state": "Virginia",
+      "state_slug": "virginia",
+      "license_type": "individual",
+      "license_type_label": "Individual CPA License",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "Annual renewal, fixed calendar date. All Virginia CPAs holding an Active or Inactive individual license must renew by June 30 each year; the renewal window opens March 1. Licenses not renewed automatically go to Expired status on July 1 (reinstatement fee applies). No separate CPE reporting deadline -- CE compliance is self-certified as part of the renewal itself, with supporting documentation retained for 4 years in case of audit.",
+      "next_deadline_computed": "2027-06-30",
+      "source_url": "https://boa.virginia.gov/individual-cpas/renew/",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "va-firm",
+      "state": "Virginia",
+      "state_slug": "virginia",
+      "license_type": "firm",
+      "license_type_label": "CPA Firm License",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "Annual renewal, same fixed June 30 calendar date as individual licenses; renewal window opens March 1. Unrenewed firm licenses automatically go to Expired status on July 1, after which the firm may not provide attest or compilation services until reinstated ($500 reinstatement fee).",
+      "next_deadline_computed": "2027-06-30",
+      "source_url": "https://boa.virginia.gov/firms/renew/",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "ma-individual",
+      "state": "Massachusetts",
+      "state_slug": "massachusetts",
+      "license_type": "individual",
+      "license_type_label": "Individual CPA License",
+      "renewal_pattern": "other",
+      "cycle_description": "Biennial (every 2 years), expiring June 30. The Commonwealth's official Division of Occupational Licensure fee/renewal-schedule page (licensing.reg.state.ma.us, board_code=PA) confirms 'Biennial (2 years)' and '30-Jun / ODD & EVEN YEAR' for individual CPAs, i.e. renewals are split across odd and even years board-wide. CPE is 80 hours per 2-year period (4 hours ethics, no carryover) per 252 CMR 2.14. Orchestrator independent re-check (2026-07-05) found no support for a license-number-parity assignment rule -- mass.gov states biennial + June 30 for all, with no odd/even-by-license-number mechanic. That claim is REMOVED; which specific year (odd or even) applies to a given licensee is treated as an individual-license unknown, same shape as Washington/New York's gaps.",
+      "next_deadline_computed": null,
+      "computation": {
+        "type": "unresolvable_needs_individual_expiration_year",
+        "note": "Renewal is biennial, always on June 30, but which of the two years (odd or even) a given licensee is due in is not resolvable from a general rule -- it is specific to that licensee's own license record. Do not ask users for their license-number parity; check with the Board of Public Accountancy or the license record directly."
+      },
+      "data_gap_note": "The official fee-schedule page confirms the biennial/June-30/odd-even-year split exists but does not state the assignment mechanism, and an independent orchestrator re-check found no primary-source support for a license-number-parity rule. Removed rather than shipped unverified.",
+      "source_url": "https://licensing.reg.state.ma.us/public/dpl_fees/dpl_fees_results.asp?board_code=PA",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "ma-firm",
+      "state": "Massachusetts",
+      "state_slug": "massachusetts",
+      "license_type": "firm",
+      "license_type_label": "Firm License (CPA Corporation, Partnership, Business Corporation, LLC, or LLP)",
+      "renewal_pattern": "other",
+      "cycle_description": "Same biennial, June 30 schedule as individual licenses, confirmed on the same official fee page (firm fee $324 vs. $161 individual). Which specific year a given firm is due in is not resolvable from a general rule -- same gap as the individual license.",
+      "next_deadline_computed": null,
+      "computation": {
+        "type": "unresolvable_needs_individual_expiration_year",
+        "note": "Same gap as the individual record -- firm-specific, requires checking that firm's license record."
+      },
+      "data_gap_note": "Same cohort-assignment gap as the individual record; a claimed license-number-parity mechanism was checked and removed (no primary-source support) -- confirm with the Board before computing a specific firm date.",
+      "source_url": "https://licensing.reg.state.ma.us/public/dpl_fees/dpl_fees_results.asp?board_code=PA",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "wa-individual",
+      "state": "Washington",
+      "state_slug": "washington",
+      "license_type": "individual",
+      "license_type_label": "Individual CPA License",
+      "renewal_pattern": "other",
+      "cycle_description": "Triennial (3-year) renewal cycle. The Washington State Board of Accountancy (acb.wa.gov) states: 'All credentialed individuals must renew between January 1 and April 30 every three years.' Late-fee window is May 1-Jun 30 (+$100 late fee); the credential lapses effective July 1 if not renewed or retired by June 30. CPE must be completed by December 31 of the year prior to the credential's expiration (i.e. before the Jan 1-Apr 30 renewal window opens).",
+      "next_deadline_computed": null,
+      "computation": {
+        "type": "unresolvable_needs_individual_expiration_year",
+        "note": "The Board confirms the renewal WINDOW (Jan 1-Apr 30) and CYCLE LENGTH (3 years) but does not publish a birth-month, last-name, or license-number rule for which of the three years a given individual falls into -- that lives only on the individual's own license record (via WA's CPA Verify lookup tool or the Board directly). Cannot be reduced to a lookup table from state-level facts alone."
+      },
+      "source_url": "https://acb.wa.gov/individual-licensing/renewal",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "wa-firm",
+      "state": "Washington",
+      "state_slug": "washington",
+      "license_type": "firm",
+      "license_type_label": "CPA Firm License",
+      "renewal_pattern": "other",
+      "cycle_description": "Same triennial structure as individual licenses: renewal due by April 30 every three years, $100 late fee after April 30, firm license dissolved if not renewed by June 30. The specific year within a given firm's 3-year cycle is tied to that firm's own license record, not a published statewide cohort table.",
+      "next_deadline_computed": null,
+      "computation": {
+        "type": "unresolvable_needs_individual_expiration_year",
+        "note": "Same gap as the individual record -- firm-specific, requires checking that firm's license record via the Board's licensee/firm search tool."
+      },
+      "source_url": "https://acb.wa.gov/firm-licensing/cpa-firm-license-renewal",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "md-individual",
+      "state": "Maryland",
+      "state_slug": "maryland",
+      "license_type": "individual",
+      "license_type_label": "CPA Individual License",
+      "renewal_pattern": "other",
+      "cycle_description": "Biennial (2-year) renewal on a fixed PERSONAL anniversary date, not one common statewide date. Per the Maryland Board of Public Accountancy (dllr.state.md.us/license/cpa/cpacperep.shtml): 'Maryland CPA licenses are issued for a fixed two-year period' and 'the anniversary date of license expiration is a fixed date every two years. It cannot be changed' -- licensees are instructed to check the expiration date printed on their own license, confirming dates are individualized. 80 hours of qualifying CE (incl. 4 hours ethics) is required at the second and subsequent renewals; the first renewal after initial licensure is exempt from the CE-hour requirement. No separate CPE-reporting deadline -- CE is self-reported directly on the renewal application, due on the licensee's own expiration date.",
+      "next_deadline_computed": null,
+      "computation": {
+        "type": "individual_anniversary_biennial",
+        "note": "Next deadline = the licensee's own original license-issuance (or most recent renewal) date, advanced forward by whole multiples of 2 years. Requires the individual CPA's actual issuance/last-renewal date, which is not published at the state level -- no birth-month or license-number cohort table is used by this Board."
+      },
+      "data_gap_note": "A previously drafted detail claiming reminder notices are sent at 60/45/30/15/5 days before expiration was checked directly against the source page and found NOT stated there -- removed rather than shipped unverified.",
+      "source_url": "https://dllr.state.md.us/license/cpa/cpacperep.shtml",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "md-firm",
+      "state": "Maryland",
+      "state_slug": "maryland",
+      "license_type": "firm",
+      "license_type_label": "Public Accountancy Firm Permit",
+      "renewal_pattern": "other",
+      "cycle_description": "Firm permits are renewed separately from individual CPA licenses (a distinct $151 firm renewal fee vs. $63 individual, per the Board's Forms & Fees page), confirming firms hold their own permit.",
+      "next_deadline_computed": null,
+      "data_gap_note": "No official Maryland source reviewed (Forms & Fees, Renewal, FAQs, OneStop firm-permit summary) states the firm permit's cycle length or whether it runs on a fixed calendar date, individual anniversary, or a date tied to the firm's original permit issuance. Would require direct contact with the Board (410-230-6258) or the COMAR 09.24 firm-permit regulation text to resolve.",
+      "source_url": "https://labor.maryland.gov/license/cpa/cpaaff.shtml",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "mn-individual",
+      "state": "Minnesota",
+      "state_slug": "minnesota",
+      "license_type": "individual",
+      "license_type_label": "Individual CPA Certificate (Active or Inactive)",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "Annual renewal, same fixed date for every licensee. The Minnesota Board of Accountancy (boa.state.mn.us) states: 'All Active and Inactive CPAs (and firms) must renew yearly by December 31 every year' and 'There is no grace period for unlicensed practice/holding out. All licenses and permits expire on December 31.' CPE operates on a separate July 1-June 30 reporting year (20 hrs/year minimum, 120 hrs/rolling 3-year period incl. 8 ethics hours); CPE for the year ending June 30 must be reported to the Board by December 31 of that same year, ahead of the license renewal.",
+      "next_deadline_computed": "2026-12-31",
+      "source_url": "https://www.boa.state.mn.us/licensees.html",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "mn-firm",
+      "state": "Minnesota",
+      "state_slug": "minnesota",
+      "license_type": "firm",
+      "license_type_label": "CPA Firm Permit to Practice",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "Annual renewal, same December 31 fixed date as individual licenses, no grace period. Per the Board's own site: 100% of Minnesota-licensed owners of the firm must themselves be individually renewed by March 1 of the following year for the firm permit renewal to be valid.",
+      "next_deadline_computed": "2026-12-31",
+      "source_url": "https://boa.state.mn.us/",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "wi-individual",
+      "state": "Wisconsin",
+      "state_slug": "wisconsin",
+      "license_type": "individual",
+      "license_type_label": "Individual CPA License",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "Biennial. Wisconsin DSPS sets a single statutory renewal date for all individual CPA licenses: December 14 of each odd-numbered year (compliance biennium runs December 15 of an odd year through December 14 of the next odd year) -- fixed calendar, not birth-month or cohort-based; even a newly-licensed CPA still renews on this same date rather than getting an extended first cycle. CPE compliance period is the 2-year period immediately preceding renewal (80 credit hours, min 40 formal learning, 3 ethics, at least 20 hours in each 12-month half); no separate CE-reporting deadline apart from the Dec 14 renewal date.",
+      "next_deadline_computed": "2027-12-14",
+      "source_url": "https://dsps.wi.gov/Pages/Professions/Accountant/Default.aspx",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "wi-firm",
+      "state": "Wisconsin",
+      "state_slug": "wisconsin",
+      "license_type": "firm",
+      "license_type_label": "Accounting Firm License",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "Same statutory date as individual licenses: December 14 of each odd-numbered year, biennial. No separate firm-specific cycle.",
+      "next_deadline_computed": "2027-12-14",
+      "source_url": "https://dsps.wi.gov/Pages/Professions/AccountingFirm/Default.aspx",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "co-individual",
+      "state": "Colorado",
+      "state_slug": "colorado",
+      "license_type": "individual",
+      "license_type_label": "Certified Public Accountant (Individual Certificate)",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "Biennial, synchronized statewide (not cohort/anniversary-based). The Colorado Board of Accountancy (dpo.colorado.gov/Accountancy) states: 'All Certified Public Accountant (CPA) Certificates expire on November 30 of odd-numbered years.' Applies uniformly regardless of original issuance date, except new applicants issued within 120 days of the upcoming expiration are bumped to the following cycle's date. Renewal window opens approximately 4-5 weeks before the November 30 deadline. CPE reporting period runs January 1 of an even year through December 31 of the following odd year (80 hours total); the CPE completion due date (Dec 31 of the odd year) falls about a month after the certificate's own Nov 30 renewal date in that same year.",
+      "next_deadline_computed": "2027-11-30",
+      "source_url": "https://dpo.colorado.gov/Accountancy/Applications",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "co-firm",
+      "state": "Colorado",
+      "state_slug": "colorado",
+      "license_type": "firm",
+      "license_type_label": "Public Accounting Firm Registration",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "Triennial, synchronized fixed calendar date board-wide (not firm-anniversary based). The same official Board page states 'All Public Accounting Firms (FRM) Registrations expire on August 31, every three years' -- but does not name which specific years anchor the cycle.",
+      "next_deadline_computed": null,
+      "computation": {
+        "type": "fixed_calendar_recurring_no_anchor",
+        "fixed_date": "08-31",
+        "period_years": 3,
+        "note": "Expires August 31 every 3 years for all firm registrations board-wide; next occurrence would be one of 2026-08-31, 2027-08-31, or 2028-08-31 depending on the (unconfirmed) anchor year of the cycle."
+      },
+      "data_gap_note": "Independently re-verified: the dedicated firm-applications subpage and the Code of Colorado Regulations PDF both returned HTTP 403 on every fetch attempt (bot-blocked, not confirmed dead); no official Colorado source found states the specific anchor year. Do not compute or display a specific firm date until the anchor year is confirmed directly with DORA (303-894-7800).",
+      "source_url": "https://dpo.colorado.gov/Accountancy/Applications",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "az-individual",
+      "state": "Arizona",
+      "state_slug": "arizona",
+      "license_type": "individual",
+      "license_type_label": "Individual CPA Certificate",
+      "renewal_pattern": "birth_month",
+      "cycle_description": "Biennial. Per A.R.S. 32-730 and A.A.C. R4-1-345(B)(1), an individual CPA certificate holder born in an even-numbered year renews during their birth month in each even-numbered year; a holder born in an odd-numbered year renews during their birth month in each odd-numbered year. Renewal must be RECEIVED by the Board (postmarks not accepted) by 5:00pm on the last business day of the birth month, or the certificate is automatically suspended ($50 late fee to reactivate; failure to renew within 3 months of suspension causes the certificate to expire). An individual/sole-proprietorship firm registration rides on this same personal cycle. CPE reporting period is defined identically to the registration period itself -- no separate CE deadline from the renewal deadline.",
+      "next_deadline_computed": null,
+      "computation": {
+        "type": "birth_month_parity",
+        "cycle_years": 2,
+        "day_of_month": "last_business_day",
+        "parity_rule": "renewal_year_parity_matches_birth_year_parity"
+      },
+      "source_url": "https://www.azaccountancy.gov/Renewals/FAQs.aspx",
+      "last_verified": "2026-07-05",
+      "wave": 3
+    },
+    {
+      "id": "az-firm",
+      "state": "Arizona",
+      "state_slug": "arizona",
+      "license_type": "firm",
+      "license_type_label": "Firm / Business Organization Registration",
+      "renewal_pattern": "other",
+      "cycle_description": "Biennial, but on a per-firm anniversary cycle distinct from the individual birth-month cycle. Per A.A.C. R4-1-345(B)(2), a business-organization firm (partnership, PC, PLLC, LLC, LLP) that initially registered in an even-numbered year renews during the board-approved month of its initial registration in each even-numbered year (odd-year registrants: same pattern in odd years). A sole proprietorship or individual registrant's firm registration is NOT on this separate cycle -- it renews together with the individual's personal certificate. Same 5:00pm last-business-day filing deadline and automatic-suspension consequence as the individual rule.",
+      "next_deadline_computed": null,
+      "computation": {
+        "type": "firm_registration_anniversary_parity",
+        "note": "Each firm's renewal month is fixed at the board-approved month set at its initial registration; the firm renews in that month during every subsequent year whose odd/even parity matches its initial-registration year. Requires that specific firm's initial-registration month and year, which is not a published state-wide fact."
+      },
+      "source_url": "https://grrc.az.gov/sites/default/files/2024-11/Accountancy%20NPER%202%20A.A.C.%201%20Arts%202-4.pdf",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "mo-individual",
+      "state": "Missouri",
+      "state_slug": "missouri",
+      "license_type": "individual",
+      "license_type_label": "CPA Individual License",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "Biennial, statewide-synchronized fixed calendar (not birth-month, not license-number cohort). Per Missouri Board rule 20 CSR 2010-2.070(1), licenses are issued for a two-year period beginning October 1 and expiring September 30, renewed biennially. The Board's 2026 Winter newsletter confirms the current cycle: timely renewal window for individual licenses closed September 30, 2025 (late-renewal window ran through December 31, 2025), placing the current cycle at Oct 1, 2025-Sept 30, 2027. CPE is checked on an ANNUAL calendar-year basis (40 hours/year incl. 2 ethics hours) even though the license renews only every two years; Rule 20 CSR 2010-4.010(1)(C) gives a Jan 1-Mar 1 grace period each year to cure the prior year's CPE shortfall.",
+      "next_deadline_computed": "2027-09-30",
+      "source_url": "https://pr.mo.gov/boards/accountancy/newsletters/2026%20Winter%20MO%20Newsletter.pdf",
+      "last_verified": "2026-07-05",
+      "wave": 4
+    },
+    {
+      "id": "mo-firm",
+      "state": "Missouri",
+      "state_slug": "missouri",
+      "license_type": "firm",
+      "license_type_label": "CPA Firm Permit",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "Annual, statewide-synchronized fixed calendar -- a DIFFERENT cycle than individual licenses. Per Missouri Board rule 20 CSR 2010-2.072(2), firm permits are issued for a one-year period beginning November 1 and expiring October 31, renewed annually. The Board's 2026 Winter newsletter confirms: timely renewal window for firms closed October 31, 2025 (late-renewal window ran through December 31, 2025), placing the current firm-permit cycle at Nov 1, 2025-Oct 31, 2026.",
+      "next_deadline_computed": "2026-10-31",
+      "source_url": "https://pr.mo.gov/boards/accountancy/newsletters/2026%20Winter%20MO%20Newsletter.pdf",
+      "last_verified": "2026-07-05",
+      "wave": 4
     }
   ]
 }

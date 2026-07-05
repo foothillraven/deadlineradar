@@ -204,6 +204,126 @@ export interface BuiltEmail {
   headers: Record<string, string>;
 }
 
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/** Port of generate.py `fmt_date()` -- "July 4, 2026". UTC fields, matching
+ * deadline.ts's UTC-midnight Date convention. */
+export function fmtDate(d: Date): string {
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+}
+
+// High-importance transport headers -- attached ONLY to the final (1-day)
+// reminder tier by buildReminderEmail below. Flagging every email
+// high-priority is a cry-wolf signal that hurts deliverability, so it's
+// reserved for when it's genuinely warranted. Mirrors emails.py.
+export const HIGH_IMPORTANCE_HEADERS: Record<string, string> = {
+  Importance: "High",
+  "X-Priority": "1",
+  "X-MSMail-Priority": "High",
+};
+
+// `threshold` picks the urgency LEAD phrase only; the TRUE remaining day count
+// (actualDaysRemaining) is what the subject/body display, kept separate so the
+// two can never contradict (emails.py's own adversarial-review fix).
+const URGENCY_LEAD: Record<number, string> = {
+  60: "Nothing urgent yet, just flagging it early",
+  30: "A good time to start gathering what you'll need",
+  14: "Two weeks out, worth doing this now rather than later",
+  7: "One week to go",
+  3: "Just a few days left",
+  1: "This is your final reminder for this deadline",
+};
+
+function daysPhrase(actual: number): string {
+  if (actual > 0) return `in ${actual} day${actual !== 1 ? "s" : ""}`;
+  if (actual === 0) return "today";
+  return `${-actual} day${actual !== -1 ? "s" : ""} ago`;
+}
+
+/** Port of emails.py `_reminder_subject()` -- built from the TRUE remaining
+ * count, never the threshold (so a scheduler gap can't produce a subject that
+ * contradicts the body). */
+function reminderSubject(stateName: string, threshold: number, actual: number, deadlineStr: string): string {
+  if (threshold === 1) {
+    let lead: string;
+    if (actual === 1) lead = "Tomorrow";
+    else if (actual === 0) lead = "Today";
+    else if (actual < 0) lead = "Overdue";
+    else {
+      const ph = daysPhrase(actual);
+      lead = ph.charAt(0).toUpperCase() + ph.slice(1);
+    }
+    return `${lead}: your ${stateName} CPA license renewal is due`;
+  }
+  const dp = daysPhrase(actual);
+  if (threshold === 60) return `Your ${stateName} CPA license expires ${dp} (${deadlineStr})`;
+  if (threshold === 30 || threshold === 14 || threshold === 7) {
+    return `Your ${stateName} CPA license renewal is due ${dp} (${deadlineStr}) — a good time to start`;
+  }
+  return `Your ${stateName} CPA license renewal is due ${dp} (${deadlineStr})`;
+}
+
+/** Port of reminders/emails.py `reminder_email()`. */
+export function buildReminderEmail(
+  stateName: string,
+  deadlineDateStr: string,
+  threshold: number,
+  actualDaysRemaining: number,
+  renewedUrl: string,
+  unsubscribeUrl: string,
+  firstName: string | null = null
+): BuiltEmail {
+  const lead = URGENCY_LEAD[threshold];
+  if (lead === undefined) {
+    throw new Error(`threshold must be one of ${Object.keys(URGENCY_LEAD).join(",")}, got ${threshold}`);
+  }
+  const addr = mailingAddress();
+  const subject = reminderSubject(stateName, threshold, actualDaysRemaining, deadlineDateStr);
+  // High-importance headers ONLY on the final (1-day) tier.
+  const headers = threshold === 1 ? { ...HIGH_IMPORTANCE_HEADERS } : {};
+
+  let whenPhrase: string;
+  if (actualDaysRemaining > 0) {
+    whenPhrase = `${actualDaysRemaining} day${actualDaysRemaining !== 1 ? "s" : ""} from now`;
+  } else if (actualDaysRemaining === 0) {
+    whenPhrase = "today";
+  } else {
+    whenPhrase = `${-actualDaysRemaining} day${actualDaysRemaining !== -1 ? "s" : ""} ago`;
+  }
+
+  const textBody =
+    `${textGreeting(firstName)}\n\n` +
+    `${lead} -- your ${stateName} CPA license renewal is due ${deadlineDateStr} (${whenPhrase}).\n\n` +
+    `Already renewed? One click stops every further reminder for this deadline:\n` +
+    `${renewedUrl}\n\n` +
+    `Nothing to do yet? We'll remind you again as it gets closer, right up through the day before.` +
+    `${textFooter(unsubscribeUrl, addr)}`;
+
+  const htmlBody = htmlShell(
+    `${lead}: ${stateName} CPA renewal due ${deadlineDateStr}`,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `${esc(lead)}</h1>` +
+      p(
+        `${htmlGreeting(firstName)}<br><br>` +
+          `Your ${esc(stateName)} CPA license renewal is due <strong>${esc(deadlineDateStr)}</strong> ` +
+          `(${esc(whenPhrase)}).`
+      ) +
+      `<p style="margin:0 0 20px;">${button(renewedUrl, "Stop these reminders")}</p>` +
+      p("Already renewed? The button above stops every further reminder for this deadline.", 13, LIGHT.muted) +
+      p(
+        "Nothing to do yet? We'll remind you again as it gets closer, right up through the day before.",
+        13,
+        LIGHT.muted
+      ),
+    htmlFooter(unsubscribeUrl, addr)
+  );
+
+  return { subject, textBody, htmlBody, headers };
+}
+
 /** Port of reminders/emails.py `confirmation_email()`. */
 export function buildConfirmationEmail(
   stateName: string,

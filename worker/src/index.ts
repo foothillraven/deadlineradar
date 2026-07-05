@@ -56,6 +56,7 @@ import { StaleDataError, checkDataFreshness, computeSubscriberDeadline, type Dea
 import * as store from "./store";
 import { buildConfirmationEmail } from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, sendViaSendGrid } from "./sender";
+import { StaleDataError as SchedulerStaleDataError, runReminderPass } from "./scheduler";
 
 function htmlPage(title: string, bodyHtml: string): string {
   return `<!doctype html>
@@ -385,5 +386,34 @@ export default {
     }
 
     return errorPage(404, "Not found.");
+  },
+
+  /**
+   * Daily reminder cron (Phase 3). Fires on the schedule in wrangler.toml's
+   * [triggers]. Sends each confirmed subscriber the nearest newly-due
+   * escalation reminder (60/30/14/7/3/1 days out). No-ops if sending isn't
+   * configured (no SendGrid key) so an accidentally-unset key degrades to
+   * "did nothing" rather than erroring. A StaleDataError (reference data too
+   * old to schedule off) is caught and logged, not thrown, so a stale-data
+   * pause doesn't surface as an unhandled cron failure -- but it DOES mean no
+   * reminders go out until the data is re-verified, which is the intended
+   * fail-safe (a wrong-date reminder is worse than none).
+   */
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (!env.SENDGRID_API_KEY) return;
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const summary = await runReminderPass(env);
+          console.log(`[reminder-cron] ${JSON.stringify(summary)}`);
+        } catch (err) {
+          if (err instanceof SchedulerStaleDataError) {
+            console.log(`[reminder-cron] paused -- stale reference data: ${err.message}`);
+          } else {
+            console.log(`[reminder-cron] error: ${String(err)}`);
+          }
+        }
+      })()
+    );
   },
 };

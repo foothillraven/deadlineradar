@@ -528,3 +528,77 @@ describe("emails.ts buildConfirmationEmail", () => {
     expect(built.textBody.toLowerCase()).toContain("unsubscribe");
   });
 });
+
+describe("scheduler.ts nextDueThreshold -- escalation logic", () => {
+  it("returns the nearest newly-due threshold", async () => {
+    const { nextDueThreshold } = await import("../src/scheduler");
+    expect(nextDueThreshold(45, [])).toBe(60); // 45<=60, nearest not-yet-sent
+    expect(nextDueThreshold(10, [60, 30])).toBe(14);
+    expect(nextDueThreshold(2, [60, 30, 14, 7])).toBe(3);
+    expect(nextDueThreshold(100, [])).toBeNull(); // nothing due yet
+  });
+  it("never regresses to a less-urgent tier after a more-urgent one fired", async () => {
+    const { nextDueThreshold } = await import("../src/scheduler");
+    // 1-day already sent; a scheduler gap now evaluates at 3 days remaining.
+    // Must NOT send the 3-day tier after the 1-day already went out.
+    expect(nextDueThreshold(3, [1])).toBeNull();
+    expect(nextDueThreshold(6, [7])).toBeNull(); // 7 sent -> never send 14/30/60 after
+  });
+});
+
+describe("scheduler.ts runReminderPass -- one pass", () => {
+  it("sends exactly one reminder to a confirmed subscriber whose deadline is newly due", async () => {
+    const { runReminderPass } = await import("../src/scheduler");
+    const email = `sched-tx-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, {
+      email,
+      stateSlug: "texas",
+      deadlineFields: { birth_month: "7" }, // TX deadline = end of July
+      firstName: "Tester",
+    });
+    await store.confirm(env.DB, rec.confirm_token);
+
+    const sends: { to: string; subject: string }[] = [];
+    // asOf = July 24 2026 -> TX deadline July 31 2026 -> 7 days remaining -> tier 7.
+    const summary = await runReminderPass(env, {
+      asOf: new Date(Date.UTC(2026, 6, 24)),
+      send: async (to, built) => {
+        sends.push({ to, subject: built.subject });
+        return true;
+      },
+    });
+
+    expect(summary.errors).toEqual([]);
+    const mine = sends.find((s) => s.to === email);
+    expect(mine).toBeTruthy();
+    expect(mine?.subject).toContain("Texas");
+    expect(mine?.subject).toContain("7 days");
+
+    const row = await env.DB.prepare("SELECT reminders_sent FROM subscribers WHERE id = ?1").bind(rec.id).first<{ reminders_sent: string }>();
+    expect(JSON.parse(row?.reminders_sent ?? "[]")).toContain(7);
+  });
+
+  it("does not re-send a threshold already recorded", async () => {
+    const { runReminderPass } = await import("../src/scheduler");
+    const email = `sched-tx2-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, {
+      email,
+      stateSlug: "texas",
+      deadlineFields: { birth_month: "7" },
+      firstName: "Tester",
+    });
+    await store.confirm(env.DB, rec.confirm_token);
+    await store.markReminderSent(env.DB, rec.id, 7); // pretend the 7-day already went
+
+    const sends: string[] = [];
+    await runReminderPass(env, {
+      asOf: new Date(Date.UTC(2026, 6, 24)), // still 7 days out
+      send: async (to) => {
+        sends.push(to);
+        return true;
+      },
+    });
+    // 7 already sent, and no more-urgent tier is due yet (7 days out) -> no send.
+    expect(sends).not.toContain(email);
+  });
+});

@@ -2,12 +2,14 @@ name = "deadlineradar-api"
 main = "src/index.ts"
 compatibility_date = "2026-07-01"
 
-# -- Phase 1 scope -----------------------------------------------------
-# Capture + D1 storage ONLY. No [triggers] crons block on purpose -- there
-# is no scheduler/reminder-sending code in this Worker yet (see README.md).
-# Nothing in this file executes anything by itself; it only takes effect
-# the moment a human actually runs `wrangler deploy` against a real
-# Cloudflare account, which has NOT happened as of this commit.
+# -- Reminder cron (Phase 3) -------------------------------------------
+# Daily reminder scheduler. Fires index.ts's scheduled() once a day at
+# 18:00 UTC (noon Mountain), which sends each confirmed subscriber the
+# nearest newly-due escalation reminder (60/30/14/7/3/1 days out). The
+# handler no-ops when SENDGRID_API_KEY is unset, so this trigger is inert
+# until sending is configured.
+[triggers]
+crons = ["0 18 * * *"]
 
 [[d1_databases]]
 binding = "DB"

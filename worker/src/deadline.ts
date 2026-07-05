@@ -93,6 +93,15 @@ export function checkDataFreshness(realToday: Date): void {
   }
 }
 
+/** The canonical display name for a state slug ("north-carolina" -> "North
+ * Carolina"), read from the same reference data the site uses. Null if the
+ * slug isn't in the data. Used by the reminder scheduler to name the state in
+ * the email. */
+export function stateNameForSlug(slug: string): string | null {
+  const r = DATA.records.find((rec) => rec.state_slug === slug);
+  return r ? r.state : null;
+}
+
 export type DeadlineFields = Record<string, string>;
 
 /**

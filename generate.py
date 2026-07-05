@@ -266,6 +266,7 @@ def site_footer() -> str:
     return f"""<footer class="site-footer">
   <p>{esc(SITE_NAME)} by {esc(BRAND_NAME)} &middot; compiled from official state board sources
   &middot; informational, not legal or official advice.</p>
+  <p><a href="/privacy/">Privacy Policy</a></p>
 </footer>"""
 
 
@@ -671,9 +672,91 @@ verified renewal rule, with a link back to the official source and a "last verif
     )
 
 
+def build_privacy_page(updated: date) -> str:
+    body = f"""<h1>Privacy Policy</h1>
+<p class="intro"><strong>The short version:</strong> we use your email address for one thing only &mdash;
+to send you the CPA license deadline reminders you asked for. We never sell, rent, or share it, and you
+can unsubscribe in one click from any email. That's the whole deal.</p>
+
+<h2>What we collect</h2>
+<p>Only what's needed to remind you about your deadline:</p>
+<ul>
+  <li><strong>Your email address</strong> &mdash; so we can send the reminders.</li>
+  <li><strong>Your state</strong> &mdash; to apply the correct renewal rule.</li>
+  <li><strong>A few deadline details where the state's rule requires them</strong> &mdash; for example,
+  your birth month/year in states whose renewal cycle depends on it. These are used only to compute your
+  exact deadline.</li>
+  <li><strong>Your first name (optional)</strong> &mdash; only if you choose to provide it, so reminders
+  can greet you by name.</li>
+</ul>
+<p>We do not collect anything else, and we do not build a profile of who you are.</p>
+
+<h2>How we use it</h2>
+<p>Your information is used solely to operate the reminder service you signed up for: to send a
+confirmation email, to send your deadline reminders as the date approaches, and to let you stop them at
+any time. We never use it for advertising, and never for any purpose you didn't ask for.</p>
+
+<h2>How it's stored and protected</h2>
+<p>Your data is encrypted in transit (this site and the signup form use HTTPS) and stored in a private
+database on Cloudflare's infrastructure. It is never published on this website, never included in our
+public code, and never exposed to other visitors. Access is restricted to the service itself.</p>
+
+<h2>Who we share it with</h2>
+<p>We do <strong>not</strong> sell, rent, or trade your information to anyone. We rely on a small number
+of service providers strictly to run the service:</p>
+<ul>
+  <li><strong>Cloudflare</strong> &mdash; hosting, our database, and bot/abuse protection.</li>
+  <li><strong>Our email delivery provider</strong> &mdash; to send the reminder emails to your inbox.</li>
+</ul>
+<p>These providers process your data only to deliver the service on our behalf, never for their own
+marketing.</p>
+
+<h2>Cookies and analytics</h2>
+<p>We do not use advertising cookies or cross-site trackers. We may use privacy-first, cookie-less
+analytics (such as Cloudflare Web Analytics) to understand aggregate traffic &mdash; this does not track
+you across the web or identify you personally.</p>
+
+<h2>Your choices</h2>
+<p>Every reminder email includes a one-click link to stop all reminders instantly. Using it permanently
+removes and suppresses your address so you won't be contacted again. You may also contact us to request
+access to, or deletion of, your information.</p>
+
+<h2>Data retention</h2>
+<p>We keep your information only while you're subscribed. When you unsubscribe, we stop contacting you
+and suppress your address so it isn't reused.</p>
+
+<h2>Children</h2>
+<p>This service is intended for licensed professionals and is not directed to anyone under 16. We do not
+knowingly collect information from children.</p>
+
+<h2>Changes to this policy</h2>
+<p>We may update this policy from time to time. The "last updated" date below always reflects the current
+version.</p>
+
+<h2>Contact</h2>
+<p>Questions about your privacy, or requests to access or delete your data:</p>
+<p>{esc(SITE_NAME)} by {esc(BRAND_NAME)}<br>
+18121 E Hampden Ave, Unit C #1324<br>
+Aurora, CO 80013</p>
+<p>For the fastest removal, use the unsubscribe link in any reminder email &mdash; it's instant.</p>
+
+<p class="how-it-works">Last updated: {esc(fmt_date(updated))}.</p>
+"""
+    return page_shell(
+        f"Privacy Policy — {SITE_NAME}",
+        "How DeadlineRadar collects, uses, and protects your information. We only send the CPA license "
+        "deadline reminders you request — we never sell or share your data.",
+        body,
+        home_href="../",
+    )
+
+
 def build_sitemap(states: list[dict], as_of: date) -> str:
     urls = [f"""  <url>
     <loc>{SITE_BASE_URL}/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/privacy/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>"""]
     for s in sorted(states, key=lambda s: s["state_slug"]):
@@ -780,6 +863,11 @@ def main() -> None:
 
     (SITE_DIR / "robots.txt").write_text(build_robots(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/robots.txt")
+
+    privacy_dir = SITE_DIR / "privacy"
+    privacy_dir.mkdir(parents=True, exist_ok=True)
+    (privacy_dir / "index.html").write_text(build_privacy_page(real_today), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/privacy/index.html")
 
     print(f"\nDone. {len(built)} state pages generated under {SITE_DIR}")
 

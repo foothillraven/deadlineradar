@@ -266,8 +266,11 @@ def site_footer() -> str:
     return f"""<footer class="site-footer">
   <p>{esc(SITE_NAME)} by {esc(BRAND_NAME)} &middot; compiled from official state board sources
   &middot; informational, not legal or official advice.</p>
-  <p><a href="/privacy/">Privacy Policy</a></p>
+  <p><a href="/privacy/">Privacy Policy</a> &middot; <a href="/contact/">Contact</a></p>
 </footer>"""
+
+
+CONTACT_EMAIL = "support@deadline-radar.com"
 
 
 TRUST_MICROCOPY = (
@@ -801,12 +804,47 @@ Aurora, CO 80013</p>
     )
 
 
+def build_contact_page() -> str:
+    body = f"""<h1>Contact</h1>
+<p class="intro">Questions, a correction to a deadline, or anything else &mdash; we'd like to hear from you.</p>
+
+<h2>Email us</h2>
+<p><a href="mailto:{esc(CONTACT_EMAIL)}">{esc(CONTACT_EMAIL)}</a></p>
+<p>We read every message and usually reply within a couple of business days. This is a small, independent
+project &mdash; there's a real person on the other end, not a support queue.</p>
+
+<h2>Spotted a wrong date?</h2>
+<p>Deadlines are compiled from official state board sources and we work hard to keep them current, but
+rules change. If a date looks off, email us the state and what you're seeing and we'll verify it against
+the source and fix it fast. Always confirm your exact deadline with your state board before relying on it.</p>
+
+<h2>Stop your reminders</h2>
+<p>The fastest way to stop reminders is the one-click unsubscribe link at the bottom of any email we send
+&mdash; it's instant and permanent. You're welcome to email us too.</p>
+
+<h2>Mailing address</h2>
+<p>{esc(SITE_NAME)} by {esc(BRAND_NAME)}<br>
+18121 E Hampden Ave, Unit C #1324<br>
+Aurora, CO 80013</p>
+"""
+    return page_shell(
+        f"Contact — {SITE_NAME}",
+        "Contact DeadlineRadar — questions, deadline corrections, or help with your CPA license "
+        "renewal reminders. Email us any time.",
+        body,
+        home_href="../",
+    )
+
+
 def build_sitemap(states: list[dict], as_of: date) -> str:
     urls = [f"""  <url>
     <loc>{SITE_BASE_URL}/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/privacy/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/contact/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>"""]
     for s in sorted(states, key=lambda s: s["state_slug"]):
@@ -918,6 +956,11 @@ def main() -> None:
     privacy_dir.mkdir(parents=True, exist_ok=True)
     (privacy_dir / "index.html").write_text(build_privacy_page(real_today), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/privacy/index.html")
+
+    contact_dir = SITE_DIR / "contact"
+    contact_dir.mkdir(parents=True, exist_ok=True)
+    (contact_dir / "index.html").write_text(build_contact_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/contact/index.html")
 
     print(f"\nDone. {len(built)} state pages generated under {SITE_DIR}")
 

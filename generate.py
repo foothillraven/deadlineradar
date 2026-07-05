@@ -46,12 +46,15 @@ SITE_DIR = ROOT / "docs"
 # hardcode a real URL before that.
 SITE_BASE_URL = "https://deadline-radar.com"
 
-# Placeholder for the reminder backend (reminders/server.py). This is a
-# SEPARATE service from the static Pages-hosted site -- GitHub Pages can't
-# run a backend, so the signup form's POST target needs real hosting
-# decided/plan-firsted before this can be anything but a placeholder. Kept
-# in sync conceptually with reminders/emails.py's BACKEND_BASE_URL.
-REMINDER_BACKEND_BASE_URL = "https://example-deadlineradar-api.test"
+# Reminder backend (worker/, the Phase-1 Cloudflare Worker -- see
+# worker/DEPLOY.md). Same-origin relative path, not a separate domain: the
+# Worker is bound to the deadline-radar.com/api/* Route, so the form posts
+# to the same site it's served from. STAGED ONLY -- per the Phase-1
+# directive, this change is committed locally but deliberately NOT pushed
+# until AFTER the Worker is deployed and verified responding (worker/
+# DEPLOY.md step 6); pushing before that would point the live, public
+# signup form at a route that doesn't exist yet.
+REMINDER_BACKEND_BASE_URL = "/api"
 
 # States the signup form supports -- must match reminders/server.py's
 # SUPPORTED_STATE_SLUGS exactly. New York is deliberately excluded: its

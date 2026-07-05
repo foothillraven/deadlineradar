@@ -1,0 +1,19 @@
+{
+  "name": "deadlineradar-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DeadlineRadar Cloudflare Worker -- Phase 1: signup capture + D1 storage only, no email sending. NOT deployed.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "d1:migrate:local": "wrangler d1 migrations apply deadlineradar --local"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.18.0",
+    "@cloudflare/workers-types": "^4.20260702.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9",
+    "wrangler": "^4.107.0"
+  }
+}

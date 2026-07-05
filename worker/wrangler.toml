@@ -1,0 +1,32 @@
+name = "deadlineradar-api"
+main = "src/index.ts"
+compatibility_date = "2026-07-01"
+
+# -- Phase 1 scope -----------------------------------------------------
+# Capture + D1 storage ONLY. No [triggers] crons block on purpose -- there
+# is no scheduler/reminder-sending code in this Worker yet (see README.md).
+# Nothing in this file executes anything by itself; it only takes effect
+# the moment a human actually runs `wrangler deploy` against a real
+# Cloudflare account, which has NOT happened as of this commit.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "deadlineradar"
+# Placeholder -- Cloudflare assigns the real UUID when `wrangler d1 create
+# deadlineradar` is actually run against a real account. That command has
+# NOT been run yet (no capital-deployment / account-creating action has
+# happened -- see AssetLab CLAUDE.md guardrail 6 "Account-creating" and
+# "Publish-to-external-platform"). Replace this value with the real
+# database_id returned by `wrangler d1 create` immediately after that
+# command is run, and not before.
+database_id = "REPLACE_AFTER_D1_CREATE"
+
+[[routes]]
+# NOT ACTIVE until `wrangler deploy` is actually run against a real
+# Cloudflare account with this zone configured. Declaring the route here is
+# inert configuration -- it does not register anything with Cloudflare, put
+# anything on the public internet, or spend anything, until a real deploy
+# happens. That deploy is a separate, later, explicitly-approved step (a
+# "Publish-to-external-platform" action per AssetLab's guardrails).
+pattern = "deadline-radar.com/api/*"
+zone_name = "deadline-radar.com"

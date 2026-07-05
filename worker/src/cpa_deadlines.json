@@ -1,0 +1,212 @@
+{
+  "schema_note": "Flat array of renewal records. One state can have multiple records (different license_type, cohort, or renewal group). generate.py groups records by state_slug to build one page per state. next_deadline_computed is the actual next upcoming deadline computed from as_of_date forward -- it is NOT a static fact, it must be recomputed if this file is regenerated on a later date. null means the record's pattern is not resolvable to a single date from state-level facts alone (birth-month rules with no personalization, or a firm-cycle anchor year not present in verified source data) -- in those cases see computation/cohort_groups/data_gap_note for how the page should handle it instead of asserting a fake date.",
+  "as_of_date": "2026-07-03",
+  "spike_source": "b3_saas/day0_spike_results.md -- 10-state Day-0/7 spike, 2026-07-03. CPA-only scope; contractor licensing dropped as structurally fragmented (no single state-level license in 6/10 sampled states).",
+  "records": [
+    {
+      "id": "fl-individual-odd",
+      "state": "Florida",
+      "state_slug": "florida",
+      "license_type": "individual",
+      "license_type_label": "Individual CPA license — odd-year cohort",
+      "renewal_pattern": "fixed_calendar_cohort",
+      "cycle_description": "Individual CPA license expires December 31 of the CPA's assigned renewal year, odd or even, assigned at licensure. This is the odd-year cohort: license expires December 31 of odd-numbered years.",
+      "next_deadline_computed": "2027-12-31",
+      "source_url": "https://www2.myfloridalicense.com/certified-public-accounting/renewing-and-maintaining-your-license/",
+      "last_verified": "2026-07-03",
+      "wave": 1
+    },
+    {
+      "id": "fl-individual-even",
+      "state": "Florida",
+      "state_slug": "florida",
+      "license_type": "individual",
+      "license_type_label": "Individual CPA license — even-year cohort",
+      "renewal_pattern": "fixed_calendar_cohort",
+      "cycle_description": "Individual CPA license expires December 31 of the CPA's assigned renewal year, odd or even, assigned at licensure. This is the even-year cohort: license expires December 31 of even-numbered years.",
+      "next_deadline_computed": "2026-12-31",
+      "source_url": "https://www2.myfloridalicense.com/certified-public-accounting/renewing-and-maintaining-your-license/",
+      "last_verified": "2026-07-03",
+      "wave": 1
+    },
+    {
+      "id": "fl-firm",
+      "state": "Florida",
+      "state_slug": "florida",
+      "license_type": "firm",
+      "license_type_label": "Firm license",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "Firm licenses expire December 31 of odd-numbered years (a single cohort, simpler than the individual-license split).",
+      "next_deadline_computed": "2027-12-31",
+      "source_url": "https://www2.myfloridalicense.com/certified-public-accounting/renewing-and-maintaining-your-license/",
+      "last_verified": "2026-07-03",
+      "wave": 1
+    },
+    {
+      "id": "il-individual",
+      "state": "Illinois",
+      "state_slug": "illinois",
+      "license_type": "individual",
+      "license_type_label": "Individual CPA license",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "Individual CPA license expires September 30, every 3 years. Current cycle ends 2027-09-30.",
+      "next_deadline_computed": "2027-09-30",
+      "source_url": "https://www.ilga.gov/commission/jcar/admincode/068/068014200D14200R.html",
+      "last_verified": "2026-07-03",
+      "wave": 1
+    },
+    {
+      "id": "il-firm",
+      "state": "Illinois",
+      "state_slug": "illinois",
+      "license_type": "firm",
+      "license_type_label": "Firm license",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "Firm licenses expire November 30, every 3 years.",
+      "next_deadline_computed": null,
+      "data_gap_note": "Verified spike data gives the recurring month/day (November 30) and the 3-year cycle length but does NOT give a cycle-anchor year for the firm track (unlike the individual track, which has a confirmed 'current cycle ends 2027-09-30'). Rather than guess an anchor year, this field is left null. Do not publish a specific firm-renewal date for Illinois until the anchor year is confirmed against ILGA/IDFPR source.",
+      "source_url": "https://www.ilga.gov/commission/jcar/admincode/068/068014200D14200R.html",
+      "last_verified": "2026-07-03",
+      "wave": 1
+    },
+    {
+      "id": "pa-individual",
+      "state": "Pennsylvania",
+      "state_slug": "pennsylvania",
+      "license_type": "individual",
+      "license_type_label": "CPA license",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "CPA license expires December 31 of odd-numbered years. Current cycle ends 2027-12-31.",
+      "next_deadline_computed": "2027-12-31",
+      "source_url": "https://www.pa.gov/agencies/dos/programs/accountancy-board.html",
+      "last_verified": "2026-07-03",
+      "wave": 1
+    },
+    {
+      "id": "ga-individual",
+      "state": "Georgia",
+      "state_slug": "georgia",
+      "license_type": "individual",
+      "license_type_label": "Individual CPA license",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "Individual CPA license expires December 31 of odd-numbered years. Current cycle ends 2027-12-31.",
+      "next_deadline_computed": "2027-12-31",
+      "source_url": "https://gsba.georgia.gov/licensure",
+      "last_verified": "2026-07-03",
+      "wave": 1
+    },
+    {
+      "id": "ga-firm",
+      "state": "Georgia",
+      "state_slug": "georgia",
+      "license_type": "firm",
+      "license_type_label": "Firm license",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "Firm licenses expire June 30 of even-numbered years. Next: 2028-06-30.",
+      "next_deadline_computed": "2028-06-30",
+      "source_url": "https://gsba.georgia.gov/licensure",
+      "last_verified": "2026-07-03",
+      "wave": 1
+    },
+    {
+      "id": "nc-all",
+      "state": "North Carolina",
+      "state_slug": "north-carolina",
+      "license_type": "all",
+      "license_type_label": "CPA license (all licensees)",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "ALL CPA licenses (active, probationary, and CPA-retired) must be renewed, or a change to inactive status requested, by the end of the day on June 30 every year. This applies every year to every licensee — it is not a multi-year cycle. Missing the June 30 cutoff (i.e. failing to act before July 1) triggers a Letter of Demand. Next: 2027-06-30.",
+      "next_deadline_computed": "2027-06-30",
+      "source_url": "https://nccpaboard.gov/2025-2026-nc-certificate-renewal/",
+      "last_verified": "2026-07-03",
+      "verification_note": "Corrected during sprint-task-5 adversarial verify: initial spike data used 'before July 1' loosely and computed a July 1 deadline; re-checked directly against the NC Board's own 2025-2026 renewal page, which states the cutoff is June 30 (July 1 is when the Letter-of-Demand process starts). Fixed to June 30 with the primary source URL updated accordingly.",
+      "wave": 1
+    },
+    {
+      "id": "mi-individual",
+      "state": "Michigan",
+      "state_slug": "michigan",
+      "license_type": "individual",
+      "license_type_label": "CPA license",
+      "renewal_pattern": "fixed_calendar",
+      "cycle_description": "CPA license expires July 31 of odd-numbered years. Current cycle ends 2027-07-31.",
+      "next_deadline_computed": "2027-07-31",
+      "source_url": "https://www.michigan.gov/lara/bureau-list/bpl/occ/prof/accountants",
+      "last_verified": "2026-07-03",
+      "wave": 1
+    },
+    {
+      "id": "oh-individual",
+      "state": "Ohio",
+      "state_slug": "ohio",
+      "license_type": "individual",
+      "license_type_label": "CPA permit",
+      "renewal_pattern": "fixed_calendar_cohort",
+      "cycle_description": "CPA permits expire December 31, with a January 31 grace period, but only about one third of Ohio CPAs are due in any given year due to a rotating 3-group cohort system. Which group a CPA is in determines which December 31 applies to them.",
+      "next_deadline_computed": null,
+      "cohort_groups": [
+        {"group": "Group 1", "years": [2026, 2029, 2032], "next_deadline": "2026-12-31"},
+        {"group": "Group 2", "years": [2027, 2030], "next_deadline": "2027-12-31"},
+        {"group": "Group 3", "years": [2028, 2031], "next_deadline": "2028-12-31"}
+      ],
+      "grace_period_note": "A January 31 grace period follows each December 31 deadline before a permit is considered expired.",
+      "source_url": "https://acc.ohio.gov/",
+      "last_verified": "2026-07-03",
+      "wave": 2
+    },
+    {
+      "id": "ca-individual",
+      "state": "California",
+      "state_slug": "california",
+      "license_type": "individual",
+      "license_type_label": "CPA license",
+      "renewal_pattern": "birth_month",
+      "cycle_description": "CPA license expires every 2 years at midnight on the last day of the licensee's own birth month. Licensees with an odd birth year renew in odd expiration years; licensees with an even birth year renew in even expiration years.",
+      "next_deadline_computed": null,
+      "computation": {
+        "type": "birth_month_parity",
+        "cycle_years": 2,
+        "day_of_month": "last",
+        "parity_rule": "expiration_year_parity_matches_birth_year_parity"
+      },
+      "source_url": "https://www.dca.ca.gov/cba/",
+      "last_verified": "2026-07-03",
+      "wave": 3
+    },
+    {
+      "id": "tx-individual",
+      "state": "Texas",
+      "state_slug": "texas",
+      "license_type": "individual",
+      "license_type_label": "CPA license",
+      "renewal_pattern": "birth_month",
+      "cycle_description": "Renewal fee is due annually by the last day of the licensee's own birth month.",
+      "next_deadline_computed": null,
+      "computation": {
+        "type": "birth_month_annual",
+        "cycle_years": 1,
+        "day_of_month": "last"
+      },
+      "source_url": "https://www.tsbpa.texas.gov/cpas/renewal/",
+      "last_verified": "2026-07-03",
+      "wave": 3
+    },
+    {
+      "id": "ny-individual",
+      "state": "New York",
+      "state_slug": "new-york",
+      "license_type": "individual",
+      "license_type_label": "Triennial registration (not the license itself)",
+      "renewal_pattern": "birth_month",
+      "cycle_description": "Mandatory triennial registration (distinct from the license itself) expires in the month prior to the licensee's own birth month, 2-3 years after first registration.",
+      "next_deadline_computed": null,
+      "computation": {
+        "type": "unresolvable_needs_registration_date",
+        "note": "Unlike CA/TX, this date cannot be reduced to a lookup table from birth month alone -- it also depends on the individual's first-registration date, which is not a fact this dataset has. The generated page must say so plainly and point the reader to NYSED, not assert a table."
+      },
+      "source_url": "https://www.op.nysed.gov/",
+      "last_verified": "2026-07-03",
+      "wave": 3
+    }
+  ]
+}

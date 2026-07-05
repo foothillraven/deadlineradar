@@ -52,6 +52,53 @@ describe("GET /health", () => {
   });
 });
 
+describe("/api prefix stripping (Workers Route binding)", () => {
+  // REGRESSION: this Worker is bound to the deadline-radar.com/api/* Route,
+  // so every real request arrives with an /api prefix Cloudflare does NOT
+  // strip before invoking the Worker -- unlike the bare-path requests every
+  // other test in this file makes directly against SELF.fetch(). Without
+  // the strip in index.ts's fetch(), every real request through the actual
+  // deployed Route would 404, and this suite's own bare-path tests would
+  // never have caught it since they never go through /api at all. Found
+  // during this build's own review of what a real deploy actually sees.
+  it("GET /api/health behaves identically to /health", async () => {
+    const resp = await SELF.fetch("https://deadline-radar.com/api/health", {
+      headers: { "cf-connecting-ip": "203.0.113.70" },
+    });
+    expect(resp.status).toBe(200);
+    expect(await resp.json()).toEqual({ status: "ok" });
+  });
+
+  it("POST /api/subscribe stores a row exactly like POST /subscribe", async () => {
+    const email = `api-prefix-${Date.now()}@example.com`;
+    const resp = await SELF.fetch("https://deadline-radar.com/api/subscribe", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.71" },
+      body: form({ email, state: "georgia", license_type_id: "ga-individual", hp_website: "" }),
+    });
+    expect(resp.status).toBe(200);
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
+    expect(row).not.toBeNull();
+    expect(row?.status).toBe(store.STATUS_PENDING);
+  });
+
+  it("GET /api/confirm?token=... reaches the same handler as /confirm", async () => {
+    const email = `api-prefix-confirm-${Date.now()}@example.com`;
+    await SELF.fetch("https://deadline-radar.com/api/subscribe", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.72" },
+      body: form({ email, state: "georgia", license_type_id: "ga-individual", hp_website: "" }),
+    });
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
+    const resp = await SELF.fetch(`https://deadline-radar.com/api/confirm?token=${row?.confirm_token}`, {
+      headers: { "cf-connecting-ip": "203.0.113.73" },
+    });
+    expect(resp.status).toBe(200);
+    const updated = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(row?.id).first<SubscriberRow>();
+    expect(updated?.status).toBe(store.STATUS_CONFIRMED);
+  });
+});
+
 describe("POST /subscribe -- happy path (Phase 1 acceptance: capture without sending email)", () => {
   it("stores a pending_confirmation row and returns the no-email-sent success page", async () => {
     const email = `acceptance-${Date.now()}@example.com`;

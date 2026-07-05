@@ -19,7 +19,7 @@ database_name = "deadlineradar"
 # "Publish-to-external-platform"). Replace this value with the real
 # database_id returned by `wrangler d1 create` immediately after that
 # command is run, and not before.
-database_id = "REPLACE_AFTER_D1_CREATE"
+database_id = "678e7b5a-e627-4c19-ab6f-2e249c0d7e1f"
 
 [[routes]]
 # NOT ACTIVE until `wrangler deploy` is actually run against a real

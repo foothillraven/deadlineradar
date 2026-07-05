@@ -288,6 +288,17 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    // This Worker is bound to the deadline-radar.com/api/* route, so every
+    // request arrives with an /api prefix the path checks below don't expect.
+    // Strip it once here so "/api/health" -> "/health", "/api/subscribe" ->
+    // "/subscribe", etc. Bare paths (used by the unit tests) pass through
+    // unchanged, so this stays backward-compatible.
+    if (url.pathname === "/api" || url.pathname === "/api/") {
+      url.pathname = "/";
+    } else if (url.pathname.startsWith("/api/")) {
+      url.pathname = url.pathname.slice(4);
+    }
+
     if (url.pathname === "/health") {
       return jsonResponse(200, { status: "ok" });
     }

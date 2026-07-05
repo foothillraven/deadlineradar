@@ -65,16 +65,35 @@
   .backlink { display: inline-block; margin-top: 0.5rem; font-size: 0.92rem; }
   .how-it-works { color: var(--muted); font-size: 0.92rem; margin: 1.25rem 0 1.75rem; }
   .state-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 0.85rem; margin: 0 0 2rem; list-style: none; padding: 0;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+    gap: 0.65rem; margin: 0 0 2rem; list-style: none; padding: 0;
   }
   .state-card {
-    display: block; border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1rem;
+    display: block; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 0.85rem;
     background: var(--card-bg); text-decoration: none; color: var(--fg);
+    transition: opacity 0.15s ease;
   }
   .state-card:hover { border-color: var(--accent); }
-  .state-card .state-name { font-weight: 700; margin-bottom: 0.2rem; }
-  .state-card .state-hint { font-size: 0.85rem; color: var(--muted); }
+  .state-card .state-name { font-weight: 700; margin-bottom: 0.2rem; font-size: 0.95rem; }
+  .state-card .state-hint { font-size: 0.8rem; color: var(--muted); line-height: 1.3; }
+  .state-card--dimmed { opacity: 0.3; pointer-events: none; }
+  .state-search {
+    margin: 0 0 1.5rem;
+  }
+  .state-search label {
+    display: block; font-size: 0.85rem; font-weight: 600; margin: 0 0 0.35rem;
+  }
+  .state-search form { display: flex; gap: 0.5rem; }
+  .state-search input {
+    flex: 1 1 auto; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: 1rem; font-family: inherit;
+  }
+  .state-search button {
+    padding: 0.6rem 1.1rem; border: none; border-radius: 6px; background: var(--accent);
+    color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer; flex: 0 0 auto;
+  }
+  .state-search button:hover { opacity: 0.92; }
+  .state-search .field-hint { font-size: 0.78rem; color: var(--muted); margin: 0.4rem 0 0; }
   .site-footer {
     margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
     font-size: 0.85rem; color: var(--muted); line-height: 1.6;
@@ -120,37 +139,78 @@
 <p class="intro">Find your state's CPA license renewal deadline, sourced and verified against
 the official state board of accountancy. Built for CPAs, firm administrators, and anyone who
 just needs to know when their license is due.</p>
+<div class="state-search">
+  <form id="state-search-form" role="search" onsubmit="return drGoToState(event)">
+    <label for="state-search-input">Find your state</label>
+    <input type="text" id="state-search-input" name="state" list="state-search-list"
+      placeholder="Find your state…" autocomplete="off">
+    <datalist id="state-search-list">
+    <option value="Alabama">
+<option value="Arizona">
+<option value="California">
+<option value="Colorado">
+<option value="Connecticut">
+<option value="Florida">
+<option value="Georgia">
+<option value="Illinois">
+<option value="Indiana">
+<option value="Iowa">
+<option value="Kentucky">
+<option value="Louisiana">
+<option value="Maryland">
+<option value="Massachusetts">
+<option value="Michigan">
+<option value="Minnesota">
+<option value="Missouri">
+<option value="New Jersey">
+<option value="New York">
+<option value="North Carolina">
+<option value="Ohio">
+<option value="Oklahoma">
+<option value="Oregon">
+<option value="Pennsylvania">
+<option value="South Carolina">
+<option value="Tennessee">
+<option value="Texas">
+<option value="Virginia">
+<option value="Washington">
+<option value="Wisconsin">
+    </datalist>
+    <button type="submit">Go</button>
+  </form>
+  <p class="field-hint">Type your state and press Enter or select it to go straight to its page.</p>
+</div>
 <div class="state-grid">
-<a class="state-card" href="alabama/"><div class="state-name">Alabama</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="arizona/"><div class="state-name">Arizona</div><div class="state-hint">By birth month</div></a>
-<a class="state-card" href="california/"><div class="state-name">California</div><div class="state-hint">By birth month</div></a>
-<a class="state-card" href="colorado/"><div class="state-name">Colorado</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="connecticut/"><div class="state-name">Connecticut</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="florida/"><div class="state-name">Florida</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="georgia/"><div class="state-name">Georgia</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="illinois/"><div class="state-name">Illinois</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="indiana/"><div class="state-name">Indiana</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="iowa/"><div class="state-name">Iowa</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="kentucky/"><div class="state-name">Kentucky</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="louisiana/"><div class="state-name">Louisiana</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="maryland/"><div class="state-name">Maryland</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="massachusetts/"><div class="state-name">Massachusetts</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="michigan/"><div class="state-name">Michigan</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="minnesota/"><div class="state-name">Minnesota</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="missouri/"><div class="state-name">Missouri</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="new-jersey/"><div class="state-name">New Jersey</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="new-york/"><div class="state-name">New York</div><div class="state-hint">By birth month</div></a>
-<a class="state-card" href="north-carolina/"><div class="state-name">North Carolina</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="ohio/"><div class="state-name">Ohio</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="oklahoma/"><div class="state-name">Oklahoma</div><div class="state-hint">By birth month</div></a>
-<a class="state-card" href="oregon/"><div class="state-name">Oregon</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="pennsylvania/"><div class="state-name">Pennsylvania</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="south-carolina/"><div class="state-name">South Carolina</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="tennessee/"><div class="state-name">Tennessee</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="texas/"><div class="state-name">Texas</div><div class="state-hint">By birth month</div></a>
-<a class="state-card" href="virginia/"><div class="state-name">Virginia</div><div class="state-hint">Fixed date</div></a>
-<a class="state-card" href="washington/"><div class="state-name">Washington</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="wisconsin/"><div class="state-name">Wisconsin</div><div class="state-hint">Fixed date</div></a>
+<a class="state-card" href="alabama/" data-state-name="Alabama"><div class="state-name">Alabama</div><div class="state-hint">December 31, 2026</div></a>
+<a class="state-card" href="arizona/" data-state-name="Arizona"><div class="state-name">Arizona</div><div class="state-hint">By birth month</div></a>
+<a class="state-card" href="california/" data-state-name="California"><div class="state-name">California</div><div class="state-hint">By birth month</div></a>
+<a class="state-card" href="colorado/" data-state-name="Colorado"><div class="state-name">Colorado</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="connecticut/" data-state-name="Connecticut"><div class="state-name">Connecticut</div><div class="state-hint">December 31, 2026</div></a>
+<a class="state-card" href="florida/" data-state-name="Florida"><div class="state-name">Florida</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="georgia/" data-state-name="Georgia"><div class="state-name">Georgia</div><div class="state-hint">December 31, 2027</div></a>
+<a class="state-card" href="illinois/" data-state-name="Illinois"><div class="state-name">Illinois</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="indiana/" data-state-name="Indiana"><div class="state-name">Indiana</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="iowa/" data-state-name="Iowa"><div class="state-name">Iowa</div><div class="state-hint">June 30, 2027</div></a>
+<a class="state-card" href="kentucky/" data-state-name="Kentucky"><div class="state-name">Kentucky</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="louisiana/" data-state-name="Louisiana"><div class="state-name">Louisiana</div><div class="state-hint">December 31, 2026</div></a>
+<a class="state-card" href="maryland/" data-state-name="Maryland"><div class="state-name">Maryland</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="massachusetts/" data-state-name="Massachusetts"><div class="state-name">Massachusetts</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="michigan/" data-state-name="Michigan"><div class="state-name">Michigan</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="minnesota/" data-state-name="Minnesota"><div class="state-name">Minnesota</div><div class="state-hint">December 31, 2026</div></a>
+<a class="state-card" href="missouri/" data-state-name="Missouri"><div class="state-name">Missouri</div><div class="state-hint">September 30, 2027</div></a>
+<a class="state-card" href="new-jersey/" data-state-name="New Jersey"><div class="state-name">New Jersey</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="new-york/" data-state-name="New York"><div class="state-name">New York</div><div class="state-hint">By birth month</div></a>
+<a class="state-card" href="north-carolina/" data-state-name="North Carolina"><div class="state-name">North Carolina</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="ohio/" data-state-name="Ohio"><div class="state-name">Ohio</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="oklahoma/" data-state-name="Oklahoma"><div class="state-name">Oklahoma</div><div class="state-hint">By birth month</div></a>
+<a class="state-card" href="oregon/" data-state-name="Oregon"><div class="state-name">Oregon</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="pennsylvania/" data-state-name="Pennsylvania"><div class="state-name">Pennsylvania</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="south-carolina/" data-state-name="South Carolina"><div class="state-name">South Carolina</div><div class="state-hint">February 1, 2027</div></a>
+<a class="state-card" href="tennessee/" data-state-name="Tennessee"><div class="state-name">Tennessee</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="texas/" data-state-name="Texas"><div class="state-name">Texas</div><div class="state-hint">By birth month</div></a>
+<a class="state-card" href="virginia/" data-state-name="Virginia"><div class="state-name">Virginia</div><div class="state-hint">June 30, 2027</div></a>
+<a class="state-card" href="washington/" data-state-name="Washington"><div class="state-name">Washington</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="wisconsin/" data-state-name="Wisconsin"><div class="state-name">Wisconsin</div><div class="state-hint">Varies — check your license</div></a>
 </div>
 <p class="how-it-works">How it works: each state page shows the actual next renewal deadline
 (or, where the rule depends on your birth month, a full lookup table) computed from the
@@ -166,34 +226,19 @@ verified renewal rule, with a link back to the official source and a "last verif
     <select id="home-state" name="state" required onchange="drUpdateFields(this.value)">
       <option value="">Select your state</option>
       <option value="alabama">Alabama</option>
-<option value="arizona">Arizona</option>
 <option value="california">California</option>
-<option value="colorado">Colorado</option>
 <option value="connecticut">Connecticut</option>
-<option value="florida">Florida</option>
 <option value="georgia">Georgia</option>
-<option value="illinois">Illinois</option>
-<option value="indiana">Indiana</option>
 <option value="iowa">Iowa</option>
-<option value="kentucky">Kentucky</option>
 <option value="louisiana">Louisiana</option>
-<option value="maryland">Maryland</option>
-<option value="massachusetts">Massachusetts</option>
-<option value="michigan">Michigan</option>
 <option value="minnesota">Minnesota</option>
 <option value="missouri">Missouri</option>
-<option value="new-jersey">New Jersey</option>
-<option value="north-carolina">North Carolina</option>
 <option value="ohio">Ohio</option>
 <option value="oklahoma">Oklahoma</option>
 <option value="oregon">Oregon</option>
-<option value="pennsylvania">Pennsylvania</option>
 <option value="south-carolina">South Carolina</option>
-<option value="tennessee">Tennessee</option>
 <option value="texas">Texas</option>
 <option value="virginia">Virginia</option>
-<option value="washington">Washington</option>
-<option value="wisconsin">Wisconsin</option>
     </select>
     <label for="home-first_name">First name (optional)</label>
     <input type="text" id="home-first_name" name="first_name" maxlength="60" autocomplete="given-name" placeholder="For a personal greeting, e.g. David">
@@ -219,30 +264,11 @@ verified renewal rule, with a link back to the official source and a "last verif
   </div>
 </div>
 <p class="field-hint">Your renewal cycle is set by your birth month and whether your birth year is odd or even.</p></div>
-<div class="signup-extra-fields" data-for-state="connecticut" hidden><label for="license_type_id">Which license?</label>
-<select id="license_type_id" name="license_type_id" required>
-  <option value="">Select the one that applies to you</option>
-  <option value="ct-individual">Individual CPA License</option>
-<option value="ct-firm">CPA Firm Permit</option>
-</select></div>
-<div class="signup-extra-fields" data-for-state="florida" hidden><label for="license_type_id">Which license?</label>
-<select id="license_type_id" name="license_type_id" required>
-  <option value="">Select the one that applies to you</option>
-  <option value="fl-individual-odd">Individual CPA license — odd-year cohort</option>
-<option value="fl-individual-even">Individual CPA license — even-year cohort</option>
-<option value="fl-firm">Firm license</option>
-</select></div>
 <div class="signup-extra-fields" data-for-state="georgia" hidden><label for="license_type_id">Which license?</label>
 <select id="license_type_id" name="license_type_id" required>
   <option value="">Select the one that applies to you</option>
   <option value="ga-individual">Individual CPA license</option>
 <option value="ga-firm">Firm license</option>
-</select></div>
-<div class="signup-extra-fields" data-for-state="indiana" hidden><label for="license_type_id">Which license?</label>
-<select id="license_type_id" name="license_type_id" required>
-  <option value="">Select the one that applies to you</option>
-  <option value="in-individual">CPA (Individual License)</option>
-<option value="in-firm">CPA Firm Permit</option>
 </select></div>
 <div class="signup-extra-fields" data-for-state="louisiana" hidden><label for="license_type_id">Which license?</label>
 <select id="license_type_id" name="license_type_id" required>
@@ -296,12 +322,6 @@ verified renewal rule, with a link back to the official source and a "last verif
   <option value="va-individual">Individual CPA License</option>
 <option value="va-firm">CPA Firm License</option>
 </select></div>
-<div class="signup-extra-fields" data-for-state="wisconsin" hidden><label for="license_type_id">Which license?</label>
-<select id="license_type_id" name="license_type_id" required>
-  <option value="">Select the one that applies to you</option>
-  <option value="wi-individual">Individual CPA License</option>
-<option value="wi-firm">Accounting Firm License</option>
-</select></div>
     <label for="home-email">Email address</label>
     <input type="email" id="home-email" name="email" required placeholder="you@example.com">
     <button type="submit">Remind me</button>
@@ -330,6 +350,40 @@ document.addEventListener('DOMContentLoaded', function() {
   var sel = document.getElementById('home-state');
   drUpdateFields(sel ? sel.value : '');
 });
+</script>
+<script>
+var DR_STATE_SLUGS = {"alabama": "alabama", "arizona": "arizona", "california": "california", "colorado": "colorado", "connecticut": "connecticut", "florida": "florida", "georgia": "georgia", "illinois": "illinois", "indiana": "indiana", "iowa": "iowa", "kentucky": "kentucky", "louisiana": "louisiana", "maryland": "maryland", "massachusetts": "massachusetts", "michigan": "michigan", "minnesota": "minnesota", "missouri": "missouri", "new jersey": "new-jersey", "new york": "new-york", "north carolina": "north-carolina", "ohio": "ohio", "oklahoma": "oklahoma", "oregon": "oregon", "pennsylvania": "pennsylvania", "south carolina": "south-carolina", "tennessee": "tennessee", "texas": "texas", "virginia": "virginia", "washington": "washington", "wisconsin": "wisconsin"};
+
+function drNormalize(s) { return s.trim().toLowerCase(); }
+function drStateSlug(typed) {
+  var norm = drNormalize(typed);
+  if (DR_STATE_SLUGS[norm]) return DR_STATE_SLUGS[norm];
+  var matches = [];
+  for (var name in DR_STATE_SLUGS) {
+    if (name.indexOf(norm) === 0) matches.push(name);
+  }
+  return matches.length === 1 ? DR_STATE_SLUGS[matches[0]] : null;
+}
+function drGoToState(event) {
+  event.preventDefault();
+  var input = document.getElementById('state-search-input');
+  var slug = drStateSlug(input.value);
+  if (slug) { window.location.href = '/' + slug + '/'; }
+  return false;
+}
+function drFilterGrid() {
+  var typed = drNormalize(document.getElementById('state-search-input').value);
+  document.querySelectorAll('.state-card').forEach(function(card) {
+    var name = drNormalize(card.getAttribute('data-state-name'));
+    var match = !typed || name.indexOf(typed) !== -1;
+    card.classList.toggle('state-card--dimmed', !match);
+  });
+}
+document.addEventListener('DOMContentLoaded', function() {
+  var input = document.getElementById('state-search-input');
+  if (input) input.addEventListener('input', drFilterGrid);
+});
+
 </script>
 
 <footer class="site-footer">

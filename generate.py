@@ -56,11 +56,31 @@ SITE_BASE_URL = "https://deadline-radar.com"
 # signup form at a route that doesn't exist yet.
 REMINDER_BACKEND_BASE_URL = "/api"
 
-# States the signup form supports -- must match reminders/server.py's
-# SUPPORTED_STATE_SLUGS exactly. New York is deliberately excluded: its
-# renewal rule depends on a fact (first-registration date) this dataset
-# doesn't have, so no reminder can be computed for it.
-REMINDER_UNSUPPORTED_STATES = {"new-york"}
+# States whose worker (deadline.ts's computeSubscriberDeadline) has dedicated
+# per-state fields to compute a deadline even without a plain
+# next_deadline_computed on any record -- birth-month (California/Texas) or a
+# cohort-group selector (Ohio). Every other state needs at least one record
+# with a real next_deadline_computed, or the worker's generic "exactly one
+# computed record" path has nothing to return and /subscribe 400s on every
+# submission. New York was the original example (its rule depends on a fact,
+# first-registration date, this dataset doesn't have) but is not special --
+# any state whose records are ALL null/gapped hits the identical failure mode.
+_WORKER_FIELD_COMPUTED_STATES = {"california", "texas", "ohio"}
+
+
+def _state_signup_supported(state_slug: str, records: list[dict]) -> bool:
+    """Whether the reminder worker can ever compute a deadline for this
+    state's signup form, so it's safe to render the form at all. Discovered
+    2026-07-05 during the correctness-audit ship: downgrading a state's last
+    computable record to null (here, or already the case for several
+    batch-2/3 states) silently left a live signup form on its page that
+    would 400 on every real submission -- the front-end had no check against
+    the worker's actual computation capability. This replaces the old static
+    `REMINDER_UNSUPPORTED_STATES = {"new-york"}` set, which only ever
+    special-cased the one state we'd noticed, with the real, general rule."""
+    if state_slug in _WORKER_FIELD_COMPUTED_STATES:
+        return True
+    return any(r.get("next_deadline_computed") for r in records)
 
 MONTH_NAMES = [
     "January", "February", "March", "April", "May", "June",
@@ -209,16 +229,35 @@ PAGE_CSS = """
   .backlink { display: inline-block; margin-top: 0.5rem; font-size: 0.92rem; }
   .how-it-works { color: var(--muted); font-size: 0.92rem; margin: 1.25rem 0 1.75rem; }
   .state-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 0.85rem; margin: 0 0 2rem; list-style: none; padding: 0;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+    gap: 0.65rem; margin: 0 0 2rem; list-style: none; padding: 0;
   }
   .state-card {
-    display: block; border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1rem;
+    display: block; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 0.85rem;
     background: var(--card-bg); text-decoration: none; color: var(--fg);
+    transition: opacity 0.15s ease;
   }
   .state-card:hover { border-color: var(--accent); }
-  .state-card .state-name { font-weight: 700; margin-bottom: 0.2rem; }
-  .state-card .state-hint { font-size: 0.85rem; color: var(--muted); }
+  .state-card .state-name { font-weight: 700; margin-bottom: 0.2rem; font-size: 0.95rem; }
+  .state-card .state-hint { font-size: 0.8rem; color: var(--muted); line-height: 1.3; }
+  .state-card--dimmed { opacity: 0.3; pointer-events: none; }
+  .state-search {
+    margin: 0 0 1.5rem;
+  }
+  .state-search label {
+    display: block; font-size: 0.85rem; font-weight: 600; margin: 0 0 0.35rem;
+  }
+  .state-search form { display: flex; gap: 0.5rem; }
+  .state-search input {
+    flex: 1 1 auto; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: 1rem; font-family: inherit;
+  }
+  .state-search button {
+    padding: 0.6rem 1.1rem; border: none; border-radius: 6px; background: var(--accent);
+    color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer; flex: 0 0 auto;
+  }
+  .state-search button:hover { opacity: 0.92; }
+  .state-search .field-hint { font-size: 0.78rem; color: var(--muted); margin: 0.4rem 0 0; }
   .site-footer {
     margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
     font-size: 0.85rem; color: var(--muted); line-height: 1.6;
@@ -405,8 +444,8 @@ def _turnstile_head_html() -> str:
 
 
 def signup_form_for_state(state_slug: str, state_name: str, records: list[dict]) -> str:
-    if state_slug in REMINDER_UNSUPPORTED_STATES:
-        return ""  # no computable deadline -- see REMINDER_UNSUPPORTED_STATES docstring
+    if not _state_signup_supported(state_slug, records):
+        return ""  # no computable deadline -- see _state_signup_supported docstring
     return f"""<div class="signup-form">
   <h2>Get reminded before this deadline</h2>
   <p class="signup-microcopy">{esc(TRUST_MICROCOPY)}</p>
@@ -428,7 +467,7 @@ def signup_form_homepage(by_slug: dict[str, list[dict]]) -> str:
     handler -- the only JS on the whole site, used only because it clearly
     helps usability here (per the design brief). Validation authority stays
     server-side in reminders/server.py regardless of what this JS does."""
-    supported_slugs = sorted(s for s in by_slug if s not in REMINDER_UNSUPPORTED_STATES)
+    supported_slugs = sorted(s for s in by_slug if _state_signup_supported(s, by_slug[s]))
     state_options = "\n".join(
         f'<option value="{esc(slug)}">{esc(by_slug[slug][0]["state"])}</option>' for slug in supported_slugs
     )
@@ -749,33 +788,109 @@ def build_state_page(state_slug: str, records: list[dict], as_of: date) -> tuple
 # Index / sitemap / robots
 # ---------------------------------------------------------------------------
 
+_FIRM_ONLY_LICENSE_TYPES = {"firm", "cpa_firm"}
+
+
 def state_hint(records: list[dict]) -> str:
-    """Homepage state-grid one-liner. Three categories, not two: a state whose
-    EVERY record is an unresolved data gap (e.g. Massachusetts/Washington/Maryland
-    firm/Colorado firm/New Jersey -- personalized or unpublished-anchor-year cases)
-    must not be mislabeled 'Fixed date', since no single date is actually shown on
-    that page. Checked against renewal_pattern/next_deadline_computed directly
-    (not `wave`) so it generalizes to any future state mixing patterns."""
-    if any(r.get("renewal_pattern") == "birth_month" for r in records):
+    """Homepage state-grid one-liner, scoped to the INDIVIDUAL-license situation only
+    (most visitors are individuals) -- never a firm-only date, and never invented from
+    whichever record happens to have a date. Three outcomes:
+      - exactly one individual-facing record with a real computed date -> show that date
+        (e.g. "December 31, 2027"), the single biggest readability win over a vague label.
+      - exactly one individual-facing record, no date, genuinely birth-month -> "By birth month".
+      - anything else (no date and not birth-month; OR more than one individual-facing
+        record, e.g. Florida's odd/even cohort filed as two separate flat records rather
+        than one cohort_groups record) -> "Varies -- check your license". Multiple
+        individual records means there's no single date safe to show without guessing
+        which cohort a given visitor is actually in, so this collapses to the same
+        honest "varies" bucket as Oregon/Kentucky's cohort_groups gap, even though the
+        underlying data shape differs.
+    'Individual-facing' = any record whose license_type is not purely firm-side
+    (_FIRM_ONLY_LICENSE_TYPES) -- covers 'individual', 'individual_cpa', and 'all'
+    (states like Alabama/Tennessee/North Carolina that cover both under one record)."""
+    individual_records = [r for r in records if r.get("license_type") not in _FIRM_ONLY_LICENSE_TYPES]
+    if len(individual_records) == 1:
+        r = individual_records[0]
+        if r.get("next_deadline_computed"):
+            return fmt_date(date.fromisoformat(r["next_deadline_computed"]))
+        if r.get("renewal_pattern") == "birth_month":
+            return "By birth month"
+        return "Varies — check your license"
+    if any(r.get("renewal_pattern") == "birth_month" for r in individual_records):
         return "By birth month"
-    if any(r.get("next_deadline_computed") for r in records):
-        return "Fixed date"
     return "Varies — check your license"
 
 
+_STATE_SEARCH_JS = """
+function drNormalize(s) { return s.trim().toLowerCase(); }
+function drStateSlug(typed) {
+  var norm = drNormalize(typed);
+  if (DR_STATE_SLUGS[norm]) return DR_STATE_SLUGS[norm];
+  var matches = [];
+  for (var name in DR_STATE_SLUGS) {
+    if (name.indexOf(norm) === 0) matches.push(name);
+  }
+  return matches.length === 1 ? DR_STATE_SLUGS[matches[0]] : null;
+}
+function drGoToState(event) {
+  event.preventDefault();
+  var input = document.getElementById('state-search-input');
+  var slug = drStateSlug(input.value);
+  if (slug) { window.location.href = '/' + slug + '/'; }
+  return false;
+}
+function drFilterGrid() {
+  var typed = drNormalize(document.getElementById('state-search-input').value);
+  document.querySelectorAll('.state-card').forEach(function(card) {
+    var name = drNormalize(card.getAttribute('data-state-name'));
+    var match = !typed || name.indexOf(typed) !== -1;
+    card.classList.toggle('state-card--dimmed', !match);
+  });
+}
+document.addEventListener('DOMContentLoaded', function() {
+  var input = document.getElementById('state-search-input');
+  if (input) input.addEventListener('input', drFilterGrid);
+});
+"""
+
+
 def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[dict]]) -> str:
+    sorted_states = sorted(states, key=lambda s: s["state"])
     cards = []
-    for s in sorted(states, key=lambda s: s["state"]):
+    for s in sorted_states:
         hint = state_hint(by_slug[s["state_slug"]])
         cards.append(
-            f'<a class="state-card" href="{esc(s["state_slug"])}/">'
+            f'<a class="state-card" href="{esc(s["state_slug"])}/" data-state-name="{esc(s["state"])}">'
             f'<div class="state-name">{esc(s["state"])}</div>'
             f'<div class="state-hint">{esc(hint)}</div></a>'
         )
+
+    # name (lowercased) -> slug map baked into the page for the search box's JS --
+    # generated from the same sorted_states list so it can never drift from what's
+    # actually rendered.
+    state_slug_map = {s["state"].lower(): s["state_slug"] for s in sorted_states}
+    datalist_options = "\n".join(
+        f'<option value="{esc(s["state"])}">' for s in sorted_states
+    )
+
+    search_html = f"""<div class="state-search">
+  <form id="state-search-form" role="search" onsubmit="return drGoToState(event)">
+    <label for="state-search-input">Find your state</label>
+    <input type="text" id="state-search-input" name="state" list="state-search-list"
+      placeholder="Find your state…" autocomplete="off">
+    <datalist id="state-search-list">
+    {datalist_options}
+    </datalist>
+    <button type="submit">Go</button>
+  </form>
+  <p class="field-hint">Type your state and press Enter or select it to go straight to its page.</p>
+</div>"""
+
     body = f"""<h1>CPA License Renewal Deadlines by State</h1>
 <p class="intro">Find your state's CPA license renewal deadline, sourced and verified against
 the official state board of accountancy. Built for CPAs, firm administrators, and anyone who
 just needs to know when their license is due.</p>
+{search_html}
 <div class="state-grid">
 {chr(10).join(cards)}
 </div>
@@ -784,6 +899,10 @@ just needs to know when their license is due.</p>
 verified renewal rule, with a link back to the official source and a "last verified" date.
 {len(states)} states covered so far, generated {esc(as_of.isoformat())}.</p>
 {signup_form_homepage(by_slug)}
+<script>
+var DR_STATE_SLUGS = {json.dumps(state_slug_map)};
+{_STATE_SEARCH_JS}
+</script>
 """
     return page_shell(
         f"{SITE_NAME} — CPA License Renewal Deadlines by State",

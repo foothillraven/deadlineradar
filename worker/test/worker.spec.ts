@@ -129,7 +129,11 @@ describe("POST /subscribe -- happy path (capture + confirmation-email path)", ()
   it("stores a pending_confirmation row and returns the check-your-email success page", async () => {
     const email = `acceptance-${Date.now()}@example.com`;
     const resp = await postSubscribe(
-      { email, state: "florida", license_type_id: "fl-individual-odd" },
+      // Georgia, not Florida -- Florida's individual records were downgraded to
+      // an unconfirmed data gap by the 2026-07-05 correctness audit (no longer
+      // a computable deadline), so it can no longer stand in as a "happy path,
+      // real computed deadline" fixture. Georgia still has a KEEP-verdict date.
+      { email, state: "georgia", license_type_id: "ga-individual" },
       "203.0.113.10"
     );
     expect(resp.status).toBe(200);
@@ -143,8 +147,8 @@ describe("POST /subscribe -- happy path (capture + confirmation-email path)", ()
     const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
     expect(row).not.toBeNull();
     expect(row?.status).toBe(store.STATUS_PENDING);
-    expect(row?.state_slug).toBe("florida");
-    expect(JSON.parse(row?.deadline_fields ?? "{}")).toEqual({ license_type_id: "fl-individual-odd" });
+    expect(row?.state_slug).toBe("georgia");
+    expect(JSON.parse(row?.deadline_fields ?? "{}")).toEqual({ license_type_id: "ga-individual" });
     expect(row?.confirm_token).toBeTruthy();
   });
 });
@@ -252,9 +256,11 @@ describe("POST /subscribe -- cooldown + dedupe", () => {
     const base = `victim.name.${stamp}@gmail.com`;
     const tagged = `victimname${stamp}+promo@gmail.com`;
     const ip = "203.0.113.31";
-    const first = await postSubscribe({ email: base, state: "pennsylvania", license_type_id: "pa-individual" }, ip);
+    // Georgia, not Pennsylvania -- Pennsylvania's source_url 404'd and its date
+    // was downgraded to a data gap by the 2026-07-05 correctness audit.
+    const first = await postSubscribe({ email: base, state: "georgia", license_type_id: "ga-individual" }, ip);
     expect(first.status).toBe(200);
-    const second = await postSubscribe({ email: tagged, state: "pennsylvania", license_type_id: "pa-individual" }, ip);
+    const second = await postSubscribe({ email: tagged, state: "georgia", license_type_id: "ga-individual" }, ip);
     expect(second.status).toBe(200);
 
     // Both submissions resolve to the SAME cooldown_key, so the second must
@@ -269,7 +275,10 @@ describe("POST /subscribe -- cooldown + dedupe", () => {
 describe("Confirm / unsubscribe / renewed / rearm lifecycle", () => {
   async function signUpAndGetRow(ip: string): Promise<SubscriberRow> {
     const email = `lifecycle-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
-    const resp = await postSubscribe({ email, state: "michigan", license_type_id: "mi-individual" }, ip);
+    // Georgia, not Michigan -- Michigan's date was downgraded to a data gap by
+    // the 2026-07-05 correctness audit (conflicting official sources on the
+    // renewal month/day), so it can no longer stand in as a computable fixture.
+    const resp = await postSubscribe({ email, state: "georgia", license_type_id: "ga-individual" }, ip);
     expect(resp.status).toBe(200);
     const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
     if (!row) throw new Error("test setup failed: no row after signup");

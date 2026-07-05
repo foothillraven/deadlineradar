@@ -1,5 +1,5 @@
--- Per-IP rate limiting storage -- see ../src/ratelimit.ts for the query
--- shape this table serves. New migration file rather than editing
+-- Per-IP rate limiting storage -- see ../src/validation.ts's checkRateLimit()
+-- for the query shape this table serves. New migration file rather than editing
 -- 0001_init_schema.sql, per normal migration discipline (never rewrite an
 -- already-numbered migration once later ones may depend on running after
 -- it) -- also true here even though neither migration has been applied to

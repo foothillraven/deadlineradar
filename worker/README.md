@@ -47,6 +47,7 @@ the orchestrator, tracked separately from this scaffolding step.
 | `tsconfig.json` | Workers-appropriate strict TS config (`ES2022` target, `ESNext` module, `@cloudflare/workers-types`). |
 | `migrations/0001_init_schema.sql` | D1 schema, ported field-for-field from `../reminders/store.py`. |
 | `migrations/0002_rate_limit_hits.sql` | `rate_limit_hits(ip, bucket, ts)` -- the D1-backed per-IP rate limiter's storage (see `src/validation.ts`'s `checkRateLimit()`). Not in `0001` because that migration was already committed by the time rate limiting was ported; new migration file rather than editing an already-numbered one, per normal migration discipline. |
+| `migrations/0003_email_normalized_index.sql` | Expression index `idx_subscribers_email_normalized ON subscribers (LOWER(TRIM(email)))`, backing `store.ts`'s `isPermanentlySuppressed()`. Added after an adversarial review found that function ran a full-table scan (`SELECT` with no `WHERE`, filtered by normalized email in JS); the query is now filtered in SQL against this index instead. |
 | `src/index.ts` | The full Phase-1 fetch handler: routes `POST /subscribe`, `GET /confirm` / `/unsubscribe` / `/renewed` / `/rearm` / `/health`, in the same abuse-hardening check order as `../reminders/server.py`'s `_handle_subscribe()`. |
 | `src/store.ts` | D1-backed subscriber storage -- `addPending`/`confirm`/`stop`/`rearm`/`withinSignupCooldown`/`findActiveOrPending`/`isPermanentlySuppressed`/`cooldownKey`/`sanitizeFirstName` (via `validation.ts`), ported field-for-field from `../reminders/store.py`. |
 | `src/validation.ts` | Email regex, control-character rejection, honeypot constant, `strictParseInt` (Python `int()`-semantics integer parsing -- deliberately NOT `Number.parseInt`, see its own doc-comment), the D1-backed per-IP rate limiter (`checkRateLimit`, replacing `server.py`'s in-memory dict since Workers instances share no process memory), and the Cloudflare Turnstile hook (`verifyTurnstile`, inert while `TURNSTILE_SECRET_KEY` is unset). |
@@ -57,7 +58,7 @@ the orchestrator, tracked separately from this scaffolding step.
 
 ## Status: WORKING and green, still NOT deployed
 
-`npm run typecheck` and `npm test` both pass clean (30/30 tests) as of this
+`npm run typecheck` and `npm test` both pass clean (35/35 tests) as of this
 commit. "Working" here means: builds, typechecks, and passes its own test
 suite against a real D1 schema under Miniflare -- it does NOT mean deployed,
 see the deployment-gap section below, which is still fully true.
@@ -97,7 +98,12 @@ work: it remains the test oracle for Phase 1's D1 logic).
 - Indexes on `cooldown_key`, `email`, and `status` -- the three columns
   `store.py`'s lookup functions (`within_signup_cooldown`,
   `find_active_or_pending`, `all_confirmed_active`, `is_permanently_suppressed`)
-  filter or scan by.
+  filter or scan by. Plus a fourth, `idx_subscribers_email_normalized`
+  (migration 0003) on the expression `LOWER(TRIM(email))`, added after
+  adversarial review found `is_permanently_suppressed()`'s TS port was doing
+  a full-table scan rather than using the plain `email` index (case folding
+  meant it couldn't use a plain-column index) -- see `store.ts`'s
+  `isPermanentlySuppressed()` doc-comment.
 
 ## What's deliberately NOT here yet
 

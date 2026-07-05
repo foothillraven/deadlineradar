@@ -102,16 +102,31 @@ export async function findActiveOrPending(
   return row ?? null;
 }
 
-/** store.py:149 `is_permanently_suppressed()`. */
+/**
+ * store.py:149 `is_permanently_suppressed()`.
+ *
+ * Filtered in SQL by `LOWER(TRIM(email)) = ?1` -- the same normalization
+ * `normalizeEmail()` does in JS, pushed into the query itself -- backed by
+ * the expression index `idx_subscribers_email_normalized` (migration 0003).
+ * An earlier version of this function ran `SELECT ... FROM subscribers` with
+ * no WHERE clause at all and filtered by normalized email in JavaScript
+ * afterward: a full-table scan on every call. Caught in adversarial review
+ * (real, but dead-code at the time -- this function isn't called from any
+ * Phase-1 route yet) before Phase 2 wires the scheduler to it against a
+ * non-trivial subscriber table. See migration 0003's own comment and
+ * `test/worker.spec.ts`'s "does not fall back to a full table scan" test,
+ * which asserts the query plan actually uses the index.
+ */
 export async function isPermanentlySuppressed(db: D1Database, email: string): Promise<boolean> {
   const normalized = normalizeEmail(email);
-  // Compare against `email` normalized the SAME way at read time -- the
-  // stored `email` column is never itself lowercased/stripped (matches
-  // store.py, which normalizes only at comparison time, never on write).
   const { results } = await db
-    .prepare("SELECT stop_reason, stopped_at, confirmed_at, email FROM subscribers")
+    .prepare(
+      `SELECT stop_reason, stopped_at, confirmed_at, email FROM subscribers
+       WHERE LOWER(TRIM(email)) = ?1`
+    )
+    .bind(normalized)
     .all<Pick<SubscriberRow, "stop_reason" | "stopped_at" | "confirmed_at" | "email">>();
-  const records = results.filter((r) => normalizeEmail(r.email) === normalized);
+  const records = results;
   const unsubStops = records.filter((r) => r.stop_reason === "unsubscribed" && r.stopped_at);
   if (unsubStops.length === 0) return false;
   const mostRecentUnsubAt = Math.max(...unsubStops.map((r) => Date.parse(r.stopped_at as string)));

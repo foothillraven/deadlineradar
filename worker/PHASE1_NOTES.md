@@ -52,6 +52,8 @@ same 5/600s and 30/600s buckets), control-character rejection, the email regex, 
 double-opt-in-bypass fix in `stop()`, the Gmail dot/+tag cooldown-key folding, the
 over-broad-suppression fix in `isPermanentlySuppressed()` (ported but not yet wired into
 any Phase-1 route — see `src/store.ts`'s docstring; the Python original only calls it from
-the scheduler, which Phase 1 does not deploy), and the "probe before persist"
+the scheduler, which Phase 1 does not deploy; its query was rewritten to use an indexed
+lookup, `migrations/0003_email_normalized_index.sql`, after an adversarial review found the
+first port did a full-table scan), and the "probe before persist"
 deadline-computability check. See `src/*.ts` docstrings for the line-by-line provenance of
 each one.

@@ -281,6 +281,47 @@ describe("Permanent suppression (store.isPermanentlySuppressed) -- Phase 2 readi
     await store.confirm(env.DB, row!.confirm_token);
     expect(await store.isPermanentlySuppressed(env.DB, email)).toBe(false);
   });
+
+  // Regression test for an adversarial-review finding: an earlier version of
+  // isPermanentlySuppressed() ran `SELECT ... FROM subscribers` with NO
+  // WHERE clause at all, then filtered by normalized email in JavaScript --
+  // a full-table scan on every call. It was dead code at review time (no
+  // Phase-1 route calls it), but would not have scaled once Phase 2 wires
+  // the scheduler to it. This asserts the actual SQLite query plan uses the
+  // idx_subscribers_email_normalized expression index (migration 0003)
+  // instead of scanning every row.
+  it("looks up by an indexed expression, not a full table scan (regression: full-table-scan finding)", async () => {
+    const { results } = await env.DB
+      .prepare(
+        `EXPLAIN QUERY PLAN SELECT stop_reason, stopped_at, confirmed_at, email FROM subscribers
+         WHERE LOWER(TRIM(email)) = ?1`
+      )
+      .bind("plan-check@example.com")
+      .all<{ detail: string }>();
+    const plan = results.map((r) => r.detail).join(" | ");
+    expect(plan).toMatch(/USING INDEX idx_subscribers_email_normalized/);
+    expect(plan).not.toMatch(/SCAN subscribers(?!.*USING INDEX)/);
+  });
+
+  // The old JS-side filter compared via normalizeEmail() on both sides, so
+  // casing/whitespace differences between signup-time and lookup-time email
+  // never mattered. Pushing the filter into SQL (LOWER(TRIM(email)) = ?1,
+  // binding the JS-normalized value) must preserve that -- this guards the
+  // refactor itself, not just the original bug.
+  it("still matches case-insensitively now that filtering happens in SQL, not JS", async () => {
+    const storedEmail = `CaseTest-${Date.now()}@Example.COM`;
+    await store.addPending(env.DB, {
+      email: storedEmail,
+      stateSlug: "illinois",
+      deadlineFields: { license_type_id: "il-individual" },
+      firstName: null,
+    });
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(storedEmail).first<SubscriberRow>();
+    await store.confirm(env.DB, row!.confirm_token);
+    await store.stop(env.DB, row!.unsubscribe_token, "unsubscribed");
+    expect(await store.isPermanentlySuppressed(env.DB, storedEmail.toLowerCase())).toBe(true);
+    expect(await store.isPermanentlySuppressed(env.DB, `  ${storedEmail.toUpperCase()}  `)).toBe(true);
+  });
 });
 
 describe("markReminderSent / allConfirmedActive (Phase 2 drop-in readiness)", () => {

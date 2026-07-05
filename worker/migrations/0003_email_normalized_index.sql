@@ -1,0 +1,16 @@
+-- Expression index backing `store.ts`'s `isPermanentlySuppressed()` --
+-- see that function's doc-comment for the full history: an adversarial
+-- review found it ran `SELECT ... FROM subscribers` with NO WHERE clause,
+-- filtering by normalized email in JavaScript afterward -- a full-table
+-- scan on every call. It was dead code at review time (not called from any
+-- Phase-1 route), but this closes the gap before Phase 2 wires the
+-- scheduler to it.
+--
+-- New migration file rather than editing 0001/0002, per this repo's own
+-- migration discipline (never rewrite an already-numbered migration).
+--
+-- `LOWER(TRIM(email))` exactly mirrors `store.ts`'s `normalizeEmail()`
+-- (`email.trim().toLowerCase()`) -- SQLite's LOWER() is ASCII-only, which is
+-- fine here because `validation.ts`'s `EMAIL_RE` only ever admits ASCII
+-- characters into a stored `email` value in the first place.
+CREATE INDEX IF NOT EXISTS idx_subscribers_email_normalized ON subscribers (LOWER(TRIM(email)));

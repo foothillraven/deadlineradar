@@ -944,6 +944,10 @@ just needs to know when their license is due.</p>
 (or, where the rule depends on your birth month, a full lookup table) computed from the
 verified renewal rule, with a link back to the official source and a "last verified" date.
 {len(states)} states covered so far, generated {esc(as_of.isoformat())}.</p>
+<p class="how-it-works">Also see our <a href="blog/">guides</a>: <a
+href="blog/cpe-vs-license-renewal/">CPE requirements vs. license renewal</a>, <a
+href="blog/common-cpa-renewal-mistakes/">common CPA renewal mistakes</a>, and the <a
+href="blog/missouri-cpa-license-renewal-guide/">Missouri renewal guide</a>.</p>
 {signup_form_homepage(by_slug, as_of)}
 <script>
 var DR_STATE_SLUGS = {json.dumps(state_slug_map)};
@@ -1098,6 +1102,197 @@ Aurora, CO 80013</p>
     )
 
 
+BLOG_ARTICLES = [
+    {
+        "slug": "cpe-vs-license-renewal",
+        "title": "CPE Requirements vs. License Renewal — The Deadline CPAs Mix Up",
+        "meta_description": (
+            "CPE completion and license renewal are two different deadlines with two different "
+            "rules. Here's how they differ, state by state, and what happens if you miss either one."
+        ),
+        "body_html": """
+<p class="intro">CPAs juggle two deadlines that sound like they should be the same thing but often
+aren't: the date your <strong>license itself renews</strong>, and the date your <strong>continuing
+professional education (CPE) hours</strong> are due. Mixing them up is one of the most common ways a
+CPA ends up scrambling in the last week before a deadline &mdash; or worse, finding out their license
+lapsed because they tracked the wrong date.</p>
+
+<p><strong>They're not always the same date &mdash; sometimes they're not even the same
+<em>frequency</em>.</strong></p>
+
+<p>Take Missouri. The license itself renews <strong>every two years</strong>, on a fixed September 30
+date (Mo. Code Regs. Ann. tit. 20 &sect; 2010-2.070(1)). But CPE hours are checked <strong>every
+single year</strong> &mdash; 40 hours including 2 ethics hours, due annually, even in the "off year"
+when the license itself isn't up for renewal (20 CSR 2010-4.010(1)(C)). A Missouri CPA could renew
+their license this year, relax about paperwork for twelve months, and still owe a full year of CPE
+hours in that gap year &mdash; with a January 1&ndash;March 1 grace window to catch up if they fall
+behind.</p>
+
+<p>West Virginia shows the same pattern a different way: the license itself renews <strong>every year
+on June 30</strong> (W. Va. Code &sect; 30-9-12(a)), but CPE is tracked on a rolling
+<strong>three-year</strong> total (120 hours, minimum 20 per year) that must be completed by
+<strong>December 31</strong> each year and reported to the Board by January 31 of the following year
+(W. Va. CSR tit. 1, ser. 1, &sect; 1-1-7). Renew your license in June and you might assume you're
+square for the year &mdash; but your CPE hours are still due six months later, on a completely
+different clock.</p>
+
+<p>Not every state splits them this way. Wisconsin, for example, ties CPE directly to the same renewal
+date &mdash; there's no separate CPE-specific cutoff to track (Wis. Stat. &sect; 440.08(2); DSPS
+Accounting Examining Board). So the honest answer to "are these the same deadline?" is:
+<strong>it depends on your state, and you have to check both rules, not assume.</strong></p>
+
+<p><strong>What happens if you miss one but not the other?</strong> The consequences are usually
+different too &mdash; a missed license-renewal deadline typically means your license lapses and you
+can't practice until you reinstate it (often with a fee). A missed CPE deadline, on the other hand, is
+often a compliance issue caught at your <em>next</em> renewal, or during an audit of your CPE records
+&mdash; annoying and sometimes costly, but not always an immediate practice-stopping event the way a
+lapsed license is. Either way, your state board is the authority on what actually happens &mdash; this
+isn't legal advice, just a map of how the two deadlines relate.</p>
+
+<p><strong>The practical fix</strong>: don't rely on memory for either one.
+<a href="../../">Find your state's CPA renewal deadline here</a> and set a reminder &mdash; and if
+your state runs CPE on a different clock than your license (like Missouri or West Virginia above),
+track that separately too.</p>
+""",
+    },
+    {
+        "slug": "common-cpa-renewal-mistakes",
+        "title": "The Most Common CPA License-Renewal Mistakes (and How to Avoid Them)",
+        "meta_description": (
+            "The renewal mistakes that trip up CPAs most often — wrong deadline, wrong cycle "
+            "length, and the ones that assume renewal rules are the same everywhere. How to avoid "
+            "each one."
+        ),
+        "body_html": """
+<p class="intro">Most CPA license lapses aren't dramatic &mdash; they're small, avoidable mix-ups.
+Here are the ones that come up again and again.</p>
+
+<p><strong>1. Assuming every state renews on the same cycle.</strong> Some states renew annually,
+some every two years, some every three. Missouri's individual license renews every <strong>two</strong>
+years; Missouri's firm permits renew every <strong>single</strong> year &mdash; a different cycle
+length for the same board, in the same state (Mo. Code Regs. Ann. tit. 20 &sect;&sect;
+2010-2.070(1), 2010-2.072(2)). If you assume your firm follows the same clock as your individual
+license, you can be wrong by a full year.</p>
+
+<p><strong>2. Confusing a fixed calendar date with a birth-month or cohort system.</strong> Some
+states &mdash; Texas is a well-known example &mdash; renew each individual CPA annually, by the last
+day of <em>their own birth month</em>, not a single date that applies to everyone (Texas State Board
+of Public Accountancy, tsbpa.texas.gov/cpas/renewal/). If you're used to a fixed-date state and move
+to or get licensed in a birth-month state, assuming a single statewide date is a fast way to miss your
+actual deadline.</p>
+
+<p><strong>3. Missing the CPE deadline while celebrating the license renewal.</strong> Covered in more
+depth in our <a href="../cpe-vs-license-renewal/">CPE vs. license renewal</a> piece &mdash; the short
+version is: renewing your license does not automatically mean your CPE hours are current, or that CPE
+is even due at the same time. Check both, separately, every cycle.</p>
+
+<p><strong>4. Trusting a stale reminder from a state board, an employer, or a CPE vendor.</strong> Some
+state boards do send their own renewal reminders &mdash; but not all of them do, and the ones that do
+vary in reliability and lead time. Relying solely on someone else to remember for you is a single
+point of failure. A reminder tied to the actual published deadline, not a third party's internal
+process, is safer.</p>
+
+<p><strong>5. Waiting until the late-renewal grace window and assuming there's no real
+consequence.</strong> Several states publish a formal late-renewal period with an added fee (Missouri's
+late window ran through December 31 for its most recent cycle, per the Board's own 2026 Winter
+newsletter) &mdash; but a grace period is not a second deadline. It's a penalty window, and after it
+closes, reinstatement is usually harder and more expensive than a normal renewal.</p>
+
+<p><strong>The fix for all five</strong>: know your specific state's exact rule (cycle length, fixed
+date vs. birth-month vs. cohort, and whether CPE has its own separate deadline), and track it with a
+real reminder tied to the actual date &mdash; not a guess, a memory, or someone else's process.
+<a href="../../">Look up your state here</a>.</p>
+""",
+    },
+    {
+        "slug": "missouri-cpa-license-renewal-guide",
+        "title": "How CPA License Renewal Works in Missouri: Dates, Fees, CPE, and Deadlines",
+        "meta_description": (
+            "A complete guide to Missouri CPA license renewal: the real renewal dates for "
+            "individual licenses and firm permits, CPE requirements, fees, and what happens if you "
+            "miss a deadline — sourced to the Missouri Board's own rules."
+        ),
+        "body_html": """
+<p class="intro">Missouri runs two genuinely different renewal cycles depending on whether you hold
+an individual CPA license or a firm permit &mdash; and its CPE requirement runs on a third, separate
+clock. Here's exactly how each one works, sourced to the Missouri Board's own published rule.</p>
+
+<h2>Individual CPA license: renews every two years, ending September 30</h2>
+<p>Missouri individual CPA licenses are issued for a two-year period beginning October 1 and expiring
+September 30 (20 CSR 2010-2.070(1)). The Board's own 2026 Winter newsletter confirms the currently
+active cycle: the timely renewal window for individual licenses closed September 30, 2025, with a
+late-renewal window running through December 31, 2025 &mdash; placing the current cycle at October 1,
+2025 through September 30, 2027. <a href="../../missouri/">Confirm your own next Missouri CPA renewal
+deadline here</a>.</p>
+
+<h2>Firm permits: a different cycle &mdash; annual, ending October 31</h2>
+<p>Missouri firm permits do not follow the same two-year cycle as individual licenses. They're issued
+for a one-year period beginning November 1 and expiring October 31, renewed every single year (20 CSR
+2010-2.072(2)). The Board's newsletter confirms the current firm-permit cycle runs November 1, 2025
+through October 31, 2026 &mdash; meaning a firm's renewal deadline can land in a completely different
+year than its individual license holders' next renewal, even at the same firm.</p>
+
+<h2>CPE: checked annually, regardless of the two-year license cycle</h2>
+<p>Here's the part that catches people: even though the individual license itself only renews every
+two years, CPE compliance is checked on a calendar-year basis &mdash; 40 hours per year, including 2
+ethics hours, every single year, not just in "renewal years" (20 CSR 2010-4.010(1)(C)). If you fall
+behind, the rule gives a January 1 through March 1 grace period each year to catch up on the prior
+year's shortfall. Don't let a two-year license cycle lull you into treating CPE as a
+once-every-two-years task &mdash; it isn't.</p>
+
+<h2>What happens if you miss a deadline</h2>
+<p>Missouri's own newsletter confirms a formal late-renewal window exists (through December 31 for the
+cycle referenced above) with an added fee &mdash; but that window is a penalty period, not a real
+second deadline, and reinstatement after it closes is a separate, harder process. The safest path is
+renewing on time in the first place.</p>
+
+<p><strong>Bottom line</strong>: if you're a Missouri CPA, track three things separately &mdash; your
+individual license's 2-year cycle, your firm's separate annual cycle (if applicable), and your CPE
+hours' annual clock. <a href="../../missouri/">Set a reminder for your Missouri deadline here</a> so
+you don't have to hold all three in your head.</p>
+""",
+    },
+]
+
+
+def build_blog_article_page(article: dict) -> str:
+    body = f"""<h1>{esc(article['title'])}</h1>
+{article['body_html']}
+<p class="backlink"><a href="../">&larr; Back to all guides</a></p>
+"""
+    return page_shell(
+        f"{article['title']} — {SITE_NAME}",
+        article["meta_description"],
+        body,
+        home_href="../../",
+        canonical_path=f"/blog/{article['slug']}/",
+    )
+
+
+def build_blog_index_page(articles: list[dict]) -> str:
+    cards = "\n".join(
+        f'<a class="state-card" href="{esc(a["slug"])}/">'
+        f'<div class="state-name">{esc(a["title"])}</div>'
+        f'<div class="state-hint">{esc(a["meta_description"])}</div></a>'
+        for a in articles
+    )
+    body = f"""<h1>Guides</h1>
+<p class="intro">Deeper explainers on CPA license renewal and CPE deadlines &mdash; sourced the same
+way as every state page on this site.</p>
+<div class="state-grid">
+{cards}
+</div>
+<p class="backlink"><a href="../">&larr; Back to home</a></p>
+"""
+    return page_shell(
+        f"Guides — {SITE_NAME}",
+        "In-depth guides on CPA license renewal deadlines and CPE requirements, state by state.",
+        body,
+        home_href="../",
+        canonical_path="/blog/",
+    )
+
+
 def build_sitemap(states: list[dict], as_of: date) -> str:
     urls = [f"""  <url>
     <loc>{SITE_BASE_URL}/</loc>
@@ -1108,7 +1303,15 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/contact/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/blog/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
   </url>"""]
+    for article in BLOG_ARTICLES:
+        urls.append(f"""  <url>
+    <loc>{SITE_BASE_URL}/blog/{esc(article['slug'])}/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""")
     for s in sorted(states, key=lambda s: s["state_slug"]):
         urls.append(f"""  <url>
     <loc>{SITE_BASE_URL}/{esc(s['state_slug'])}/</loc>
@@ -1226,6 +1429,16 @@ def main() -> None:
 
     (SITE_DIR / "404.html").write_text(build_404_page(built), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/404.html")
+
+    blog_dir = SITE_DIR / "blog"
+    blog_dir.mkdir(parents=True, exist_ok=True)
+    (blog_dir / "index.html").write_text(build_blog_index_page(BLOG_ARTICLES), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/blog/index.html")
+    for article in BLOG_ARTICLES:
+        article_dir = blog_dir / article["slug"]
+        article_dir.mkdir(parents=True, exist_ok=True)
+        (article_dir / "index.html").write_text(build_blog_article_page(article), encoding="utf-8")
+        print(f"wrote {SITE_DIR.name}/blog/{article['slug']}/index.html")
 
     (SITE_DIR / "favicon.svg").write_text(FAVICON_SVG, encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/favicon.svg")

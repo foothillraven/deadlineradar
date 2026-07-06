@@ -52,11 +52,11 @@
       "license_type": "firm",
       "license_type_label": "Firm license",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Firm licenses expire November 30, every 3 years.",
+      "cycle_description": "Firm licenses expire November 30, every 3 years (68 Ill. Admin. Code 1420.80(b)) -- the same rule section that governs individual renewals, just a different subsection.",
       "next_deadline_computed": null,
       "data_gap_note": "The recurring month/day (November 30) and 3-year cycle length are confirmed, but we do not have a specific anchor year for the firm track (unlike the individual track, which has a confirmed current cycle ending 2027-09-30). Confirm your firm's exact renewal date with the Illinois Dept. of Financial and Professional Regulation or on your permit.",
-      "source_url": "https://www.ilga.gov/commission/jcar/admincode/068/068014200D14200R.html",
-      "last_verified": "2026-07-03",
+      "source_url": "https://www.ilga.gov/commission/jcar/admincode/068/068014200000800R.html",
+      "last_verified": "2026-07-05",
       "wave": 1
     },
     {

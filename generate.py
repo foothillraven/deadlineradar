@@ -175,6 +175,18 @@ def esc(s: str) -> str:
     return html.escape(str(s), quote=True)
 
 
+# Minimal calendar glyph, site accent color (#1f5fbf), flat and legible at 16px.
+# Two "binder tabs" + a header band + one highlighted date square -- the smallest
+# set of shapes that still reads as "calendar/deadline" at favicon size.
+FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+<rect x="9" y="1" width="3" height="7" rx="1.5" fill="#1f5fbf"/>
+<rect x="20" y="1" width="3" height="7" rx="1.5" fill="#1f5fbf"/>
+<rect x="3" y="5" width="26" height="24" rx="4" fill="#1f5fbf"/>
+<rect x="3" y="5" width="26" height="7" rx="4" fill="#ffffff" fill-opacity="0.25"/>
+<rect x="13" y="17" width="6" height="6" rx="1.2" fill="#ffffff"/>
+</svg>
+"""
+
 PAGE_CSS = """
   :root {
     color-scheme: light dark;
@@ -552,7 +564,7 @@ document.addEventListener('DOMContentLoaded', function() {{
 </script>"""
 
 
-def page_shell(title: str, meta_description: str, body: str, home_href: str) -> str:
+def page_shell(title: str, meta_description: str, body: str, home_href: str, canonical_path: str) -> str:
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -560,6 +572,8 @@ def page_shell(title: str, meta_description: str, body: str, home_href: str) -> 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{esc(title)}</title>
 <meta name="description" content="{esc(meta_description)}">
+<link rel="canonical" href="{esc('https://deadline-radar.com' + canonical_path)}">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 {_turnstile_head_html()}
 <style>
 {PAGE_CSS}
@@ -813,7 +827,7 @@ def build_state_page(state_slug: str, records: list[dict], as_of: date) -> tuple
 {signup_form_for_state(state_slug, state_name, records, as_of)}
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 """
-    return title, page_shell(title, meta_description, body, home_href="../")
+    return title, page_shell(title, meta_description, body, home_href="../", canonical_path=f"/{state_slug}/")
 
 
 # ---------------------------------------------------------------------------
@@ -942,6 +956,7 @@ var DR_STATE_SLUGS = {json.dumps(state_slug_map)};
         "board of accountancy. One page per state, kept current.",
         body,
         home_href="./",
+        canonical_path="/",
     )
 
 
@@ -1021,6 +1036,32 @@ Aurora, CO 80013</p>
         "deadline reminders you request — we never sell or share your data.",
         body,
         home_href="../",
+        canonical_path="/privacy/",
+    )
+
+
+def build_404_page(states: list[dict]) -> str:
+    sorted_states = sorted(states, key=lambda s: s["state"])
+    cards = "\n".join(
+        f'<a class="state-card" href="/{esc(s["state_slug"])}/">'
+        f'<div class="state-name">{esc(s["state"])}</div></a>'
+        for s in sorted_states
+    )
+    body = f"""<h1>Page not found</h1>
+<p class="intro">We couldn't find that page &mdash; it may have moved, or the link may be
+mistyped. Find your state below, or head back to the homepage.</p>
+<p class="backlink"><a href="/">&larr; Back to all states</a></p>
+<div class="state-grid">
+{cards}
+</div>
+"""
+    return page_shell(
+        f"Page Not Found — {SITE_NAME}",
+        "This page could not be found. Find your state's CPA license renewal deadline from the "
+        "full list.",
+        body,
+        home_href="/",
+        canonical_path="/404.html",
     )
 
 
@@ -1053,6 +1094,7 @@ Aurora, CO 80013</p>
         "renewal reminders. Email us any time.",
         body,
         home_href="../",
+        canonical_path="/contact/",
     )
 
 
@@ -1181,6 +1223,12 @@ def main() -> None:
     contact_dir.mkdir(parents=True, exist_ok=True)
     (contact_dir / "index.html").write_text(build_contact_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/contact/index.html")
+
+    (SITE_DIR / "404.html").write_text(build_404_page(built), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/404.html")
+
+    (SITE_DIR / "favicon.svg").write_text(FAVICON_SVG, encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/favicon.svg")
 
     print(f"\nDone. {len(built)} state pages generated under {SITE_DIR}")
 

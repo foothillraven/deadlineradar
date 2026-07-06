@@ -8,6 +8,7 @@
 <link rel="canonical" href="https://deadline-radar.com/florida/">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "DeadlineRadar", "item": "https://deadline-radar.com/"}, {"@type": "ListItem", "position": 2, "name": "Florida CPA Renewal", "item": "https://deadline-radar.com/florida/"}]}</script>
 <style>
 
   :root {
@@ -51,6 +52,17 @@
   }
   .callout .date { font-size: 1.7rem; font-weight: 700; margin: 0.2rem 0 0.5rem; }
   .callout .rule { margin: 0; }
+  .source-cite {
+    margin: 0.75rem 0 0; padding-top: 0.65rem; border-top: 1px solid var(--border);
+    font-size: 0.85rem; color: var(--muted);
+  }
+  .source-cite .cite-label {
+    text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.72rem; margin-right: 0.4em;
+  }
+  .source-cite code {
+    background: none; padding: 0; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    color: var(--fg); font-size: 0.86em;
+  }
   .table-wrap {
     overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
     -webkit-overflow-scrolling: touch;
@@ -153,7 +165,9 @@
   <p><em>We could not confirm the specific &#x27;odd-numbered years&#x27; detail against two independent authoritative sources: the Board&#x27;s own page states firm licenses renew biennially and expire December 31 of odd years, but neither Fla. Stat. 473.3101 nor Florida Administrative Code chapters 61H1-26/61H1-31 state the odd-year parity -- they only confirm a generic 2-year cycle. Confirm your exact renewal date with the Florida Board of Accountancy or on your license. (2026-07-06 update: a full sweep of Fla. Stat. ch. 473 and FAC 61H1-26/61H1-31 in their entirety turned up no additional parity-stating section; Florida HB 607, a 2026 session bill, reportedly proposes extending DBPR renewal cycles to 4 years across professions -- unrelated to closing the current gap, but worth monitoring as a future accuracy risk to this record.)</em></p>
 </div>
 <div class="trust-line">
-  <strong>Last verified: 2026-07-05</strong> &middot; always confirm with the
+  <strong>Last verified: 2026-07-05</strong> &middot; checked against the state's codified
+  statute or administrative rule, not just a board webpage &mdash; if we can't verify a date against
+  primary law, we say so instead of guessing. Always confirm with the
   <a href="https://www2.myfloridalicense.com/certified-public-accounting/renewing-and-maintaining-your-license/">official state board</a> before relying on this date. License
   requirements and deadlines can change.
 </div>
@@ -176,6 +190,7 @@ up automatically, so we'll remind you based on the date you give us.</p>
     <button type="submit">Remind me</button>
   </form>
 </div>
+
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 
 <footer class="site-footer">

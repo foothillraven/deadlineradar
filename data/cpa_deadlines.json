@@ -43,7 +43,9 @@
       "source_url": "https://www.ilga.gov/commission/jcar/admincode/068/068014200000800R.html",
       "last_verified": "2026-07-05",
       "wave": 1,
-      "secondary_source_url": "https://idfpr.illinois.gov/content/dam/soi/en/web/idfpr/faq/dpr/cpa-cpe-faqs-6-28-18.pdf"
+      "secondary_source_url": "https://idfpr.illinois.gov/content/dam/soi/en/web/idfpr/faq/dpr/cpa-cpe-faqs-6-28-18.pdf",
+      "citation": "68 Ill. Admin. Code 1420.80(a)",
+      "citation_url": "https://www.ilga.gov/commission/jcar/admincode/068/068014200000800R.html"
     },
     {
       "id": "il-firm",
@@ -71,7 +73,9 @@
       "source_url": "https://www.pa.gov/agencies/dos/department-and-offices/bpoa/boards-commissions/accountancy-board/renewal-information",
       "last_verified": "2026-07-06",
       "wave": 1,
-      "secondary_source_url": "https://codes.findlaw.com/pa/title-63-ps-professions-and-occupations-state-licensed/pa-st-sect-63-9-8b/"
+      "secondary_source_url": "https://codes.findlaw.com/pa/title-63-ps-professions-and-occupations-state-licensed/pa-st-sect-63-9-8b/",
+      "citation": "63 P.S. § 9.8b",
+      "citation_url": "https://codes.findlaw.com/pa/title-63-ps-professions-and-occupations-state-licensed/pa-st-sect-63-9-8b/"
     },
     {
       "id": "ga-individual",
@@ -85,7 +89,9 @@
       "source_url": "https://gsba.georgia.gov/licensure",
       "last_verified": "2026-07-03",
       "wave": 1,
-      "secondary_source_url": "https://www.law.cornell.edu/regulations/georgia/Ga-Comp-R-Regs-R-20-10-.02"
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/georgia/Ga-Comp-R-Regs-R-20-10-.02",
+      "citation": "Ga. Comp. R. & Regs. R. 20-10-.02",
+      "citation_url": "https://www.law.cornell.edu/regulations/georgia/Ga-Comp-R-Regs-R-20-10-.02"
     },
     {
       "id": "ga-firm",
@@ -99,7 +105,9 @@
       "source_url": "https://gsba.georgia.gov/licensure",
       "last_verified": "2026-07-03",
       "wave": 1,
-      "secondary_source_url": "https://www.law.cornell.edu/regulations/georgia/Ga-Comp-R-Regs-R-20-8-.01"
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/georgia/Ga-Comp-R-Regs-R-20-8-.01",
+      "citation": "Ga. Comp. R. & Regs. R. 20-8-.01",
+      "citation_url": "https://www.law.cornell.edu/regulations/georgia/Ga-Comp-R-Regs-R-20-8-.01"
     },
     {
       "id": "nc-all",
@@ -108,13 +116,15 @@
       "license_type": "all",
       "license_type_label": "CPA license (all licensees)",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "ALL CPA licenses (active, probationary, and CPA-retired) must be renewed, or a change to inactive status requested, by the first day of July every year (21 NCAC 08J .0101(a): 'renew ... by the first day of July') -- this applies every year to every licensee, not a multi-year cycle. The Board's own webpage frames the practical cutoff as June 30, a single-sourced webpage value that is a different calendar date from the codified rule; we publish the codified date. Missing the cutoff triggers a Letter of Demand. Next: 2027-07-01.",
+      "cycle_description": "ALL CPA licenses (active, probationary, and CPA-retired) must be renewed, or a change to inactive status requested, by the first day of July every year -- this applies every year to every licensee, not a multi-year cycle. (Some Board materials describe the practical cutoff as June 30; July 1 is the codified date we publish.) Missing the cutoff triggers a Letter of Demand.",
       "next_deadline_computed": "2027-07-01",
       "source_url": "https://nccpaboard.gov/nc-cpas/",
       "last_verified": "2026-07-06",
       "wave": 1,
       "secondary_source_url": "https://nccpaboard.gov/resource-snippet/section-0100-requirements-2/",
-      "verification_note": "Corrected during sprint-task-5 adversarial verify: initial spike data used 'before July 1' loosely and computed a July 1 deadline; re-checked directly against the NC Board's own 2025-2026 renewal page, which states the cutoff is June 30 (July 1 is when the Letter-of-Demand process starts). Fixed to June 30 with the primary source URL updated accordingly. Downgraded to a data gap during the 2026-07-05 correctness audit after the source page went briefly dead. RE-OPENED 2026-07-06 (P2 gap-closure pass): re-confirmed 21 NCAC 08J .0101's current text and initially treated 'by the first day of July' and the Board's 'June 30' as the same instant described two ways -- WRONG. CORRECTED 2026-07-06 per the orchestrator's independent adversarial verification: these are two different calendar dates (July 1 vs. June 30), and the codified rule is the legally controlling text, not the Board's operational webpage. Publishing 2027-07-01 (the codified date), not 2027-06-30."
+      "verification_note": "Corrected during sprint-task-5 adversarial verify: initial spike data used 'before July 1' loosely and computed a July 1 deadline; re-checked directly against the NC Board's own 2025-2026 renewal page, which states the cutoff is June 30 (July 1 is when the Letter-of-Demand process starts). Fixed to June 30 with the primary source URL updated accordingly. Downgraded to a data gap during the 2026-07-05 correctness audit after the source page went briefly dead. RE-OPENED 2026-07-06 (P2 gap-closure pass): re-confirmed 21 NCAC 08J .0101's current text and initially treated 'by the first day of July' and the Board's 'June 30' as the same instant described two ways -- WRONG. CORRECTED 2026-07-06 per the orchestrator's independent adversarial verification: these are two different calendar dates (July 1 vs. June 30), and the codified rule is the legally controlling text, not the Board's operational webpage. Publishing 2027-07-01 (the codified date), not 2027-06-30.",
+      "citation": "21 NCAC 08J .0101(a)",
+      "citation_url": "https://nccpaboard.gov/resource-snippet/section-0100-requirements-2/"
     },
     {
       "id": "mi-individual",
@@ -266,7 +276,9 @@
       "source_url": "https://boa.virginia.gov/individual-cpas/renew/",
       "last_verified": "2026-07-05",
       "wave": 4,
-      "secondary_source_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/"
+      "secondary_source_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/",
+      "citation": "18VAC5-22-180",
+      "citation_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/"
     },
     {
       "id": "va-firm",
@@ -280,7 +292,9 @@
       "source_url": "https://boa.virginia.gov/firms/renew/",
       "last_verified": "2026-07-05",
       "wave": 4,
-      "secondary_source_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/"
+      "secondary_source_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/",
+      "citation": "18VAC5-22-180",
+      "citation_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/"
     },
     {
       "id": "ma-individual",
@@ -399,7 +413,9 @@
       "source_url": "https://www.boa.state.mn.us/licensees.html",
       "last_verified": "2026-07-05",
       "wave": 4,
-      "secondary_source_url": "https://www.revisor.mn.gov/statutes/cite/326A.04"
+      "secondary_source_url": "https://www.revisor.mn.gov/statutes/cite/326A.04",
+      "citation": "Minn. Stat. § 326A.04, subd. 2(a)",
+      "citation_url": "https://www.revisor.mn.gov/statutes/cite/326A.04"
     },
     {
       "id": "mn-firm",
@@ -413,7 +429,9 @@
       "source_url": "https://boa.state.mn.us/",
       "last_verified": "2026-07-05",
       "wave": 4,
-      "secondary_source_url": "https://www.revisor.mn.gov/statutes/cite/326A.05"
+      "secondary_source_url": "https://www.revisor.mn.gov/statutes/cite/326A.05",
+      "citation": "Minn. Stat. § 326A.05, subd. 2(a)",
+      "citation_url": "https://www.revisor.mn.gov/statutes/cite/326A.05"
     },
     {
       "id": "wi-individual",
@@ -422,12 +440,14 @@
       "license_type": "individual",
       "license_type_label": "Individual CPA License",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Biennial. The controlling statute (Wis. Stat. § 440.08(2)(a)1.) sets the individual CPA license renewal date as December 15 of each odd-numbered year -- we publish this codified date. Wisconsin DSPS's own webpage frames the practical deadline as December 14, a single-sourced webpage value that contradicts, rather than merely restates, the controlling statute; the statute is the legally controlling text. Fixed calendar, not birth-month or cohort-based. CPE compliance period is the 2-year period immediately preceding renewal (80 credit hours, min 40 formal learning, 3 ethics, at least 20 hours in each 12-month half); no separate CE-reporting deadline apart from the Dec 15 renewal date.",
+      "cycle_description": "Biennial. Individual CPA licenses renew December 15 of each odd-numbered year, the same statutory date for every licensee -- fixed calendar, not birth-month or cohort-based. (Some Board materials describe the practical deadline as December 14; December 15 is the codified date we publish.) CPE compliance period is the 2-year period immediately preceding renewal (80 credit hours, min 40 formal learning, 3 ethics, at least 20 hours in each 12-month half); no separate CE-reporting deadline apart from the renewal date.",
       "next_deadline_computed": "2027-12-15",
       "source_url": "https://dsps.wi.gov/Pages/Professions/Accountant/Default.aspx",
       "last_verified": "2026-07-06",
       "wave": 4,
-      "secondary_source_url": "https://docs.legis.wisconsin.gov/statutes/statutes/440/i/08"
+      "secondary_source_url": "https://docs.legis.wisconsin.gov/statutes/statutes/440/i/08",
+      "citation": "Wis. Stat. § 440.08(2)(a)1.",
+      "citation_url": "https://docs.legis.wisconsin.gov/statutes/statutes/440/i/08"
     },
     {
       "id": "wi-firm",
@@ -436,12 +456,14 @@
       "license_type": "firm",
       "license_type_label": "Accounting Firm License",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Same statutory date as individual licenses: December 15 of each odd-numbered year (Wis. Stat. § 440.08(2)(a)3., for accounting corporations/partnerships), biennial -- we publish the codified date rather than DSPS's practical 'December 14' webpage framing, for the same reason as the individual-license record. No separate firm-specific cycle.",
+      "cycle_description": "Same statutory date as individual licenses: December 15 of each odd-numbered year, biennial. (Some Board materials describe the practical deadline as December 14; December 15 is the codified date we publish.) No separate firm-specific cycle.",
       "next_deadline_computed": "2027-12-15",
       "source_url": "https://dsps.wi.gov/Pages/Professions/AccountingFirm/Default.aspx",
       "last_verified": "2026-07-06",
       "wave": 4,
-      "secondary_source_url": "https://docs.legis.wisconsin.gov/statutes/statutes/440/i/08"
+      "secondary_source_url": "https://docs.legis.wisconsin.gov/statutes/statutes/440/i/08",
+      "citation": "Wis. Stat. § 440.08(2)(a)3.",
+      "citation_url": "https://docs.legis.wisconsin.gov/statutes/statutes/440/i/08"
     },
     {
       "id": "co-individual",
@@ -524,7 +546,9 @@
       "next_deadline_computed": "2027-09-30",
       "source_url": "https://pr.mo.gov/boards/accountancy/newsletters/2026%20Winter%20MO%20Newsletter.pdf",
       "last_verified": "2026-07-05",
-      "wave": 4
+      "wave": 4,
+      "citation": "20 CSR 2010-2.070(1)",
+      "citation_url": "https://www.law.cornell.edu/regulations/missouri/20-CSR-2010-2-070"
     },
     {
       "id": "mo-firm",
@@ -537,7 +561,9 @@
       "next_deadline_computed": "2026-10-31",
       "source_url": "https://pr.mo.gov/boards/accountancy/newsletters/2026%20Winter%20MO%20Newsletter.pdf",
       "last_verified": "2026-07-05",
-      "wave": 4
+      "wave": 4,
+      "citation": "20 CSR 2010-2.072(2)",
+      "citation_url": "https://www.law.cornell.edu/regulations/missouri/20-CSR-2010-2-072"
     },
     {
       "id": "tn-all",
@@ -565,7 +591,9 @@
       "source_url": "https://www.in.gov/pla/professions/accountancy-home/accountancy-licensing-information/",
       "last_verified": "2026-07-05",
       "wave": 5,
-      "secondary_source_url": "https://www.law.cornell.edu/regulations/indiana/872-IAC-1-3-6"
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/indiana/872-IAC-1-3-6",
+      "citation": "872 IAC 1-3-6",
+      "citation_url": "https://www.law.cornell.edu/regulations/indiana/872-IAC-1-3-6"
     },
     {
       "id": "in-firm",
@@ -580,7 +608,9 @@
       "source_url": "https://www.in.gov/pla/professions/accountancy-home/accountancy-licensing-information/",
       "last_verified": "2026-07-05",
       "wave": 5,
-      "secondary_source_url": "https://www.law.cornell.edu/regulations/indiana/872-IAC-1-3-19"
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/indiana/872-IAC-1-3-19",
+      "citation": "872 IAC 1-3-19",
+      "citation_url": "https://www.law.cornell.edu/regulations/indiana/872-IAC-1-3-19"
     },
     {
       "id": "ct-individual",
@@ -595,7 +625,9 @@
       "source_url": "https://portal.ct.gov/dcp/license-services-division/license-division/cpa-renewal",
       "secondary_source_url": "https://portal.ct.gov/dcp/continuing-education/cpa---continuing-education",
       "last_verified": "2026-07-05",
-      "wave": 5
+      "wave": 5,
+      "citation": "RCSA § 20-280-25(a)",
+      "citation_url": "https://eregulations.ct.gov/eRegsPortal/Browse/RCSA/Title_20Subtitle_20-280Section_20-280-25/"
     },
     {
       "id": "ct-firm",
@@ -623,7 +655,9 @@
       "ce_deadline_note": "CPE completion due Dec 31; CPE reporting (submitting hours) due by Jan 31 of the following year -- a separate step from the renewal itself.",
       "source_url": "https://cpaboard.state.la.us/cpa-resources/",
       "last_verified": "2026-07-05",
-      "wave": 5
+      "wave": 5,
+      "citation": "La. Admin. Code tit. 46, Pt. XIX, § 1105(B)",
+      "citation_url": "https://www.law.cornell.edu/regulations/louisiana/La-Admin-Code-tit-46-SS-XIX-1105"
     },
     {
       "id": "la-firm",
@@ -636,7 +670,9 @@
       "next_deadline_computed": "2026-12-31",
       "source_url": "https://cpaboard.state.la.us/cpa-firm-permits/",
       "last_verified": "2026-07-05",
-      "wave": 5
+      "wave": 5,
+      "citation": "La. Admin. Code tit. 46, Pt. XIX, § 1501(D)(1)",
+      "citation_url": "https://www.law.cornell.edu/regulations/louisiana/La-Admin-Code-tit-46-SS-XIX-1501"
     },
     {
       "id": "or-individual",
@@ -676,7 +712,9 @@
       "source_url": "https://www.oregon.gov/BOA/Documents/Firm%20Instructions_Renewal%202023%20-%20Final.pdf",
       "last_verified": "2026-07-05",
       "wave": 5,
-      "secondary_source_url": "https://oregon.public.law/rules/oar_801-010-0345"
+      "secondary_source_url": "https://oregon.public.law/rules/oar_801-010-0345",
+      "citation": "OAR 801-010-0345",
+      "citation_url": "https://oregon.public.law/rules/oar_801-010-0345"
     },
     {
       "id": "sc-individual",
@@ -691,7 +729,9 @@
       "source_url": "https://llr.sc.gov/acct/faq.aspx",
       "last_verified": "2026-07-05",
       "wave": 5,
-      "secondary_source_url": "https://www.scstatehouse.gov/code/t40c002.php"
+      "secondary_source_url": "https://www.scstatehouse.gov/code/t40c002.php",
+      "citation": "S.C. Code Ann. § 40-2-250(A)",
+      "citation_url": "https://www.scstatehouse.gov/code/t40c002.php"
     },
     {
       "id": "sc-firm",
@@ -705,7 +745,9 @@
       "source_url": "https://llr.sc.gov/acct/faq.aspx",
       "last_verified": "2026-07-05",
       "wave": 5,
-      "secondary_source_url": "https://www.scstatehouse.gov/code/t40c002.php"
+      "secondary_source_url": "https://www.scstatehouse.gov/code/t40c002.php",
+      "citation": "S.C. Code Ann. § 40-2-255(A)",
+      "citation_url": "https://www.scstatehouse.gov/code/t40c002.php"
     },
     {
       "id": "al-all",
@@ -720,7 +762,9 @@
       "source_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-3",
       "secondary_source_url": "https://www.asbpa.alabama.gov/",
       "last_verified": "2026-07-05",
-      "wave": 5
+      "wave": 5,
+      "citation": "Ala. Admin. Code 30-X-5-.05(1)",
+      "citation_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-3"
     },
     {
       "id": "ky-individual",
@@ -791,7 +835,9 @@
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://oklahoma.gov/content/dam/ok/en/oab/documents/registration/OAB%20FORM%20R004%20-%202025%20Firm%20Registration%20Renewal.pdf",
       "last_verified": "2026-07-05",
-      "wave": 5
+      "wave": 5,
+      "citation": "Okla. Stat. tit. 59, § 15.15",
+      "citation_url": "https://oklahoma.gov/content/dam/ok/en/oab/documents/registration/OAB%20FORM%20R004%20-%202025%20Firm%20Registration%20Renewal.pdf"
     },
     {
       "id": "ia-individual",
@@ -805,7 +851,9 @@
       "ce_deadline_note": "120 CPE hrs (min 4 ethics) over a rolling 3-year period ending Dec 31 or June 30 immediately preceding the July 1 renewal (licensee self-selects which end-date applies).",
       "source_url": "https://www.legis.iowa.gov/docs/iac/chapter/01-07-2026.193A.5.pdf",
       "last_verified": "2026-07-05",
-      "wave": 5
+      "wave": 5,
+      "citation": "Iowa Admin. Code 193A-5.3(1)",
+      "citation_url": "https://www.legis.iowa.gov/docs/iac/chapter/01-07-2026.193A.5.pdf"
     },
     {
       "id": "ia-firm",
@@ -818,7 +866,9 @@
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://dial.iowa.gov/media/3996",
       "last_verified": "2026-07-06",
-      "wave": 5
+      "wave": 5,
+      "citation": "Iowa Admin. Code r. 193A-8.2",
+      "citation_url": "https://www.law.cornell.edu/regulations/iowa/Iowa-Admin-Code-r-193A-8-2"
     },
     {
       "id": "dc-all",
@@ -832,7 +882,9 @@
       "source_url": "https://dlcp.dc.gov/page/board-accountancy",
       "secondary_source_url": "http://dcrules.elaws.us/dcmr/17-2547",
       "last_verified": "2026-07-05",
-      "wave": 6
+      "wave": 6,
+      "citation": "17 DCMR § 2547",
+      "citation_url": "http://dcrules.elaws.us/dcmr/17-2547"
     },
     {
       "id": "ut-all",
@@ -846,7 +898,9 @@
       "source_url": "https://dopl.utah.gov/accountancy/renew-a-license/",
       "secondary_source_url": "https://www.law.cornell.edu/regulations/utah/Utah-Admin-Code-R156-1-308a",
       "last_verified": "2026-07-05",
-      "wave": 6
+      "wave": 6,
+      "citation": "Utah Admin. Code R156-1-308a",
+      "citation_url": "https://www.law.cornell.edu/regulations/utah/Utah-Admin-Code-R156-1-308a"
     },
     {
       "id": "ks-individual",
@@ -887,7 +941,9 @@
       "source_url": "https://ksrevisor.gov/statutes/chapters/ch01/001_003_0008.html",
       "secondary_source_url": "https://ksboa.kansas.gov/faqs/",
       "last_verified": "2026-07-05",
-      "wave": 6
+      "wave": 6,
+      "citation": "K.S.A. § 1-308",
+      "citation_url": "https://ksrevisor.gov/statutes/chapters/ch01/001_003_0008.html"
     },
     {
       "id": "nv-individual",
@@ -901,7 +957,9 @@
       "source_url": "https://www.leg.state.nv.us/nrs/nrs-628.html#NRS628Sec380",
       "secondary_source_url": "https://www.leg.state.nv.us/nac/nac-628.html#NAC628Sec190",
       "last_verified": "2026-07-05",
-      "wave": 6
+      "wave": 6,
+      "citation": "NRS 628.380(2)",
+      "citation_url": "https://www.leg.state.nv.us/nrs/nrs-628.html#NRS628Sec380"
     },
     {
       "id": "nv-firm",
@@ -915,7 +973,9 @@
       "source_url": "https://www.leg.state.nv.us/nac/nac-628.html",
       "last_verified": "2026-07-06",
       "wave": 6,
-      "secondary_source_url": "https://www.leg.state.nv.us/nrs/nrs-628.html#NRS628Sec335"
+      "secondary_source_url": "https://www.leg.state.nv.us/nrs/nrs-628.html#NRS628Sec335",
+      "citation": "NAC 628.190",
+      "citation_url": "https://www.leg.state.nv.us/nac/nac-628.html"
     },
     {
       "id": "ar-individual",
@@ -929,7 +989,9 @@
       "source_url": "https://portal.arkansas.gov/service/ar-certified-public-accountant-license-renewal/",
       "secondary_source_url": "https://codes.findlaw.com/ar/title-17-professions-occupations-and-businesses/ar-code-sect-17-12-504/",
       "last_verified": "2026-07-05",
-      "wave": 6
+      "wave": 6,
+      "citation": "Ark. Code Ann. § 17-12-504(a)",
+      "citation_url": "https://codes.findlaw.com/ar/title-17-professions-occupations-and-businesses/ar-code-sect-17-12-504/"
     },
     {
       "id": "ar-firm",
@@ -943,7 +1005,9 @@
       "source_url": "https://www.labor.arkansas.gov/wp-content/uploads/Complete-Set-of-Rules-01-31-2024.pdf",
       "secondary_source_url": "https://codes.findlaw.com/ar/title-17-professions-occupations-and-businesses/ar-code-sect-17-12-504/",
       "last_verified": "2026-07-05",
-      "wave": 6
+      "wave": 6,
+      "citation": "Ark. Code Ann. § 17-12-504(b)",
+      "citation_url": "https://codes.findlaw.com/ar/title-17-professions-occupations-and-businesses/ar-code-sect-17-12-504/"
     },
     {
       "id": "ne-individual",
@@ -984,7 +1048,9 @@
       "source_url": "https://nbpa.nebraska.gov",
       "secondary_source_url": "https://nebraskalegislature.gov/laws/statutes.php?statute=1-136",
       "last_verified": "2026-07-05",
-      "wave": 6
+      "wave": 6,
+      "citation": "Neb. Rev. Stat. § 1-136(2)(a)",
+      "citation_url": "https://nebraskalegislature.gov/laws/statutes.php?statute=1-136"
     },
     {
       "id": "nm-individual",
@@ -1028,7 +1094,9 @@
       "source_url": "https://www.msbpa.ms.gov/fees",
       "secondary_source_url": "https://codes.findlaw.com/ms/title-73-professions-and-vocations/ms-code-sect-73-33-7/",
       "last_verified": "2026-07-05",
-      "wave": 6
+      "wave": 6,
+      "citation": "Miss. Code § 73-33-7(2)",
+      "citation_url": "https://codes.findlaw.com/ms/title-73-professions-and-vocations/ms-code-sect-73-33-7/"
     },
     {
       "id": "ms-firm",
@@ -1042,7 +1110,9 @@
       "source_url": "https://www.msbpa.ms.gov/fees",
       "secondary_source_url": "https://codes.findlaw.com/ms/title-73-professions-and-vocations/ms-code-sect-73-33-7/",
       "last_verified": "2026-07-05",
-      "wave": 6
+      "wave": 6,
+      "citation": "Miss. Code § 73-33-7(3)",
+      "citation_url": "https://codes.findlaw.com/ms/title-73-professions-and-vocations/ms-code-sect-73-33-7/"
     },
     {
       "id": "id-individual",
@@ -1071,7 +1141,9 @@
       "source_url": "https://dopl.idaho.gov/boa/",
       "secondary_source_url": "https://adminrules.idaho.gov/rules/current/24/243001.pdf",
       "last_verified": "2026-07-05",
-      "wave": 6
+      "wave": 6,
+      "citation": "IDAPA 24.30.01 § 211.01",
+      "citation_url": "https://adminrules.idaho.gov/rules/current/24/243001.pdf"
     },
     {
       "id": "wv-individual",
@@ -1085,7 +1157,9 @@
       "source_url": "https://www.boa.wv.gov/Licensing/LicenseRenewal.asp",
       "secondary_source_url": "https://code.wvlegislature.gov/30-9-12/",
       "last_verified": "2026-07-05",
-      "wave": 6
+      "wave": 6,
+      "citation": "W. Va. Code § 30-9-12(a)",
+      "citation_url": "https://code.wvlegislature.gov/30-9-12/"
     },
     {
       "id": "wv-firm",
@@ -1099,7 +1173,9 @@
       "source_url": "https://www.boa.wv.gov/renewals/firms/permit/index.asp",
       "last_verified": "2026-07-06",
       "wave": 6,
-      "secondary_source_url": "https://code.wvlegislature.gov/30-9-17/"
+      "secondary_source_url": "https://code.wvlegislature.gov/30-9-17/",
+      "citation": "W. Va. Code § 30-9-17(h)",
+      "citation_url": "https://code.wvlegislature.gov/30-9-17/"
     },
     {
       "id": "mt-all",
@@ -1113,7 +1189,9 @@
       "source_url": "https://boards.bsd.dli.mt.gov/public-accountants/license-information/",
       "secondary_source_url": "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-24.101.413",
       "last_verified": "2026-07-05",
-      "wave": 7
+      "wave": 7,
+      "citation": "Mont. Admin. R. 24.101.413",
+      "citation_url": "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-24.101.413"
     },
     {
       "id": "de-all",
@@ -1127,7 +1205,9 @@
       "source_url": "https://dpr.delaware.gov/boards/accountancy/renewpermit/",
       "secondary_source_url": "https://delcode.delaware.gov/title24/c001/index.html",
       "last_verified": "2026-07-05",
-      "wave": 7
+      "wave": 7,
+      "citation": "24 Del. C. § 108(b)",
+      "citation_url": "https://delcode.delaware.gov/title24/c001/index.html"
     },
     {
       "id": "nd-individual",
@@ -1141,7 +1221,9 @@
       "source_url": "https://www.ndsba.nd.gov/licensees/cpa-renewal-faq",
       "secondary_source_url": "https://ndlegis.gov/information/acdata/pdf/3-02-02.pdf",
       "last_verified": "2026-07-05",
-      "wave": 7
+      "wave": 7,
+      "citation": "N.D. Admin. Code § 3-02-02-04",
+      "citation_url": "https://ndlegis.gov/information/acdata/pdf/3-02-02.pdf"
     },
     {
       "id": "nd-firm",
@@ -1155,7 +1237,9 @@
       "source_url": "https://www.ndsba.nd.gov/licensees/cpa-renewal-faq",
       "secondary_source_url": "https://ndlegis.gov/information/acdata/pdf/3-02-02.pdf",
       "last_verified": "2026-07-05",
-      "wave": 7
+      "wave": 7,
+      "citation": "N.D. Admin. Code § 3-02-02-04.1",
+      "citation_url": "https://ndlegis.gov/information/acdata/pdf/3-02-02.pdf"
     },
     {
       "id": "ak-individual",
@@ -1169,7 +1253,9 @@
       "source_url": "https://www.commerce.alaska.gov/web/Portals/5/pub/cpa4060.pdf",
       "secondary_source_url": "https://www.commerce.alaska.gov/web/portals/5/pub/CPARegulations.pdf",
       "last_verified": "2026-07-05",
-      "wave": 7
+      "wave": 7,
+      "citation": "AS 08.04.105(a)",
+      "citation_url": "https://www.commerce.alaska.gov/web/portals/5/pub/CPARegulations.pdf"
     },
     {
       "id": "ak-firm",
@@ -1183,7 +1269,9 @@
       "source_url": "https://www.commerce.alaska.gov/web/Portals/5/pub/cpa4062.pdf",
       "secondary_source_url": "https://www.commerce.alaska.gov/web/portals/5/pub/CPARegulations.pdf",
       "last_verified": "2026-07-05",
-      "wave": 7
+      "wave": 7,
+      "citation": "12 AAC 04.280",
+      "citation_url": "https://www.commerce.alaska.gov/web/portals/5/pub/CPARegulations.pdf"
     },
     {
       "id": "vt-individual",
@@ -1197,7 +1285,9 @@
       "source_url": "https://legislature.vermont.gov/statutes/section/26/001/00075",
       "secondary_source_url": "https://www.law.cornell.edu/regulations/vermont/04-010-Code-Vt-R-04-030-010-X",
       "last_verified": "2026-07-05",
-      "wave": 7
+      "wave": 7,
+      "citation": "Code of Vermont Rules 04-030-010, Rule 8.1(b)",
+      "citation_url": "https://www.law.cornell.edu/regulations/vermont/04-010-Code-Vt-R-04-030-010-X"
     },
     {
       "id": "vt-firm",
@@ -1226,7 +1316,9 @@
       "source_url": "https://cpaboard.wyo.gov/individuals/current-cpas/individual-renewal",
       "secondary_source_url": "https://cpaboard.wyo.gov/statute-rules",
       "last_verified": "2026-07-05",
-      "wave": 7
+      "wave": 7,
+      "citation": "W.S. 33-3-109(d)",
+      "citation_url": "https://cpaboard.wyo.gov/statute-rules"
     },
     {
       "id": "wy-firm",
@@ -1240,7 +1332,9 @@
       "source_url": "https://cpaboard.wyo.gov/firms/current-firms/firm-permit-renewal",
       "secondary_source_url": "https://cpaboard.wyo.gov/statute-rules",
       "last_verified": "2026-07-05",
-      "wave": 7
+      "wave": 7,
+      "citation": "W.S. 33-3-120(b)",
+      "citation_url": "https://cpaboard.wyo.gov/statute-rules"
     },
     {
       "id": "me-all",
@@ -1264,11 +1358,13 @@
       "license_type": "all",
       "license_type_label": "Individual CPA/PA certificate and firm permit",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Individual CPA/PA certificates and firm permits both renew annually, due August 1 (postmark, or 11:59pm Central if filing online) -- confirmed by the Board's current renewal-instructions/FAQ pages (dlr.sd.gov) together with the amended administrative rule (ARSD 20:75:03:13 for individuals, 20:75:04 for firms; amendment effective 2026-07-01 per 51 SDR 141).",
+      "cycle_description": "Individual CPA/PA certificates and firm permits both renew annually, due August 1 (postmark, or 11:59pm Central if filing online) -- confirmed by the Board's current renewal-instructions/FAQ pages (dlr.sd.gov) together with the amended administrative rule (ARSD 20:75:03:12 for active individual certificates; ARSD 20:75:03:08 states firm permits 'expire annually on July thirty-first,' with the Board's own practical guidance describing the same August 1 filing deadline for firms as for individuals). Amendment effective 2026-07-01 per 51 SDR 141.",
       "next_deadline_computed": "2026-08-01",
       "source_url": "https://dlr.sd.gov/accountancy/",
       "last_verified": "2026-07-06",
-      "wave": 7
+      "wave": 7,
+      "citation": "ARSD 20:75:03:12",
+      "citation_url": "https://sdlegislature.gov/Rules/Administrative/20:75:03:12"
     },
     {
       "id": "ri-all",
@@ -1314,7 +1410,9 @@
       "source_url": "https://cca.hawaii.gov/pvl/boards/accountancy/",
       "secondary_source_url": "https://www.capitol.hawaii.gov/hrscurrent/Vol10_Ch0436-0474/HRS0466/HRS_0466-0005.htm",
       "last_verified": "2026-07-05",
-      "wave": 7
+      "wave": 7,
+      "citation": "HRS § 466-5(j)",
+      "citation_url": "https://www.capitol.hawaii.gov/hrscurrent/Vol10_Ch0436-0474/HRS0466/HRS_0466-0005.htm"
     },
     {
       "id": "nh-all",

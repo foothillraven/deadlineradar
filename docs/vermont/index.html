@@ -8,6 +8,7 @@
 <link rel="canonical" href="https://deadline-radar.com/vermont/">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "DeadlineRadar", "item": "https://deadline-radar.com/"}, {"@type": "ListItem", "position": 2, "name": "Vermont CPA Renewal", "item": "https://deadline-radar.com/vermont/"}]}</script>
 <style>
 
   :root {
@@ -51,6 +52,17 @@
   }
   .callout .date { font-size: 1.7rem; font-weight: 700; margin: 0.2rem 0 0.5rem; }
   .callout .rule { margin: 0; }
+  .source-cite {
+    margin: 0.75rem 0 0; padding-top: 0.65rem; border-top: 1px solid var(--border);
+    font-size: 0.85rem; color: var(--muted);
+  }
+  .source-cite .cite-label {
+    text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.72rem; margin-right: 0.4em;
+  }
+  .source-cite code {
+    background: none; padding: 0; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    color: var(--fg); font-size: 0.86em;
+  }
   .table-wrap {
     overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
     -webkit-overflow-scrolling: touch;
@@ -143,6 +155,10 @@
   <div class="label">Individual CPA license</div>
   <div class="date">July 31, 2027</div>
   <p class="rule">Biennial. Individual CPA licenses renew every two years on July 31 of odd-numbered years -- 26 V.S.A. § 75(a) sets the 2-year cycle, Code of Vermont Rules 04-030-010 Rule 8.1(b) fixes the specific date.</p>
+  <div class="source-cite">
+  <span class="cite-label">Source of record</span><code>Code of Vermont Rules 04-030-010, Rule 8.1(b)</code>
+  &mdash; <a href="https://www.law.cornell.edu/regulations/vermont/04-010-Code-Vt-R-04-030-010-X">read the rule</a>
+</div>
 </div>
 <div class="callout">
   <div class="label">Firm registration</div>
@@ -151,7 +167,9 @@
   <p><em>The 2-year renewal cycle for firm registrations is confirmed by statute and rule, but the specific July 31 date is not codified for firms -- only individual licenses get that date in the rule&#x27;s own text (Rule 8.1(b) uses the narrower word &#x27;Licenses&#x27;). Vermont&#x27;s Office of Professional Regulation does list firm registrations sharing the July 31 date on its own fee/date table, but that&#x27;s a single, non-codified operational webpage, not codified law. Confirm your exact renewal date with the Vermont Office of Professional Regulation or on your registration.</em></p>
 </div>
 <div class="trust-line">
-  <strong>Last verified: 2026-07-05</strong> &middot; always confirm with the
+  <strong>Last verified: 2026-07-05</strong> &middot; checked against the state's codified
+  statute or administrative rule, not just a board webpage &mdash; if we can't verify a date against
+  primary law, we say so instead of guessing. Always confirm with the
   <a href="https://legislature.vermont.gov/statutes/section/26/001/00075">official state board</a> before relying on this date. License
   requirements and deadlines can change.
 </div>
@@ -170,6 +188,7 @@
     <button type="submit">Remind me</button>
   </form>
 </div>
+
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 
 <footer class="site-footer">

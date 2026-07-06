@@ -46,6 +46,16 @@ SITE_DIR = ROOT / "docs"
 # hardcode a real URL before that.
 SITE_BASE_URL = "https://deadline-radar.com"
 
+# IndexNow (indexnow.org) key -- proves ownership of the site to IndexNow-participating
+# search engines (Bing, Yandex; not Google, which has no public IndexNow support) so
+# `scripts/indexnow_ping.py` can notify them the instant a page changes, rather than
+# waiting on their own re-crawl schedule. This constant only WRITES the required
+# `{key}.txt` verification file as part of the static build (no network call here --
+# generate.py stays offline by design, see the module docstring); the actual ping is a
+# separate, deliberately-run script, invoked manually after a real push, not on every
+# local build.
+INDEXNOW_KEY = "8e043aa98a82c1c393f1ac2aead217d8"
+
 # Reminder backend (worker/, the Phase-1 Cloudflare Worker -- see
 # worker/DEPLOY.md). Same-origin relative path, not a separate domain: the
 # Worker is bound to the deadline-radar.com/api/* Route, so the form posts
@@ -229,6 +239,17 @@ PAGE_CSS = """
   }
   .callout .date { font-size: 1.7rem; font-weight: 700; margin: 0.2rem 0 0.5rem; }
   .callout .rule { margin: 0; }
+  .source-cite {
+    margin: 0.75rem 0 0; padding-top: 0.65rem; border-top: 1px solid var(--border);
+    font-size: 0.85rem; color: var(--muted);
+  }
+  .source-cite .cite-label {
+    text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.72rem; margin-right: 0.4em;
+  }
+  .source-cite code {
+    background: none; padding: 0; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    color: var(--fg); font-size: 0.86em;
+  }
   .table-wrap {
     overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
     -webkit-overflow-scrolling: touch;
@@ -564,7 +585,62 @@ document.addEventListener('DOMContentLoaded', function() {{
 </script>"""
 
 
-def page_shell(title: str, meta_description: str, body: str, home_href: str, canonical_path: str) -> str:
+def _organization_schema() -> dict:
+    return {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": BRAND_NAME,
+        "url": SITE_BASE_URL,
+    }
+
+
+def _website_schema() -> dict:
+    return {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": SITE_NAME,
+        "url": SITE_BASE_URL,
+        "publisher": {"@type": "Organization", "name": BRAND_NAME},
+    }
+
+
+def _breadcrumb_schema(state_name: str, state_slug: str) -> dict:
+    return {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": SITE_NAME, "item": f"{SITE_BASE_URL}/"},
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": f"{state_name} CPA Renewal",
+                "item": f"{SITE_BASE_URL}/{state_slug}/",
+            },
+        ],
+    }
+
+
+def _json_ld_html(schemas: list[dict] | None) -> str:
+    """Renders each schema dict as its own <script type="application/ld+json"> block.
+    None/empty input renders nothing -- callers that have no non-null data to describe
+    (a gapped/BYOD state, e.g.) simply pass nothing rather than a script asserting a
+    fact we haven't confirmed."""
+    if not schemas:
+        return ""
+    return "\n".join(
+        f'<script type="application/ld+json">{json.dumps(s, ensure_ascii=False)}</script>'
+        for s in schemas
+    )
+
+
+def page_shell(
+    title: str,
+    meta_description: str,
+    body: str,
+    home_href: str,
+    canonical_path: str,
+    json_ld: list[dict] | None = None,
+) -> str:
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -575,6 +651,7 @@ def page_shell(title: str, meta_description: str, body: str, home_href: str, can
 <link rel="canonical" href="{esc('https://deadline-radar.com' + canonical_path)}">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 {_turnstile_head_html()}
+{_json_ld_html(json_ld)}
 <style>
 {PAGE_CSS}
 </style>
@@ -590,7 +667,9 @@ def page_shell(title: str, meta_description: str, body: str, home_href: str, can
 
 def trust_line(last_verified: str, source_url: str) -> str:
     return f"""<div class="trust-line">
-  <strong>Last verified: {esc(last_verified)}</strong> &middot; always confirm with the
+  <strong>Last verified: {esc(last_verified)}</strong> &middot; checked against the state's codified
+  statute or administrative rule, not just a board webpage &mdash; if we can't verify a date against
+  primary law, we say so instead of guessing. Always confirm with the
   <a href="{esc(source_url)}">official state board</a> before relying on this date. License
   requirements and deadlines can change.
 </div>"""
@@ -599,6 +678,31 @@ def trust_line(last_verified: str, source_url: str) -> str:
 # ---------------------------------------------------------------------------
 # Per-state page builders
 # ---------------------------------------------------------------------------
+
+def _source_cite_html(record: dict) -> str:
+    """Renders the citation as its own labeled element, distinct from the descriptive
+    prose above it -- CPAs read citations as the actual trust signal (per the
+    2026-07-06 CPA-trust pass), not something to leave buried mid-paragraph. Only
+    ever called for a record that already has a real `citation` string (populated
+    2026-07-06 from the same double-sourced research backing next_deadline_computed
+    itself) -- a record with no citation renders no source-cite element at all,
+    same "don't assert what you can't back up" rule as everywhere else in this file."""
+    citation = record.get("citation")
+    if not citation:
+        return ""
+    # `citation_url` is an explicit, individually-verified link to the actual cited
+    # rule/statute text (added 2026-07-06 after an orchestrator review caught several
+    # records where the old "secondary_source_url or source_url" guess picked a FAQ,
+    # form, newsletter, or generic board homepage instead of the rule itself). Every
+    # record with a `citation` also has a `citation_url` -- this is not an optional
+    # fallback chain, so a record missing one is a data bug to fix, not silently paper
+    # over with a worse link.
+    link_url = record["citation_url"]
+    return f"""<div class="source-cite">
+  <span class="cite-label">Source of record</span><code>{esc(citation)}</code>
+  &mdash; <a href="{esc(link_url)}">read the rule</a>
+</div>"""
+
 
 def render_simple_deadline_records(records: list[dict]) -> str:
     """Wave 1 / plain fixed_calendar records with a single computed date each."""
@@ -609,6 +713,7 @@ def render_simple_deadline_records(records: list[dict]) -> str:
   <div class="label">{esc(r['license_type_label'])}</div>
   <div class="date">{esc(fmt_date(d))}</div>
   <p class="rule">{esc(r['cycle_description'])}</p>
+  {_source_cite_html(r)}
 </div>""")
     return "\n".join(parts)
 
@@ -765,7 +870,46 @@ def compute_title_year(state_slug: str, records: list[dict]) -> int | None:
     return min(years) if years else None
 
 
-def build_state_page(state_slug: str, records: list[dict], as_of: date) -> tuple[str, str]:
+def _primary_individual_date(records: list[dict]) -> str | None:
+    """The same 'one individual-facing date, if exactly one exists' selection
+    state_hint() already uses for the homepage grid -- reused here so a state's
+    cross-link peers are chosen by the same date homepage visitors actually see,
+    not some other record on the page they might not even scroll to."""
+    individual_records = [r for r in records if r.get("license_type") not in _FIRM_ONLY_LICENSE_TYPES]
+    if len(individual_records) == 1 and individual_records[0].get("next_deadline_computed"):
+        return individual_records[0]["next_deadline_computed"]
+    return None
+
+
+def _related_states_html(state_slug: str, records: list[dict], by_slug: dict[str, list[dict]]) -> str:
+    """Honest, non-spammy internal linking: states that happen to share the exact
+    same recurring month-day deadline as this one -- a real, verifiable similarity
+    a visitor might genuinely want to know, not an arbitrary link-building filler
+    block. Renders nothing if this state has no single individual date, or if
+    fewer than 2 peers share it (a "related" list of one doesn't earn a section)."""
+    my_date = _primary_individual_date(records)
+    if not my_date:
+        return ""
+    my_month_day = my_date[5:]  # "MM-DD", ignoring the year
+    peers = []
+    for slug, recs in sorted(by_slug.items()):
+        if slug == state_slug:
+            continue
+        d = _primary_individual_date(recs)
+        if d and d[5:] == my_month_day:
+            peers.append((recs[0]["state"], slug))
+    if len(peers) < 2:
+        return ""
+    links = "\n".join(f'<a href="../{slug}/">{esc(name)}</a>' for name, slug in peers[:6])
+    month_name = MONTH_NAMES[int(my_month_day[:2]) - 1]
+    day = int(my_month_day[3:])
+    return f"""<p class="how-it-works">Other states with the same {esc(month_name)} {day} deadline:
+{links}</p>"""
+
+
+def build_state_page(
+    state_slug: str, records: list[dict], as_of: date, by_slug: dict[str, list[dict]] | None = None,
+) -> tuple[str, str]:
     """Returns (title, html_body) for a state's page."""
     state_name = records[0]["state"]
     source_url = records[0]["source_url"]
@@ -820,14 +964,20 @@ def build_state_page(state_slug: str, records: list[dict], as_of: date) -> tuple
         if gapped:
             deadline_html += "\n" + render_data_gap_records(gapped)
 
+    related_html = _related_states_html(state_slug, records, by_slug) if by_slug else ""
     body = f"""<h1>{esc(title)}</h1>
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
 {deadline_html}
 {trust_line(last_verified, source_url)}
 {signup_form_for_state(state_slug, state_name, records, as_of)}
+{related_html}
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 """
-    return title, page_shell(title, meta_description, body, home_href="../", canonical_path=f"/{state_slug}/")
+    json_ld = [_breadcrumb_schema(state_name, state_slug)]
+    return title, page_shell(
+        title, meta_description, body, home_href="../", canonical_path=f"/{state_slug}/",
+        json_ld=json_ld,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -935,7 +1085,9 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
     body = f"""<h1>CPA License Renewal Deadlines by State</h1>
 <p class="intro">Find your state's CPA license renewal deadline, sourced and verified against
 the official state board of accountancy. Built for CPAs, firm administrators, and anyone who
-just needs to know when their license is due.</p>
+just needs to know when their license is due. Every date is checked against the state's actual
+statute or administrative rule, not just a board's webpage &mdash; if we can't verify a date
+against primary law, we say so instead of guessing.</p>
 {search_html}
 <div class="state-grid">
 {chr(10).join(cards)}
@@ -961,6 +1113,7 @@ var DR_STATE_SLUGS = {json.dumps(state_slug_map)};
         body,
         home_href="./",
         canonical_path="/",
+        json_ld=[_organization_schema(), _website_schema()],
     )
 
 
@@ -1401,7 +1554,7 @@ def main() -> None:
 
     built = []
     for slug, recs in by_slug.items():
-        title, page_html = build_state_page(slug, recs, as_of)
+        title, page_html = build_state_page(slug, recs, as_of, by_slug)
         state_dir = SITE_DIR / slug
         state_dir.mkdir(parents=True, exist_ok=True)
         (state_dir / "index.html").write_text(page_html, encoding="utf-8")
@@ -1416,6 +1569,9 @@ def main() -> None:
 
     (SITE_DIR / "robots.txt").write_text(build_robots(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/robots.txt")
+
+    (SITE_DIR / f"{INDEXNOW_KEY}.txt").write_text(INDEXNOW_KEY, encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/{INDEXNOW_KEY}.txt (IndexNow key)")
 
     privacy_dir = SITE_DIR / "privacy"
     privacy_dir.mkdir(parents=True, exist_ok=True)

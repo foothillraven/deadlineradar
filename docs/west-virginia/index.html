@@ -146,9 +146,8 @@
 </div>
 <div class="callout">
   <div class="label">Firm permit</div>
-  <div class="date">Date not confirmed</div>
-  <p class="rule">Firm permits appear to follow the same annual July 1 - June 30 cycle as individual certificates (W. Va. Code § 30-9-17(h)). We&#x27;re confirming the exact firm renewal date and will publish it once verified.</p>
-  <p><em>West Virginia firm permits appear to follow the same annual June 30 cycle as individual certificates (W. Va. Code § 30-9-17(h)); we&#x27;re confirming the exact firm date before publishing it. In the meantime, confirm your renewal date with the West Virginia Board of Accountancy or on your permit.</em></p>
+  <div class="date">June 30, 2027</div>
+  <p class="rule">Annual. Firm permits run on the same July 1 - June 30 cycle as individual certificates and expire each year on June 30 (W. Va. Code § 30-9-17(h): &#x27;The board shall renew a permit for a one-year period beginning on July 1, of each year after initial issuance...&#x27;). The Board&#x27;s own firm-permit renewal page independently confirms the practical June 30 deadline via its $50 late-fee trigger for submissions after that date.</p>
 </div>
 <div class="trust-line">
   <strong>Last verified: 2026-07-05</strong> &middot; always confirm with the
@@ -166,7 +165,12 @@
     <input type="text" id="first_name" name="first_name" maxlength="60" autocomplete="given-name" placeholder="For a personal greeting, e.g. David">
     <label for="email">Email address</label>
     <input type="email" id="email" name="email" required placeholder="you@example.com">
-    
+    <label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="wv-individual">Individual CPA certificate</option>
+<option value="wv-firm">Firm permit</option>
+</select>
     <button type="submit">Remind me</button>
   </form>
 </div>

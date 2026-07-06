@@ -146,9 +146,8 @@
 </div>
 <div class="callout">
   <div class="label">CPA/LPA Firm Permit to Practice</div>
-  <div class="date">Date not confirmed</div>
-  <p class="rule">Iowa Code 542.7 establishes a firm permit to practice, separate from individual certificates/licenses. The administrative rule chapter governing individual license renewal (Iowa Admin. Code 193A-Chapter 5) explicitly excludes firm permits from its scope, so whether firms share the individual June 30 date or run on a separate cycle is not confirmed.</p>
-  <p><em>We have not located the specific rule governing Iowa firm-permit renewal dates, so we do not show one here. Confirm your firm&#x27;s exact renewal date with the Iowa Accountancy Examining Board or on your permit.</em></p>
+  <div class="date">June 30, 2027</div>
+  <p class="rule">Iowa Code § 542.7 establishes a firm permit to practice, separate from individual certificates/licenses. Firm-permit renewal is governed by Iowa Admin. Code 193A-Chapter 8 (&#x27;Licensed Public Accounting Firms&#x27;), not Chapter 5 (individual-license renewal only): permit holders must renew online with the Board by June 30 each year (rule 193A-8.3), with a 30-day grace period (25% late penalty) before the permit lapses on July 31 -- confirmed independently by the Board&#x27;s own CPA Renewal FAQ.</p>
 </div>
 <div class="trust-line">
   <strong>Last verified: 2026-07-05</strong> &middot; always confirm with the
@@ -166,7 +165,12 @@
     <input type="text" id="first_name" name="first_name" maxlength="60" autocomplete="given-name" placeholder="For a personal greeting, e.g. David">
     <label for="email">Email address</label>
     <input type="email" id="email" name="email" required placeholder="you@example.com">
-    
+    <label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ia-individual">Iowa CPA/LPA Individual Certificate or License</option>
+<option value="ia-firm">CPA/LPA Firm Permit to Practice</option>
+</select>
     <button type="submit">Remind me</button>
   </form>
 </div>

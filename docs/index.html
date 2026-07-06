@@ -237,15 +237,15 @@ just needs to know when their license is due.</p>
 <a class="state-card" href="new-jersey/" data-state-name="New Jersey"><div class="state-name">New Jersey</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="new-mexico/" data-state-name="New Mexico"><div class="state-name">New Mexico</div><div class="state-hint">By birth month</div></a>
 <a class="state-card" href="new-york/" data-state-name="New York"><div class="state-name">New York</div><div class="state-hint">By birth month</div></a>
-<a class="state-card" href="north-carolina/" data-state-name="North Carolina"><div class="state-name">North Carolina</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="north-carolina/" data-state-name="North Carolina"><div class="state-name">North Carolina</div><div class="state-hint">July 1, 2027</div></a>
 <a class="state-card" href="north-dakota/" data-state-name="North Dakota"><div class="state-name">North Dakota</div><div class="state-hint">June 30, 2027</div></a>
 <a class="state-card" href="ohio/" data-state-name="Ohio"><div class="state-name">Ohio</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="oklahoma/" data-state-name="Oklahoma"><div class="state-name">Oklahoma</div><div class="state-hint">By birth month</div></a>
 <a class="state-card" href="oregon/" data-state-name="Oregon"><div class="state-name">Oregon</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="pennsylvania/" data-state-name="Pennsylvania"><div class="state-name">Pennsylvania</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="pennsylvania/" data-state-name="Pennsylvania"><div class="state-name">Pennsylvania</div><div class="state-hint">December 31, 2027</div></a>
 <a class="state-card" href="rhode-island/" data-state-name="Rhode Island"><div class="state-name">Rhode Island</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="south-carolina/" data-state-name="South Carolina"><div class="state-name">South Carolina</div><div class="state-hint">February 1, 2027</div></a>
-<a class="state-card" href="south-dakota/" data-state-name="South Dakota"><div class="state-name">South Dakota</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="south-dakota/" data-state-name="South Dakota"><div class="state-name">South Dakota</div><div class="state-hint">August 1, 2026</div></a>
 <a class="state-card" href="tennessee/" data-state-name="Tennessee"><div class="state-name">Tennessee</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="texas/" data-state-name="Texas"><div class="state-name">Texas</div><div class="state-hint">By birth month</div></a>
 <a class="state-card" href="utah/" data-state-name="Utah"><div class="state-name">Utah</div><div class="state-hint">December 31, 2026</div></a>
@@ -253,7 +253,7 @@ just needs to know when their license is due.</p>
 <a class="state-card" href="virginia/" data-state-name="Virginia"><div class="state-name">Virginia</div><div class="state-hint">June 30, 2027</div></a>
 <a class="state-card" href="washington/" data-state-name="Washington"><div class="state-name">Washington</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="west-virginia/" data-state-name="West Virginia"><div class="state-name">West Virginia</div><div class="state-hint">June 30, 2027</div></a>
-<a class="state-card" href="wisconsin/" data-state-name="Wisconsin"><div class="state-name">Wisconsin</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="wisconsin/" data-state-name="Wisconsin"><div class="state-name">Wisconsin</div><div class="state-hint">December 15, 2027</div></a>
 <a class="state-card" href="wyoming/" data-state-name="Wyoming"><div class="state-name">Wyoming</div><div class="state-hint">December 31, 2026</div></a>
 </div>
 <p class="how-it-works">How it works: each state page shows the actual next renewal deadline
@@ -388,6 +388,12 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
   <option value="in-individual">CPA (Individual License)</option>
 <option value="in-firm">CPA Firm Permit</option>
 </select></div>
+<div class="signup-extra-fields" data-for-state="iowa" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ia-individual">Iowa CPA/LPA Individual Certificate or License</option>
+<option value="ia-firm">CPA/LPA Firm Permit to Practice</option>
+</select></div>
 <div class="signup-extra-fields" data-for-state="kentucky" hidden><label for="license_expiration_date">License expiration date</label>
 <input type="date" id="license_expiration_date" name="license_expiration_date"
   min="2026-07-06" max="2030-01-05" required>
@@ -437,6 +443,12 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
   <option value="mo-individual">CPA Individual License</option>
 <option value="mo-firm">CPA Firm Permit</option>
 </select></div>
+<div class="signup-extra-fields" data-for-state="nevada" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="nv-individual">Individual CPA permit</option>
+<option value="nv-firm">Firm registration</option>
+</select></div>
 <div class="signup-extra-fields" data-for-state="new-hampshire" hidden><label for="license_expiration_date">License expiration date</label>
 <input type="date" id="license_expiration_date" name="license_expiration_date"
   min="2026-07-06" max="2030-01-05" required>
@@ -457,11 +469,6 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
   min="2026-07-06" max="2030-01-05" required>
 <p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
 up automatically, so we'll remind you based on the date you give us.</p></div>
-<div class="signup-extra-fields" data-for-state="north-carolina" hidden><label for="license_expiration_date">License expiration date</label>
-<input type="date" id="license_expiration_date" name="license_expiration_date"
-  min="2026-07-06" max="2030-01-05" required>
-<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
-up automatically, so we'll remind you based on the date you give us.</p></div>
 <div class="signup-extra-fields" data-for-state="north-dakota" hidden><label for="license_type_id">Which license?</label>
 <select id="license_type_id" name="license_type_id" required>
   <option value="">Select the one that applies to you</option>
@@ -476,11 +483,6 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
   <option value="Group 3">Group 3</option>
 </select>
 <p class="field-hint">Check your license certificate or the Accountancy Board of Ohio lookup if you're not sure.</p></div>
-<div class="signup-extra-fields" data-for-state="pennsylvania" hidden><label for="license_expiration_date">License expiration date</label>
-<input type="date" id="license_expiration_date" name="license_expiration_date"
-  min="2026-07-06" max="2030-01-05" required>
-<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
-up automatically, so we'll remind you based on the date you give us.</p></div>
 <div class="signup-extra-fields" data-for-state="rhode-island" hidden><label for="license_expiration_date">License expiration date</label>
 <input type="date" id="license_expiration_date" name="license_expiration_date"
   min="2026-07-06" max="2030-01-05" required>
@@ -492,11 +494,6 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
   <option value="sc-individual">Individual CPA License</option>
 <option value="sc-firm">Firm Registration (In-State/Out-of-State CPA Firm)</option>
 </select></div>
-<div class="signup-extra-fields" data-for-state="south-dakota" hidden><label for="license_expiration_date">License expiration date</label>
-<input type="date" id="license_expiration_date" name="license_expiration_date"
-  min="2026-07-06" max="2030-01-05" required>
-<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
-up automatically, so we'll remind you based on the date you give us.</p></div>
 <div class="signup-extra-fields" data-for-state="tennessee" hidden><label for="license_expiration_date">License expiration date</label>
 <input type="date" id="license_expiration_date" name="license_expiration_date"
   min="2026-07-06" max="2030-01-05" required>
@@ -527,11 +524,18 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
   min="2026-07-06" max="2030-01-05" required>
 <p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
 up automatically, so we'll remind you based on the date you give us.</p></div>
-<div class="signup-extra-fields" data-for-state="wisconsin" hidden><label for="license_expiration_date">License expiration date</label>
-<input type="date" id="license_expiration_date" name="license_expiration_date"
-  min="2026-07-06" max="2030-01-05" required>
-<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
-up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="west-virginia" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="wv-individual">Individual CPA certificate</option>
+<option value="wv-firm">Firm permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="wisconsin" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="wi-individual">Individual CPA License</option>
+<option value="wi-firm">Accounting Firm License</option>
+</select></div>
 <div class="signup-extra-fields" data-for-state="wyoming" hidden><label for="license_type_id">Which license?</label>
 <select id="license_type_id" name="license_type_id" required>
   <option value="">Select the one that applies to you</option>

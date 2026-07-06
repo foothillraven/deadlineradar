@@ -146,9 +146,8 @@
 </div>
 <div class="callout">
   <div class="label">Firm registration</div>
-  <div class="date">Date not confirmed</div>
-  <p class="rule">Nevada CPA-firm offices must register annually with the Board, but we could not confirm a specific &#x27;registration expires on X date&#x27; provision distinct from the annual report-filing deadline (January 31).</p>
-  <p><em>We could not confirm a firm-specific expiration date against two independent authoritative sources: the statute (NRS 628.370) sets only an annual registration cadence with no calendar date, and the administrative-code citation we found (NAC 628.180) governs the annual REPORT filing deadline (January 31), not a registration expiration date -- these are not necessarily the same thing. Confirm your exact renewal date with the Nevada Board of Accountancy or on your registration.</em></p>
+  <div class="date">January 31, 2027</div>
+  <p class="rule">Nevada CPA-firm offices maintain a continuous registration under NRS 628.335, with no separate &#x27;registration expires on X date&#x27; provision -- the annual report-filing and fee requirement (NAC 628.180/628.190: due January 31 each year) IS the entire renewal mechanism for firms, confirmed by a full review of NRS 628.335/340/343/345 and NAC 628.180/190/210/250, none of which state a distinct firm-registration expiration date (unlike individual permits, which do expire annually on December 31 per NRS 628.380).</p>
 </div>
 <div class="trust-line">
   <strong>Last verified: 2026-07-05</strong> &middot; always confirm with the
@@ -166,7 +165,12 @@
     <input type="text" id="first_name" name="first_name" maxlength="60" autocomplete="given-name" placeholder="For a personal greeting, e.g. David">
     <label for="email">Email address</label>
     <input type="email" id="email" name="email" required placeholder="you@example.com">
-    
+    <label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="nv-individual">Individual CPA permit</option>
+<option value="nv-firm">Firm registration</option>
+</select>
     <button type="submit">Remind me</button>
   </form>
 </div>

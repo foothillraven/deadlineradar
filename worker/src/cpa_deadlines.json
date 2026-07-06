@@ -84,7 +84,8 @@
       "next_deadline_computed": "2027-12-31",
       "source_url": "https://gsba.georgia.gov/licensure",
       "last_verified": "2026-07-03",
-      "wave": 1
+      "wave": 1,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/georgia/Ga-Comp-R-Regs-R-20-10-.02"
     },
     {
       "id": "ga-firm",
@@ -97,7 +98,8 @@
       "next_deadline_computed": "2028-06-30",
       "source_url": "https://gsba.georgia.gov/licensure",
       "last_verified": "2026-07-03",
-      "wave": 1
+      "wave": 1,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/georgia/Ga-Comp-R-Regs-R-20-8-.01"
     },
     {
       "id": "nc-all",
@@ -263,7 +265,8 @@
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://boa.virginia.gov/individual-cpas/renew/",
       "last_verified": "2026-07-05",
-      "wave": 4
+      "wave": 4,
+      "secondary_source_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/"
     },
     {
       "id": "va-firm",
@@ -276,7 +279,8 @@
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://boa.virginia.gov/firms/renew/",
       "last_verified": "2026-07-05",
-      "wave": 4
+      "wave": 4,
+      "secondary_source_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/"
     },
     {
       "id": "ma-individual",
@@ -394,7 +398,8 @@
       "next_deadline_computed": "2026-12-31",
       "source_url": "https://www.boa.state.mn.us/licensees.html",
       "last_verified": "2026-07-05",
-      "wave": 4
+      "wave": 4,
+      "secondary_source_url": "https://www.revisor.mn.gov/statutes/cite/326A.04"
     },
     {
       "id": "mn-firm",
@@ -407,7 +412,8 @@
       "next_deadline_computed": "2026-12-31",
       "source_url": "https://boa.state.mn.us/",
       "last_verified": "2026-07-05",
-      "wave": 4
+      "wave": 4,
+      "secondary_source_url": "https://www.revisor.mn.gov/statutes/cite/326A.05"
     },
     {
       "id": "wi-individual",
@@ -583,7 +589,7 @@
       "license_type": "individual_cpa",
       "license_type_label": "Individual CPA License",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Annual renewal. CT DCP's official CPA Renewal page states: 'CPA license and/or registration is renewed annually, expiring on December 31st of each year.' Renewal notices emailed Oct-Dec 31.",
+      "cycle_description": "Annual renewal. Codified in Regulations of Connecticut State Agencies (RCSA) § 20-280-25(a): a CPA license 'shall be valid for a period of one year from January 1 to December 31,' renewed annually with the fee due by December 31. CT DCP's own renewal page corroborates practically: 'CPA license and/or registration is renewed annually, expiring on December 31st of each year.' Renewal notices emailed Oct-Dec 31.",
       "next_deadline_computed": "2026-12-31",
       "ce_deadline_note": "CPE earned on a fiscal year (July 1-June 30, distinct from the calendar-year license), reported to the Board by Dec 31 as part of renewal (40 hrs/yr min, up to 60 reportable, 20-hr carryover from the immediately preceding fiscal year only; audit/attest hours not carryover-eligible). Source: CT DCP's separate CPE requirements page (secondary_source_url).",
       "source_url": "https://portal.ct.gov/dcp/license-services-division/license-division/cpa-renewal",
@@ -612,7 +618,7 @@
       "license_type": "individual",
       "license_type_label": "CPA Individual License",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Annual renewal, expires December 31 every year (Louisiana State Board of CPAs). Renewal window opens November 1; a $200 delinquent fee applies starting February (escalating $50/month through year-end).",
+      "cycle_description": "Annual renewal, expires December 31 every year -- codified in La. Admin. Code tit. 46, Part XIX, § 1105(B)(1)/(B)(3): certificate holders must renew 'annually ... on or before the last day of December,' and certificates 'expire on the last day of each calendar year' (the Board may set a later date 'for good cause,' per the same section). The Louisiana State Board of CPAs' own page corroborates practically. Renewal window opens November 1; a $200 delinquent fee applies starting February (escalating $50/month through year-end).",
       "next_deadline_computed": "2026-12-31",
       "ce_deadline_note": "CPE completion due Dec 31; CPE reporting (submitting hours) due by Jan 31 of the following year -- a separate step from the renewal itself.",
       "source_url": "https://cpaboard.state.la.us/cpa-resources/",
@@ -626,7 +632,7 @@
       "license_type": "firm",
       "license_type_label": "CPA Firm Permit",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Same annual, December 31 calendar cycle as individual licenses. Renewal window opens November 1; a $300 delinquent fee applies after January 31.",
+      "cycle_description": "Same annual, December 31 calendar cycle as individual licenses -- codified in La. Admin. Code tit. 46, Part XIX, § 1501(D)(1): permits 'expire on the last day of each calendar year' (renewals due by Dec 31, delinquent if not renewed before Feb 1). Renewal window opens November 1; a $300 delinquent fee applies after January 31.",
       "next_deadline_computed": "2026-12-31",
       "source_url": "https://cpaboard.state.la.us/cpa-firm-permits/",
       "last_verified": "2026-07-05",
@@ -669,7 +675,8 @@
       "next_deadline_computed": "2027-12-31",
       "source_url": "https://www.oregon.gov/BOA/Documents/Firm%20Instructions_Renewal%202023%20-%20Final.pdf",
       "last_verified": "2026-07-05",
-      "wave": 5
+      "wave": 5,
+      "secondary_source_url": "https://oregon.public.law/rules/oar_801-010-0345"
     },
     {
       "id": "sc-individual",
@@ -683,7 +690,8 @@
       "ce_deadline_note": "40 CPE hrs 'for each annual reporting period' per the Board's FAQ; the page uses general phrases ('each annual reporting period,' 'each calendar year') rather than an explicit Jan 1-Dec 31 date range -- treat the exact boundary as probable but not verbatim-quoted.",
       "source_url": "https://llr.sc.gov/acct/faq.aspx",
       "last_verified": "2026-07-05",
-      "wave": 5
+      "wave": 5,
+      "secondary_source_url": "https://www.scstatehouse.gov/code/t40c002.php"
     },
     {
       "id": "sc-firm",
@@ -696,7 +704,8 @@
       "next_deadline_computed": "2027-02-01",
       "source_url": "https://llr.sc.gov/acct/faq.aspx",
       "last_verified": "2026-07-05",
-      "wave": 5
+      "wave": 5,
+      "secondary_source_url": "https://www.scstatehouse.gov/code/t40c002.php"
     },
     {
       "id": "al-all",
@@ -709,7 +718,7 @@
       "next_deadline_computed": "2026-12-31",
       "ce_deadline_note": "CPE (40 hrs, incl. 8 A&A + 2 ethics) must be completed within the fiscal year ending Sept 30 (30-X-5-.02(1)) -- earlier than the Dec 31 deadline for submitting the renewal + signed CPE compliance statement (30-X-3-.07(1)).",
       "source_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-3",
-      "secondary_source_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-5",
+      "secondary_source_url": "https://www.asbpa.alabama.gov/",
       "last_verified": "2026-07-05",
       "wave": 5
     },
@@ -778,7 +787,7 @@
       "license_type": "firm",
       "license_type_label": "Firm Registration / Firm Permit to Practice",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Annual, fixed calendar deadline separate from individuals' birth-month cycle. The Board's own Firm Registration Renewal Form states in bold: 'FORM & FEE MUST BE RECEIVED BY JUNE 30, [year].'",
+      "cycle_description": "Annual, fixed calendar deadline separate from individuals' birth-month cycle -- codified in Okla. Stat. tit. 59, § 15.15: firm registrations 'expire on June 30 of each year' and are 'automatically revoked' if not renewed by that date. The Board's own Firm Registration Renewal Form corroborates practically, stating in bold: 'FORM & FEE MUST BE RECEIVED BY JUNE 30, [year].'",
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://oklahoma.gov/content/dam/ok/en/oab/documents/registration/OAB%20FORM%20R004%20-%202025%20Firm%20Registration%20Renewal.pdf",
       "last_verified": "2026-07-05",

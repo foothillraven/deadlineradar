@@ -188,8 +188,8 @@ just needs to know when their license is due.</p>
 <a class="state-card" href="connecticut/" data-state-name="Connecticut"><div class="state-name">Connecticut</div><div class="state-hint">December 31, 2026</div></a>
 <a class="state-card" href="florida/" data-state-name="Florida"><div class="state-name">Florida</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="georgia/" data-state-name="Georgia"><div class="state-name">Georgia</div><div class="state-hint">December 31, 2027</div></a>
-<a class="state-card" href="illinois/" data-state-name="Illinois"><div class="state-name">Illinois</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="indiana/" data-state-name="Indiana"><div class="state-name">Indiana</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card" href="illinois/" data-state-name="Illinois"><div class="state-name">Illinois</div><div class="state-hint">September 30, 2027</div></a>
+<a class="state-card" href="indiana/" data-state-name="Indiana"><div class="state-name">Indiana</div><div class="state-hint">June 30, 2027</div></a>
 <a class="state-card" href="iowa/" data-state-name="Iowa"><div class="state-name">Iowa</div><div class="state-hint">June 30, 2027</div></a>
 <a class="state-card" href="kentucky/" data-state-name="Kentucky"><div class="state-name">Kentucky</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="louisiana/" data-state-name="Louisiana"><div class="state-name">Louisiana</div><div class="state-hint">December 31, 2026</div></a>
@@ -301,16 +301,12 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
   <option value="ga-individual">Individual CPA license</option>
 <option value="ga-firm">Firm license</option>
 </select></div>
-<div class="signup-extra-fields" data-for-state="illinois" hidden><label for="license_expiration_date">License expiration date</label>
-<input type="date" id="license_expiration_date" name="license_expiration_date"
-  min="2026-07-06" max="2030-01-05" required>
-<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
-up automatically, so we'll remind you based on the date you give us.</p></div>
-<div class="signup-extra-fields" data-for-state="indiana" hidden><label for="license_expiration_date">License expiration date</label>
-<input type="date" id="license_expiration_date" name="license_expiration_date"
-  min="2026-07-06" max="2030-01-05" required>
-<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
-up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="indiana" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="in-individual">CPA (Individual License)</option>
+<option value="in-firm">CPA Firm Permit</option>
+</select></div>
 <div class="signup-extra-fields" data-for-state="kentucky" hidden><label for="license_expiration_date">License expiration date</label>
 <input type="date" id="license_expiration_date" name="license_expiration_date"
   min="2026-07-06" max="2030-01-05" required>

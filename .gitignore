@@ -37,3 +37,11 @@ reminders/*.tmp
 # it from the repo.
 reminders/_*
 !reminders/__init__.py
+
+# Social auto-posting (Meta) -- local dev/test-mode post-history log (not
+# sensitive, just test-run state, no reason to track it) and any real
+# Meta access-token/secret file once one exists -- never commit that,
+# same pattern as the Cloudflare/GitHub tokens already kept outside the repo.
+social/post_history.json
+social/*.token
+social/.env

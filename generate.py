@@ -57,13 +57,19 @@ SITE_BASE_URL = "https://deadline-radar.com"
 INDEXNOW_KEY = "8e043aa98a82c1c393f1ac2aead217d8"
 
 # CPE-provider affiliate link. Illumeo runs a real, public, self-serve affiliate
-# program (20% commission, free to join, no minimum -- verified via a 2026-07 research
-# pass). No affiliate account exists yet: the free signup happens under the Ravenline
-# brand identity when convenient, then this single constant swaps to the real tracked
-# link. Shipping the disclosure + placement now (a plain, non-tracked link is still a
-# genuinely useful CPE resource for a visitor mid-renewal) so revenue activates the
-# instant the real link drops in -- this constant is the only thing that changes.
-ILLUMEO_AFFILIATE_URL = "https://www.illumeo.com/"
+# program (20% commission, free to join, no minimum), is NASBA-registry-listed
+# (sponsor ID 109504) and separately registered with the Texas board (sponsor #009890),
+# with no accreditation/fraud red flags found in a dedicated vetting pass -- reputable
+# enough to recommend to a skeptical CPA audience. No affiliate account exists yet: the
+# free signup happens under the Ravenline brand identity when convenient, then this
+# constant swaps from the plain placeholder to the real tracked link.
+#
+# Deliberately GATED, not just parameterized: `_cpe_affiliate_html()` renders nothing
+# at all while this constant still equals `_ILLUMEO_AFFILIATE_PLACEHOLDER` exactly --
+# no free referral traffic to Illumeo before a real ID exists to earn from, and no
+# commercial placement on the trust-built pages until it's real (per review ruling).
+_ILLUMEO_AFFILIATE_PLACEHOLDER = "https://www.illumeo.com/"
+ILLUMEO_AFFILIATE_URL = _ILLUMEO_AFFILIATE_PLACEHOLDER
 
 # Reminder backend (worker/, the Phase-1 Cloudflare Worker -- see
 # worker/DEPLOY.md). Same-origin relative path, not a separate domain: the
@@ -697,11 +703,16 @@ def trust_line(last_verified: str, source_url: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _cpe_affiliate_html() -> str:
-    """CPE-provider affiliate callout (Illumeo), rendered on every state page.
-    The FTC's Endorsement Guides (16 CFR Part 255) require a material-connection
-    disclosure every time the link appears, not once in a footer or terms page --
-    the disclosure line below is baked into this exact block, not a separate
-    mention elsewhere, so it can never accidentally ship without it."""
+    """CPE-provider affiliate callout (Illumeo). GATED: renders nothing at all until
+    ILLUMEO_AFFILIATE_URL is swapped for a real tracked link (see the constant's own
+    comment) -- no free referral traffic before there's a real ID to earn from, and no
+    commercial placement on the trust pages until it's real. Once active, this renders
+    on every state page. The FTC's Endorsement Guides (16 CFR Part 255) require a
+    material-connection disclosure every time the link appears, not once in a footer or
+    terms page -- the disclosure line below is baked into this exact block, not a
+    separate mention elsewhere, so it can never accidentally ship without it."""
+    if ILLUMEO_AFFILIATE_URL == _ILLUMEO_AFFILIATE_PLACEHOLDER:
+        return ""
     return f"""<div class="cpe-affiliate">
   <p><strong>Need CPE hours before your deadline?</strong> <a href="{esc(ILLUMEO_AFFILIATE_URL)}">Illumeo</a>
   offers self-study CPE courses for CPAs.</p>

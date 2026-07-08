@@ -56,6 +56,15 @@ SITE_BASE_URL = "https://deadline-radar.com"
 # local build.
 INDEXNOW_KEY = "8e043aa98a82c1c393f1ac2aead217d8"
 
+# CPE-provider affiliate link. Illumeo runs a real, public, self-serve affiliate
+# program (20% commission, free to join, no minimum -- verified via a 2026-07 research
+# pass). No affiliate account exists yet: the free signup happens under the Ravenline
+# brand identity when convenient, then this single constant swaps to the real tracked
+# link. Shipping the disclosure + placement now (a plain, non-tracked link is still a
+# genuinely useful CPE resource for a visitor mid-renewal) so revenue activates the
+# instant the real link drops in -- this constant is the only thing that changes.
+ILLUMEO_AFFILIATE_URL = "https://www.illumeo.com/"
+
 # Reminder backend (worker/, the Phase-1 Cloudflare Worker -- see
 # worker/DEPLOY.md). Same-origin relative path, not a separate domain: the
 # Worker is bound to the deadline-radar.com/api/* Route, so the form posts
@@ -263,6 +272,13 @@ PAGE_CSS = """
     border: 1px solid var(--trust-border); background: var(--trust-bg); border-radius: 8px;
     padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
   }
+  .cpe-affiliate {
+    border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem;
+    background: var(--card-bg); margin: 1.4rem 0; font-size: 0.92rem;
+  }
+  .cpe-affiliate p { margin: 0 0 0.5rem; }
+  .cpe-affiliate p:last-child { margin-bottom: 0; }
+  .cpe-affiliate .disclosure { font-size: 0.8rem; color: var(--muted); }
   .backlink { display: inline-block; margin-top: 0.5rem; font-size: 0.92rem; }
   .how-it-works { color: var(--muted); font-size: 0.92rem; margin: 1.25rem 0 1.75rem; }
   .state-grid {
@@ -345,7 +361,8 @@ def site_footer() -> str:
   accountancy. Renewal dates are compiled from public sources for informational purposes only
   &mdash; not legal, tax, or professional advice. Always confirm your exact renewal date with your
   state board or on your license.</p>
-  <p><a href="/privacy/">Privacy Policy</a> &middot; <a href="/contact/">Contact</a></p>
+  <p><a href="/privacy/">Privacy Policy</a> &middot; <a href="/contact/">Contact</a> &middot;
+  <a href="/for-firms/">For Firms</a></p>
 </footer>"""
 
 
@@ -679,6 +696,20 @@ def trust_line(last_verified: str, source_url: str) -> str:
 # Per-state page builders
 # ---------------------------------------------------------------------------
 
+def _cpe_affiliate_html() -> str:
+    """CPE-provider affiliate callout (Illumeo), rendered on every state page.
+    The FTC's Endorsement Guides (16 CFR Part 255) require a material-connection
+    disclosure every time the link appears, not once in a footer or terms page --
+    the disclosure line below is baked into this exact block, not a separate
+    mention elsewhere, so it can never accidentally ship without it."""
+    return f"""<div class="cpe-affiliate">
+  <p><strong>Need CPE hours before your deadline?</strong> <a href="{esc(ILLUMEO_AFFILIATE_URL)}">Illumeo</a>
+  offers self-study CPE courses for CPAs.</p>
+  <p class="disclosure">Disclosure: this is a paid affiliate link &mdash; we may earn a commission if you
+  sign up through it, at no extra cost to you.</p>
+</div>"""
+
+
 def _source_cite_html(record: dict) -> str:
     """Renders the citation as its own labeled element, distinct from the descriptive
     prose above it -- CPAs read citations as the actual trust signal (per the
@@ -970,6 +1001,7 @@ def build_state_page(
 {deadline_html}
 {trust_line(last_verified, source_url)}
 {signup_form_for_state(state_slug, state_name, records, as_of)}
+{_cpe_affiliate_html()}
 {related_html}
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 """
@@ -1255,6 +1287,50 @@ Aurora, CO 80013</p>
     )
 
 
+def build_firms_page() -> str:
+    """B2B firm-tier concept/validation landing page. Concept + price + an inbound-only
+    capture link -- no live product, no Stripe, no outreach sent from our side (visitors
+    reaching out to us is not the same as us contacting firms, which stays held pending
+    an explicit go). Scoped deliberately to license-renewal tracking only, matching the
+    free tier's trust model;
+    any future CPE-hour tracking must be labeled as an unverified self-report, never
+    given the same certainty language as the sourced renewal dates -- that distinction
+    is the entire brand and must not blur on the paid tier."""
+    body = f"""<h1>CPA License Tracking for Your Whole Firm</h1>
+<p class="intro">Every accounting firm has someone who has to make sure every partner's and staff CPA's
+license stays current &mdash; across however many states they're licensed in. One missed renewal slows
+down engagements and creates real regulatory risk, and most firms track it today by spreadsheet.</p>
+
+<h2>What we're building</h2>
+<p>A firm dashboard that tracks every staff CPA's individual and firm license renewal date in one place
+&mdash; sourced to the same codified statute or administrative rule we already verify for every free state
+page on this site. Same trust model, just rolled up across your whole roster instead of one license at a
+time.</p>
+<p><strong>Scope, plainly stated:</strong> this tracks license <em>renewal dates</em> &mdash; the part we
+can verify against actual state law, the same way we already do for individuals. It does not track CPE
+hour completion. If we ever add that, it will be clearly labeled as your own self-reported log, not
+independently verified &mdash; we won't blur it with the sourced renewal dates that are the whole reason to
+trust this site.</p>
+
+<h2>Early pricing</h2>
+<p>Planned at <strong>$300&ndash;$600/year flat for firms with up to 10 staff</strong>, with per-seat
+pricing above that. Nothing is final and nothing is live yet &mdash; early-access firms will help shape it.</p>
+
+<h2>Request early access</h2>
+<p>This product doesn't exist yet. If a multi-staff license dashboard would be useful at your firm, tell us
+and we'll reach out when there's something to show:</p>
+<p><a href="mailto:{esc(CONTACT_EMAIL)}?subject=Firm%20tier%20early%20access">{esc(CONTACT_EMAIL)}</a></p>
+"""
+    return page_shell(
+        f"For Firms — {SITE_NAME}",
+        "A firm dashboard tracking every staff CPA's license renewal date, sourced to the same "
+        "codified state law DeadlineRadar verifies for every state. Request early access.",
+        body,
+        home_href="../",
+        canonical_path="/for-firms/",
+    )
+
+
 BLOG_ARTICLES = [
     {
         "slug": "cpe-vs-license-renewal",
@@ -1457,6 +1533,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/contact/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/for-firms/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/blog/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>"""]
@@ -1582,6 +1661,11 @@ def main() -> None:
     contact_dir.mkdir(parents=True, exist_ok=True)
     (contact_dir / "index.html").write_text(build_contact_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/contact/index.html")
+
+    firms_dir = SITE_DIR / "for-firms"
+    firms_dir.mkdir(parents=True, exist_ok=True)
+    (firms_dir / "index.html").write_text(build_firms_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/for-firms/index.html")
 
     (SITE_DIR / "404.html").write_text(build_404_page(built), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/404.html")

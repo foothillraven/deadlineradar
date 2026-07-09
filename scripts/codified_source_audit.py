@@ -26,9 +26,18 @@ adversarial re-verification pass, not a verdict on their own:
    factually wrong; it exists to catch the class of error already seen twice,
    not to replace an adversarial read.
 
+3. `run_freshness_sweep()` (network, opt-in via --sweep) -- fetches every
+   citation_url, captures the text window around the citation fragment, and
+   diffs it against the last sweep's snapshot (stored locally in
+   freshness_sweep_log/, never committed). Catches a rule TEXT change even
+   when the section number itself stays the same (which check_citation_link_
+   consistency can't -- it only confirms the number is still present).
+   Intended to run monthly via an OS-level scheduled task, not ad hoc.
+
 Usage:
     python scripts/codified_source_audit.py [repo_root]                (offline only)
-    python scripts/codified_source_audit.py [repo_root] --check-links  (adds the network pass)
+    python scripts/codified_source_audit.py [repo_root] --check-links  (adds the link-consistency network pass)
+    python scripts/codified_source_audit.py [repo_root] --sweep         (adds the monthly text-diff sweep)
 """
 import json
 import re
@@ -178,10 +187,131 @@ def check_citation_link_consistency(records: list[dict]) -> list[dict]:
     return problems
 
 
+# ---------------------------------------------------------------------------
+# Monthly freshness sweep (2026-07-09) -- catches a DIFFERENT class than the
+# two checks above. `check_citation_link_consistency` only confirms the cited
+# SECTION NUMBER still exists on the page; it can't tell if the substantive
+# text around that same section number changed (e.g., a rule amendment kept
+# "20:75:03:12" as the section number but moved the date the section states).
+# This captures a text window around the citation fragment on every run and
+# diffs it against the prior run's snapshot -- flags anything that changed,
+# first run just establishes the baseline (nothing to diff against yet).
+# Deliberately local-only state (never committed to the public repo): this is
+# operational monitoring data, not site content.
+# ---------------------------------------------------------------------------
+
+_SNAPSHOT_WINDOW = 400  # chars of context captured on each side of the fragment
+
+
+def _extract_context(body: str, fragment: str) -> str | None:
+    idx = body.find(fragment)
+    if idx == -1:
+        return None
+    start = max(0, idx - _SNAPSHOT_WINDOW)
+    end = min(len(body), idx + len(fragment) + _SNAPSHOT_WINDOW)
+    # Collapse whitespace so formatting-only differences (extra newlines,
+    # inconsistent spacing) don't register as a content change.
+    return re.sub(r"\s+", " ", body[start:end]).strip()
+
+
+def run_freshness_sweep(records: list[dict], snapshot_path: Path) -> dict:
+    """Fetches every non-null record's citation_url, extracts the text window
+    around the citation fragment, and diffs it against the stored snapshot
+    from the last sweep. Returns {"new_baseline": [...], "changed": [...],
+    "unchanged": N, "fetch_failed": [...]} and writes the updated snapshot."""
+    prior: dict[str, str] = {}
+    if snapshot_path.exists():
+        prior = json.loads(snapshot_path.read_text(encoding="utf-8"))
+
+    updated: dict[str, str] = {}
+    new_baseline, changed, fetch_failed = [], [], []
+    unchanged_count = 0
+
+    for r in records:
+        citation = r.get("citation")
+        url = r.get("citation_url")
+        if not citation or not url:
+            continue
+        fragment = _citation_fragment(citation)
+        if not fragment:
+            continue
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": _UA})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                body = resp.read().decode("utf-8", errors="replace")
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as e:
+            fetch_failed.append({"id": r["id"], "state": r["state"], "citation_url": url, "error": str(e)})
+            continue
+
+        context = _extract_context(body, fragment)
+        if context is None:
+            fetch_failed.append({
+                "id": r["id"], "state": r["state"], "citation_url": url,
+                "error": f"fragment {fragment!r} not found on page (see check_citation_link_consistency)",
+            })
+            continue
+
+        rid = r["id"]
+        updated[rid] = context
+        prior_context = prior.get(rid)
+        if prior_context is None:
+            new_baseline.append({"id": rid, "state": r["state"]})
+        elif prior_context != context:
+            changed.append({
+                "id": rid, "state": r["state"], "citation": citation, "citation_url": url,
+                "prior_context": prior_context, "new_context": context,
+            })
+        else:
+            unchanged_count += 1
+
+    snapshot_path.write_text(json.dumps(updated, indent=2), encoding="utf-8")
+    return {
+        "new_baseline": new_baseline, "changed": changed,
+        "fetch_failed": fetch_failed, "unchanged_count": unchanged_count,
+    }
+
+
 def main():
     repo_root = Path(sys.argv[1]) if len(sys.argv) > 1 and not sys.argv[1].startswith("--") \
         else Path(__file__).resolve().parent.parent
     check_links = "--check-links" in sys.argv
+    sweep = "--sweep" in sys.argv
+
+    if sweep:
+        import datetime
+        data = json.loads((repo_root / "data" / "cpa_deadlines.json").read_text(encoding="utf-8"))
+        nonnull = [r for r in data["records"] if r.get("next_deadline_computed")]
+        log_dir = repo_root / "freshness_sweep_log"
+        log_dir.mkdir(exist_ok=True)
+        snapshot_path = log_dir / "_snapshots.json"
+        result = run_freshness_sweep(nonnull, snapshot_path)
+
+        today = datetime.date.today().isoformat()
+        lines = [f"Monthly freshness sweep -- {today}", ""]
+        lines.append(f"Unchanged: {result['unchanged_count']}")
+        lines.append(f"New baseline (first time seen, nothing to diff yet): {len(result['new_baseline'])}")
+        for b in result["new_baseline"]:
+            lines.append(f"  [{b['id']}] {b['state']}")
+        lines.append(f"\nCHANGED -- text around the citation differs from last sweep ({len(result['changed'])}):")
+        for c in result["changed"]:
+            lines.append(f"  [{c['id']}] {c['state']} -- citation={c['citation']!r}")
+            lines.append(f"    citation_url: {c['citation_url']}")
+            lines.append(f"    WAS: {c['prior_context']}")
+            lines.append(f"    NOW: {c['new_context']}")
+        lines.append(f"\nFETCH FAILED -- could not confirm, re-check by hand ({len(result['fetch_failed'])}):")
+        for f in result["fetch_failed"]:
+            lines.append(f"  [{f['id']}] {f['state']} -- {f['citation_url']} -- {f['error']}")
+
+        log_text = "\n".join(lines)
+        (log_dir / f"{today}.txt").write_text(log_text, encoding="utf-8")
+        print(log_text)
+        if result["changed"] or result["fetch_failed"]:
+            print(
+                f"\n*** {len(result['changed'])} changed + {len(result['fetch_failed'])} fetch-failed "
+                f"-- needs a human/agent review, see freshness_sweep_log/{today}.txt ***"
+            )
+        return
+
     data = json.loads((repo_root / "data" / "cpa_deadlines.json").read_text(encoding="utf-8"))
     nonnull = [r for r in data["records"] if r.get("next_deadline_computed")]
     result = audit(data["records"])

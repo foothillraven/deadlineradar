@@ -45,3 +45,14 @@ reminders/_*
 social/post_history.json
 social/*.token
 social/.env
+
+# Monthly freshness-sweep output (scripts/codified_source_audit.py --sweep) --
+# operational monitoring data (citation-text snapshots + dated logs), not site
+# content. No reason to publish it, and a diff log could describe exactly
+# where our own data-freshness gaps are before we've reviewed them.
+freshness_sweep_log/
+
+# Local Windows Scheduled Task wrapper -- hardcodes a machine-specific path
+# (local username + directory layout), never belongs in a public repo. Kept
+# local-only, same pattern as the Cloudflare/GitHub token files.
+scripts/run_freshness_sweep.bat

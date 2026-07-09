@@ -27,14 +27,21 @@
  *      secret is configured.
  *   4. Control-character / length / format validation on every field,
  *      BEFORE anything is persisted or computed.
- *   5. Cooldown + dedupe (store.ts) -- one signup accepted per address per
- *      SIGNUP_COOLDOWN_HOURS, never more than one active record per
- *      email+state.
+ *   5. Cooldown + dedupe (store.ts) -- never more than one active record per
+ *      email+state, and only one BRAND NEW state accepted per address per
+ *      SIGNUP_COOLDOWN_HOURS. A repeat submission for an email+state that
+ *      already has a pending record does NOT just no-op, though: it
+ *      resends the same confirmation link (store.resendEligible /
+ *      recordResend), itself rate-limited (RESEND_COOLDOWN_MINUTES) so this
+ *      can't become its own mail-bombing vector. This closes the gap where
+ *      someone who lost or never received their first confirmation email
+ *      had no way to get a new one within the cooldown window.
  *   6. Deadline computability validated on a throwaway probe BEFORE
  *      store.addPending() ever runs.
  * Every one of these fails toward the SAME generic success response, so
  * none of them creates an oracle an attacker could use to enumerate which
- * addresses are already subscribed.
+ * addresses are already subscribed -- including the resend path: a real
+ * resend and a no-op look identical from the outside.
  */
 
 import type { Env } from "./env";
@@ -130,11 +137,13 @@ function errorPage(status: number, message: string): Response {
   return htmlResponse(status, htmlPage("Error", `<p>${escapeHtml(message)}</p>`));
 }
 
-// Every /subscribe path (real signup, honeypot no-op, cooldown/dedupe no-op)
-// returns this SAME response, so none of them is an oracle an attacker could
-// use to enumerate already-subscribed addresses -- including that only the
-// real path actually sends a confirmation email; the copy is deliberately
-// generic ("check your email") so a no-op path returning it reveals nothing.
+// Every /subscribe path (real signup, resend, honeypot no-op, cooldown/
+// dedupe no-op) returns this SAME response, so none of them is an oracle an
+// attacker could use to enumerate already-subscribed addresses -- some paths
+// send a real email (first-time signup, or a rate-limited resend for an
+// existing pending record) and some send nothing at all, but the copy is
+// deliberately generic ("check your email") so it's accurate either way and
+// never reveals which branch actually ran.
 const SUBSCRIBE_SUCCESS_PAGE = htmlPage(
   "Almost there",
   "<h1>Almost there &mdash; check your email</h1><p>Look for a confirmation link in your inbox and " +
@@ -322,11 +331,57 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
     return errorPage(400, "Couldn't compute a deadline from what you gave us -- please check your inputs.");
   }
 
-  // Cooldown + dedupe -- BOTH checked before creating anything. Either one
-  // silently succeeds with the exact same response a real new signup gets.
+  // Dedupe (same email+state) is checked FIRST, unconditionally -- this is
+  // what lets a genuine "I lost my confirmation email, let me try again"
+  // resubmission actually resend something (below) instead of silently
+  // doing nothing. A still-pending record has no time bound here on purpose:
+  // whether it's 5 minutes or 5 days old, a repeat attempt for the exact
+  // same email+state is someone who didn't finish confirming, not abuse.
+  const existing = await store.findActiveOrPending(env.DB, email, stateSlug);
+  if (existing) {
+    if (existing.status === store.STATUS_PENDING && env.SENDGRID_API_KEY) {
+      try {
+        if (store.resendEligible(existing, new Date())) {
+          const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+          if (underCap) {
+            const confirmUrl = `${ACTION_BASE_URL}/confirm?token=${encodeURIComponent(existing.confirm_token)}`;
+            const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(existing.unsubscribe_token)}`;
+            const built = buildConfirmationEmail(
+              stateNameFromSlug(stateSlug),
+              confirmUrl,
+              unsubscribeUrl,
+              existing.first_name,
+              existing.user_deadline ? fmtDate(new Date(`${existing.user_deadline}T00:00:00Z`)) : null
+            );
+            await sendViaSendGrid(env.SENDGRID_API_KEY, existing.email, built);
+            await store.recordResend(env.DB, existing.id);
+          }
+        }
+        // Not eligible yet (resent too recently) or over the daily cap: fall
+        // through to the same generic response as every other path below --
+        // still no oracle, since "nothing happened" and "we just resent it"
+        // look identical from the outside, same as the original design.
+      } catch {
+        // Swallow, same reasoning as the first-send path below: a resend
+        // failure must not surface differently than an ordinary duplicate.
+      }
+    }
+    // A CONFIRMED existing record needs no resend -- they're already getting
+    // reminders. Either way, same response as a brand-new signup: this
+    // branch must never be distinguishable from one (no-enumeration-oracle).
+    return htmlResponse(200, SUBSCRIBE_SUCCESS_PAGE);
+  }
+
+  // No record for this exact email+state. The broader per-IDENTITY cooldown
+  // (ANY state, SIGNUP_COOLDOWN_HOURS) still applies here -- this is the real
+  // mail-bombing backstop (stops a burst of brand-new confirmation emails
+  // across many different states from hitting one inbox) and stays silent on
+  // purpose: giving it distinct copy would create a NEW oracle ("this address
+  // signed up recently, just for a different state") that doesn't exist
+  // today. The resend fix above only ever applies to a matching email+state,
+  // so it can't be used to route around this cooldown by varying the state.
   const cooldownHit = await store.withinSignupCooldown(env.DB, email);
-  const duplicate = cooldownHit ? null : await store.findActiveOrPending(env.DB, email, stateSlug);
-  if (cooldownHit || duplicate) {
+  if (cooldownHit) {
     return htmlResponse(200, SUBSCRIBE_SUCCESS_PAGE);
   }
 

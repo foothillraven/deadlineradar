@@ -1,0 +1,32 @@
+-- Adds real resend support for the double-opt-in confirmation email.
+--
+-- Before this migration, a repeat /subscribe for an email+state that already
+-- has a pending_confirmation record silently did nothing (see index.ts's old
+-- comment: "Cooldown + dedupe -- BOTH checked before creating anything.
+-- Either one silently succeeds with the exact same response a real new
+-- signup gets."). That's correct anti-enumeration behavior for the RESPONSE
+-- page, but it left a real gap: someone who lost or never received their
+-- first confirmation email had no way to get a new one -- the page looked
+-- identical to success, but nothing was actually sent.
+--
+-- Two columns, both needed to close that gap WITHOUT opening a new one:
+--   last_resend_at: lets handleSubscribe() refuse a resend within
+--     RESEND_COOLDOWN_MINUTES of the last one (store.ts).
+--   resend_count: caps TOTAL resends per record at RESEND_MAX_ATTEMPTS,
+--     forever, not just per time window. last_resend_at alone would still
+--     let an attacker who already knows (or created) a victim's pending
+--     record request a fresh confirmation email every
+--     RESEND_COOLDOWN_MINUTES indefinitely -- unlike a brand-new signup,
+--     that path never re-triggers the broader per-identity
+--     SIGNUP_COOLDOWN_HOURS check (see index.ts), so without its own hard
+--     cap it would be a strictly WORSE mail-bombing vector than the one
+--     this project already closed for first-time signups. Both together
+--     bound one pending record to at most 1 (original) + RESEND_MAX_ATTEMPTS
+--     emails, ever.
+--
+-- Purely additive, no rewrite of existing rows -- every row that already
+-- exists gets last_resend_at = NULL, resend_count = 0, i.e. this migration
+-- changes nothing about any existing subscriber until they ask for a resend.
+
+ALTER TABLE subscribers ADD COLUMN last_resend_at TEXT;
+ALTER TABLE subscribers ADD COLUMN resend_count INTEGER NOT NULL DEFAULT 0;

@@ -356,6 +356,45 @@ describe("POST /subscribe -- cooldown + dedupe", () => {
       .all<SubscriberRow>();
     expect(rows.results.length).toBe(1);
   });
+
+  it("a repeat submission for an existing PENDING email+state still creates no second row, even long after the 24h cooldown window", async () => {
+    // Regression for the "lost the first email" gap this migration fixes:
+    // findActiveOrPending() has no time bound, so a genuine retry days later
+    // must still be recognized as the same pending signup, not slip through
+    // and create a duplicate row once the blanket 24h cooldown has expired.
+    const email = `stale-pending-${Date.now()}@example.com`;
+    const ip = "203.0.113.32";
+    const first = await postSubscribe({ email, state: "georgia", license_type_id: "ga-individual" }, ip);
+    expect(first.status).toBe(200);
+    const firstRow = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
+    expect(firstRow).not.toBeNull();
+
+    // Backdate created_at well past SIGNUP_COOLDOWN_HOURS so the blanket
+    // per-identity cooldown alone would no longer block a fresh signup.
+    const longAgo = new Date(Date.now() - 72 * 3_600_000).toISOString();
+    await env.DB.prepare("UPDATE subscribers SET created_at = ?1 WHERE id = ?2").bind(longAgo, firstRow!.id).run();
+
+    const second = await postSubscribe({ email, state: "georgia", license_type_id: "ga-individual" }, "203.0.113.33");
+    expect(second.status).toBe(200);
+    const rows = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).all<SubscriberRow>();
+    expect(rows.results.length).toBe(1); // still just the one pending record, not a fresh duplicate
+  });
+
+  it("a repeat submission for an existing CONFIRMED email+state creates no second row and needs no resend", async () => {
+    const email = `stale-confirmed-${Date.now()}@example.com`;
+    const ip = "203.0.113.34";
+    const first = await postSubscribe({ email, state: "georgia", license_type_id: "ga-individual" }, ip);
+    expect(first.status).toBe(200);
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
+    await store.confirm(env.DB, row!.confirm_token);
+
+    const second = await postSubscribe({ email, state: "georgia", license_type_id: "ga-individual" }, "203.0.113.35");
+    expect(second.status).toBe(200);
+    const rows = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).all<SubscriberRow>();
+    expect(rows.results.length).toBe(1);
+    expect(rows.results[0]!.status).toBe(store.STATUS_CONFIRMED);
+    expect(rows.results[0]!.last_resend_at).toBeNull(); // no resend needed for an already-active subscriber
+  });
 });
 
 describe("Confirm / unsubscribe / renewed / rearm lifecycle", () => {
@@ -646,6 +685,65 @@ describe("store.ts cooldownKey", () => {
   });
   it("does not fold across different domains", () => {
     expect(store.cooldownKey("a.b@gmail.com")).not.toBe(store.cooldownKey("a.b@other.com"));
+  });
+});
+
+describe("store.ts resendEligible / recordResend", () => {
+  it("is eligible when never resent and count is 0", () => {
+    expect(store.resendEligible({ last_resend_at: null, resend_count: 0 }, new Date())).toBe(true);
+  });
+
+  it("refuses a resend within RESEND_COOLDOWN_MINUTES of the last one", () => {
+    const now = new Date();
+    const fiveMinAgo = new Date(now.getTime() - 5 * 60_000).toISOString();
+    expect(store.resendEligible({ last_resend_at: fiveMinAgo, resend_count: 1 }, now)).toBe(false);
+  });
+
+  it("is eligible again once RESEND_COOLDOWN_MINUTES has fully elapsed, under the count cap", () => {
+    const now = new Date();
+    const twentyMinAgo = new Date(now.getTime() - 20 * 60_000).toISOString();
+    expect(store.resendEligible({ last_resend_at: twentyMinAgo, resend_count: 1 }, now)).toBe(true);
+  });
+
+  it("is refused exactly at the boundary and eligible just past it", () => {
+    const now = new Date();
+    const exactlyAtCooldown = new Date(now.getTime() - store.RESEND_COOLDOWN_MINUTES * 60_000).toISOString();
+    expect(store.resendEligible({ last_resend_at: exactlyAtCooldown, resend_count: 1 }, now)).toBe(true);
+    const oneMsShy = new Date(now.getTime() - store.RESEND_COOLDOWN_MINUTES * 60_000 + 1).toISOString();
+    expect(store.resendEligible({ last_resend_at: oneMsShy, resend_count: 1 }, now)).toBe(false);
+  });
+
+  it("refuses once resend_count reaches RESEND_MAX_ATTEMPTS, even long after the time cooldown", () => {
+    // The abuse case this guards against: without a total cap, an attacker
+    // who already has a victim's pending record could keep requesting
+    // resends every RESEND_COOLDOWN_MINUTES forever -- this path never
+    // re-triggers the broader per-identity SIGNUP_COOLDOWN_HOURS check (see
+    // index.ts), so the time throttle alone would be an unbounded-over-time
+    // mail-bombing vector, unlike a brand-new signup.
+    const now = new Date();
+    const longAgo = new Date(now.getTime() - 30 * 24 * 3_600_000).toISOString(); // 30 days
+    expect(store.resendEligible({ last_resend_at: longAgo, resend_count: store.RESEND_MAX_ATTEMPTS }, now)).toBe(
+      false
+    );
+    expect(
+      store.resendEligible({ last_resend_at: longAgo, resend_count: store.RESEND_MAX_ATTEMPTS - 1 }, now)
+    ).toBe(true);
+  });
+
+  it("recordResend sets last_resend_at and increments resend_count on the real row", async () => {
+    const row = await store.addPending(env.DB, {
+      email: `resend-record-${Date.now()}@example.com`,
+      stateSlug: "georgia",
+      deadlineFields: { license_type_id: "ga-individual" },
+      firstName: null,
+    });
+    expect(row.last_resend_at).toBeNull();
+    expect(row.resend_count).toBe(0);
+    await store.recordResend(env.DB, row.id);
+    await store.recordResend(env.DB, row.id);
+    const updated = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(row.id).first<SubscriberRow>();
+    expect(updated?.last_resend_at).toBeTruthy();
+    expect(updated?.resend_count).toBe(2);
   });
 });
 

@@ -16,6 +16,16 @@ export const STATUS_STOPPED = "stopped";
 
 export const SIGNUP_COOLDOWN_HOURS = 24; // store.py:44
 
+// migration 0006. A repeat /subscribe for an email+state that already has a
+// pending record now triggers a real resend (index.ts) instead of a silent
+// no-op -- these are the resend's OWN two throttles, separate from
+// SIGNUP_COOLDOWN_HOURS (which this path deliberately bypasses -- see
+// index.ts): a minimum gap between resends, AND a hard cap on how many a
+// single record can ever receive, so a lost-email retry stays fast while a
+// sustained resend-spam attempt against one record still gets refused.
+export const RESEND_COOLDOWN_MINUTES = 15;
+export const RESEND_MAX_ATTEMPTS = 3;
+
 export const DEADLINE_SOURCE_COMPUTED = "computed";
 export const DEADLINE_SOURCE_USER = "user";
 
@@ -41,6 +51,12 @@ export interface SubscriberRow {
   // or 'user'. user_deadline (ISO 'YYYY-MM-DD') is set only when 'user'.
   deadline_source: string;
   user_deadline: string | null;
+  // migration 0006 -- null until the first resend, then the ISO timestamp of
+  // the most recent one. See RESEND_COOLDOWN_MINUTES / resendEligible().
+  last_resend_at: string | null;
+  // migration 0006 -- total resends this record has ever received, capped at
+  // RESEND_MAX_ATTEMPTS by resendEligible().
+  resend_count: number;
 }
 
 function nowIso(): string {
@@ -187,14 +203,17 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     cycle: 1,
     deadline_source: input.deadlineSource ?? DEADLINE_SOURCE_COMPUTED,
     user_deadline: input.userDeadline ?? null,
+    last_resend_at: null,
+    resend_count: 0,
   };
   await db
     .prepare(
       `INSERT INTO subscribers
        (id, email, cooldown_key, state_slug, deadline_fields, first_name, status,
         confirm_token, unsubscribe_token, renewed_token, created_at, confirmed_at,
-        stopped_at, stop_reason, reminders_sent, cycle, deadline_source, user_deadline)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18)`
+        stopped_at, stop_reason, reminders_sent, cycle, deadline_source, user_deadline,
+        last_resend_at, resend_count)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20)`
     )
     .bind(
       record.id,
@@ -214,10 +233,43 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
       record.reminders_sent,
       record.cycle,
       record.deadline_source,
-      record.user_deadline
+      record.user_deadline,
+      record.last_resend_at,
+      record.resend_count
     )
     .run();
   return record;
+}
+
+/**
+ * Pure (no I/O) so it's trivially unit-testable: true only if this record is
+ * both under RESEND_MAX_ATTEMPTS total AND (never resent, or its last resend
+ * is older than RESEND_COOLDOWN_MINUTES). Both checks matter -- the count cap
+ * alone would still allow 3 resends back-to-back in the same minute, and the
+ * time throttle alone would allow unlimited resends spread out over time
+ * (see migration 0006's comment for why that's a real, distinct abuse
+ * vector, not just belt-and-suspenders). Deliberately does NOT check
+ * record.status -- callers (index.ts) only call this after already
+ * confirming the record is still pending_confirmation.
+ */
+export function resendEligible(
+  row: Pick<SubscriberRow, "last_resend_at" | "resend_count">,
+  now: Date,
+  cooldownMinutes: number = RESEND_COOLDOWN_MINUTES,
+  maxAttempts: number = RESEND_MAX_ATTEMPTS
+): boolean {
+  if (row.resend_count >= maxAttempts) return false;
+  if (!row.last_resend_at) return true;
+  const cutoff = now.getTime() - cooldownMinutes * 60_000;
+  return Date.parse(row.last_resend_at) <= cutoff;
+}
+
+/** Records that a resend just happened, for resendEligible()'s next check. */
+export async function recordResend(db: D1Database, id: string): Promise<void> {
+  await db
+    .prepare("UPDATE subscribers SET last_resend_at = ?1, resend_count = resend_count + 1 WHERE id = ?2")
+    .bind(nowIso(), id)
+    .run();
 }
 
 /** store.py:244 `confirm()` -- idempotent, matches the Python original. */

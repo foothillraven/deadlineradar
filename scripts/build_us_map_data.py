@@ -52,6 +52,16 @@ def main() -> None:
     if missing:
         raise SystemExit(f"Missing path data for: {missing}")
 
+    # The Raphael source has at least one multi-subpath state (Michigan, upper + lower
+    # peninsula) joined as "...z,M..." -- a comma directly between a closepath and the next
+    # moveto. Commas are only valid SVG path syntax between numeric coordinates, not between
+    # commands, so browsers stop parsing the path at that point (confirmed via a real browser
+    # console error: "<path> attribute d: Expected path command"). Normalize any
+    # command-comma-command junction to a space, which is valid and a no-op for paths that
+    # don't have the issue.
+    command_comma_command = re.compile(r"([a-zA-Z]),([a-zA-Z])")
+    paths = {code: command_comma_command.sub(r"\1 \2", d) for code, d in paths.items()}
+
     out = [{"code": code, "slug": slug, "d": paths[code]} for code, slug in CODE_TO_SLUG.items()]
     out_path = ASSETS_DIR / "state-paths.json"
     out_path.write_text(json.dumps(out), encoding="utf-8")

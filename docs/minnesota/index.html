@@ -237,16 +237,29 @@
     display: block; font-size: 0.85rem; font-weight: 600; margin: 0 0 0.35rem;
   }
   .state-search form { display: flex; gap: 0.5rem; }
-  .state-search input {
-    flex: 1 1 auto; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 6px;
+  .state-search-field { position: relative; flex: 1 1 auto; }
+  .state-search-field input {
+    width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 6px;
     background: var(--bg); color: var(--fg); font-size: 1rem; font-family: inherit;
   }
-  .state-search button {
+  .state-search-submit {
     padding: 0.6rem 1.1rem; border: none; border-radius: 6px; background: var(--accent);
     color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer; flex: 0 0 auto;
   }
-  .state-search button:hover { opacity: 0.92; }
+  .state-search-submit:hover { opacity: 0.92; }
   .state-search .field-hint { font-size: 0.78rem; color: var(--muted); margin: 0.4rem 0 0; }
+  .state-search-dropdown {
+    display: none; position: absolute; top: 100%; left: 0; right: 0; margin-top: 0.3rem;
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px;
+    max-height: 280px; overflow-y: auto; z-index: 30; box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  }
+  .state-search-dropdown.is-open { display: block; }
+  .state-search-option {
+    display: block; width: 100%; text-align: left; padding: 0.55rem 0.8rem; border: none;
+    background: none; color: var(--fg); font-size: 0.95rem; font-family: inherit; cursor: pointer;
+  }
+  .state-search-option:hover, .state-search-option.is-active { background: var(--accent); color: #fff; }
+  .state-search-empty { padding: 0.55rem 0.8rem; font-size: 0.85rem; color: var(--muted); }
   .site-footer {
     margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
     font-size: 0.85rem; color: var(--muted); line-height: 1.6;

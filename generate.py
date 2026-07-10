@@ -455,16 +455,29 @@ PAGE_CSS = """
     display: block; font-size: 0.85rem; font-weight: 600; margin: 0 0 0.35rem;
   }
   .state-search form { display: flex; gap: 0.5rem; }
-  .state-search input {
-    flex: 1 1 auto; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 6px;
+  .state-search-field { position: relative; flex: 1 1 auto; }
+  .state-search-field input {
+    width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 6px;
     background: var(--bg); color: var(--fg); font-size: 1rem; font-family: inherit;
   }
-  .state-search button {
+  .state-search-submit {
     padding: 0.6rem 1.1rem; border: none; border-radius: 6px; background: var(--accent);
     color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer; flex: 0 0 auto;
   }
-  .state-search button:hover { opacity: 0.92; }
+  .state-search-submit:hover { opacity: 0.92; }
   .state-search .field-hint { font-size: 0.78rem; color: var(--muted); margin: 0.4rem 0 0; }
+  .state-search-dropdown {
+    display: none; position: absolute; top: 100%; left: 0; right: 0; margin-top: 0.3rem;
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px;
+    max-height: 280px; overflow-y: auto; z-index: 30; box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  }
+  .state-search-dropdown.is-open { display: block; }
+  .state-search-option {
+    display: block; width: 100%; text-align: left; padding: 0.55rem 0.8rem; border: none;
+    background: none; color: var(--fg); font-size: 0.95rem; font-family: inherit; cursor: pointer;
+  }
+  .state-search-option:hover, .state-search-option.is-active { background: var(--accent); color: #fff; }
+  .state-search-empty { padding: 0.55rem 0.8rem; font-size: 0.85rem; color: var(--muted); }
   .site-footer {
     margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
     font-size: 0.85rem; color: var(--muted); line-height: 1.6;
@@ -1338,22 +1351,37 @@ def build_us_map_html(by_slug: dict[str, list[dict]]) -> str:
 
 _STATE_SEARCH_JS = """
 function drNormalize(s) { return s.trim().toLowerCase(); }
-function drStateSlug(typed) {
+
+function drMatches(typed) {
   var norm = drNormalize(typed);
-  if (DR_STATE_SLUGS[norm]) return DR_STATE_SLUGS[norm];
-  var matches = [];
-  for (var name in DR_STATE_SLUGS) {
-    if (name.indexOf(norm) === 0) matches.push(name);
-  }
-  return matches.length === 1 ? DR_STATE_SLUGS[matches[0]] : null;
+  if (!norm) return [];
+  var starts = [], contains = [];
+  DR_STATES.forEach(function(s) {
+    var n = drNormalize(s.name);
+    if (n.indexOf(norm) === 0) starts.push(s);
+    else if (n.indexOf(norm) !== -1) contains.push(s);
+  });
+  return starts.concat(contains);
 }
+
+function drExactOrSingleMatch(typed) {
+  var norm = drNormalize(typed);
+  if (!norm) return null;
+  var exact = null;
+  DR_STATES.forEach(function(s) { if (drNormalize(s.name) === norm) exact = s; });
+  if (exact) return exact.slug;
+  var matches = drMatches(typed);
+  return matches.length === 1 ? matches[0].slug : null;
+}
+
 function drGoToState(event) {
-  event.preventDefault();
+  if (event) event.preventDefault();
   var input = document.getElementById('state-search-input');
-  var slug = drStateSlug(input.value);
+  var slug = drExactOrSingleMatch(input.value);
   if (slug) { window.location.href = '/' + slug + '/'; }
   return false;
 }
+
 function drFilterGrid() {
   var typed = drNormalize(document.getElementById('state-search-input').value);
   document.querySelectorAll('.state-card').forEach(function(card) {
@@ -1362,9 +1390,85 @@ function drFilterGrid() {
     card.classList.toggle('state-card--dimmed', !match);
   });
 }
+
+var drActiveIndex = -1;
+
+function drCloseDropdown() {
+  var dropdown = document.getElementById('state-search-dropdown');
+  var input = document.getElementById('state-search-input');
+  dropdown.innerHTML = '';
+  dropdown.classList.remove('is-open');
+  input.setAttribute('aria-expanded', 'false');
+  drActiveIndex = -1;
+}
+
+function drRenderDropdown() {
+  var input = document.getElementById('state-search-input');
+  var dropdown = document.getElementById('state-search-dropdown');
+  var typed = input.value;
+  if (!typed.trim()) { drCloseDropdown(); return; }
+  var matches = drMatches(typed);
+  drActiveIndex = -1;
+  if (matches.length === 0) {
+    dropdown.innerHTML = '<div class="state-search-empty">No matching state</div>';
+    dropdown.classList.add('is-open');
+    input.setAttribute('aria-expanded', 'true');
+    return;
+  }
+  dropdown.innerHTML = matches.map(function(s, i) {
+    return '<button type="button" class="state-search-option" data-slug="' + s.slug +
+      '" data-index="' + i + '" role="option">' + s.name + '</button>';
+  }).join('');
+  dropdown.classList.add('is-open');
+  input.setAttribute('aria-expanded', 'true');
+}
+
+function drSetActive(index) {
+  var options = document.querySelectorAll('.state-search-option');
+  options.forEach(function(opt) { opt.classList.remove('is-active'); });
+  if (index >= 0 && index < options.length) {
+    options[index].classList.add('is-active');
+    options[index].scrollIntoView({ block: 'nearest' });
+  }
+  drActiveIndex = index;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var input = document.getElementById('state-search-input');
-  if (input) input.addEventListener('input', drFilterGrid);
+  var dropdown = document.getElementById('state-search-dropdown');
+  if (!input || !dropdown) return;
+
+  input.addEventListener('input', function() {
+    drRenderDropdown();
+    drFilterGrid();
+  });
+
+  input.addEventListener('keydown', function(event) {
+    var options = document.querySelectorAll('.state-search-option');
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (options.length) drSetActive((drActiveIndex + 1) % options.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (options.length) drSetActive((drActiveIndex - 1 + options.length) % options.length);
+    } else if (event.key === 'Enter') {
+      if (drActiveIndex >= 0 && options[drActiveIndex]) {
+        event.preventDefault();
+        window.location.href = '/' + options[drActiveIndex].getAttribute('data-slug') + '/';
+      }
+    } else if (event.key === 'Escape') {
+      drCloseDropdown();
+    }
+  });
+
+  dropdown.addEventListener('click', function(event) {
+    var opt = event.target.closest('.state-search-option');
+    if (opt) { window.location.href = '/' + opt.getAttribute('data-slug') + '/'; }
+  });
+
+  document.addEventListener('click', function(event) {
+    if (event.target !== input && !dropdown.contains(event.target)) drCloseDropdown();
+  });
 });
 """
 
@@ -1381,23 +1485,20 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
             f'<div class="state-hint">{esc(hint)}</div></a>'
         )
 
-    # name (lowercased) -> slug map baked into the page for the search box's JS --
-    # generated from the same sorted_states list so it can never drift from what's
-    # actually rendered.
-    state_slug_map = {s["state"].lower(): s["state_slug"] for s in sorted_states}
-    datalist_options = "\n".join(
-        f'<option value="{esc(s["state"])}">' for s in sorted_states
-    )
+    # name + slug baked into the page for the search box's JS -- generated from the same
+    # sorted_states list so it can never drift from what's actually rendered.
+    state_options = [{"name": s["state"], "slug": s["state_slug"]} for s in sorted_states]
 
     search_html = f"""<div class="state-search">
-  <form id="state-search-form" role="search" onsubmit="return drGoToState(event)">
+  <form id="state-search-form" role="search" onsubmit="return drGoToState(event)" autocomplete="off">
     <label for="state-search-input">Find your state</label>
-    <input type="text" id="state-search-input" name="state" list="state-search-list"
-      placeholder="Find your state…" autocomplete="off">
-    <datalist id="state-search-list">
-    {datalist_options}
-    </datalist>
-    <button type="submit">Go</button>
+    <div class="state-search-field">
+      <input type="text" id="state-search-input" name="state" placeholder="Find your state…"
+        autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list"
+        aria-controls="state-search-dropdown">
+      <div class="state-search-dropdown" id="state-search-dropdown" role="listbox"></div>
+    </div>
+    <button type="submit" class="state-search-submit">Go</button>
   </form>
   <p class="field-hint">Type your state and press Enter or select it to go straight to its page.</p>
 </div>"""
@@ -1423,7 +1524,7 @@ href="blog/common-cpa-renewal-mistakes/">common CPA renewal mistakes</a>, and th
 href="blog/missouri-cpa-license-renewal-guide/">Missouri renewal guide</a>.</p>
 {signup_form_homepage(by_slug, as_of)}
 <script>
-var DR_STATE_SLUGS = {json.dumps(state_slug_map)};
+var DR_STATES = {json.dumps(state_options)};
 {_STATE_SEARCH_JS}
 </script>
 """

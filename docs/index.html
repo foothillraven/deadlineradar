@@ -238,16 +238,29 @@
     display: block; font-size: 0.85rem; font-weight: 600; margin: 0 0 0.35rem;
   }
   .state-search form { display: flex; gap: 0.5rem; }
-  .state-search input {
-    flex: 1 1 auto; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 6px;
+  .state-search-field { position: relative; flex: 1 1 auto; }
+  .state-search-field input {
+    width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 6px;
     background: var(--bg); color: var(--fg); font-size: 1rem; font-family: inherit;
   }
-  .state-search button {
+  .state-search-submit {
     padding: 0.6rem 1.1rem; border: none; border-radius: 6px; background: var(--accent);
     color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer; flex: 0 0 auto;
   }
-  .state-search button:hover { opacity: 0.92; }
+  .state-search-submit:hover { opacity: 0.92; }
   .state-search .field-hint { font-size: 0.78rem; color: var(--muted); margin: 0.4rem 0 0; }
+  .state-search-dropdown {
+    display: none; position: absolute; top: 100%; left: 0; right: 0; margin-top: 0.3rem;
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px;
+    max-height: 280px; overflow-y: auto; z-index: 30; box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  }
+  .state-search-dropdown.is-open { display: block; }
+  .state-search-option {
+    display: block; width: 100%; text-align: left; padding: 0.55rem 0.8rem; border: none;
+    background: none; color: var(--fg); font-size: 0.95rem; font-family: inherit; cursor: pointer;
+  }
+  .state-search-option:hover, .state-search-option.is-active { background: var(--accent); color: #fff; }
+  .state-search-empty { padding: 0.55rem 0.8rem; font-size: 0.85rem; color: var(--muted); }
   .site-footer {
     margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
     font-size: 0.85rem; color: var(--muted); line-height: 1.6;
@@ -298,64 +311,15 @@ just needs to know when their license is due. Every date is checked against the 
 statute or administrative rule, not just a board's webpage &mdash; if we can't verify a date
 against primary law, we say so instead of guessing.</p>
 <div class="state-search">
-  <form id="state-search-form" role="search" onsubmit="return drGoToState(event)">
+  <form id="state-search-form" role="search" onsubmit="return drGoToState(event)" autocomplete="off">
     <label for="state-search-input">Find your state</label>
-    <input type="text" id="state-search-input" name="state" list="state-search-list"
-      placeholder="Find your state…" autocomplete="off">
-    <datalist id="state-search-list">
-    <option value="Alabama">
-<option value="Alaska">
-<option value="Arizona">
-<option value="Arkansas">
-<option value="California">
-<option value="Colorado">
-<option value="Connecticut">
-<option value="Delaware">
-<option value="District of Columbia">
-<option value="Florida">
-<option value="Georgia">
-<option value="Hawaii">
-<option value="Idaho">
-<option value="Illinois">
-<option value="Indiana">
-<option value="Iowa">
-<option value="Kansas">
-<option value="Kentucky">
-<option value="Louisiana">
-<option value="Maine">
-<option value="Maryland">
-<option value="Massachusetts">
-<option value="Michigan">
-<option value="Minnesota">
-<option value="Mississippi">
-<option value="Missouri">
-<option value="Montana">
-<option value="Nebraska">
-<option value="Nevada">
-<option value="New Hampshire">
-<option value="New Jersey">
-<option value="New Mexico">
-<option value="New York">
-<option value="North Carolina">
-<option value="North Dakota">
-<option value="Ohio">
-<option value="Oklahoma">
-<option value="Oregon">
-<option value="Pennsylvania">
-<option value="Rhode Island">
-<option value="South Carolina">
-<option value="South Dakota">
-<option value="Tennessee">
-<option value="Texas">
-<option value="Utah">
-<option value="Vermont">
-<option value="Virginia">
-<option value="Washington">
-<option value="West Virginia">
-<option value="Wisconsin">
-<option value="Wyoming">
-    </datalist>
-    <button type="submit">Go</button>
+    <div class="state-search-field">
+      <input type="text" id="state-search-input" name="state" placeholder="Find your state…"
+        autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list"
+        aria-controls="state-search-dropdown">
+      <div class="state-search-dropdown" id="state-search-dropdown" role="listbox"></div>
+    </div>
+    <button type="submit" class="state-search-submit">Go</button>
   </form>
   <p class="field-hint">Type your state and press Enter or select it to go straight to its page.</p>
 </div>
@@ -383,7 +347,7 @@ against primary law, we say so instead of guessing.</p>
 <a href="maine/" class="map-link" aria-label="Maine — Varies — check your license"><path class="map-state map-state--variable" d="M922.8,78.8L924.7,80.9L927,84.6L927,86.5L924.9,91.2L923,91.9L919.6,94.9L914.7,100.4 C 914.7,100.4 914.1,100.4 913.4,100.4 C 912.8,100.4 912.4,98.3 912.4,98.3L910.7,98.5L909.7,100L907.3,101.4L906.3,102.9L907.9,104.3L907.4,105L906.9,107.7L905,107.6L905,105.9L904.7,104.6L903.2,105L901.5,101.7L899.3,103L900.6,104.5L901,105.6L900.2,106.9L900.5,110L900.6,111.6L899,114.2L896.1,114.7L895.8,117.6L890.5,120.7L889.2,121.1L887.5,119.7L884.5,123.2L885.4,126.5L884,127.8L883.8,132.1L882.7,138.4L880.2,137.2L879.8,134.2L875.9,133L875.6,130.3L868.3,106.8L863.6,92.2L865,92.1L866.5,92.5L866.5,89.9L867.8,85.4L870.4,80.7L871.9,76.7L869.9,74.3L869.9,68.3L870.7,67.3L871.5,64.6L871.4,63.1L871.2,58.2L873,53.4L875.9,44.5L878,40.3L879.3,40.3L880.6,40.5L880.6,41.6L881.9,43.9L884.6,44.5L885.4,43.7L885.4,42.7L889.5,39.8L891.3,38L892.7,38.2L898.7,40.6L900.6,41.6L909.7,71.5L915.7,71.5L916.5,73.4L916.6,78.3L919.6,80.6L920.4,80.6L920.5,80.1L920,78.9L922.8,78.8zM901.9,108.9L903.4,107.4L904.8,108.4L905.3,110.9L903.6,111.8L901.9,108.9zM908.6,103L910.3,104.9 C 910.3,104.9 911.6,105 911.6,104.6 C 911.6,104.3 911.9,102.6 911.9,102.6L912.8,101.8L912,100L909.9,100.8L908.6,103z"><title>Maine — Varies — check your license</title></path></a>
 <a href="maryland/" class="map-link" aria-label="Maryland — Varies — check your license"><path class="map-state map-state--variable" d="M839.7,252.4L833.7,253.6L828.6,253.7L826.7,246.8L824.8,237.6L822.2,231.4L821,227L813.5,228.6L798.6,231.5L761.1,239L762.3,244L763.2,249.7L763.6,249.4L765.7,246.9L767.9,244.3L770.3,243.7L771.8,242.2L773.6,239.7L774.9,240.3L777.8,240L780.4,237.9L782.4,236.4L784.2,235.9L785.9,237.1L788.8,238.5L790.7,240.3L791.9,241.8L796,243.5L796,246.4L801.5,247.7L802.7,248.3L804.1,246.2L807,248.2L805.7,250.7L804.9,254.7L803.2,257.3L803.2,259.4L803.8,261.2L808.9,262.5L813.2,262.4L816.3,263.4L818.4,263.7L819.3,261.6L817.9,259.5L817.9,257.8L815.4,255.7L813.3,250.2L814.6,244.8L814.5,242.7L813.2,241.4 C 813.2,241.4 814.6,239.8 814.6,239.2 C 814.6,238.5 815.1,237.1 815.1,237.1L817.1,235.8L819,234.2L819.5,235.1L818,236.7L816.7,240.5L817.1,241.6L818.8,241.9L819.3,247.4L817.2,248.4L817.5,251.9L818,251.8L819.2,249.8L820.8,251.6L819.2,252.9L818.8,256.3L821.4,259.7L825.3,260.2L826.9,259.4L830.2,263.6L831.5,264.1L838.2,261.3L840.2,257.3L839.7,252.4zM823.8,261.4L824.9,263.9L825.1,265.7L826.2,267.5 C 826.2,267.5 827.1,266.6 827.1,266.3 C 827.1,266 826.4,263.3 826.4,263.3L825.6,260.9L823.8,261.4z"><title>Maryland — Varies — check your license</title></path></a>
 <a href="massachusetts/" class="map-link" aria-label="Massachusetts — Varies — check your license"><path class="map-state map-state--variable" d="M899.6,173.2L901.7,172.5L902.2,170.8L903.2,170.9L904.3,173.2L903,173.7L899.1,173.8L899.6,173.2zM890.2,174L892.5,171.4L894.1,171.4L895.9,172.9L893.5,173.9L891.3,174.9L890.2,174zM855.4,152L873,147.4L875.3,146.7L877.2,143.9L881,142.3L883.9,146.7L881.4,151.9L881.1,153.3L883,155.9L884.2,155.1L886,155.1L888.2,157.7L892.1,163.7L895.7,164.1L897.9,163.2L899.7,161.4L898.9,158.6L896.8,157L895.3,157.8L894.4,156.5L894.8,156.1L896.9,155.9L898.7,156.7L900.7,159.1L901.6,162L902,164.5L897.8,165.9L893.9,167.9L890,172.4L888.1,173.8L888.1,172.9L890.5,171.4L891,169.6L890.2,166.6L887.2,168L886.4,169.5L886.9,171.7L884.9,172.7L882.1,168.2L878.7,163.8L876.6,162L870.1,163.9L865,165L844.3,169.6L843.7,164.8L844.3,154.2L848.6,153.3L855.4,152z"><title>Massachusetts — Varies — check your license</title></path></a>
-<a href="michigan/" class="map-link" aria-label="Michigan — Varies — check your license"><path class="map-state map-state--variable" d="M581.61931,82.059006 L 583.4483,80.001402 L 585.62022,79.201221 L 590.99286,75.314624 L 593.27908,74.743065 L 593.73634,75.200319 L 588.59232,80.344339 L 585.27728,82.287628 L 583.21967,83.202124 L 581.61931,82.059006 z M 667.79369,114.18719 L 668.44033,116.69293 L 671.67355,116.85459 L 672.96684,115.64213 C 672.96684,115.64213 672.88601,114.18719 672.56269,114.02552 C 672.23936,113.86386 670.94608,112.16642 670.94608,112.16642 L 668.76366,112.40891 L 667.14704,112.57057 L 666.82372,113.7022 L 667.79369,114.18719 z M 567.49209,111.21318 L 568.20837,110.63278 L 570.9566,109.82447 L 574.51313,107.56123 L 574.51313,106.59126 L 575.15978,105.94462 L 581.14121,104.97466 L 583.56612,103.03473 L 587.93095,100.93315 L 588.09261,99.639864 L 590.03254,96.729975 L 591.8108,95.921673 L 593.10409,94.143408 L 595.36733,91.880161 L 599.73217,89.455254 L 604.42032,88.970273 L 605.55194,90.101896 L 605.22862,91.071859 L 601.51043,92.041822 L 600.05549,95.113371 L 597.79224,95.921673 L 597.30726,98.34658 L 594.88235,101.57979 L 594.55903,104.16636 L 595.36733,104.65134 L 596.3373,103.51972 L 599.89383,100.60983 L 601.18711,101.90311 L 603.45036,101.90311 L 606.68357,102.87307 L 608.13851,104.0047 L 609.59345,107.07625 L 612.34168,109.82447 L 616.22153,109.66281 L 617.67648,108.69285 L 619.29308,109.98613 L 620.90969,110.47112 L 622.20297,109.66281 L 623.33459,109.66281 L 624.9512,108.69285 L 628.99271,105.13632 L 632.38758,104.0047 L 639.01566,103.68138 L 643.54215,101.74145 L 646.12872,100.44817 L 647.58367,100.60983 L 647.58367,106.26794 L 648.06865,106.59126 L 650.97853,107.39957 L 652.91846,106.91458 L 659.06156,105.29798 L 660.19318,104.16636 L 661.64813,104.65134 L 661.64813,111.60274 L 664.88134,114.67429 L 666.17462,115.32093 L 667.4679,116.29089 L 666.17462,116.61421 L 665.36632,116.29089 L 661.64813,115.80591 L 659.54654,116.45255 L 657.28329,116.29089 L 654.05008,117.74584 L 652.27182,117.74584 L 646.45204,116.45255 L 641.27891,116.61421 L 639.33898,119.20078 L 632.38758,119.84742 L 629.96267,120.65572 L 628.83105,123.72727 L 627.53777,124.8589 L 627.05279,124.69724 L 625.59784,123.08063 L 621.07135,125.50554 L 620.42471,125.50554 L 619.29308,123.88893 L 618.48478,124.05059 L 616.54486,128.41543 L 615.57489,132.45694 L 612.39377,139.45774 L 611.21701,138.42347 L 609.84527,137.39215 L 607.90449,127.10413 L 604.36001,125.73408 L 602.30743,123.44785 L 590.18707,120.70437 L 587.3318,119.67473 L 579.10138,117.50199 L 571.21139,116.35887 L 567.49209,111.21318 z,M697.8,177.2L694.6,168.9L692.3,159.9L689.9,156.7L687.3,154.9L685.7,156L681.8,157.8L679.9,162.8L677.1,166.5L676,167.2L674.5,166.5 C 674.5,166.5 671.9,165.1 672.1,164.4 C 672.3,163.8 672.6,159.4 672.6,159.4L676,158.1L676.8,154.7L677.4,152.1L679.9,150.5L679.5,140.5L677.9,138.2L676.6,137.4L675.8,135.3L676.6,134.5L678.2,134.8L678.4,133.2L676,131L674.7,128.4L672.1,128.4L667.6,126.9L662.1,123.5L659.3,123.5L658.7,124.2L657.7,123.7L654.6,121.4L651.7,123.2L648.8,125.5L649.2,129L650.1,129.3L652.2,129.8L652.7,130.6L650.1,131.4L647.5,131.8L646.1,133.5L645.8,135.6L646.1,137.3L646.4,142.8L642.8,144.9L642.2,144.7L642.2,140.5L643.5,138.1L644.1,135.6L643.3,134.8L641.4,135.6L640.4,139.8L637.7,141L635.9,142.9L635.7,143.9L636.4,144.7L635.7,147.3L633.5,147.8L633.5,148.9L634.3,151.3L633.1,157.5L631.5,161.5L632.2,166.2L632.7,167.3L631.9,169.8L631.5,170.6L631.2,173.3L634.8,179.3L637.7,185.8L639.1,190.6L638.3,195.3L637.3,201.3L634.9,206.4L634.6,209.2L631.3,212.3L635.8,212.1L657.2,209.9L664.4,208.9L664.5,210.5L671.4,209.3L681.7,207.8L685.5,207.4L685.7,206.8L685.8,205.3L687.9,201.6L689.9,199.9L689.7,194.8L691.3,193.2L692.4,192.9L692.6,189.3L694.2,186.3L695.2,186.9L695.4,187.5L696.2,187.7L698.1,186.7L697.8,177.2z"><title>Michigan — Varies — check your license</title></path></a>
+<a href="michigan/" class="map-link" aria-label="Michigan — Varies — check your license"><path class="map-state map-state--variable" d="M581.61931,82.059006 L 583.4483,80.001402 L 585.62022,79.201221 L 590.99286,75.314624 L 593.27908,74.743065 L 593.73634,75.200319 L 588.59232,80.344339 L 585.27728,82.287628 L 583.21967,83.202124 L 581.61931,82.059006 z M 667.79369,114.18719 L 668.44033,116.69293 L 671.67355,116.85459 L 672.96684,115.64213 C 672.96684,115.64213 672.88601,114.18719 672.56269,114.02552 C 672.23936,113.86386 670.94608,112.16642 670.94608,112.16642 L 668.76366,112.40891 L 667.14704,112.57057 L 666.82372,113.7022 L 667.79369,114.18719 z M 567.49209,111.21318 L 568.20837,110.63278 L 570.9566,109.82447 L 574.51313,107.56123 L 574.51313,106.59126 L 575.15978,105.94462 L 581.14121,104.97466 L 583.56612,103.03473 L 587.93095,100.93315 L 588.09261,99.639864 L 590.03254,96.729975 L 591.8108,95.921673 L 593.10409,94.143408 L 595.36733,91.880161 L 599.73217,89.455254 L 604.42032,88.970273 L 605.55194,90.101896 L 605.22862,91.071859 L 601.51043,92.041822 L 600.05549,95.113371 L 597.79224,95.921673 L 597.30726,98.34658 L 594.88235,101.57979 L 594.55903,104.16636 L 595.36733,104.65134 L 596.3373,103.51972 L 599.89383,100.60983 L 601.18711,101.90311 L 603.45036,101.90311 L 606.68357,102.87307 L 608.13851,104.0047 L 609.59345,107.07625 L 612.34168,109.82447 L 616.22153,109.66281 L 617.67648,108.69285 L 619.29308,109.98613 L 620.90969,110.47112 L 622.20297,109.66281 L 623.33459,109.66281 L 624.9512,108.69285 L 628.99271,105.13632 L 632.38758,104.0047 L 639.01566,103.68138 L 643.54215,101.74145 L 646.12872,100.44817 L 647.58367,100.60983 L 647.58367,106.26794 L 648.06865,106.59126 L 650.97853,107.39957 L 652.91846,106.91458 L 659.06156,105.29798 L 660.19318,104.16636 L 661.64813,104.65134 L 661.64813,111.60274 L 664.88134,114.67429 L 666.17462,115.32093 L 667.4679,116.29089 L 666.17462,116.61421 L 665.36632,116.29089 L 661.64813,115.80591 L 659.54654,116.45255 L 657.28329,116.29089 L 654.05008,117.74584 L 652.27182,117.74584 L 646.45204,116.45255 L 641.27891,116.61421 L 639.33898,119.20078 L 632.38758,119.84742 L 629.96267,120.65572 L 628.83105,123.72727 L 627.53777,124.8589 L 627.05279,124.69724 L 625.59784,123.08063 L 621.07135,125.50554 L 620.42471,125.50554 L 619.29308,123.88893 L 618.48478,124.05059 L 616.54486,128.41543 L 615.57489,132.45694 L 612.39377,139.45774 L 611.21701,138.42347 L 609.84527,137.39215 L 607.90449,127.10413 L 604.36001,125.73408 L 602.30743,123.44785 L 590.18707,120.70437 L 587.3318,119.67473 L 579.10138,117.50199 L 571.21139,116.35887 L 567.49209,111.21318 z M697.8,177.2L694.6,168.9L692.3,159.9L689.9,156.7L687.3,154.9L685.7,156L681.8,157.8L679.9,162.8L677.1,166.5L676,167.2L674.5,166.5 C 674.5,166.5 671.9,165.1 672.1,164.4 C 672.3,163.8 672.6,159.4 672.6,159.4L676,158.1L676.8,154.7L677.4,152.1L679.9,150.5L679.5,140.5L677.9,138.2L676.6,137.4L675.8,135.3L676.6,134.5L678.2,134.8L678.4,133.2L676,131L674.7,128.4L672.1,128.4L667.6,126.9L662.1,123.5L659.3,123.5L658.7,124.2L657.7,123.7L654.6,121.4L651.7,123.2L648.8,125.5L649.2,129L650.1,129.3L652.2,129.8L652.7,130.6L650.1,131.4L647.5,131.8L646.1,133.5L645.8,135.6L646.1,137.3L646.4,142.8L642.8,144.9L642.2,144.7L642.2,140.5L643.5,138.1L644.1,135.6L643.3,134.8L641.4,135.6L640.4,139.8L637.7,141L635.9,142.9L635.7,143.9L636.4,144.7L635.7,147.3L633.5,147.8L633.5,148.9L634.3,151.3L633.1,157.5L631.5,161.5L632.2,166.2L632.7,167.3L631.9,169.8L631.5,170.6L631.2,173.3L634.8,179.3L637.7,185.8L639.1,190.6L638.3,195.3L637.3,201.3L634.9,206.4L634.6,209.2L631.3,212.3L635.8,212.1L657.2,209.9L664.4,208.9L664.5,210.5L671.4,209.3L681.7,207.8L685.5,207.4L685.7,206.8L685.8,205.3L687.9,201.6L689.9,199.9L689.7,194.8L691.3,193.2L692.4,192.9L692.6,189.3L694.2,186.3L695.2,186.9L695.4,187.5L696.2,187.7L698.1,186.7L697.8,177.2z"><title>Michigan — Varies — check your license</title></path></a>
 <a href="minnesota/" class="map-link" aria-label="Minnesota — December 31, 2026"><path class="map-state map-state--fixed" d="M475.2,128.8L474.7,120.3L472.9,113L471.1,99.5L470.6,89.7L468.8,86.3L467.2,81.2L467.2,70.9L467.9,67L466.1,61.6L496.2,61.6L496.5,53.4L497.2,53.2L499.4,53.7L501.4,54.5L502.2,60L503.6,66.2L505.2,67.8L510.1,67.8L510.4,69.2L516.7,69.6L516.7,71.7L521.6,71.7L521.9,70.4L523,69.2L525.3,68.6L526.6,69.6L529.5,69.6L533.4,72.1L538.7,74.6L541.1,75L541.6,74.1L543.1,73.6L543.5,76.5L546.1,77.8L546.6,77.3L547.9,77.5L547.9,79.6L550.5,80.5L553.6,80.5L555.2,79.7L558.4,76.5L561,76L561.8,77.8L562.3,79.1L563.3,79.1L564.2,78.3L573.1,78L574.9,81L575.6,81L576.3,79.9L580.7,79.6L580.1,81.9L576.2,83.7L566.9,87.8L562.1,89.8L559.1,92.3L556.6,95.9L554.4,99.8L552.6,100.6L548.1,105.6L546.8,105.8L542.5,108.5L540,111.7L539.8,114.9L539.9,123L538.5,124.6L533.4,128.4L531.2,134.4L534,136.6L534.7,139.9L532.9,143.1L533,146.8L533.4,153.6L536.4,156.6L539.8,156.6L541.7,159.7L545,160.2L548.9,165.9L556,170L558.1,172.9L558.8,179.3L477.6,180.5L477.2,144.8L476.8,141.8L472.7,138.4L471.5,136.5L471.5,134.9L473.6,133.3L475,132L475.2,128.8z"><title>Minnesota — December 31, 2026</title></path></a>
 <a href="mississippi/" class="map-link" aria-label="Mississippi — January 1, 2027"><path class="map-state map-state--fixed" d="M631.5,459.3L631.3,460.6L626.1,460.6L624.6,459.7L622.5,459.4L615.7,461.4L614,460.6L611.4,464.8L610.3,465.5L609.1,463L608,459.2L604.6,456L605.7,450.4L605,449.5L603.2,449.7L595.3,450.6L570.7,451L570,448.7L570.8,440.4L574,434.7L579.2,425.6L578.7,423.1L580,422.5L580.4,420.5L578.1,418.5L578,416.3L576.1,412.2L576,406.2L577.4,403.8L577.1,400.3L575.4,397.3L576.9,395.8L575.3,393.3L575.8,391.6L577.4,385.1L579.8,383.1L579.2,380.7L582.9,375.4L585.7,374L585.5,372.4L585.2,370.7L588.1,365.1L590.4,363.9L590.6,363L627.9,359.1L628.1,365.4L628.2,382L627.4,413.1L627.3,427.1L630,445.9L631.5,459.3z"><title>Mississippi — January 1, 2027</title></path></a>
 <a href="missouri/" class="map-link" aria-label="Missouri — September 30, 2027"><path class="map-state map-state--fixed" d="M558.4,248.1L555.9,245L554.7,242.7L490.4,245.1L488.1,245.2L489.3,247.7L489.1,250L491.6,253.9L494.7,258L497.8,260.8L500,261L501.5,261.9L501.5,264.9L499.6,266.5L499.2,268.8L501.2,272.2L503.7,275.2L506.3,277L507.6,288.6L507.9,324.7L508.2,329.4L508.6,334.8L531.1,333.9L554.3,333.2L575.1,332.4L586.7,332.2L588.9,335.6L588.2,338.9L585.1,341.3L584.6,343.2L589.9,343.6L593.8,342.9L595.5,337.5L596.2,331.6L598.3,329L600.9,327.6L600.9,324.5L602,322.6L600.3,320L598.9,321L596.9,318.8L595.7,314L596.5,311.5L594.5,308.1L592.7,303.5L587.9,302.7L580.9,297.1L579.2,293L580,289.8L582.1,283.7L582.5,280.9L580.6,279.8L573.7,279L572.7,277.3L572.6,273.1L567.1,269.7L560.1,261.9L557.8,254.6L557.6,250.4L558.4,248.1z"><title>Missouri — September 30, 2027</title></path></a>
@@ -801,25 +765,40 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 <script>
-var DR_STATE_SLUGS = {"alabama": "alabama", "alaska": "alaska", "arizona": "arizona", "arkansas": "arkansas", "california": "california", "colorado": "colorado", "connecticut": "connecticut", "delaware": "delaware", "district of columbia": "dc", "florida": "florida", "georgia": "georgia", "hawaii": "hawaii", "idaho": "idaho", "illinois": "illinois", "indiana": "indiana", "iowa": "iowa", "kansas": "kansas", "kentucky": "kentucky", "louisiana": "louisiana", "maine": "maine", "maryland": "maryland", "massachusetts": "massachusetts", "michigan": "michigan", "minnesota": "minnesota", "mississippi": "mississippi", "missouri": "missouri", "montana": "montana", "nebraska": "nebraska", "nevada": "nevada", "new hampshire": "new-hampshire", "new jersey": "new-jersey", "new mexico": "new-mexico", "new york": "new-york", "north carolina": "north-carolina", "north dakota": "north-dakota", "ohio": "ohio", "oklahoma": "oklahoma", "oregon": "oregon", "pennsylvania": "pennsylvania", "rhode island": "rhode-island", "south carolina": "south-carolina", "south dakota": "south-dakota", "tennessee": "tennessee", "texas": "texas", "utah": "utah", "vermont": "vermont", "virginia": "virginia", "washington": "washington", "west virginia": "west-virginia", "wisconsin": "wisconsin", "wyoming": "wyoming"};
+var DR_STATES = [{"name": "Alabama", "slug": "alabama"}, {"name": "Alaska", "slug": "alaska"}, {"name": "Arizona", "slug": "arizona"}, {"name": "Arkansas", "slug": "arkansas"}, {"name": "California", "slug": "california"}, {"name": "Colorado", "slug": "colorado"}, {"name": "Connecticut", "slug": "connecticut"}, {"name": "Delaware", "slug": "delaware"}, {"name": "District of Columbia", "slug": "dc"}, {"name": "Florida", "slug": "florida"}, {"name": "Georgia", "slug": "georgia"}, {"name": "Hawaii", "slug": "hawaii"}, {"name": "Idaho", "slug": "idaho"}, {"name": "Illinois", "slug": "illinois"}, {"name": "Indiana", "slug": "indiana"}, {"name": "Iowa", "slug": "iowa"}, {"name": "Kansas", "slug": "kansas"}, {"name": "Kentucky", "slug": "kentucky"}, {"name": "Louisiana", "slug": "louisiana"}, {"name": "Maine", "slug": "maine"}, {"name": "Maryland", "slug": "maryland"}, {"name": "Massachusetts", "slug": "massachusetts"}, {"name": "Michigan", "slug": "michigan"}, {"name": "Minnesota", "slug": "minnesota"}, {"name": "Mississippi", "slug": "mississippi"}, {"name": "Missouri", "slug": "missouri"}, {"name": "Montana", "slug": "montana"}, {"name": "Nebraska", "slug": "nebraska"}, {"name": "Nevada", "slug": "nevada"}, {"name": "New Hampshire", "slug": "new-hampshire"}, {"name": "New Jersey", "slug": "new-jersey"}, {"name": "New Mexico", "slug": "new-mexico"}, {"name": "New York", "slug": "new-york"}, {"name": "North Carolina", "slug": "north-carolina"}, {"name": "North Dakota", "slug": "north-dakota"}, {"name": "Ohio", "slug": "ohio"}, {"name": "Oklahoma", "slug": "oklahoma"}, {"name": "Oregon", "slug": "oregon"}, {"name": "Pennsylvania", "slug": "pennsylvania"}, {"name": "Rhode Island", "slug": "rhode-island"}, {"name": "South Carolina", "slug": "south-carolina"}, {"name": "South Dakota", "slug": "south-dakota"}, {"name": "Tennessee", "slug": "tennessee"}, {"name": "Texas", "slug": "texas"}, {"name": "Utah", "slug": "utah"}, {"name": "Vermont", "slug": "vermont"}, {"name": "Virginia", "slug": "virginia"}, {"name": "Washington", "slug": "washington"}, {"name": "West Virginia", "slug": "west-virginia"}, {"name": "Wisconsin", "slug": "wisconsin"}, {"name": "Wyoming", "slug": "wyoming"}];
 
 function drNormalize(s) { return s.trim().toLowerCase(); }
-function drStateSlug(typed) {
+
+function drMatches(typed) {
   var norm = drNormalize(typed);
-  if (DR_STATE_SLUGS[norm]) return DR_STATE_SLUGS[norm];
-  var matches = [];
-  for (var name in DR_STATE_SLUGS) {
-    if (name.indexOf(norm) === 0) matches.push(name);
-  }
-  return matches.length === 1 ? DR_STATE_SLUGS[matches[0]] : null;
+  if (!norm) return [];
+  var starts = [], contains = [];
+  DR_STATES.forEach(function(s) {
+    var n = drNormalize(s.name);
+    if (n.indexOf(norm) === 0) starts.push(s);
+    else if (n.indexOf(norm) !== -1) contains.push(s);
+  });
+  return starts.concat(contains);
 }
+
+function drExactOrSingleMatch(typed) {
+  var norm = drNormalize(typed);
+  if (!norm) return null;
+  var exact = null;
+  DR_STATES.forEach(function(s) { if (drNormalize(s.name) === norm) exact = s; });
+  if (exact) return exact.slug;
+  var matches = drMatches(typed);
+  return matches.length === 1 ? matches[0].slug : null;
+}
+
 function drGoToState(event) {
-  event.preventDefault();
+  if (event) event.preventDefault();
   var input = document.getElementById('state-search-input');
-  var slug = drStateSlug(input.value);
+  var slug = drExactOrSingleMatch(input.value);
   if (slug) { window.location.href = '/' + slug + '/'; }
   return false;
 }
+
 function drFilterGrid() {
   var typed = drNormalize(document.getElementById('state-search-input').value);
   document.querySelectorAll('.state-card').forEach(function(card) {
@@ -828,9 +807,85 @@ function drFilterGrid() {
     card.classList.toggle('state-card--dimmed', !match);
   });
 }
+
+var drActiveIndex = -1;
+
+function drCloseDropdown() {
+  var dropdown = document.getElementById('state-search-dropdown');
+  var input = document.getElementById('state-search-input');
+  dropdown.innerHTML = '';
+  dropdown.classList.remove('is-open');
+  input.setAttribute('aria-expanded', 'false');
+  drActiveIndex = -1;
+}
+
+function drRenderDropdown() {
+  var input = document.getElementById('state-search-input');
+  var dropdown = document.getElementById('state-search-dropdown');
+  var typed = input.value;
+  if (!typed.trim()) { drCloseDropdown(); return; }
+  var matches = drMatches(typed);
+  drActiveIndex = -1;
+  if (matches.length === 0) {
+    dropdown.innerHTML = '<div class="state-search-empty">No matching state</div>';
+    dropdown.classList.add('is-open');
+    input.setAttribute('aria-expanded', 'true');
+    return;
+  }
+  dropdown.innerHTML = matches.map(function(s, i) {
+    return '<button type="button" class="state-search-option" data-slug="' + s.slug +
+      '" data-index="' + i + '" role="option">' + s.name + '</button>';
+  }).join('');
+  dropdown.classList.add('is-open');
+  input.setAttribute('aria-expanded', 'true');
+}
+
+function drSetActive(index) {
+  var options = document.querySelectorAll('.state-search-option');
+  options.forEach(function(opt) { opt.classList.remove('is-active'); });
+  if (index >= 0 && index < options.length) {
+    options[index].classList.add('is-active');
+    options[index].scrollIntoView({ block: 'nearest' });
+  }
+  drActiveIndex = index;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var input = document.getElementById('state-search-input');
-  if (input) input.addEventListener('input', drFilterGrid);
+  var dropdown = document.getElementById('state-search-dropdown');
+  if (!input || !dropdown) return;
+
+  input.addEventListener('input', function() {
+    drRenderDropdown();
+    drFilterGrid();
+  });
+
+  input.addEventListener('keydown', function(event) {
+    var options = document.querySelectorAll('.state-search-option');
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (options.length) drSetActive((drActiveIndex + 1) % options.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (options.length) drSetActive((drActiveIndex - 1 + options.length) % options.length);
+    } else if (event.key === 'Enter') {
+      if (drActiveIndex >= 0 && options[drActiveIndex]) {
+        event.preventDefault();
+        window.location.href = '/' + options[drActiveIndex].getAttribute('data-slug') + '/';
+      }
+    } else if (event.key === 'Escape') {
+      drCloseDropdown();
+    }
+  });
+
+  dropdown.addEventListener('click', function(event) {
+    var opt = event.target.closest('.state-search-option');
+    if (opt) { window.location.href = '/' + opt.getAttribute('data-slug') + '/'; }
+  });
+
+  document.addEventListener('click', function(event) {
+    if (event.target !== input && !dropdown.contains(event.target)) drCloseDropdown();
+  });
 });
 
 </script>

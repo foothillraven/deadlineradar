@@ -40,6 +40,12 @@ DATA_PATH = ROOT / "data" / "cpa_deadlines.json"
 # No repo/Pages source exists yet -- this only prepares the file structure.
 SITE_DIR = ROOT / "docs"
 
+# Self-hosted display font (2026-07-10 visual-trust redesign). Copied verbatim into
+# docs/fonts/ at build time, referenced by an absolute /fonts/... URL in PAGE_CSS so
+# every page shares one cached file instead of each page embedding its own copy --
+# see assets/fonts/LICENSE.txt for the font's license (SIL OFL, embedding permitted).
+FONT_ASSETS_DIR = ROOT / "assets" / "fonts"
+
 # Placeholder only. No domain has been purchased, nothing here is deployed yet.
 # Swap this single constant for the real https://<user>.github.io/<repo> URL
 # (or a real domain later) once publishing is explicitly decided -- do not
@@ -223,11 +229,19 @@ FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
 """
 
 PAGE_CSS = """
+  @font-face {
+    font-family: 'Fraunces';
+    font-style: normal;
+    font-weight: 300 900;
+    font-display: swap;
+    src: url('/fonts/fraunces-variable.woff2') format('woff2');
+  }
   :root {
     color-scheme: light dark;
     --bg: #ffffff; --fg: #1a2129; --muted: #5b6572; --border: #d8dee5;
     --accent: #1f5fbf; --accent-bg: #eaf1fc; --card-bg: #f7f9fb;
     --trust-bg: #fff8e6; --trust-border: #e3c476; --row-alt: #f3f5f7;
+    --font-display: 'Fraunces', Georgia, 'Iowan Old Style', 'Times New Roman', serif;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -247,14 +261,19 @@ PAGE_CSS = """
     display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem;
     padding: 1.5rem 0 1rem; border-bottom: 1px solid var(--border); margin-bottom: 1.75rem;
   }
-  .wordmark { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; }
+  .wordmark { font-family: var(--font-display); font-size: 1.5rem; font-weight: 650; letter-spacing: -0.015em; }
   .wordmark a { color: var(--fg); text-decoration: none; }
   .tagline { color: var(--muted); font-size: 0.92rem; flex: 1 1 auto; }
   .by-line { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
-  h1 { font-size: 1.7rem; margin: 0 0 0.3rem; line-height: 1.25; }
+  h1 {
+    font-family: var(--font-display); font-weight: 560; font-size: 2.1rem; margin: 0 0 0.35rem;
+    line-height: 1.12; letter-spacing: -0.01em; text-wrap: balance;
+  }
+  h2 { font-family: var(--font-display); font-weight: 580; letter-spacing: -0.005em; }
   .subhead { color: var(--muted); margin: 0 0 1.5rem; }
   .intro { margin: 0 0 1.25rem; }
   .callout {
+    position: relative;
     border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 8px;
     padding: 1.15rem 1.4rem; background: var(--card-bg); margin: 1.4rem 0;
   }
@@ -262,15 +281,33 @@ PAGE_CSS = """
   .callout .label {
     font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;
   }
-  .callout .date { font-size: 1.7rem; font-weight: 700; margin: 0.2rem 0 0.5rem; }
+  .callout .date {
+    font-family: var(--font-display); font-weight: 620; font-size: 2.3rem; letter-spacing: -0.01em;
+    margin: 0.15rem 0 0.55rem;
+  }
   .callout .rule { margin: 0; }
+  .verified-badge {
+    position: absolute; top: 0.95rem; right: 1.1rem;
+    background: var(--accent); color: #fff; font-size: 0.66rem; font-weight: 700;
+    letter-spacing: 0.03em; text-transform: uppercase; padding: 0.22em 0.6em 0.22em 0.5em;
+    border-radius: 999px; line-height: 1.4;
+  }
+  .verified-badge::before { content: "\\2713\\a0"; }
   .source-cite {
-    margin: 0.75rem 0 0; padding-top: 0.65rem; border-top: 1px solid var(--border);
+    margin: 0.9rem 0 0; padding-top: 0.8rem; border-top: 1px solid var(--border);
     font-size: 0.85rem; color: var(--muted);
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.7rem;
   }
   .source-cite .cite-label {
-    text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.72rem; margin-right: 0.4em;
+    text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.68rem; color: var(--muted);
   }
+  .source-cite .cite-stamp {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.82rem; font-weight: 700; color: var(--fg);
+    background: var(--accent-bg); border: 1px solid var(--border); border-radius: 4px;
+    padding: 0.18em 0.55em;
+  }
+  .source-cite .cite-link { margin-left: auto; font-weight: 600; white-space: nowrap; }
   .source-cite code {
     background: none; padding: 0; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     color: var(--fg); font-size: 0.86em;
@@ -288,6 +325,8 @@ PAGE_CSS = """
     border: 1px solid var(--trust-border); background: var(--trust-bg); border-radius: 8px;
     padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
   }
+  .trust-line strong::before { content: "\\2713\\a0"; color: #8a6d1f; }
+  @media (prefers-color-scheme: dark) { .trust-line strong::before { color: #d6b45a; } }
   .cpe-affiliate {
     border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem;
     background: var(--card-bg); margin: 1.4rem 0; font-size: 0.92rem;
@@ -320,6 +359,10 @@ PAGE_CSS = """
   .state-card .state-name { font-weight: 700; margin-bottom: 0.2rem; font-size: 0.95rem; }
   .state-card .state-hint { font-size: 0.8rem; color: var(--muted); line-height: 1.3; }
   .state-card--dimmed { opacity: 0.3; pointer-events: none; }
+  .state-card--variable {
+    border-style: dashed;
+  }
+  .state-card--variable .state-hint { font-style: italic; }
   .state-search {
     margin: 0 0 1.5rem;
   }
@@ -366,7 +409,9 @@ PAGE_CSS = """
   .signup-form .field-hint { font-size: 0.78rem; color: var(--muted); margin: 0.25rem 0 0; }
   @media (max-width: 480px) {
     .site-header { flex-direction: column; align-items: flex-start; }
-    .callout .date { font-size: 1.4rem; }
+    h1 { font-size: 1.7rem; }
+    .callout .date { font-size: 1.7rem; }
+    .verified-badge { position: static; display: inline-flex; margin-bottom: 0.6rem; }
     .signup-form-row { flex-direction: column; gap: 0; }
   }
 """
@@ -794,9 +839,20 @@ def _source_cite_html(record: dict) -> str:
     # over with a worse link.
     link_url = record["citation_url"]
     return f"""<div class="source-cite">
-  <span class="cite-label">Source of record</span><code>{esc(citation)}</code>
-  &mdash; <a href="{esc(link_url)}">read the rule</a>
+  <span class="cite-label">Source of record</span>
+  <span class="cite-stamp">{esc(citation)}</span>
+  <a href="{esc(link_url)}" class="cite-link">read the rule &rarr;</a>
 </div>"""
+
+
+def _verified_badge_html(record: dict) -> str:
+    """Small 'Verified' badge on a callout -- shown ONLY when the record has a real
+    citation to codified law (same gate _source_cite_html already uses), never on a
+    data-gap/unverified record. `.callout` needs `position: relative` for this badge's
+    absolute positioning, set once in PAGE_CSS rather than per call site."""
+    if not record.get("citation"):
+        return ""
+    return '<span class="verified-badge">Verified</span>'
 
 
 def render_simple_deadline_records(records: list[dict]) -> str:
@@ -805,6 +861,7 @@ def render_simple_deadline_records(records: list[dict]) -> str:
     for r in records:
         d = date.fromisoformat(r["next_deadline_computed"])
         parts.append(f"""<div class="callout">
+  {_verified_badge_html(r)}
   <div class="label">{esc(r['license_type_label'])}</div>
   <div class="date">{esc(fmt_date(d))}</div>
   <p class="rule">{esc(r['cycle_description'])}</p>
@@ -1113,6 +1170,14 @@ def state_hint(records: list[dict]) -> str:
     return "Varies — check your license"
 
 
+def _hint_is_variable(hint: str) -> bool:
+    """True for the two state_hint() outcomes that mean 'no single date to show'
+    (birth-month or the collapsed 'varies' bucket) -- used to give those state-grid
+    cards a visibly different (dashed) treatment from a card showing a real fixed
+    date, so the grid itself communicates which states are simple before a click."""
+    return hint.startswith("Varies") or hint.startswith("By birth month")
+
+
 _STATE_SEARCH_JS = """
 function drNormalize(s) { return s.trim().toLowerCase(); }
 function drStateSlug(typed) {
@@ -1151,8 +1216,9 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
     cards = []
     for s in sorted_states:
         hint = state_hint(by_slug[s["state_slug"]])
+        variable_class = " state-card--variable" if _hint_is_variable(hint) else ""
         cards.append(
-            f'<a class="state-card" href="{esc(s["state_slug"])}/" data-state-name="{esc(s["state"])}">'
+            f'<a class="state-card{variable_class}" href="{esc(s["state_slug"])}/" data-state-name="{esc(s["state"])}">'
             f'<div class="state-name">{esc(s["state"])}</div>'
             f'<div class="state-hint">{esc(hint)}</div></a>'
         )
@@ -1497,6 +1563,7 @@ individual staff CPA's license &mdash; and it's usually the filing that falls th
 because it belongs to whoever handles firm admin, not to a specific licensee tracking their own
 renewal. Here's exactly when {esc(state_name)}'s firm-level filing is due.</p>
 <div class="callout">
+  {_verified_badge_html(record)}
   <div class="label">{esc(record['license_type_label'])}</div>
   <div class="date">{esc(fmt_date(date.fromisoformat(record['next_deadline_computed'])))}</div>
   <p class="rule">{esc(record['cycle_description'])}</p>
@@ -1842,6 +1909,12 @@ def main() -> None:
         }
 
     SITE_DIR.mkdir(parents=True, exist_ok=True)
+
+    fonts_dir = SITE_DIR / "fonts"
+    fonts_dir.mkdir(parents=True, exist_ok=True)
+    font_src = FONT_ASSETS_DIR / "fraunces-variable.woff2"
+    (fonts_dir / "fraunces-variable.woff2").write_bytes(font_src.read_bytes())
+    print(f"wrote {SITE_DIR.name}/fonts/fraunces-variable.woff2")
 
     built = []
     for slug, recs in by_slug.items():

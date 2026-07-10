@@ -12,11 +12,19 @@
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebSite", "name": "DeadlineRadar", "url": "https://deadline-radar.com", "publisher": {"@type": "Organization", "name": "Ravenline"}}</script>
 <style>
 
+  @font-face {
+    font-family: 'Fraunces';
+    font-style: normal;
+    font-weight: 300 900;
+    font-display: swap;
+    src: url('/fonts/fraunces-variable.woff2') format('woff2');
+  }
   :root {
     color-scheme: light dark;
     --bg: #ffffff; --fg: #1a2129; --muted: #5b6572; --border: #d8dee5;
     --accent: #1f5fbf; --accent-bg: #eaf1fc; --card-bg: #f7f9fb;
     --trust-bg: #fff8e6; --trust-border: #e3c476; --row-alt: #f3f5f7;
+    --font-display: 'Fraunces', Georgia, 'Iowan Old Style', 'Times New Roman', serif;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -36,14 +44,19 @@
     display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem;
     padding: 1.5rem 0 1rem; border-bottom: 1px solid var(--border); margin-bottom: 1.75rem;
   }
-  .wordmark { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; }
+  .wordmark { font-family: var(--font-display); font-size: 1.5rem; font-weight: 650; letter-spacing: -0.015em; }
   .wordmark a { color: var(--fg); text-decoration: none; }
   .tagline { color: var(--muted); font-size: 0.92rem; flex: 1 1 auto; }
   .by-line { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
-  h1 { font-size: 1.7rem; margin: 0 0 0.3rem; line-height: 1.25; }
+  h1 {
+    font-family: var(--font-display); font-weight: 560; font-size: 2.1rem; margin: 0 0 0.35rem;
+    line-height: 1.12; letter-spacing: -0.01em; text-wrap: balance;
+  }
+  h2 { font-family: var(--font-display); font-weight: 580; letter-spacing: -0.005em; }
   .subhead { color: var(--muted); margin: 0 0 1.5rem; }
   .intro { margin: 0 0 1.25rem; }
   .callout {
+    position: relative;
     border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 8px;
     padding: 1.15rem 1.4rem; background: var(--card-bg); margin: 1.4rem 0;
   }
@@ -51,15 +64,33 @@
   .callout .label {
     font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;
   }
-  .callout .date { font-size: 1.7rem; font-weight: 700; margin: 0.2rem 0 0.5rem; }
+  .callout .date {
+    font-family: var(--font-display); font-weight: 620; font-size: 2.3rem; letter-spacing: -0.01em;
+    margin: 0.15rem 0 0.55rem;
+  }
   .callout .rule { margin: 0; }
+  .verified-badge {
+    position: absolute; top: 0.95rem; right: 1.1rem;
+    background: var(--accent); color: #fff; font-size: 0.66rem; font-weight: 700;
+    letter-spacing: 0.03em; text-transform: uppercase; padding: 0.22em 0.6em 0.22em 0.5em;
+    border-radius: 999px; line-height: 1.4;
+  }
+  .verified-badge::before { content: "\2713\a0"; }
   .source-cite {
-    margin: 0.75rem 0 0; padding-top: 0.65rem; border-top: 1px solid var(--border);
+    margin: 0.9rem 0 0; padding-top: 0.8rem; border-top: 1px solid var(--border);
     font-size: 0.85rem; color: var(--muted);
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.7rem;
   }
   .source-cite .cite-label {
-    text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.72rem; margin-right: 0.4em;
+    text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.68rem; color: var(--muted);
   }
+  .source-cite .cite-stamp {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.82rem; font-weight: 700; color: var(--fg);
+    background: var(--accent-bg); border: 1px solid var(--border); border-radius: 4px;
+    padding: 0.18em 0.55em;
+  }
+  .source-cite .cite-link { margin-left: auto; font-weight: 600; white-space: nowrap; }
   .source-cite code {
     background: none; padding: 0; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     color: var(--fg); font-size: 0.86em;
@@ -77,6 +108,8 @@
     border: 1px solid var(--trust-border); background: var(--trust-bg); border-radius: 8px;
     padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
   }
+  .trust-line strong::before { content: "\2713\a0"; color: #8a6d1f; }
+  @media (prefers-color-scheme: dark) { .trust-line strong::before { color: #d6b45a; } }
   .cpe-affiliate {
     border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem;
     background: var(--card-bg); margin: 1.4rem 0; font-size: 0.92rem;
@@ -109,6 +142,10 @@
   .state-card .state-name { font-weight: 700; margin-bottom: 0.2rem; font-size: 0.95rem; }
   .state-card .state-hint { font-size: 0.8rem; color: var(--muted); line-height: 1.3; }
   .state-card--dimmed { opacity: 0.3; pointer-events: none; }
+  .state-card--variable {
+    border-style: dashed;
+  }
+  .state-card--variable .state-hint { font-style: italic; }
   .state-search {
     margin: 0 0 1.5rem;
   }
@@ -155,7 +192,9 @@
   .signup-form .field-hint { font-size: 0.78rem; color: var(--muted); margin: 0.25rem 0 0; }
   @media (max-width: 480px) {
     .site-header { flex-direction: column; align-items: flex-start; }
-    .callout .date { font-size: 1.4rem; }
+    h1 { font-size: 1.7rem; }
+    .callout .date { font-size: 1.7rem; }
+    .verified-badge { position: static; display: inline-flex; margin-bottom: 0.6rem; }
     .signup-form-row { flex-direction: column; gap: 0; }
   }
 
@@ -238,52 +277,52 @@ against primary law, we say so instead of guessing.</p>
 <div class="state-grid">
 <a class="state-card" href="alabama/" data-state-name="Alabama"><div class="state-name">Alabama</div><div class="state-hint">December 31, 2026</div></a>
 <a class="state-card" href="alaska/" data-state-name="Alaska"><div class="state-name">Alaska</div><div class="state-hint">December 31, 2027</div></a>
-<a class="state-card" href="arizona/" data-state-name="Arizona"><div class="state-name">Arizona</div><div class="state-hint">By birth month</div></a>
+<a class="state-card state-card--variable" href="arizona/" data-state-name="Arizona"><div class="state-name">Arizona</div><div class="state-hint">By birth month</div></a>
 <a class="state-card" href="arkansas/" data-state-name="Arkansas"><div class="state-name">Arkansas</div><div class="state-hint">December 31, 2026</div></a>
-<a class="state-card" href="california/" data-state-name="California"><div class="state-name">California</div><div class="state-hint">By birth month</div></a>
-<a class="state-card" href="colorado/" data-state-name="Colorado"><div class="state-name">Colorado</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="california/" data-state-name="California"><div class="state-name">California</div><div class="state-hint">By birth month</div></a>
+<a class="state-card state-card--variable" href="colorado/" data-state-name="Colorado"><div class="state-name">Colorado</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="connecticut/" data-state-name="Connecticut"><div class="state-name">Connecticut</div><div class="state-hint">December 31, 2026</div></a>
 <a class="state-card" href="delaware/" data-state-name="Delaware"><div class="state-name">Delaware</div><div class="state-hint">June 30, 2027</div></a>
 <a class="state-card" href="dc/" data-state-name="District of Columbia"><div class="state-name">District of Columbia</div><div class="state-hint">December 31, 2026</div></a>
-<a class="state-card" href="florida/" data-state-name="Florida"><div class="state-name">Florida</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="florida/" data-state-name="Florida"><div class="state-name">Florida</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="georgia/" data-state-name="Georgia"><div class="state-name">Georgia</div><div class="state-hint">December 31, 2027</div></a>
 <a class="state-card" href="hawaii/" data-state-name="Hawaii"><div class="state-name">Hawaii</div><div class="state-hint">December 31, 2027</div></a>
-<a class="state-card" href="idaho/" data-state-name="Idaho"><div class="state-name">Idaho</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="idaho/" data-state-name="Idaho"><div class="state-name">Idaho</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="illinois/" data-state-name="Illinois"><div class="state-name">Illinois</div><div class="state-hint">September 30, 2027</div></a>
 <a class="state-card" href="indiana/" data-state-name="Indiana"><div class="state-name">Indiana</div><div class="state-hint">June 30, 2027</div></a>
 <a class="state-card" href="iowa/" data-state-name="Iowa"><div class="state-name">Iowa</div><div class="state-hint">June 30, 2027</div></a>
-<a class="state-card" href="kansas/" data-state-name="Kansas"><div class="state-name">Kansas</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="kentucky/" data-state-name="Kentucky"><div class="state-name">Kentucky</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="kansas/" data-state-name="Kansas"><div class="state-name">Kansas</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="kentucky/" data-state-name="Kentucky"><div class="state-name">Kentucky</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="louisiana/" data-state-name="Louisiana"><div class="state-name">Louisiana</div><div class="state-hint">December 31, 2026</div></a>
-<a class="state-card" href="maine/" data-state-name="Maine"><div class="state-name">Maine</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="maryland/" data-state-name="Maryland"><div class="state-name">Maryland</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="massachusetts/" data-state-name="Massachusetts"><div class="state-name">Massachusetts</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="michigan/" data-state-name="Michigan"><div class="state-name">Michigan</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="maine/" data-state-name="Maine"><div class="state-name">Maine</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="maryland/" data-state-name="Maryland"><div class="state-name">Maryland</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="massachusetts/" data-state-name="Massachusetts"><div class="state-name">Massachusetts</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="michigan/" data-state-name="Michigan"><div class="state-name">Michigan</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="minnesota/" data-state-name="Minnesota"><div class="state-name">Minnesota</div><div class="state-hint">December 31, 2026</div></a>
 <a class="state-card" href="mississippi/" data-state-name="Mississippi"><div class="state-name">Mississippi</div><div class="state-hint">January 1, 2027</div></a>
 <a class="state-card" href="missouri/" data-state-name="Missouri"><div class="state-name">Missouri</div><div class="state-hint">September 30, 2027</div></a>
 <a class="state-card" href="montana/" data-state-name="Montana"><div class="state-name">Montana</div><div class="state-hint">December 31, 2026</div></a>
-<a class="state-card" href="nebraska/" data-state-name="Nebraska"><div class="state-name">Nebraska</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="nebraska/" data-state-name="Nebraska"><div class="state-name">Nebraska</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="nevada/" data-state-name="Nevada"><div class="state-name">Nevada</div><div class="state-hint">December 31, 2026</div></a>
-<a class="state-card" href="new-hampshire/" data-state-name="New Hampshire"><div class="state-name">New Hampshire</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="new-jersey/" data-state-name="New Jersey"><div class="state-name">New Jersey</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="new-mexico/" data-state-name="New Mexico"><div class="state-name">New Mexico</div><div class="state-hint">By birth month</div></a>
-<a class="state-card" href="new-york/" data-state-name="New York"><div class="state-name">New York</div><div class="state-hint">By birth month</div></a>
+<a class="state-card state-card--variable" href="new-hampshire/" data-state-name="New Hampshire"><div class="state-name">New Hampshire</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="new-jersey/" data-state-name="New Jersey"><div class="state-name">New Jersey</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="new-mexico/" data-state-name="New Mexico"><div class="state-name">New Mexico</div><div class="state-hint">By birth month</div></a>
+<a class="state-card state-card--variable" href="new-york/" data-state-name="New York"><div class="state-name">New York</div><div class="state-hint">By birth month</div></a>
 <a class="state-card" href="north-carolina/" data-state-name="North Carolina"><div class="state-name">North Carolina</div><div class="state-hint">July 1, 2027</div></a>
 <a class="state-card" href="north-dakota/" data-state-name="North Dakota"><div class="state-name">North Dakota</div><div class="state-hint">June 30, 2027</div></a>
-<a class="state-card" href="ohio/" data-state-name="Ohio"><div class="state-name">Ohio</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="oklahoma/" data-state-name="Oklahoma"><div class="state-name">Oklahoma</div><div class="state-hint">By birth month</div></a>
-<a class="state-card" href="oregon/" data-state-name="Oregon"><div class="state-name">Oregon</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="ohio/" data-state-name="Ohio"><div class="state-name">Ohio</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="oklahoma/" data-state-name="Oklahoma"><div class="state-name">Oklahoma</div><div class="state-hint">By birth month</div></a>
+<a class="state-card state-card--variable" href="oregon/" data-state-name="Oregon"><div class="state-name">Oregon</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="pennsylvania/" data-state-name="Pennsylvania"><div class="state-name">Pennsylvania</div><div class="state-hint">December 31, 2027</div></a>
-<a class="state-card" href="rhode-island/" data-state-name="Rhode Island"><div class="state-name">Rhode Island</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="rhode-island/" data-state-name="Rhode Island"><div class="state-name">Rhode Island</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="south-carolina/" data-state-name="South Carolina"><div class="state-name">South Carolina</div><div class="state-hint">February 1, 2027</div></a>
 <a class="state-card" href="south-dakota/" data-state-name="South Dakota"><div class="state-name">South Dakota</div><div class="state-hint">August 1, 2026</div></a>
-<a class="state-card" href="tennessee/" data-state-name="Tennessee"><div class="state-name">Tennessee</div><div class="state-hint">Varies — check your license</div></a>
-<a class="state-card" href="texas/" data-state-name="Texas"><div class="state-name">Texas</div><div class="state-hint">By birth month</div></a>
+<a class="state-card state-card--variable" href="tennessee/" data-state-name="Tennessee"><div class="state-name">Tennessee</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="texas/" data-state-name="Texas"><div class="state-name">Texas</div><div class="state-hint">By birth month</div></a>
 <a class="state-card" href="utah/" data-state-name="Utah"><div class="state-name">Utah</div><div class="state-hint">December 31, 2026</div></a>
 <a class="state-card" href="vermont/" data-state-name="Vermont"><div class="state-name">Vermont</div><div class="state-hint">July 31, 2027</div></a>
 <a class="state-card" href="virginia/" data-state-name="Virginia"><div class="state-name">Virginia</div><div class="state-hint">June 30, 2027</div></a>
-<a class="state-card" href="washington/" data-state-name="Washington"><div class="state-name">Washington</div><div class="state-hint">Varies — check your license</div></a>
+<a class="state-card state-card--variable" href="washington/" data-state-name="Washington"><div class="state-name">Washington</div><div class="state-hint">Varies — check your license</div></a>
 <a class="state-card" href="west-virginia/" data-state-name="West Virginia"><div class="state-name">West Virginia</div><div class="state-hint">June 30, 2027</div></a>
 <a class="state-card" href="wisconsin/" data-state-name="Wisconsin"><div class="state-name">Wisconsin</div><div class="state-hint">December 15, 2027</div></a>
 <a class="state-card" href="wyoming/" data-state-name="Wyoming"><div class="state-name">Wyoming</div><div class="state-hint">December 31, 2026</div></a>

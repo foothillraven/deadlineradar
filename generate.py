@@ -242,12 +242,16 @@ PAGE_CSS = """
     --accent: #1f5fbf; --accent-bg: #eaf1fc; --card-bg: #f7f9fb;
     --trust-bg: #fff8e6; --trust-border: #e3c476; --row-alt: #f3f5f7;
     --font-display: 'Fraunces', Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+    --map-fixed: #bcd4f5; --map-fixed-hover: #1f5fbf;
+    --map-variable: #e4e8ec; --map-variable-hover: #8a95a3;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #12151a; --fg: #e7ebf0; --muted: #9aa5b1; --border: #2a323c;
       --accent: #7fb0ff; --accent-bg: #1b2836; --card-bg: #1a1f26;
       --trust-bg: #26210f; --trust-border: #5a4a20; --row-alt: #171b21;
+      --map-fixed: #2c4a72; --map-fixed-hover: #7fb0ff;
+      --map-variable: #262b32; --map-variable-hover: #545e6c;
     }
   }
   * { box-sizing: border-box; }
@@ -395,6 +399,41 @@ PAGE_CSS = """
   .state-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
     gap: 0.65rem; margin: 0 0 2rem; list-style: none; padding: 0;
+  }
+  .state-grid--mobile-fallback { display: none; }
+  .map-section {
+    display: grid; grid-template-columns: 1fr 220px; gap: 1.25rem; align-items: start;
+    margin: 0 0 2rem;
+  }
+  .map-figure { border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem; background: var(--card-bg); }
+  .us-map { width: 100%; height: auto; display: block; }
+  .map-state {
+    fill: var(--map-variable); stroke: var(--card-bg); stroke-width: 1.2;
+    transition: fill 0.12s ease;
+  }
+  .map-state--fixed { fill: var(--map-fixed); }
+  .map-link { cursor: pointer; outline: none; }
+  .map-link:hover .map-state, .map-link:focus .map-state--variable { fill: var(--map-variable-hover); }
+  .map-link:hover .map-state--fixed, .map-link:focus .map-state--fixed { fill: var(--map-fixed-hover); }
+  .map-side {
+    border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.1rem;
+    background: var(--card-bg); font-size: 0.85rem;
+  }
+  .map-small-label { margin: 0 0 0.6rem; font-size: 0.8rem; color: var(--muted); }
+  .map-small-pills { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+  .map-small-pill {
+    display: inline-block; padding: 0.28em 0.6em; border-radius: 999px; font-size: 0.78rem;
+    text-decoration: none; background: var(--map-fixed); color: var(--fg);
+  }
+  .map-small-pill--variable { background: var(--map-variable); border: 1px solid var(--border); }
+  .map-small-pill:hover { opacity: 0.82; }
+  .legend { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.76rem; color: var(--muted); }
+  .legend .swatch { width: 0.75rem; height: 0.75rem; border-radius: 3px; display: inline-block; margin-right: 0.4em; vertical-align: -1px; }
+  .swatch--fixed { background: var(--map-fixed); }
+  .swatch--variable { background: var(--map-variable); border: 1px solid var(--border); }
+  @media (max-width: 700px) {
+    .map-section { display: none; }
+    .state-grid--mobile-fallback { display: grid; }
   }
   .state-card {
     display: block; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 0.85rem;
@@ -1224,6 +1263,79 @@ def _hint_is_variable(hint: str) -> bool:
     return hint.startswith("Varies") or hint.startswith("By birth month")
 
 
+# The 9 states whose real bounding-box area on the map (measured directly from the path
+# data, see scripts/build_us_map_data.py's output -- not guessed) falls in a visibly
+# separate, much-smaller cluster than every other state: DC through Maryland are all under
+# ~3,300 sq. map-units; the next smallest (South Carolina) is nearly double that. These are
+# the ones a real click/tap on the map itself would miss often enough to be worth a real
+# supplementary list next to the map, not just a visual map. Ordered smallest-first.
+_MAP_SMALL_STATES = [
+    "dc", "rhode-island", "delaware", "connecticut", "new-jersey",
+    "vermont", "new-hampshire", "massachusetts", "maryland",
+]
+
+_US_MAP_PATHS_PATH = ROOT / "assets" / "us-map" / "state-paths.json"
+
+
+def build_us_map_html(by_slug: dict[str, list[dict]]) -> str:
+    """Interactive US map for the homepage (2026-07-10, replacing the old uniform 51-card
+    grid on wider screens per Devin's direct ask: "I don't like the state boxes... an outline
+    of the states, clickable"). Each state's fill color and hover label are real data (fixed
+    date vs. varies), not decorative -- reuses state_hint()/_hint_is_variable() so this can
+    never drift from what the grid/individual pages already say. Path data is real public-
+    domain US state outlines (assets/us-map/LICENSE.txt), not hand-drawn.
+
+    The plain list/grid is NOT deleted -- see build_index_page() -- it stays in the HTML as
+    the mobile-width version (a map is a worse interaction than a scrollable list on a small
+    touchscreen) and the small-map-target fallback, toggled by CSS media query, not JS, so it
+    works identically with JS disabled and stays crawlable either way."""
+    map_states = json.loads(_US_MAP_PATHS_PATH.read_text(encoding="utf-8"))
+    path_links = []
+    pills_by_slug: dict[str, str] = {}
+    for s in map_states:
+        slug = s["slug"]
+        recs = by_slug.get(slug, [])
+        if not recs:
+            continue
+        hint = state_hint(recs)
+        state_name = recs[0]["state"]
+        variable = _hint_is_variable(hint)
+        cls = "map-state map-state--variable" if variable else "map-state map-state--fixed"
+        title = f"{state_name} — {hint}"
+        path_links.append(
+            f'<a href="{esc(slug)}/" class="map-link" aria-label="{esc(title)}">'
+            f'<path class="{cls}" d="{esc(s["d"])}"><title>{esc(title)}</title></path></a>'
+        )
+        if slug in _MAP_SMALL_STATES:
+            pills_by_slug[slug] = (
+                f'<a class="map-small-pill{" map-small-pill--variable" if variable else ""}" '
+                f'href="{esc(slug)}/" title="{esc(title)}">{esc(state_name)}</a>'
+            )
+    # _MAP_SMALL_STATES is already ordered smallest-first -- render in that order, not
+    # whatever order state-paths.json happens to list states in.
+    ordered_pills = [pills_by_slug[slug] for slug in _MAP_SMALL_STATES if slug in pills_by_slug]
+
+    svg = (
+        '<svg class="us-map" viewBox="0 0 959 593" xmlns="http://www.w3.org/2000/svg" role="img" '
+        'aria-label="Clickable map of US states -- select a state for its CPA renewal deadline">\n'
+        + "\n".join(path_links) +
+        "\n</svg>"
+    )
+    return f"""<div class="map-section">
+  <div class="map-figure">{svg}</div>
+  <div class="map-side">
+    <p class="map-small-label">Smaller states &amp; DC (tap here, easier than the map):</p>
+    <div class="map-small-pills">
+{chr(10).join(ordered_pills)}
+    </div>
+    <div class="legend">
+      <span><span class="swatch swatch--fixed"></span>One fixed date every year</span>
+      <span><span class="swatch swatch--variable"></span>Varies by birth month or license type</span>
+    </div>
+  </div>
+</div>"""
+
+
 _STATE_SEARCH_JS = """
 function drNormalize(s) { return s.trim().toLowerCase(); }
 function drStateSlug(typed) {
@@ -1297,7 +1409,8 @@ just needs to know when their license is due. Every date is checked against the 
 statute or administrative rule, not just a board's webpage &mdash; if we can't verify a date
 against primary law, we say so instead of guessing.</p>
 {search_html}
-<div class="state-grid">
+{build_us_map_html(by_slug)}
+<div class="state-grid state-grid--mobile-fallback">
 {chr(10).join(cards)}
 </div>
 <p class="how-it-works">How it works: each state page shows the actual next renewal deadline

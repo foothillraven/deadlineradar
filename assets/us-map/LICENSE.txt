@@ -1,0 +1,12 @@
+US state outline paths (state-paths.json, built by scripts/build_us_map_data.py)
+
+Source: "Blank US Map.svg" (Wikimedia Commons), released into the public domain --
+https://commons.wikimedia.org/wiki/File:Blank_US_Map.svg
+Path data for 49 states + DC converted for programmatic use by robflaherty/us-map-raphael
+(github.com/robflaherty/us-map-raphael), whose own README states: "The map coordinates and
+demo code are both public domain." Indiana's path (missing from that conversion) was pulled
+directly from the same original Wikimedia source file.
+
+Public domain -- safe to embed and modify. The two raw source files this was built from
+(_source_raphael_paths.js, _source_wikimedia_original.svg) are kept in this directory for
+provenance/reproducibility, not because they're needed at build time.

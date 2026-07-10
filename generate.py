@@ -295,6 +295,16 @@ PAGE_CSS = """
   .cpe-affiliate p { margin: 0 0 0.5rem; }
   .cpe-affiliate p:last-child { margin-bottom: 0; }
   .cpe-affiliate .disclosure { font-size: 0.8rem; color: var(--muted); }
+  .firm-cta {
+    border: 1px solid var(--accent); border-radius: 8px; padding: 1.1rem 1.3rem;
+    background: var(--accent-bg); margin: 1.75rem 0; font-size: 0.94rem;
+  }
+  .firm-cta h2 { margin-top: 0; font-size: 1.05rem; }
+  .firm-cta p { margin: 0 0 0.5rem; }
+  .firm-cta p:last-child { margin-bottom: 0; }
+  .firm-cta .disclosure { font-size: 0.8rem; color: var(--muted); }
+  .state-links { padding-left: 1.2rem; margin: 0.75rem 0 1.5rem; }
+  .state-links li { margin-bottom: 0.3rem; }
   .backlink { display: inline-block; margin-top: 0.5rem; font-size: 0.92rem; }
   .how-it-works { color: var(--muted); font-size: 0.92rem; margin: 1.25rem 0 1.75rem; }
   .state-grid {
@@ -1341,21 +1351,43 @@ Aurora, CO 80013</p>
     )
 
 
+def _firm_landing_links_html() -> str:
+    """Cross-links from /for-firms/ to the firm-specific SEO landing pages (2026-07-10
+    Wave-1 B2B directive) -- these pages are the inbound engine, so the B2B page itself
+    should surface them rather than relying only on organic search to connect the two."""
+    if not FIRM_LANDING_PAGES:
+        return ""
+    items = "\n".join(
+        f'<li><a href="../{esc(p["slug"])}/">{esc(p["state_name"])} firm renewal</a></li>'
+        for p in FIRM_LANDING_PAGES
+    )
+    return f"""<h2>Firm-registration deadlines by state</h2>
+<p>Your firm's own registration or permit renews on a different clock than any individual staff CPA's
+license. A few states where we've published the firm-specific filing date:</p>
+<ul class="state-links">
+{items}
+</ul>"""
+
+
 def build_firms_page() -> str:
-    """B2B firm-tier concept/validation landing page. Concept + price + an inbound-only
-    capture link -- no live product, no Stripe, no outreach sent from our side (visitors
-    reaching out to us is not the same as us contacting firms, which stays held pending
-    an explicit go). Scoped deliberately to license-renewal tracking only, matching the
-    free tier's trust model;
-    any future CPE-hour tracking must be labeled as an unverified self-report, never
-    given the same certainty language as the sourced renewal dates -- that distinction
-    is the entire brand and must not blur on the paid tier."""
+    """B2B firm-tier landing page. Explicit price + a real inbound CTA -- still no
+    Stripe/live payment infra (2026-07-10 Wave-1 directive: CTA action stays the
+    existing mailto/inbound flow; billing swaps to a real checkout link the moment
+    payment infra exists, not before). Scoped deliberately to license-renewal
+    tracking only, matching the free tier's trust model; any future CPE-hour
+    tracking must be labeled as an unverified self-report, never given the same
+    certainty language as the sourced renewal dates -- that distinction is the
+    entire brand and must not blur on the paid tier."""
+    pilot_mailto = (
+        f"mailto:{esc(CONTACT_EMAIL)}?subject=Firm%20tier%20pilot"
+        f"&body=Firm%20name%3A%0AApprox.%20staff%20count%3A%0AState(s)%20licensed%20in%3A%0A"
+    )
     body = f"""<h1>CPA License Tracking for Your Whole Firm</h1>
 <p class="intro">Every accounting firm has someone who has to make sure every partner's and staff CPA's
 license stays current &mdash; across however many states they're licensed in. One missed renewal slows
 down engagements and creates real regulatory risk, and most firms track it today by spreadsheet.</p>
 
-<h2>What we're building</h2>
+<h2>What you get</h2>
 <p>A firm-wide view that answers what a spreadsheet can't: who's current, who's at risk, and who needs
 to act before a deadline &mdash; for every staff CPA and the firm's own registration, sourced to the same
 codified statute or rule we verify for every free state page on this site. Any individual CPA can already
@@ -1369,23 +1401,141 @@ hour completion. If we ever add that, it will be clearly labeled as your own sel
 independently verified &mdash; we won't blur it with the sourced renewal dates that are the whole reason to
 trust this site.</p>
 
-<h2>Early pricing</h2>
-<p>Planned at <strong>$300&ndash;$600/year flat for firms with up to 10 staff</strong>, with per-seat
-pricing above that. Nothing is final and nothing is live yet &mdash; early-access firms will help shape it.</p>
+<h2>Pricing</h2>
+<p><strong>$500/year flat for firms with up to 10 staff</strong>, about $50/seat/year above that.
+Start with a <strong>free 30-day pilot &mdash; no card required</strong>.</p>
+<div class="firm-cta">
+<p><a href="{esc(pilot_mailto)}">Start your free 30-day pilot &rarr;</a></p>
+<p class="disclosure">Say yes by email above and we'll follow up the same week with next steps.</p>
+</div>
 
-<h2>Request early access</h2>
-<p>This product doesn't exist yet. If a multi-staff license dashboard would be useful at your firm, tell us
-and we'll reach out when there's something to show:</p>
-<p><a href="mailto:{esc(CONTACT_EMAIL)}?subject=Firm%20tier%20early%20access">{esc(CONTACT_EMAIL)}</a></p>
+<h2>How a pilot actually works right now</h2>
+<p>Honest about where we are: there's no self-serve signup or payment page yet. When you say yes, we
+collect your staff roster and onboard each person through the same double opt-in signup every free
+subscriber on this site already uses (each staff member confirms their own email &mdash; a real consent
+step, not a firm admin subscribing colleagues who never agreed), then send your admin contact a status
+update each cycle: who's confirmed, who's at risk, and any license flagged expired or lapsed during our
+manual verification pass. Billing today is a simple invoice; a self-serve card-payment option is coming
+soon.</p>
+
+{_firm_landing_links_html()}
+
+<h2>Questions first?</h2>
+<p>Email us any time, no commitment:</p>
+<p><a href="mailto:{esc(CONTACT_EMAIL)}?subject=Firm%20tier%20question">{esc(CONTACT_EMAIL)}</a></p>
 """
     return page_shell(
         f"For Firms — {SITE_NAME}",
-        "A firm dashboard tracking every staff CPA's license renewal date, sourced to the same "
-        "codified state law DeadlineRadar verifies for every state. Request early access.",
+        "CPA firm license tracking: $500/year flat for up to 10 staff, free 30-day pilot. "
+        "Sourced to the same codified state law DeadlineRadar verifies for every state.",
         body,
         home_href="../",
         canonical_path="/for-firms/",
     )
+
+
+# Firm-admin-oriented SEO landing pages (2026-07-10 Wave-1 B2B inbound directive).
+# Chosen for real, near-term firm-registration deadlines already backed by verified
+# citation data in cpa_deadlines.json -- no new legal research needed, this just
+# reframes already-vetted facts at a different reader (whoever owns the firm's own
+# registration, not an individual CPA tracking their personal license). Ordered by
+# deadline proximity: Idaho (Sep 30) is nearest, South Carolina (Feb 1) is furthest.
+FIRM_LANDING_STATE_SLUGS = [
+    "idaho", "missouri", "louisiana", "kansas", "alabama", "south-carolina",
+]
+
+# Populated by main() once by_slug is loaded (each entry: {"slug", "state_name"}) --
+# build_firms_page() reads this to cross-link to every firm landing page that
+# actually got built. Module-level and mutated rather than passed as a parameter
+# because build_firms_page()'s signature is otherwise argument-free, matching every
+# other single-page builder in this file (build_contact_page(), etc.).
+FIRM_LANDING_PAGES: list[dict] = []
+
+
+def _firm_relevant_record(records: list[dict]) -> dict | None:
+    """Picks the record that best represents a state's FIRM-level registration/permit,
+    for the firm-oriented SEO landing pages. Prefers a dedicated firm-type record
+    (_FIRM_ONLY_LICENSE_TYPES) since its cycle_description is already written firm-
+    specifically; falls back to an 'all' record (e.g. Alabama) whose cycle_description
+    already covers the firm permit explicitly within the same combined record. Returns
+    None if a state has neither, or the best candidate has no computed date -- callers
+    must not build a firm landing page in either case (same "don't fabricate, disclose
+    the gap instead" rule as every other record-shape check in this file)."""
+    candidate = None
+    for r in records:
+        if r.get("license_type") in _FIRM_ONLY_LICENSE_TYPES:
+            candidate = r
+            break
+    if candidate is None:
+        for r in records:
+            if r.get("license_type") == "all":
+                candidate = r
+                break
+    if candidate is None or not candidate.get("next_deadline_computed"):
+        return None
+    return candidate
+
+
+def build_firm_landing_page(state_slug: str, record: dict) -> tuple[str, str, str]:
+    """Firm-admin-oriented SEO landing page -- same citation/sourcing standard as
+    every individual state page, just reframed at the person who owns the FIRM's own
+    registration/permit, not an individual CPA's license. Slug and copy are
+    deliberately distinct from the state's main /<state_slug>/ page (which stays
+    individual-license-focused) so this doesn't compete with or duplicate it --
+    cross-links to /for-firms/ are the whole point. Returns (slug, title, html_body)."""
+    state_name = record["state"]
+    slug = f"{state_slug}-cpa-firm-renewal"
+    title = f"{state_name} CPA Firm Renewal — What the Firm Itself Must File"
+    meta_description = (
+        f"{state_name} CPA firm registration/permit renewal: when it's due, what's required, and the "
+        f"codified rule -- for whoever owns the firm's registration, not just individual staff licenses."
+    )
+    body = f"""<h1>{esc(title)}</h1>
+<p class="subhead">{esc(state_name)} firm registration/permit &mdash; not individual license renewal</p>
+<p class="intro">A CPA firm's own registration or permit to practice renews separately from any
+individual staff CPA's license &mdash; and it's usually the filing that falls through the cracks,
+because it belongs to whoever handles firm admin, not to a specific licensee tracking their own
+renewal. Here's exactly when {esc(state_name)}'s firm-level filing is due.</p>
+<div class="callout">
+  <div class="label">{esc(record['license_type_label'])}</div>
+  <div class="date">{esc(fmt_date(date.fromisoformat(record['next_deadline_computed'])))}</div>
+  <p class="rule">{esc(record['cycle_description'])}</p>
+  {_source_cite_html(record)}
+</div>
+{trust_line(record['last_verified'], record['source_url'])}
+
+<div class="firm-cta">
+<h2>Tracking this for more than one firm, or want someone else watching it?</h2>
+<p>Any individual CPA at your firm can already get free renewal reminders for their own license. What
+DeadlineRadar's firm tier adds is the view your admin doesn't get from 20 separate free sign-ups: one
+place to see the whole roster's status &mdash; including this firm-level filing &mdash; not 20 inboxes
+to hope someone's watching. <a href="../for-firms/">See firm-tier pricing &rarr;</a></p>
+</div>
+
+<p class="backlink"><a href="../">&larr; Back to all states</a></p>
+"""
+    # Not _breadcrumb_schema() -- that helper hardcodes " CPA Renewal" onto whatever
+    # name it's given (built for the individual state pages), which would render this
+    # as the wrong, garbled "{state} Firm Renewal CPA Renewal". Built inline instead
+    # with the correct firm-specific breadcrumb label.
+    json_ld = [{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": SITE_NAME, "item": f"{SITE_BASE_URL}/"},
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": f"{state_name} CPA Firm Renewal",
+                "item": f"{SITE_BASE_URL}/{slug}/",
+            },
+        ],
+    }]
+    html = page_shell(
+        f"{title} — {SITE_NAME}", meta_description, body, home_href="../",
+        canonical_path=f"/{slug}/", json_ld=json_ld,
+    )
+    return slug, title, html
 
 
 BLOG_ARTICLES = [
@@ -1601,6 +1751,11 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/blog/{esc(article['slug'])}/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""")
+    for p in FIRM_LANDING_PAGES:
+        urls.append(f"""  <url>
+    <loc>{SITE_BASE_URL}/{esc(p['slug'])}/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""")
     for s in sorted(states, key=lambda s: s["state_slug"]):
         urls.append(f"""  <url>
     <loc>{SITE_BASE_URL}/{esc(s['state_slug'])}/</loc>
@@ -1700,6 +1855,25 @@ def main() -> None:
     (SITE_DIR / "index.html").write_text(build_index_page(built, as_of, by_slug), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/index.html  ({len(built)} states)")
 
+    FIRM_LANDING_PAGES.clear()
+    for state_slug in FIRM_LANDING_STATE_SLUGS:
+        recs = by_slug.get(state_slug)
+        if not recs:
+            print(f"  SKIPPED firm landing page for {state_slug}: no records found")
+            continue
+        record = _firm_relevant_record(recs)
+        if record is None:
+            print(f"  SKIPPED firm landing page for {state_slug}: no firm-relevant record with a computed date")
+            continue
+        slug, title, page_html = build_firm_landing_page(state_slug, record)
+        page_dir = SITE_DIR / slug
+        page_dir.mkdir(parents=True, exist_ok=True)
+        (page_dir / "index.html").write_text(page_html, encoding="utf-8")
+        FIRM_LANDING_PAGES.append({"slug": slug, "state_name": record["state"]})
+        print(f"wrote {SITE_DIR.name}/{slug}/index.html  ({title})")
+
+    # sitemap.xml (below) reads FIRM_LANDING_PAGES, so it must be written AFTER the
+    # loop above populates it.
     (SITE_DIR / "sitemap.xml").write_text(build_sitemap(built, as_of), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/sitemap.xml")
 

@@ -56,3 +56,11 @@ freshness_sweep_log/
 # (local username + directory layout), never belongs in a public repo. Kept
 # local-only, same pattern as the Cloudflare/GitHub token files.
 scripts/run_freshness_sweep.bat
+
+# Real firm rosters (scripts/firm_admin_report.py, 2026-07-10 Wave-1 B2B tool) and
+# the admin-status reports generated from them both contain real staff PII (names,
+# emails) -- never commit either, only the fake .example.csv template is tracked.
+scripts/*roster*.csv
+!scripts/roster_template.example.csv
+scripts/*admin_report*.md
+firms_register.md

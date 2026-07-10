@@ -127,6 +127,52 @@
   .firm-cta .disclosure { font-size: 0.8rem; color: var(--muted); }
   .state-links { padding-left: 1.2rem; margin: 0.75rem 0 1.5rem; }
   .state-links li { margin-bottom: 0.3rem; }
+  .mock-dashboard {
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+    margin: 1.5rem 0 0.6rem; box-shadow: 0 6px 20px rgba(20, 30, 45, 0.08);
+  }
+  .mock-chrome {
+    display: flex; align-items: center; gap: 0.4rem;
+    background: var(--row-alt); padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--border);
+  }
+  .mock-dot {
+    width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--border);
+    display: inline-block;
+  }
+  .mock-url {
+    margin-left: 0.6rem; font-size: 0.72rem; color: var(--muted);
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  .mock-body { padding: 1.1rem 1.2rem 1.3rem; background: var(--bg); }
+  .mock-firm-name { font-weight: 700; margin-bottom: 0.8rem; }
+  .mock-firm-count { font-weight: 400; color: var(--muted); font-size: 0.88rem; }
+  .mock-dashboard .table-wrap { margin: 0; }
+  .mock-dashboard table { font-size: 0.86rem; }
+  .mock-status {
+    display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.01em;
+    padding: 0.18em 0.6em; border-radius: 999px; white-space: nowrap;
+  }
+  .mock-status--ok { background: rgba(31, 158, 92, 0.15); color: #1f9e5c; }
+  .mock-status--pending { background: rgba(180, 140, 20, 0.15); color: #9c7a12; }
+  .mock-status--risk { background: rgba(200, 55, 55, 0.15); color: #c33737; }
+  @media (prefers-color-scheme: dark) {
+    .mock-status--ok { background: rgba(52, 199, 120, 0.18); color: #4fd685; }
+    .mock-status--pending { background: rgba(224, 179, 51, 0.18); color: #e0b333; }
+    .mock-status--risk { background: rgba(230, 90, 90, 0.2); color: #ff8080; }
+  }
+  .mock-caption { font-size: 0.78rem; color: var(--muted); margin: 0 0 1.75rem; }
+  .faq-list { margin: 1rem 0 1.75rem; }
+  .faq-item {
+    border-bottom: 1px solid var(--border); padding: 0.85rem 0;
+  }
+  .faq-item summary {
+    cursor: pointer; font-weight: 600; list-style: none;
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after { content: "+"; color: var(--accent); font-size: 1.2rem; font-weight: 400; }
+  .faq-item[open] summary::after { content: "\2212"; }
+  .faq-item p { margin: 0.7rem 0 0; color: var(--fg); }
   .backlink { display: inline-block; margin-top: 0.5rem; font-size: 0.92rem; }
   .how-it-works { color: var(--muted); font-size: 0.92rem; margin: 1.25rem 0 1.75rem; }
   .state-grid {

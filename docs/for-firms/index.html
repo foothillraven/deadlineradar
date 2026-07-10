@@ -126,6 +126,52 @@
   .firm-cta .disclosure { font-size: 0.8rem; color: var(--muted); }
   .state-links { padding-left: 1.2rem; margin: 0.75rem 0 1.5rem; }
   .state-links li { margin-bottom: 0.3rem; }
+  .mock-dashboard {
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+    margin: 1.5rem 0 0.6rem; box-shadow: 0 6px 20px rgba(20, 30, 45, 0.08);
+  }
+  .mock-chrome {
+    display: flex; align-items: center; gap: 0.4rem;
+    background: var(--row-alt); padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--border);
+  }
+  .mock-dot {
+    width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--border);
+    display: inline-block;
+  }
+  .mock-url {
+    margin-left: 0.6rem; font-size: 0.72rem; color: var(--muted);
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  .mock-body { padding: 1.1rem 1.2rem 1.3rem; background: var(--bg); }
+  .mock-firm-name { font-weight: 700; margin-bottom: 0.8rem; }
+  .mock-firm-count { font-weight: 400; color: var(--muted); font-size: 0.88rem; }
+  .mock-dashboard .table-wrap { margin: 0; }
+  .mock-dashboard table { font-size: 0.86rem; }
+  .mock-status {
+    display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.01em;
+    padding: 0.18em 0.6em; border-radius: 999px; white-space: nowrap;
+  }
+  .mock-status--ok { background: rgba(31, 158, 92, 0.15); color: #1f9e5c; }
+  .mock-status--pending { background: rgba(180, 140, 20, 0.15); color: #9c7a12; }
+  .mock-status--risk { background: rgba(200, 55, 55, 0.15); color: #c33737; }
+  @media (prefers-color-scheme: dark) {
+    .mock-status--ok { background: rgba(52, 199, 120, 0.18); color: #4fd685; }
+    .mock-status--pending { background: rgba(224, 179, 51, 0.18); color: #e0b333; }
+    .mock-status--risk { background: rgba(230, 90, 90, 0.2); color: #ff8080; }
+  }
+  .mock-caption { font-size: 0.78rem; color: var(--muted); margin: 0 0 1.75rem; }
+  .faq-list { margin: 1rem 0 1.75rem; }
+  .faq-item {
+    border-bottom: 1px solid var(--border); padding: 0.85rem 0;
+  }
+  .faq-item summary {
+    cursor: pointer; font-weight: 600; list-style: none;
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after { content: "+"; color: var(--accent); font-size: 1.2rem; font-weight: 400; }
+  .faq-item[open] summary::after { content: "\2212"; }
+  .faq-item p { margin: 0.7rem 0 0; color: var(--fg); }
   .backlink { display: inline-block; margin-top: 0.5rem; font-size: 0.92rem; }
   .how-it-works { color: var(--muted); font-size: 0.92rem; margin: 1.25rem 0 1.75rem; }
   .state-grid {
@@ -218,6 +264,62 @@ get free reminders on their own; what a firm gets here is the roster-level accou
 personal inbox provides. Each staff member's license status is also manually verified against the state
 board at onboarding and every admin update cycle &mdash; not just self-reported &mdash; so a lapsed or
 expired license doesn't sit unnoticed until the next renewal deadline.</p>
+
+<div class="mock-dashboard">
+  <div class="mock-chrome">
+    <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
+    <span class="mock-url">deadline-radar.com/firm/example</span>
+  </div>
+  <div class="mock-body">
+    <div class="mock-firm-name">Example Firm, LLC <span class="mock-firm-count">&middot; 6 staff</span></div>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Staff</th><th>State</th><th>Status</th><th>Next deadline</th></tr></thead>
+      <tbody>
+      <tr>
+  <td>Alex R.</td>
+  <td>Georgia</td>
+  <td><span class="mock-status mock-status--ok">Confirmed</span></td>
+  <td>December 31, 2027</td>
+</tr>
+<tr>
+  <td>Jordan M.</td>
+  <td>Alabama</td>
+  <td><span class="mock-status mock-status--ok">Confirmed</span></td>
+  <td>December 31, 2026</td>
+</tr>
+<tr>
+  <td>Sam K.</td>
+  <td>Illinois</td>
+  <td><span class="mock-status mock-status--pending">Pending</span></td>
+  <td>September 30, 2027</td>
+</tr>
+<tr>
+  <td>Taylor B.</td>
+  <td>Missouri</td>
+  <td><span class="mock-status mock-status--risk">Needs attention</span></td>
+  <td>September 30, 2027</td>
+</tr>
+<tr>
+  <td>Morgan P. — Firm Registration</td>
+  <td>Louisiana</td>
+  <td><span class="mock-status mock-status--ok">Confirmed</span></td>
+  <td>December 31, 2026</td>
+</tr>
+<tr>
+  <td>Casey T. — Firm Registration</td>
+  <td>Missouri</td>
+  <td><span class="mock-status mock-status--ok">Confirmed</span></td>
+  <td>October 31, 2026</td>
+</tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+<p class="mock-caption">Illustrative example &mdash; not a real firm. Dates shown are the actual
+current deadlines for these states, computed the same way as every free page on this site.</p>
+
 <p><strong>Scope, plainly stated:</strong> this tracks license <em>renewal dates</em> &mdash; the part we
 can verify against actual state law, the same way we already do for individuals. It does not track CPE
 hour completion. If we ever add that, it will be clearly labeled as your own self-reported log, not
@@ -252,6 +354,30 @@ license. A few states where we've published the firm-specific filing date:</p>
 <li><a href="../alabama-cpa-firm-renewal/">Alabama firm renewal</a></li>
 <li><a href="../south-carolina-cpa-firm-renewal/">South Carolina firm renewal</a></li>
 </ul>
+
+<h2>Questions firms ask before signing up</h2>
+<div class="faq-list">
+<details class="faq-item">
+  <summary>Is the license status actually verified, or just self-reported?</summary>
+  <p>Verified. At onboarding and every admin update cycle, we manually check each staff member's status against the state board or CPAverify.org &mdash; a real human lookup, not scraped or automated, and not just whatever the licensee tells us.</p>
+</details>
+<details class="faq-item">
+  <summary>What if my staff are licensed in a birth-month or &quot;bring your own date&quot; state?</summary>
+  <p>Still tracked the same way it works on the free tier: that staff member enters their own birth month or license expiration date once, and it shows up on your roster view like everyone else's.</p>
+</details>
+<details class="faq-item">
+  <summary>Can I cancel the pilot anytime?</summary>
+  <p>Yes. It's a free 30-day pilot, no card required to start, and you can stop at any point during or after it &mdash; there's no contract to get out of.</p>
+</details>
+<details class="faq-item">
+  <summary>Do you track CPE hours too?</summary>
+  <p>Not yet. If we ever add it, it will be labeled as your own self-reported log, not independently verified &mdash; we won't blur it with the sourced renewal dates that are the reason to trust this site in the first place.</p>
+</details>
+<details class="faq-item">
+  <summary>How is this different from my staff just signing up for free individually?</summary>
+  <p>Nothing stops them from doing that today, and it's not a bad idea either way. What the firm tier adds is the view your admin doesn't get from 20 separate free sign-ups: one roster, one place to see who's current and who's at risk, plus the firm's own registration &mdash; not 20 inboxes to hope someone's watching.</p>
+</details>
+</div>
 
 <h2>Questions first?</h2>
 <p>Email us any time, no commitment:</p>

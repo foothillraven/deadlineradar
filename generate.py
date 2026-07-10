@@ -344,6 +344,52 @@ PAGE_CSS = """
   .firm-cta .disclosure { font-size: 0.8rem; color: var(--muted); }
   .state-links { padding-left: 1.2rem; margin: 0.75rem 0 1.5rem; }
   .state-links li { margin-bottom: 0.3rem; }
+  .mock-dashboard {
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+    margin: 1.5rem 0 0.6rem; box-shadow: 0 6px 20px rgba(20, 30, 45, 0.08);
+  }
+  .mock-chrome {
+    display: flex; align-items: center; gap: 0.4rem;
+    background: var(--row-alt); padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--border);
+  }
+  .mock-dot {
+    width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--border);
+    display: inline-block;
+  }
+  .mock-url {
+    margin-left: 0.6rem; font-size: 0.72rem; color: var(--muted);
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  .mock-body { padding: 1.1rem 1.2rem 1.3rem; background: var(--bg); }
+  .mock-firm-name { font-weight: 700; margin-bottom: 0.8rem; }
+  .mock-firm-count { font-weight: 400; color: var(--muted); font-size: 0.88rem; }
+  .mock-dashboard .table-wrap { margin: 0; }
+  .mock-dashboard table { font-size: 0.86rem; }
+  .mock-status {
+    display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.01em;
+    padding: 0.18em 0.6em; border-radius: 999px; white-space: nowrap;
+  }
+  .mock-status--ok { background: rgba(31, 158, 92, 0.15); color: #1f9e5c; }
+  .mock-status--pending { background: rgba(180, 140, 20, 0.15); color: #9c7a12; }
+  .mock-status--risk { background: rgba(200, 55, 55, 0.15); color: #c33737; }
+  @media (prefers-color-scheme: dark) {
+    .mock-status--ok { background: rgba(52, 199, 120, 0.18); color: #4fd685; }
+    .mock-status--pending { background: rgba(224, 179, 51, 0.18); color: #e0b333; }
+    .mock-status--risk { background: rgba(230, 90, 90, 0.2); color: #ff8080; }
+  }
+  .mock-caption { font-size: 0.78rem; color: var(--muted); margin: 0 0 1.75rem; }
+  .faq-list { margin: 1rem 0 1.75rem; }
+  .faq-item {
+    border-bottom: 1px solid var(--border); padding: 0.85rem 0;
+  }
+  .faq-item summary {
+    cursor: pointer; font-weight: 600; list-style: none;
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after { content: "+"; color: var(--accent); font-size: 1.2rem; font-weight: 400; }
+  .faq-item[open] summary::after { content: "\\2212"; }
+  .faq-item p { margin: 0.7rem 0 0; color: var(--fg); }
   .backlink { display: inline-block; margin-top: 0.5rem; font-size: 0.92rem; }
   .how-it-works { color: var(--muted); font-size: 0.92rem; margin: 1.25rem 0 1.75rem; }
   .state-grid {
@@ -1435,7 +1481,128 @@ license. A few states where we've published the firm-specific filing date:</p>
 </ul>"""
 
 
-def build_firms_page() -> str:
+# (fictional example name, state_slug, license_type, status) for the /for-firms/ dashboard
+# mockup (2026-07-10, per Devin's competitor-emulation directive: PE License Pro / CE Broker
+# both lead with a real product screenshot instead of describing the product in prose). Status
+# is illustrative copy, not derived from data. Dates are NOT hardcoded -- looked up live from
+# cpa_deadlines.json at build time via _mockup_record() below, so this never goes stale the way
+# a hand-typed date sitting on a marketing page silently would (the exact failure class this
+# site's own trust pitch is built around catching).
+_FIRM_MOCKUP_ROSTER = [
+    ("Alex R.", "georgia", "individual", "Confirmed"),
+    ("Jordan M.", "alabama", "all", "Confirmed"),
+    ("Sam K.", "illinois", "individual", "Pending"),
+    ("Taylor B.", "missouri", "individual", "Needs attention"),
+    ("Morgan P. — Firm Registration", "louisiana", "firm", "Confirmed"),
+    ("Casey T. — Firm Registration", "missouri", "firm", "Confirmed"),
+]
+
+_MOCKUP_STATUS_CLASS = {
+    "Confirmed": "mock-status--ok",
+    "Pending": "mock-status--pending",
+    "Needs attention": "mock-status--risk",
+}
+
+
+def _mockup_record(by_slug: dict[str, list[dict]], state_slug: str, license_type: str) -> dict | None:
+    for r in by_slug.get(state_slug, []):
+        if r.get("license_type") == license_type and r.get("next_deadline_computed"):
+            return r
+    return None
+
+
+def _firm_dashboard_mockup_html(by_slug: dict[str, list[dict]]) -> str:
+    """A labeled, illustrative dashboard mockup -- NOT a screenshot of a real product (none
+    exists yet) and NOT a real firm's data (every name is a fictional example, same honest
+    convention PE License Pro's own marketing mockup uses ("Cardinal Engineering Group") and CE
+    Broker's uses. Explicitly captioned as an example so this can never be mistaken for a claim
+    that a real customer exists. Every date shown is real, current, computed from
+    cpa_deadlines.json -- only the names and the roster grouping are invented."""
+    rows = []
+    for name, state_slug, license_type, status in _FIRM_MOCKUP_ROSTER:
+        record = _mockup_record(by_slug, state_slug, license_type)
+        if record is None:
+            continue
+        date_label = fmt_date(date.fromisoformat(record["next_deadline_computed"]))
+        status_class = _MOCKUP_STATUS_CLASS.get(status, "mock-status--ok")
+        rows.append(f"""<tr>
+  <td>{esc(name)}</td>
+  <td>{esc(record['state'])}</td>
+  <td><span class="mock-status {status_class}">{esc(status)}</span></td>
+  <td>{esc(date_label)}</td>
+</tr>""")
+    if not rows:
+        return ""
+    return f"""<div class="mock-dashboard">
+  <div class="mock-chrome">
+    <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
+    <span class="mock-url">deadline-radar.com/firm/example</span>
+  </div>
+  <div class="mock-body">
+    <div class="mock-firm-name">Example Firm, LLC <span class="mock-firm-count">&middot; 6 staff</span></div>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Staff</th><th>State</th><th>Status</th><th>Next deadline</th></tr></thead>
+      <tbody>
+      {chr(10).join(rows)}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+<p class="mock-caption">Illustrative example &mdash; not a real firm. Dates shown are the actual
+current deadlines for these states, computed the same way as every free page on this site.</p>"""
+
+
+_FIRM_FAQ = [
+    (
+        "Is the license status actually verified, or just self-reported?",
+        "Verified. At onboarding and every admin update cycle, we manually check each staff "
+        "member's status against the state board or CPAverify.org &mdash; a real human lookup, "
+        "not scraped or automated, and not just whatever the licensee tells us.",
+    ),
+    (
+        "What if my staff are licensed in a birth-month or \"bring your own date\" state?",
+        "Still tracked the same way it works on the free tier: that staff member enters their own "
+        "birth month or license expiration date once, and it shows up on your roster view like "
+        "everyone else's.",
+    ),
+    (
+        "Can I cancel the pilot anytime?",
+        "Yes. It's a free 30-day pilot, no card required to start, and you can stop at any point "
+        "during or after it &mdash; there's no contract to get out of.",
+    ),
+    (
+        "Do you track CPE hours too?",
+        "Not yet. If we ever add it, it will be labeled as your own self-reported log, not "
+        "independently verified &mdash; we won't blur it with the sourced renewal dates that are "
+        "the reason to trust this site in the first place.",
+    ),
+    (
+        "How is this different from my staff just signing up for free individually?",
+        "Nothing stops them from doing that today, and it's not a bad idea either way. What the "
+        "firm tier adds is the view your admin doesn't get from 20 separate free sign-ups: one "
+        "roster, one place to see who's current and who's at risk, plus the firm's own "
+        "registration &mdash; not 20 inboxes to hope someone's watching.",
+    ),
+]
+
+
+def _firm_faq_html() -> str:
+    items = "\n".join(
+        f"""<details class="faq-item">
+  <summary>{esc(q)}</summary>
+  <p>{a}</p>
+</details>"""
+        for q, a in _FIRM_FAQ
+    )
+    return f"""<h2>Questions firms ask before signing up</h2>
+<div class="faq-list">
+{items}
+</div>"""
+
+
+def build_firms_page(by_slug: dict[str, list[dict]]) -> str:
     """B2B firm-tier landing page. Explicit price + a real inbound CTA -- still no
     Stripe/live payment infra (2026-07-10 Wave-1 directive: CTA action stays the
     existing mailto/inbound flow; billing swaps to a real checkout link the moment
@@ -1461,6 +1628,9 @@ get free reminders on their own; what a firm gets here is the roster-level accou
 personal inbox provides. Each staff member's license status is also manually verified against the state
 board at onboarding and every admin update cycle &mdash; not just self-reported &mdash; so a lapsed or
 expired license doesn't sit unnoticed until the next renewal deadline.</p>
+
+{_firm_dashboard_mockup_html(by_slug)}
+
 <p><strong>Scope, plainly stated:</strong> this tracks license <em>renewal dates</em> &mdash; the part we
 can verify against actual state law, the same way we already do for individuals. It does not track CPE
 hour completion. If we ever add that, it will be clearly labeled as your own self-reported log, not
@@ -1485,6 +1655,8 @@ manual verification pass. Billing today is a simple invoice; a self-serve card-p
 soon.</p>
 
 {_firm_landing_links_html()}
+
+{_firm_faq_html()}
 
 <h2>Questions first?</h2>
 <p>Email us any time, no commitment:</p>
@@ -1512,9 +1684,11 @@ FIRM_LANDING_STATE_SLUGS = [
 
 # Populated by main() once by_slug is loaded (each entry: {"slug", "state_name"}) --
 # build_firms_page() reads this to cross-link to every firm landing page that
-# actually got built. Module-level and mutated rather than passed as a parameter
-# because build_firms_page()'s signature is otherwise argument-free, matching every
-# other single-page builder in this file (build_contact_page(), etc.).
+# actually got built. Module-level and mutated rather than passed as a parameter,
+# unlike by_slug itself (added 2026-07-10 for the dashboard mockup's real record
+# lookups) -- FIRM_LANDING_PAGES is only known after that same build loop runs, so
+# threading it through as a second parameter would just duplicate what's already
+# sitting in module state by the time build_firms_page() is called.
 FIRM_LANDING_PAGES: list[dict] = []
 
 
@@ -1968,7 +2142,7 @@ def main() -> None:
 
     firms_dir = SITE_DIR / "for-firms"
     firms_dir.mkdir(parents=True, exist_ok=True)
-    (firms_dir / "index.html").write_text(build_firms_page(), encoding="utf-8")
+    (firms_dir / "index.html").write_text(build_firms_page(by_slug), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/for-firms/index.html")
 
     (SITE_DIR / "404.html").write_text(build_404_page(built), encoding="utf-8")

@@ -104,6 +104,31 @@ def check_legal_safety(html_files: list[Path], state_page_files: list[Path]) -> 
     return errors
 
 
+CPE_AFFILIATE_BLOCK_RE = re.compile(r'<div class="cpe-affiliate">.*?</div>', re.IGNORECASE | re.DOTALL)
+AFFILIATE_DISCLOSURE_PHRASE = "paid affiliate link"
+
+
+def check_affiliate_disclosure(html_files: list[Path]) -> list[str]:
+    """[G] Defense-in-depth for the FTC Endorsement Guides (16 CFR Part 255)
+    requirement: every rendered `cpe-affiliate` block must carry its own disclosure,
+    immediately next to the link, every time it appears -- not a one-time site-wide
+    mention. generate.py's _cpe_provider_html() already guarantees this by
+    construction (every gated provider block calls the shared
+    _affiliate_disclosure_html() helper), but this check exists as a second,
+    independent line of defense: if a future edit ever adds a new CPE-affiliate
+    block by hand instead of through that shared renderer, this still catches a
+    live affiliate link shipping with no disclosure, rather than relying solely on
+    the Python source being correct."""
+    errors = []
+    for f in html_files:
+        text = f.read_text(encoding="utf-8")
+        for m in CPE_AFFILIATE_BLOCK_RE.finditer(text):
+            if AFFILIATE_DISCLOSURE_PHRASE not in m.group(0).lower():
+                line_no = text.count("\n", 0, m.start()) + 1
+                errors.append(f"[G][{f}:{line_no}] cpe-affiliate block rendered with no FTC disclosure ('{AFFILIATE_DISCLOSURE_PHRASE}' not found)")
+    return errors
+
+
 def check_data_manifest_consistency(data_path: Path, docs_dir: Path) -> list[str]:
     errors = []
     data = json.loads(data_path.read_text(encoding="utf-8"))
@@ -171,6 +196,7 @@ def main():
     all_errors += check_copy_hygiene(html_files)
     all_errors += check_rendering_integrity(html_files)
     all_errors += check_legal_safety(html_files, state_page_files)
+    all_errors += check_affiliate_disclosure(html_files)
     all_errors += check_data_manifest_consistency(data_path, docs_dir)
     all_errors += check_json_copies_identical(repo_root)
 

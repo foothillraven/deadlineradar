@@ -56,20 +56,30 @@ SITE_BASE_URL = "https://deadline-radar.com"
 # local build.
 INDEXNOW_KEY = "8e043aa98a82c1c393f1ac2aead217d8"
 
-# CPE-provider affiliate link. Illumeo runs a real, public, self-serve affiliate
-# program (20% commission, free to join, no minimum), is NASBA-registry-listed
-# (sponsor ID 109504) and separately registered with the Texas board (sponsor #009890),
-# with no accreditation/fraud red flags found in a dedicated vetting pass -- reputable
-# enough to recommend to a skeptical CPA audience. No affiliate account exists yet: the
-# free signup happens under the Ravenline brand identity when convenient, then this
-# constant swaps from the plain placeholder to the real tracked link.
+# CPE-provider affiliate links. Each provider below is INDEPENDENTLY gated: it
+# renders nothing at all until its own constant is swapped from the placeholder to a
+# real tracked link -- no free referral traffic before there's a real ID to earn
+# from, and no commercial placement on the trust-built pages until it's real (per
+# review ruling). One provider can go live without the other.
 #
-# Deliberately GATED, not just parameterized: `_cpe_affiliate_html()` renders nothing
-# at all while this constant still equals `_ILLUMEO_AFFILIATE_PLACEHOLDER` exactly --
-# no free referral traffic to Illumeo before a real ID exists to earn from, and no
-# commercial placement on the trust-built pages until it's real (per review ruling).
+# Illumeo: real, public, self-serve affiliate program (20% commission via FlexOffers,
+# free to join, no minimum), NASBA-registry-listed (sponsor ID 109504) and separately
+# registered with the Texas board (sponsor #009890), no accreditation/fraud red flags
+# found in a dedicated vetting pass. No affiliate account exists yet: the free signup
+# happens under the Ravenline brand identity when convenient.
 _ILLUMEO_AFFILIATE_PLACEHOLDER = "https://www.illumeo.com/"
 ILLUMEO_AFFILIATE_URL = _ILLUMEO_AFFILIATE_PLACEHOLDER
+
+# Becker: CPE + exam-prep provider, affiliate program run via Yazing (~6.3% net
+# commission). Yazing is a coupon/cashback intermediary -- the tracked link routes
+# through Yazing's own coupon page before landing on Becker, an extra hop Illumeo's
+# direct FlexOffers link doesn't have. `_cpe_provider_html()`'s routing_note param
+# exists specifically to disclose that hop in the placement copy itself, so a visitor
+# isn't confused landing on an unfamiliar domain first -- a UX/trust concern, distinct
+# from (and in addition to) the FTC material-connection disclosure every provider
+# gets regardless of routing.
+_BECKER_AFFILIATE_PLACEHOLDER = "https://www.becker.com/"
+BECKER_AFFILIATE_URL = _BECKER_AFFILIATE_PLACEHOLDER
 
 # Reminder backend (worker/, the Phase-1 Cloudflare Worker -- see
 # worker/DEPLOY.md). Same-origin relative path, not a separate domain: the
@@ -702,23 +712,56 @@ def trust_line(last_verified: str, source_url: str) -> str:
 # Per-state page builders
 # ---------------------------------------------------------------------------
 
-def _cpe_affiliate_html() -> str:
-    """CPE-provider affiliate callout (Illumeo). GATED: renders nothing at all until
-    ILLUMEO_AFFILIATE_URL is swapped for a real tracked link (see the constant's own
-    comment) -- no free referral traffic before there's a real ID to earn from, and no
-    commercial placement on the trust pages until it's real. Once active, this renders
-    on every state page. The FTC's Endorsement Guides (16 CFR Part 255) require a
-    material-connection disclosure every time the link appears, not once in a footer or
-    terms page -- the disclosure line below is baked into this exact block, not a
-    separate mention elsewhere, so it can never accidentally ship without it."""
-    if ILLUMEO_AFFILIATE_URL == _ILLUMEO_AFFILIATE_PLACEHOLDER:
+def _affiliate_disclosure_html() -> str:
+    """Shared FTC Endorsement Guides (16 CFR Part 255) material-connection disclosure.
+    Centralized so every CPE-affiliate provider block renders byte-identical wording --
+    a future provider can't accidentally ship with slightly different or missing
+    copy. Called once per provider block, immediately after that specific provider's
+    link -- the FTC requirement is disclosure adjacent to each link, not one mention
+    site-wide in a footer or terms page.
+
+    DRAFT WORDING pending explicit review (2026-07-09 multi-provider directive): this
+    text predates Becker/Yazing and was written for Illumeo's direct FlexOffers link
+    only. Kept unchanged here rather than silently reworded for the Yazing routing
+    case -- see the propose-first filing for the reasoning and the proposed addition."""
+    return ('<p class="disclosure">Disclosure: this is a paid affiliate link &mdash; we may earn a '
+            "commission if you sign up through it, at no extra cost to you.</p>")
+
+
+def _cpe_provider_html(url: str, placeholder: str, name: str, blurb: str, routing_note: str = "") -> str:
+    """Shared renderer for one CPE-provider affiliate block. GATED: renders nothing at
+    all while `url` still equals `placeholder` -- the same dormant pattern Illumeo has
+    always used, now factored out so Becker (or any future provider) can't accidentally
+    skip the gate or the disclosure. `routing_note` is a UX/trust disclosure (e.g. "this
+    goes through an intermediary coupon page first"), separate from and in addition to
+    the FTC disclosure `_affiliate_disclosure_html()` always renders below the link."""
+    if url == placeholder:
         return ""
+    note_html = f" {esc(routing_note)}" if routing_note else ""
     return f"""<div class="cpe-affiliate">
-  <p><strong>Need CPE hours before your deadline?</strong> <a href="{esc(ILLUMEO_AFFILIATE_URL)}">Illumeo</a>
-  offers self-study CPE courses for CPAs.</p>
-  <p class="disclosure">Disclosure: this is a paid affiliate link &mdash; we may earn a commission if you
-  sign up through it, at no extra cost to you.</p>
+  <p><strong>Need CPE hours before your deadline?</strong> <a href="{esc(url)}">{esc(name)}</a>
+  {esc(blurb)}.{note_html}</p>
+  {_affiliate_disclosure_html()}
 </div>"""
+
+
+def _cpe_affiliate_html() -> str:
+    """Renders every CPE-provider block that currently has a real (non-placeholder)
+    tracked URL -- each provider is independently gated (see _cpe_provider_html()), so
+    Illumeo can go live without Becker or vice versa. Once any provider is active, its
+    block renders on every state page, always paired with its own FTC disclosure."""
+    blocks = [
+        _cpe_provider_html(
+            ILLUMEO_AFFILIATE_URL, _ILLUMEO_AFFILIATE_PLACEHOLDER,
+            "Illumeo", "offers self-study CPE courses for CPAs",
+        ),
+        _cpe_provider_html(
+            BECKER_AFFILIATE_URL, _BECKER_AFFILIATE_PLACEHOLDER,
+            "Becker", "offers CPE courses and exam-prep for CPAs",
+            routing_note="(This link goes through Yazing's coupon page on the way to Becker -- that's expected.)",
+        ),
+    ]
+    return "\n".join(b for b in blocks if b)
 
 
 def _source_cite_html(record: dict) -> str:

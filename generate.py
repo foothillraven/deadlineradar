@@ -2143,6 +2143,65 @@ hours' annual clock. <a href="../../missouri/">Set a reminder for your Missouri 
 you don't have to hold all three in your head.</p>
 """,
     },
+    {
+        # First Moderate-tier article (2026-07-10) -- Tier-A format #1 (per-state renewal
+        # guide, the Missouri template rolled to a new state). Sequenced OUT of the standing
+        # "largest-population-first" default deliberately: this state was chosen because a
+        # real confirmed-organic Google referrer landed on ITS state page the same day the
+        # trigger fired (see the trigger filing for the raw-log cross-check) -- a real signal
+        # beats a population-based guess. Resume largest-population-first + alternating with
+        # a CPE guide next week absent a similarly strong reason not to.
+        "slug": "arizona-cpa-license-renewal-guide",
+        "title": "How CPA License Renewal Works in Arizona: Birth-Month Cycles, Firm Registration, and Deadlines",
+        "meta_description": (
+            "A complete guide to Arizona CPA license renewal: how the birth-month/parity cycle "
+            "works, why firm registration runs on a separate clock, CPE timing, and what happens "
+            "if you miss the deadline — sourced to Arizona's own statute and rule."
+        ),
+        "body_html": """
+<p class="intro">Arizona doesn't renew every CPA on the same date &mdash; your individual certificate
+renews in your own birth month, and which <em>years</em> you renew in depends on whether you were born
+in an odd or even year. Firm registration runs on an entirely separate clock. Here's exactly how each
+piece works, sourced to Arizona's own statute and administrative rule.</p>
+
+<h2>Individual CPA certificate: your birth month, every two years, matched to your birth year's parity</h2>
+<p>Per A.R.S. &sect; 32-730 and A.A.C. R4-1-345(B)(1), Arizona's individual CPA certificate renews
+biennially (every two years) &mdash; but WHICH two years depends on your birth year's parity: if you
+were born in an even-numbered year, you renew during your birth month in every even-numbered year; born
+in an odd-numbered year, you renew during your birth month in every odd-numbered year. Renewal has to be
+<strong>received</strong> by the Board &mdash; postmarks don't count &mdash; by 5:00pm on the last
+business day of your birth month. <a href="../../arizona/">Confirm your own next Arizona CPA renewal
+deadline here</a>.</p>
+
+<h2>Firm/business registration: a separate anniversary cycle, not your birth month</h2>
+<p>This is the part that catches people who assume everything renews together. Per A.A.C.
+R4-1-345(B)(2), a business-organization firm &mdash; a partnership, PC, PLLC, LLC, or LLP &mdash; renews
+during the board-approved month of its <em>initial registration</em>, on the same odd/even-year parity
+as the year it first registered. That's a completely different anchor date than any individual owner's
+personal birth month. The one exception: a sole proprietorship or an individual registrant's own firm
+registration is NOT on this separate cycle &mdash; it rides along with that person's individual
+certificate renewal instead.</p>
+
+<h2>CPE: the same clock as your renewal, not a separate one</h2>
+<p>Unlike states that check continuing education on an annual calendar regardless of a multi-year
+license cycle, Arizona's CPE reporting period is defined identically to your renewal period itself
+&mdash; there's no separate CE deadline running on its own clock. Whatever window your certificate
+renewal covers is the same window your CPE hours are checked against.</p>
+
+<h2>What happens if you miss the deadline</h2>
+<p>Missing the 5:00pm last-business-day cutoff triggers <strong>automatic suspension</strong>, plus a
+$50 late fee to reactivate. That suspension isn't the end of the line by itself &mdash; but if it isn't
+resolved within 3 months, the certificate doesn't just stay suspended, it <strong>expires</strong>. That's
+a harder consequence than a simple late fee, and a real reason not to let a birth-month deadline sneak up
+on you.</p>
+
+<p><strong>Bottom line</strong>: if you're an Arizona CPA, your personal renewal (birth month,
+parity-matched) and your firm's registration (if you're not a sole proprietor) can land in
+completely different years from each other. <a href="../../arizona/">Set a reminder for your
+Arizona deadline here</a> so you're tracking the date that actually applies to you, not a guess
+at when "renewal season" is.</p>
+""",
+    },
 ]
 
 

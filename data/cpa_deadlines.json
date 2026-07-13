@@ -124,7 +124,7 @@
       "secondary_source_url": "https://nccpaboard.gov/resource-snippet/section-0100-requirements-2/",
       "verification_note": "Corrected during sprint-task-5 adversarial verify: initial spike data used 'before July 1' loosely and computed a July 1 deadline; re-checked directly against the NC Board's own 2025-2026 renewal page, which states the cutoff is June 30 (July 1 is when the Letter-of-Demand process starts). Fixed to June 30 with the primary source URL updated accordingly. Downgraded to a data gap during the 2026-07-05 correctness audit after the source page went briefly dead. RE-OPENED 2026-07-06 (P2 gap-closure pass): re-confirmed 21 NCAC 08J .0101's current text and initially treated 'by the first day of July' and the Board's 'June 30' as the same instant described two ways -- WRONG. CORRECTED 2026-07-06 per the orchestrator's independent adversarial verification: these are two different calendar dates (July 1 vs. June 30), and the codified rule is the legally controlling text, not the Board's operational webpage. Publishing 2027-07-01 (the codified date), not 2027-06-30.",
       "citation": "21 NCAC 08J .0101(a)",
-      "citation_url": "https://nccpaboard.gov/resource-snippet/section-0100-requirements-2/"
+      "citation_url": "http://reports.oah.state.nc.us/ncac/title%2021%20-%20occupational%20licensing%20boards%20and%20commissions/chapter%2008%20-%20certified%20public%20accountant%20examiners/subchapter%20j/21%20ncac%2008j%20.0101.html"
     },
     {
       "id": "mi-individual",
@@ -1318,7 +1318,7 @@
       "last_verified": "2026-07-05",
       "wave": 7,
       "citation": "W.S. 33-3-109(d)",
-      "citation_url": "https://cpaboard.wyo.gov/statute-rules"
+      "citation_url": "https://wyoleg.gov/statutes/compress/title33.pdf"
     },
     {
       "id": "wy-firm",
@@ -1334,7 +1334,7 @@
       "last_verified": "2026-07-05",
       "wave": 7,
       "citation": "W.S. 33-3-120(b)",
-      "citation_url": "https://cpaboard.wyo.gov/statute-rules"
+      "citation_url": "https://wyoleg.gov/statutes/compress/title33.pdf"
     },
     {
       "id": "me-all",
@@ -1364,7 +1364,7 @@
       "last_verified": "2026-07-06",
       "wave": 7,
       "citation": "ARSD 20:75:03:12",
-      "citation_url": "https://sdlegislature.gov/Rules/Administrative/20:75:03:12"
+      "citation_url": "https://law.cornell.edu/regulations/south-dakota/ARSD-20-75-03-12"
     },
     {
       "id": "ri-all",

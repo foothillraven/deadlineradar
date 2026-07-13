@@ -124,7 +124,7 @@
       "secondary_source_url": "https://nccpaboard.gov/resource-snippet/section-0100-requirements-2/",
       "verification_note": "Corrected during sprint-task-5 adversarial verify: initial spike data used 'before July 1' loosely and computed a July 1 deadline; re-checked directly against the NC Board's own 2025-2026 renewal page, which states the cutoff is June 30 (July 1 is when the Letter-of-Demand process starts). Fixed to June 30 with the primary source URL updated accordingly. Downgraded to a data gap during the 2026-07-05 correctness audit after the source page went briefly dead. RE-OPENED 2026-07-06 (P2 gap-closure pass): re-confirmed 21 NCAC 08J .0101's current text and initially treated 'by the first day of July' and the Board's 'June 30' as the same instant described two ways -- WRONG. CORRECTED 2026-07-06 per the orchestrator's independent adversarial verification: these are two different calendar dates (July 1 vs. June 30), and the codified rule is the legally controlling text, not the Board's operational webpage. Publishing 2027-07-01 (the codified date), not 2027-06-30.",
       "citation": "21 NCAC 08J .0101(a)",
-      "citation_url": "http://reports.oah.state.nc.us/ncac/title%2021%20-%20occupational%20licensing%20boards%20and%20commissions/chapter%2008%20-%20certified%20public%20accountant%20examiners/subchapter%20j/21%20ncac%2008j%20.0101.html"
+      "citation_url": "https://www.law.cornell.edu/regulations/north-carolina/21-N-C-Admin-Code-08J-0101"
     },
     {
       "id": "mi-individual",
@@ -1358,7 +1358,7 @@
       "license_type": "all",
       "license_type_label": "Individual CPA/PA certificate and firm permit",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Individual CPA/PA certificates and firm permits both renew annually, due August 1 (postmark, or 11:59pm Central if filing online) -- confirmed by the Board's current renewal-instructions/FAQ pages (dlr.sd.gov) together with the amended administrative rule (ARSD 20:75:03:12 for active individual certificates; ARSD 20:75:03:08 states firm permits 'expire annually on July thirty-first,' with the Board's own practical guidance describing the same August 1 filing deadline for firms as for individuals). Amendment effective 2026-07-01 per 51 SDR 141.",
+      "cycle_description": "Individual CPA/PA certificates and firm permits both renew annually, due August 1 (postmark, or 11:59pm Central if filing online) -- confirmed by the Board's current renewal-instructions/FAQ pages (dlr.sd.gov) together with the amended administrative rule (ARSD 20:75:03:12 for active individual certificates; ARSD 20:75:03:08 states firm permits 'expire annually on July thirty-first,' with the Board's own practical guidance describing the same August 1 filing deadline for firms as for individuals). ARSD 20:75:03:12 was amended by 51 SDR 141 (effective 2025-07-01) and again by 52 SDR 125 (effective 2026-07-01); ARSD 20:75:03:08 was amended by 51 SDR 141 (effective 2025-07-01). Both amendments left the August 1 filing deadline unchanged (confirmed against sdlegislature.gov's official rule-history lines for both sections).",
       "next_deadline_computed": "2026-08-01",
       "source_url": "https://dlr.sd.gov/accountancy/",
       "last_verified": "2026-07-06",

@@ -271,13 +271,13 @@
       "license_type": "individual",
       "license_type_label": "Individual CPA License",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Annual renewal, fixed calendar date. All Virginia CPAs holding an Active or Inactive individual license must renew by June 30 each year; the renewal window opens March 1. Licenses not renewed automatically go to Expired status on July 1 (reinstatement fee applies). No separate CPE reporting deadline -- CE compliance is self-certified as part of the renewal itself, with supporting documentation retained for 4 years in case of audit.",
+      "cycle_description": "Annual renewal, fixed calendar date. All Virginia CPAs holding an Active or Inactive individual license must renew by June 30 each year; the renewal window opens March 1. Licenses not renewed automatically go to Expired status -- Va. Code § 54.1-4413.2(B): \"Any license not renewed pursuant to the provisions prescribed by the Board shall be considered to have expired and the person or firm shall be considered to no longer hold a Virginia license.\" (18VAC5-22-180 doesn't itself state this; the prior citation covered only the June 30 renewal date, not the expiration consequence -- added the controlling statute.) Reinstatement then requires a Board-evaluated application under § 54.1-4413.2(D), plus the Board's own reinstatement fee (per the Board's own renewal page). No separate CPE reporting deadline -- CE compliance is self-certified as part of the renewal itself, with supporting documentation retained for 4 years in case of audit.",
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://boa.virginia.gov/individual-cpas/renew/",
-      "last_verified": "2026-07-05",
+      "last_verified": "2026-07-13",
       "wave": 4,
-      "secondary_source_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/",
-      "citation": "18VAC5-22-180",
+      "secondary_source_url": "https://law.lis.virginia.gov/vacode/title54.1/chapter44/section54.1-4413.2/",
+      "citation": "18VAC5-22-180; Va. Code § 54.1-4413.2(B)",
       "citation_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/"
     },
     {
@@ -287,13 +287,13 @@
       "license_type": "firm",
       "license_type_label": "CPA Firm License",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Annual renewal, same fixed June 30 calendar date as individual licenses; renewal window opens March 1. Unrenewed firm licenses automatically go to Expired status on July 1, after which the firm may not provide attest or compilation services until reinstated ($500 reinstatement fee).",
+      "cycle_description": "Annual renewal, same fixed June 30 calendar date as individual licenses; renewal window opens March 1. Unrenewed firm licenses automatically go to Expired status -- Va. Code § 54.1-4413.2(B): \"Any license not renewed pursuant to the provisions prescribed by the Board shall be considered to have expired and the person or firm shall be considered to no longer hold a Virginia license.\" (18VAC5-22-180 doesn't itself state this; the prior citation covered only the June 30 renewal date, not the expiration consequence -- added the controlling statute.) After expiration the firm may not provide attest or compilation services until reinstated under § 54.1-4413.2(E), plus the Board's own $500 reinstatement fee (per the Board's own renewal page).",
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://boa.virginia.gov/firms/renew/",
-      "last_verified": "2026-07-05",
+      "last_verified": "2026-07-13",
       "wave": 4,
-      "secondary_source_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/",
-      "citation": "18VAC5-22-180",
+      "secondary_source_url": "https://law.lis.virginia.gov/vacode/title54.1/chapter44/section54.1-4413.2/",
+      "citation": "18VAC5-22-180; Va. Code § 54.1-4413.2(B)",
       "citation_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/"
     },
     {
@@ -853,7 +853,8 @@
       "last_verified": "2026-07-05",
       "wave": 5,
       "citation": "Iowa Admin. Code 193A-5.3(1)",
-      "citation_url": "https://www.legis.iowa.gov/docs/iac/chapter/01-07-2026.193A.5.pdf"
+      "citation_url": "https://www.legis.iowa.gov/docs/iac/chapter/01-07-2026.193A.5.pdf",
+      "verification_note": "2026-07-13 amendment-currency audit: unverified, genuinely unresolved lead. Rule text confirmed current against ARC 7681C (eff. 4/10/24), which verbatim-supports the displayed June 30 deadline. BUT Iowa's own rules.iowa.gov lists ARC 1582Z (6/10/2026, 'Filed Without Notice') directly under the Accountancy Examining Board, postdating that confirmed amendment -- its official PDF is genuine but zero-byte on every retry, subject line blank everywhere checked, not in the regular IAB bulletin index for that date, no Wayback Machine snapshot. Could not determine what it touches. Do not treat this record as fully current until resolved -- pending a human opening rules.iowa.gov/Notice/Details/1582Z directly, or a call/email to Iowa LSA."
     },
     {
       "id": "ia-firm",
@@ -1255,7 +1256,8 @@
       "last_verified": "2026-07-05",
       "wave": 7,
       "citation": "AS 08.04.105(a)",
-      "citation_url": "https://www.commerce.alaska.gov/web/portals/5/pub/CPARegulations.pdf"
+      "citation_url": "https://www.commerce.alaska.gov/web/portals/5/pub/CPARegulations.pdf",
+      "verification_note": "2026-07-13 amendment-currency audit: unverified. akleg.gov (the authoritative source) returns HTTP 403 to every automated fetch attempt. AS 08.04.105(a) itself only establishes the general biennial licensing mechanic -- it never states the specific 'January 1, 2026-December 31, 2027' dates displayed, nor even the odd/even-year pattern; that lives elsewhere in regulation (candidates: 12 AAC 04.189, 12 AAC 02.935), unconfirmed due to the access block. A related 2025 regulation package (12 AAC 04, eff. 7/26/2025) exists whose scope relative to this date mechanic is also unconfirmed. Dates are plausibly still correct (math checks out, mid-biennium) but not verbatim-verified against the primary source. Pending a human browser check of akleg.gov/basis/aac.asp directly."
     },
     {
       "id": "ak-firm",
@@ -1271,7 +1273,8 @@
       "last_verified": "2026-07-05",
       "wave": 7,
       "citation": "12 AAC 04.280",
-      "citation_url": "https://www.commerce.alaska.gov/web/portals/5/pub/CPARegulations.pdf"
+      "citation_url": "https://www.commerce.alaska.gov/web/portals/5/pub/CPARegulations.pdf",
+      "verification_note": "2026-07-13 amendment-currency audit: unverified. akleg.gov (the authoritative source) returns HTTP 403 to every automated fetch attempt. 12 AAC 04.280 itself only establishes the general biennial licensing mechanic -- it never states the specific 'January 1, 2026-December 31, 2027' dates displayed, nor even the odd/even-year pattern; that lives elsewhere in regulation (candidates: 12 AAC 04.189, 12 AAC 02.935), unconfirmed due to the access block. A related 2025 regulation package (12 AAC 04, eff. 7/26/2025) exists whose scope relative to this date mechanic is also unconfirmed. Dates are plausibly still correct (math checks out, mid-biennium) but not verbatim-verified against the primary source. Pending a human browser check of akleg.gov/basis/aac.asp directly."
     },
     {
       "id": "vt-individual",

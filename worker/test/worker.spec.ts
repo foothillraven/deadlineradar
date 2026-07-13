@@ -1,5 +1,5 @@
 import { env, SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   checkDataFreshness,
   computeSubscriberDeadline,
@@ -911,6 +911,80 @@ describe("scheduler.ts runReminderPass -- one pass", () => {
 
     const row = await env.DB.prepare("SELECT reminders_sent FROM subscribers WHERE id = ?1").bind(rec.id).first<{ reminders_sent: string }>();
     expect(JSON.parse(row?.reminders_sent ?? "[]")).toContain(7);
+  });
+});
+
+describe("Staleness guard -- real HTTP + cron code paths, not just checkDataFreshness() in isolation", () => {
+  // checkDataFreshness() deliberately judges freshness against the REAL wall
+  // clock even when a caller supplies a simulated `asOf` (scheduler.ts:88-92)
+  // -- a caller can never talk its way past the guard. That's the right
+  // security property, but it means proving the guard actually PAUSES the
+  // live signup endpoint and the live cron handler (not just that the pure
+  // function throws in isolation, which worker.spec.ts already covered above)
+  // requires actually moving the system clock, not passing a parameter.
+  it("POST /subscribe returns 503 'temporarily paused' once as_of_date is more than 30 days old", async () => {
+    vi.useFakeTimers();
+    try {
+      // data/cpa_deadlines.json's as_of_date is 2026-07-05 at the time of this
+      // audit; 2026-09-01 is 58 days later, well past the 30-day threshold.
+      vi.setSystemTime(new Date("2026-09-01T00:00:00Z"));
+      const resp = await postSubscribe(
+        { email: `stale-guard-${Date.now()}@example.com`, state: "texas", birth_month: "7" },
+        "203.0.113.90"
+      );
+      expect(resp.status).toBe(503);
+      const body = await resp.text();
+      expect(body).toContain("temporarily paused");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not persist a subscriber row when the staleness guard refuses the signup", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-09-01T00:00:00Z"));
+      const email = `stale-guard-nowrite-${Date.now()}@example.com`;
+      await postSubscribe({ email, state: "texas", birth_month: "7" }, "203.0.113.91");
+      const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first();
+      expect(row).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("the reminder cron's runReminderPass() throws StaleDataError (not a silent send) once as_of_date ages out", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-09-01T00:00:00Z"));
+      const { runReminderPass } = await import("../src/scheduler");
+      await expect(runReminderPass(env)).rejects.toThrow(StaleDataError);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("scheduled() (the actual Worker cron entrypoint) swallows the stale-data pause and does not throw out of the handler", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-09-01T00:00:00Z"));
+      const worker = (await import("../src/index")).default;
+      const logs: string[] = [];
+      const logSpy = vi.spyOn(console, "log").mockImplementation((msg: unknown) => {
+        logs.push(String(msg));
+      });
+      const waited: Promise<unknown>[] = [];
+      const ctx = { waitUntil: (p: Promise<unknown>) => waited.push(p) } as unknown as ExecutionContext;
+      const envWithKey = { ...env, SENDGRID_API_KEY: "test-key-not-real" };
+      await expect(
+        worker.scheduled({} as ScheduledController, envWithKey, ctx)
+      ).resolves.not.toThrow();
+      await Promise.all(waited);
+      logSpy.mockRestore();
+      expect(logs.some((l) => l.includes("[reminder-cron] paused") && l.includes("stale reference data"))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

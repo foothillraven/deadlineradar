@@ -179,6 +179,30 @@ def check_json_copies_identical(repo_root: Path) -> list[str]:
     return []
 
 
+def print_worker_deploy_staleness_advisory(repo_root: Path) -> None:
+    """Surfaces the existing worker_deploy_staleness_check.py advisory as part
+    of the normal pre-ship run, instead of relying on someone remembering to
+    invoke it separately -- this is the exact "static site and Worker deploy
+    through separate pipelines" class that silently broke South Dakota/Hawaii/
+    Oklahoma signups on 2026-07-09 (see that script's own docstring). Advisory
+    only, matching every other detector here: printed, never affects exit code
+    or blocks a commit -- data/cpa_deadlines.json and worker/src/cpa_deadlines.json
+    changing together is normal and expected; this just reminds a human to run
+    `wrangler deploy` (and update worker/.last_deploy_commit) before assuming
+    the live Worker has picked up a data change."""
+    sys.path.insert(0, str(repo_root / "scripts"))
+    try:
+        import worker_deploy_staleness_check as wdsc
+    except ImportError:
+        print("  (skipping worker-deploy-staleness advisory -- worker_deploy_staleness_check.py not importable)")
+        return
+    print("\n--- worker-deploy-staleness advisory (does not affect gate exit code) ---")
+    try:
+        wdsc.main()
+    except SystemExit:
+        pass
+
+
 def main():
     repo_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent
     docs_dir = repo_root / "docs"
@@ -205,8 +229,10 @@ def main():
         print(f"\nFAIL -- {len(all_errors)} violation(s):\n")
         for e in all_errors:
             print(" ", e)
+        print_worker_deploy_staleness_advisory(repo_root)
         sys.exit(1)
     print("\nPASS -- no violations found.")
+    print_worker_deploy_staleness_advisory(repo_root)
     sys.exit(0)
 
 

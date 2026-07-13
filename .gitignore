@@ -52,6 +52,12 @@ social/.env
 # where our own data-freshness gaps are before we've reviewed them.
 freshness_sweep_log/
 
+# codified_source_audit.py's offline-mode result dump -- same "our own
+# unreviewed data-gap findings" reasoning as freshness_sweep_log/ above, just
+# for the non-network audit()/--check-links passes. Regenerated on every run
+# (found untracked during the 2026-07-13 data-integrity audit).
+scripts/_codified_audit_result.json
+
 # Local Windows Scheduled Task wrapper -- hardcodes a machine-specific path
 # (local username + directory layout), never belongs in a public repo. Kept
 # local-only, same pattern as the Cloudflare/GitHub token files.

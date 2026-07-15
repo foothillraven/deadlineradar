@@ -2272,6 +2272,64 @@ Arizona deadline here</a> so you're tracking the date that actually applies to y
 at when "renewal season" is.</p>
 """,
     },
+    {
+        "slug": "why-some-states-need-your-birth-month",
+        "title": "Why This Site Sometimes Asks for Your Birth Month Instead of Just Showing a Date",
+        "meta_description": (
+            "Some states renew every CPA license on one fixed date. Others compute your exact "
+            "deadline from your own birth month or birth year. Here's the real difference, "
+            "state by state, and why we ask instead of guess."
+        ),
+        "body_html": """
+<p class="intro">Most of this site works the same way for every visitor to a given state page: pick
+your state, see the date, done. A handful of states don't work that way, and if you've landed on one of
+those pages wondering why we're asking for your birth month instead of just showing a date, here's
+exactly why &mdash; and why we won't guess it for you.</p>
+
+<h2>The simple case: one date, for everyone, codified in law</h2>
+<p>Most states renew every individual CPA on the same calendar date, full stop. Wisconsin is a clean
+example: every individual license renews <strong>December 15 of each odd-numbered year</strong> &mdash;
+"the same statutory date for every licensee," per Wis. Stat. &sect; 440.08(2)(a)1. There's no formula to
+apply, no personal detail needed &mdash; the date on the page is your date, and it's a real,
+citation-backed fact this site verifies and marks <strong>Verified</strong>.</p>
+
+<h2>The other case: your date depends on something specific to you</h2>
+<p>Several states don't assign one date to everyone &mdash; they compute each licensee's own deadline
+from a personal detail, most often the licensee's own birth month:</p>
+<ul>
+  <li><strong>Texas</strong>: renewal fee is due annually by the last day of your own birth month.</li>
+  <li><strong>Oklahoma</strong>: "all permits issued shall be renewed on the last day of the
+  individual's birth month" (Okla. Stat. tit. 59 &sect; 15.14A) &mdash; the Board even publishes its own
+  birth-month lookup table.</li>
+  <li><strong>New Mexico</strong>: annual renewal due by the last day of your birth month (16.60.3.9.I
+  NMAC).</li>
+  <li><strong>California</strong>: your license expires every 2 years at midnight on the last day of
+  your birth month &mdash; which two years depends on whether your birth year is odd or even.</li>
+  <li><strong>Arizona</strong>: biennial, matched to both your birth month <em>and</em> your birth
+  year's odd/even parity (A.R.S. &sect; 32-730, A.A.C. R4-1-345(B)(1)) &mdash; see our
+  <a href="../arizona-cpa-license-renewal-guide/">full Arizona guide</a> for exactly how that works.</li>
+  <li><strong>New York</strong>: a mandatory triennial registration (separate from the license itself)
+  that expires in the month <em>before</em> your own birth month.</li>
+</ul>
+<p>These aren't small variations on the same idea &mdash; a birth-<em>month</em> formula, a birth-
+<em>year-parity</em> formula, and a fixed date that applies to everyone are three genuinely different
+mechanisms, and mixing them up is an easy way to track the wrong deadline entirely.</p>
+
+<h2>Why we ask instead of guess</h2>
+<p>This site's whole standard, described in full on our <a href="../../methodology/">verification
+methodology page</a>, is simple: if a date can't be confirmed against the actual codified rule for
+<em>everyone</em> in a state, we don't publish a guessed date. For a birth-month-driven state, "your
+deadline" genuinely doesn't exist as a single fact until you tell us the one detail the rule itself
+depends on. So instead of picking a plausible-looking date and hoping it's close enough, the signup form
+for these states asks for that one extra field &mdash; your birth month, or similar &mdash; and computes
+your actual deadline from it, the same way the state's own rule does.</p>
+
+<p><strong>Bottom line:</strong> if a state page shows an exact date with a <strong>Verified</strong>
+badge, that date is confirmed law, the same for every licensee. If it asks you a question first, that's
+not this site being vague &mdash; it's the actual rule working that way, and we'd rather ask than
+guess.</p>
+""",
+    },
 ]
 
 

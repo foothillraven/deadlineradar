@@ -531,7 +531,7 @@ def site_footer() -> str:
   &mdash; not legal, tax, or professional advice. Always confirm your exact renewal date with your
   state board or on your license.</p>
   <p><a href="/privacy/">Privacy Policy</a> &middot; <a href="/contact/">Contact</a> &middot;
-  <a href="/for-firms/">For Firms</a></p>
+  <a href="/for-firms/">For Firms</a> &middot; <a href="/methodology/">How We Verify</a></p>
 </footer>"""
 
 
@@ -855,7 +855,8 @@ def trust_line(last_verified: str, source_url: str) -> str:
     return f"""<div class="trust-line">
   <strong>Last verified: {esc(last_verified)}</strong> &middot; checked against the state's codified
   statute or administrative rule, not just a board webpage &mdash; if we can't verify a date against
-  primary law, we say so instead of guessing. Always confirm with the
+  primary law, we say so instead of guessing (<a href="/methodology/">see how we verify every
+  deadline</a>). Always confirm with the
   <a href="{esc(source_url)}">official state board</a> before relying on this date. License
   requirements and deadlines can change.
 </div>"""
@@ -1619,6 +1620,75 @@ Aurora, CO 80013</p>
     )
 
 
+def build_methodology_page() -> str:
+    """How-we-verify-our-data page (2026-07-15, per the orchestrator's 'press the
+    validated bet' steer: apply the CPA-trust design lens by surfacing the sourcing
+    method itself as a first-class trust asset, the way established compliance/legal
+    reference sites do -- not by inventing any new claim, just making the standard
+    already enforced everywhere else in this file (citation + citation_url on every
+    record, honest null/gap-note when unverifiable) legible to a skeptical CPA
+    visitor in one place instead of leaving it implicit."""
+    body = f"""<h1>How We Verify Every Deadline</h1>
+<p class="intro">CPAs are trained to be skeptical of unverified sources &mdash; so here is exactly how
+this site's dates are sourced, checked, and kept current. Nothing below is aspirational; it describes
+the actual standard already applied to every state page.</p>
+
+<h2>The two-source rule</h2>
+<p>Every date on this site must trace to two independent things before it's published:</p>
+<ol>
+  <li><strong>The state board's own page</strong> &mdash; the plain-English source most people would
+  find first.</li>
+  <li><strong>The actual codified statute or administrative rule</strong> the board's requirement
+  derives from &mdash; not a summary of it, the primary legal text itself. That citation and a direct
+  link to it are shown under every verified date on this site, labeled "Source of record."</li>
+</ol>
+<p>If we can't find or confirm the second source, the date is not published as a confirmed fact. Instead
+the page says so plainly and points you to the official state board to determine your own exact
+deadline &mdash; we do not guess, interpolate, or infer a date we can't back up with primary law.</p>
+
+<h2>What the "Verified" badge means</h2>
+<p>A callout shows a <strong>Verified</strong> badge only when that specific date has a real citation to
+codified law behind it, checked the way described above. A record without one never shows the badge
+&mdash; there is no in-between state where a date looks confirmed but isn't.</p>
+
+<h2>What "Last verified" means</h2>
+<p>The date shown in each state's trust line is the last time we directly re-checked that state's
+citation against the primary source text (not just re-read our own notes about it). We periodically
+re-run an automated check across every cited source looking for two things: a broken or redirected
+link, and any sign the underlying rule has since been amended. When either turns up, we re-verify by
+hand before changing anything a visitor sees &mdash; an automated flag never silently rewrites a
+published date by itself.</p>
+
+<h2>Where this can still fall short, honestly</h2>
+<p>Some sources are genuinely harder to verify by automated means &mdash; a handful of citations point to
+PDF documents or JavaScript-rendered pages our tooling can't text-extract automatically. Where that's the
+case, those citations were still individually confirmed by hand at the time they were published; we
+disclose the tooling gap rather than pretend an easier check covers it. If a rule changes between our
+checks, use the contact link below to flag it and we'll re-verify and correct it quickly.</p>
+
+<h2>What we don't verify this way</h2>
+<p>CPE hour completion is self-reported wherever this site or its firm tier ever discusses it &mdash;
+we label that clearly and never give it the same "Verified" treatment as a sourced renewal date. We also
+don't independently verify a state's future policy changes; if a state proposes a new rule that hasn't
+taken effect yet, we wait for it to become the actual current rule before citing it.</p>
+
+<h2>See it for yourself</h2>
+<p>Pick any state page and look for the "Source of record" line under its date &mdash; the citation and
+the "read the rule" link go to the primary legal text, not a summary. That's the same standard behind
+every date on this site.</p>
+
+<p class="backlink"><a href="/contact/">Found something that looks wrong? Tell us &rarr;</a></p>
+"""
+    return page_shell(
+        f"How We Verify Every Deadline — {SITE_NAME}",
+        "DeadlineRadar's sourcing standard: every CPA license renewal date traces to the state board's "
+        "own page plus the actual codified statute or rule behind it — never a guess.",
+        body,
+        home_href="../",
+        canonical_path="/methodology/",
+    )
+
+
 def build_404_page(states: list[dict]) -> str:
     sorted_states = sorted(states, key=lambda s: s["state"])
     cards = "\n".join(
@@ -2257,6 +2327,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/for-firms/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/methodology/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/blog/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>"""]
@@ -2412,6 +2485,11 @@ def main() -> None:
     contact_dir.mkdir(parents=True, exist_ok=True)
     (contact_dir / "index.html").write_text(build_contact_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/contact/index.html")
+
+    methodology_dir = SITE_DIR / "methodology"
+    methodology_dir.mkdir(parents=True, exist_ok=True)
+    (methodology_dir / "index.html").write_text(build_methodology_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/methodology/index.html")
 
     firms_dir = SITE_DIR / "for-firms"
     firms_dir.mkdir(parents=True, exist_ok=True)

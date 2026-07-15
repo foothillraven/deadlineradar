@@ -72,7 +72,7 @@ INDEXNOW_KEY = "8e043aa98a82c1c393f1ac2aead217d8"
 # free to join, no minimum), NASBA-registry-listed (sponsor ID 109504) and separately
 # registered with the Texas board (sponsor #009890), no accreditation/fraud red flags
 # found in a dedicated vetting pass. No affiliate account exists yet: the free signup
-# happens under the Ravenline brand identity when convenient.
+# happens under the Moose & Raven LLC brand identity when convenient.
 _ILLUMEO_AFFILIATE_PLACEHOLDER = "https://www.illumeo.com/"
 ILLUMEO_AFFILIATE_URL = _ILLUMEO_AFFILIATE_PLACEHOLDER
 
@@ -209,7 +209,7 @@ def build_texas_table(as_of: date) -> list[dict]:
 
 SITE_NAME = "DeadlineRadar"
 SITE_TAGLINE = "CPA license renewal deadlines by state — verified and kept current"
-BRAND_NAME = "Ravenline"
+BRAND_NAME = "Moose & Raven LLC"
 
 
 def esc(s: str) -> str:

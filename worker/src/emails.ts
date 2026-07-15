@@ -25,11 +25,11 @@ import { escapeHtml } from "./validation";
 
 export const SITE_URL = "https://deadline-radar.com";
 export const SITE_NAME = "DeadlineRadar";
-export const BRAND_NAME = "Ravenline";
+export const BRAND_NAME = "Moose & Raven LLC";
 export const SENDER_LINE = `${SITE_NAME} (a ${BRAND_NAME} project)`;
 
 // CAN-SPAM requires a valid physical postal address in every commercial email.
-// This is Ravenline's real mail-receiving address (Anytime Mailbox, Aurora CO).
+// This is Moose & Raven LLC's real mail-receiving address (Anytime Mailbox, Aurora CO).
 // Kept as a constant, not fabricated -- buildConfirmationEmail() asserts it is
 // still a real, non-empty address before composing anything (see below), so a
 // blanked-out value fails closed rather than shipping an empty footer.

@@ -49,7 +49,7 @@ BACKEND_BASE_URL = "https://example-deadlineradar-api.test"
 SITE_URL = "https://deadline-radar.com"
 
 SITE_NAME = "DeadlineRadar"
-BRAND_NAME = "Ravenline"
+BRAND_NAME = "Moose & Raven LLC"
 SENDER_LINE = f"{SITE_NAME} (a {BRAND_NAME} project)"
 
 # CAN-SPAM requires a valid physical postal address in every commercial

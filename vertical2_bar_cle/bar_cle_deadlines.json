@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "status": "SOURCING GROUNDWORK ONLY -- NOT wired into generate.py, NOT live, NOT a build commitment",
+    "purpose": "Vertical #2 (attorney bar license + CLE/MCLE), per the 2026-07-06 expansion-vertical roadmap's #1-ranked candidate. Sourcing standard: every date fact = official board/bar page + the actual codified rule/statute it derives from, same double-source discipline as the CPA dataset.",
+    "created": "2026-07-15",
+    "states_sourced_so_far": 2,
+    "states_total_needed": 50,
+    "next_step": "Continue sourcing remaining 48 states to this same standard before any site build starts. Do NOT build vertical2's generate.py/site until Devin/orchestrator validates the CPA vertical enough to justify a second full build (per the directive's own 'build post-validation' instruction)."
+  },
+  "records": [
+    {
+      "id": "ca-attorney",
+      "state": "California",
+      "state_slug": "california",
+      "license_type_label": "Attorney MCLE Compliance",
+      "citation": "Cal. Rules of Court, Rule 9.31 (Minimum Continuing Legal Education)",
+      "citation_url": "https://courts.ca.gov/cms/rules/index.cfm?amp=&linkid=rule9_31&title=nine",
+      "source_url": "https://www.calbar.ca.gov/legal-professionals/maintaining-compliance/mcle/compliance-groups",
+      "governing_body": "State Bar of California / Judicial Council of California",
+      "cycle_type": "36-month period (currently staggered 38-month transitional cycles), cohort-based by last-name group -- NOT a single fixed date, needs the same extra-field signup mechanism already built for CPA birth-month/cohort states",
+      "cycle_description": "25 hours of MCLE every 3 years (4 of which must be legal ethics), per Rule 9.31. Reporting deadline depends on which of 3 cohort groups (assigned by first letter of last name on State Bar record, permanent once assigned) an attorney is in. Verified directly against both Rule 9.31's official text (courts.ca.gov) and the State Bar's compliance-groups page -- not inferred from a summary.",
+      "cohort_groups": [
+        {"group": 1, "last_name_range": "A-G", "compliance_period": "2025-03-30 to 2028-03-29", "reporting_deadline": "2028-03-30"},
+        {"group": 2, "last_name_range": "H-M", "compliance_period": "2024-02-01 to 2027-03-29", "reporting_deadline": "2027-03-30"},
+        {"group": 3, "last_name_range": "N-Z", "compliance_period": "2023-02-01 to 2026-03-29", "reporting_deadline": "2026-03-30"}
+      ],
+      "next_deadline_computed": null,
+      "next_deadline_computed_note": "Intentionally null -- genuinely depends on last-name cohort group, not computable without that one extra signup field (same 'extra field' pattern as CPA's birth-month states, just keyed on last-name-initial instead of birth-month).",
+      "sourced_2026-07-15": true
+    },
+    {
+      "id": "tx-attorney",
+      "state": "Texas",
+      "state_slug": "texas",
+      "license_type_label": "Attorney MCLE Compliance",
+      "citation": "Article XII, Sections 5-6, State Bar Rules (Texas Minimum Continuing Legal Education Rules, amended Dec. 19, 2022 by the Supreme Court of Texas)",
+      "citation_url": "https://www.texasbar.com/AM/Template.cfm?Section=MCLE_Rules1&Template=/CM/ContentDisplay.cfm&ContentID=59107",
+      "source_url": "https://www.texasbar.com/AM/template.cfm?section=Reporting_MCLE_Hours",
+      "governing_body": "State Bar of Texas (MCLE Department), rules approved by the Supreme Court of Texas",
+      "cycle_type": "12-month rolling period, birth-month based -- NOT a fixed calendar date, needs the same extra-field signup mechanism already built for CPA birth-month states",
+      "cycle_description": "15 hours of CLE annually (3 of which must be legal ethics/professional responsibility), per Article XII Section 6. Compliance year runs from the first day of an attorney's birth month to the last day of the month before the following year's birth month (Section 5(A)). An automatic grace period extends through the last day of the birth month itself before non-compliance penalties apply (Section 8(B)) -- verified directly against the actual rule text (extracted from the State Bar's own PDF via pdftotext, not just a summary), not merely a secondary source's paraphrase.",
+      "next_deadline_computed": null,
+      "next_deadline_computed_note": "Intentionally null -- genuinely depends on the attorney's birth month, exactly the same shape as the CPA dataset's existing birth-month-cohort states. Reuses that already-built mechanism directly once this vertical is built.",
+      "sourced_2026-07-15": true
+    }
+  ]
+}

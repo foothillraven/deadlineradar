@@ -2126,6 +2126,13 @@ def _cpe_hours_signup_html(cpe_record: dict, renewal_records: list[dict], as_of:
 </div>"""
 
 
+def _every_n_years(n: int) -> str:
+    """'every year' not 'every 1 year' -- the pluralization artifact the
+    orchestrator's go-live review caught (2026-07-15). Used everywhere a CPE
+    period gets rendered so this can't drift back out of sync per call site."""
+    return "every year" if n == 1 else f"every {n} years"
+
+
 def build_cpe_hours_page(cpe_record: dict, renewal_records: list[dict], as_of: date) -> tuple[str, str, str]:
     """CPE-hours-by-state page (2026-07-15 cluster). Flat sibling slug, same
     convention as build_firm_landing_page() -- e.g. /arizona-cpa-cpe-requirements/
@@ -2135,9 +2142,10 @@ def build_cpe_hours_page(cpe_record: dict, renewal_records: list[dict], as_of: d
     state_name = cpe_record["state"]
     slug = f"{cpe_record['state_slug']}-cpa-cpe-requirements"
     title = f"{state_name} CPA CPE Requirements: How Many Hours, By When"
+    period_phrase = _every_n_years(cpe_record["period_years"])
     meta_description = (
         f"How many CPE hours does {state_name} require for CPAs, and by when? "
-        f"{cpe_record['total_hours']} hours every {cpe_record['period_years']} year(s), sourced to "
+        f"{cpe_record['total_hours']} hours {period_phrase}, sourced to "
         f"{cpe_record['citation']}."
     )
 
@@ -2146,8 +2154,8 @@ def build_cpe_hours_page(cpe_record: dict, renewal_records: list[dict], as_of: d
         ethics_period = cpe_record.get("ethics_period_years")
         if ethics_period and ethics_period != cpe_record.get("period_years"):
             ethics_line = (
-                f"<li><strong>{cpe_record['ethics_hours']} ethics hours</strong>, required once every "
-                f"{ethics_period} year{'s' if ethics_period != 1 else ''} (counts toward the total "
+                f"<li><strong>{cpe_record['ethics_hours']} ethics hours</strong>, required once "
+                f"{_every_n_years(ethics_period)} (counts toward the total "
                 f"above, not an add-on).</li>"
             )
         else:
@@ -2156,9 +2164,14 @@ def build_cpe_hours_page(cpe_record: dict, renewal_records: list[dict], as_of: d
                 f"total.</li>"
             )
     annual_line = ""
-    if cpe_record.get("annual_minimum_hours"):
+    annual_minimum = cpe_record.get("annual_minimum_hours")
+    # Suppress the bullet entirely when it's redundant with the total (a
+    # 1-year cycle whose annual minimum equals its own total isn't a second
+    # requirement -- it's the same fact stated twice, the exact "40-hour
+    # minimum ... 40 hours every year" the go-live review flagged on NC).
+    if annual_minimum and not (annual_minimum == cpe_record["total_hours"] and cpe_record["period_years"] == 1):
         annual_line = (
-            f"<li><strong>{cpe_record['annual_minimum_hours']}-hour minimum</strong> in each 1-year "
+            f"<li><strong>{annual_minimum}-hour minimum</strong> in each 1-year "
             f"period (you can't front-load the whole requirement into a single year).</li>"
         )
 
@@ -2176,7 +2189,7 @@ itself, never a guess.</p>
 <div class="callout">
   <span class="verified-badge">Verified</span>
   <div class="label">CPE Hour Requirement</div>
-  <div class="date">{cpe_record['total_hours']} hours every {cpe_record['period_years']} year{'s' if cpe_record['period_years'] != 1 else ''}</div>
+  <div class="date">{cpe_record['total_hours']} hours {period_phrase}</div>
   <ul>
     {annual_line}
     {ethics_line}

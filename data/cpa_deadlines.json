@@ -761,10 +761,10 @@
       "ce_deadline_note": "CPE (40 hrs, incl. 8 A&A + 2 ethics) must be completed within the fiscal year ending Sept 30 (30-X-5-.02(1)) -- earlier than the Dec 31 deadline for submitting the renewal + signed CPE compliance statement (30-X-3-.07(1)).",
       "source_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-3",
       "secondary_source_url": "https://www.asbpa.alabama.gov/",
-      "last_verified": "2026-07-13",
+      "last_verified": "2026-07-16",
       "wave": 5,
-      "citation": "Ala. Admin. Code 30-X-5-.05(1)",
-      "citation_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-5"
+      "citation": "Ala. Admin. Code 30-X-5-.05(1) (Sept 30 permit expiration); 30-X-3-.07(1) (Dec 31 renewal fee + CPE-statement deadline)",
+      "citation_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-3"
     },
     {
       "id": "ky-individual",
@@ -850,11 +850,11 @@
       "next_deadline_computed": "2027-06-30",
       "ce_deadline_note": "120 CPE hrs (min 4 ethics) over a rolling 3-year period ending Dec 31 or June 30 immediately preceding the July 1 renewal (licensee self-selects which end-date applies).",
       "source_url": "https://www.legis.iowa.gov/docs/iac/chapter/01-07-2026.193A.5.pdf",
-      "last_verified": "2026-07-05",
+      "last_verified": "2026-07-16",
       "wave": 5,
       "citation": "Iowa Admin. Code 193A-5.3(1)",
       "citation_url": "https://www.legis.iowa.gov/docs/iac/chapter/01-07-2026.193A.5.pdf",
-      "verification_note": "2026-07-13 amendment-currency audit: unverified, genuinely unresolved lead. Rule text confirmed current against ARC 7681C (eff. 4/10/24), which verbatim-supports the displayed June 30 deadline. BUT Iowa's own rules.iowa.gov lists ARC 1582Z (6/10/2026, 'Filed Without Notice') directly under the Accountancy Examining Board, postdating that confirmed amendment -- its official PDF is genuine but zero-byte on every retry, subject line blank everywhere checked, not in the regular IAB bulletin index for that date, no Wayback Machine snapshot. Could not determine what it touches. Do not treat this record as fully current until resolved -- pending a human opening rules.iowa.gov/Notice/Details/1582Z directly, or a call/email to Iowa LSA."
+      "verification_note": "2026-07-16 follow-up (per orchestrator instruction not to spin further, just keep this honest): tried one more avenue -- the aggregate Iowa Administrative Bulletin for 6/10/2026 (legis.iowa.gov/docs/aco/bulletin/06-10-2026.pdf) does exist and is reachable (corrects the prior note's 'not in the regular IAB bulletin index' -- it is indexed, at that exact date), but the PDF itself is image-based/encrypted (pdftotext: \"Unknown filter 'Crypt'\"; WebFetch independently confirmed the same -- \"a heavily compressed JPEG image embedded within a PDF structure\") and not text-extractable by either method, so ARC 1582Z's entry within it could not be read. Combined with the filing detail page (rules.iowa.gov/Notice/Details/1582Z) itself having no subject/summary/effective-date populated, this remains a genuinely unresolved lead, not a dead one -- three independent access methods now tried. June 30 is very likely still correct (rule text independently confirmed current against ARC 7681C, eff. 4/10/24, which verbatim-supports June 30) but this record should not be treated as fully current until 1582Z's content is confirmed by a human opening the filing directly or contacting Iowa LSA/the Board. 2026-07-13 audit (original): first surfaced this gap."
     },
     {
       "id": "ia-firm",
@@ -1249,15 +1249,13 @@
       "license_type": "individual",
       "license_type_label": "Individual CPA/public accountant license",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Biennial. All individual CPA/public-accountant licenses share one statewide fixed licensing period -- currently January 1, 2026 to December 31, 2027 -- with no cohort/parity/birth-month split (AS 08.04.105(a)).",
+      "cycle_description": "Biennial. All individual CPA/public-accountant licenses share one statewide fixed licensing period -- currently January 1, 2026 to December 31, 2027 -- with no cohort/parity/birth-month split. This date is corroborated by the parallel firm-permit rule (12 AAC 04.280(c), which explicitly states a renewal is 'due not later than December 31') and by the Board's own published renewal materials, though the individual-license statute (AS 08.04.105(a)) establishes only the general biennial mechanic, not this specific date, in its own text.",
       "next_deadline_computed": "2027-12-31",
       "source_url": "https://www.commerce.alaska.gov/web/Portals/5/pub/cpa4060.pdf",
       "secondary_source_url": "https://www.commerce.alaska.gov/web/portals/5/pub/CPARegulations.pdf",
-      "last_verified": "2026-07-05",
+      "last_verified": "2026-07-16",
       "wave": 7,
-      "citation": "AS 08.04.105(a)",
-      "citation_url": "https://www.commerce.alaska.gov/web/portals/5/pub/CPARegulations.pdf",
-      "verification_note": "2026-07-13 amendment-currency audit: unverified. akleg.gov (the authoritative source) returns HTTP 403 to every automated fetch attempt. AS 08.04.105(a) itself only establishes the general biennial licensing mechanic -- it never states the specific 'January 1, 2026-December 31, 2027' dates displayed, nor even the odd/even-year pattern; that lives elsewhere in regulation (candidates: 12 AAC 04.189, 12 AAC 02.935), unconfirmed due to the access block. A related 2025 regulation package (12 AAC 04, eff. 7/26/2025) exists whose scope relative to this date mechanic is also unconfirmed. Dates are plausibly still correct (math checks out, mid-biennium) but not verbatim-verified against the primary source. Pending a human browser check of akleg.gov/basis/aac.asp directly."
+      "verification_note": "2026-07-16 follow-up (see also 2026-07-13 note below): independently re-confirmed both AS 08.04.105(a) and 12 AAC 04.189 (License Renewal) directly via the Board's own hosted CPARegulations.pdf (pdftotext-extracted) -- neither states the specific December 31 date or the odd-year pattern for individual licenses. akleg.gov itself remains blocked to automated fetches (tried again via curl with a browser user-agent string and via a second fetch method, both blocked). The parallel firm-permit rule (12 AAC 04.280(c)) DOES explicitly state a renewal is 'due not later than December 31' -- strong indirect corroboration that individuals share the same calendar -- but that is not a direct citation for the individual-license date specifically, so the citation/Verified badge was removed from this record rather than left pointing at a rule that doesn't itself establish the displayed date. The date is very likely correct (math, Board materials, and the firm-rule corroboration all agree) but is not verbatim-confirmed against an individual-specific codified provision. 2026-07-13 amendment-currency audit (original): unverified, akleg.gov 403s automated fetches; candidates for the individual-specific cite (12 AAC 04.189, 12 AAC 02.935) remain unconfirmed; a related 2025 regulation package (12 AAC 04, eff. 7/26/2025) also unconfirmed as to scope. Pending a human browser check of akleg.gov/basis/aac.asp directly, or of 12 AAC 02.935 specifically."
     },
     {
       "id": "ak-firm",
@@ -1270,11 +1268,11 @@
       "next_deadline_computed": "2027-12-31",
       "source_url": "https://www.commerce.alaska.gov/web/Portals/5/pub/cpa4062.pdf",
       "secondary_source_url": "https://www.commerce.alaska.gov/web/portals/5/pub/CPARegulations.pdf",
-      "last_verified": "2026-07-05",
+      "last_verified": "2026-07-16",
       "wave": 7,
-      "citation": "12 AAC 04.280",
+      "citation": "12 AAC 04.280(c)",
       "citation_url": "https://www.commerce.alaska.gov/web/portals/5/pub/CPARegulations.pdf",
-      "verification_note": "2026-07-13 amendment-currency audit: unverified. akleg.gov (the authoritative source) returns HTTP 403 to every automated fetch attempt. 12 AAC 04.280 itself only establishes the general biennial licensing mechanic -- it never states the specific 'January 1, 2026-December 31, 2027' dates displayed, nor even the odd/even-year pattern; that lives elsewhere in regulation (candidates: 12 AAC 04.189, 12 AAC 02.935), unconfirmed due to the access block. A related 2025 regulation package (12 AAC 04, eff. 7/26/2025) exists whose scope relative to this date mechanic is also unconfirmed. Dates are plausibly still correct (math checks out, mid-biennium) but not verbatim-verified against the primary source. Pending a human browser check of akleg.gov/basis/aac.asp directly."
+      "verification_note": "2026-07-16 follow-up: independently confirmed 12 AAC 04.280(c) directly via the Board's own hosted regulations PDF (pdftotext-extracted, not a summarized fetch) -- it explicitly states a firm-permit renewal application is 'due not later than December 31' for the biennial license period. This resolves the earlier uncertainty about whether the cited rule actually establishes the displayed date: for firms, it does. The specific odd-year pattern (that the current period ends in 2027, not 2026) is not itself spelled out in this section, but is corroborated by the Board's own published materials and the arithmetic of a continuous biennial cycle. akleg.gov itself remains blocked to automated fetches (tried again this pass, still 403); this confirmation relies on the Board's own hosted copy of the regulation text instead. 2026-07-13 amendment-currency audit (original, superseded by the above): flagged this record as unverified pending exactly this check."
     },
     {
       "id": "vt-individual",
@@ -1361,10 +1359,10 @@
       "license_type": "all",
       "license_type_label": "Individual CPA/PA certificate and firm permit",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Individual CPA/PA certificates and firm permits both renew annually, due August 1 (postmark, or 11:59pm Central if filing online) -- confirmed by the Board's current renewal-instructions/FAQ pages (dlr.sd.gov) together with the amended administrative rule (ARSD 20:75:03:12 for active individual certificates; ARSD 20:75:03:08 states firm permits 'expire annually on July thirty-first,' with the Board's own practical guidance describing the same August 1 filing deadline for firms as for individuals). ARSD 20:75:03:12 was amended by 51 SDR 141 (effective 2025-07-01) and again by 52 SDR 125 (effective 2026-07-01); ARSD 20:75:03:08 was amended by 51 SDR 141 (effective 2025-07-01). Both amendments left the August 1 filing deadline unchanged (confirmed against sdlegislature.gov's official rule-history lines for both sections).",
+      "cycle_description": "Individual CPA/PA certificates renew annually, due August 1 (postmark, or 11:59pm Central if filing online) -- confirmed by the Board's current renewal-instructions/FAQ pages (dlr.sd.gov) together with the amended administrative rule (ARSD 20:75:03:12). Firm permits are codified to expire July 31 annually (ARSD 20:75:03:08: 'expire annually on July thirty-first'), but the Board's own practical guidance treats the filing deadline for firms the same as for individuals -- August 1 -- so firms effectively get the same runway even though their codified expiration date is one day earlier. ARSD 20:75:03:12 was amended by 51 SDR 141 (effective 2025-07-01) and again by 52 SDR 125 (effective 2026-07-01); ARSD 20:75:03:08 was amended by 51 SDR 141 (effective 2025-07-01). Both amendments left the codified dates and the practical filing deadline unchanged (confirmed against sdlegislature.gov's official rule-history lines for both sections).",
       "next_deadline_computed": "2026-08-01",
       "source_url": "https://dlr.sd.gov/accountancy/",
-      "last_verified": "2026-07-13",
+      "last_verified": "2026-07-16",
       "wave": 7,
       "citation": "ARSD 20:75:03:12",
       "citation_url": "https://law.cornell.edu/regulations/south-dakota/ARSD-20-75-03-12"

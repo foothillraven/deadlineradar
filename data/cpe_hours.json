@@ -3,13 +3,15 @@
     "status": "RESEARCH DATASET — NOT wired into generate.py, NOT live, NOT published anywhere",
     "purpose": "Per orchestrator ruling 2026-07-15 (greenlit CPE-hours-by-state reference cluster, staged/batch-gated): a separate, standalone dataset for CPE HOUR requirements (distinct from cpa_deadlines.json's license RENEWAL DATES). Same 2-source verification standard: a board page + a codified rule/statute for every record.",
     "created": "2026-07-15",
-    "batch": 3,
-    "states_verified_this_batch": 2,
-    "states_total": 16,
+    "batch": "fast-follow-1",
+    "states_verified_this_batch": 1,
+    "states_total": 17,
     "held_pending_verification": [
-      "Michigan: found consistent secondary-source agreement (40 hrs/yr, 8 A&A, 2 ethics incl. 1 MI-specific) but could not get a clean direct primary-source fetch confirming the TOTAL-hours clause itself (R 338.5215 fetches surfaced only sub-requirement text; R 338.5210 doesn't contain it; the board's own PDF guide blocked this tool's fetch with a 403). Retried in batch 3 (tried the state's own ars.apps.lara.state.mi.us admin-code host directly, per the orchestrator's suggestion) -- still only surfaced sub-requirement text, not the total-hours clause. Held rather than shipped with weaker-than-standard verification.",
-      "Minnesota: overall 120hrs/3yr rule confirmed directly (MN Rules 1105.3000), but the ethics-hour sub-requirement is genuinely elusive -- one search summary suggested '1105.3900' but that part is confirmed REPEALED (fetched directly, '[Repealed, 38 SR 1367]'), and 1105.3000's own text doesn't mention ethics hours at all. Held rather than guess which part actually carries the ethics rule.",
-      "Colorado: strong, consistent secondary-source agreement (80hrs/2yr, 4 ethics hrs, Rule 1.9/1.10 of 3 CCR 705-1) but every direct-fetch attempt at the primary rule text (regulations.justia.com, sos.state.co.us) returned 403. Held rather than rely on secondary summaries alone for the citation."
+      "Michigan: found consistent secondary-source agreement (40 hrs/yr, 8 A&A, 2 ethics incl. 1 MI-specific) but could not get a clean direct primary-source fetch confirming the TOTAL-hours clause itself (R 338.5215 fetches surfaced only sub-requirement text; R 338.5210 doesn't contain it; the board's own PDF guide blocked this tool's fetch with a 403). Retried twice now (state's own ars.apps.lara.state.mi.us admin-code host, per the orchestrator's suggestion) -- still only surfaces sub-requirement text, not the total-hours clause. Held rather than shipped with weaker-than-standard verification.",
+      "Colorado: strong, consistent secondary-source agreement (80hrs/2yr, 4 ethics hrs of which 2 may be Colorado-Rules-specific, Rule 1.9/1.10 of 3 CCR 705-1) but every direct-fetch attempt at the primary rule text now FAILED THREE TIMES across three different hosts (regulations.justia.com, two different sos.state.co.us PDF-generator URLs, and the board's own dpo.colorado.gov/Accountancy/CPE page) -- all 403. Held rather than rely on secondary summaries alone for the citation."
+    ],
+    "resolved_this_batch": [
+      "Minnesota: previously held on the ethics-hour sub-requirement. Resolved with a POSITIVE finding, not a citation recovery -- directly fetched all 5 CPE-related rule parts (1105.3000/3100/3200/3300/3350) AND the enabling statute (Minn. Stat. 326A.04) and confirmed NONE of them establishes a distinct ongoing ethics-hour CPE requirement (the only ethics-specific language anywhere is a one-time 90%-passing initial-certification EXAM in 1105.1800 Subpart 2, not an ongoing CPE hour mandate). This is a real, verified fact about Minnesota's rule structure, not an unresearched gap -- see the mn-cpe record's ethics_hours: null and its notes."
     ],
     "publish_rule": "Do NOT surface any page built from this file until the orchestrator has reviewed this batch and approved. No one-record-at-a-time publishing.",
     "does_not_touch": "data/cpa_deadlines.json and worker/src/cpa_deadlines.json are completely untouched by this file — separate dataset, separate concern (renewal DATE vs CPE HOUR-COUNT are different facts about the same states)."
@@ -253,6 +255,21 @@
       "ethics_hours": 4,
       "ethics_period_years": 3,
       "notes": "120 hours per 3-year reporting period, minimum 20 hours per year -- the overall requirement is independently confirmed directly against the board's own FAQ page. The 4-hour ethics figure is consistently corroborated across multiple independent sources, though the exact ethics-specific subsection could not be pinned down (872 IAC 1-3 spans roughly 25 numbered subsections, and its table of contents doesn't isolate the ethics clause by number). The citation here is given at the 872 IAC 1-3 article level rather than a more granular subsection, the same level of precision used for New York's citation, to avoid overstating precision beyond what could be independently confirmed.",
+      "verified_2026-07-15": true
+    },
+    {
+      "id": "mn-cpe",
+      "state": "Minnesota",
+      "state_slug": "minnesota",
+      "citation": "Minn. R. 1105.3000",
+      "citation_url": "https://www.revisor.mn.gov/rules/1105.3000/",
+      "source_url": "https://boa.state.mn.us/cpe.html",
+      "total_hours": 120,
+      "period_years": 3,
+      "annual_minimum_hours": 20,
+      "ethics_hours": null,
+      "ethics_period_years": null,
+      "notes": "120 hours in a rolling 3-year period, minimum 20 hours each year -- confirmed directly against the codified rule text (Minn. R. 1105.3000, Item A, Subitems (2) and (5) partial -- subitem (5) itself does NOT establish ethics hours, see below). Minnesota is a genuine exception among this cluster's states: it has NO distinct ongoing ethics-hour CPE requirement. Actively verified this rather than assumed it -- directly fetched all 5 CPE-related rule parts in this chapter (1105.3000, 1105.3100, 1105.3200, 1105.3300, 1105.3350) and the enabling statute (Minn. Stat. 326A.04); none of them mandates a specific number of ethics CPE hours. The only ethics-specific requirement anywhere in this chapter is a one-time 90%-passing professional-ethics EXAM required for initial certification (1105.1800, Subpart 2) -- a licensing-exam requirement, not an ongoing CPE mandate, so not represented in ethics_hours here.",
       "verified_2026-07-15": true
     }
   ]

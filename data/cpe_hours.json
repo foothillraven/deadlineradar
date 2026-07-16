@@ -3,8 +3,12 @@
     "status": "RESEARCH DATASET — NOT wired into generate.py, NOT live, NOT published anywhere",
     "purpose": "Per orchestrator ruling 2026-07-15 (greenlit CPE-hours-by-state reference cluster, staged/batch-gated): a separate, standalone dataset for CPE HOUR requirements (distinct from cpa_deadlines.json's license RENEWAL DATES). Same 2-source verification standard: a board page + a codified rule/statute for every record.",
     "created": "2026-07-15",
-    "batch": 1,
-    "states_verified_this_batch": 11,
+    "batch": 2,
+    "states_verified_this_batch": 3,
+    "states_total": 14,
+    "held_pending_verification": [
+      "Michigan: found consistent secondary-source agreement (40 hrs/yr, 8 A&A, 2 ethics incl. 1 MI-specific) but could not get a clean direct primary-source fetch confirming the TOTAL-hours clause itself (R 338.5215 fetches surfaced only sub-requirement text; R 338.5210 doesn't contain it; the board's own PDF guide blocked this tool's fetch with a 403). Held rather than shipped with weaker-than-standard verification -- revisit with a fresh angle (e.g. a different mirror of the rule text) in a future batch."
+    ],
     "publish_rule": "Do NOT surface any page built from this file until the orchestrator has reviewed this batch and approved. No one-record-at-a-time publishing.",
     "does_not_touch": "data/cpa_deadlines.json and worker/src/cpa_deadlines.json are completely untouched by this file — separate dataset, separate concern (renewal DATE vs CPE HOUR-COUNT are different facts about the same states)."
   },
@@ -172,6 +176,51 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "80 hours per 2-year renewal period, minimum 20 hours each year (§11.62), 4 hours of ethics (§11.63(a)(7)). A real correctness catch during research: several third-party CPE-vendor sites cite '§11.65' as the governing section for these requirements -- fetched that section directly and confirmed it is RESERVED (empty, no substantive text) as of 2012. The actual hour-count and ethics sections are §11.62 and §11.63, used here instead of repeating the wrong citation.",
+      "verified_2026-07-15": true
+    },
+    {
+      "id": "fl-cpe",
+      "state": "Florida",
+      "state_slug": "florida",
+      "citation": "Fla. Admin. Code Ann. R. 61H1-33.003",
+      "citation_url": "https://www.law.cornell.edu/regulations/florida/Fla-Admin-Code-Ann-R-61H1-33-003",
+      "source_url": "https://www2.myfloridalicense.com/certified-public-accounting/licensure/continuing-professional-education/",
+      "total_hours": 80,
+      "period_years": 2,
+      "annual_minimum_hours": null,
+      "ethics_hours": 4,
+      "ethics_period_years": 2,
+      "notes": "80 hours per 2-year re-establishment period, no explicit annual minimum in the codified rule itself. Within the 80: at least 8 hours accounting/auditing, at least 4 hours Board-approved ethics (a review of Chapters 455 and 473, Florida Statutes, and related rules), and no more than 20 hours in behavioral subjects. Reporting deadline is July 31 prior to the biennial renewal. Note: Florida's own CPA license RENEWAL DATE is a gap/BYOD record in the CPA-renewal dataset (fl-individual) -- this CPE-hour figure is a separate, independently verified fact, not dependent on that gap.",
+      "verified_2026-07-15": true
+    },
+    {
+      "id": "va-cpe",
+      "state": "Virginia",
+      "state_slug": "virginia",
+      "citation": "18VAC5-22-90",
+      "citation_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section90/",
+      "source_url": "https://boa.virginia.gov/individual-cpas/cpe/",
+      "total_hours": 120,
+      "period_years": 3,
+      "annual_minimum_hours": 20,
+      "ethics_hours": 2,
+      "ethics_period_years": 1,
+      "notes": "120 hours over the 3-calendar-year period ending with the current year, minimum 20 hours each calendar year in that period, including a VBOA-approved ethics course of at least 2 hours EVERY year (not once per 3-year cycle like several other states) -- confirmed directly against the codified text, worth flagging since the annual-ethics pattern is easy to misread as a one-time-per-cycle requirement.",
+      "verified_2026-07-15": true
+    },
+    {
+      "id": "az-cpe",
+      "state": "Arizona",
+      "state_slug": "arizona",
+      "citation": "Ariz. Admin. Code § R4-1-453(C)",
+      "citation_url": "https://www.law.cornell.edu/regulations/arizona/Ariz-Admin-Code-SS-R4-1-453",
+      "source_url": "https://www.azaccountancy.gov/Renewals/CPE.aspx",
+      "total_hours": 80,
+      "period_years": 2,
+      "annual_minimum_hours": null,
+      "ethics_hours": 4,
+      "ethics_period_years": 2,
+      "notes": "80 hours per 2-year registration period (the same period the certificate itself renews on, per Arizona's own birth-month/parity cycle -- see the CPA-renewal dataset's az-individual record). No explicit annual minimum in this section, but at least 16 hours must be classroom/live-interactive and at least 40 hours in accounting/auditing/taxation/business law/consulting (16 of which must be accounting/auditing/taxation specifically). 4 ethics hours required, split as a minimum of 1 hour each on AICPA Code of Professional Conduct topics and Arizona Board statutes/rules specifically.",
       "verified_2026-07-15": true
     }
   ]

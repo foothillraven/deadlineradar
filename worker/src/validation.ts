@@ -220,20 +220,19 @@ export async function checkRateLimit(
 
 // ---------------------------------------------------------------------------
 // Cloudflare Turnstile hook -- ported from reminders/server.py's
-// `_verify_turnstile()`. Inert (returns true / "verified") until a real
-// secret key is configured via the `TURNSTILE_SECRET_KEY` Worker secret --
-// same gating pattern as the Python original, and same posture as this
-// repo's SendGrid key: never hardcoded, never committed, unset in Phase 1.
-// The fetch() call below is therefore UNREACHABLE in the current
-// (TURNSTILE_SECRET_KEY-unset) deployment -- it is also the ONLY fetch() in
-// this entire Worker to anything other than D1.
+// `_verify_turnstile()`. `TURNSTILE_SECRET_KEY` IS configured on the deployed
+// Worker (confirmed via `wrangler secret list`, 2026-07-15) -- verification
+// below is live and enforced, not a no-op. The `if (!secret) return true`
+// fallback exists for local dev / a future environment without the secret
+// set, not the current production posture. The fetch() call below is the
+// ONLY fetch() in this entire Worker to anything other than D1.
 // ---------------------------------------------------------------------------
 
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const TURNSTILE_TIMEOUT_MS = 5000; // server.py:113 `timeout=5`
 
 export async function verifyTurnstile(token: string | undefined, secret: string | undefined): Promise<boolean> {
-  if (!secret) return true; // not configured yet -- see module docstring above
+  if (!secret) return true; // fallback for an environment without the secret set (not current prod)
   if (!token) return false;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TURNSTILE_TIMEOUT_MS);

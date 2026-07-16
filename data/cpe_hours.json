@@ -125,16 +125,16 @@
       "id": "nc-cpe",
       "state": "North Carolina",
       "state_slug": "north-carolina",
-      "citation": "21 NCAC 08G .0401(d); .0410",
-      "citation_url": "https://ncrules.elaws.us/code/21ncac08g.0401",
+      "citation": "21 NCAC 08G .0401(d), (e)",
+      "citation_url": "https://nccpaboard.gov/resource-group/ncac-08g-continuing-professional-education-cpe/",
       "source_url": "https://nccpaboard.gov/resource-group/ncac-08g-continuing-professional-education-cpe/",
       "total_hours": 40,
       "period_years": 1,
       "annual_minimum_hours": 40,
-      "ethics_hours": 2,
+      "ethics_hours": 1,
       "ethics_period_years": 1,
-      "notes": "40 CPE hours by December 31 of each calendar year (.0401(d), with a prorated exception for CPAs certified partway through a year). 2 hours of ethics/professional conduct CPE required annually (.0410) -- resolved a real discrepancy found in secondary sources during research (several third-party CPE-vendor sites claimed a '50-minute'/~1-hour ethics requirement); the codified rule text itself, fetched directly, states 2 contact hours plainly, so that's what's published here.",
-      "verified_2026-07-15": true
+      "notes": "North Carolina's CPE rule was substantially rewritten effective June 1, 2026, replacing the older hour-based framework with a minutes-based one. Active CPAs must complete 2,000 CPE minutes annually (21 NCAC 08G .0401(d)), including at least 50 minutes of regulatory or behavioral ethics (.0401(e)) -- .0410, previously cited here for ethics, was retired in the rewrite and no longer appears in the Board's current rule listing. The Board's own site (nccpaboard.gov) states North Carolina's own 50-minutes-per-CPE-hour conversion directly, in two places elsewhere on the same page ('40 hours (2,000 minutes)' and '8 hours (400 minutes)', both for a related reinstatement provision) -- applying that same ratio, 2,000 minutes/year is 40 hours/year (unchanged from what's published here) and 50 minutes/year of ethics is 1 hour/year (down from the 2 hours previously published here, which correctly reflected the pre-rewrite rule at the time it was checked).",
+      "verified_2026-07-16": true
     },
     {
       "id": "ny-cpe",

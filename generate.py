@@ -2151,16 +2151,17 @@ def build_cpe_hours_page(cpe_record: dict, renewal_records: list[dict], as_of: d
 
     ethics_line = ""
     if cpe_record.get("ethics_hours"):
+        ethics_hour_word = "hour" if cpe_record["ethics_hours"] == 1 else "hours"
         ethics_period = cpe_record.get("ethics_period_years")
         if ethics_period and ethics_period != cpe_record.get("period_years"):
             ethics_line = (
-                f"<li><strong>{cpe_record['ethics_hours']} ethics hours</strong>, required once "
+                f"<li><strong>{cpe_record['ethics_hours']} ethics {ethics_hour_word}</strong>, required once "
                 f"{_every_n_years(ethics_period)} (counts toward the total "
                 f"above, not an add-on).</li>"
             )
         else:
             ethics_line = (
-                f"<li><strong>{cpe_record['ethics_hours']} ethics hours</strong>, within that same "
+                f"<li><strong>{cpe_record['ethics_hours']} ethics {ethics_hour_word}</strong>, within that same "
                 f"total.</li>"
             )
     annual_line = ""

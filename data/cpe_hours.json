@@ -42,7 +42,7 @@
       "annual_minimum_hours": 40,
       "ethics_hours": 2,
       "ethics_period_years": 1,
-      "notes": "Effective 2020-01-01: 40 hours of CPE every calendar year a license is held, minimum 2 hours ethics. (Rule (1)(A) preserves the pre-2020 120-hours/3-year/6-ethics-hours standard as historical context only — the current, live requirement is (1)(B).) Text extracted directly from the regulation PDF via pdftotext after a live fetch returned unreadable binary — same known tooling gap as several codified-source citations in the CPA renewal dataset, worked around the same way, not guessed.",
+      "notes": "Effective 2020-01-01: 40 hours of CPE every calendar year a license is held, minimum 2 hours ethics. Rule (1)(A) preserves the pre-2020 120-hours/3-year/6-ethics-hours standard as historical context only — the current, governing requirement is (1)(B).",
       "verified_2026-07-15": true
     },
     {
@@ -94,15 +94,15 @@
       "id": "oh-cpe",
       "state": "Ohio",
       "state_slug": "ohio",
-      "citation": "Ohio Admin. Code 4701-15-09; 4701-15-11(C)",
-      "citation_url": "https://www.law.cornell.edu/regulations/ohio/Ohio-Admin-Code-4701-15-09",
+      "citation": "Ohio Admin. Code 4701-15-02; 4701-15-11(C)",
+      "citation_url": "https://codes.ohio.gov/ohio-administrative-code/rule-4701-15-02",
       "source_url": "https://acc.ohio.gov/maintaining-your-license/renewal-requirements",
       "total_hours": 120,
       "period_years": 3,
-      "annual_minimum_hours": null,
+      "annual_minimum_hours": 20,
       "ethics_hours": 3,
       "ethics_period_years": 3,
-      "notes": "120 credits within the 36 months preceding permit renewal (4701-15-09), no explicit annual minimum in the codified rule itself. Within the 120: at least 3 credits in Professional Standards and Responsibilities (4701-15-11(C)), plus subject-area minimums (24 credits in accounting/auditing/attestation OR 24 in tax, depending on practice area) not counted as 'ethics' here. The board's own renewal-requirements page (acc.ohio.gov) blocked a direct automated fetch (returned 404 to this tool specifically, though the page is confirmed live and indexed) -- corroborated its content instead via two independent search-engine-quoted excerpts of the board's own text, plus the codified rule fetched directly and successfully via Cornell LII.",
+      "notes": "120 credits are required within the 36 months preceding permit renewal, but Ohio also sets a minimum of 20 credits every year (OAC 4701-15-02) -- a $10-per-credit fine applies for any annual shortfall, so the 120 hours cannot be concentrated into just one or two years of the triennium. Within the 120: at least 3 credits must be in Professional Standards and Responsibilities (OAC 4701-15-11(C)), plus subject-area minimums (24 credits in accounting/auditing/attestation, or 24 in tax, depending on practice area).",
       "verified_2026-07-15": true
     },
     {
@@ -192,7 +192,7 @@
       "annual_minimum_hours": null,
       "ethics_hours": 4,
       "ethics_period_years": 2,
-      "notes": "80 hours per 2-year re-establishment period, no explicit annual minimum in the codified rule itself. Within the 80: at least 8 hours accounting/auditing, at least 4 hours Board-approved ethics (a review of Chapters 455 and 473, Florida Statutes, and related rules), and no more than 20 hours in behavioral subjects. Reporting deadline is July 31 prior to the biennial renewal. Note: Florida's own CPA license RENEWAL DATE is a gap/BYOD record in the CPA-renewal dataset (fl-individual) -- this CPE-hour figure is a separate, independently verified fact, not dependent on that gap.",
+      "notes": "80 hours per 2-year re-establishment period, no explicit annual minimum in the codified rule itself. Within the 80: at least 8 hours accounting/auditing, at least 4 hours Board-approved ethics (a review of Chapters 455 and 473, Florida Statutes, and related rules), and no more than 20 hours in behavioral subjects. Reporting deadline is July 31 prior to the biennial renewal.",
       "verified_2026-07-15": true
     },
     {
@@ -252,7 +252,7 @@
       "annual_minimum_hours": 20,
       "ethics_hours": 4,
       "ethics_period_years": 3,
-      "notes": "120 hours per 3-year reporting period, minimum 20 hours per year -- the overall requirement is independently confirmed directly against the board's own FAQ page. The 4-hour ethics figure is consistently corroborated across multiple independent sources, but this tool could not pin the exact ethics-specific subsection (872 IAC 1-3's own text is spread across ~25 numbered subsections; the Cornell LII mirror surfaced only a table of contents, not the ethics clause itself). Citing the rule at the 872 IAC 1-3 level, not a more granular subsection -- same authority-level-not-granular-subsection disclosure already used for New York in batch 1, not overstating precision this tool couldn't independently confirm.",
+      "notes": "120 hours per 3-year reporting period, minimum 20 hours per year -- the overall requirement is independently confirmed directly against the board's own FAQ page. The 4-hour ethics figure is consistently corroborated across multiple independent sources, though the exact ethics-specific subsection could not be pinned down (872 IAC 1-3 spans roughly 25 numbered subsections, and its table of contents doesn't isolate the ethics clause by number). The citation here is given at the 872 IAC 1-3 article level rather than a more granular subsection, the same level of precision used for New York's citation, to avoid overstating precision beyond what could be independently confirmed.",
       "verified_2026-07-15": true
     }
   ]

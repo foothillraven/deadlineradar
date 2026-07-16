@@ -287,12 +287,17 @@
   }
   .signup-form button:hover { opacity: 0.92; }
   .signup-form .field-hint { font-size: 0.78rem; color: var(--muted); margin: 0.25rem 0 0; }
+  .signup-form--compact { padding: 0.9rem 1.1rem; }
+  .signup-form--compact .signup-form-compact-label { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; display: block; }
+  .signup-form--compact .signup-form-row input { flex: 1 1 auto; }
+  .signup-form--compact .signup-form-row button { flex: 0 0 auto; margin-top: 0; }
   @media (max-width: 480px) {
     .site-header { flex-direction: column; align-items: flex-start; }
     h1 { font-size: 1.7rem; }
     .callout .date { font-size: 1.7rem; }
     .verified-badge { position: static; display: inline-flex; margin-bottom: 0.6rem; }
     .signup-form-row { flex-direction: column; gap: 0; }
+    .signup-form--compact .signup-form-row { gap: 0.5rem; }
   }
 
 </style>

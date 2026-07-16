@@ -34,6 +34,10 @@ from datetime import date, timedelta
 
 ROOT = pathlib.Path(__file__).resolve().parent
 DATA_PATH = ROOT / "data" / "cpa_deadlines.json"
+# Separate dataset (2026-07-15): CPE HOUR requirements, distinct from the renewal
+# DATE data above -- same 2-source verification standard, never merged with
+# cpa_deadlines.json. See data/cpe_hours.json's own _meta block for status.
+CPE_HOURS_DATA_PATH = ROOT / "data" / "cpe_hours.json"
 # "docs" (not "site") deliberately -- this is the zero-config GitHub Pages
 # convention (Settings > Pages > Deploy from a branch > /docs), so this
 # directory becomes the deploy target as-is once a repo + Pages source exist.
@@ -505,12 +509,17 @@ PAGE_CSS = """
   }
   .signup-form button:hover { opacity: 0.92; }
   .signup-form .field-hint { font-size: 0.78rem; color: var(--muted); margin: 0.25rem 0 0; }
+  .signup-form--compact { padding: 0.9rem 1.1rem; }
+  .signup-form--compact .signup-form-compact-label { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; display: block; }
+  .signup-form--compact .signup-form-row input { flex: 1 1 auto; }
+  .signup-form--compact .signup-form-row button { flex: 0 0 auto; margin-top: 0; }
   @media (max-width: 480px) {
     .site-header { flex-direction: column; align-items: flex-start; }
     h1 { font-size: 1.7rem; }
     .callout .date { font-size: 1.7rem; }
     .verified-badge { position: static; display: inline-flex; margin-bottom: 0.6rem; }
     .signup-form-row { flex-direction: column; gap: 0; }
+    .signup-form--compact .signup-form-row { gap: 0.5rem; }
   }
 """
 
@@ -1160,6 +1169,7 @@ def _related_states_html(state_slug: str, records: list[dict], by_slug: dict[str
 
 def build_state_page(
     state_slug: str, records: list[dict], as_of: date, by_slug: dict[str, list[dict]] | None = None,
+    cpe_hours_by_slug: dict[str, dict] | None = None,
 ) -> tuple[str, str]:
     """Returns (title, html_body) for a state's page."""
     state_name = records[0]["state"]
@@ -1216,6 +1226,9 @@ def build_state_page(
             deadline_html += "\n" + render_data_gap_records(gapped)
 
     related_html = _related_states_html(state_slug, records, by_slug) if by_slug else ""
+    cpe_hours_link_html = (
+        _cpe_hours_reverse_link_html(state_slug, cpe_hours_by_slug) if cpe_hours_by_slug else ""
+    )
     body = f"""<h1>{esc(title)}</h1>
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
 {deadline_html}
@@ -1223,6 +1236,7 @@ def build_state_page(
 {signup_form_for_state(state_slug, state_name, records, as_of)}
 {_cpe_affiliate_html()}
 {related_html}
+{cpe_hours_link_html}
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 """
     json_ld = [_breadcrumb_schema(state_name, state_slug)]
@@ -1977,6 +1991,23 @@ FIRM_LANDING_STATE_SLUGS = [
 FIRM_LANDING_PAGES: list[dict] = []
 
 
+def load_cpe_hours_by_slug() -> dict[str, dict]:
+    """CPE-hours cluster (2026-07-15): keyed by state_slug, one record per
+    state currently verified to the 2-source standard (see cpe_hours.json's
+    own _meta for what's held/pending). Loaded unconditionally at build
+    time -- unlike FIRM_LANDING_PAGES this isn't populated by a build loop,
+    it's independent input data, so callers that need it before the main
+    per-state loop runs (build_state_page's reverse cross-link) can have it
+    immediately."""
+    if not CPE_HOURS_DATA_PATH.exists():
+        return {}
+    data = json.loads(CPE_HOURS_DATA_PATH.read_text(encoding="utf-8"))
+    return {r["state_slug"]: r for r in data["records"]}
+
+
+CPE_HOURS_PAGES: list[dict] = []
+
+
 def _firm_relevant_record(records: list[dict]) -> dict | None:
     """Picks the record that best represents a state's FIRM-level registration/permit,
     for the firm-oriented SEO landing pages. Prefers a dedicated firm-type record
@@ -2062,6 +2093,138 @@ to hope someone's watching. <a href="../for-firms/">See firm-tier pricing &rarr;
         canonical_path=f"/{slug}/", json_ld=json_ld,
     )
     return slug, title, html
+
+
+def _cpe_hours_signup_html(cpe_record: dict, renewal_records: list[dict], as_of: date) -> str:
+    """Light single-line capture (2026-07-15, per orchestrator go-live review):
+    option 1 -- capture reminder intent where it lands on the CPE-hours page,
+    rather than funnel-only via the cross-link. Deliberately reuses the SAME
+    real /subscribe backend, bot-defense fields, and extra-fields mechanism
+    as signup_form_for_state() -- does NOT invent a new "CPE deadline
+    reminder" the backend can't fulfill. Honest framing: CPE and license
+    renewal are on related clocks, so a reminder about the renewal date is
+    genuinely relevant here. Kept minimal (no first-name field, no full form
+    heading) so it reads as one compact row, not a second competing form."""
+    slug = cpe_record["state_slug"]
+    if not renewal_records:
+        return ""
+    extra_fields = _extra_fields_html(slug, renewal_records, as_of)
+    return f"""<div class="signup-form signup-form--compact">
+  <form method="post" action="{esc(REMINDER_BACKEND_BASE_URL)}/subscribe">
+    <input type="hidden" name="state" value="{esc(slug)}">
+    {_BOT_DEFENSE_FIELDS_HTML}
+    <label for="cpe-email-{esc(slug)}" class="signup-form-compact-label">
+      CPE hours and your renewal are on related clocks &mdash; get reminded before
+      {esc(cpe_record['state'])}'s renewal date too:
+    </label>
+    <div class="signup-form-row">
+      <input type="email" id="cpe-email-{esc(slug)}" name="email" required placeholder="you@example.com">
+      <button type="submit">Remind me</button>
+    </div>
+    {extra_fields}
+  </form>
+</div>"""
+
+
+def build_cpe_hours_page(cpe_record: dict, renewal_records: list[dict], as_of: date) -> tuple[str, str, str]:
+    """CPE-hours-by-state page (2026-07-15 cluster). Flat sibling slug, same
+    convention as build_firm_landing_page() -- e.g. /arizona-cpa-cpe-requirements/
+    sits alongside /arizona/, not nested under it. Returns (slug, title, html),
+    same shape as build_firm_landing_page() for the same reason: main() needs
+    the slug to register it (sitemap, cross-links) without re-deriving it."""
+    state_name = cpe_record["state"]
+    slug = f"{cpe_record['state_slug']}-cpa-cpe-requirements"
+    title = f"{state_name} CPA CPE Requirements: How Many Hours, By When"
+    meta_description = (
+        f"How many CPE hours does {state_name} require for CPAs, and by when? "
+        f"{cpe_record['total_hours']} hours every {cpe_record['period_years']} year(s), sourced to "
+        f"{cpe_record['citation']}."
+    )
+
+    ethics_line = ""
+    if cpe_record.get("ethics_hours"):
+        ethics_period = cpe_record.get("ethics_period_years")
+        if ethics_period and ethics_period != cpe_record.get("period_years"):
+            ethics_line = (
+                f"<li><strong>{cpe_record['ethics_hours']} ethics hours</strong>, required once every "
+                f"{ethics_period} year{'s' if ethics_period != 1 else ''} (counts toward the total "
+                f"above, not an add-on).</li>"
+            )
+        else:
+            ethics_line = (
+                f"<li><strong>{cpe_record['ethics_hours']} ethics hours</strong>, within that same "
+                f"total.</li>"
+            )
+    annual_line = ""
+    if cpe_record.get("annual_minimum_hours"):
+        annual_line = (
+            f"<li><strong>{cpe_record['annual_minimum_hours']}-hour minimum</strong> in each 1-year "
+            f"period (you can't front-load the whole requirement into a single year).</li>"
+        )
+
+    has_verified_date = any(r.get("next_deadline_computed") for r in renewal_records)
+    if has_verified_date:
+        cross_link_text = f"See {state_name}'s CPA license renewal deadline"
+    else:
+        cross_link_text = f"See {state_name}'s CPA license renewal page"
+
+    body = f"""<h1>{esc(title)}</h1>
+<p class="intro">How much continuing professional education a {esc(state_name)} CPA actually
+needs &mdash; sourced the same way every fact on this site is: a board page plus the codified rule
+itself, never a guess.</p>
+
+<div class="callout">
+  <span class="verified-badge">Verified</span>
+  <div class="label">CPE Hour Requirement</div>
+  <div class="date">{cpe_record['total_hours']} hours every {cpe_record['period_years']} year{'s' if cpe_record['period_years'] != 1 else ''}</div>
+  <ul>
+    {annual_line}
+    {ethics_line}
+  </ul>
+  {_source_cite_html(cpe_record)}
+</div>
+
+<p>{esc(cpe_record.get('notes', ''))}</p>
+
+{_cpe_hours_signup_html(cpe_record, renewal_records, as_of)}
+
+<p class="backlink-cross"><a href="../{esc(cpe_record['state_slug'])}/">{esc(cross_link_text)} &rarr;</a></p>
+
+<p class="backlink"><a href="../">&larr; Back to all states</a></p>
+"""
+    json_ld = [{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": SITE_NAME, "item": f"{SITE_BASE_URL}/"},
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": f"{state_name} CPA CPE Requirements",
+                "item": f"{SITE_BASE_URL}/{slug}/",
+            },
+        ],
+    }]
+    html = page_shell(
+        f"{title} — {SITE_NAME}", meta_description, body, home_href="../",
+        canonical_path=f"/{slug}/", json_ld=json_ld,
+    )
+    return slug, title, html
+
+
+def _cpe_hours_reverse_link_html(state_slug: str, cpe_hours_by_slug: dict[str, dict]) -> str:
+    """Reverse cross-link (renewal page -> CPE-hours page), per the orchestrator's
+    go-live checklist: cross-link integrity in BOTH directions, not just CPE-hours
+    page -> renewal page. Renders nothing if this state has no verified CPE-hours
+    record yet (most states, until the cluster grows past this first tranche)."""
+    cpe_record = cpe_hours_by_slug.get(state_slug)
+    if not cpe_record:
+        return ""
+    slug = f"{state_slug}-cpa-cpe-requirements"
+    return (
+        f'<p class="backlink-cross"><a href="../{esc(slug)}/">How many CPE hours does '
+        f'{esc(cpe_record["state"])} require? &rarr;</a></p>'
+    )
 
 
 BLOG_ARTICLES = [
@@ -2402,6 +2565,11 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/{esc(p['slug'])}/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""")
+    for p in CPE_HOURS_PAGES:
+        urls.append(f"""  <url>
+    <loc>{SITE_BASE_URL}/{esc(p['slug'])}/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""")
     for s in sorted(states, key=lambda s: s["state_slug"]):
         urls.append(f"""  <url>
     <loc>{SITE_BASE_URL}/{esc(s['state_slug'])}/</loc>
@@ -2472,6 +2640,8 @@ def main() -> None:
     if stale:
         raise SystemExit(f"REFUSING TO BUILD: stale/past next_deadline_computed for: {stale}")
 
+    cpe_hours_by_slug = load_cpe_hours_by_slug()
+
     by_slug: dict[str, list[dict]] = {}
     state_meta: dict[str, dict] = {}
     for r in records:
@@ -2497,7 +2667,7 @@ def main() -> None:
 
     built = []
     for slug, recs in by_slug.items():
-        title, page_html = build_state_page(slug, recs, as_of, by_slug)
+        title, page_html = build_state_page(slug, recs, as_of, by_slug, cpe_hours_by_slug)
         state_dir = SITE_DIR / slug
         state_dir.mkdir(parents=True, exist_ok=True)
         (state_dir / "index.html").write_text(page_html, encoding="utf-8")
@@ -2524,8 +2694,18 @@ def main() -> None:
         FIRM_LANDING_PAGES.append({"slug": slug, "state_name": record["state"]})
         print(f"wrote {SITE_DIR.name}/{slug}/index.html  ({title})")
 
-    # sitemap.xml (below) reads FIRM_LANDING_PAGES, so it must be written AFTER the
-    # loop above populates it.
+    CPE_HOURS_PAGES.clear()
+    for state_slug, cpe_record in cpe_hours_by_slug.items():
+        renewal_records = by_slug.get(state_slug, [])
+        slug, title, page_html = build_cpe_hours_page(cpe_record, renewal_records, as_of)
+        page_dir = SITE_DIR / slug
+        page_dir.mkdir(parents=True, exist_ok=True)
+        (page_dir / "index.html").write_text(page_html, encoding="utf-8")
+        CPE_HOURS_PAGES.append({"slug": slug, "state_name": cpe_record["state"]})
+        print(f"wrote {SITE_DIR.name}/{slug}/index.html  ({title})")
+
+    # sitemap.xml (below) reads FIRM_LANDING_PAGES and CPE_HOURS_PAGES, so it
+    # must be written AFTER both loops above populate them.
     (SITE_DIR / "sitemap.xml").write_text(build_sitemap(built, as_of), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/sitemap.xml")
 

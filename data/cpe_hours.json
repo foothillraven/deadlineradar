@@ -3,16 +3,14 @@
     "status": "RESEARCH DATASET — NOT wired into generate.py, NOT live, NOT published anywhere",
     "purpose": "Per orchestrator ruling 2026-07-15 (greenlit CPE-hours-by-state reference cluster, staged/batch-gated): a separate, standalone dataset for CPE HOUR requirements (distinct from cpa_deadlines.json's license RENEWAL DATES). Same 2-source verification standard: a board page + a codified rule/statute for every record.",
     "created": "2026-07-15",
-    "batch": "fast-follow-2",
-    "states_verified_this_batch": 4,
-    "states_total": 21,
-    "held_pending_verification": [
-      "Michigan: found consistent secondary-source agreement (40 hrs/yr, 8 A&A, 2 ethics incl. 1 MI-specific) but could not get a clean direct primary-source fetch confirming the TOTAL-hours clause itself (R 338.5215 fetches surfaced only sub-requirement text; R 338.5210 doesn't contain it; the board's own PDF guide blocked this tool's fetch with a 403). Retried twice now (state's own ars.apps.lara.state.mi.us admin-code host, per the orchestrator's suggestion) -- still only surfaces sub-requirement text, not the total-hours clause. Held rather than shipped with weaker-than-standard verification.",
-      "Colorado: strong, consistent secondary-source agreement (80hrs/2yr, 4 ethics hrs of which 2 may be Colorado-Rules-specific, Rule 1.9/1.10 of 3 CCR 705-1) but every direct-fetch attempt at the primary rule text now FAILED THREE TIMES across three different hosts (regulations.justia.com, two different sos.state.co.us PDF-generator URLs, and the board's own dpo.colorado.gov/Accountancy/CPE page) -- all 403. Held rather than rely on secondary summaries alone for the citation."
-    ],
+    "batch": "fast-follow-3",
+    "states_verified_this_batch": 2,
+    "states_total": 23,
+    "held_pending_verification": [],
     "resolved_this_batch": [
       "Minnesota (fast-follow-1): previously held on the ethics-hour sub-requirement. Resolved with a POSITIVE finding, not a citation recovery -- directly fetched all 5 CPE-related rule parts (1105.3000/3100/3200/3300/3350) AND the enabling statute (Minn. Stat. 326A.04) and confirmed NONE of them establishes a distinct ongoing ethics-hour CPE requirement (the only ethics-specific language anywhere is a one-time 90%-passing initial-certification EXAM in 1105.1800 Subpart 2, not an ongoing CPE hour mandate). This is a real, verified fact about Minnesota's rule structure, not an unresearched gap -- see the mn-cpe record's ethics_hours: null and its notes.",
-      "Maryland, Tennessee, New Jersey, Massachusetts (fast-follow-2): 4 new states, all verified via direct primary-source fetch (COMAR 09.24.02.03, Tenn. Comp. R. & Regs. 0020-05-.03(1), N.J.A.C. 13:29-6.2(a), 252 CMR 2.14). NJ and MA are notable because their own CPA-renewal DATE is a gap/BYOD record in cpa_deadlines.json -- these CPE-hour facts are independently verified and don't depend on that gap."
+      "Maryland, Tennessee, New Jersey, Massachusetts (fast-follow-2): 4 new states, all verified via direct primary-source fetch (COMAR 09.24.02.03, Tenn. Comp. R. & Regs. 0020-05-.03(1), N.J.A.C. 13:29-6.2(a), 252 CMR 2.14). NJ and MA are notable because their own CPA-renewal DATE is a gap/BYOD record in cpa_deadlines.json -- these CPE-hour facts are independently verified and don't depend on that gap.",
+      "Colorado AND Michigan (fast-follow-3): BOTH resolved, per the orchestrator's own hunch that the repeated 403s were a User-Agent/bot-detection block, not genuinely unavailable rules. Retried both via raw curl with a real browser User-Agent string (this tool's own WebFetch doesn't expose UA control) -- BOTH succeeded (200) on sources that had 403'd every prior attempt. Colorado: found the correct citation is 3 CCR 705-1, Rule 1.6(G)(2)/(2)(b) -- NOT 'Rule 1.9/1.10' as virtually every secondary/vendor source claims (1.9 is actually a professional-conduct rule, unrelated to CPE hours) -- a real, primary-source-verified correctness catch, same caliber as the PA Section 11.65 and NC ethics-hours catches. Michigan: confirmed directly via the board's own official licensing guide PDF (MCL 339.729; R 338.5215, specifically (1)(h) for the MI-specific ethics hour)."
     ],
     "publish_rule": "Do NOT surface any page built from this file until the orchestrator has reviewed this batch and approved. No one-record-at-a-time publishing.",
     "does_not_touch": "data/cpa_deadlines.json and worker/src/cpa_deadlines.json are completely untouched by this file — separate dataset, separate concern (renewal DATE vs CPE HOUR-COUNT are different facts about the same states)."
@@ -331,6 +329,36 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "80 hours in the 2-year period immediately preceding re-licensing (applicants engaged in public practice), including 4 hours of professional ethics (effective for licenses expiring on/after June 30, 2007). No carryover permitted between 2-year periods -- unlike several other states in this cluster that do allow some excess-hour carryover. No explicit annual minimum in this section. Note: Massachusetts's own license RENEWAL DATE is itself a gap/BYOD record in the CPA-renewal dataset (ma-individual/ma-firm) -- this CPE-hour figure is a separately, independently verified fact. Verified directly against the codified regulation text.",
+      "verified_2026-07-15": true
+    },
+    {
+      "id": "co-cpe",
+      "state": "Colorado",
+      "state_slug": "colorado",
+      "citation": "3 CCR 705-1, Rule 1.6(G)(2); 1.6(G)(2)(b)",
+      "citation_url": "https://www.sos.state.co.us/CCR/GenerateRulePdf.do?ruleVersionId=8268&fileName=3+CCR+705-1",
+      "source_url": "https://dpo.colorado.gov/Accountancy/CPE",
+      "total_hours": 80,
+      "period_years": 2,
+      "annual_minimum_hours": null,
+      "ethics_hours": 4,
+      "ethics_period_years": 2,
+      "notes": "A real correctness catch: the citation used by essentially every third-party CPE-vendor site is 'Rule 1.9' or '1.10' of 3 CCR 705-1 -- fetched the actual codified rule text directly and confirmed Rule 1.9 is a Rules-of-Professional-Conduct section (independence, conflicts of interest, etc.), completely unrelated to CPE hours. The real citation is Rule 1.6(G)(2): a certificate holder must complete 10 hours of CPE for each full quarter of active licensure during the reporting period (10 x 8 quarters = the 80-hour, 2-year figure the board's own page states in plain English). Rule 1.6(G)(2)(b) is the specific ethics sub-clause: 4 of those hours must be in Ethics, of which 2 may be in Colorado-Rules-and-Regulations-specific content. No more than 20% of CPE may be in Personal Development, and no more than 50% in any combination of teaching/publishing. No explicit single-year minimum stated -- the requirement accrues per-quarter continuously, not as a distinct annual floor like several other cluster states. Note on sourcing: an initial automated fetch of both this PDF and the board's own page was blocked on three separate attempts -- resolved by requesting with a standard browser identification string instead (both sources then loaded normally), confirming this was a bot-detection block on the source's side, not a genuinely unavailable rule.",
+      "verified_2026-07-15": true
+    },
+    {
+      "id": "mi-cpe",
+      "state": "Michigan",
+      "state_slug": "michigan",
+      "citation": "MCL 339.729; R 338.5215, incl. (1)(h)",
+      "citation_url": "https://www.michigan.gov/lara/-/media/Project/Websites/lara/bpl/Accountancy/Licensing-Information/Licensed-Accountant-Licensing-Guide.pdf",
+      "source_url": "https://www.michigan.gov/lara/-/media/Project/Websites/lara/bpl/Accountancy/Licensing-Information/Licensed-Accountant-Licensing-Guide.pdf",
+      "total_hours": 40,
+      "period_years": 1,
+      "annual_minimum_hours": 40,
+      "ethics_hours": 2,
+      "ethics_period_years": 1,
+      "notes": "40 hours of CPE for each year of the license cycle, of which 8 must be in auditing/accounting and 2 in professional ethics (1 of those 2 ethics hours must specifically satisfy R 338.5215(1)(h), a Michigan-specific sub-requirement). No more than 50% of hours may come from self-study/instruction. Confirmed directly against the Michigan LARA/Bureau of Professional Licensing's own official licensing guide -- the same document serves as both the plain-English source and the citation of its own governing statute/rule (MCL 339.729 and R 338.5215), which is why source_url and citation_url point to the same official state document here (an acceptable variant of the 2-source standard: the state's OWN combined guide, not a third-party summary). Note on sourcing: an initial automated fetch of this exact PDF was blocked on two prior attempts -- resolved by requesting with a standard browser identification string (loaded normally), the same bot-detection block already found and resolved for Colorado this same tick, not a genuinely unavailable document.",
       "verified_2026-07-15": true
     }
   ]

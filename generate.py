@@ -1532,7 +1532,7 @@ against primary law, we say so instead of guessing.</p>
 <p class="how-it-works">How it works: each state page shows the actual next renewal deadline
 (or, where the rule depends on your birth month, a full lookup table) computed from the
 verified renewal rule, with a link back to the official source and a "last verified" date.
-{len(states)} states covered so far, generated {esc(as_of.isoformat())}.</p>
+{len(states)} U.S. jurisdictions covered so far, generated {esc(as_of.isoformat())}.</p>
 <p class="how-it-works">Also see our <a href="blog/">guides</a>: <a
 href="blog/cpe-vs-license-renewal/">CPE requirements vs. license renewal</a>, <a
 href="blog/common-cpa-renewal-mistakes/">common CPA renewal mistakes</a>, and the <a

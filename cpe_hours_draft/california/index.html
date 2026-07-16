@@ -325,9 +325,56 @@ itself, never a guess.</p>
 
 <p>80 hours in the 2-year period immediately preceding license expiration, minimum 20 hours each year (12 of which must be technical subject matter), including 4 hours of ethics education. A separate Regulatory Review course requirement (§87.8) also applies on a longer cycle -- not counted as &#x27;ethics&#x27; here since it&#x27;s a distinct named requirement, noted separately if this cluster expands.</p>
 
+<div class="signup-form signup-form--compact">
+  <form method="post" action="/api/subscribe">
+    <input type="hidden" name="state" value="california">
+    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
+    <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_"></div>
+    <label for="cpe-email-california" class="signup-form-compact-label">
+      CPE hours and your renewal are on related clocks &mdash; get reminded before
+      California's renewal date too:
+    </label>
+    <div class="signup-form-row">
+      <input type="email" id="cpe-email-california" name="email" required placeholder="you@example.com">
+      <button type="submit">Remind me</button>
+    </div>
+    <div class="signup-form-row">
+  <div>
+    <label for="birth_month">Birth month</label>
+    <select id="birth_month" name="birth_month" required><option value="1">January</option>
+<option value="2">February</option>
+<option value="3">March</option>
+<option value="4">April</option>
+<option value="5">May</option>
+<option value="6">June</option>
+<option value="7">July</option>
+<option value="8">August</option>
+<option value="9">September</option>
+<option value="10">October</option>
+<option value="11">November</option>
+<option value="12">December</option></select>
+  </div>
+  <div>
+    <label for="birth_year">Birth year</label>
+    <input type="number" id="birth_year" name="birth_year" min="1900" max="2100" required placeholder="1985">
+  </div>
+</div>
+<p class="field-hint">Your renewal cycle is set by your birth month and whether your birth year is odd or even.</p>
+  </form>
+</div>
+
 <p class="backlink-cross"><a href="https://deadline-radar.com/california/">See California&#x27;s CPA license renewal page &rarr;</a></p>
 
 <p class="backlink"><a href="https://deadline-radar.com/">&larr; Back to all states</a></p>
+<style>
+  /* Draft-only inline override -- if this cluster ships, fold these two rules
+     into generate.py's PAGE_CSS properly instead of duplicating them per page. */
+  .signup-form--compact { padding: 0.9rem 1.1rem; }
+  .signup-form--compact .signup-form-compact-label { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; display: block; }
+  .signup-form--compact .signup-form-row { display: flex; gap: 0.6rem; }
+  .signup-form--compact .signup-form-row input { flex: 1 1 auto; }
+  .signup-form--compact .signup-form-row button { flex: 0 0 auto; margin-top: 0; }
+</style>
 
 <footer class="site-footer">
   <p>DeadlineRadar is an independent reminder service operated by Moose &amp; Raven LLC. It is not

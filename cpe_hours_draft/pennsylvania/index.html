@@ -325,9 +325,35 @@ itself, never a guess.</p>
 
 <p>80 hours per 2-year renewal period, minimum 20 hours each year (§11.62), 4 hours of ethics (§11.63(a)(7)). A real correctness catch during research: several third-party CPE-vendor sites cite &#x27;§11.65&#x27; as the governing section for these requirements -- fetched that section directly and confirmed it is RESERVED (empty, no substantive text) as of 2012. The actual hour-count and ethics sections are §11.62 and §11.63, used here instead of repeating the wrong citation.</p>
 
+<div class="signup-form signup-form--compact">
+  <form method="post" action="/api/subscribe">
+    <input type="hidden" name="state" value="pennsylvania">
+    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
+    <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_"></div>
+    <label for="cpe-email-pennsylvania" class="signup-form-compact-label">
+      CPE hours and your renewal are on related clocks &mdash; get reminded before
+      Pennsylvania's renewal date too:
+    </label>
+    <div class="signup-form-row">
+      <input type="email" id="cpe-email-pennsylvania" name="email" required placeholder="you@example.com">
+      <button type="submit">Remind me</button>
+    </div>
+    
+  </form>
+</div>
+
 <p class="backlink-cross"><a href="https://deadline-radar.com/pennsylvania/">See Pennsylvania&#x27;s CPA license renewal deadline &rarr;</a></p>
 
 <p class="backlink"><a href="https://deadline-radar.com/">&larr; Back to all states</a></p>
+<style>
+  /* Draft-only inline override -- if this cluster ships, fold these two rules
+     into generate.py's PAGE_CSS properly instead of duplicating them per page. */
+  .signup-form--compact { padding: 0.9rem 1.1rem; }
+  .signup-form--compact .signup-form-compact-label { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; display: block; }
+  .signup-form--compact .signup-form-row { display: flex; gap: 0.6rem; }
+  .signup-form--compact .signup-form-row input { flex: 1 1 auto; }
+  .signup-form--compact .signup-form-row button { flex: 0 0 auto; margin-top: 0; }
+</style>
 
 <footer class="site-footer">
   <p>DeadlineRadar is an independent reminder service operated by Moose &amp; Raven LLC. It is not

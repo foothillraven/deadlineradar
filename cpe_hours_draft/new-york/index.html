@@ -325,9 +325,39 @@ itself, never a guess.</p>
 
 <p>Either 24 contact hours per calendar year if concentrated in one recognized subject area, or 40 hours if spread across multiple areas -- published here as the 40-hour figure since that&#x27;s the requirement absent single-subject concentration, the more broadly applicable case. 4 hours of ethics required once every 3 calendar years (countable toward that year&#x27;s annual total, not an add-on). Citation is the New York State Education Department&#x27;s own stated authority (Education Law + Commissioner&#x27;s Regulations Part 70); did not find a more granular subsection number than Part 70 itself independently confirmed, flagging this as slightly less precise than this batch&#x27;s other citations rather than overstating precision.</p>
 
+<div class="signup-form signup-form--compact">
+  <form method="post" action="/api/subscribe">
+    <input type="hidden" name="state" value="new-york">
+    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
+    <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_"></div>
+    <label for="cpe-email-new-york" class="signup-form-compact-label">
+      CPE hours and your renewal are on related clocks &mdash; get reminded before
+      New York's renewal date too:
+    </label>
+    <div class="signup-form-row">
+      <input type="email" id="cpe-email-new-york" name="email" required placeholder="you@example.com">
+      <button type="submit">Remind me</button>
+    </div>
+    <label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-16" max="2030-01-15" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p>
+  </form>
+</div>
+
 <p class="backlink-cross"><a href="https://deadline-radar.com/new-york/">See New York&#x27;s CPA license renewal page &rarr;</a></p>
 
 <p class="backlink"><a href="https://deadline-radar.com/">&larr; Back to all states</a></p>
+<style>
+  /* Draft-only inline override -- if this cluster ships, fold these two rules
+     into generate.py's PAGE_CSS properly instead of duplicating them per page. */
+  .signup-form--compact { padding: 0.9rem 1.1rem; }
+  .signup-form--compact .signup-form-compact-label { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; display: block; }
+  .signup-form--compact .signup-form-row { display: flex; gap: 0.6rem; }
+  .signup-form--compact .signup-form-row input { flex: 1 1 auto; }
+  .signup-form--compact .signup-form-row button { flex: 0 0 auto; margin-top: 0; }
+</style>
 
 <footer class="site-footer">
   <p>DeadlineRadar is an independent reminder service operated by Moose &amp; Raven LLC. It is not

@@ -325,9 +325,40 @@ itself, never a guess.</p>
 
 <p>Effective 2020-01-01: 40 hours of CPE every calendar year a license is held, minimum 2 hours ethics. (Rule (1)(A) preserves the pre-2020 120-hours/3-year/6-ethics-hours standard as historical context only — the current, live requirement is (1)(B).) Text extracted directly from the regulation PDF via pdftotext after a live fetch returned unreadable binary — same known tooling gap as several codified-source citations in the CPA renewal dataset, worked around the same way, not guessed.</p>
 
+<div class="signup-form signup-form--compact">
+  <form method="post" action="/api/subscribe">
+    <input type="hidden" name="state" value="missouri">
+    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
+    <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_"></div>
+    <label for="cpe-email-missouri" class="signup-form-compact-label">
+      CPE hours and your renewal are on related clocks &mdash; get reminded before
+      Missouri's renewal date too:
+    </label>
+    <div class="signup-form-row">
+      <input type="email" id="cpe-email-missouri" name="email" required placeholder="you@example.com">
+      <button type="submit">Remind me</button>
+    </div>
+    <label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="mo-individual">CPA Individual License</option>
+<option value="mo-firm">CPA Firm Permit</option>
+</select>
+  </form>
+</div>
+
 <p class="backlink-cross"><a href="https://deadline-radar.com/missouri/">See Missouri&#x27;s CPA license renewal deadline &rarr;</a></p>
 
 <p class="backlink"><a href="https://deadline-radar.com/">&larr; Back to all states</a></p>
+<style>
+  /* Draft-only inline override -- if this cluster ships, fold these two rules
+     into generate.py's PAGE_CSS properly instead of duplicating them per page. */
+  .signup-form--compact { padding: 0.9rem 1.1rem; }
+  .signup-form--compact .signup-form-compact-label { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; display: block; }
+  .signup-form--compact .signup-form-row { display: flex; gap: 0.6rem; }
+  .signup-form--compact .signup-form-row input { flex: 1 1 auto; }
+  .signup-form--compact .signup-form-row button { flex: 0 0 auto; margin-top: 0; }
+</style>
 
 <footer class="site-footer">
   <p>DeadlineRadar is an independent reminder service operated by Moose &amp; Raven LLC. It is not

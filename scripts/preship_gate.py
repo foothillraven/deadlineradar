@@ -60,6 +60,18 @@ LEAK_PATTERNS = [
     r"\border(?:s)? the record\b",
     r"\bby the orchestrator\b",
     r"\borchestrator review\b",
+    # Tooling/research-process jargon leaking into public copy (e.g. "403'd
+    # this tool's direct fetch", "gap/BYOD record in the ... dataset") --
+    # caught on live CPE-hours pages 2026-07-16, same spirit as the
+    # internal-tool-name check above but broader.
+    r"\bthis tool\b",
+    r"\bBYOD\b",
+    r"\bautomated fetch\b",
+    r"\bsame known tooling\b",
+    r"\bbot-detection\b",
+    r"\bpdftotext\b",
+    r"\bsummarizer\b",
+    r"\bbrowser identification string\b",
 ]
 LEAK_RE = re.compile("|".join(LEAK_PATTERNS), re.IGNORECASE)
 

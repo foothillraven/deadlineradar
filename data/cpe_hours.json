@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "status": "RESEARCH DATASET — NOT wired into generate.py, NOT live, NOT published anywhere",
+    "status": "RESEARCH DATASET — wired into generate.py and rendering locally on this branch (23 states), but NOT merged to main and NOT live/published anywhere until the orchestrator gives the fold-in go",
     "purpose": "Per orchestrator ruling 2026-07-15 (greenlit CPE-hours-by-state reference cluster, staged/batch-gated): a separate, standalone dataset for CPE HOUR requirements (distinct from cpa_deadlines.json's license RENEWAL DATES). Same 2-source verification standard: a board page + a codified rule/statute for every record.",
     "created": "2026-07-15",
     "batch": "fast-follow-3",
@@ -8,12 +8,12 @@
     "states_total": 23,
     "held_pending_verification": [],
     "resolved_this_batch": [
-      "Minnesota (fast-follow-1): previously held on the ethics-hour sub-requirement. Resolved with a POSITIVE finding, not a citation recovery -- directly fetched all 5 CPE-related rule parts (1105.3000/3100/3200/3300/3350) AND the enabling statute (Minn. Stat. 326A.04) and confirmed NONE of them establishes a distinct ongoing ethics-hour CPE requirement (the only ethics-specific language anywhere is a one-time 90%-passing initial-certification EXAM in 1105.1800 Subpart 2, not an ongoing CPE hour mandate). This is a real, verified fact about Minnesota's rule structure, not an unresearched gap -- see the mn-cpe record's ethics_hours: null and its notes.",
-      "Maryland, Tennessee, New Jersey, Massachusetts (fast-follow-2): 4 new states, all verified via direct primary-source fetch (COMAR 09.24.02.03, Tenn. Comp. R. & Regs. 0020-05-.03(1), N.J.A.C. 13:29-6.2(a), 252 CMR 2.14). NJ and MA are notable because their own CPA-renewal DATE is a gap/BYOD record in cpa_deadlines.json -- these CPE-hour facts are independently verified and don't depend on that gap.",
-      "Colorado AND Michigan (fast-follow-3): BOTH resolved, per the orchestrator's own hunch that the repeated 403s were a User-Agent/bot-detection block, not genuinely unavailable rules. Retried both via raw curl with a real browser User-Agent string (this tool's own WebFetch doesn't expose UA control) -- BOTH succeeded (200) on sources that had 403'd every prior attempt. Colorado: found the correct citation is 3 CCR 705-1, Rule 1.6(G)(2)/(2)(b) -- NOT 'Rule 1.9/1.10' as virtually every secondary/vendor source claims (1.9 is actually a professional-conduct rule, unrelated to CPE hours) -- a real, primary-source-verified correctness catch, same caliber as the PA Section 11.65 and NC ethics-hours catches. Michigan: confirmed directly via the board's own official licensing guide PDF (MCL 339.729; R 338.5215, specifically (1)(h) for the MI-specific ethics hour)."
+      "Minnesota (fast-follow-1, corrected 2026-07-16): the original fast-follow-1 finding that Minnesota has 'no ongoing ethics-hour CPE requirement' was WRONG -- an orchestrator re-review caught it before fold-in. The ethics clause is in Minn. R. 1105.3100, subpart 4, item F ('at least eight hours must be obtained in regulatory ethics or behavioral ethics'), not in 1105.3000 where the original check looked. Re-verified against the raw rule text of 1105.3100 (two independent fetches) AND the Board's own CPE page (boa.state.mn.us/cpe.html, which states the same 8-hour figure in plain language). Corrected: ethics_hours 8, ethics_period_years 3, citation and notes rewritten.",
+      "Maryland, Tennessee, New Jersey, Massachusetts (fast-follow-2): 4 new states, all verified via direct primary-source fetch (COMAR 09.24.02.03, Tenn. Comp. R. & Regs. 0020-05-.03(1), N.J.A.C. 13:29-6.2(a), 252 CMR 2.14). NJ and MA's own CPA-renewal DATE records (nj-individual/-firm, ma-individual/-firm) are separately unverified in cpa_deadlines.json; these CPE-hour facts don't depend on that and were independently confirmed.",
+      "Colorado AND Michigan (fast-follow-3): BOTH resolved after retrying primary-source fetches with a standard browser identification string, which succeeded where prior attempts had been blocked. Colorado: found the correct citation is 3 CCR 705-1, Rule 1.6(G)(2)/(2)(b) -- NOT 'Rule 1.9/1.10' as virtually every secondary/vendor source claims (1.9 is actually a professional-conduct rule, unrelated to CPE hours) -- a real, primary-source-verified correctness catch, same caliber as the PA Section 11.65 and NC ethics-hours catches. Michigan: confirmed directly via the board's own official licensing guide PDF (MCL 339.729; R 338.5215, specifically (1)(h) for the MI-specific ethics hour)."
     ],
     "publish_rule": "Do NOT surface any page built from this file until the orchestrator has reviewed this batch and approved. No one-record-at-a-time publishing.",
-    "does_not_touch": "data/cpa_deadlines.json and worker/src/cpa_deadlines.json are completely untouched by this file — separate dataset, separate concern (renewal DATE vs CPE HOUR-COUNT are different facts about the same states)."
+    "does_not_touch": "cpe_hours.json itself makes no edits to data/cpa_deadlines.json or worker/src/cpa_deadlines.json -- separate dataset, separate concern (renewal DATE vs CPE HOUR-COUNT are different facts about the same states). This branch was rebased onto main on 2026-07-16 specifically so its own (now-current) copies of cpa_deadlines.json carry forward the live Louisiana citation-link fix rather than reverting it -- confirmed no diff against main in either cpa_deadlines.json file post-rebase."
   },
   "records": [
     {
@@ -260,15 +260,15 @@
       "id": "mn-cpe",
       "state": "Minnesota",
       "state_slug": "minnesota",
-      "citation": "Minn. R. 1105.3000",
-      "citation_url": "https://www.revisor.mn.gov/rules/1105.3000/",
+      "citation": "Minn. R. 1105.3000; 1105.3100, subp. 4(F)",
+      "citation_url": "https://www.revisor.mn.gov/rules/1105.3100/",
       "source_url": "https://boa.state.mn.us/cpe.html",
       "total_hours": 120,
       "period_years": 3,
       "annual_minimum_hours": 20,
-      "ethics_hours": null,
-      "ethics_period_years": null,
-      "notes": "120 hours in a rolling 3-year period, minimum 20 hours each year -- confirmed directly against the codified rule text (Minn. R. 1105.3000, Item A, Subitems (2) and (5) partial -- subitem (5) itself does NOT establish ethics hours, see below). Minnesota is a genuine exception among this cluster's states: it has NO distinct ongoing ethics-hour CPE requirement. Actively verified this rather than assumed it -- directly fetched all 5 CPE-related rule parts in this chapter (1105.3000, 1105.3100, 1105.3200, 1105.3300, 1105.3350) and the enabling statute (Minn. Stat. 326A.04); none of them mandates a specific number of ethics CPE hours. The only ethics-specific requirement anywhere in this chapter is a one-time 90%-passing professional-ethics EXAM required for initial certification (1105.1800, Subpart 2) -- a licensing-exam requirement, not an ongoing CPE mandate, so not represented in ethics_hours here.",
+      "ethics_hours": 8,
+      "ethics_period_years": 3,
+      "notes": "120 hours in a rolling 3-year period, minimum 20 hours each year (Minn. R. 1105.3000). Within that 120, at least 8 hours must be in regulatory or behavioral ethics (Minn. R. 1105.3100, subpart 4, item F) -- confirmed against both the codified rule text and the Board's own CPE page (boa.state.mn.us/cpe.html), which states the same 8-hour figure in plain language.",
       "verified_2026-07-15": true
     },
     {
@@ -298,7 +298,7 @@
       "annual_minimum_hours": 20,
       "ethics_hours": 2,
       "ethics_period_years": 2,
-      "notes": "80 hours per 2-year period immediately preceding renewal, minimum 20 hours each year, at least 40 hours in technical subjects, and a board-approved 2-hour Tennessee-specific ethics course. Verified directly against the codified regulation text (Cornell LII mirror, after the board's own FAQ page 403'd this tool's direct fetch).",
+      "notes": "80 hours per 2-year period immediately preceding renewal, minimum 20 hours each year, at least 40 hours in technical subjects, and a board-approved 2-hour Tennessee-specific ethics course. Verified directly against the codified regulation text.",
       "verified_2026-07-15": true
     },
     {
@@ -313,7 +313,7 @@
       "annual_minimum_hours": 20,
       "ethics_hours": 4,
       "ethics_period_years": 3,
-      "notes": "120 credits per triennial period, minimum 20 credits each year, at least 60 credits in technical subjects (24 of which in accounting/auditing for those in public practice), and 4 credits specifically in a New Jersey law and ethics course. Note: New Jersey's own license RENEWAL DATE is itself a gap/BYOD record in the CPA-renewal dataset (nj-individual/nj-firm) -- this CPE-hour figure is a separately, independently verified fact. Verified directly against the codified regulation text.",
+      "notes": "120 credits per triennial period, minimum 20 credits each year, at least 60 credits in technical subjects (24 of which in accounting/auditing for those in public practice), and 4 credits specifically in a New Jersey law and ethics course. Verified directly against the codified regulation text.",
       "verified_2026-07-15": true
     },
     {
@@ -328,7 +328,7 @@
       "annual_minimum_hours": null,
       "ethics_hours": 4,
       "ethics_period_years": 2,
-      "notes": "80 hours in the 2-year period immediately preceding re-licensing (applicants engaged in public practice), including 4 hours of professional ethics (effective for licenses expiring on/after June 30, 2007). No carryover permitted between 2-year periods -- unlike several other states in this cluster that do allow some excess-hour carryover. No explicit annual minimum in this section. Note: Massachusetts's own license RENEWAL DATE is itself a gap/BYOD record in the CPA-renewal dataset (ma-individual/ma-firm) -- this CPE-hour figure is a separately, independently verified fact. Verified directly against the codified regulation text.",
+      "notes": "80 hours in the 2-year period immediately preceding re-licensing (applicants engaged in public practice), including 4 hours of professional ethics (effective for licenses expiring on/after June 30, 2007). No carryover permitted between 2-year periods -- unlike several other states in this cluster that do allow some excess-hour carryover. No explicit annual minimum in this section. Verified directly against the codified regulation text.",
       "verified_2026-07-15": true
     },
     {
@@ -343,7 +343,7 @@
       "annual_minimum_hours": null,
       "ethics_hours": 4,
       "ethics_period_years": 2,
-      "notes": "A real correctness catch: the citation used by essentially every third-party CPE-vendor site is 'Rule 1.9' or '1.10' of 3 CCR 705-1 -- fetched the actual codified rule text directly and confirmed Rule 1.9 is a Rules-of-Professional-Conduct section (independence, conflicts of interest, etc.), completely unrelated to CPE hours. The real citation is Rule 1.6(G)(2): a certificate holder must complete 10 hours of CPE for each full quarter of active licensure during the reporting period (10 x 8 quarters = the 80-hour, 2-year figure the board's own page states in plain English). Rule 1.6(G)(2)(b) is the specific ethics sub-clause: 4 of those hours must be in Ethics, of which 2 may be in Colorado-Rules-and-Regulations-specific content. No more than 20% of CPE may be in Personal Development, and no more than 50% in any combination of teaching/publishing. No explicit single-year minimum stated -- the requirement accrues per-quarter continuously, not as a distinct annual floor like several other cluster states. Note on sourcing: an initial automated fetch of both this PDF and the board's own page was blocked on three separate attempts -- resolved by requesting with a standard browser identification string instead (both sources then loaded normally), confirming this was a bot-detection block on the source's side, not a genuinely unavailable rule.",
+      "notes": "Many third-party CPE-vendor sites cite 'Rule 1.9' or '1.10' of 3 CCR 705-1 for Colorado's CPE requirement, but that citation is incorrect -- Rule 1.9 covers professional conduct (independence, conflicts of interest), not CPE hours. The correct rule is 1.6(G)(2): a certificate holder must complete 10 hours of CPE for each full quarter of active licensure during the reporting period (10 x 8 quarters = the 80-hour, 2-year figure the Board's own page states in plain English). Rule 1.6(G)(2)(b) is the ethics sub-clause: 4 of those hours must be in ethics, of which 2 may be in Colorado-rules-and-regulations-specific content. No more than 20% of CPE may be in personal development, and no more than 50% in any combination of teaching/publishing. No explicit single-year minimum is stated -- the requirement accrues per-quarter continuously, not as a distinct annual floor like several other states in this cluster.",
       "verified_2026-07-15": true
     },
     {
@@ -358,7 +358,7 @@
       "annual_minimum_hours": 40,
       "ethics_hours": 2,
       "ethics_period_years": 1,
-      "notes": "40 hours of CPE for each year of the license cycle, of which 8 must be in auditing/accounting and 2 in professional ethics (1 of those 2 ethics hours must specifically satisfy R 338.5215(1)(h), a Michigan-specific sub-requirement). No more than 50% of hours may come from self-study/instruction. Confirmed directly against the Michigan LARA/Bureau of Professional Licensing's own official licensing guide -- the same document serves as both the plain-English source and the citation of its own governing statute/rule (MCL 339.729 and R 338.5215), which is why source_url and citation_url point to the same official state document here (an acceptable variant of the 2-source standard: the state's OWN combined guide, not a third-party summary). Note on sourcing: an initial automated fetch of this exact PDF was blocked on two prior attempts -- resolved by requesting with a standard browser identification string (loaded normally), the same bot-detection block already found and resolved for Colorado this same tick, not a genuinely unavailable document.",
+      "notes": "40 hours of CPE for each year of the license cycle, of which 8 must be in auditing/accounting and 2 in professional ethics (1 of those 2 ethics hours must specifically satisfy R 338.5215(1)(h), a Michigan-specific sub-requirement). No more than 50% of hours may come from self-study/instruction. Confirmed directly against the Michigan LARA/Bureau of Professional Licensing's own official licensing guide (MCL 339.729 and R 338.5215) -- the same document serves as both the plain-English source and the rule citation, an acceptable variant of the two-source standard since it is the state's own combined guide, not a third-party summary.",
       "verified_2026-07-15": true
     }
   ]

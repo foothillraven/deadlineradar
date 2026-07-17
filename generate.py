@@ -2561,6 +2561,61 @@ second, separate line item from your 4 ethics hours.
 <a href="../../illinois/">Set a reminder for your Illinois deadline here</a> so none of these get missed.</p>
 """,
     },
+    {
+        # 2026-07-17: next in the standing blog queue (Illinois -> Connecticut -> Wisconsin), per
+        # the GSC-steered content lever. Pure repackaging of data/cpa_deadlines.json's ct-individual
+        # and ct-firm entries, zero new legal research.
+        "slug": "connecticut-cpa-license-renewal-guide",
+        "title": "How CPA License Renewal Works in Connecticut: Two Clocks That Don't Line Up",
+        "meta_description": (
+            "A complete guide to Connecticut CPA license renewal: the calendar-year license cycle, "
+            "the separate fiscal-year CPE clock, and the firm-permit date that isn't codified — "
+            "sourced to Connecticut's own regulations."
+        ),
+        "body_html": """
+<p class="intro">Connecticut is one of the few states where your license renewal and your CPE
+reporting period don't share a start or end month at all &mdash; they're two genuinely separate
+clocks. Here's exactly how each one works, sourced to Connecticut's own regulations.</p>
+
+<h2>Individual license: calendar year, January 1 through December 31</h2>
+<p>Connecticut CPA licenses run on the calendar year. Regulations of Connecticut State Agencies (RCSA)
+&sect; 20-280-25(a) states a license "shall be valid for a period of one year from January 1 to December
+31," renewed annually with the fee due by December 31. The Department of Consumer Protection's own
+renewal page corroborates this in practice, and renewal notices go out by email between October and
+December 31. <a href="../../connecticut/">Confirm your own next Connecticut CPA renewal deadline
+here</a>.</p>
+
+<h2>CPE: a completely different fiscal year &mdash; July 1 through June 30</h2>
+<p>Here's the part that catches people: CPE is tracked on a <em>fiscal</em> year, July 1 through June
+30 &mdash; not the calendar year your license itself runs on. The requirement is 40 hours minimum per
+fiscal year (up to 60 hours are reportable), and you can carry over up to 20 hours, but only from the
+immediately preceding fiscal year, and audit/attest hours aren't carryover-eligible. All of it gets
+reported to the Board by December 31 as part of your renewal &mdash; so the reporting deadline lines up
+with your license, even though the hours themselves are earned on a completely different 12-month clock.
+Losing track of where the fiscal year starts is the easiest way to misjudge how much time you actually
+have left to earn hours.</p>
+
+<h2>Firm permits: a real gap in the codified record, not a guess we're willing to make</h2>
+<p>The CPA Firm Permit renewal is bundled onto the same page and same Oct-Dec 31 notice window as the
+individual license, which states December 31 renewal &mdash; but that sentence names only "license
+and/or registration," not "Firm Permit" specifically. We checked the controlling statute (Conn. Gen.
+Stat. &sect; 20-281e), which delegates the firm-permit renewal date to board regulation rather than
+fixing it directly, and the only regulation adopted under that section (RCSA &sect;&sect; 20-281-1
+through -12) governs peer-review timing, not the expiration date. The clearest concrete evidence we
+found &mdash; DCP's own CPA Firm Permit Renewal Form stating a December 31 expiration &mdash; is an
+administrative form, not a codified source, and the specific form we checked had an internal date
+inconsistency. That doesn't clear our bar for a confirmed date. If you hold a firm permit, confirm your
+exact renewal date directly with the CT Dept. of Consumer Protection rather than assuming it matches the
+individual-license date.</p>
+
+<p><strong>Bottom line</strong>: if you're a Connecticut CPA, track two separate clocks &mdash; your
+license's calendar-year cycle (Jan 1-Dec 31), and your CPE's fiscal-year cycle (Jul 1-Jun 30) that
+doesn't share a start month with it. If you also hold a firm permit, confirm its exact date directly
+with DCP rather than assuming it mirrors your individual license.
+<a href="../../connecticut/">Set a reminder for your Connecticut deadline here</a> so neither clock
+catches you off guard.</p>
+""",
+    },
 ]
 
 

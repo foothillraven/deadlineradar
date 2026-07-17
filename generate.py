@@ -2616,6 +2616,56 @@ with DCP rather than assuming it mirrors your individual license.
 catches you off guard.</p>
 """,
     },
+    {
+        # 2026-07-17: last state in the standing blog queue (Illinois -> Connecticut -> Wisconsin).
+        # Also independently confirmed by real GSC data: Wisconsin had the 4th-highest impression
+        # count of any state page (26 impr.) in the same pull that surfaced Illinois. Pure
+        # repackaging of data/cpa_deadlines.json's wi-individual/wi-firm entries + cpe_hours.json's
+        # wi-cpe entry, zero new legal research.
+        "slug": "wisconsin-cpa-license-renewal-guide",
+        "title": "How CPA License Renewal Works in Wisconsin: One Date for Everyone",
+        "meta_description": (
+            "A complete guide to Wisconsin CPA license renewal: the biennial December 15 deadline "
+            "that applies to individuals and firms alike, the 80-hour CPE requirement's two-half "
+            "pacing rule, and a real discrepancy between the statute and Board materials — sourced "
+            "to Wisconsin's own statute and administrative code."
+        ),
+        "body_html": """
+<p class="intro">Wisconsin keeps this simpler than most states in one specific way: individual
+licenses and firm licenses renew on the exact same statutory date. Here's exactly how the renewal and
+CPE rules work, sourced to Wisconsin's own statute and administrative code.</p>
+
+<h2>One date, every odd-numbered year: December 15</h2>
+<p>Both individual CPA licenses and accounting firm licenses expire December 15 of each odd-numbered
+year &mdash; the same fixed calendar date for every licensee, not birth-month or cohort-based (Wis. Stat.
+&sect; 440.08(2)(a)1. for individuals, &sect; 440.08(2)(a)3. for firms). There's no separate firm-specific
+cycle to track here the way several other states require. <a href="../../wisconsin/">Confirm your own
+next Wisconsin CPA renewal deadline here</a>.</p>
+
+<h2>A real discrepancy worth knowing: December 15 vs. "December 14"</h2>
+<p>Some of the Wisconsin Board's own materials describe the practical deadline as December 14, one day
+earlier than what's actually written into statute. December 15 is the codified date we publish, sourced
+directly to the statute text itself &mdash; but if you've seen "December 14" referenced somewhere and
+wondered which is correct, that's why the discrepancy exists, and it's worth confirming directly rather
+than assuming either version by default.</p>
+
+<h2>CPE: 80 hours per 2-year period, paced across two halves</h2>
+<p>Wisconsin requires 80 CPE credits per 2-year compliance period (the period immediately preceding
+renewal), of which at least 40 must come from formal learning activities, and 3 of those formal-learning
+hours must be on ethics (Wis. Admin. Code Accy 2.602). The part that's easy to miss: you can't bank all 80
+hours in the final months before renewal &mdash; at least 20 credits must be completed in <em>each</em>
+12-month half of the 2-year period. There's no separate CE-reporting deadline apart from the renewal date
+itself, but the two-half pacing rule means procrastinating on the first year of a cycle can leave you
+structurally unable to catch up in the second.</p>
+
+<p><strong>Bottom line</strong>: if you're a Wisconsin CPA (or run a firm), one date &mdash; December 15
+of each odd-numbered year &mdash; covers both your license and, if applicable, your firm's license. Pace
+your 80 CPE hours across both 12-month halves of the cycle rather than the calendar year alone, since at
+least 20 hours are required in each half specifically.
+<a href="../../wisconsin/">Set a reminder for your Wisconsin deadline here</a> so the single date works
+for you instead of sneaking up on you.</p>
+""",
+    },
 ]
 
 

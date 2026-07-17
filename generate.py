@@ -2508,6 +2508,59 @@ not this site being vague &mdash; it's the actual rule working that way, and we'
 guess.</p>
 """,
     },
+    {
+        # 2026-07-17: GSC-steered pick -- "cpa renewal illinois" / "illinois cpa license renewal" /
+        # "il cpa license renewal" are Illinois's strongest real query cluster in Search Console
+        # (12 impressions at position 19.2 for the top variant, several more nearby), already next
+        # in the standing blog queue (Illinois, then Connecticut, then Wisconsin) before this
+        # confirmed it. Pure repackaging of already-verified data/cpe_hours.json entries, zero new
+        # legal research.
+        "slug": "illinois-cpa-license-renewal-guide",
+        "title": "How CPA License Renewal Works in Illinois: Dates, CPE, and Firm Registration",
+        "meta_description": (
+            "A complete guide to Illinois CPA license renewal: the 3-year individual and firm "
+            "cycles, the 120-hour CPE requirement, and the separate sexual harassment prevention "
+            "training rule — sourced to the Illinois Administrative Code."
+        ),
+        "body_html": """
+<p class="intro">Illinois runs individual licenses and firm licenses on the same 3-year cycle length,
+but different expiration months and a different anchor-year picture &mdash; and its CPE rule bundles in
+a training requirement that's easy to miss because it isn't labeled "ethics." Here's exactly how each
+piece works, sourced to Illinois's own administrative code.</p>
+
+<h2>Individual CPA license: every 3 years, ending September 30</h2>
+<p>Illinois individual CPA licenses run on a 3-year cycle expiring September 30 (68 Ill. Admin. Code
+1420.80(a)). The currently confirmed cycle ends September 30, 2027. <a href="../../illinois/">Confirm
+your own next Illinois CPA renewal deadline here</a>.</p>
+
+<h2>Firm licenses: same rule, different month &mdash; and a real data gap worth knowing about</h2>
+<p>Firm licenses are governed by the same rule section, just a different subsection (68 Ill. Admin. Code
+1420.80(b)): a 3-year cycle expiring November 30. What the rule text doesn't pin down is a specific
+anchor year for the firm track the way it does for individual licenses. A 2021 IDFPR variance did extend
+that cycle's firm-license expiration from November 30, 2021 to January 31, 2022 &mdash; but that's a
+one-time administrative order, not codified rule text, so we're not projecting a current cycle from it.
+If you hold a firm license, confirm your exact renewal date with IDFPR or on your permit itself rather
+than assuming it lines up with any individual license at the same firm.</p>
+
+<h2>CPE: 120 hours per 3-year period &mdash; checked at renewal, not annually</h2>
+<p>Illinois requires 120 CPE hours per 3-year renewal period, including at least 4 hours of professional
+ethics (68 Ill. Admin. Code &sect; 1420.70(a)(1)). Unlike states that check a chunk of your CPE every
+single year regardless of license-cycle length, Illinois's rule states no separate annual minimum &mdash;
+the 120-hour count is measured against the 3-year period as a whole.</p>
+
+<h2>The requirement that's easy to miss: it isn't labeled "ethics"</h2>
+<p>Illinois also requires a 1-hour sexual harassment prevention training &mdash; but the rule keeps this
+as its own distinct category, separate from the 4-hour ethics requirement. It's easy to read "4 hours of
+ethics" as the whole compliance picture and miss this second, smaller, differently-labeled requirement
+entirely. Both are real, both are required, and they don't count toward each other.</p>
+
+<p><strong>Bottom line</strong>: if you're an Illinois CPA, track two things separately &mdash; your
+license's 3-year cycle (individual ending September 30, firm ending November 30 with no assumed anchor
+year), and your 120-hour/3-year CPE count, remembering the 1-hour harassment-prevention training is a
+second, separate line item from your 4 ethics hours.
+<a href="../../illinois/">Set a reminder for your Illinois deadline here</a> so none of these get missed.</p>
+""",
+    },
 ]
 
 

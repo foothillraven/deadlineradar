@@ -456,7 +456,7 @@ PAGE_CSS = """
     transition: opacity 0.8s ease;
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
     box-shadow: var(--shadow); padding: 1.4rem 1.5rem;
-    display: flex; flex-direction: column; gap: 0.3rem;
+    display: flex; flex-direction: column; justify-content: center; gap: 0.3rem;
   }
   .hfc-card.is-active { opacity: 1; pointer-events: auto; z-index: 2; }
   .hfc-state { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--fg); }

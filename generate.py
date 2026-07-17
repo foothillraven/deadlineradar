@@ -273,24 +273,27 @@ PAGE_CSS = """
   html { background: var(--page-bg); }
   body {
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    max-width: 1180px; margin: 0 auto; padding: 0 1.25rem 3rem;
+    margin: 0; padding: 0 0 3rem;
     line-height: 1.55; color: var(--fg); background: var(--page-bg);
   }
+  /* Chrome (nav, topbar, footer border) spans the FULL browser width; only the reading
+     content itself is centered in a max-width column -- .wrap is that single column,
+     reused everywhere so nav/header/body/footer all align to the same edges. */
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 1.25rem; }
   a { color: var(--accent); }
   .topbar {
-    margin: 0 -1.25rem; background: var(--accent-deep); color: #cfe0ee;
+    background: var(--accent-deep); color: #cfe0ee;
     font-size: 0.78rem; letter-spacing: 0.02em; text-align: center; padding: 0.4rem 1rem;
   }
   nav.mainnav {
-    margin: 0 -1.25rem 1.75rem; background: rgba(247,249,251,.92); backdrop-filter: saturate(1.4) blur(8px);
-    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; padding: 0 1.25rem;
+    background: rgba(247,249,251,.92); backdrop-filter: saturate(1.4) blur(8px);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20;
   }
   @media (prefers-color-scheme: dark) {
     nav.mainnav { background: rgba(18,21,26,.92); }
   }
   .nav-inner {
     display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
-    max-width: 1180px; margin: 0 auto;
   }
   .nav-links { display: flex; gap: 1.4rem; flex-wrap: wrap; }
   .nav-links a {
@@ -707,7 +710,7 @@ _BRAND_GLYPH_SVG = """<svg class="brand-glyph" viewBox="0 0 32 32" fill="none" a
 
 def site_header(home_href: str) -> str:
     return f"""<nav class="mainnav">
-  <div class="nav-inner">
+  <div class="nav-inner wrap">
     <a href="{esc(home_href)}" style="display:flex; align-items:center; gap:0.5rem; text-decoration:none; padding:0.7rem 0;">
       {_BRAND_GLYPH_SVG}
       <span class="wordmark">{esc(SITE_NAME)}</span>
@@ -721,6 +724,7 @@ def site_header(home_href: str) -> str:
     </div>
   </div>
 </nav>
+<div class="wrap">
 <header class="site-header">
   <div class="tagline">{esc(SITE_TAGLINE)}</div>
   <div class="by-line">by {esc(BRAND_NAME)}</div>
@@ -728,7 +732,9 @@ def site_header(home_href: str) -> str:
 
 
 def site_footer() -> str:
-    return f"""<footer class="site-footer">
+    return f"""</div>
+<footer class="site-footer">
+  <div class="wrap">
   <div class="foot-top">
     <div style="display:flex; align-items:center; gap:0.5rem;">
       {_BRAND_GLYPH_SVG}
@@ -748,6 +754,7 @@ def site_footer() -> str:
   accountancy. Renewal dates are compiled from public sources for informational purposes only
   &mdash; not legal, tax, or professional advice. Always confirm your exact renewal date with your
   state board or on your license.</p>
+  </div>
 </footer>"""
 
 

@@ -273,7 +273,7 @@ PAGE_CSS = """
   html { background: var(--page-bg); }
   body {
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    max-width: 800px; margin: 0 auto; padding: 0 1.25rem 3rem;
+    max-width: 1180px; margin: 0 auto; padding: 0 1.25rem 3rem;
     line-height: 1.55; color: var(--fg); background: var(--page-bg);
   }
   a { color: var(--accent); }
@@ -290,7 +290,7 @@ PAGE_CSS = """
   }
   .nav-inner {
     display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
-    max-width: 800px; margin: 0 auto;
+    max-width: 1180px; margin: 0 auto;
   }
   .nav-links { display: flex; gap: 1.4rem; flex-wrap: wrap; }
   .nav-links a {
@@ -559,7 +559,13 @@ PAGE_CSS = """
     display: grid; grid-template-columns: 1fr 220px; gap: 1.25rem; align-items: start;
     margin: 0 0 2rem;
   }
-  .map-figure { border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem; background: var(--card-bg); }
+  .map-figure { position: relative; border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem; background: var(--card-bg); }
+  .map-tooltip {
+    position: absolute; z-index: 15; pointer-events: none; white-space: nowrap;
+    background: var(--panel-dark); color: var(--panel-dark-fg); font-size: 0.8rem;
+    padding: 0.35rem 0.6rem; border-radius: 6px; box-shadow: var(--shadow);
+  }
+  .map-tooltip[hidden] { display: none; }
   .us-map { width: 100%; height: auto; display: block; }
   .map-state {
     fill: var(--map-variable); stroke: var(--card-bg); stroke-width: 1.2;
@@ -1615,8 +1621,8 @@ def build_us_map_html(by_slug: dict[str, list[dict]]) -> str:
         cls = "map-state map-state--variable" if variable else "map-state map-state--fixed"
         title = f"{state_name} — {hint}"
         path_links.append(
-            f'<a href="{esc(slug)}/" class="map-link" aria-label="{esc(title)}">'
-            f'<path class="{cls}" d="{esc(s["d"])}"><title>{esc(title)}</title></path></a>'
+            f'<a href="{esc(slug)}/" class="map-link" aria-label="{esc(title)}" data-tip="{esc(title)}">'
+            f'<path class="{cls}" d="{esc(s["d"])}"></path></a>'
         )
         if slug in _MAP_SMALL_STATES:
             pills_by_slug[slug] = (
@@ -1634,7 +1640,10 @@ def build_us_map_html(by_slug: dict[str, list[dict]]) -> str:
         "\n</svg>"
     )
     return f"""<div class="map-section">
-  <div class="map-figure">{svg}</div>
+  <div class="map-figure">
+    {svg}
+    <div class="map-tooltip" id="map-tooltip" hidden aria-hidden="true"></div>
+  </div>
   <div class="map-side">
     <p class="map-small-label">Smaller states &amp; DC (tap here, easier than the map):</p>
     <div class="map-small-pills">
@@ -1645,7 +1654,50 @@ def build_us_map_html(by_slug: dict[str, list[dict]]) -> str:
       <span><span class="swatch swatch--variable"></span>Varies by birth month or license type</span>
     </div>
   </div>
-</div>"""
+</div>
+<script>{_MAP_TOOLTIP_JS}</script>"""
+
+
+# Instant hover tooltip for the US map (2026-07-17, per Devin's direct ask: the browser's
+# native SVG <title> tooltip has a ~1s built-in delay that can't be shortened from CSS/HTML
+# alone -- this replaces it with a same-frame custom tooltip. The native <title> stays in the
+# markup too, as a harmless accessibility/keyboard-nav fallback; sighted mouse users will
+# always see the instant one first.
+_MAP_TOOLTIP_JS = """
+(function() {
+  var tip = document.getElementById('map-tooltip');
+  var figure = tip ? tip.closest('.map-figure') : null;
+  if (!tip || !figure) return;
+  var links = figure.querySelectorAll('.map-link');
+  function show(el, evt) {
+    tip.textContent = el.getAttribute('data-tip') || '';
+    tip.hidden = false;
+    move(evt);
+  }
+  function move(evt) {
+    var rect = figure.getBoundingClientRect();
+    var x = (evt.clientX - rect.left) + 14;
+    var y = (evt.clientY - rect.top) + 14;
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+  }
+  function hide() { tip.hidden = true; }
+  links.forEach(function(el) {
+    el.addEventListener('mouseenter', function(evt) { show(el, evt); });
+    el.addEventListener('mousemove', move);
+    el.addEventListener('mouseleave', hide);
+    el.addEventListener('focus', function(evt) {
+      tip.textContent = el.getAttribute('data-tip') || '';
+      tip.hidden = false;
+      var rect2 = el.getBoundingClientRect();
+      var frect = figure.getBoundingClientRect();
+      tip.style.left = (rect2.left - frect.left) + 'px';
+      tip.style.top = (rect2.top - frect.top - 28) + 'px';
+    });
+    el.addEventListener('blur', hide);
+  });
+})();
+"""
 
 
 _STATE_SEARCH_JS = """
@@ -1848,7 +1900,27 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   <a href="/methodology/" style="font-weight:600;">Read our full verification standard &rarr;</a>
 </section>"""
 
+    # Homepage fact-sheet demo (2026-07-17, per orchestrator review): the concept showed a
+    # sample state's fact sheet on the homepage itself, proving the citation-first payoff
+    # before a visitor even picks a state. Real data, not the concept's illustrative CA/TX/NY
+    # placeholders -- reuses the exact same render_simple_deadline_records() the real Illinois
+    # page uses, so this can never drift into inventing a citation the state page doesn't have.
+    demo_records = [r for r in by_slug.get("illinois", []) if r.get("id") == "il-individual"]
+    demo_html = ""
+    if demo_records:
+        demo_html = f"""<section class="band-section" style="border-top:0; padding-top:0; margin-top:0;">
+  <p class="eyebrow">What a lookup actually gives you</p>
+  <h2>A fact sheet you could hand to a partner.</h2>
+  <p style="color:var(--muted); margin:0.7rem 0 1.4rem; font-size:1.02rem;">Pick a state below.
+  Each line shows the requirement, the exact legal source behind it, and when we last confirmed
+  it &mdash; so you can verify it yourself in one click. Here's Illinois as an example:</p>
+  {render_simple_deadline_records(demo_records)}
+  <p style="font-size:0.88rem; color:var(--muted); margin-top:0.6rem;">
+  <a href="illinois/" style="font-weight:600;">Open the full Illinois fact sheet &rarr;</a></p>
+</section>"""
+
     body = f"""{hero_html}
+{demo_html}
 {build_us_map_html(by_slug)}
 <div class="state-grid state-grid--mobile-fallback">
 {chr(10).join(cards)}

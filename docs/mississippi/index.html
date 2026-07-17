@@ -196,6 +196,7 @@
     font-size: 0.72rem; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase;
     color: var(--gold); margin: 0 0 0.7rem;
   }
+  .hero { max-width: 760px; margin: 0 auto; }
   .hero-accent { color: var(--accent); }
   .hero-lede { color: var(--muted); font-size: 1.05rem; line-height: 1.6; max-width: 60ch; margin: 1.1rem 0 0; }
   .lookup { margin-top: 1.6rem; max-width: 30rem; }
@@ -337,7 +338,7 @@
   }
   .state-grid--mobile-fallback { display: none; }
   .map-section {
-    display: grid; grid-template-columns: 1fr 220px; gap: 1.25rem; align-items: start;
+    display: grid; grid-template-columns: 1fr 220px; gap: 1.25rem; align-items: stretch;
     margin: 0 0 2rem;
   }
   .map-figure { position: relative; border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem; background: var(--card-bg); }

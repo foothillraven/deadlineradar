@@ -242,47 +242,86 @@ PAGE_CSS = """
   }
   :root {
     color-scheme: light dark;
-    --bg: #ffffff; --fg: #1a2129; --muted: #5b6572; --border: #d8dee5;
-    --accent: #1f5fbf; --accent-bg: #eaf1fc; --card-bg: #f7f9fb;
-    --trust-bg: #fff8e6; --trust-border: #e3c476; --row-alt: #f3f5f7;
-    --font-display: 'Fraunces', Georgia, 'Iowan Old Style', 'Times New Roman', serif;
-    --map-fixed: #bcd4f5; --map-fixed-hover: #1f5fbf;
+    /* Tokens match the Devin-approved concept (deadlineradar_concept_v1_APPROVED.html) exactly. */
+    --bg: #f7f9fb; --page-bg: #f7f9fb; --fg: #17212b; --muted: #5a6b7a; --faint: #8595a3;
+    --border: #e0e6ec; --border-strong: #c8d2db;
+    --accent: #1f3d54; --accent-deep: #152c3e; --accent-bg: #eaeef1; --card-bg: #ffffff;
+    --gold: #8a6a33; --gold-line: #d8c9a6; --gold-bg: #f4eede;
+    --verified-green: #256a4b; --verified-green-bg: #e8f1ec;
+    --trust-bg: #f4eede; --trust-border: #d8c9a6; --row-alt: #f6f8f9;
+    --shadow: 0 1px 2px rgba(23,33,43,.05), 0 6px 22px rgba(23,33,43,.06);
+    --font-display: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+    --font-mono: "SFMono-Regular", ui-monospace, "Cascadia Code", Consolas, "Liberation Mono", monospace;
+    --map-fixed: #bcd4f5; --map-fixed-hover: #1f3d54;
     --map-variable: #e4e8ec; --map-variable-hover: #8a95a3;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #12151a; --fg: #e7ebf0; --muted: #9aa5b1; --border: #2a323c;
-      --accent: #7fb0ff; --accent-bg: #1b2836; --card-bg: #1a1f26;
+      --bg: #12151a; --page-bg: #12151a; --fg: #e7ebf0; --muted: #9aa5b1; --faint: #6f7a86;
+      --border: #2a323c; --border-strong: #3a4552;
+      --accent: #7fa8d9; --accent-deep: #9cc0ea; --accent-bg: #1b2836; --card-bg: #1a1f26;
+      --gold: #d6b45a; --gold-line: #8a6d1f; --gold-bg: #26210f;
+      --verified-green: #4fd685; --verified-green-bg: rgba(52,199,120,0.12);
       --trust-bg: #26210f; --trust-border: #5a4a20; --row-alt: #171b21;
       --map-fixed: #2c4a72; --map-fixed-hover: #7fb0ff;
       --map-variable: #262b32; --map-variable-hover: #545e6c;
     }
   }
   * { box-sizing: border-box; }
+  html { background: var(--page-bg); }
   body {
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     max-width: 800px; margin: 0 auto; padding: 0 1.25rem 3rem;
-    line-height: 1.55; color: var(--fg); background: var(--bg);
+    line-height: 1.55; color: var(--fg); background: var(--page-bg);
   }
   a { color: var(--accent); }
+  .topbar {
+    margin: 0 -1.25rem; background: var(--accent-deep); color: #cfe0ee;
+    font-size: 0.78rem; letter-spacing: 0.02em; text-align: center; padding: 0.4rem 1rem;
+  }
+  nav.mainnav {
+    margin: 0 -1.25rem 1.75rem; background: rgba(247,249,251,.92); backdrop-filter: saturate(1.4) blur(8px);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; padding: 0 1.25rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    nav.mainnav { background: rgba(18,21,26,.92); }
+  }
+  .nav-inner {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+    max-width: 800px; margin: 0 auto;
+  }
+  .nav-links { display: flex; gap: 1.4rem; flex-wrap: wrap; }
+  .nav-links a {
+    color: var(--muted); text-decoration: none; font-size: 0.85rem;
+    padding: 0.9rem 0; border-bottom: 2px solid transparent; white-space: nowrap;
+  }
+  .nav-links a:hover { color: var(--fg); }
+  .nav-links a.cta { color: var(--accent); font-weight: 600; }
+  .stat-strip {
+    margin: 1.1rem -1.25rem 1.75rem; background: var(--card-bg); border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border); padding: 0.65rem 1.25rem; font-size: 0.8rem; color: var(--muted);
+    display: flex; gap: 1.6rem; flex-wrap: wrap;
+  }
+  .stat-strip b { color: var(--accent); font-variant-numeric: tabular-nums; }
   .site-header {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem;
-    padding: 1.5rem 0 1rem; border-bottom: 1px solid var(--border); margin-bottom: 1.75rem;
+    padding: 1.5rem 0 1rem; margin-bottom: 0;
   }
   .wordmark { font-family: var(--font-display); font-size: 1.5rem; font-weight: 650; letter-spacing: -0.015em; }
   .wordmark a { color: var(--fg); text-decoration: none; }
+  .wordmark b { color: var(--accent); }
   .tagline { color: var(--muted); font-size: 0.92rem; flex: 1 1 auto; }
   .by-line { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
   h1 {
-    font-family: var(--font-display); font-weight: 560; font-size: 2.1rem; margin: 0 0 0.35rem;
+    font-family: var(--font-display); font-weight: 600; font-size: 2.1rem; margin: 0 0 0.35rem;
     line-height: 1.12; letter-spacing: -0.01em; text-wrap: balance;
   }
-  h2 { font-family: var(--font-display); font-weight: 580; letter-spacing: -0.005em; }
+  h2 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.005em; }
   .subhead { color: var(--muted); margin: 0 0 1.5rem; }
   .intro { margin: 0 0 1.25rem; }
   .callout {
     position: relative;
-    border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 8px;
+    border: 1px solid var(--border); border-left: 4px solid var(--gold-line); border-radius: 8px;
     padding: 1.15rem 1.4rem; background: var(--card-bg); margin: 1.4rem 0;
   }
   .callout + .callout { margin-top: 1rem; }
@@ -294,47 +333,80 @@ PAGE_CSS = """
     margin: 0.15rem 0 0.55rem;
   }
   .callout .rule { margin: 0; }
-  .verified-badge {
-    position: absolute; top: 0.95rem; right: 1.1rem;
-    background: var(--accent); color: #fff; font-size: 0.66rem; font-weight: 700;
-    letter-spacing: 0.03em; text-transform: uppercase; padding: 0.22em 0.6em 0.22em 0.5em;
-    border-radius: 999px; line-height: 1.4;
-  }
-  .verified-badge::before { content: "\\2713\\a0"; }
-  .source-cite {
-    margin: 0.9rem 0 0; padding-top: 0.8rem; border-top: 1px solid var(--border);
-    font-size: 0.85rem; color: var(--muted);
-    display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.7rem;
-  }
-  .source-cite .cite-label {
-    text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.68rem; color: var(--muted);
-  }
-  .source-cite .cite-stamp {
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 0.82rem; font-weight: 700; color: var(--fg);
-    background: var(--accent-bg); border: 1px solid var(--border); border-radius: 4px;
-    padding: 0.18em 0.55em;
-  }
-  .source-cite .cite-link { margin-left: auto; font-weight: 600; white-space: nowrap; }
-  .source-cite code {
-    background: none; padding: 0; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    color: var(--fg); font-size: 0.86em;
-  }
   .table-wrap {
     overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
     -webkit-overflow-scrolling: touch;
   }
   table { border-collapse: collapse; width: 100%; font-size: 0.92rem; min-width: 420px; }
   th, td { padding: 0.6rem 0.8rem; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
-  th { background: var(--accent-bg); font-weight: 700; }
+  th { background: var(--accent); color: #eaf1f7; font-weight: 700; }
   tbody tr:nth-child(even) { background: var(--row-alt); }
   tbody tr:last-child td { border-bottom: none; }
   .trust-line {
     border: 1px solid var(--trust-border); background: var(--trust-bg); border-radius: 8px;
     padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
   }
-  .trust-line strong::before { content: "\\2713\\a0"; color: #8a6d1f; }
-  @media (prefers-color-scheme: dark) { .trust-line strong::before { color: #d6b45a; } }
+  .trust-line strong::before { content: "\\2713\\a0"; color: var(--gold); }
+
+  /* ---- THE CENTERPIECE: citation-first fact sheet, per the approved concept's .sheet/.frow ---- */
+  .sheet {
+    background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
+    box-shadow: var(--shadow); overflow: hidden; margin: 1.4rem 0;
+  }
+  .sheet + .sheet { margin-top: 1.4rem; }
+  .sheethead {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.7rem 1rem;
+    padding: 0.9rem 1.2rem; background: linear-gradient(180deg,#fbfcfd,#f4f7f9); border-bottom: 1px solid var(--border);
+    font-family: var(--font-display); font-size: 1rem; font-weight: 600; color: var(--fg);
+  }
+  @media (prefers-color-scheme: dark) {
+    .sheethead { background: linear-gradient(180deg,#1c222a,#171c22); }
+  }
+  .sheethead .stamp { display: flex; align-items: center; gap: 0.45rem; font-size: 0.78rem; color: var(--verified-green); font-weight: 600; }
+  .sheethead .stamp .dot {
+    width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--verified-green);
+    box-shadow: 0 0 0 3px var(--verified-green-bg); display: inline-block;
+  }
+  .sheethead .stamp--unconfirmed { color: var(--gold); }
+  .sheethead .stamp--unconfirmed .dot { background: var(--gold); box-shadow: 0 0 0 3px var(--gold-bg); }
+  .rowlist { display: flex; flex-direction: column; }
+  .frow {
+    display: grid; grid-template-columns: 1fr auto; gap: 0.35rem 1.4rem;
+    padding: 1.1rem 1.2rem; border-top: 1px solid var(--border);
+  }
+  .frow:first-child { border-top: 0; }
+  .frow .k {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--faint); grid-column: 1 / -1; margin-bottom: 0.1rem;
+  }
+  .frow .v { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--fg); line-height: 1.2; }
+  .frow .v small {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 0.82rem; font-weight: 500; color: var(--muted); display: block; margin-top: 0.25rem; line-height: 1.4;
+  }
+  .frow .side { grid-column: 2; grid-row: 2; align-self: center; text-align: right; }
+  .cite {
+    display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: 0.78rem;
+    color: var(--gold); background: var(--gold-bg); border: 1px solid var(--gold-line); border-radius: 6px;
+    padding: 0.25rem 0.55rem; text-decoration: none; white-space: nowrap;
+  }
+  .cite:hover { background: #efe6d0; }
+  @media (prefers-color-scheme: dark) { .cite:hover { background: #2e2712; } }
+  .verified {
+    display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.76rem; color: var(--verified-green);
+    margin-top: 0.5rem;
+  }
+  .unconfirmed { color: var(--gold); }
+  @media (max-width: 600px) {
+    .frow { grid-template-columns: 1fr; }
+    .frow .side { grid-column: 1; grid-row: auto; text-align: left; margin-top: 0.6rem; }
+  }
+  .sheetfoot {
+    padding: 0.85rem 1.2rem; background: #fbfcfd; border-top: 1px solid var(--border); font-size: 0.78rem;
+    color: var(--muted);
+  }
+  @media (prefers-color-scheme: dark) { .sheetfoot { background: #171c22; } }
+  .factsheet-note { font-size: 0.85rem; color: var(--muted); padding: 0 1.2rem 1rem; }
   .cpe-affiliate {
     border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem;
     background: var(--card-bg); margin: 1.4rem 0; font-size: 0.92rem;
@@ -486,6 +558,16 @@ PAGE_CSS = """
     margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
     font-size: 0.85rem; color: var(--muted); line-height: 1.6;
   }
+  .foot-top {
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem 1.6rem;
+    padding-bottom: 1.1rem; margin-bottom: 1.1rem; border-bottom: 1px solid var(--border);
+  }
+  .foot-links { display: flex; flex-wrap: wrap; gap: 0.4rem 1.3rem; }
+  .foot-links a { color: var(--muted); text-decoration: none; }
+  .foot-links a:hover { color: var(--fg); }
+  .disc { font-size: 0.78rem; color: var(--faint); line-height: 1.6; }
+  .disc strong { color: var(--muted); }
+  .brand-glyph { flex: none; }
   code { background: rgba(127,127,127,0.15); padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.9em; }
   .signup-form {
     border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.4rem;
@@ -524,9 +606,32 @@ PAGE_CSS = """
 """
 
 
+_BRAND_GLYPH_SVG = """<svg class="brand-glyph" viewBox="0 0 32 32" fill="none" aria-hidden="true" width="26" height="26">
+  <circle cx="16" cy="16" r="13.5" stroke="#1f3d54" stroke-width="1.6"/>
+  <circle cx="16" cy="16" r="8" stroke="#c8d2db" stroke-width="1.2"/>
+  <circle cx="16" cy="16" r="2.3" fill="#8a6a33"/>
+  <path d="M16 16 L26 9" stroke="#8a6a33" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M16 3.5 L16 6" stroke="#1f3d54" stroke-width="1.6" stroke-linecap="round"/>
+</svg>"""
+
+
 def site_header(home_href: str) -> str:
-    return f"""<header class="site-header">
-  <div class="wordmark"><a href="{esc(home_href)}">{esc(SITE_NAME)}</a></div>
+    return f"""<nav class="mainnav">
+  <div class="nav-inner">
+    <a href="{esc(home_href)}" style="display:flex; align-items:center; gap:0.5rem; text-decoration:none; padding:0.7rem 0;">
+      {_BRAND_GLYPH_SVG}
+      <span class="wordmark">{esc(SITE_NAME)}</span>
+    </a>
+    <div class="nav-links">
+      <a href="/">Browse States</a>
+      <a href="/methodology/">How We Verify</a>
+      <a href="/for-firms/">For Firms</a>
+      <a href="/contact/">Contact</a>
+      <a href="#remind" class="cta">Get reminders</a>
+    </div>
+  </div>
+</nav>
+<header class="site-header">
   <div class="tagline">{esc(SITE_TAGLINE)}</div>
   <div class="by-line">by {esc(BRAND_NAME)}</div>
 </header>"""
@@ -534,13 +639,25 @@ def site_header(home_href: str) -> str:
 
 def site_footer() -> str:
     return f"""<footer class="site-footer">
-  <p>{esc(SITE_NAME)} is an independent reminder service operated by {esc(BRAND_NAME)}. It is not
+  <div class="foot-top">
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+      {_BRAND_GLYPH_SVG}
+      <span class="wordmark">{esc(SITE_NAME)}</span>
+    </div>
+    <div class="foot-links">
+      <a href="/">All 51 jurisdictions</a>
+      <a href="/methodology/">How We Verify</a>
+      <a href="/blog/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+      <a href="/for-firms/">For Firms</a>
+    </div>
+  </div>
+  <p class="disc"><strong>{esc(SITE_NAME)} is an independent reminder service operated by {esc(BRAND_NAME)}.</strong> It is not
   affiliated with, endorsed by, or connected to NASBA, the AICPA, or any state board of
   accountancy. Renewal dates are compiled from public sources for informational purposes only
   &mdash; not legal, tax, or professional advice. Always confirm your exact renewal date with your
   state board or on your license.</p>
-  <p><a href="/privacy/">Privacy Policy</a> &middot; <a href="/contact/">Contact</a> &middot;
-  <a href="/for-firms/">For Firms</a> &middot; <a href="/methodology/">How We Verify</a></p>
 </footer>"""
 
 
@@ -701,7 +818,7 @@ def signup_form_for_state(state_slug: str, state_name: str, records: list[dict],
     # "Bring your own date" (2026-07-05): the form always renders now -- see
     # _extra_fields_html()'s own docstring for how it picks the right field(s)
     # per state. Every state can collect a signup, computed or user-provided.
-    return f"""<div class="signup-form">
+    return f"""<div class="signup-form" id="remind">
   <h2>Get reminded before this deadline</h2>
   <p class="signup-microcopy">{esc(TRUST_MICROCOPY)}</p>
   <form method="post" action="{esc(REMINDER_BACKEND_BASE_URL)}/subscribe">
@@ -737,7 +854,7 @@ def signup_form_homepage(by_slug: dict[str, list[dict]], as_of: date) -> str:
         for slug in all_slugs
         if _extra_fields_html(slug, by_slug[slug], as_of)
     )
-    return f"""<div class="signup-form">
+    return f"""<div class="signup-form" id="remind">
   <h2>Get reminded before your deadline</h2>
   <p class="signup-microcopy">{esc(TRUST_MICROCOPY)}</p>
   <form method="post" action="{esc(REMINDER_BACKEND_BASE_URL)}/subscribe" id="homepage-signup-form">
@@ -963,17 +1080,60 @@ def _verified_badge_html(record: dict) -> str:
     return '<span class="verified-badge">Verified</span>'
 
 
+_CITE_ICON_SVG = (
+    '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true">'
+    '<path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" '
+    'stroke="currentColor" stroke-width="1.3"/>'
+    '<path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>'
+)
+_VERIFIED_ICON_SVG = (
+    '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true">'
+    '<path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" '
+    'stroke-linecap="round" stroke-linejoin="round"/></svg>'
+)
+
+
+def _cite_chip_html(record: dict) -> str:
+    """The 'seal of authority' -- brass, mono, links to the primary source. Only
+    called for a record that already has a real `citation` string; a record with
+    none renders no chip at all (never a placeholder/guessed citation)."""
+    if not record.get("citation"):
+        return ""
+    return (
+        f'<a class="cite" href="{esc(record["citation_url"])}">{_CITE_ICON_SVG}'
+        f'{esc(record["citation"])}</a>'
+    )
+
+
 def render_simple_deadline_records(records: list[dict]) -> str:
-    """Wave 1 / plain fixed_calendar records with a single computed date each."""
+    """Wave 1 / plain fixed_calendar records with a single computed date each.
+    Rendered as the approved concept's .sheet/.frow fact sheet (2026-07-17 CPA-trust
+    redesign, deadlineradar_concept_v1_APPROVED.html) -- citation lives inline on the
+    same row as the value it backs, not a separate buried line."""
     parts = []
     for r in records:
         d = date.fromisoformat(r["next_deadline_computed"])
-        parts.append(f"""<div class="callout">
-  {_verified_badge_html(r)}
-  <div class="label">{esc(r['license_type_label'])}</div>
-  <div class="date">{esc(fmt_date(d))}</div>
-  <p class="rule">{esc(r['cycle_description'])}</p>
-  {_source_cite_html(r)}
+        has_citation = bool(r.get("citation"))
+        stamp_class = "stamp" if has_citation else "stamp stamp--unconfirmed"
+        stamp_text = f"Last verified {esc(r['last_verified'])}" if r.get("last_verified") else "Not independently verified"
+        verified_line = (
+            f'<div class="verified">{_VERIFIED_ICON_SVG}Confirmed at source</div>' if has_citation else ""
+        )
+        parts.append(f"""<div class="sheet">
+  <div class="sheethead">
+    <span>{esc(r['license_type_label'])}</span>
+    <div class="{stamp_class}"><span class="dot"></span>{stamp_text}</div>
+  </div>
+  <div class="rowlist">
+    <div class="frow">
+      <div class="k">Next renewal date</div>
+      <div class="v">{esc(fmt_date(d))}<small>{esc(r['cycle_description'])}</small></div>
+      <div class="side">
+        {_cite_chip_html(r)}
+        {verified_line}
+      </div>
+    </div>
+  </div>
 </div>""")
     return "\n".join(parts)
 
@@ -990,15 +1150,35 @@ def render_data_gap_records(records: list[dict]) -> str:
     because it depends on a per-licensee formula this dataset intentionally doesn't
     guess at (a `computation` block, e.g. Arizona's birth-month formula) with no
     separate data_gap_note string. Either way the callout must show SOME explanatory
-    text -- an empty note previously rendered as a blank <p><em></em></p>."""
+    text -- an empty note previously rendered as a blank <p><em></em></p>.
+    Rendered as the same .sheet/.frow fact sheet as render_simple_deadline_records()
+    so a "date not confirmed" answer reads as an honest, deliberate result within the
+    same trusted format, not a lesser page -- the citation chip still renders if the
+    RULE itself is cited (e.g. Illinois's firm-license rule), even when the specific
+    date can't be computed from it (a real anchor-year gap, not a sourcing gap)."""
     parts = []
     for r in records:
         note = r.get("data_gap_note") or _DEFAULT_GAP_NOTE
-        parts.append(f"""<div class="callout">
-  <div class="label">{esc(r['license_type_label'])}</div>
-  <div class="date">Date not confirmed</div>
-  <p class="rule">{esc(r['cycle_description'])}</p>
-  <p><em>{esc(note)}</em></p>
+        cite_html = _cite_chip_html(r)
+        side_html = (
+            f'{cite_html}<div class="verified unconfirmed">Anchor year not confirmed</div>'
+            if cite_html else '<div class="verified unconfirmed">Not independently verified</div>'
+        )
+        parts.append(f"""<div class="sheet">
+  <div class="sheethead">
+    <span>{esc(r['license_type_label'])}</span>
+    <div class="stamp stamp--unconfirmed"><span class="dot"></span>Date not confirmed</div>
+  </div>
+  <div class="rowlist">
+    <div class="frow">
+      <div class="k">Next renewal date</div>
+      <div class="v">Not confirmed<small>{esc(r['cycle_description'])}</small></div>
+      <div class="side">
+        {side_html}
+      </div>
+    </div>
+  </div>
+  <div class="sheetfoot">{esc(note)}</div>
 </div>""")
     return "\n".join(parts)
 
@@ -1518,7 +1698,25 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   <p class="field-hint">Type your state and press Enter or select it to go straight to its page.</p>
 </div>"""
 
-    body = f"""<h1>CPA License Renewal Deadlines by State</h1>
+    citation_count = sum(1 for recs in by_slug.values() for r in recs if r.get("citation"))
+    stat_strip_html = f"""<div class="stat-strip">
+  <span><b>{len(states)}</b> jurisdictions covered</span>
+  <span><b>{citation_count}</b> codified citations tracked</span>
+  <span><b>2</b>-source verification standard</span>
+  <span>Data as of <b>{esc(as_of.isoformat())}</b></span>
+</div>"""
+
+    method_callout_html = """<div class="callout" style="border-left-color: var(--gold-line);">
+  <div class="label" style="font-size:1.05rem; text-transform:none; letter-spacing:normal; color:var(--accent); font-family:var(--font-display); margin-bottom:0.4rem;">How we source every date</div>
+  <p style="margin:0 0 0.6rem;">Most renewal-tracking sites simply state a date. We verify each one
+  against the state's own codified statute or administrative rule &mdash; not a summary of it &mdash;
+  and show that citation inline, with a direct link to the primary source. Where we can't confirm a
+  date against two independent sources, the page says so plainly rather than publishing a guess.</p>
+  <a href="/methodology/" style="font-weight:600;">Read our full verification standard &rarr;</a>
+</div>"""
+
+    body = f"""{stat_strip_html}
+<h1>CPA License Renewal Deadlines by State</h1>
 <p class="intro">Find your state's CPA license renewal deadline, sourced and verified against
 the official state board of accountancy. Built for CPAs, firm administrators, and anyone who
 just needs to know when their license is due. Every date is checked against the state's actual
@@ -1529,14 +1727,11 @@ against primary law, we say so instead of guessing.</p>
 <div class="state-grid state-grid--mobile-fallback">
 {chr(10).join(cards)}
 </div>
+{method_callout_html}
 <p class="how-it-works">How it works: each state page shows the actual next renewal deadline
 (or, where the rule depends on your birth month, a full lookup table) computed from the
-verified renewal rule, with a link back to the official source and a "last verified" date.
-{len(states)} U.S. jurisdictions covered so far, generated {esc(as_of.isoformat())}.</p>
-<p class="how-it-works">Also see our <a href="blog/">guides</a>: <a
-href="blog/cpe-vs-license-renewal/">CPE requirements vs. license renewal</a>, <a
-href="blog/common-cpa-renewal-mistakes/">common CPA renewal mistakes</a>, and the <a
-href="blog/missouri-cpa-license-renewal-guide/">Missouri renewal guide</a>.</p>
+verified renewal rule, with a link back to the official source and a "last verified" date.</p>
+<p class="how-it-works">Also see our <a href="blog/">guides</a>: <a href="blog/cpe-vs-license-renewal/">CPE requirements vs. license renewal</a>, <a href="blog/common-cpa-renewal-mistakes/">common CPA renewal mistakes</a>, and the <a href="blog/missouri-cpa-license-renewal-guide/">Missouri renewal guide</a>.</p>
 {signup_form_homepage(by_slug, as_of)}
 <script>
 var DR_STATES = {json.dumps(state_options)};
@@ -2109,7 +2304,7 @@ def _cpe_hours_signup_html(cpe_record: dict, renewal_records: list[dict], as_of:
     if not renewal_records:
         return ""
     extra_fields = _extra_fields_html(slug, renewal_records, as_of)
-    return f"""<div class="signup-form signup-form--compact">
+    return f"""<div class="signup-form signup-form--compact" id="remind">
   <form method="post" action="{esc(REMINDER_BACKEND_BASE_URL)}/subscribe">
     <input type="hidden" name="state" value="{esc(slug)}">
     {_BOT_DEFENSE_FIELDS_HTML}

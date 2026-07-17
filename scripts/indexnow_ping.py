@@ -30,7 +30,14 @@ INDEXNOW_ENDPOINT = "https://api.indexnow.org/indexnow"
 
 
 def fetch_live_sitemap_urls() -> list[str]:
-    with urllib.request.urlopen(f"{SITE_BASE_URL}/sitemap.xml", timeout=15) as resp:
+    # Cloudflare's bot protection 403s the default urllib user-agent string;
+    # a normal browser-like UA gets through fine since it isn't a real security boundary
+    # for our own tooling fetching our own public sitemap.
+    req = urllib.request.Request(
+        f"{SITE_BASE_URL}/sitemap.xml",
+        headers={"User-Agent": "Mozilla/5.0 (compatible; DeadlineRadarIndexNowBot/1.0)"},
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
         xml = resp.read().decode("utf-8")
     return re.findall(r"<loc>([^<]+)</loc>", xml)
 

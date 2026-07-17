@@ -616,7 +616,7 @@ PAGE_CSS = """
     background: var(--card-bg); font-size: 0.85rem;
   }
   .map-small-label { margin: 0 0 0.6rem; font-size: 0.8rem; color: var(--muted); }
-  .map-small-pills { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+  .map-small-pills { display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem; margin-bottom: 1rem; }
   .map-small-pill {
     display: inline-block; padding: 0.28em 0.6em; border-radius: 999px; font-size: 0.78rem;
     text-decoration: none; background: var(--map-fixed); color: var(--fg); white-space: nowrap;

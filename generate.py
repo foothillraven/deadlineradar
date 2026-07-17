@@ -1960,8 +1960,8 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
     state_options = [{"name": s["state"], "slug": s["state_slug"]} for s in sorted_states]
 
     search_html = f"""<div class="state-search">
+  <label for="state-search-input">Find your state</label>
   <form id="state-search-form" role="search" onsubmit="return drGoToState(event)" autocomplete="off">
-    <label for="state-search-input">Find your state</label>
     <div class="state-search-field">
       <input type="text" id="state-search-input" name="state" placeholder="e.g. Texas, Illinois, Ohio…"
         autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list"

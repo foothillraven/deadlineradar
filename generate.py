@@ -246,6 +246,7 @@ PAGE_CSS = """
     --bg: #f7f9fb; --page-bg: #f7f9fb; --fg: #17212b; --muted: #5a6b7a; --faint: #8595a3;
     --border: #e0e6ec; --border-strong: #c8d2db;
     --accent: #1f3d54; --accent-deep: #152c3e; --accent-bg: #eaeef1; --card-bg: #ffffff;
+    --panel-dark: #152c3e; --panel-dark-fg: #eaf1f7;
     --gold: #8a6a33; --gold-line: #d8c9a6; --gold-bg: #f4eede;
     --verified-green: #256a4b; --verified-green-bg: #e8f1ec;
     --trust-bg: #f4eede; --trust-border: #d8c9a6; --row-alt: #f6f8f9;
@@ -260,6 +261,7 @@ PAGE_CSS = """
       --bg: #12151a; --page-bg: #12151a; --fg: #e7ebf0; --muted: #9aa5b1; --faint: #6f7a86;
       --border: #2a323c; --border-strong: #3a4552;
       --accent: #7fa8d9; --accent-deep: #9cc0ea; --accent-bg: #1b2836; --card-bg: #1a1f26;
+      --panel-dark: #0d1824; --panel-dark-fg: #dbe6ef;
       --gold: #d6b45a; --gold-line: #8a6d1f; --gold-bg: #26210f;
       --verified-green: #4fd685; --verified-green-bg: rgba(52,199,120,0.12);
       --trust-bg: #26210f; --trust-border: #5a4a20; --row-alt: #171b21;
@@ -407,6 +409,79 @@ PAGE_CSS = """
   }
   @media (prefers-color-scheme: dark) { .sheetfoot { background: #171c22; } }
   .factsheet-note { font-size: 0.85rem; color: var(--muted); padding: 0 1.2rem 1rem; }
+
+  /* ---- homepage hero, per the approved concept ---- */
+  .eyebrow {
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase;
+    color: var(--gold); margin: 0 0 0.7rem;
+  }
+  .hero-accent { color: var(--accent); }
+  .hero-lede { color: var(--muted); font-size: 1.05rem; line-height: 1.6; max-width: 60ch; margin: 1.1rem 0 0; }
+  .lookup { margin-top: 1.6rem; max-width: 30rem; }
+  .lookup-label {
+    display: block; font-size: 0.76rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 0.5rem;
+  }
+  .lookup-field {
+    display: flex; gap: 0; box-shadow: var(--shadow); border-radius: 9px; overflow: hidden;
+    border: 1px solid var(--border-strong); background: var(--card-bg);
+  }
+  .lookup-field input { flex: 1; border: 0; padding: 0.85rem 1rem; font-size: 1rem; font-family: inherit; color: var(--fg); background: transparent; }
+  .lookup-field input:focus { outline: none; }
+  .lookup-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(31,61,84,.14), var(--shadow); }
+  .lookup-field button {
+    border: 0; background: var(--accent); color: #fff; font-weight: 600; font-size: 0.92rem;
+    padding: 0 1.3rem; cursor: pointer; font-family: inherit;
+  }
+  .lookup-field button:hover { background: var(--accent-deep); }
+  .lookup-hint { margin-top: 0.6rem; font-size: 0.8rem; color: var(--faint); }
+  .trust-row {
+    display: flex; flex-wrap: wrap; gap: 0.8rem 1.8rem; margin: 1.8rem 0 2.2rem; padding-top: 1.4rem;
+    border-top: 1px solid var(--border);
+  }
+  .trust-row .item { display: flex; align-items: baseline; gap: 0.5rem; }
+  .trust-row .n { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .trust-row .lbl { font-size: 0.8rem; color: var(--muted); max-width: 22ch; line-height: 1.35; }
+
+  /* ---- "how we verify" 3-card band ---- */
+  .band-section { margin: 2.4rem 0 2rem; padding-top: 1.8rem; border-top: 1px solid var(--border); }
+  .band-section h2 { font-size: 1.5rem; }
+  .method-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; margin: 1.6rem 0 1.8rem; }
+  @media (max-width: 700px) { .method-grid { grid-template-columns: 1fr; } }
+  .mcard { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.3rem 1.2rem; }
+  .mcard .step { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; color: var(--gold); font-weight: 600; }
+  .mcard h3 { font-size: 1.05rem; margin: 0.6rem 0 0.4rem; font-family: var(--font-display); }
+  .mcard p { margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.55; }
+
+  /* ---- reminder panel: two-column dark treatment ---- */
+  .remind-panel {
+    background: var(--panel-dark); color: var(--panel-dark-fg); border-radius: 12px; padding: 1.8rem;
+    display: grid; grid-template-columns: 1.1fr 1fr; gap: 1.6rem; align-items: center; margin: 1.75rem 0;
+  }
+  @media (max-width: 700px) { .remind-panel { grid-template-columns: 1fr; padding: 1.4rem 1.2rem; } }
+  .remind-panel h2 { color: #fff; font-size: 1.35rem; margin: 0; }
+  .remind-panel .remind-copy { color: #b9cad9; margin: 0.7rem 0 0; font-size: 0.92rem; line-height: 1.6; }
+  .remind-panel .remind-promise { margin-top: 0.8rem; font-size: 0.78rem; color: #8fa7bb; }
+  .remind-panel form {
+    display: flex; flex-direction: column; gap: 0.65rem; background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 1.1rem;
+  }
+  .remind-panel label { color: #cfe0ee; font-size: 0.8rem; font-weight: 600; margin: 0.2rem 0 0; }
+  .remind-panel label:first-of-type { margin-top: 0; }
+  .remind-panel input, .remind-panel select {
+    width: 100%; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #fff;
+    border-radius: 7px; padding: 0.6rem 0.7rem; font-family: inherit; font-size: 0.92rem;
+  }
+  .remind-panel input::placeholder { color: #8fa7bb; }
+  .remind-panel input:focus, .remind-panel select:focus {
+    outline: none; border-color: #7fb0d6; box-shadow: 0 0 0 3px rgba(127,176,214,.2);
+  }
+  .remind-panel button {
+    margin-top: 0.3rem; background: var(--gold); color: #22190a; border: 0; font-weight: 700;
+    font-size: 0.92rem; padding: 0.7rem; border-radius: 7px; cursor: pointer; font-family: inherit;
+  }
+  .remind-panel button:hover { background: #9c7a3c; }
+  .remind-panel .field-hint { color: #8fa7bb; }
   .cpe-affiliate {
     border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem;
     background: var(--card-bg); margin: 1.4rem 0; font-size: 0.92rem;
@@ -525,23 +600,29 @@ PAGE_CSS = """
   }
   .state-card--variable .state-hint { font-style: italic; }
   .state-search {
-    margin: 0 0 1.5rem;
+    margin: 1.6rem 0 0; max-width: 30rem;
   }
   .state-search label {
-    display: block; font-size: 0.85rem; font-weight: 600; margin: 0 0 0.35rem;
+    display: block; font-size: 0.76rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 0.5rem;
   }
-  .state-search form { display: flex; gap: 0.5rem; }
+  .state-search form {
+    display: flex; gap: 0; box-shadow: var(--shadow); border-radius: 9px; overflow: hidden;
+    border: 1px solid var(--border-strong); background: var(--card-bg);
+  }
   .state-search-field { position: relative; flex: 1 1 auto; }
+  .state-search-field:focus-within { box-shadow: 0 0 0 3px rgba(31,61,84,.14); }
   .state-search-field input {
-    width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 6px;
-    background: var(--bg); color: var(--fg); font-size: 1rem; font-family: inherit;
+    width: 100%; padding: 0.85rem 1rem; border: 0; background: transparent; color: var(--fg);
+    font-size: 1rem; font-family: inherit;
   }
+  .state-search-field input:focus { outline: none; }
   .state-search-submit {
-    padding: 0.6rem 1.1rem; border: none; border-radius: 6px; background: var(--accent);
-    color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer; flex: 0 0 auto;
+    padding: 0 1.3rem; border: none; background: var(--accent);
+    color: #fff; font-size: 0.92rem; font-weight: 600; cursor: pointer; flex: 0 0 auto;
   }
-  .state-search-submit:hover { opacity: 0.92; }
-  .state-search .field-hint { font-size: 0.78rem; color: var(--muted); margin: 0.4rem 0 0; }
+  .state-search-submit:hover { background: var(--accent-deep); }
+  .state-search .field-hint { font-size: 0.8rem; color: var(--faint); margin: 0.6rem 0 0; }
   .state-search-dropdown {
     display: none; position: absolute; top: 100%; left: 0; right: 0; margin-top: 0.3rem;
     background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px;
@@ -818,9 +899,14 @@ def signup_form_for_state(state_slug: str, state_name: str, records: list[dict],
     # "Bring your own date" (2026-07-05): the form always renders now -- see
     # _extra_fields_html()'s own docstring for how it picks the right field(s)
     # per state. Every state can collect a signup, computed or user-provided.
-    return f"""<div class="signup-form" id="remind">
-  <h2>Get reminded before this deadline</h2>
-  <p class="signup-microcopy">{esc(TRUST_MICROCOPY)}</p>
+    # Two-column dark treatment (2026-07-17), matching the approved concept's .remind panel.
+    return f"""<div class="remind-panel" id="remind">
+  <div>
+    <h2>One email before it matters.</h2>
+    <p class="remind-copy">We'll remind you ahead of your {esc(state_name)} renewal deadline &mdash;
+    and again for your CPE, if your state tracks it separately. Set it once.</p>
+    <p class="remind-promise">{esc(TRUST_MICROCOPY)}</p>
+  </div>
   <form method="post" action="{esc(REMINDER_BACKEND_BASE_URL)}/subscribe">
     <input type="hidden" name="state" value="{esc(state_slug)}">
     {_BOT_DEFENSE_FIELDS_HTML}
@@ -854,9 +940,13 @@ def signup_form_homepage(by_slug: dict[str, list[dict]], as_of: date) -> str:
         for slug in all_slugs
         if _extra_fields_html(slug, by_slug[slug], as_of)
     )
-    return f"""<div class="signup-form" id="remind">
-  <h2>Get reminded before your deadline</h2>
-  <p class="signup-microcopy">{esc(TRUST_MICROCOPY)}</p>
+    return f"""<div class="remind-panel" id="remind">
+  <div>
+    <h2>One email before it matters.</h2>
+    <p class="remind-copy">We'll remind you ahead of your renewal deadline &mdash; and again for your
+    CPE, if your state tracks it separately. Set it once.</p>
+    <p class="remind-promise">{esc(TRUST_MICROCOPY)}</p>
+  </div>
   <form method="post" action="{esc(REMINDER_BACKEND_BASE_URL)}/subscribe" id="homepage-signup-form">
     {_BOT_DEFENSE_FIELDS_HTML}
     <label for="home-state">Your state</label>
@@ -1699,35 +1789,57 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
 </div>"""
 
     citation_count = sum(1 for recs in by_slug.values() for r in recs if r.get("citation"))
-    stat_strip_html = f"""<div class="stat-strip">
-  <span><b>{len(states)}</b> jurisdictions covered</span>
-  <span><b>{citation_count}</b> codified citations tracked</span>
-  <span><b>2</b>-source verification standard</span>
-  <span>Data as of <b>{esc(as_of.isoformat())}</b></span>
-</div>"""
 
-    method_callout_html = """<div class="callout" style="border-left-color: var(--gold-line);">
-  <div class="label" style="font-size:1.05rem; text-transform:none; letter-spacing:normal; color:var(--accent); font-family:var(--font-display); margin-bottom:0.4rem;">How we source every date</div>
-  <p style="margin:0 0 0.6rem;">Most renewal-tracking sites simply state a date. We verify each one
-  against the state's own codified statute or administrative rule &mdash; not a summary of it &mdash;
-  and show that citation inline, with a direct link to the primary source. Where we can't confirm a
-  date against two independent sources, the page says so plainly rather than publishing a guess.</p>
-  <a href="/methodology/" style="font-weight:600;">Read our full verification standard &rarr;</a>
-</div>"""
-
-    body = f"""{stat_strip_html}
-<h1>CPA License Renewal Deadlines by State</h1>
-<p class="intro">Find your state's CPA license renewal deadline, sourced and verified against
-the official state board of accountancy. Built for CPAs, firm administrators, and anyone who
-just needs to know when their license is due. Every date is checked against the state's actual
-statute or administrative rule, not just a board's webpage &mdash; if we can't verify a date
-against primary law, we say so instead of guessing.</p>
+    hero_html = f"""<div class="hero">
+  <p class="eyebrow">CPA license renewal &amp; CPE deadlines</p>
+  <h1>Know exactly when your license is due &mdash;<br>
+  <span class="hero-accent">and see the rule that says so.</span></h1>
+  <p class="hero-lede">Every renewal date on DeadlineRadar is traced to your state board's statute or
+  administrative rule, checked against the primary source, and stamped with the date we last verified
+  it. No guesswork. {esc(SITE_NAME)} is built for CPAs, firm administrators, and anyone who just needs
+  to know when their license is due.</p>
 {search_html}
+  <div class="trust-row">
+    <div class="item"><span class="n">{len(states)}</span><span class="lbl">jurisdictions, each on its own verified fact sheet</span></div>
+    <div class="item"><span class="n">Every date</span><span class="lbl">cited to a statute or board rule &mdash; not just a webpage</span></div>
+    <div class="item"><span class="n">{citation_count}</span><span class="lbl">codified citations tracked and kept current</span></div>
+  </div>
+</div>"""
+
+    method_band_html = """<section class="band-section">
+  <p class="eyebrow">How we verify</p>
+  <h2>Two independent sources, or we don't publish a date.</h2>
+  <p style="color:var(--muted); margin:0.7rem 0 0; font-size:1.02rem;">This site's verification
+  standard is stricter than most paid services. It's the whole reason a CPA can rely on this.</p>
+  <div class="method-grid">
+    <div class="mcard">
+      <div class="step">STANDARD 01</div>
+      <h3>The board's own page</h3>
+      <p>We start at the state board of accountancy's official renewal and CPE pages &mdash; the
+      operational source of truth CPAs already trust.</p>
+    </div>
+    <div class="mcard">
+      <div class="step">STANDARD 02</div>
+      <h3>The codified law</h3>
+      <p>Then we confirm it against the actual statute or administrative rule &mdash; codified law,
+      not a second webpage or a vendor's summary.</p>
+    </div>
+    <div class="mcard">
+      <div class="step">STANDARD 03</div>
+      <h3>Agree, or it's null</h3>
+      <p>If the two don't agree, we don't guess &mdash; we mark it unverified rather than publish a
+      date we can't stand behind.</p>
+    </div>
+  </div>
+  <a href="/methodology/" style="font-weight:600;">Read our full verification standard &rarr;</a>
+</section>"""
+
+    body = f"""{hero_html}
 {build_us_map_html(by_slug)}
 <div class="state-grid state-grid--mobile-fallback">
 {chr(10).join(cards)}
 </div>
-{method_callout_html}
+{method_band_html}
 <p class="how-it-works">How it works: each state page shows the actual next renewal deadline
 (or, where the rule depends on your birth month, a full lookup table) computed from the
 verified renewal rule, with a link back to the official source and a "last verified" date.</p>

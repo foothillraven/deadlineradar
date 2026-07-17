@@ -401,6 +401,7 @@ PAGE_CSS = """
     display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.76rem; color: var(--verified-green);
     margin-top: 0.5rem;
   }
+  .cite svg, .verified svg { width: 0.85em; height: 0.85em; flex: none; }
   .unconfirmed { color: var(--gold); }
   @media (max-width: 600px) {
     .frow { grid-template-columns: 1fr; }
@@ -418,7 +419,8 @@ PAGE_CSS = """
     font-size: 0.72rem; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase;
     color: var(--gold); margin: 0 0 0.7rem;
   }
-  .hero { max-width: 760px; margin: 0 auto; }
+  .hero-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 2.5rem; align-items: center; }
+  @media (max-width: 860px) { .hero-grid { grid-template-columns: 1fr; } }
   .hero-accent { color: var(--accent); }
   .hero-lede { color: var(--muted); font-size: 1.05rem; line-height: 1.6; max-width: 60ch; margin: 1.1rem 0 0; }
   .lookup { margin-top: 1.6rem; max-width: 30rem; }
@@ -446,6 +448,36 @@ PAGE_CSS = """
   .trust-row .item { display: flex; align-items: baseline; gap: 0.5rem; }
   .trust-row .n { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
   .trust-row .lbl { font-size: 0.8rem; color: var(--muted); max-width: 22ch; line-height: 1.35; }
+
+  /* ---- hero-right: rotating verified-fact card, live proof of freshness ---- */
+  .hfc-wrap { position: relative; min-height: 300px; }
+  .hfc-card {
+    position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: 1;
+    transition: opacity 0.8s ease;
+    background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 1.4rem 1.5rem;
+    display: flex; flex-direction: column; gap: 0.3rem;
+  }
+  .hfc-card.is-active { opacity: 1; pointer-events: auto; z-index: 2; }
+  .hfc-state { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--fg); }
+  .hfc-stamp { display: flex; align-items: center; gap: 0.4rem; font-size: 0.76rem; color: var(--verified-green); font-weight: 600; }
+  .hfc-stamp .dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--verified-green); display: inline-block; }
+  .hfc-date { font-family: var(--font-display); font-size: 1.7rem; font-weight: 650; color: var(--accent); margin-top: 0.3rem; }
+  .hfc-sub { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
+  .hfc-card .cite { align-self: flex-start; margin-top: 0.15rem; }
+  .hfc-card .verified { margin-top: 0.3rem; }
+  .hfc-coverage { font-size: 0.78rem; color: var(--muted); margin-top: 0.85rem; text-align: center; }
+  .hfc-coverage b { color: var(--accent); }
+  .hfc-pips { display: flex; gap: 0.4rem; justify-content: center; margin-top: 0.55rem; }
+  .hfc-pip {
+    width: 0.45rem; height: 0.45rem; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+    background: var(--border-strong);
+  }
+  .hfc-pip.is-active { background: var(--accent); }
+  @media (prefers-reduced-motion: reduce) {
+    .hfc-card { transition: none; }
+    .hfc-pips { display: none; }
+  }
 
   /* ---- "how we verify" 3-card band ---- */
   .band-section { margin: 2.4rem 0 2rem; padding-top: 1.8rem; border-top: 1px solid var(--border); }
@@ -728,7 +760,6 @@ def site_header(home_href: str) -> str:
 <div class="wrap">
 <header class="site-header">
   <div class="tagline">{esc(SITE_TAGLINE)}</div>
-  <div class="by-line">by {esc(BRAND_NAME)}</div>
 </header>"""
 
 
@@ -1211,15 +1242,27 @@ _VERIFIED_ICON_SVG = (
 )
 
 
-def _cite_chip_html(record: dict) -> str:
+def _cite_chip_html(record: dict, max_chars: int | None = None) -> str:
     """The 'seal of authority' -- brass, mono, links to the primary source. Only
     called for a record that already has a real `citation` string; a record with
-    none renders no chip at all (never a placeholder/guessed citation)."""
+    none renders no chip at all (never a placeholder/guessed citation).
+
+    `max_chars` truncates the DISPLAYED text with an ellipsis for space-constrained
+    contexts (the hero's compact rotating card) -- some records (e.g. Alabama's
+    combined individual+firm entry) have a long compound citation that would
+    overflow a small card. This never hides the citation itself: the link still
+    points to the real citation_url and the full untruncated string is always
+    shown on the record's actual state page one click away -- truncation here is
+    a display-space concession for a teaser card, not withholding information."""
     if not record.get("citation"):
         return ""
+    citation = record["citation"]
+    display = citation
+    if max_chars and len(citation) > max_chars:
+        display = citation[: max_chars - 1].rstrip() + "…"
     return (
-        f'<a class="cite" href="{esc(record["citation_url"])}">{_CITE_ICON_SVG}'
-        f'{esc(record["citation"])}</a>'
+        f'<a class="cite" href="{esc(record["citation_url"])}" title="{esc(citation)}">{_CITE_ICON_SVG}'
+        f'{esc(display)}</a>'
     )
 
 
@@ -1666,6 +1709,45 @@ def build_us_map_html(by_slug: dict[str, list[dict]]) -> str:
 <script>{_MAP_TOOLTIP_JS}</script>"""
 
 
+# Hero rotating verified-fact card (2026-07-17, orchestrator/Devin-approved spec): a slow
+# ~5s cross-fade through real fresh-verified states, pausing on hover, and collapsing to a
+# single static card (no interval at all) under prefers-reduced-motion -- checked once at
+# start, not re-evaluated live, since a mid-rotation motion-preference flip is an edge case
+# not worth the complexity.
+_HERO_ROTATION_JS = """
+(function() {
+  var wrap = document.getElementById('hfc-wrap');
+  var pipsWrap = document.getElementById('hfc-pips');
+  if (!wrap) return;
+  var cards = wrap.querySelectorAll('.hfc-card');
+  var pips = pipsWrap ? pipsWrap.querySelectorAll('.hfc-pip') : [];
+  if (cards.length < 2) return;
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion) return;
+  var current = 0;
+  var timer = null;
+  function activate(i) {
+    cards[current].classList.remove('is-active');
+    if (pips[current]) pips[current].classList.remove('is-active');
+    current = i;
+    cards[current].classList.add('is-active');
+    if (pips[current]) pips[current].classList.add('is-active');
+  }
+  function next() { activate((current + 1) % cards.length); }
+  function start() { timer = setInterval(next, 5000); }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } }
+  pips.forEach(function(pip, i) {
+    pip.addEventListener('click', function() { activate(i); stop(); start(); });
+  });
+  wrap.addEventListener('mouseenter', stop);
+  wrap.addEventListener('mouseleave', start);
+  wrap.addEventListener('focusin', stop);
+  wrap.addEventListener('focusout', start);
+  start();
+})();
+"""
+
+
 # Instant hover tooltip for the US map (2026-07-17, per Devin's direct ask: the browser's
 # native SVG <title> tooltip has a ~1s built-in delay that can't be shortened from CSS/HTML
 # alone -- this replaces it with a same-frame custom tooltip. The native <title> stays in the
@@ -1832,6 +1914,35 @@ document.addEventListener('DOMContentLoaded', function() {
 """
 
 
+_HERO_ROTATION_MAX = 10
+
+
+def _select_hero_rotation_pool(by_slug: dict[str, list[dict]]) -> list[dict]:
+    """Real, fresh-verified, citation-backed records only -- the homepage hero's rotating
+    card is meant as LIVE PROOF of the 30-day freshness claim, so a stale date here would
+    directly contradict it (2026-07-17 orchestrator directive, Devin's own catch). One card
+    per state (prefers the individual-license record over firm, since it's the more
+    universally relatable deadline), sorted alphabetically for a stable rotation order.
+    Anchored on real wall-clock time -- same STALENESS_THRESHOLD_DAYS the build-time staleness
+    guard uses, not the data file's own as_of_date, so this can't silently go stale itself."""
+    real_today = date.today()
+    window_start = real_today - timedelta(days=STALENESS_THRESHOLD_DAYS)
+    by_state: dict[str, dict] = {}
+    for slug, recs in by_slug.items():
+        for r in recs:
+            if not (r.get("citation") and r.get("citation_url") and r.get("next_deadline_computed")):
+                continue
+            lv = r.get("last_verified")
+            if not lv or date.fromisoformat(lv) < window_start:
+                continue
+            state = r["state"]
+            is_individual = "individual" in (r.get("license_type") or "")
+            existing = by_state.get(state)
+            if existing is None or (is_individual and "individual" not in (existing.get("license_type") or "")):
+                by_state[state] = r
+    return sorted(by_state.values(), key=lambda r: r["state"])
+
+
 def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[dict]]) -> str:
     sorted_states = sorted(states, key=lambda s: s["state"])
     cards = []
@@ -1864,7 +1975,42 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
 
     citation_count = sum(1 for recs in by_slug.values() for r in recs if r.get("citation"))
 
-    hero_html = f"""<div class="hero">
+    all_fresh = _select_hero_rotation_pool(by_slug)
+    rotation_pool = all_fresh[:_HERO_ROTATION_MAX]
+    total_fresh = len(all_fresh)
+
+    hero_right_html = ""
+    if rotation_pool:
+        hfc_cards = []
+        for i, r in enumerate(rotation_pool):
+            d = date.fromisoformat(r["next_deadline_computed"])
+            active = " is-active" if i == 0 else ""
+            hfc_cards.append(f"""<div class="hfc-card{active}" data-hfc-index="{i}">
+  <div class="hfc-state">{esc(r['state'])}</div>
+  <div class="hfc-stamp"><span class="dot"></span>Verified {esc(r['last_verified'])}</div>
+  <div class="hfc-date">{esc(fmt_date(d))}</div>
+  <div class="hfc-sub">{esc(r['license_type_label'])}</div>
+  {_cite_chip_html(r, max_chars=44)}
+  <div class="verified">{_VERIFIED_ICON_SVG}Confirmed at source</div>
+</div>""")
+        pips = "\n".join(
+            f'<button type="button" class="hfc-pip{" is-active" if i == 0 else ""}" '
+            f'data-hfc-pip="{i}" aria-label="Show {esc(r["state"])}"></button>'
+            for i, r in enumerate(rotation_pool)
+        )
+        hero_right_html = f"""<div class="hero-right">
+  <div class="hfc-wrap" id="hfc-wrap">
+    {chr(10).join(hfc_cards)}
+  </div>
+  <div class="hfc-coverage">Verified &middot; <b>{total_fresh}</b> of {len(states)} states</div>
+  <div class="hfc-pips" id="hfc-pips">
+    {pips}
+  </div>
+</div>
+<script>{_HERO_ROTATION_JS}</script>"""
+
+    hero_html = f"""<div class="hero-grid">
+<div class="hero-left">
   <p class="eyebrow">CPA license renewal &amp; CPE deadlines</p>
   <h1>Know exactly when your license is due &mdash;<br>
   <span class="hero-accent">and see the rule that says so.</span></h1>
@@ -1878,6 +2024,8 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
     <div class="item"><span class="n">Every date</span><span class="lbl">cited to a statute or board rule &mdash; not just a webpage</span></div>
     <div class="item"><span class="n">{citation_count}</span><span class="lbl">codified citations tracked and kept current</span></div>
   </div>
+</div>
+{hero_right_html}
 </div>"""
 
     method_band_html = """<section class="band-section">

@@ -179,6 +179,7 @@
     display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.76rem; color: var(--verified-green);
     margin-top: 0.5rem;
   }
+  .cite svg, .verified svg { width: 0.85em; height: 0.85em; flex: none; }
   .unconfirmed { color: var(--gold); }
   @media (max-width: 600px) {
     .frow { grid-template-columns: 1fr; }
@@ -196,7 +197,8 @@
     font-size: 0.72rem; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase;
     color: var(--gold); margin: 0 0 0.7rem;
   }
-  .hero { max-width: 760px; margin: 0 auto; }
+  .hero-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 2.5rem; align-items: center; }
+  @media (max-width: 860px) { .hero-grid { grid-template-columns: 1fr; } }
   .hero-accent { color: var(--accent); }
   .hero-lede { color: var(--muted); font-size: 1.05rem; line-height: 1.6; max-width: 60ch; margin: 1.1rem 0 0; }
   .lookup { margin-top: 1.6rem; max-width: 30rem; }
@@ -224,6 +226,36 @@
   .trust-row .item { display: flex; align-items: baseline; gap: 0.5rem; }
   .trust-row .n { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
   .trust-row .lbl { font-size: 0.8rem; color: var(--muted); max-width: 22ch; line-height: 1.35; }
+
+  /* ---- hero-right: rotating verified-fact card, live proof of freshness ---- */
+  .hfc-wrap { position: relative; min-height: 300px; }
+  .hfc-card {
+    position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: 1;
+    transition: opacity 0.8s ease;
+    background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 1.4rem 1.5rem;
+    display: flex; flex-direction: column; gap: 0.3rem;
+  }
+  .hfc-card.is-active { opacity: 1; pointer-events: auto; z-index: 2; }
+  .hfc-state { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--fg); }
+  .hfc-stamp { display: flex; align-items: center; gap: 0.4rem; font-size: 0.76rem; color: var(--verified-green); font-weight: 600; }
+  .hfc-stamp .dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--verified-green); display: inline-block; }
+  .hfc-date { font-family: var(--font-display); font-size: 1.7rem; font-weight: 650; color: var(--accent); margin-top: 0.3rem; }
+  .hfc-sub { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
+  .hfc-card .cite { align-self: flex-start; margin-top: 0.15rem; }
+  .hfc-card .verified { margin-top: 0.3rem; }
+  .hfc-coverage { font-size: 0.78rem; color: var(--muted); margin-top: 0.85rem; text-align: center; }
+  .hfc-coverage b { color: var(--accent); }
+  .hfc-pips { display: flex; gap: 0.4rem; justify-content: center; margin-top: 0.55rem; }
+  .hfc-pip {
+    width: 0.45rem; height: 0.45rem; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+    background: var(--border-strong);
+  }
+  .hfc-pip.is-active { background: var(--accent); }
+  @media (prefers-reduced-motion: reduce) {
+    .hfc-card { transition: none; }
+    .hfc-pips { display: none; }
+  }
 
   /* ---- "how we verify" 3-card band ---- */
   .band-section { margin: 2.4rem 0 2rem; padding-top: 1.8rem; border-top: 1px solid var(--border); }
@@ -503,7 +535,6 @@
 <div class="wrap">
 <header class="site-header">
   <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>
-  <div class="by-line">by Moose &amp; Raven LLC</div>
 </header>
 <h1>West Virginia CPA CPE Requirements: How Many Hours, By When</h1>
 <p class="intro">How much continuing professional education a West Virginia CPA actually

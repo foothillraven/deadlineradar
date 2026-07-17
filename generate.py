@@ -462,6 +462,9 @@ PAGE_CSS = """
   .remind-panel h2 { color: #fff; font-size: 1.35rem; margin: 0; }
   .remind-panel .remind-copy { color: #b9cad9; margin: 0.7rem 0 0; font-size: 0.92rem; line-height: 1.6; }
   .remind-panel .remind-promise { margin-top: 0.8rem; font-size: 0.78rem; color: #8fa7bb; }
+  .remind-list { list-style: none; margin: 1.3rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+  .remind-list li { display: flex; align-items: flex-start; gap: 0.55rem; font-size: 0.85rem; color: #c4ceda; line-height: 1.4; }
+  .remind-list .tick { color: var(--gold); flex: none; margin-top: 0.15rem; }
   .remind-panel form {
     display: flex; flex-direction: column; gap: 0.65rem; background: rgba(255,255,255,.05);
     border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 1.1rem;
@@ -749,6 +752,15 @@ TRUST_MICROCOPY = (
     "We only email you deadline reminders. We never sell or share your address. Unsubscribe anytime."
 )
 
+# Real, accurate facts about the reminder feature -- fills the remind-panel's copy column with
+# genuine information rather than empty space, per Devin's "there's a lot of dead space" note
+# (2026-07-17). The 60/30/14/7/3/1 schedule matches worker/src/index.ts's actual cron behavior.
+_REMIND_LIST_HTML = """<ul class="remind-list">
+  <li><span class="tick">&#10003;</span> Reminders at 60, 30, 14, 7, 3, and 1 day before your deadline</li>
+  <li><span class="tick">&#10003;</span> Works whether your date is computed automatically or the rule needs your own license details</li>
+  <li><span class="tick">&#10003;</span> One-click unsubscribe, no account or login required</li>
+</ul>"""
+
 _MONTH_OPTIONS = "\n".join(
     f'<option value="{i}">{MONTH_NAMES[i - 1]}</option>' for i in range(1, 13)
 )
@@ -906,6 +918,7 @@ def signup_form_for_state(state_slug: str, state_name: str, records: list[dict],
     <p class="remind-copy">We'll remind you ahead of your {esc(state_name)} renewal deadline &mdash;
     and again for your CPE, if your state tracks it separately. Set it once.</p>
     <p class="remind-promise">{esc(TRUST_MICROCOPY)}</p>
+    {_REMIND_LIST_HTML}
   </div>
   <form method="post" action="{esc(REMINDER_BACKEND_BASE_URL)}/subscribe">
     <input type="hidden" name="state" value="{esc(state_slug)}">
@@ -946,6 +959,7 @@ def signup_form_homepage(by_slug: dict[str, list[dict]], as_of: date) -> str:
     <p class="remind-copy">We'll remind you ahead of your renewal deadline &mdash; and again for your
     CPE, if your state tracks it separately. Set it once.</p>
     <p class="remind-promise">{esc(TRUST_MICROCOPY)}</p>
+    {_REMIND_LIST_HTML}
   </div>
   <form method="post" action="{esc(REMINDER_BACKEND_BASE_URL)}/subscribe" id="homepage-signup-form">
     {_BOT_DEFENSE_FIELDS_HTML}

@@ -240,6 +240,9 @@
   .remind-panel h2 { color: #fff; font-size: 1.35rem; margin: 0; }
   .remind-panel .remind-copy { color: #b9cad9; margin: 0.7rem 0 0; font-size: 0.92rem; line-height: 1.6; }
   .remind-panel .remind-promise { margin-top: 0.8rem; font-size: 0.78rem; color: #8fa7bb; }
+  .remind-list { list-style: none; margin: 1.3rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+  .remind-list li { display: flex; align-items: flex-start; gap: 0.55rem; font-size: 0.85rem; color: #c4ceda; line-height: 1.4; }
+  .remind-list .tick { color: var(--gold); flex: none; margin-top: 0.15rem; }
   .remind-panel form {
     display: flex; flex-direction: column; gap: 0.65rem; background: rgba(255,255,255,.05);
     border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 1.1rem;
@@ -538,6 +541,11 @@
     <p class="remind-copy">We'll remind you ahead of your Kansas renewal deadline &mdash;
     and again for your CPE, if your state tracks it separately. Set it once.</p>
     <p class="remind-promise">We only email you deadline reminders. We never sell or share your address. Unsubscribe anytime.</p>
+    <ul class="remind-list">
+  <li><span class="tick">&#10003;</span> Reminders at 60, 30, 14, 7, 3, and 1 day before your deadline</li>
+  <li><span class="tick">&#10003;</span> Works whether your date is computed automatically or the rule needs your own license details</li>
+  <li><span class="tick">&#10003;</span> One-click unsubscribe, no account or login required</li>
+</ul>
   </div>
   <form method="post" action="/api/subscribe">
     <input type="hidden" name="state" value="kansas">

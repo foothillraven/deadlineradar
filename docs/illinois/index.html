@@ -557,18 +557,18 @@
 <div class="sheet">
   <div class="sheethead">
     <span>Firm license</span>
-    <div class="stamp stamp--unconfirmed"><span class="dot"></span>Date not confirmed</div>
+    <div class="stamp"><span class="dot"></span>Last verified 2026-07-17</div>
   </div>
   <div class="rowlist">
     <div class="frow">
       <div class="k">Next renewal date</div>
-      <div class="v">Not confirmed<small>Firm licenses expire November 30, on a 3-year cycle (68 Ill. Admin. Code 1420.80(b)) -- the same rule section that governs individual renewals, just a different subsection. The rule codifies the recurring month/day and the 3-year interval, but does not itself pin a specific anchor year for the firm track.</small></div>
+      <div class="v">November 30, 2027<small>Firm licenses expire November 30, on a 3-year cycle (68 Ill. Admin. Code 1420.80(b)) -- the same rule section that governs individual renewals, just a different subsection. The rule codifies the recurring month/day and the 3-year interval, but does not itself pin a specific anchor year for the firm track.</small></div>
       <div class="side">
-        <div class="verified unconfirmed">Not independently verified</div>
+        <a class="cite" href="https://data.illinois.gov/resource/pzzh-kp68.json?description=PUBLIC%20ACCOUNTANT%20FIRM%20LICENSE&amp;license_status=ACTIVE" title="Confirmed via Illinois IDFPR open-data register (data.illinois.gov, dataset pzzh-kp68): 1,038 of 1,038 active &quot;Public Accountant Firm License&quot; records show expiration 11/30/2027 -- verified 2026-07-17."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Confirmed via Illinois IDFPR open-data register (data.illinois.gov, dataset pzzh-kp68): 1,038 of 1,038 active &quot;Public Accountant Firm License&quot; records show expiration 11/30/2027 -- verified 2026-07-17.</a>
+        <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed via official records</div>
       </div>
     </div>
   </div>
-  <div class="sheetfoot">We do not have a codified anchor year for the firm track (unlike the individual track, which has a confirmed current cycle ending 2027-09-30). A documented 2021 IDFPR variance extended that cycle&#x27;s firm-license expiration from November 30, 2021 to January 31, 2022 -- but it&#x27;s a non-codified administrative order, not rule text, so we don&#x27;t treat it as a codified second source; we&#x27;re not projecting a current cycle from it. Confirm your firm&#x27;s exact renewal date with the Illinois Dept. of Financial and Professional Regulation or on your permit.</div>
 </div>
 <div class="trust-line">
   <strong>Last verified: 2026-07-13</strong> &middot; checked against the state's codified
@@ -598,12 +598,19 @@
     <input type="text" id="first_name" name="first_name" maxlength="60" autocomplete="given-name" placeholder="For a personal greeting, e.g. David">
     <label for="email">Email address</label>
     <input type="email" id="email" name="email" required placeholder="you@example.com">
-    
+    <label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="il-individual">Individual CPA license</option>
+<option value="il-firm">Firm license</option>
+</select>
     <button type="submit">Remind me</button>
   </form>
 </div>
 
-
+<p class="how-it-works">Other states with the same September 30 deadline:
+<a href="../maine/">Maine</a>
+<a href="../missouri/">Missouri</a></p>
 <p class="backlink-cross"><a href="../illinois-cpa-cpe-requirements/">How many CPE hours does Illinois require? &rarr;</a></p>
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 

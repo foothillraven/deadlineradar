@@ -1193,6 +1193,19 @@ def _cpe_affiliate_html() -> str:
     return "\n".join(b for b in blocks if b)
 
 
+def _is_operational_record(record: dict) -> bool:
+    """True for records whose citation is government operational/administrative
+    evidence (a live licensing register, a verification portal, dated board
+    newsletters) rather than codified statute/rule text. Added 2026-07-17 per
+    orchestrator ruling on task #11: this evidence class is real primary authority
+    -- arguably stronger CPA-trust material than a bare rule cite, since it's the
+    regulator's own operative records, not just a description of the rule -- but it
+    is NOT codified law, and the site must not blur that distinction. Citation-class
+    honesty IS the trust element here, so this flag drives visibly different label
+    text everywhere a citation renders, never a silent "same as a rule cite" claim."""
+    return record.get("citation_class") == "operational_record"
+
+
 def _source_cite_html(record: dict) -> str:
     """Renders the citation as its own labeled element, distinct from the descriptive
     prose above it -- CPAs read citations as the actual trust signal (per the
@@ -1212,10 +1225,12 @@ def _source_cite_html(record: dict) -> str:
     # fallback chain, so a record missing one is a data bug to fix, not silently paper
     # over with a worse link.
     link_url = record["citation_url"]
+    label = "Source of record (official records, not codified rule text)" if _is_operational_record(record) else "Source of record"
+    link_text = "see the records &rarr;" if _is_operational_record(record) else "read the rule &rarr;"
     return f"""<div class="source-cite">
-  <span class="cite-label">Source of record</span>
+  <span class="cite-label">{label}</span>
   <span class="cite-stamp">{esc(citation)}</span>
-  <a href="{esc(link_url)}" class="cite-link">read the rule &rarr;</a>
+  <a href="{esc(link_url)}" class="cite-link">{link_text}</a>
 </div>"""
 
 
@@ -1277,8 +1292,9 @@ def render_simple_deadline_records(records: list[dict]) -> str:
         has_citation = bool(r.get("citation"))
         stamp_class = "stamp" if has_citation else "stamp stamp--unconfirmed"
         stamp_text = f"Last verified {esc(r['last_verified'])}" if r.get("last_verified") else "Not independently verified"
+        verified_text = "Confirmed via official records" if _is_operational_record(r) else "Confirmed at source"
         verified_line = (
-            f'<div class="verified">{_VERIFIED_ICON_SVG}Confirmed at source</div>' if has_citation else ""
+            f'<div class="verified">{_VERIFIED_ICON_SVG}{verified_text}</div>' if has_citation else ""
         )
         parts.append(f"""<div class="sheet">
   <div class="sheethead">
@@ -1369,10 +1385,17 @@ assigned group.</p>"""
 
 
 def render_cohort_group_record(record: dict) -> str:
-    """Generic cohort-group table for any non-Ohio state with cohort_groups (e.g. Oregon/Kentucky's
-    permit- or license-number-parity split) -- same table shape as render_ohio() but state-agnostic:
-    accepts either an explicit `years` list (Ohio's shape) or a plain-English `deadline_pattern`
-    string (Oregon/Kentucky's shape) per cohort group."""
+    """Generic cohort-group table for any non-Ohio state with cohort_groups. Two distinct shapes
+    share this same table: (1) a DEDUCIBLE split (Oregon/Kentucky's permit- or license-number-parity
+    rule) -- a visitor who knows their own permit/license number parity can determine their exact
+    group unaided, so the table alone is a complete, honest answer; (2) a NON-deducible split
+    (Rhode Island/Kansas/Nebraska) -- the state genuinely staggers licensees across cohorts with no
+    public rule tying a visible personal attribute to a group, so `data_gap_note` is also set on
+    these records. The table is still useful reference info in both cases, but case (2) must ALSO
+    carry the same honest sheetfoot explanation `render_data_gap_records()` shows -- silently
+    dropping it (the bug this comment replaced) let 3 states' pages read as fully resolved when
+    they weren't. Accepts either an explicit `years` list (Ohio's shape) or a plain-English
+    `deadline_pattern` string (Oregon/Kentucky/Rhode Island's shape) per cohort group."""
     def years_cell(g: dict) -> str:
         if "years" in g:
             return ", ".join(str(y) for y in g["years"])
@@ -1382,6 +1405,23 @@ def render_cohort_group_record(record: dict) -> str:
         f"<tr><td>{esc(g['group'])}</td><td>{years_cell(g)}</td>"
         f"<td><strong>{esc(fmt_date(date.fromisoformat(g['next_deadline'])))}</strong></td></tr>"
         for g in record["cohort_groups"]
+    )
+    gap_note = record.get("data_gap_note")
+    gap_html = (
+        f"""<div class="sheet">
+  <div class="sheethead">
+    <span>{esc(record['license_type_label'])}</span>
+    <div class="stamp stamp--unconfirmed"><span class="dot"></span>Date not confirmed</div>
+  </div>
+  <div class="sheetfoot">{esc(gap_note)}</div>
+</div>"""
+        if gap_note else ""
+    )
+    footer = (
+        gap_html
+        if gap_note else
+        f"""<p>Not sure which group applies to you? Your license certificate or the
+<a href="{esc(record['source_url'])}">official source above</a> will show your assigned group.</p>"""
     )
     return f"""<div class="callout">
   <div class="label">{esc(record['license_type_label'])}</div>
@@ -1395,8 +1435,7 @@ def render_cohort_group_record(record: dict) -> str:
     </tbody>
   </table>
 </div>
-<p>Not sure which group applies to you? Your license certificate or the
-<a href="{esc(record['source_url'])}">official source above</a> will show your assigned group.</p>"""
+{footer}"""
 
 
 def render_california(record: dict, as_of: date) -> str:
@@ -1985,13 +2024,14 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
         for i, r in enumerate(rotation_pool):
             d = date.fromisoformat(r["next_deadline_computed"])
             active = " is-active" if i == 0 else ""
+            hfc_verified_text = "Confirmed via official records" if _is_operational_record(r) else "Confirmed at source"
             hfc_cards.append(f"""<div class="hfc-card{active}" data-hfc-index="{i}">
   <div class="hfc-state">{esc(r['state'])}</div>
   <div class="hfc-stamp"><span class="dot"></span>Verified {esc(r['last_verified'])}</div>
   <div class="hfc-date">{esc(fmt_date(d))}</div>
   <div class="hfc-sub">{esc(r['license_type_label'])}</div>
   {_cite_chip_html(r, max_chars=44)}
-  <div class="verified">{_VERIFIED_ICON_SVG}Confirmed at source</div>
+  <div class="verified">{_VERIFIED_ICON_SVG}{hfc_verified_text}</div>
 </div>""")
         pips = "\n".join(
             f'<button type="button" class="hfc-pip{" is-active" if i == 0 else ""}" '

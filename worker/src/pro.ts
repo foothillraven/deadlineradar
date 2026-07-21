@@ -7,14 +7,13 @@
  * size cap, control-character rejection on every field, and Turnstile on
  * every state-changing form post. Deliberately NOT JSON-only -- form-
  * urlencoded like /subscribe, so a plain HTML <form> (no client JS
- * required) can drive every one of these, matching this site's existing
- * no-JS-required posture.
+ * required) can drive every one of these -- EXCEPT that docs/pro/index.html
+ * (the Pro dashboard) IS a JS-driven page (fetch() calls, not native form
+ * POSTs), unlike the rest of this site; the wire format matches /subscribe
+ * regardless so the same server-side hardening applies either way.
  *
- * NOTE: no email is actually sent by any of this yet (verification links,
- * password-reset links) -- this codebase has never sent real email (see
- * worker/README.md), and wiring a sender is a separate, explicitly-scoped
- * task. Tokens ARE generated and stored correctly; only the "deliver the
- * link to the user" step is missing. Flagging here, not hiding it.
+ * Verification and password-reset emails ARE sent for real (pro_emails.ts +
+ * sendBestEffort() below, gated on env.SENDGRID_API_KEY same as /subscribe).
  */
 import type { Env } from "./env";
 import {
@@ -26,7 +25,14 @@ import {
   verifyTurnstile,
   type RateLimit,
 } from "./validation";
-import { isValidPassword, MIN_PASSWORD_LEN, parseSessionCookie, sessionCookieValue, clearSessionCookie } from "./pro_auth";
+import {
+  isValidPassword,
+  MIN_PASSWORD_LEN,
+  parseSessionCookie,
+  sessionCookieValue,
+  clearSessionCookie,
+  hashPassword,
+} from "./pro_auth";
 import {
   createAccount,
   findAccountByEmail,
@@ -43,7 +49,7 @@ import {
 } from "./pro_store";
 import { parseStrictIsoDate } from "./validation";
 import { SUPPORTED_STATE_SLUGS } from "./deadline";
-import { buildProVerifyEmail, buildProPasswordResetEmail } from "./pro_emails";
+import { buildProVerifyEmail, buildProPasswordResetEmail, buildProExistingAccountNoticeEmail } from "./pro_emails";
 import { checkAndCountSend, sendViaSendGrid, DEFAULT_DAILY_SEND_CAP } from "./sender";
 
 const PRO_ACTION_BASE_URL = "https://deadline-radar.com/api";
@@ -81,6 +87,14 @@ async function sendBestEffort(env: Env, toEmail: string, build: () => { subject:
 const RATE_LIMIT_LOGIN: RateLimit = { max: 10, windowSeconds: 600 };
 const RATE_LIMIT_SIGNUP: RateLimit = { max: 5, windowSeconds: 600 };
 const RATE_LIMIT_PASSWORD_RESET: RateLimit = { max: 5, windowSeconds: 600 };
+
+// Same wording works whether this was a real new signup or an existing-email
+// hit -- deliberately non-committal about which one happened, matching this
+// codebase's established non-enumeration pattern (SUBSCRIBE_SUCCESS_PAGE in
+// index.ts uses the same "check your email either way" approach).
+const SIGNUP_GENERIC_MESSAGE =
+  "Check your email to verify your account and finish setting up. If you already have an account with " +
+  "that address, log in or reset your password instead.";
 
 function jsonResponse(status: number, obj: unknown, extraHeaders?: Record<string, string>): Response {
   return new Response(JSON.stringify(obj), {
@@ -151,10 +165,19 @@ export async function handleProSignup(request: Request, env: Env, ip: string): P
 
   const existing = await findAccountByEmail(env.DB, email);
   if (existing) {
-    // Deliberately vague to avoid confirming account existence to an
-    // unauthenticated caller -- same non-enumeration posture as the
-    // password-reset endpoint below.
-    return errorJson(409, "An account with that email may already exist. Try logging in or resetting your password.");
+    // RE-QA finding (M2): a 409 here vs 201 for a new signup was a direct
+    // existence oracle regardless of the vague wording. Fixed by returning
+    // the EXACT same status/body/no-Set-Cookie shape as the real-signup
+    // path below for both cases, and by doing the same real PBKDF2 work
+    // (hashPassword) on this branch so response TIMING doesn't leak it
+    // either -- the createAccount branch below does a real hash as part of
+    // inserting the account; this branch would otherwise return near-
+    // instantly by comparison. Notify the real account holder out-of-band
+    // instead (their inbox, not the caller's response) so a legitimate user
+    // whose email someone else tried still finds out.
+    await hashPassword(password);
+    await sendBestEffort(env, existing.email, () => buildProExistingAccountNoticeEmail());
+    return jsonResponse(200, { ok: true, message: SIGNUP_GENERIC_MESSAGE });
   }
 
   const account = await createAccount(env.DB, email, password);
@@ -163,12 +186,12 @@ export async function handleProSignup(request: Request, env: Env, ip: string): P
   const verifyUrl = `${PRO_ACTION_BASE_URL}/pro/verify?token=${encodeURIComponent(account.verification_token)}`;
   await sendBestEffort(env, account.email, () => buildProVerifyEmail(verifyUrl));
 
-  const sessionId = await createSession(env.DB, account.id);
-  return jsonResponse(
-    201,
-    { ok: true, email: account.email, verified: Boolean(account.verified_at) },
-    { "Set-Cookie": sessionCookieValue(sessionId) }
-  );
+  // Deliberately does NOT auto-create a session here (unlike the original
+  // build) -- that would make "did a session cookie come back" itself an
+  // existence oracle unless the existing-account branch above also faked
+  // one, which is worse (an attacker could end up "logged in" against
+  // someone else's real account). Signup now always ends in "go log in."
+  return jsonResponse(200, { ok: true, message: SIGNUP_GENERIC_MESSAGE });
 }
 
 export async function handleProLogin(request: Request, env: Env, ip: string): Promise<Response> {
@@ -193,7 +216,16 @@ export async function handleProLogin(request: Request, env: Env, ip: string): Pr
   // wrong -- distinguishing the two in the response would let an attacker
   // enumerate registered emails one guess at a time.
   const genericFailure = () => errorJson(401, "Incorrect email or password.");
-  if (!account) return genericFailure();
+  if (!account) {
+    // RE-QA finding (M1): returning immediately here was ~100x faster than
+    // the real-account branch below (which runs a real PBKDF2 verify,
+    // ~600k iterations, ~100ms) -- an attacker could time responses to
+    // determine which emails are registered even with an identical body.
+    // Doing a real hash of the SAME cost (discarding the result) closes
+    // that gap without needing a fixed dummy hash/salt constant.
+    await hashPassword(password);
+    return genericFailure();
+  }
 
   const passwordOk = await verifyAccountPassword(account, password);
   if (!passwordOk) return genericFailure();

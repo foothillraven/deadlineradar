@@ -31,10 +31,15 @@ CREATE TABLE IF NOT EXISTS accounts (
     password_hash TEXT NOT NULL,
     password_salt TEXT NOT NULL,
     -- PBKDF2 iteration count used AT THE TIME this hash was created --
-    -- stored per-row (not a single global constant) so the iteration count
-    -- can be raised later without invalidating already-hashed passwords;
-    -- application code re-hashes with the current default on next
-    -- successful login if this value is below the current constant.
+    -- stored per-row (not a single global constant) specifically so the
+    -- iteration count CAN be raised later without invalidating already-
+    -- hashed passwords. RE-QA note (2026-07-20): login does NOT currently
+    -- re-hash on a below-current-constant iteration count -- that upgrade
+    -- path is not implemented yet, only the schema support for it exists.
+    -- If PBKDF2_ITERATIONS is ever raised, existing rows keep verifying
+    -- correctly (verifyPassword always uses the row's own stored count),
+    -- they just won't get bumped to the new count until that upgrade path
+    -- is built.
     password_iterations INTEGER NOT NULL,
 
     created_at TEXT NOT NULL,
@@ -67,10 +72,11 @@ CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL REFERENCES accounts (id),
     created_at TEXT NOT NULL,
-    -- Sessions are deliberately short-lived and re-issued on activity
-    -- (application code extends expires_at on each authenticated request,
-    -- capped at a max absolute lifetime) rather than living forever --
-    -- expired rows are lazily deleted on lookup, no separate cron needed
+    -- IDLE-timeout expiry, not an absolute one: application code slides
+    -- expires_at forward by SESSION_LIFETIME_SECONDS on every authenticated
+    -- request (pro_store.ts resolveSession()), so a session in continuous
+    -- use never expires -- there is no separate cap tied to created_at.
+    -- Expired rows are lazily deleted on lookup, no separate cron needed
     -- given expected volume at MVP scale.
     expires_at TEXT NOT NULL,
     last_seen_at TEXT NOT NULL

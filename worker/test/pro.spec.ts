@@ -1,7 +1,7 @@
 import { env, SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterEach } from "vitest";
 import { hashPassword, verifyPassword, PBKDF2_ITERATIONS } from "../src/pro_auth";
-import { buildProVerifyEmail, buildProPasswordResetEmail } from "../src/pro_emails";
+import { buildProVerifyEmail, buildProPasswordResetEmail, buildProExistingAccountNoticeEmail } from "../src/pro_emails";
 import { MAILING_ADDRESS } from "../src/emails";
 
 function form(fields: Record<string, string>): string {
@@ -75,14 +75,18 @@ describe("pro_auth password hashing", () => {
 });
 
 describe("POST /pro/signup", () => {
-  it("creates an account and sets a session cookie", async () => {
+  it("creates an account with a generic response and no auto-session (RE-QA M2 fix)", async () => {
     const res = await signup({ email: "new-user-1@example.com", password: "a-long-enough-password" });
-    expect(res.status).toBe(201);
-    const body = await res.json<{ ok: boolean; email: string; verified: boolean }>();
+    expect(res.status).toBe(200);
+    const body = await res.json<{ ok: boolean; message: string }>();
     expect(body.ok).toBe(true);
-    expect(body.email).toBe("new-user-1@example.com");
-    expect(body.verified).toBe(false);
-    expect(extractSessionCookie(res)).not.toBeNull();
+    // Deliberately does NOT create a session on signup -- see M2 fix notes
+    // in pro.ts: a Set-Cookie appearing only on the "new account" branch
+    // would itself be an existence oracle. Verifying + logging in are now
+    // separate steps.
+    expect(extractSessionCookie(res)).toBeNull();
+    const row = await env.DB.prepare("SELECT * FROM accounts WHERE email = ?1").bind("new-user-1@example.com").first();
+    expect(row).not.toBeNull();
   });
 
   it("rejects a password shorter than the minimum", async () => {
@@ -90,10 +94,23 @@ describe("POST /pro/signup", () => {
     expect(res.status).toBe(400);
   });
 
-  it("rejects a duplicate email without revealing which case it was via status alone", async () => {
-    await signup({ email: "dupe-user@example.com", password: "first-password-here" });
-    const res = await signup({ email: "dupe-user@example.com", password: "second-password-here" });
-    expect(res.status).toBe(409);
+  it("RE-QA M2 fix: existing-email signup returns the SAME status/body/no-cookie shape as a real signup", async () => {
+    const ip1 = freshIp();
+    const ip2 = freshIp();
+    await signup({ email: "dupe-user@example.com", password: "first-password-here" }, ip1);
+    const dupeRes = await signup({ email: "dupe-user@example.com", password: "second-password-here" }, ip2);
+    const freshRes = await signup({ email: "totally-new-user@example.com", password: "second-password-here" }, freshIp());
+
+    expect(dupeRes.status).toBe(freshRes.status);
+    const dupeBody = await dupeRes.json();
+    const freshBody = await freshRes.json();
+    expect(dupeBody).toEqual(freshBody);
+    expect(extractSessionCookie(dupeRes)).toBeNull();
+
+    // And the real account's password was NOT silently changed by the
+    // second attempt.
+    const stillWorksOldPassword = await login({ email: "dupe-user@example.com", password: "first-password-here" }, freshIp());
+    expect(stillWorksOldPassword.status).toBe(200);
   });
 
   it("honeypot: looks like success but creates nothing", async () => {
@@ -132,8 +149,9 @@ describe("POST /pro/login", () => {
 
 describe("POST /pro/logout", () => {
   it("invalidates the session so it can't be reused", async () => {
-    const signupRes = await signup({ email: "logout-test@example.com", password: "a-perfectly-fine-password" });
-    const sessionId = extractSessionCookie(signupRes);
+    await signup({ email: "logout-test@example.com", password: "a-perfectly-fine-password" });
+    const loginRes = await login({ email: "logout-test@example.com", password: "a-perfectly-fine-password" });
+    const sessionId = extractSessionCookie(loginRes);
     expect(sessionId).not.toBeNull();
 
     const beforeLogout = await withSession("/pro/cpe-entries", sessionId as string);
@@ -152,7 +170,9 @@ describe("POST /pro/logout", () => {
 
 describe("CPE hour entries", () => {
   async function freshSession(email: string): Promise<string> {
-    const res = await signup({ email, password: "a-perfectly-reasonable-password" });
+    // Signup no longer auto-creates a session (M2 fix) -- log in separately.
+    await signup({ email, password: "a-perfectly-reasonable-password" });
+    const res = await login({ email, password: "a-perfectly-reasonable-password" });
     return extractSessionCookie(res) as string;
   }
 
@@ -291,8 +311,9 @@ describe("POST /pro/password-reset/request and /confirm", () => {
   });
 
   it("lets a real reset token set a new password, and old sessions stop working", async () => {
-    const signupRes = await signup({ email: "reset-confirm-user@example.com", password: "the-old-password-here" });
-    const oldSessionId = extractSessionCookie(signupRes);
+    await signup({ email: "reset-confirm-user@example.com", password: "the-old-password-here" });
+    const loginRes = await login({ email: "reset-confirm-user@example.com", password: "the-old-password-here" });
+    const oldSessionId = extractSessionCookie(loginRes);
 
     await SELF.fetch("https://deadline-radar.com/pro/password-reset/request", {
       method: "POST",
@@ -404,10 +425,69 @@ describe("email sending is gated on SENDGRID_API_KEY (unset in this test env)", 
     // confirms sendBestEffort()'s guard doesn't throw or block the request
     // when there's no key to send with.
     const res = await signup({ email: "no-sendgrid-key-test@example.com", password: "a-fine-password-here" });
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     const row = await env.DB.prepare("SELECT verification_token FROM accounts WHERE email = ?1")
       .bind("no-sendgrid-key-test@example.com")
       .first<{ verification_token: string }>();
     expect(row?.verification_token).toBeTruthy();
+  });
+});
+
+describe("pro_emails.ts buildProExistingAccountNoticeEmail", () => {
+  it("includes a login link and does not imply an account was just created", () => {
+    const built = buildProExistingAccountNoticeEmail();
+    expect(built.subject.toLowerCase()).toContain("sign up");
+    expect(built.htmlBody).toContain("https://deadline-radar.com/pro/");
+    expect(built.htmlBody).toContain(MAILING_ADDRESS);
+  });
+});
+
+// RE-QA finding C1 (CRITICAL): all 95 prior tests were green while login was
+// completely dead in production, because this test environment never set
+// TURNSTILE_SECRET_KEY -- verifyTurnstile()'s "no secret configured yet"
+// fallback let every request through regardless of whether a real token was
+// sent, so the fact that docs/pro/index.html had NO Turnstile widget (and
+// therefore could never produce a real token) was invisible to the suite.
+// This describe block deliberately sets the secret for the duration of its
+// own tests only (restored in afterEach so it can't leak into every other
+// test in this file, which all assume the secret is unset) -- it exercises
+// the actual prod config path the RE-QA reviewer identified as the gap.
+describe("Turnstile enforcement with TURNSTILE_SECRET_KEY actually set (RE-QA C1 regression guard)", () => {
+  afterEach(() => {
+    delete (env as unknown as Record<string, unknown>).TURNSTILE_SECRET_KEY;
+  });
+
+  it("signup with no cf-turnstile-response token fails -- reproduces the exact prod DOA bug if the widget is ever removed again", async () => {
+    (env as unknown as Record<string, unknown>).TURNSTILE_SECRET_KEY = "test-secret-value-for-this-describe-block-only";
+    const res = await signup({ email: "turnstile-gap-signup@example.com", password: "a-fine-password-here" }, freshIp());
+    expect(res.status).toBe(400);
+    const body = await res.json<{ error: string }>();
+    expect(body.error).toContain("Verification failed");
+    // And no account should have been created either -- Turnstile failure
+    // must reject BEFORE any account-creation work happens.
+    const row = await env.DB.prepare("SELECT * FROM accounts WHERE email = ?1")
+      .bind("turnstile-gap-signup@example.com")
+      .first();
+    expect(row).toBeNull();
+  });
+
+  it("login with no cf-turnstile-response token fails the same way", async () => {
+    (env as unknown as Record<string, unknown>).TURNSTILE_SECRET_KEY = "test-secret-value-for-this-describe-block-only";
+    const res = await login({ email: "someone@example.com", password: "irrelevant-password-value" }, freshIp());
+    expect(res.status).toBe(400);
+    const body = await res.json<{ error: string }>();
+    expect(body.error).toContain("Verification failed");
+  });
+
+  it("confirms afterEach actually restores the unset state between tests in this block", async () => {
+    // Runs with no secret override of its own, right after two tests that
+    // each set one -- if afterEach didn't fire (or targeted the wrong key),
+    // this would see the leaked value and fail the same way those two did,
+    // instead of succeeding normally. This only proves cleanup works WITHIN
+    // this describe block (it's the last block in the file, so there's no
+    // later describe to prove the leak couldn't reach); it does not
+    // retroactively re-verify the ~90 tests declared earlier in this file.
+    const res = await signup({ email: "turnstile-cleanup-sanity-check@example.com", password: "a-fine-password-here" }, freshIp());
+    expect(res.status).toBe(200);
   });
 });

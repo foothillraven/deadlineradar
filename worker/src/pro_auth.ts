@@ -93,9 +93,15 @@ export function isValidPassword(password: string): boolean {
   return password.length >= MIN_PASSWORD_LEN && password.length <= MAX_PASSWORD_LEN;
 }
 
-// Session lifetime: short absolute cap, extended on activity (see pro.ts's
-// requireSession, which bumps expires_at on every authenticated request up
-// to this same max-from-now ceiling) -- not a "forever" cookie.
+// Session lifetime: a 14-day IDLE timeout, NOT an absolute cap from
+// created_at -- pro_store.ts's resolveSession() slides expires_at forward by
+// this same amount on every authenticated request, so a session in
+// continuous use never expires. This matches the migration comment's own
+// "no separate cron needed at MVP scale" framing (an idle-only design), but
+// note for anyone extending this: there is currently no ceiling on total
+// session lifetime, only on time since last use. If an absolute cap is
+// wanted later, it needs a separate created_at check in resolveSession(),
+// not a change here (this constant only sets the idle window's length).
 export const SESSION_LIFETIME_SECONDS = 60 * 60 * 24 * 14; // 14 days from last activity
 
 export function sessionCookieValue(sessionId: string): string {

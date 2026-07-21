@@ -114,3 +114,43 @@ export function buildProPasswordResetEmail(resetUrl: string): BuiltEmail {
 
   return { subject, textBody, htmlBody, headers: {} };
 }
+
+/**
+ * Sent when someone tries to sign up with an email that already has a Pro
+ * account (out-of-band notice to the real account holder's inbox -- see
+ * pro.ts's handleProSignup docstring for why the HTTP response itself must
+ * stay generic regardless of which branch ran).
+ */
+export function buildProExistingAccountNoticeEmail(): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `Someone tried to sign up with your ${SITE_NAME} Pro email`;
+
+  const textBody =
+    `Someone just tried to create a new ${SITE_NAME} Pro account using this email address -- but you ` +
+    `already have one.\n\n` +
+    `If that was you, just log in instead: https://deadline-radar.com/pro/\n\n` +
+    `Forgot your password? Use the "Forgot your password?" link on that page.\n\n` +
+    `If it wasn't you, no action is needed -- no new account was created and your existing one is ` +
+    `unaffected.` +
+    `${proTextFooter(addr)}`;
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `Someone tried to sign up with your email</h1>` +
+      p(
+        `Someone just tried to create a new ${esc(SITE_NAME)} Pro account using this email address ` +
+          `-- but you already have one.`
+      ) +
+      `<p style="margin:0 0 20px;">${button("https://deadline-radar.com/pro/", "Log in instead")}</p>` +
+      p(
+        `If it wasn't you, no action is needed &mdash; no new account was created and your existing ` +
+          `one is unaffected.`,
+        13,
+        LIGHT.muted
+      ),
+    proHtmlFooter(addr)
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}

@@ -7,6 +7,7 @@
 <meta name="description" content="Track your CPE hours against your state's requirement, automatically.">
 <meta name="robots" content="noindex">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <style>
 :root {
   color-scheme: light dark;
@@ -107,6 +108,7 @@ tbody tr:last-child td { border-bottom: none; }
       <input type="email" id="login-email" name="email" required autocomplete="email">
       <label for="login-password">Password</label>
       <input type="password" id="login-password" name="password" required autocomplete="current-password">
+      <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_" style="margin-top:0.85rem;"></div>
       <button type="submit">Log in</button>
     </form>
     <p class="field-hint"><a href="#" id="forgot-password-link">Forgot your password?</a></p>
@@ -118,6 +120,7 @@ tbody tr:last-child td { border-bottom: none; }
       <input type="email" id="signup-email" name="email" required autocomplete="email">
       <label for="signup-password">Password (at least 10 characters)</label>
       <input type="password" id="signup-password" name="password" required minlength="10" autocomplete="new-password">
+      <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_" style="margin-top:0.85rem;"></div>
       <button type="submit">Create account</button>
     </form>
   </div>
@@ -293,38 +296,67 @@ tbody tr:last-child td { border-bottom: none; }
     authView.classList.remove("hidden");
   }
 
+  // Cloudflare's api.js implicitly renders each ".cf-turnstile" div and, on
+  // solve, injects a hidden input named "cf-turnstile-response" INSIDE that
+  // same div -- scoped per-form so the login widget's token and the signup
+  // widget's token don't collide with each other on this one page.
+  function getTurnstileToken(formEl) {
+    var input = formEl.querySelector('[name="cf-turnstile-response"]');
+    return input ? input.value : "";
+  }
+  // A Turnstile token is single-use -- if the request it was sent with gets
+  // rejected (wrong password, validation error, etc.), the same token would
+  // fail again on a retry unless the widget is reset first. window.turnstile
+  // has no value at all until api.js finishes loading, so this is guarded --
+  // network conditions (or ad-blockers) can delay or block that script.
+  function resetTurnstile(formEl) {
+    if (!window.turnstile) return;
+    var widget = formEl.querySelector(".cf-turnstile");
+    if (widget) window.turnstile.reset(widget);
+  }
+
   document.getElementById("login-form").addEventListener("submit", async function (e) {
     e.preventDefault();
     clearError();
+    var formEl = e.target;
     var email = document.getElementById("login-email").value;
     var password = document.getElementById("login-password").value;
     var result = await apiFetch("/pro/login", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: formBody({ email: email, password: password }),
+      body: formBody({ email: email, password: password, "cf-turnstile-response": getTurnstileToken(formEl) }),
     });
     if (result.status === 200) {
       switchToDashboard();
     } else {
       showError((result.body && result.body.error) || "Login failed.");
+      resetTurnstile(formEl);
     }
   });
 
   document.getElementById("signup-form").addEventListener("submit", async function (e) {
     e.preventDefault();
     clearError();
+    var formEl = e.target;
     var email = document.getElementById("signup-email").value;
     var password = document.getElementById("signup-password").value;
     var result = await apiFetch("/pro/signup", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: formBody({ email: email, password: password, hp_website: "" }),
+      body: formBody({ email: email, password: password, hp_website: "", "cf-turnstile-response": getTurnstileToken(formEl) }),
     });
-    if (result.status === 201) {
-      switchToDashboard();
+    if (result.status === 200) {
+      // Signup no longer auto-creates a session (server-side fix for an
+      // account-enumeration issue: the response is now identical whether
+      // this was a brand-new account or an existing email, so there's
+      // nothing here to safely auto-log-in with). Show the same message
+      // either way and let the user log in with the form right above.
+      formEl.reset();
+      showMessage((result.body && result.body.message) || "Check your email to finish setting up your account.");
     } else {
       showError((result.body && result.body.error) || "Could not create account.");
     }
+    resetTurnstile(formEl);
   });
 
   document.getElementById("forgot-password-link").addEventListener("click", function (e) {

@@ -42,7 +42,7 @@ const MIN_MAILING_ADDRESS_LEN = 10;
 
 const MAX_FIRST_NAME_LEN = 60;
 
-const LIGHT = {
+export const LIGHT = {
   bg: "#f3f5f7",
   card: "#ffffff",
   fg: "#1a2129",
@@ -50,7 +50,7 @@ const LIGHT = {
   border: "#d8dee5",
   accent: "#1f5fbf",
 };
-const DARK = {
+export const DARK = {
   bg: "#0d1013",
   card: "#1a1f26",
   fg: "#e7ebf0",
@@ -92,7 +92,7 @@ function htmlGreeting(firstName: string | null): string {
   return name ? `Hi ${esc(name)},` : "Hi there,";
 }
 
-function mailingAddress(): string {
+export function mailingAddress(): string {
   const cleaned = MAILING_ADDRESS.trim();
   if (cleaned.length < MIN_MAILING_ADDRESS_LEN) {
     throw new Error(
@@ -103,7 +103,7 @@ function mailingAddress(): string {
   return cleaned;
 }
 
-function button(url: string, label: string): string {
+export function button(url: string, label: string): string {
   return (
     `<a href="${esc(url)}" class="dr-btn" ` +
     `style="display:inline-block;background:${LIGHT.accent};color:#ffffff;` +
@@ -112,7 +112,7 @@ function button(url: string, label: string): string {
   );
 }
 
-function textLink(url: string, label: string): string {
+export function textLink(url: string, label: string): string {
   return (
     `<a href="${esc(url)}" class="dr-accent" ` +
     `style="color:${LIGHT.accent};text-decoration:underline;font-size:13px;">${esc(label)}</a>`
@@ -152,7 +152,7 @@ function textFooter(unsubscribeUrl: string, addr: string): string {
   );
 }
 
-function htmlShell(preheader: string, bodyHtml: string, footerHtml: string): string {
+export function htmlShell(preheader: string, bodyHtml: string, footerHtml: string): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -203,7 +203,7 @@ ${footerHtml}
 </html>`;
 }
 
-function p(text: string, size = 15, color: string | null = null): string {
+export function p(text: string, size = 15, color: string | null = null): string {
   const c = color ?? LIGHT.fg;
   return `<p class="dr-fg" style="margin:0 0 16px;font-size:${size}px;line-height:1.6;color:${c};">${text}</p>`;
 }

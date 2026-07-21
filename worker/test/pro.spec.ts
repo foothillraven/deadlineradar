@@ -1,6 +1,8 @@
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { hashPassword, verifyPassword, PBKDF2_ITERATIONS } from "../src/pro_auth";
+import { buildProVerifyEmail, buildProPasswordResetEmail } from "../src/pro_emails";
+import { MAILING_ADDRESS } from "../src/emails";
 
 function form(fields: Record<string, string>): string {
   return new URLSearchParams(fields).toString();
@@ -313,5 +315,42 @@ describe("GET /pro/verify", () => {
   it("rejects an invalid token", async () => {
     const res = await SELF.fetch("https://deadline-radar.com/pro/verify?token=not-a-real-token");
     expect(res.status).toBe(404);
+  });
+});
+
+describe("pro_emails.ts builders", () => {
+  it("buildProVerifyEmail includes the link and a real CAN-SPAM address, no unsubscribe language", () => {
+    const built = buildProVerifyEmail("https://deadline-radar.com/api/pro/verify?token=abc123");
+    expect(built.subject).toContain("Verify");
+    expect(built.htmlBody).toContain("https://deadline-radar.com/api/pro/verify?token=abc123");
+    expect(built.textBody).toContain("https://deadline-radar.com/api/pro/verify?token=abc123");
+    expect(built.htmlBody).toContain(MAILING_ADDRESS);
+    // This is an account email, not a renewal-reminder subscription -- it
+    // must NOT carry the reminder-flow's "unsubscribe" language, since
+    // there's nothing to unsubscribe from here.
+    expect(built.textBody.toLowerCase()).not.toContain("unsubscribe");
+  });
+
+  it("buildProPasswordResetEmail includes the link, the 1-hour expiry note, and a real address", () => {
+    const built = buildProPasswordResetEmail("https://deadline-radar.com/pro/?reset_token=xyz789");
+    expect(built.subject).toContain("Reset");
+    expect(built.htmlBody).toContain("https://deadline-radar.com/pro/?reset_token=xyz789");
+    expect(built.textBody).toContain("1 hour");
+    expect(built.htmlBody).toContain(MAILING_ADDRESS);
+  });
+});
+
+describe("email sending is gated on SENDGRID_API_KEY (unset in this test env)", () => {
+  it("signup still succeeds and creates a verification token even though no email is actually sent", async () => {
+    // This test environment has no SENDGRID_API_KEY configured (matches
+    // production's own safe-degrade behavior when the secret is unset) --
+    // confirms sendBestEffort()'s guard doesn't throw or block the request
+    // when there's no key to send with.
+    const res = await signup({ email: "no-sendgrid-key-test@example.com", password: "a-fine-password-here" });
+    expect(res.status).toBe(201);
+    const row = await env.DB.prepare("SELECT verification_token FROM accounts WHERE email = ?1")
+      .bind("no-sendgrid-key-test@example.com")
+      .first<{ verification_token: string }>();
+    expect(row?.verification_token).toBeTruthy();
   });
 });

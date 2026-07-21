@@ -68,6 +68,11 @@ button.danger { background: var(--error); }
   border-radius: 8px; padding: 0.75rem 1rem; margin: 0 0 1rem; font-size: 0.9rem; display: none;
 }
 .error-box.visible { display: block; }
+.message-box {
+  border: 1px solid var(--border-strong); background: var(--accent-bg); color: var(--fg);
+  border-radius: 8px; padding: 0.75rem 1rem; margin: 0 0 1rem; font-size: 0.9rem; display: none;
+}
+.message-box.visible { display: block; }
 .hidden { display: none; }
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; margin: 0 0 1rem; }
 table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 480px; }
@@ -91,6 +96,7 @@ tbody tr:last-child td { border-bottom: none; }
 </header>
 
 <div id="error-box" class="error-box"></div>
+<div id="message-box" class="message-box"></div>
 
 <section id="auth-view">
   <h1>Log in or create your Pro account</h1>
@@ -122,8 +128,15 @@ tbody tr:last-child td { border-bottom: none; }
       <input type="email" id="reset-email" name="email" required autocomplete="email">
       <button type="submit">Send reset link</button>
     </form>
-    <p class="field-hint">Note: email delivery isn't wired up yet on this early build — a reset link is
-    generated but not sent. Contact support directly for now if you need a reset.</p>
+  </div>
+  <div class="card hidden" id="reset-confirm-card">
+    <h2>Set a new password</h2>
+    <form id="reset-confirm-form">
+      <label for="reset-confirm-password">New password (at least 10 characters)</label>
+      <input type="password" id="reset-confirm-password" name="password" required minlength="10" autocomplete="new-password">
+      <button type="submit">Set new password</button>
+    </form>
+    <p class="field-hint">This link works once and expires 1 hour after it was requested.</p>
   </div>
 </section>
 
@@ -212,13 +225,25 @@ tbody tr:last-child td { border-bottom: none; }
   var authView = document.getElementById("auth-view");
   var dashboardView = document.getElementById("dashboard-view");
 
+  var messageBox = document.getElementById("message-box");
+
   function showError(message) {
+    clearMessage();
     errorBox.textContent = message;
     errorBox.classList.add("visible");
   }
   function clearError() {
     errorBox.textContent = "";
     errorBox.classList.remove("visible");
+  }
+  function showMessage(message) {
+    clearError();
+    messageBox.textContent = message;
+    messageBox.classList.add("visible");
+  }
+  function clearMessage() {
+    messageBox.textContent = "";
+    messageBox.classList.remove("visible");
   }
 
   function populateStateSelects() {
@@ -319,7 +344,29 @@ tbody tr:last-child td { border-bottom: none; }
     // Always the same message regardless of what the API returned -- the
     // API itself never reveals whether the email exists, and this page
     // shouldn't undo that by branching its own copy on the response.
-    showError("If that email has an account, a reset has been requested.");
+    showMessage("If that email has an account, a reset has been requested.");
+  });
+
+  document.getElementById("reset-confirm-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    clearError();
+    var token = new URLSearchParams(window.location.search).get("reset_token") || "";
+    var password = document.getElementById("reset-confirm-password").value;
+    var result = await apiFetch("/pro/password-reset/confirm", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: formBody({ token: token, password: password }),
+    });
+    if (result.status === 200) {
+      // Strip the token out of the URL now that it's been used -- a used
+      // (or now-invalid) token shouldn't linger in the address bar/history.
+      window.history.replaceState({}, "", window.location.pathname);
+      document.getElementById("reset-confirm-card").classList.add("hidden");
+      document.getElementById("reset-confirm-form").reset();
+      showMessage("Password updated. Log in with your new password below.");
+    } else {
+      showError((result.body && result.body.error) || "That reset link is invalid or has expired.");
+    }
   });
 
   document.getElementById("logout-button").addEventListener("click", async function () {
@@ -445,8 +492,22 @@ tbody tr:last-child td { border-bottom: none; }
     // 401 (or anything else) -- stay on the auth view, which is already the default.
   }
 
+  function checkForResetToken() {
+    var token = new URLSearchParams(window.location.search).get("reset_token");
+    if (token) {
+      document.getElementById("reset-confirm-card").classList.remove("hidden");
+      return true;
+    }
+    return false;
+  }
+
   populateStateSelects();
-  checkExistingSession();
+  // A reset link takes priority over the normal logged-in check -- someone
+  // clicking an emailed reset link should see the "set a new password" form
+  // immediately, whether or not they happen to still have a live session.
+  if (!checkForResetToken()) {
+    checkExistingSession();
+  }
 })();
 </script>
 </body>

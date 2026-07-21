@@ -44,6 +44,37 @@ import {
 } from "./pro_store";
 import { parseStrictIsoDate } from "./validation";
 import { SUPPORTED_STATE_SLUGS } from "./deadline";
+import { buildProVerifyEmail, buildProPasswordResetEmail } from "./pro_emails";
+import { checkAndCountSend, sendViaSendGrid, DEFAULT_DAILY_SEND_CAP } from "./sender";
+
+const PRO_ACTION_BASE_URL = "https://deadline-radar.com/api";
+
+function dailySendCap(env: Env): number {
+  const raw = env.REMINDERS_DAILY_SEND_CAP;
+  const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_DAILY_SEND_CAP;
+}
+
+/**
+ * Best-effort, fully isolated send -- mirrors index.ts's handleSubscribe
+ * pattern exactly: only sends when a SendGrid key is configured, guarded by
+ * the same shared daily circuit breaker (so Pro emails and reminder emails
+ * draw from ONE combined cap, not two independent ones that could together
+ * exceed what the account can actually afford), and any failure (SendGrid
+ * down, cap hit, build error) is swallowed -- an email failure must never
+ * turn an already-created account/reset-token into an error response.
+ */
+async function sendBestEffort(env: Env, toEmail: string, build: () => { subject: string; textBody: string; htmlBody: string; headers: Record<string, string> }): Promise<void> {
+  if (!env.SENDGRID_API_KEY) return;
+  try {
+    const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+    if (underCap) {
+      await sendViaSendGrid(env.SENDGRID_API_KEY, toEmail, build());
+    }
+  } catch {
+    // Swallow -- see function docstring.
+  }
+}
 
 // Stricter than RATE_LIMIT_SUBSCRIBE -- login is a brute-force target in a
 // way a one-shot signup form isn't (an attacker retries the SAME account
@@ -130,6 +161,9 @@ export async function handleProSignup(request: Request, env: Env, ip: string): P
   const account = await createAccount(env.DB, email, password);
   if (!account) return errorJson(500, "Could not create account. Please try again.");
 
+  const verifyUrl = `${PRO_ACTION_BASE_URL}/pro/verify?token=${encodeURIComponent(account.verification_token)}`;
+  await sendBestEffort(env, account.email, () => buildProVerifyEmail(verifyUrl));
+
   const sessionId = await createSession(env.DB, account.id);
   return jsonResponse(
     201,
@@ -193,7 +227,11 @@ export async function handleProPasswordResetRequest(request: Request, env: Env, 
   const email = (form.email ?? "").trim();
   if (!isValidEmail(email)) return errorJson(400, "That doesn't look like a valid email address.");
 
-  await requestPasswordReset(env.DB, email);
+  const resetToken = await requestPasswordReset(env.DB, email);
+  if (resetToken) {
+    const resetUrl = `https://deadline-radar.com/pro/?reset_token=${encodeURIComponent(resetToken)}`;
+    await sendBestEffort(env, email, () => buildProPasswordResetEmail(resetUrl));
+  }
   // ALWAYS the same response whether or not the email exists -- this is the
   // one place account-existence enumeration would be easiest to leak
   // (a naive implementation returns 404 for "no such account"), so this

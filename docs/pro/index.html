@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeadlineRadar Pro — CPE Hour Tracking</title>
+<meta name="description" content="Track your CPE hours against your state's requirement, automatically.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f7f9fb; --fg: #17212b; --muted: #5a6b7a; --faint: #8595a3;
+  --border: #e0e6ec; --border-strong: #c8d2db;
+  --accent: #1f3d54; --accent-deep: #152c3e; --accent-bg: #eaeef1; --card-bg: #ffffff;
+  --row-alt: #f6f8f9;
+  --error: #a5342a; --error-bg: #fbecea;
+  --font-display: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12151a; --fg: #e7ebf0; --muted: #9aa5b1; --faint: #6f7a86;
+    --border: #2a323c; --border-strong: #3a4552;
+    --accent: #7fa8d9; --accent-deep: #9cc0ea; --accent-bg: #1b2836; --card-bg: #1a1f26;
+    --row-alt: #171b21;
+    --error: #ff8a80; --error-bg: #2a1614;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  max-width: 720px; margin: 0 auto; padding: 0 1.25rem 4rem;
+  line-height: 1.55; color: var(--fg); background: var(--bg);
+}
+a { color: var(--accent); }
+.site-header {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem;
+  padding: 1.5rem 0 1rem; border-bottom: 1px solid var(--border); margin-bottom: 1.75rem;
+}
+.wordmark { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; }
+.wordmark a { color: var(--fg); text-decoration: none; }
+.tagline { color: var(--muted); font-size: 0.92rem; flex: 1 1 auto; }
+h1 { font-family: var(--font-display); font-size: 1.7rem; margin: 0 0 1rem; }
+h2 { font-family: var(--font-display); font-size: 1.2rem; margin: 0 0 0.75rem; }
+.card {
+  border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem 1.4rem;
+  background: var(--card-bg); margin-bottom: 1.5rem;
+}
+label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.85rem 0 0.3rem; }
+label:first-of-type { margin-top: 0; }
+input, select {
+  width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--fg); font-size: 0.95rem; font-family: inherit;
+}
+.checkbox-row { display: flex; align-items: center; gap: 0.5rem; margin: 0.85rem 0 0; }
+.checkbox-row input { width: auto; }
+.checkbox-row label { margin: 0; font-weight: 400; }
+button {
+  margin-top: 1.1rem; padding: 0.6rem 1.2rem; border: none; border-radius: 6px;
+  background: var(--accent); color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+}
+button:hover { opacity: 0.92; }
+button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--border-strong); }
+button.danger { background: var(--error); }
+.field-hint { font-size: 0.78rem; color: var(--muted); margin: 0.3rem 0 0; }
+.error-box {
+  border: 1px solid var(--error); background: var(--error-bg); color: var(--error);
+  border-radius: 8px; padding: 0.75rem 1rem; margin: 0 0 1rem; font-size: 0.9rem; display: none;
+}
+.error-box.visible { display: block; }
+.hidden { display: none; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; margin: 0 0 1rem; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 480px; }
+th, td { padding: 0.55rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+th { background: var(--accent-bg); font-weight: 700; font-size: 0.82rem; }
+tbody tr:nth-child(even) { background: var(--row-alt); }
+tbody tr:last-child td { border-bottom: none; }
+.progress-summary { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.progress-stat { flex: 1 1 140px; }
+.progress-stat .num { font-family: var(--font-display); font-size: 1.6rem; font-weight: 700; }
+.progress-stat .label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.top-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.muted-note { color: var(--muted); font-size: 0.85rem; }
+.site-footer { margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="wordmark"><a href="https://deadline-radar.com/">DeadlineRadar</a></div>
+  <div class="tagline">Pro — CPE hour tracking</div>
+</header>
+
+<div id="error-box" class="error-box"></div>
+
+<section id="auth-view">
+  <h1>Log in or create your Pro account</h1>
+  <div class="card">
+    <h2>Log in</h2>
+    <form id="login-form">
+      <label for="login-email">Email</label>
+      <input type="email" id="login-email" name="email" required autocomplete="email">
+      <label for="login-password">Password</label>
+      <input type="password" id="login-password" name="password" required autocomplete="current-password">
+      <button type="submit">Log in</button>
+    </form>
+    <p class="field-hint"><a href="#" id="forgot-password-link">Forgot your password?</a></p>
+  </div>
+  <div class="card">
+    <h2>Create an account</h2>
+    <form id="signup-form">
+      <label for="signup-email">Email</label>
+      <input type="email" id="signup-email" name="email" required autocomplete="email">
+      <label for="signup-password">Password (at least 10 characters)</label>
+      <input type="password" id="signup-password" name="password" required minlength="10" autocomplete="new-password">
+      <button type="submit">Create account</button>
+    </form>
+  </div>
+  <div class="card hidden" id="reset-request-card">
+    <h2>Reset your password</h2>
+    <form id="reset-request-form">
+      <label for="reset-email">Email</label>
+      <input type="email" id="reset-email" name="email" required autocomplete="email">
+      <button type="submit">Send reset link</button>
+    </form>
+    <p class="field-hint">Note: email delivery isn't wired up yet on this early build — a reset link is
+    generated but not sent. Contact support directly for now if you need a reset.</p>
+  </div>
+</section>
+
+<section id="dashboard-view" class="hidden">
+  <div class="top-actions">
+    <h1 style="margin:0;">Your CPE hours</h1>
+    <button type="button" class="secondary" id="logout-button">Log out</button>
+  </div>
+
+  <div class="card">
+    <h2>Log a completed course</h2>
+    <form id="add-entry-form">
+      <label for="entry-state">State</label>
+      <select id="entry-state" name="state" required></select>
+      <label for="entry-course-name">Course name</label>
+      <input type="text" id="entry-course-name" name="course_name" required maxlength="200">
+      <label for="entry-hours">Hours</label>
+      <input type="number" id="entry-hours" name="hours" required min="0.1" step="0.1">
+      <div class="checkbox-row">
+        <input type="checkbox" id="entry-is-ethics" name="is_ethics">
+        <label for="entry-is-ethics">This counts toward my ethics-hour requirement</label>
+      </div>
+      <label for="entry-completed-date">Date completed</label>
+      <input type="date" id="entry-completed-date" name="completed_date" required>
+      <button type="submit">Add entry</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Filter by state</h2>
+    <select id="filter-state">
+      <option value="">All states</option>
+    </select>
+  </div>
+
+  <div id="entries-summary" class="progress-summary hidden">
+    <div class="progress-stat"><div class="num" id="summary-total-hours">0</div><div class="label">Total hours logged</div></div>
+    <div class="progress-stat"><div class="num" id="summary-ethics-hours">0</div><div class="label">Ethics hours logged</div></div>
+    <div class="progress-stat"><div class="num" id="summary-entry-count">0</div><div class="label">Entries</div></div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Date</th><th>State</th><th>Course</th><th>Hours</th><th>Ethics</th><th></th></tr>
+      </thead>
+      <tbody id="entries-tbody"></tbody>
+    </table>
+  </div>
+  <p class="muted-note" id="empty-state-note">No entries logged yet — add your first course above.</p>
+</section>
+
+<footer class="site-footer">
+  <p>DeadlineRadar Pro is an early-access build. Requirement data behind each state is the same sourced
+  data shown on the free <a href="https://deadline-radar.com/">DeadlineRadar</a> pages.</p>
+  <p>DeadlineRadar is an independent reminder service operated by Moose &amp; Raven LLC. It is not
+  affiliated with, endorsed by, or connected to NASBA, the AICPA, or any state board of accountancy.
+  Logged hours and requirement data are for informational purposes only &mdash; not legal, tax, or
+  professional advice. Always confirm your exact requirements with your state board.</p>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  // Same 51-state+DC slug/name list the rest of the site uses.
+  var STATES = [
+    ["alabama","Alabama"],["alaska","Alaska"],["arizona","Arizona"],["arkansas","Arkansas"],
+    ["california","California"],["colorado","Colorado"],["connecticut","Connecticut"],["dc","District of Columbia"],
+    ["delaware","Delaware"],["florida","Florida"],["georgia","Georgia"],["hawaii","Hawaii"],["idaho","Idaho"],
+    ["illinois","Illinois"],["indiana","Indiana"],["iowa","Iowa"],["kansas","Kansas"],["kentucky","Kentucky"],
+    ["louisiana","Louisiana"],["maine","Maine"],["maryland","Maryland"],["massachusetts","Massachusetts"],
+    ["michigan","Michigan"],["minnesota","Minnesota"],["mississippi","Mississippi"],["missouri","Missouri"],
+    ["montana","Montana"],["nebraska","Nebraska"],["nevada","Nevada"],["new-hampshire","New Hampshire"],
+    ["new-jersey","New Jersey"],["new-mexico","New Mexico"],["new-york","New York"],["north-carolina","North Carolina"],
+    ["north-dakota","North Dakota"],["ohio","Ohio"],["oklahoma","Oklahoma"],["oregon","Oregon"],
+    ["pennsylvania","Pennsylvania"],["rhode-island","Rhode Island"],["south-carolina","South Carolina"],
+    ["south-dakota","South Dakota"],["tennessee","Tennessee"],["texas","Texas"],["utah","Utah"],["vermont","Vermont"],
+    ["virginia","Virginia"],["washington","Washington"],["west-virginia","West Virginia"],
+    ["wisconsin","Wisconsin"],["wyoming","Wyoming"]
+  ];
+
+  var API_BASE = "https://deadline-radar.com/api";
+
+  var errorBox = document.getElementById("error-box");
+  var authView = document.getElementById("auth-view");
+  var dashboardView = document.getElementById("dashboard-view");
+
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.classList.add("visible");
+  }
+  function clearError() {
+    errorBox.textContent = "";
+    errorBox.classList.remove("visible");
+  }
+
+  function populateStateSelects() {
+    var entryState = document.getElementById("entry-state");
+    var filterState = document.getElementById("filter-state");
+    STATES.forEach(function (pair) {
+      var slug = pair[0], name = pair[1];
+      var opt1 = document.createElement("option");
+      opt1.value = slug; opt1.textContent = name;
+      entryState.appendChild(opt1);
+      var opt2 = document.createElement("option");
+      opt2.value = slug; opt2.textContent = name;
+      filterState.appendChild(opt2);
+    });
+  }
+
+  async function apiFetch(path, options) {
+    options = options || {};
+    options.credentials = "include";
+    var response;
+    try {
+      response = await fetch(API_BASE + path, options);
+    } catch (networkErr) {
+      // Network failure (offline, DNS, CORS, etc.) -- surfaced as status 0
+      // rather than left as an unhandled rejection that would silently
+      // freeze the UI with no feedback to the user.
+      return { status: 0, body: { error: "Could not reach the server. Check your connection and try again." } };
+    }
+    var body = null;
+    try { body = await response.json(); } catch (e) { /* no body */ }
+    return { status: response.status, body: body };
+  }
+
+  function formBody(fields) {
+    var params = new URLSearchParams();
+    Object.keys(fields).forEach(function (key) { params.set(key, fields[key]); });
+    return params.toString();
+  }
+
+  function switchToDashboard() {
+    authView.classList.add("hidden");
+    dashboardView.classList.remove("hidden");
+    loadEntries();
+  }
+  function switchToAuth() {
+    dashboardView.classList.add("hidden");
+    authView.classList.remove("hidden");
+  }
+
+  document.getElementById("login-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    clearError();
+    var email = document.getElementById("login-email").value;
+    var password = document.getElementById("login-password").value;
+    var result = await apiFetch("/pro/login", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: formBody({ email: email, password: password }),
+    });
+    if (result.status === 200) {
+      switchToDashboard();
+    } else {
+      showError((result.body && result.body.error) || "Login failed.");
+    }
+  });
+
+  document.getElementById("signup-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    clearError();
+    var email = document.getElementById("signup-email").value;
+    var password = document.getElementById("signup-password").value;
+    var result = await apiFetch("/pro/signup", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: formBody({ email: email, password: password, hp_website: "" }),
+    });
+    if (result.status === 201) {
+      switchToDashboard();
+    } else {
+      showError((result.body && result.body.error) || "Could not create account.");
+    }
+  });
+
+  document.getElementById("forgot-password-link").addEventListener("click", function (e) {
+    e.preventDefault();
+    document.getElementById("reset-request-card").classList.remove("hidden");
+  });
+
+  document.getElementById("reset-request-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    clearError();
+    var email = document.getElementById("reset-email").value;
+    await apiFetch("/pro/password-reset/request", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: formBody({ email: email }),
+    });
+    // Always the same message regardless of what the API returned -- the
+    // API itself never reveals whether the email exists, and this page
+    // shouldn't undo that by branching its own copy on the response.
+    showError("If that email has an account, a reset has been requested.");
+  });
+
+  document.getElementById("logout-button").addEventListener("click", async function () {
+    await apiFetch("/pro/logout", { method: "POST" });
+    switchToAuth();
+  });
+
+  document.getElementById("add-entry-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    clearError();
+    var state = document.getElementById("entry-state").value;
+    var courseName = document.getElementById("entry-course-name").value;
+    var hours = document.getElementById("entry-hours").value;
+    var isEthics = document.getElementById("entry-is-ethics").checked;
+    var completedDate = document.getElementById("entry-completed-date").value;
+    var result = await apiFetch("/pro/cpe-entries", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: formBody({
+        state: state, course_name: courseName, hours: hours,
+        is_ethics: isEthics ? "1" : "0", completed_date: completedDate,
+      }),
+    });
+    if (result.status === 201) {
+      document.getElementById("add-entry-form").reset();
+      loadEntries();
+    } else if (result.status === 401) {
+      switchToAuth();
+    } else {
+      showError((result.body && result.body.error) || "Could not save that entry.");
+    }
+  });
+
+  document.getElementById("filter-state").addEventListener("change", loadEntries);
+
+  function renderEntries(entries) {
+    var tbody = document.getElementById("entries-tbody");
+    tbody.textContent = "";
+    var emptyNote = document.getElementById("empty-state-note");
+    var summary = document.getElementById("entries-summary");
+
+    if (entries.length === 0) {
+      emptyNote.classList.remove("hidden");
+      summary.classList.add("hidden");
+      return;
+    }
+    emptyNote.classList.add("hidden");
+    summary.classList.remove("hidden");
+
+    var totalHours = 0, ethicsHours = 0;
+    entries.forEach(function (entry) {
+      totalHours += entry.hours;
+      if (entry.is_ethics) ethicsHours += entry.hours;
+
+      var tr = document.createElement("tr");
+
+      var dateTd = document.createElement("td");
+      dateTd.textContent = entry.completed_date;
+      tr.appendChild(dateTd);
+
+      var stateTd = document.createElement("td");
+      var stateEntry = STATES.filter(function (p) { return p[0] === entry.state_slug; })[0];
+      stateTd.textContent = stateEntry ? stateEntry[1] : entry.state_slug;
+      tr.appendChild(stateTd);
+
+      var courseTd = document.createElement("td");
+      courseTd.textContent = entry.course_name; // textContent, not innerHTML -- never trust stored user input
+      tr.appendChild(courseTd);
+
+      var hoursTd = document.createElement("td");
+      hoursTd.textContent = entry.hours;
+      tr.appendChild(hoursTd);
+
+      var ethicsTd = document.createElement("td");
+      ethicsTd.textContent = entry.is_ethics ? "Yes" : "";
+      tr.appendChild(ethicsTd);
+
+      var actionTd = document.createElement("td");
+      var deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "danger";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.style.marginTop = "0";
+      deleteBtn.style.padding = "0.25rem 0.6rem";
+      deleteBtn.style.fontSize = "0.8rem";
+      deleteBtn.addEventListener("click", async function () {
+        var result = await apiFetch("/pro/cpe-entries/" + encodeURIComponent(entry.id) + "/delete", { method: "POST" });
+        if (result.status === 200) {
+          loadEntries();
+        } else {
+          showError((result.body && result.body.error) || "Could not delete that entry.");
+        }
+      });
+      actionTd.appendChild(deleteBtn);
+      tr.appendChild(actionTd);
+
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById("summary-total-hours").textContent = totalHours.toFixed(1);
+    document.getElementById("summary-ethics-hours").textContent = ethicsHours.toFixed(1);
+    document.getElementById("summary-entry-count").textContent = entries.length;
+  }
+
+  async function loadEntries() {
+    var stateFilter = document.getElementById("filter-state").value;
+    var query = stateFilter ? "?state=" + encodeURIComponent(stateFilter) : "";
+    var result = await apiFetch("/pro/cpe-entries" + query);
+    if (result.status === 200 && result.body) {
+      renderEntries(result.body.entries || []);
+    } else if (result.status === 401) {
+      switchToAuth();
+    } else {
+      showError((result.body && result.body.error) || "Could not load your entries.");
+    }
+  }
+
+  async function checkExistingSession() {
+    var result = await apiFetch("/pro/cpe-entries");
+    if (result.status === 200) {
+      switchToDashboard();
+    }
+    // 401 (or anything else) -- stay on the auth view, which is already the default.
+  }
+
+  populateStateSelects();
+  checkExistingSession();
+})();
+</script>
+</body>
+</html>

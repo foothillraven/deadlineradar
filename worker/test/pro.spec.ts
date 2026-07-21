@@ -241,6 +241,33 @@ describe("CPE hour entries", () => {
     const listed = await listRes.json<{ entries: unknown[] }>();
     expect(listed.entries).toHaveLength(1);
   });
+
+  it("?state= filters the list to just that state", async () => {
+    const sessionId = await freshSession("cpe-filter-by-state@example.com");
+    await withSession("/pro/cpe-entries", sessionId, {
+      method: "POST",
+      body: { state: "kansas", course_name: "Kansas Course", hours: "2", is_ethics: "0", completed_date: "2026-05-01" },
+    });
+    await withSession("/pro/cpe-entries", sessionId, {
+      method: "POST",
+      body: { state: "maryland", course_name: "Maryland Course", hours: "3", is_ethics: "0", completed_date: "2026-05-02" },
+    });
+
+    const unfiltered = await withSession("/pro/cpe-entries", sessionId);
+    const unfilteredBody = await unfiltered.json<{ entries: Array<{ state_slug: string }> }>();
+    expect(unfilteredBody.entries).toHaveLength(2);
+
+    const filtered = await withSession("/pro/cpe-entries?state=kansas", sessionId);
+    const filteredBody = await filtered.json<{ entries: Array<{ state_slug: string }> }>();
+    expect(filteredBody.entries).toHaveLength(1);
+    expect(filteredBody.entries[0]?.state_slug).toBe("kansas");
+  });
+
+  it("rejects an unsupported state in the ?state= filter", async () => {
+    const sessionId = await freshSession("cpe-filter-bad-state@example.com");
+    const res = await withSession("/pro/cpe-entries?state=not-a-real-state", sessionId);
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("POST /pro/password-reset/request and /confirm", () => {

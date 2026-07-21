@@ -30,7 +30,6 @@ import { isValidPassword, MIN_PASSWORD_LEN, parseSessionCookie, sessionCookieVal
 import {
   createAccount,
   findAccountByEmail,
-  verifyAccountEmail,
   verifyAccountPassword,
   requestPasswordReset,
   confirmPasswordReset,
@@ -207,13 +206,6 @@ export async function handleProLogout(request: Request, env: Env): Promise<Respo
   const sessionId = parseSessionCookie(request);
   if (sessionId) await deleteSession(env.DB, sessionId);
   return jsonResponse(200, { ok: true }, { "Set-Cookie": clearSessionCookie() });
-}
-
-export async function handleProVerify(env: Env, token: string | null): Promise<Response> {
-  if (!token || hasControlChars(token)) return errorJson(400, "Missing or invalid verification token.");
-  const account = await verifyAccountEmail(env.DB, token);
-  if (!account) return errorJson(404, "That verification link is invalid or has already been used.");
-  return jsonResponse(200, { ok: true, verified: true });
 }
 
 export async function handleProPasswordResetRequest(request: Request, env: Env, ip: string): Promise<Response> {

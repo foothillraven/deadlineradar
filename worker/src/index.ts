@@ -76,13 +76,13 @@ import {
   handleProSignup,
   handleProLogin,
   handleProLogout,
-  handleProVerify,
   handleProPasswordResetRequest,
   handleProPasswordResetConfirm,
   handleCpeEntriesList,
   handleCpeEntriesCreate,
   handleCpeEntriesDelete,
 } from "./pro";
+import { verifyAccountEmail } from "./pro_store";
 
 function htmlPage(title: string, bodyHtml: string): string {
   return `<!doctype html>
@@ -116,6 +116,11 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
     heading: "Turn reminders back on",
     intro: "Click below to get reminders again for your next renewal cycle.",
     button: "Yes, remind me next cycle",
+  },
+  "/pro/verify": {
+    heading: "Verify your email",
+    intro: "Click below to verify your email and finish setting up your DeadlineRadar Pro account.",
+    button: "Verify my email",
   },
 };
 
@@ -533,6 +538,24 @@ async function handleRearm(env: Env, token: string | null): Promise<Response> {
   );
 }
 
+/** Same GET-page/POST-confirm shape as handleConfirm/handleUnsubscribe/etc.
+ * above -- calls pro_store's verifyAccountEmail() directly and renders the
+ * HTML result inline, same as those functions do with store.ts, rather than
+ * routing through pro.ts's handleProVerify (a JSON API responder meant for
+ * a different caller shape, not this email-link action flow). */
+async function handleProVerifyAction(env: Env, token: string | null): Promise<Response> {
+  if (!token) return errorPage(400, "Missing verification link.");
+  const account = await verifyAccountEmail(env.DB, token);
+  if (!account) return errorPage(404, "That verification link is invalid or already used.");
+  return htmlResponse(
+    200,
+    htmlPage(
+      "Verified",
+      "<h1>You're all set</h1><p>Your email is verified. You can log in to DeadlineRadar Pro now.</p>"
+    )
+  );
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -579,22 +602,12 @@ export default {
           return errorPage(400, "Something went wrong processing that request.");
         }
       }
-      // /pro/verify: MUTATES on GET (marks the account verified), which
-      // would normally need the same GET-page/POST-confirm split as
-      // ACTION_PATHS above. Deferred because no verification EMAIL is
-      // actually sent yet (worker/README.md) -- the email-scanner-auto-GET
-      // risk this pattern exists to prevent doesn't apply until a real
-      // sender is wired. MUST be converted to the GET-page/POST-confirm
-      // pattern before any real verification email is ever sent.
-      if (url.pathname === "/pro/verify") {
-        const allowed = await checkRateLimit(env.DB, ip, "pro_verify", RATE_LIMIT_ACTION);
-        if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
-        try {
-          return await handleProVerify(env, url.searchParams.get("token"));
-        } catch {
-          return errorPage(400, "Something went wrong processing that request.");
-        }
-      }
+      // /pro/verify now goes through ACTION_PATHS above like every other
+      // state-mutating action link (added to ACTION_PAGES) -- GET only
+      // renders the confirm page, the POST below (the page's own button)
+      // does the actual verification. This now matters for real: verify
+      // emails ARE sent (pro_emails.ts / sendBestEffort in pro.ts), so the
+      // email-scanner-auto-GET risk this split exists to prevent is live.
       return errorPage(404, "Not found.");
     }
 
@@ -683,6 +696,8 @@ export default {
               return await handleRenewed(env, token);
             case "/rearm":
               return await handleRearm(env, token);
+            case "/pro/verify":
+              return await handleProVerifyAction(env, token);
           }
         } catch {
           return errorPage(400, "Something went wrong processing that request.");

@@ -296,24 +296,54 @@ describe("POST /pro/password-reset/request and /confirm", () => {
   });
 });
 
-describe("GET /pro/verify", () => {
-  it("marks the account verified via its verification token", async () => {
+describe("/pro/verify (GET-page/POST-confirm, same split as /confirm etc.)", () => {
+  it("GET renders a confirm page without mutating -- account stays unverified until the POST", async () => {
     await signup({ email: "verify-flow-user@example.com", password: "a-perfectly-good-password" });
     const row = await env.DB.prepare("SELECT verification_token FROM accounts WHERE email = ?1")
       .bind("verify-flow-user@example.com")
       .first<{ verification_token: string }>();
     expect(row?.verification_token).toBeTruthy();
 
-    const res = await SELF.fetch(
+    const getRes = await SELF.fetch(
       `https://deadline-radar.com/pro/verify?token=${encodeURIComponent(row?.verification_token as string)}`
     );
-    expect(res.status).toBe(200);
-    const body = await res.json<{ ok: boolean; verified: boolean }>();
-    expect(body.verified).toBe(true);
+    expect(getRes.status).toBe(200);
+    const getBody = await getRes.text();
+    expect(getBody).toContain("Verify your email");
+
+    const stillUnverified = await env.DB.prepare("SELECT verified_at FROM accounts WHERE email = ?1")
+      .bind("verify-flow-user@example.com")
+      .first<{ verified_at: string | null }>();
+    expect(stillUnverified?.verified_at).toBeNull();
   });
 
-  it("rejects an invalid token", async () => {
-    const res = await SELF.fetch("https://deadline-radar.com/pro/verify?token=not-a-real-token");
+  it("POST actually verifies the account", async () => {
+    await signup({ email: "verify-flow-post@example.com", password: "a-perfectly-good-password" });
+    const row = await env.DB.prepare("SELECT verification_token FROM accounts WHERE email = ?1")
+      .bind("verify-flow-post@example.com")
+      .first<{ verification_token: string }>();
+
+    const postRes = await SELF.fetch("https://deadline-radar.com/pro/verify", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: form({ token: row?.verification_token as string }),
+    });
+    expect(postRes.status).toBe(200);
+    const postBody = await postRes.text();
+    expect(postBody).toContain("all set");
+
+    const nowVerified = await env.DB.prepare("SELECT verified_at FROM accounts WHERE email = ?1")
+      .bind("verify-flow-post@example.com")
+      .first<{ verified_at: string | null }>();
+    expect(nowVerified?.verified_at).toBeTruthy();
+  });
+
+  it("rejects an invalid token on POST", async () => {
+    const res = await SELF.fetch("https://deadline-radar.com/pro/verify", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: form({ token: "not-a-real-token" }),
+    });
     expect(res.status).toBe(404);
   });
 });

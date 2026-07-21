@@ -63,8 +63,10 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-/** store.py:63 `_new_token()` -- 32 bytes CSPRNG, url-safe base64. */
-function newToken(): string {
+/** store.py:63 `_new_token()` -- 32 bytes CSPRNG, url-safe base64. Exported
+ * for reuse by pro.ts (account/session/verification/reset tokens) -- same
+ * token shape everywhere in this codebase rather than a second copy. */
+export function newToken(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   let binary = "";

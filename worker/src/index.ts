@@ -72,6 +72,17 @@ import * as store from "./store";
 import { buildConfirmationEmail, buildStopConfirmationEmail, fmtDate } from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, sendViaSendGrid } from "./sender";
 import { StaleDataError as SchedulerStaleDataError, runReminderPass } from "./scheduler";
+import {
+  handleProSignup,
+  handleProLogin,
+  handleProLogout,
+  handleProVerify,
+  handleProPasswordResetRequest,
+  handleProPasswordResetConfirm,
+  handleCpeEntriesList,
+  handleCpeEntriesCreate,
+  handleCpeEntriesDelete,
+} from "./pro";
 
 function htmlPage(title: string, bodyHtml: string): string {
   return `<!doctype html>
@@ -557,6 +568,33 @@ export default {
         if (!token) return errorPage(400, "That link is missing its token.");
         return actionConfirmPage(url.pathname, token);
       }
+      // Pro tier -- read-only, no mutation on GET, so this doesn't need the
+      // ACTION_PATHS GET-page/POST-confirm split above (that split exists
+      // specifically to stop email-scanner auto-GETs from mutating state;
+      // a list endpoint has nothing to mutate).
+      if (url.pathname === "/pro/cpe-entries") {
+        try {
+          return await handleCpeEntriesList(request, env);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+      // /pro/verify: MUTATES on GET (marks the account verified), which
+      // would normally need the same GET-page/POST-confirm split as
+      // ACTION_PATHS above. Deferred because no verification EMAIL is
+      // actually sent yet (worker/README.md) -- the email-scanner-auto-GET
+      // risk this pattern exists to prevent doesn't apply until a real
+      // sender is wired. MUST be converted to the GET-page/POST-confirm
+      // pattern before any real verification email is ever sent.
+      if (url.pathname === "/pro/verify") {
+        const allowed = await checkRateLimit(env.DB, ip, "pro_verify", RATE_LIMIT_ACTION);
+        if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
+        try {
+          return await handleProVerify(env, url.searchParams.get("token"));
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
       return errorPage(404, "Not found.");
     }
 
@@ -564,6 +602,57 @@ export default {
       if (url.pathname === "/subscribe") {
         try {
           return await handleSubscribe(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
+      if (url.pathname === "/pro/signup") {
+        try {
+          return await handleProSignup(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+      if (url.pathname === "/pro/login") {
+        try {
+          return await handleProLogin(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+      if (url.pathname === "/pro/logout") {
+        try {
+          return await handleProLogout(request, env);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+      if (url.pathname === "/pro/password-reset/request") {
+        try {
+          return await handleProPasswordResetRequest(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+      if (url.pathname === "/pro/password-reset/confirm") {
+        try {
+          return await handleProPasswordResetConfirm(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+      if (url.pathname === "/pro/cpe-entries") {
+        try {
+          return await handleCpeEntriesCreate(request, env);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+      if (url.pathname.startsWith("/pro/cpe-entries/") && url.pathname.endsWith("/delete")) {
+        const entryId = url.pathname.slice("/pro/cpe-entries/".length, -"/delete".length);
+        try {
+          return await handleCpeEntriesDelete(request, env, entryId);
         } catch {
           return errorPage(400, "Something went wrong processing that request.");
         }

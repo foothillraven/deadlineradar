@@ -2878,13 +2878,26 @@ def build_cpe_hours_page(
     else:
         cross_link_text = f"See {state_name}'s CPA license renewal page"
 
+    # Gate the "Verified" badge on data_gap_note the same way
+    # build_reinstatement_page() does (added 2026-07-25, same adversarial RE-QA
+    # pass that flagged this page type as the one place a record admitting an
+    # unconfirmed sourcing leg still showed the unconditional badge). Older
+    # records (batches 1-4) predate this field entirely -- .get() returns None
+    # for them, so they keep showing "Verified" exactly as before; nothing
+    # about their own trust signal changes.
+    data_gap_note = cpe_record.get("data_gap_note")
+    verified_badge_html = "" if data_gap_note else '<span class="verified-badge">Verified</span>'
+    sourcing_note_html = (
+        f'<p class="disclosure">Sourcing note: {esc(data_gap_note)}</p>' if data_gap_note else ""
+    )
+
     body = f"""<h1>{esc(title)}</h1>
 <p class="intro">How much continuing professional education a {esc(state_name)} CPA actually
 needs &mdash; sourced the same way every fact on this site is: a board page plus the codified rule
 itself, never a guess.</p>
 
 <div class="callout">
-  <span class="verified-badge">Verified</span>
+  {verified_badge_html}
   <div class="label">CPE Hour Requirement</div>
   <div class="date">{cpe_record['total_hours']} hours {period_phrase}</div>
   <ul>
@@ -2892,6 +2905,7 @@ itself, never a guess.</p>
     {ethics_line}
   </ul>
   {_source_cite_html(cpe_record)}
+  {sourcing_note_html}
 </div>
 
 <p>{esc(cpe_record.get('notes', ''))}</p>

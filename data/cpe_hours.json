@@ -1,31 +1,41 @@
 {
   "_meta": {
-    "status": "LIVE on main — 43 states verified and published (was 23; +20 this batch, 2026-07-20)",
+    "status": "LIVE on main -- 50 states verified and published (was 43, +7 this batch, 2026-07-25)",
     "purpose": "Per orchestrator ruling 2026-07-15 (greenlit CPE-hours-by-state reference cluster, staged/batch-gated): a separate, standalone dataset for CPE HOUR requirements (distinct from cpa_deadlines.json's license RENEWAL DATES). Same 2-source verification standard: a board page + a codified rule/statute for every record.",
     "created": "2026-07-15",
-    "batch": "batch-4-2026-07-20",
-    "states_verified_this_batch": 20,
-    "states_total": 43,
+    "batch": "batch-5-2026-07-25",
+    "states_verified_this_batch": 7,
+    "states_total": 50,
     "held_pending_verification": [
-      "louisiana",
-      "utah",
-      "alabama",
-      "idaho",
-      "delaware",
-      "nebraska",
-      "new-hampshire",
-      "south-dakota"
+      "nebraska"
     ],
     "resolved_this_batch": [
       "Minnesota (fast-follow-1, corrected 2026-07-16): the original fast-follow-1 finding that Minnesota has 'no ongoing ethics-hour CPE requirement' was WRONG -- an orchestrator re-review caught it before fold-in. The ethics clause is in Minn. R. 1105.3100, subpart 4, item F ('at least eight hours must be obtained in regulatory ethics or behavioral ethics'), not in 1105.3000 where the original check looked. Re-verified against the raw rule text of 1105.3100 (two independent fetches) AND the Board's own CPE page (boa.state.mn.us/cpe.html, which states the same 8-hour figure in plain language). Corrected: ethics_hours 8, ethics_period_years 3, citation and notes rewritten.",
       "Maryland, Tennessee, New Jersey, Massachusetts (fast-follow-2): 4 new states, all verified via direct primary-source fetch (COMAR 09.24.02.03, Tenn. Comp. R. & Regs. 0020-05-.03(1), N.J.A.C. 13:29-6.2(a), 252 CMR 2.14). NJ and MA's own CPA-renewal DATE records (nj-individual/-firm, ma-individual/-firm) are separately unverified in cpa_deadlines.json; these CPE-hour facts don't depend on that and were independently confirmed.",
       "Colorado AND Michigan (fast-follow-3): BOTH resolved after retrying primary-source fetches with a standard browser identification string, which succeeded where prior attempts had been blocked. Colorado: found the correct citation is 3 CCR 705-1, Rule 1.6(G)(2)/(2)(b) -- NOT 'Rule 1.9/1.10' as virtually every secondary/vendor source claims (1.9 is actually a professional-conduct rule, unrelated to CPE hours) -- a real, primary-source-verified correctness catch, same caliber as the PA Section 11.65 and NC ethics-hours catches. Michigan: confirmed directly via the board's own official licensing guide PDF (MCL 339.729; R 338.5215, specifically (1)(h) for the MI-specific ethics hour).",
-      "Batch 4 (2026-07-20): 20 new states added — alaska, arkansas, connecticut, dc, hawaii, iowa, kansas, kentucky, maine, mississippi, montana, nevada, new-mexico, north-dakota, oklahoma, oregon, rhode-island, south-carolina, vermont, wyoming. Prioritized Kansas first (real organic traffic landed there this week, per the 2026-07-20 traffic report) ahead of pure population ordering. Each record independently adversarially re-verified (citation_url + source_url both fetched fresh, numbers cross-checked against the actual text) before integration, not just accepted from the first research pass. 8 additional candidates researched but held out this batch — real citation problems found by the verify pass (stale/renumbered sections, a dead source link, a mislabeled ethics-hour aggregate, one state — New Hampshire — where the underlying rule itself may have changed in 2025 and needs a fresh primary-source pass, not just a citation fix): louisiana, utah, alabama, idaho, delaware, nebraska, new-hampshire, south-dakota. See Orchestrator/inbox report for the full per-state reasoning on each held state."
+      "Batch 4 (2026-07-20): 20 new states added — alaska, arkansas, connecticut, dc, hawaii, iowa, kansas, kentucky, maine, mississippi, montana, nevada, new-mexico, north-dakota, oklahoma, oregon, rhode-island, south-carolina, vermont, wyoming. Prioritized Kansas first (real organic traffic landed there this week, per the 2026-07-20 traffic report) ahead of pure population ordering. Each record independently adversarially re-verified (citation_url + source_url both fetched fresh, numbers cross-checked against the actual text) before integration, not just accepted from the first research pass. 8 additional candidates researched but held out this batch — real citation problems found by the verify pass (stale/renumbered sections, a dead source link, a mislabeled ethics-hour aggregate, one state — New Hampshire — where the underlying rule itself may have changed in 2025 and needs a fresh primary-source pass, not just a citation fix): louisiana, utah, alabama, idaho, delaware, nebraska, new-hampshire, south-dakota. See Orchestrator/inbox report for the full per-state reasoning on each held state.",
+      "Batch 5 (2026-07-25): resolved 7 of the 8 states held since batch 4 -- louisiana, utah, alabama, idaho, delaware, new-hampshire, south-dakota. Each independently re-researched from scratch (not just patching the flagged citation), with 2 real substantive findings along the way: New Hampshire's 2025 rulemaking genuinely did change 120hrs/3yr to 80hrs/2yr (confirmed via Wayback-archived primary rule text after the live board site 403'd every automated fetch), and Utah's old '4 ethics hours' figure was a mislabeled sum of 3 ethics + 1 separate law-and-rules-review hour, corrected to report the true ethics-specific figure. Nebraska stays HELD -- deeper research (53 tool calls) confirmed the state's own codified statute/admin code never states '80 hours' as a number (only 'ten days,' undefined in hours); the 80-hour figure exists only in the board's non-codified guidance document, a genuine unresolved 2-source gap, not fixed by finding a better link. Louisiana and South Dakota ship with an honest null on ethics_hours/annual-minimum-hours respectively rather than repeating a non-codified board-page number as if it were verified law."
     ],
     "publish_rule": "Batch 4 (2026-07-20) states are LIVE — orchestrator directive explicitly authorized shipping content expansion directly (\"ship it, report what shipped\"), unlike the original 23-state launch which held for a separate go-live review. Future batches: same standard applies unless told otherwise.",
     "does_not_touch": "cpe_hours.json itself makes no edits to data/cpa_deadlines.json or worker/src/cpa_deadlines.json -- separate dataset, separate concern (renewal DATE vs CPE HOUR-COUNT are different facts about the same states). This branch was rebased onto main on 2026-07-16 specifically so its own (now-current) copies of cpa_deadlines.json carry forward the live Louisiana citation-link fix rather than reverting it -- confirmed no diff against main in either cpa_deadlines.json file post-rebase."
   },
   "records": [
+    {
+      "id": "al-cpe",
+      "state": "Alabama",
+      "state_slug": "alabama",
+      "citation": "Ala. Admin. Code r. 30-X-5-.02 (Hours Required)",
+      "citation_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-5",
+      "source_url": "https://asbpa.alabama.gov/licensees/cpe/",
+      "total_hours": 40,
+      "period_years": 1,
+      "annual_minimum_hours": 40,
+      "ethics_hours": 2,
+      "ethics_period_years": 1,
+      "notes": "Alabama CPAs must complete 40 hours of CPE every fiscal year (October 1 to September 30) rather than a multi-year cycle, and hours do not carry over. At least 8 of the 40 hours must be in accounting and auditing, at least 2 hours must be a qualifying ethics course, and no more than 12 hours can come from personal-development topics.",
+      "verified_2026-07-25": true,
+      "data_gap_note": null
+    },
     {
       "id": "ak-cpe",
       "state": "Alaska",
@@ -132,6 +142,22 @@
       "verified_2026-07-20": true
     },
     {
+      "id": "de-cpe",
+      "state": "Delaware",
+      "state_slug": "delaware",
+      "citation": "24 Del. Admin. Code § 100-7.0 (as amended by 27 Del. Reg. 978, eff. July 1, 2024)",
+      "citation_url": "https://archive.regulations.delaware.gov/AdminCode/title24/100.shtml",
+      "source_url": "https://dpr.delaware.gov/boards/accountancy/ce-audit-information/",
+      "total_hours": 80,
+      "period_years": 2,
+      "annual_minimum_hours": 20,
+      "ethics_hours": 4,
+      "ethics_period_years": 2,
+      "notes": "Delaware CPAs must complete 80 hours of approved CPE every two-year permit period (ending June 30 of odd-numbered years), with at least 20 hours completed each year. Of the 80 hours, 8 must be in accounting/auditing, 8 in taxation, and 4 in a board-approved Delaware-specific ethics course, with the remaining 20+ hours in accounting, auditing, or taxation.",
+      "verified_2026-07-25": true,
+      "data_gap_note": null
+    },
+    {
       "id": "fl-cpe",
       "state": "Florida",
       "state_slug": "florida",
@@ -175,6 +201,22 @@
       "ethics_period_years": 2,
       "notes": "Hawaii CPAs/permit holders must complete at least 80 hours of CPE within the 24-month period preceding a biennial permit renewal (renewal due Dec 31 of odd-numbered years), with a minimum of 20 hours earned within each calendar year, and at least 4 of the 80 hours must be in ethics or professional conduct (these 4 hours also simultaneously satisfy the separate license-renewal ethics attestation under §16-71-2). Confirmed by reading the complete official Hawaii Administrative Rules Chapter 71 text (§§16-71-2 and 16-71-33) as hosted on the state's own cca.hawaii.gov site. Maximum carryover of excess hours to the next biennium is 40 hours; new CPAs get 80 hours of automatic CPE credit for passing the AICPA exam (or 40 hours if claimed in year 3).",
       "verified_2026-07-20": true
+    },
+    {
+      "id": "id-cpe",
+      "state": "Idaho",
+      "state_slug": "idaho",
+      "citation": "IDAPA 24.30.01.111 (Idaho Accountancy Rules, CPE Basic Requirements)",
+      "citation_url": "https://www.law.cornell.edu/regulations/idaho/IDAPA-24.30.01.111",
+      "source_url": "https://dopl.idaho.gov/boa/boa-cpe/",
+      "total_hours": 80,
+      "period_years": 2,
+      "annual_minimum_hours": 30,
+      "ethics_hours": 4,
+      "ethics_period_years": 2,
+      "notes": "Idaho CPAs must complete 80 CPE hours every rolling two-year period, with at least 30 hours (and no more than 50) recorded in any single calendar year, plus at least 4 ethics hours within that two-year window. New and reciprocal licensees instead complete a 2-hour Idaho-specific ethics course in their first calendar year, then a 30-hour minimum in year two.",
+      "verified_2026-07-25": true,
+      "data_gap_note": null
     },
     {
       "id": "il-cpe",
@@ -250,6 +292,22 @@
       "ethics_period_years": 2,
       "notes": "Kentucky runs a dual-track CPE requirement over a 2-year reporting period (the two calendar years immediately prior to the renewal year): a CPA who worked 3,000+ hours in a board-licensed public accounting firm during that period must complete 80 CPE hours; all other licensees (fewer public-accounting hours, industry, government, academia) complete only 60 hours. Both tracks require 2 hours of professional ethics, counted within the total -- the ethics course does not need to be Kentucky-specific; general ethics content qualifies. Since January 1, 2021, 50% of the required hours (40 of 80, or 30 of 60) must be 'technical standards' courses. CPAs performing attest or SSARS compilation engagements must separately complete 8 hours/year (16 over the 2-year cycle) of accounting or auditing CPE regardless of track.",
       "verified_2026-07-20": true
+    },
+    {
+      "id": "la-cpe",
+      "state": "Louisiana",
+      "state_slug": "louisiana",
+      "citation": "Louisiana Administrative Code, Title 46, Part XIX, §1301(A)",
+      "citation_url": "https://www.law.cornell.edu/regulations/louisiana/La-Admin-Code-tit-46-SS-XIX-1301",
+      "source_url": "https://cpaboard.state.la.us/cpe/",
+      "total_hours": 80,
+      "period_years": 2,
+      "annual_minimum_hours": 20,
+      "ethics_hours": null,
+      "ethics_period_years": null,
+      "notes": "Louisiana CPAs must complete 80 hours of CPE within a rolling two-calendar-year period, with a minimum of 20 hours in each individual year. Certificate holders who work on attest engagements must also complete at least 8 of those hours in accounting and auditing subjects each year. The codified rule requires a board-approved ethics course but leaves the specific hour count to board practice rather than fixing a number in the rule text itself.",
+      "verified_2026-07-25": true,
+      "data_gap_note": null
     },
     {
       "id": "me-cpe",
@@ -385,6 +443,22 @@
       "ethics_period_years": 1,
       "notes": "Nevada runs an ANNUAL cycle, not the 2-year cycle most states use: 40 CPE hours every calendar year (Jan 1-Dec 31), including 2 hours of professional ethics every year. No carryover of excess hours is allowed. If the licensee performed audit, review, compilation, or attestation services in the prior 12 months, an additional 8 hours in accounting and auditing are required that year. First annual renewal after initial licensure is exempt. Interpretation trap: several CPE-vendor sites (Surgent, NinjaCPE, Encoursa) wrongly describe Nevada as an '80 hours per 2 years / 4 hours ethics' state -- that figure does not match the board's own site or the codified NAC text, both of which confirm the 40-hour annual cycle with 2 annual ethics hours. Verified against both NAC 628.210 (Cornell regulations mirror, full text read) and the Nevada State Board of Accountancy's own education page.",
       "verified_2026-07-20": true
+    },
+    {
+      "id": "nh-cpe",
+      "state": "New Hampshire",
+      "state_slug": "new-hampshire",
+      "citation": "N.H. Code Admin. R. Ac 403.01 (readopted with amendment eff. 7/17/2025, Rulemaking Docket #2024-248)",
+      "citation_url": "https://www.oplc.nh.gov/sites/g/files/ehbemt441/files/inline-documents/20250717_ac400adoptedtext.pdf",
+      "source_url": "https://www.oplc.nh.gov/accountancy-continuing-professional-education",
+      "total_hours": 80,
+      "period_years": 2,
+      "annual_minimum_hours": 20,
+      "ethics_hours": 4,
+      "ethics_period_years": 2,
+      "notes": "New Hampshire moved CPA certificates from a 3-year to a 2-year renewal cycle for anyone issued or renewing after 2/22/2023, and CPE dropped in lockstep from 120 hours/3-year period to 80 hours/2-year period, with a 20-hour annual floor and 4 ethics hours per 2-year period. The rule chapter was formally readopted with amendment effective 7/17/2025 (docket 2024-248) to codify the 80/2yr structure. Legacy 3-year licenses issued/renewed before 2/22/2023 are grandfathered under a prorated 120-hour schedule until they transition.",
+      "verified_2026-07-25": true,
+      "data_gap_note": "The board's own accountancy CPE page and the rulemaking docket's adopted-text PDF state these figures, but oplc.nh.gov currently blocks automated access, so this specific fact could not be freshly re-confirmed by an automated check at publish time -- only by matching an archived copy of the same page and the same docket's earlier final-proposal text. Recommend a manual check of the board's page if you want to see it firsthand."
     },
     {
       "id": "nj-cpe",
@@ -552,6 +626,22 @@
       "verified_2026-07-20": true
     },
     {
+      "id": "sd-cpe",
+      "state": "South Dakota",
+      "state_slug": "south-dakota",
+      "citation": "SDCL 36-20B-27",
+      "citation_url": "https://sdlegislature.gov/api/Statutes/36-20B-27.html",
+      "source_url": "https://dlr.sd.gov/accountancy/faq.aspx",
+      "total_hours": 120,
+      "period_years": 3,
+      "annual_minimum_hours": 20,
+      "ethics_hours": null,
+      "ethics_period_years": null,
+      "notes": "South Dakota CPAs on active status must complete 120 hours of CPE in each rolling three-year renewal period, with the board's own FAQ stating a minimum of 20 hours must be reported each year. There is no separate ongoing ethics-CPE-hour mandate -- South Dakota only requires the one-time AICPA ethics exam at initial licensure, not recurring ethics CPE. The correct general-renewal authority is SDCL 36-20B-27, not the administrative rule governing the first (initial-certificate phase-in) renewal only.",
+      "verified_2026-07-25": true,
+      "data_gap_note": "total_hours/period_years are fully 2-sourced: SDCL 36-20B-27's primary text (fetched directly) states '120 hours of continuing education in each three-year renewal period,' matching the board's FAQ. The 20-hour annual_minimum_hours figure is confirmed only on the board's own FAQ page, not independently in the statute text or in the administrative rule chapter (whose only annual-minimum language governs the initial-certificate phase-in population specifically, not general renewal) -- single-sourced, disclosed rather than silently treated as codified."
+    },
+    {
       "id": "tn-cpe",
       "state": "Tennessee",
       "state_slug": "tennessee",
@@ -580,6 +670,22 @@
       "ethics_period_years": 2,
       "notes": "120 CPE credits per rolling 3-year period tied to the licensee's own birth month (see the CPA-renewal dataset's tx-individual gap record for why the renewal DATE itself is birth-month-personalized and unverified as a fixed date -- the CPE HOUR-COUNT rule itself, unlike the date, is a fixed statewide number, confirmed directly against §523.112). Minimum 20 credits per 1-year period. A board-approved 4-hour, Texas-specific ethics course is required every 2 years (§523.130/.131), counting toward the 120-hour total.",
       "verified_2026-07-15": true
+    },
+    {
+      "id": "ut-cpe",
+      "state": "Utah",
+      "state_slug": "utah",
+      "citation": "Utah Admin. Code R156-26a-303b(1)-(2)",
+      "citation_url": "https://www.law.cornell.edu/regulations/utah/Utah-Admin-Code-R156-26a-303b",
+      "source_url": "https://commerce.utah.gov/wp-content/uploads/2025/07/CPA-CPE-FAQs_20250610.pdf",
+      "total_hours": 80,
+      "period_years": 2,
+      "annual_minimum_hours": null,
+      "ethics_hours": 3,
+      "ethics_period_years": 2,
+      "notes": "Utah CPAs must complete 80 CPE hours every two-year cycle (ending Dec 31 of even-numbered years), with no hours due at a licensee's first renewal after initial licensure. Within that 80, the rule sets two separate requirements: 3 hours of ethics education plus a separate 1 hour covering Utah CPA law and rules -- these are two distinct categories, not one combined 4-hour ethics figure.",
+      "verified_2026-07-25": true,
+      "data_gap_note": "The board's own CPA CPE FAQ (Utah DOPL, rev. 2025-07-10) states these figures, but its web domain currently blocks automated access, so this specific fact could not be freshly re-confirmed by an automated check at publish time -- only by matching search-engine copies of the same page. The codified rule text itself (linked above) was fetched and confirmed directly and states the same figures. Recommend a manual check of the board's page if you want to see it firsthand."
     },
     {
       "id": "vt-cpe",

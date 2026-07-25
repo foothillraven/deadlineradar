@@ -1629,12 +1629,29 @@ def build_state_page(
         )
     else:
         title_year = compute_title_year(state_slug, records)
+        # CTR fix (2026-07-25, per GSC: avg position ~19, 0.42% CTR across 711
+        # impressions/28 days -- real discoverability, near-zero click-through).
+        # Leading the SERP snippet with the actual date answers the query
+        # directly instead of making a searcher click through to find out --
+        # the single highest-leverage, lowest-risk copy change available
+        # without touching title text (which risks ranking volatility on
+        # already-indexed URLs). Falls back to the prior generic framing
+        # whenever no single clean individual-facing date exists (multi-
+        # record/cohort/data-gap states), same as before this pass.
+        primary_date_iso = _primary_individual_date(records)
+        primary_date_str = fmt_date(date.fromisoformat(primary_date_iso)) if primary_date_iso else None
         if title_year is not None:
             title = f"{state_name} CPA License Renewal Deadline {title_year}"
-            meta_description = (
-                f"{state_name} CPA license renewal deadline for {title_year}: when it's due, "
-                f"how the renewal cycle works, and the official state board source to confirm it."
-            )
+            if primary_date_str:
+                meta_description = (
+                    f"{state_name} CPA license renewal is due {primary_date_str}. See the renewal "
+                    f"cycle details and the official state board source to confirm it."
+                )
+            else:
+                meta_description = (
+                    f"{state_name} CPA license renewal deadline for {title_year}: when it's due, "
+                    f"how the renewal cycle works, and the official state board source to confirm it."
+                )
         else:
             title = f"{state_name} CPA License Renewal Deadline"
             meta_description = (
@@ -2839,10 +2856,21 @@ def build_cpe_hours_page(
     slug = f"{cpe_record['state_slug']}-cpa-cpe-requirements"
     title = f"{state_name} CPA CPE Requirements: How Many Hours, By When"
     period_phrase = _every_n_years(cpe_record["period_years"])
+    # CTR fix (2026-07-25, per GSC: avg position ~19, 0.42% CTR): the raw legal
+    # citation at the end of the old meta description ate SERP-snippet space
+    # without giving a searcher a reason to click -- it's already shown
+    # on-page as the trust signal, doesn't need to double as click-bait copy.
+    # Swapped for the ethics-hour figure when the state has one (a real,
+    # frequently-searched sub-question -- "how many ethics hours" is its own
+    # distinct query), falling back to a plain benefit line otherwise.
+    ethics_hours = cpe_record.get("ethics_hours")
+    if ethics_hours:
+        meta_tail = f"including {ethics_hours} ethics hours, verified against the state's own rule."
+    else:
+        meta_tail = "verified against the state's own board rule, not a guess."
     meta_description = (
         f"How many CPE hours does {state_name} require for CPAs, and by when? "
-        f"{cpe_record['total_hours']} hours {period_phrase}, sourced to "
-        f"{cpe_record['citation']}."
+        f"{cpe_record['total_hours']} hours {period_phrase}, {meta_tail}"
     )
 
     ethics_line = ""
@@ -3027,11 +3055,24 @@ def build_reinstatement_page(record: dict, renewal_records: list[dict], cpe_reco
     slug = f"{record['state_slug']}-cpa-license-reinstatement"
     title = f"{state_name} CPA License Reinstatement: What a Lapsed License Costs"
     fee_str = _reinstatement_fee_str(record.get("reinstatement_fee_usd"))
-    fee_summary = fee_str if fee_str is not None else "a formula, not a flat fee (see below)"
-    meta_description = (
-        f"What does it cost to reinstate a lapsed {state_name} CPA license? "
-        f"{fee_summary} plus any required catch-up CPE, sourced to {record['citation']}."
-    )
+    # CTR fix (2026-07-25, per GSC: avg position ~19, 0.42% CTR): the original
+    # version appended the full legal citation to every meta description --
+    # for a multi-section reinstatement citation that ran as long as 260+
+    # characters (Google truncates around 155-160), cutting the snippet off
+    # mid-sentence. Dropped the citation (already the on-page trust signal,
+    # not a click driver) and reframed the formula-fee case as a reason to
+    # click through rather than a dead-end "see below."
+    if fee_str is not None:
+        meta_description = (
+            f"What does it cost to reinstate a lapsed {state_name} CPA license? "
+            f"{fee_str} plus the exact catch-up CPE required, sourced to the state's own rule."
+        )
+    else:
+        meta_description = (
+            f"What does it cost to reinstate a lapsed {state_name} CPA license? "
+            f"The fee follows a formula, not a flat rate -- see the exact breakdown and the "
+            f"catch-up CPE required."
+        )
 
     # A record whose own data_gap_note admits the board-page leg of the 2-source
     # rule isn't fully confirmed (e.g. a fetch that 404'd during research) must not

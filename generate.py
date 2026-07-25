@@ -2865,7 +2865,13 @@ def build_cpe_hours_page(
     # distinct query), falling back to a plain benefit line otherwise.
     ethics_hours = cpe_record.get("ethics_hours")
     if ethics_hours:
-        meta_tail = f"including {ethics_hours} ethics hours, verified against the state's own rule."
+        # Same singular/plural guard as the body's ethics_line below -- caught
+        # by an adversarial RE-QA pass (2026-07-25): North Carolina's real
+        # 1-hour ethics requirement was rendering as "1 ethics hours" in the
+        # meta description, a live SERP-facing typo this fix's own goal
+        # (sharper copy) made doubly relevant to catch.
+        meta_ethics_word = "hour" if ethics_hours == 1 else "hours"
+        meta_tail = f"including {ethics_hours} ethics {meta_ethics_word}, verified against the state's own rule."
     else:
         meta_tail = "verified against the state's own board rule, not a guess."
     meta_description = (
@@ -3245,9 +3251,8 @@ real reminder tied to the actual date &mdash; not a guess, a memory, or someone 
         "slug": "missouri-cpa-license-renewal-guide",
         "title": "How CPA License Renewal Works in Missouri: Dates, Fees, CPE, and Deadlines",
         "meta_description": (
-            "A complete guide to Missouri CPA license renewal: the real renewal dates for "
-            "individual licenses and firm permits, CPE requirements, fees, and what happens if you "
-            "miss a deadline — sourced to the Missouri Board's own rules."
+            "Missouri CPA license renewal: the real dates for individual licenses and firm "
+            "permits, CPE requirements, fees, and what happens if you miss a deadline."
         ),
         "body_html": """
 <p class="intro">Missouri runs two genuinely different renewal cycles depending on whether you hold
@@ -3300,9 +3305,8 @@ you don't have to hold all three in your head.</p>
         "slug": "arizona-cpa-license-renewal-guide",
         "title": "How CPA License Renewal Works in Arizona: Birth-Month Cycles, Firm Registration, and Deadlines",
         "meta_description": (
-            "A complete guide to Arizona CPA license renewal: how the birth-month/parity cycle "
-            "works, why firm registration runs on a separate clock, CPE timing, and what happens "
-            "if you miss the deadline — sourced to Arizona's own statute and rule."
+            "Arizona CPA license renewal: how the birth-month/parity cycle works, why firm "
+            "registration runs on a separate clock, and what happens if you miss the deadline."
         ),
         "body_html": """
 <p class="intro">Arizona doesn't renew every CPA on the same date &mdash; your individual certificate
@@ -3352,9 +3356,8 @@ at when "renewal season" is.</p>
         "slug": "why-some-states-need-your-birth-month",
         "title": "Why This Site Sometimes Asks for Your Birth Month Instead of Just Showing a Date",
         "meta_description": (
-            "Some states renew every CPA license on one fixed date. Others compute your exact "
-            "deadline from your own birth month or birth year. Here's the real difference, "
-            "state by state, and why we ask instead of guess."
+            "Some states renew every CPA license on one fixed date. Others compute it from your "
+            "birth month or year. The real difference, state by state, and why we ask instead of guess."
         ),
         "body_html": """
 <p class="intro">Most of this site works the same way for every visitor to a given state page: pick
@@ -3416,9 +3419,8 @@ guess.</p>
         "slug": "illinois-cpa-license-renewal-guide",
         "title": "How CPA License Renewal Works in Illinois: Dates, CPE, and Firm Registration",
         "meta_description": (
-            "A complete guide to Illinois CPA license renewal: the 3-year individual and firm "
-            "cycles, the 120-hour CPE requirement, and the separate sexual harassment prevention "
-            "training rule — sourced to the Illinois Administrative Code."
+            "Illinois CPA license renewal: the 3-year individual and firm cycles, the 120-hour "
+            "CPE requirement, and the separate sexual harassment prevention training rule."
         ),
         "body_html": """
 <p class="intro">Illinois runs individual licenses and firm licenses on the same 3-year cycle length,
@@ -3466,9 +3468,8 @@ second, separate line item from your 4 ethics hours.
         "slug": "connecticut-cpa-license-renewal-guide",
         "title": "How CPA License Renewal Works in Connecticut: Two Clocks That Don't Line Up",
         "meta_description": (
-            "A complete guide to Connecticut CPA license renewal: the calendar-year license cycle, "
-            "the separate fiscal-year CPE clock, and the firm-permit date that isn't codified — "
-            "sourced to Connecticut's own regulations."
+            "Connecticut CPA license renewal: the calendar-year license cycle, the separate "
+            "fiscal-year CPE clock, and the firm-permit date that isn't codified."
         ),
         "body_html": """
 <p class="intro">Connecticut is one of the few states where your license renewal and your CPE
@@ -3523,10 +3524,9 @@ catches you off guard.</p>
         "slug": "wisconsin-cpa-license-renewal-guide",
         "title": "How CPA License Renewal Works in Wisconsin: One Date for Everyone",
         "meta_description": (
-            "A complete guide to Wisconsin CPA license renewal: the biennial December 15 deadline "
-            "that applies to individuals and firms alike, the 80-hour CPE requirement's two-half "
-            "pacing rule, and a real discrepancy between the statute and Board materials — sourced "
-            "to Wisconsin's own statute and administrative code."
+            "Wisconsin CPA license renewal: the biennial December 15 deadline for individuals and "
+            "firms, the 80-hour CPE two-half pacing rule, and a real discrepancy between the "
+            "statute and Board materials."
         ),
         "body_html": """
 <p class="intro">Wisconsin keeps this simpler than most states in one specific way: individual

@@ -38,6 +38,10 @@ DATA_PATH = ROOT / "data" / "cpa_deadlines.json"
 # DATE data above -- same 2-source verification standard, never merged with
 # cpa_deadlines.json. See data/cpe_hours.json's own _meta block for status.
 CPE_HOURS_DATA_PATH = ROOT / "data" / "cpe_hours.json"
+# Separate dataset (2026-07-25): what a LAPSED license costs to reinstate --
+# fee + penalty/catch-up CPE hours. Distinct from both datasets above, same
+# 2-source verification standard. See data/reinstatement.json's own _meta.
+REINSTATEMENT_DATA_PATH = ROOT / "data" / "reinstatement.json"
 # "docs" (not "site") deliberately -- this is the zero-config GitHub Pages
 # convention (Settings > Pages > Deploy from a branch > /docs), so this
 # directory becomes the deploy target as-is once a repo + Pages source exist.
@@ -242,7 +246,7 @@ PAGE_CSS = """
   }
   :root {
     color-scheme: light dark;
-    /* Tokens match the Devin-approved concept (deadlineradar_concept_v1_APPROVED.html) exactly. */
+    /* Tokens match the approved design concept exactly. */
     --bg: #f7f9fb; --page-bg: #f7f9fb; --fg: #17212b; --muted: #5a6b7a; --faint: #8595a3;
     --border: #e0e6ec; --border-strong: #c8d2db;
     --accent: #1f3d54; --accent-deep: #152c3e; --accent-bg: #eaeef1; --card-bg: #ffffff;
@@ -1549,7 +1553,7 @@ def _related_states_html(state_slug: str, records: list[dict], by_slug: dict[str
 
 def build_state_page(
     state_slug: str, records: list[dict], as_of: date, by_slug: dict[str, list[dict]] | None = None,
-    cpe_hours_by_slug: dict[str, dict] | None = None,
+    cpe_hours_by_slug: dict[str, dict] | None = None, reinstatement_by_slug: dict[str, dict] | None = None,
 ) -> tuple[str, str]:
     """Returns (title, html_body) for a state's page."""
     state_name = records[0]["state"]
@@ -1609,6 +1613,9 @@ def build_state_page(
     cpe_hours_link_html = (
         _cpe_hours_reverse_link_html(state_slug, cpe_hours_by_slug) if cpe_hours_by_slug else ""
     )
+    reinstatement_link_html = (
+        _reinstatement_reverse_link_html(state_slug, reinstatement_by_slug) if reinstatement_by_slug else ""
+    )
     body = f"""<h1>{esc(title)}</h1>
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
 {deadline_html}
@@ -1617,6 +1624,7 @@ def build_state_page(
 {_cpe_affiliate_html()}
 {related_html}
 {cpe_hours_link_html}
+{reinstatement_link_html}
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 """
     json_ld = [_breadcrumb_schema(state_name, state_slug)]
@@ -2597,6 +2605,20 @@ def load_cpe_hours_by_slug() -> dict[str, dict]:
 CPE_HOURS_PAGES: list[dict] = []
 
 
+def load_reinstatement_by_slug() -> dict[str, dict]:
+    """Reinstatement-cost cluster (2026-07-25): keyed by state_slug, same loading
+    shape as load_cpe_hours_by_slug() and for the same reason -- independent input
+    data, needed before the main per-state loop runs so build_state_page()'s reverse
+    cross-link can use it immediately."""
+    if not REINSTATEMENT_DATA_PATH.exists():
+        return {}
+    data = json.loads(REINSTATEMENT_DATA_PATH.read_text(encoding="utf-8"))
+    return {r["state_slug"]: r for r in data["records"]}
+
+
+REINSTATEMENT_PAGES: list[dict] = []
+
+
 def _firm_relevant_record(records: list[dict]) -> dict | None:
     """Picks the record that best represents a state's FIRM-level registration/permit,
     for the firm-oriented SEO landing pages. Prefers a dedicated firm-type record
@@ -2715,6 +2737,32 @@ def _cpe_hours_signup_html(cpe_record: dict, renewal_records: list[dict], as_of:
 </div>"""
 
 
+def _reinstatement_signup_html(state_slug: str, state_name: str, renewal_records: list[dict], as_of: date) -> str:
+    """Same compact capture pattern as _cpe_hours_signup_html() -- same real
+    /subscribe backend, bot-defense fields, extra-fields mechanism -- but with
+    copy that actually fits a reinstatement page: a visitor here already lapsed
+    (or is worried they're about to), so the honest hook is "don't let it
+    happen again," not the CPE-hours page's "CPE and renewal are on related
+    clocks" framing, which doesn't make sense in this context."""
+    if not renewal_records:
+        return ""
+    extra_fields = _extra_fields_html(state_slug, renewal_records, as_of)
+    return f"""<div class="signup-form signup-form--compact" id="remind">
+  <form method="post" action="{esc(REMINDER_BACKEND_BASE_URL)}/subscribe">
+    <input type="hidden" name="state" value="{esc(state_slug)}">
+    {_BOT_DEFENSE_FIELDS_HTML}
+    <label for="reinstate-email-{esc(state_slug)}" class="signup-form-compact-label">
+      Don't let it lapse again &mdash; get reminded before {esc(state_name)}'s next renewal date:
+    </label>
+    <div class="signup-form-row">
+      <input type="email" id="reinstate-email-{esc(state_slug)}" name="email" required placeholder="you@example.com">
+      <button type="submit">Remind me</button>
+    </div>
+    {extra_fields}
+  </form>
+</div>"""
+
+
 def _every_n_years(n: int) -> str:
     """'every year' not 'every 1 year' -- the pluralization artifact the
     orchestrator's go-live review caught (2026-07-15). Used everywhere a CPE
@@ -2722,7 +2770,10 @@ def _every_n_years(n: int) -> str:
     return "every year" if n == 1 else f"every {n} years"
 
 
-def build_cpe_hours_page(cpe_record: dict, renewal_records: list[dict], as_of: date) -> tuple[str, str, str]:
+def build_cpe_hours_page(
+    cpe_record: dict, renewal_records: list[dict], as_of: date,
+    reinstatement_by_slug: dict[str, dict] | None = None,
+) -> tuple[str, str, str]:
     """CPE-hours-by-state page (2026-07-15 cluster). Flat sibling slug, same
     convention as build_firm_landing_page() -- e.g. /arizona-cpa-cpe-requirements/
     sits alongside /arizona/, not nested under it. Returns (slug, title, html),
@@ -2791,6 +2842,8 @@ itself, never a guess.</p>
 
 {_cpe_hours_signup_html(cpe_record, renewal_records, as_of)}
 
+{_reinstatement_reverse_link_html(cpe_record["state_slug"], reinstatement_by_slug) if reinstatement_by_slug else ""}
+
 <p class="backlink-cross"><a href="../{esc(cpe_record['state_slug'])}/">{esc(cross_link_text)} &rarr;</a></p>
 
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
@@ -2828,6 +2881,147 @@ def _cpe_hours_reverse_link_html(state_slug: str, cpe_hours_by_slug: dict[str, d
         f'<p class="backlink-cross"><a href="../{esc(slug)}/">How many CPE hours does '
         f'{esc(cpe_record["state"])} require? &rarr;</a></p>'
     )
+
+
+def _reinstatement_reverse_link_html(state_slug: str, reinstatement_by_slug: dict[str, dict]) -> str:
+    """Reverse cross-link (renewal/CPE-hours page -> reinstatement page), same
+    bidirectional-cross-link discipline as _cpe_hours_reverse_link_html(). Renders
+    nothing if this state has no reinstatement record yet (most states, until the
+    cluster grows past batch 1)."""
+    record = reinstatement_by_slug.get(state_slug)
+    if not record:
+        return ""
+    slug = f"{state_slug}-cpa-license-reinstatement"
+    return (
+        f'<p class="backlink-cross"><a href="../{esc(slug)}/">What does it cost to reinstate a lapsed '
+        f'{esc(record["state"])} license? &rarr;</a></p>'
+    )
+
+
+def _reinstatement_fee_str(fee: float | int | None) -> str | None:
+    """Single formatter for a reinstatement fee, shared by the page body and the
+    meta description -- factored out after an adversarial RE-QA pass (2026-07-25)
+    caught the two call sites rounding a fractional fee (Kansas's $247.50)
+    differently, so the meta tag and the visible page disagreed on the same
+    number. Returns None (not a fallback string) when there's no flat fee, so
+    every caller must handle that case explicitly rather than inherit a default."""
+    if fee is None:
+        return None
+    return f"${fee:,.2f}" if isinstance(fee, float) and not fee.is_integer() else f"${fee:,.0f}"
+
+
+def _reinstatement_fee_line_html(record: dict) -> str:
+    """Fee is a flat dollar figure for most states but a formula for a few (Texas,
+    Ohio, Illinois's cap-not-flat case) -- render honestly either way, never forcing
+    a formula into a fake point number."""
+    fee_str = _reinstatement_fee_str(record.get("reinstatement_fee_usd"))
+    notes = record.get("reinstatement_fee_notes") or ""
+    if fee_str is not None:
+        return f"<div class=\"date\">{esc(fee_str)}</div><p>{esc(notes)}</p>"
+    # Every null-fee record's own notes text already opens with "No flat fee --"
+    # (see data/reinstatement.json) explaining the formula, so this branch renders
+    # the notes as-is rather than prepending a second, redundant "No flat fee" label.
+    return f"<p>{esc(notes)}</p>"
+
+
+def _reinstatement_cpe_line_html(record: dict) -> str:
+    hours = record.get("penalty_cpe_hours")
+    notes = record.get("penalty_cpe_notes") or ""
+    ethics = record.get("penalty_ethics_hours")
+    parts = []
+    if hours is not None:
+        parts.append(f"<li><strong>{hours} CPE hours</strong> {esc(notes)}</li>")
+    elif notes:
+        parts.append(f"<li>{esc(notes)}</li>")
+    if ethics is not None:
+        parts.append(f"<li><strong>{ethics} ethics hours</strong>, within that total.</li>")
+    return "\n    ".join(parts)
+
+
+def build_reinstatement_page(record: dict, renewal_records: list[dict], cpe_record: dict | None, as_of: date) -> tuple[str, str, str]:
+    """Reinstatement-cost lead-magnet page (2026-07-25 affiliate-pivot batch).
+    Flat sibling slug, same convention as build_cpe_hours_page() --
+    /florida-cpa-license-reinstatement/ sits alongside /florida/, not nested
+    under it. Returns (slug, title, html), same shape as the other flat-page
+    builders for the same reason: main() needs the slug to register it
+    (sitemap, cross-links) without re-deriving it.
+
+    This page answers a panicked-lapser's search at peak intent -- the exact
+    empty shelf ScoutLab's 2026-07-21 product register identified: no per-state
+    reinstatement calculator exists anywhere. Same 2-source sourcing discipline
+    as every other page on this site; a state whose real fee/hours figure is a
+    formula (not a flat number) says so honestly rather than forcing a guess."""
+    state_name = record["state"]
+    slug = f"{record['state_slug']}-cpa-license-reinstatement"
+    title = f"{state_name} CPA License Reinstatement: What a Lapsed License Costs"
+    fee_str = _reinstatement_fee_str(record.get("reinstatement_fee_usd"))
+    fee_summary = fee_str if fee_str is not None else "a formula, not a flat fee (see below)"
+    meta_description = (
+        f"What does it cost to reinstate a lapsed {state_name} CPA license? "
+        f"{fee_summary} plus any required catch-up CPE, sourced to {record['citation']}."
+    )
+
+    # A record whose own data_gap_note admits the board-page leg of the 2-source
+    # rule isn't fully confirmed (e.g. a fetch that 404'd during research) must not
+    # show the same unconditional "Verified" badge as a fully dual-sourced record --
+    # caught by an adversarial RE-QA pass (2026-07-25) on Georgia/Ohio specifically.
+    # The codified-rule citation below is still real either way; this only gates the
+    # badge and surfaces the gap itself, it never hides or invents a number.
+    data_gap_note = record.get("data_gap_note")
+    verified_badge_html = "" if data_gap_note else '<span class="verified-badge">Verified</span>'
+    sourcing_note_html = (
+        f'<p class="disclosure">Sourcing note: {esc(data_gap_note)}</p>' if data_gap_note else ""
+    )
+
+    body = f"""<h1>{esc(title)}</h1>
+<p class="subhead">If your {esc(state_name)} CPA license has already lapsed</p>
+<p class="intro">What it actually takes to get a lapsed {esc(state_name)} CPA license back &mdash;
+the fee, the catch-up CPE, and exactly what triggers "lapsed" in the first place. Sourced the same
+way every fact on this site is: a board page plus the codified rule itself, never a guess.</p>
+
+<div class="callout">
+  {verified_badge_html}
+  <div class="label">Reinstatement Fee</div>
+  {_reinstatement_fee_line_html(record)}
+</div>
+
+<div class="callout">
+  <div class="label">Catch-Up CPE Required</div>
+  <ul>
+    {_reinstatement_cpe_line_html(record)}
+  </ul>
+  {_source_cite_html(record)}
+  {sourcing_note_html}
+</div>
+
+<p><strong>What triggers lapsed status:</strong> {esc(record['lapse_trigger'])}</p>
+
+{trust_line(record["last_verified"], record["source_url"])}
+
+{_reinstatement_signup_html(record["state_slug"], state_name, renewal_records, as_of)}
+
+<p class="backlink-cross"><a href="../{esc(record['state_slug'])}/">See {esc(state_name)}'s CPA license renewal deadline &rarr;</a></p>
+{f'<p class="backlink-cross"><a href="../{esc(record["state_slug"])}-cpa-cpe-requirements/">How many CPE hours does {esc(state_name)} require? &rarr;</a></p>' if cpe_record else ""}
+<p class="backlink"><a href="../">&larr; Back to all states</a></p>
+"""
+    json_ld = [{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": SITE_NAME, "item": f"{SITE_BASE_URL}/"},
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": f"{state_name} CPA License Reinstatement",
+                "item": f"{SITE_BASE_URL}/{slug}/",
+            },
+        ],
+    }]
+    html = page_shell(
+        f"{title} — {SITE_NAME}", meta_description, body, home_href="../",
+        canonical_path=f"/{slug}/", json_ld=json_ld,
+    )
+    return slug, title, html
 
 
 BLOG_ARTICLES = [
@@ -3331,6 +3525,11 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/{esc(p['slug'])}/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""")
+    for p in REINSTATEMENT_PAGES:
+        urls.append(f"""  <url>
+    <loc>{SITE_BASE_URL}/{esc(p['slug'])}/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""")
     for s in sorted(states, key=lambda s: s["state_slug"]):
         urls.append(f"""  <url>
     <loc>{SITE_BASE_URL}/{esc(s['state_slug'])}/</loc>
@@ -3402,6 +3601,7 @@ def main() -> None:
         raise SystemExit(f"REFUSING TO BUILD: stale/past next_deadline_computed for: {stale}")
 
     cpe_hours_by_slug = load_cpe_hours_by_slug()
+    reinstatement_by_slug = load_reinstatement_by_slug()
 
     by_slug: dict[str, list[dict]] = {}
     state_meta: dict[str, dict] = {}
@@ -3428,7 +3628,7 @@ def main() -> None:
 
     built = []
     for slug, recs in by_slug.items():
-        title, page_html = build_state_page(slug, recs, as_of, by_slug, cpe_hours_by_slug)
+        title, page_html = build_state_page(slug, recs, as_of, by_slug, cpe_hours_by_slug, reinstatement_by_slug)
         state_dir = SITE_DIR / slug
         state_dir.mkdir(parents=True, exist_ok=True)
         (state_dir / "index.html").write_text(page_html, encoding="utf-8")
@@ -3458,14 +3658,26 @@ def main() -> None:
     CPE_HOURS_PAGES.clear()
     for state_slug, cpe_record in cpe_hours_by_slug.items():
         renewal_records = by_slug.get(state_slug, [])
-        slug, title, page_html = build_cpe_hours_page(cpe_record, renewal_records, as_of)
+        slug, title, page_html = build_cpe_hours_page(cpe_record, renewal_records, as_of, reinstatement_by_slug)
         page_dir = SITE_DIR / slug
         page_dir.mkdir(parents=True, exist_ok=True)
         (page_dir / "index.html").write_text(page_html, encoding="utf-8")
         CPE_HOURS_PAGES.append({"slug": slug, "state_name": cpe_record["state"]})
         print(f"wrote {SITE_DIR.name}/{slug}/index.html  ({title})")
 
-    # sitemap.xml (below) reads FIRM_LANDING_PAGES and CPE_HOURS_PAGES, so it
+    REINSTATEMENT_PAGES.clear()
+    for state_slug, reinstatement_record in reinstatement_by_slug.items():
+        renewal_records = by_slug.get(state_slug, [])
+        cpe_record = cpe_hours_by_slug.get(state_slug)
+        slug, title, page_html = build_reinstatement_page(reinstatement_record, renewal_records, cpe_record, as_of)
+        page_dir = SITE_DIR / slug
+        page_dir.mkdir(parents=True, exist_ok=True)
+        (page_dir / "index.html").write_text(page_html, encoding="utf-8")
+        REINSTATEMENT_PAGES.append({"slug": slug, "state_name": reinstatement_record["state"]})
+        print(f"wrote {SITE_DIR.name}/{slug}/index.html  ({title})")
+
+    # sitemap.xml (below) reads FIRM_LANDING_PAGES, CPE_HOURS_PAGES, and
+    # REINSTATEMENT_PAGES, so it
     # must be written AFTER both loops above populate them.
     (SITE_DIR / "sitemap.xml").write_text(build_sitemap(built, as_of), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/sitemap.xml")

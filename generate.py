@@ -95,6 +95,26 @@ ILLUMEO_AFFILIATE_URL = _ILLUMEO_AFFILIATE_PLACEHOLDER
 _BECKER_AFFILIATE_PLACEHOLDER = "https://www.becker.com/"
 BECKER_AFFILIATE_URL = _BECKER_AFFILIATE_PLACEHOLDER
 
+# MYCPE ONE, Surgent, WebCE, Gleim (2026-07-25 slot-infrastructure batch): the
+# other 4 providers ScoutLab's 2026-07-21 product register confirmed run
+# partner/affiliate programs and want individual-CPA leads (Becker + Illumeo
+# above were vetted and wired first). SLOTS ONLY -- no vetting pass, no
+# affiliate account, no real tracked link for any of these 4 yet. Same
+# independent-gate discipline as Illumeo/Becker: each renders nothing until
+# its own constant is swapped off its placeholder. Devin does the affiliate
+# signups; this just makes flipping one live a one-line paste, not a rebuild.
+_MYCPE_AFFILIATE_PLACEHOLDER = "https://my-cpe.com/"
+MYCPE_AFFILIATE_URL = _MYCPE_AFFILIATE_PLACEHOLDER
+
+_SURGENT_AFFILIATE_PLACEHOLDER = "https://www.surgentcpe.com/"
+SURGENT_AFFILIATE_URL = _SURGENT_AFFILIATE_PLACEHOLDER
+
+_WEBCE_AFFILIATE_PLACEHOLDER = "https://www.webce.com/"
+WEBCE_AFFILIATE_URL = _WEBCE_AFFILIATE_PLACEHOLDER
+
+_GLEIM_AFFILIATE_PLACEHOLDER = "https://www.gleim.com/"
+GLEIM_AFFILIATE_URL = _GLEIM_AFFILIATE_PLACEHOLDER
+
 # Reminder backend (worker/, the Phase-1 Cloudflare Worker -- see
 # worker/DEPLOY.md). Same-origin relative path, not a separate domain: the
 # Worker is bound to the deadline-radar.com/api/* Route, so the form posts
@@ -525,9 +545,14 @@ PAGE_CSS = """
   }
   .remind-panel button:hover { background: #9c7a3c; }
   .remind-panel .field-hint { color: #8fa7bb; }
+  .cpe-affiliate-heading {
+    font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--muted); margin: 1.6rem 0 0.5rem; padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
   .cpe-affiliate {
     border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem;
-    background: var(--card-bg); margin: 1.4rem 0; font-size: 0.92rem;
+    background: var(--card-bg); margin: 0.6rem 0; font-size: 0.92rem;
   }
   .cpe-affiliate p { margin: 0 0 0.5rem; }
   .cpe-affiliate p:last-child { margin-bottom: 0; }
@@ -1182,7 +1207,15 @@ def _cpe_affiliate_html() -> str:
     """Renders every CPE-provider block that currently has a real (non-placeholder)
     tracked URL -- each provider is independently gated (see _cpe_provider_html()), so
     Illumeo can go live without Becker or vice versa. Once any provider is active, its
-    block renders on every state page, always paired with its own FTC disclosure."""
+    block renders on every state page, always paired with its own FTC disclosure.
+
+    6-provider slate (2026-07-25) matches ScoutLab's 2026-07-21 product register
+    exactly: "Becker has a confirmed affiliate program; MYCPE, Surgent, Illumeo,
+    Gleim, WebCE all run partner/affiliate programs and want individual-CPA
+    leads." Illumeo + Becker were vetted and wired first (2026-07-09); the other 4
+    are slots only -- placeholder URLs, no vetting pass, no account -- so a real
+    link is a one-line constant swap away whenever Devin runs that signup, not a
+    rebuild of this block."""
     blocks = [
         _cpe_provider_html(
             ILLUMEO_AFFILIATE_URL, _ILLUMEO_AFFILIATE_PLACEHOLDER,
@@ -1193,8 +1226,31 @@ def _cpe_affiliate_html() -> str:
             "Becker", "offers CPE courses and exam-prep for CPAs",
             routing_note="(This link goes through Yazing's coupon page on the way to Becker -- that's expected.)",
         ),
+        _cpe_provider_html(
+            MYCPE_AFFILIATE_URL, _MYCPE_AFFILIATE_PLACEHOLDER,
+            "MYCPE ONE", "offers unlimited CPE credits across 100+ credential types",
+        ),
+        _cpe_provider_html(
+            SURGENT_AFFILIATE_URL, _SURGENT_AFFILIATE_PLACEHOLDER,
+            "Surgent", "offers CPE webinars and self-study courses for CPAs",
+        ),
+        _cpe_provider_html(
+            WEBCE_AFFILIATE_URL, _WEBCE_AFFILIATE_PLACEHOLDER,
+            "WebCE", "offers NASBA-approved self-study CPE for CPAs",
+        ),
+        _cpe_provider_html(
+            GLEIM_AFFILIATE_URL, _GLEIM_AFFILIATE_PLACEHOLDER,
+            "Gleim", "offers self-paced CPE courses accepted by every state board",
+        ),
     ]
-    return "\n".join(b for b in blocks if b)
+    live_blocks = [b for b in blocks if b]
+    if not live_blocks:
+        return ""
+    # Clearly-marked section heading (2026-07-25), only rendered once at least one
+    # provider is live -- each individual block is already its own bordered,
+    # separated card (.cpe-affiliate), so this just labels the group as a whole
+    # rather than letting several provider cards run together with no heading.
+    return '<p class="cpe-affiliate-heading">Recommended CPE providers</p>\n' + "\n".join(live_blocks)
 
 
 def _is_operational_record(record: dict) -> bool:
@@ -2842,6 +2898,8 @@ itself, never a guess.</p>
 
 {_cpe_hours_signup_html(cpe_record, renewal_records, as_of)}
 
+{_cpe_affiliate_html()}
+
 {_reinstatement_reverse_link_html(cpe_record["state_slug"], reinstatement_by_slug) if reinstatement_by_slug else ""}
 
 <p class="backlink-cross"><a href="../{esc(cpe_record['state_slug'])}/">{esc(cross_link_text)} &rarr;</a></p>
@@ -2999,6 +3057,8 @@ way every fact on this site is: a board page plus the codified rule itself, neve
 {trust_line(record["last_verified"], record["source_url"])}
 
 {_reinstatement_signup_html(record["state_slug"], state_name, renewal_records, as_of)}
+
+{_cpe_affiliate_html()}
 
 <p class="backlink-cross"><a href="../{esc(record['state_slug'])}/">See {esc(state_name)}'s CPA license renewal deadline &rarr;</a></p>
 {f'<p class="backlink-cross"><a href="../{esc(record["state_slug"])}-cpa-cpe-requirements/">How many CPE hours does {esc(state_name)} require? &rarr;</a></p>' if cpe_record else ""}

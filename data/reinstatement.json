@@ -77,7 +77,7 @@
       "penalty_ethics_hours": 4,
       "lapse_trigger": "Licenses are biennial, expiring December 31 of odd-numbered years regardless of issuance date. Missing that deadline lapses the license immediately; a $100 delayed-renewal penalty attaches once the lapse exceeds 60 days.",
       "citation": "12 AAC 04.440(a)-(f) (Reinstatement of Lapsed License); fee amounts at 12 AAC 02.340(4),(12),(13); license-term backdrop at 12 AAC 04.189",
-      "citation_url": "https://www.commerce.alaska.gov/web/portals/5/pub/CPARegulations.pdf",
+      "citation_url": "https://www.law.cornell.edu/regulations/alaska/12-AAC-02.340",
       "source_url": "https://www.commerce.alaska.gov/web/cbpl/ProfessionalLicensing/BoardofPublicAccountancy.aspx",
       "last_verified": "2026-07-25",
       "data_gap_note": null
@@ -96,7 +96,7 @@
       "citation_url": "https://www.law.cornell.edu/regulations/arizona/Ariz-Admin-Code-SS-R4-1-341",
       "source_url": "https://www.azaccountancy.gov/Certification/Reinstatement.aspx",
       "last_verified": "2026-07-25",
-      "data_gap_note": "The Board's own site (azaccountancy.gov) blocks automated access, so this page's own reinstatement/FAQ text could not be freshly re-confirmed by an automated check at publish time -- the codified rule (R4-1-341, R4-1-453, linked above) was fetched directly and states the same figures, independently corroborated by matching search-engine copies of the board's page. Recommend a manual check of the board's page if you want to see it firsthand."
+      "data_gap_note": "The Board's own reinstatement page (azaccountancy.gov) could not be reached directly at publish time. The $100 fee and CPE/ethics-hour figures above come from the codified rule cited here (Ariz. Admin. Code R4-1-341, R4-1-453), which is authoritative on its own, and the same $100 fee also appears on an archived copy of the Board's page."
     },
     {
       "id": "arkansas-reinstatement",
@@ -109,7 +109,7 @@
       "penalty_ethics_hours": null,
       "lapse_trigger": "Licenses expire annually on December 31. A monthly late fee accrues starting January 1; if still not renewed by April 1 of the following year, the license automatically LAPSES by operation of statute.",
       "citation": "Ark. Code Ann. §17-12-504(f)-(h) (late fee, lapse trigger, 3-year reinstatement window); Arkansas State Board of Public Accountancy Rule 12.2 (reinstatement fee) and Rule 13.7(d)/13.9 (CPE required for reinstatement)",
-      "citation_url": "https://www.labor.arkansas.gov/wp-content/uploads/AR-Accountancy-Law-ALL-7-24-19-codified.pdf",
+      "citation_url": "https://www.labor.arkansas.gov/wp-content/uploads/Complete-Set-of-Rules-01-31-2024.pdf",
       "source_url": "https://labor.arkansas.gov/licensing/state-board-of-public-accountancy/laws-rules/",
       "last_verified": "2026-07-25",
       "data_gap_note": null
@@ -135,7 +135,7 @@
       "state": "Colorado",
       "state_slug": "colorado",
       "reinstatement_fee_usd": null,
-      "reinstatement_fee_notes": "No dollar figure is codified anywhere -- C.R.S. 12-20-202 delegates fee-setting to the DORA Director, published only on the online licensing portal, not in statute or rule. There is no primary-law figure to cite, not a research gap.",
+      "reinstatement_fee_notes": "No dollar figure is codified anywhere -- C.R.S. 12-20-202 delegates fee-setting to the DORA Director, published only on the online licensing portal, not in statute or rule. There is simply no primary-law dollar figure to cite for this one.",
       "penalty_cpe_hours": 80,
       "penalty_cpe_notes": "3 CCR 705-1 Rule 1.9(K)(1): the applicant must complete BOTH the full 80-hour requirement for the CPE period immediately preceding reinstatement, AND 10 hours for each full quarter the certificate was expired in the current period (up to 80 more) -- up to 160 hours total catch-up. These hours can't also count toward CPE owed for the remainder of the period after reinstatement.",
       "penalty_ethics_hours": null,
@@ -190,7 +190,7 @@
       "lapse_trigger": "Permits expire June 30 of odd-numbered years. A lapsed permit may be reinstated within 1 year of the lapse, at the Board's discretion; if not reinstated within that window, the permit terminates and the holder must reapply as a brand-new applicant.",
       "citation": "24 Del. C. §124 (Renewals); §108 (expiration/renewal cycle); 24 Del. Admin. Code §100-7.2 (CPE requirements)",
       "citation_url": "https://delcode.delaware.gov/title24/c001/index.html#124",
-      "source_url": "https://dpr.delaware.gov/boards/accountancy/renewpermit/",
+      "source_url": "https://dpr.delaware.gov/boards/accountancy/fees/",
       "last_verified": "2026-07-25",
       "data_gap_note": null
     },
@@ -240,7 +240,7 @@
       "citation_url": "https://cca.hawaii.gov/wp-content/uploads/2026/02/HAR-16-71-C_1121.pdf",
       "source_url": "https://cca.hawaii.gov/pvl/boards/accountancy/",
       "last_verified": "2026-07-25",
-      "data_gap_note": "The $204/$360/$128 fee figures are confirmed only on the Board's own page -- HAR Chapter 71 defers the actual renewal/restoration fee amounts to a separate fee-schedule chapter (16-53) that could not be located at a working URL this pass. Recommend a manual check against that fee-schedule chapter before treating the dollar figures as codified."
+      "data_gap_note": "The $204/$360/$128 fee figures are confirmed only on the Board's own page -- HAR Chapter 71 defers the actual renewal/restoration fee amounts to a separate fee-schedule chapter (16-53) that could not be located at a working URL. Treat the dollar figures as board-confirmed but not yet codified-rule-confirmed until that chapter is located and cited directly."
     },
     {
       "id": "idaho-reinstatement",
@@ -253,7 +253,7 @@
       "penalty_ethics_hours": 4,
       "lapse_trigger": "Licenses expire June 30 each year. Renewing after July 1 but before August 1 only requires a $100 late fee; if still unrenewed by August 1, the license is deemed lapsed and subject to reinstatement, and the holder may not use the CPA title or perform reserved services.",
       "citation": "IDAPA 24.30.01.117 (Reinstatement and Re-entry); 24.30.01.108 (Annual Renewal and Late Fee); 24.30.01.400 (Fees) -- current post-2023-renumbering",
-      "citation_url": "https://www.law.cornell.edu/regulations/idaho/IDAPA-24.30.01.117",
+      "citation_url": "https://www.law.cornell.edu/regulations/idaho/IDAPA-24.30.01.400",
       "source_url": "https://dopl.idaho.gov/boa/boa-cpe/",
       "last_verified": "2026-07-25",
       "data_gap_note": null

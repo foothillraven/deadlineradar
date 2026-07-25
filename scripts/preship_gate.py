@@ -72,6 +72,11 @@ LEAK_PATTERNS = [
     r"\bpdftotext\b",
     r"\bsummarizer\b",
     r"\bbrowser identification string\b",
+    # Real owner name -- found leaked into a shipped CSS comment on every live
+    # page (2026-07-25, caught by a manual sanitization sweep this check
+    # didn't cover; fixed in generate.py, added here so this exact class of
+    # leak can't ship unnoticed again).
+    r"\bDevin\b",
 ]
 LEAK_RE = re.compile("|".join(LEAK_PATTERNS), re.IGNORECASE)
 

@@ -275,6 +275,13 @@ export const RATE_LIMIT_FIRM_LOGIN: RateLimit = { max: 5, windowSeconds: 600 };
 // bounding a runaway script or a compromised session.
 export const RATE_LIMIT_FIRM_LICENSE_CREATE: RateLimit = { max: 50, windowSeconds: 86400 };
 
+// POST /debug/run-reminder-pass -- PREVIEW/STAGING ONLY, see index.ts's own
+// gate (the route 404s outright unless env.EMAIL_ALLOWLIST is set, which is
+// never true in production). Lets a human tester fire the daily reminder
+// cron on demand instead of waiting for the real 18:00 UTC trigger. A tight
+// cap since this is a manual test aid, not a real feature.
+export const RATE_LIMIT_DEBUG_REMINDER_PASS: RateLimit = { max: 5, windowSeconds: 600 };
+
 /** Returns true if this request is ALLOWED, false if it should be blocked. */
 export async function checkRateLimit(
   db: D1Database,

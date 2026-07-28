@@ -55,6 +55,7 @@ import {
   RATE_LIMIT_ACTION,
   RATE_LIMIT_FIRM_LEAD,
   RATE_LIMIT_FIRM_LICENSE_CREATE,
+  RATE_LIMIT_DEBUG_REMINDER_PASS,
   RATE_LIMIT_FIRM_LOGIN,
   RATE_LIMIT_FIRM_SIGNUP,
   RATE_LIMIT_SUBSCRIBE,
@@ -1601,6 +1602,29 @@ export default {
           return await handleFirmLogout(request, env);
         } catch {
           return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
+      // PREVIEW/STAGING ONLY -- see RATE_LIMIT_DEBUG_REMINDER_PASS's own
+      // comment. Gated on env.EMAIL_ALLOWLIST being SET, which is never true
+      // in production (that env var only exists on a preview deployment) --
+      // so this route is unconditionally 404 in production regardless of
+      // this check ever being reached, and every email it can possibly send
+      // is itself gated by sendViaSendGrid()'s allowlist. Lets a human tester
+      // fire the daily reminder cron on demand rather than waiting for the
+      // real 18:00 UTC trigger.
+      if (url.pathname === "/debug/run-reminder-pass") {
+        if (!env.EMAIL_ALLOWLIST) return errorPage(404, "Not found.");
+        const allowed = await checkRateLimit(env.DB, ip, "debug_reminder_pass", RATE_LIMIT_DEBUG_REMINDER_PASS);
+        if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
+        try {
+          const summary = await runReminderPass(env);
+          return jsonResponse(200, summary);
+        } catch (err) {
+          if (err instanceof SchedulerStaleDataError) {
+            return jsonResponse(200, { paused: true, reason: "stale_reference_data", message: err.message });
+          }
+          return errorPage(500, "Reminder pass failed.");
         }
       }
 

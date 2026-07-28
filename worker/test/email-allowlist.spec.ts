@@ -215,3 +215,68 @@ describe("EMAIL_ALLOWLIST gate -- wired up end-to-end through a real call site (
     }
   });
 });
+
+describe("POST /debug/run-reminder-pass -- preview-only manual cron trigger", () => {
+  it("404s in a production-style env (no EMAIL_ALLOWLIST set at all)", async () => {
+    const worker = (await import("../src/index")).default;
+    const envNoGate = { ...env, SENDGRID_API_KEY: "test-key-not-real" };
+    const request = new Request("https://deadline-radar.com/debug/run-reminder-pass", {
+      method: "POST",
+      headers: { "cf-connecting-ip": "203.0.113.210" },
+    });
+    const resp = await worker.fetch(request, envNoGate);
+    expect(resp.status).toBe(404);
+  });
+
+  it("runs the reminder pass and returns a JSON summary in a preview-style env (EMAIL_ALLOWLIST set)", async () => {
+    const worker = (await import("../src/index")).default;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(okResponse());
+    try {
+      const envWithGate = {
+        ...env,
+        SENDGRID_API_KEY: "test-key-not-real",
+        EMAIL_ALLOWLIST: "dlhall86@gmail.com,dlhall86+test@gmail.com",
+      };
+      const request = new Request("https://deadline-radar.com/debug/run-reminder-pass", {
+        method: "POST",
+        headers: { "cf-connecting-ip": "203.0.113.211" },
+      });
+      const resp = await worker.fetch(request, envWithGate);
+      expect(resp.status).toBe(200);
+      const body = await resp.json();
+      expect(typeof body).toBe("object");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("blocks the 6th request from the same IP within the window (own rate-limit bucket)", async () => {
+    const worker = (await import("../src/index")).default;
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(okResponse());
+    const envWithGate = {
+      ...env,
+      SENDGRID_API_KEY: "test-key-not-real",
+      EMAIL_ALLOWLIST: "dlhall86@gmail.com",
+    };
+    const ip = "203.0.113.212";
+    for (let i = 0; i < 5; i++) {
+      const resp = await worker.fetch(
+        new Request("https://deadline-radar.com/debug/run-reminder-pass", {
+          method: "POST",
+          headers: { "cf-connecting-ip": ip },
+        }),
+        envWithGate
+      );
+      expect(resp.status).not.toBe(429);
+    }
+    const sixth = await worker.fetch(
+      new Request("https://deadline-radar.com/debug/run-reminder-pass", {
+        method: "POST",
+        headers: { "cf-connecting-ip": ip },
+      }),
+      envWithGate
+    );
+    expect(sixth.status).toBe(429);
+    vi.restoreAllMocks();
+  });
+});

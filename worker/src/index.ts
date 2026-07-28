@@ -206,15 +206,27 @@ const FIRM_SESSION_COOKIE_NAME = "dr_firm_session";
 // session actually expires, never grant extra access.
 const FIRM_SESSION_COOKIE_MAX_AGE_SECONDS = store.SESSION_TTL_DAYS * 24 * 60 * 60;
 
-function firmSessionSetCookieHeader(rawSessionToken: string): string {
+// PREVIEW/STAGING cross-origin fix (2026-07-28): a preview deploy has the
+// static site and the Worker on two different origins (pages.dev vs.
+// workers.dev), so a Lax cookie is never sent on the dashboard's credentialed
+// cross-origin fetch() calls -- the roster silently fails to load (401,
+// looks like an auth bug, is really a cookie-scoping one). None=Secure fixes
+// that, but ONLY when env.STATIC_SITE_BASE_URL is set (i.e. never in
+// production, where Lax is the correct, tighter CSRF posture -- see the
+// comment above these functions). Same gate used for CORS below.
+function firmSessionCookieSameSite(env: Env): string {
+  return env.STATIC_SITE_BASE_URL ? "None" : "Lax";
+}
+
+function firmSessionSetCookieHeader(rawSessionToken: string, env: Env): string {
   return (
     `${FIRM_SESSION_COOKIE_NAME}=${encodeURIComponent(rawSessionToken)}; HttpOnly; Secure; ` +
-    `SameSite=Lax; Path=/; Max-Age=${FIRM_SESSION_COOKIE_MAX_AGE_SECONDS}`
+    `SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=${FIRM_SESSION_COOKIE_MAX_AGE_SECONDS}`
   );
 }
 
-function firmSessionClearCookieHeader(): string {
-  return `${FIRM_SESSION_COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`;
+function firmSessionClearCookieHeader(env: Env): string {
+  return `${FIRM_SESSION_COOKIE_NAME}=; HttpOnly; Secure; SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=0`;
 }
 
 /** "north-carolina" -> "North Carolina", "california" -> "California". */
@@ -821,7 +833,7 @@ async function handleFirmLoginVerify(env: Env, token: string | null): Promise<Re
     status: 302,
     headers: {
       Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/`,
-      "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken),
+      "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken, env),
     },
   });
 }
@@ -839,7 +851,7 @@ async function handleFirmLogout(request: Request, env: Env): Promise<Response> {
     status: 302,
     headers: {
       Location: `${env.STATIC_SITE_BASE_URL || ""}/`,
-      "Set-Cookie": firmSessionClearCookieHeader(),
+      "Set-Cookie": firmSessionClearCookieHeader(env),
     },
   });
 }
@@ -1480,9 +1492,34 @@ async function handleRearm(env: Env, token: string | null): Promise<Response> {
   );
 }
 
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
+// PREVIEW/STAGING CORS (2026-07-28): companion to firmSessionCookieSameSite()
+// above. When env.STATIC_SITE_BASE_URL is set (never in production), the
+// dashboard's fetch() calls are genuinely cross-origin (pages.dev site,
+// workers.dev API), so the browser (a) sends a CORS preflight OPTIONS ahead
+// of any PATCH/DELETE/JSON-body request and (b) requires an explicit,
+// exact-origin Access-Control-Allow-Origin (not "*") plus
+// Access-Control-Allow-Credentials on every response before it will expose
+// the response to JS or send the cookie at all. Origin is always the exact
+// preview site (never reflected from the request), matching the same site
+// the cookie's SameSite=None already trusts.
+function corsHeaders(env: Env): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": env.STATIC_SITE_BASE_URL || "",
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    Vary: "Origin",
+  };
+}
+
+function withCorsHeaders(response: Response, env: Env): Response {
+  const headers = new Headers(response.headers);
+  for (const [k, v] of Object.entries(corsHeaders(env))) headers.set(k, v);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+async function routeRequest(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
 
     // This Worker is bound to the deadline-radar.com/api/* route, so every
     // request arrives with an /api prefix the path checks below don't expect.
@@ -1672,6 +1709,21 @@ export default {
     }
 
     return errorPage(404, "Not found.");
+}
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    // PREVIEW/STAGING CORS only (see corsHeaders()'s own comment) -- in
+    // production env.STATIC_SITE_BASE_URL is unset, so this whole block is
+    // skipped and routeRequest() runs exactly as it always has.
+    if (env.STATIC_SITE_BASE_URL) {
+      if (request.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: corsHeaders(env) });
+      }
+      const response = await routeRequest(request, env);
+      return withCorsHeaders(response, env);
+    }
+    return routeRequest(request, env);
   },
 
   /**

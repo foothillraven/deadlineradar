@@ -390,3 +390,76 @@ describe("STATIC_SITE_BASE_URL override -- login/logout redirects cross back to 
     expect(resp.headers.get("Location")).toBe("https://deadlineradar-preview.pages.dev/");
   });
 });
+
+describe("Preview cross-origin fix: SameSite=None + CORS when STATIC_SITE_BASE_URL is set, unchanged in production", () => {
+  const previewOrigin = "https://deadlineradar-preview.pages.dev";
+
+  it("login-verify sets SameSite=None (not Lax) when STATIC_SITE_BASE_URL is set", async () => {
+    const worker = (await import("../src/index")).default;
+    const firmId = (
+      await store.createFirm(env.DB, { name: "CORS Test Firm", adminEmail: `cors-${Date.now()}@example.com` })
+    ).id;
+    const { rawToken } = await store.createLoginToken(env.DB, firmId);
+    const envPreview = { ...env, STATIC_SITE_BASE_URL: previewOrigin };
+    const request = new Request("https://deadline-radar.com/firm/login/verify", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.240" },
+      body: form({ token: rawToken }),
+    });
+    const resp = await worker.fetch(request, envPreview);
+    const setCookie = resp.headers.get("Set-Cookie") ?? "";
+    expect(setCookie).toContain("SameSite=None");
+    expect(setCookie).not.toContain("SameSite=Lax");
+  });
+
+  it("with STATIC_SITE_BASE_URL unset, login-verify still sets SameSite=Lax (production unchanged)", async () => {
+    const worker = (await import("../src/index")).default;
+    const firmId = (
+      await store.createFirm(env.DB, { name: "Prod Cookie Firm", adminEmail: `prodcookie-${Date.now()}@example.com` })
+    ).id;
+    const { rawToken } = await store.createLoginToken(env.DB, firmId);
+    const request = new Request("https://deadline-radar.com/firm/login/verify", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.241" },
+      body: form({ token: rawToken }),
+    });
+    const resp = await worker.fetch(request, env);
+    const setCookie = resp.headers.get("Set-Cookie") ?? "";
+    expect(setCookie).toContain("SameSite=Lax");
+    expect(setCookie).not.toContain("SameSite=None");
+  });
+
+  it("OPTIONS preflight on a firm route returns 204 with the exact preview origin + credentials allowed, when STATIC_SITE_BASE_URL is set", async () => {
+    const worker = (await import("../src/index")).default;
+    const envPreview = { ...env, STATIC_SITE_BASE_URL: previewOrigin };
+    const request = new Request("https://deadline-radar.com/api/firm/licenses", {
+      method: "OPTIONS",
+      headers: { Origin: previewOrigin },
+    });
+    const resp = await worker.fetch(request, envPreview);
+    expect(resp.status).toBe(204);
+    expect(resp.headers.get("Access-Control-Allow-Origin")).toBe(previewOrigin);
+    expect(resp.headers.get("Access-Control-Allow-Credentials")).toBe("true");
+    expect(resp.headers.get("Access-Control-Allow-Methods")).toContain("PATCH");
+  });
+
+  it("a normal GET /firm/licenses response carries CORS headers when STATIC_SITE_BASE_URL is set", async () => {
+    const worker = (await import("../src/index")).default;
+    const envPreview = { ...env, STATIC_SITE_BASE_URL: previewOrigin };
+    const request = new Request("https://deadline-radar.com/api/firm/licenses", {
+      headers: { Origin: previewOrigin },
+    });
+    const resp = await worker.fetch(request, envPreview);
+    expect(resp.status).toBe(401); // no session cookie -- the point is the CORS headers are present regardless
+    expect(resp.headers.get("Access-Control-Allow-Origin")).toBe(previewOrigin);
+    expect(resp.headers.get("Access-Control-Allow-Credentials")).toBe("true");
+  });
+
+  it("with STATIC_SITE_BASE_URL unset, no CORS headers are added and OPTIONS is not specially handled (production unchanged)", async () => {
+    const worker = (await import("../src/index")).default;
+    const request = new Request("https://deadline-radar.com/api/firm/licenses", { method: "OPTIONS" });
+    const resp = await worker.fetch(request, env);
+    expect(resp.headers.get("Access-Control-Allow-Origin")).toBeNull();
+    expect(resp.status).not.toBe(204);
+  });
+});

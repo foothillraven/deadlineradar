@@ -9,7 +9,7 @@ import {
 } from "../src/deadline";
 import { hasControlChars, isValidEmail, sanitizeFirstName, strictParseInt } from "../src/validation";
 import * as store from "../src/store";
-import type { SubscriberRow } from "../src/store";
+import type { FirmLeadRow, SubscriberRow } from "../src/store";
 
 function form(fields: Record<string, string>): string {
   return new URLSearchParams(fields).toString();
@@ -45,6 +45,14 @@ async function postAction(pathAndQuery: string, ip = "203.0.113.1"): Promise<Res
 async function allSubscribers(): Promise<SubscriberRow[]> {
   const { results } = await env.DB.prepare("SELECT * FROM subscribers").all<SubscriberRow>();
   return results;
+}
+
+async function postFirmLead(fields: Record<string, string>, ip = "203.0.113.1"): Promise<Response> {
+  return SELF.fetch("https://deadline-radar.com/firm/lead", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": ip },
+    body: form({ hp_website: "", ...fields }),
+  });
 }
 
 // Note: the structural claim "no SendGrid/email-provider code path exists
@@ -321,6 +329,89 @@ describe("POST /subscribe -- honeypot", () => {
     expect(resp.status).toBe(200);
     const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first();
     expect(row).toBeNull();
+  });
+});
+
+describe("POST /firm/lead -- firm-tier early-access capture", () => {
+  it("happy path: stores a firm_leads row and returns a generic success page", async () => {
+    const email = `firmlead-${Date.now()}@example.com`;
+    const resp = await postFirmLead(
+      { email, firm_name: "Example Firm, LLC", staff_count_hint: "8" },
+      "203.0.113.90"
+    );
+    expect(resp.status).toBe(200);
+    const body = await resp.text();
+    expect(body.toLowerCase()).toContain("on the list");
+
+    const row = await env.DB.prepare("SELECT * FROM firm_leads WHERE email = ?1").bind(email).first<FirmLeadRow>();
+    expect(row).not.toBeNull();
+    expect(row?.firm_name).toBe("Example Firm, LLC");
+    expect(row?.staff_count_hint).toBe("8");
+    expect(row?.created_at).toBeTruthy();
+    expect(row?.converted_at).toBeNull();
+  });
+
+  it("accepts a submission with no firm name or staff count hint (both optional)", async () => {
+    const email = `firmlead-minimal-${Date.now()}@example.com`;
+    const resp = await postFirmLead({ email }, "203.0.113.95");
+    expect(resp.status).toBe(200);
+    const row = await env.DB.prepare("SELECT * FROM firm_leads WHERE email = ?1").bind(email).first<FirmLeadRow>();
+    expect(row).not.toBeNull();
+    expect(row?.firm_name).toBeNull();
+    expect(row?.staff_count_hint).toBeNull();
+  });
+
+  it("silently no-ops when the honeypot field is non-empty (same anti-enumeration posture as /subscribe)", async () => {
+    const email = `firmlead-hp-${Date.now()}@example.com`;
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/lead", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.91" },
+      body: form({ email, firm_name: "Bot Firm", hp_website: "im-a-bot" }),
+    });
+    expect(resp.status).toBe(200); // looks like success to the bot
+    const row = await env.DB.prepare("SELECT * FROM firm_leads WHERE email = ?1").bind(email).first();
+    expect(row).toBeNull(); // but nothing was actually created
+  });
+
+  it("rejects a malformed email", async () => {
+    const resp = await postFirmLead({ email: "not-an-email", firm_name: "Example Firm" }, "203.0.113.92");
+    expect(resp.status).toBe(400);
+    const row = await env.DB.prepare("SELECT * FROM firm_leads WHERE firm_name = ?1").bind("Example Firm").first();
+    expect(row).toBeNull();
+  });
+
+  it("rejects control characters in any field", async () => {
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/lead", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.93" },
+      body: `email=a%40example.com&firm_name=bad%0d%0aname&hp_website=`,
+    });
+    expect(resp.status).toBe(400);
+  });
+
+  it("rejects an empty body", async () => {
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/lead", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.96" },
+      body: "",
+    });
+    expect(resp.status).toBe(400);
+  });
+
+  it("blocks the 6th /firm/lead from the same IP within the window (own rate-limit bucket, separate from /subscribe's)", async () => {
+    const ip = "203.0.113.94";
+    for (let i = 0; i < 5; i++) {
+      const resp = await postFirmLead(
+        { email: `firmlead-rl-${i}-${Date.now()}@example.com`, firm_name: "Example Firm" },
+        ip
+      );
+      expect(resp.status).not.toBe(429);
+    }
+    const sixth = await postFirmLead(
+      { email: `firmlead-rl-6-${Date.now()}@example.com`, firm_name: "Example Firm" },
+      ip
+    );
+    expect(sixth.status).toBe(429);
   });
 });
 

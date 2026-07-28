@@ -2525,9 +2525,13 @@ current deadlines for these states, computed the same way as every free page on 
 _FIRM_FAQ = [
     (
         "Is the license status actually verified, or just self-reported?",
-        "Verified. At onboarding and every admin update cycle, we manually check each staff "
-        "member's status against the state board or CPAverify.org &mdash; a real human lookup, "
-        "not scraped or automated, and not just whatever the licensee tells us.",
+        "The renewal DATES are verified the same rigorous way as every free page on this site: "
+        "sourced to the codified statute or rule, cited, and rechecked on our freshness cadence "
+        "&mdash; <a href=\"../methodology/\">see exactly how</a>. What this is <em>not</em> is a "
+        "recurring human lookup of each staff member's individual license status &mdash; there's no "
+        "manual check-in against the state board or CPAverify.org on your behalf. Signup itself is "
+        "self-serve and self-reported the same way the free tier already is: your admin adds the "
+        "roster, and each staff member confirms their own email before reminders start.",
     ),
     (
         "What if my staff are licensed in a birth-month or \"bring your own date\" state?",
@@ -2553,6 +2557,15 @@ _FIRM_FAQ = [
         "roster, one place to see who's current and who's at risk, plus the firm's own "
         "registration &mdash; not 20 inboxes to hope someone's watching.",
     ),
+    (
+        "Who actually sets up my staff -- your team, or us?",
+        "You do, directly, once the self-serve dashboard is live: your admin adds each staff "
+        "member's name, email, state, and license type. There's no concierge onboarding where our "
+        "team collects a roster by email and enters it for you. Each staff member still gets their "
+        "own one-time confirmation email first &mdash; the same double opt-in every free subscriber "
+        "on this site already goes through &mdash; so reminders never start for someone who hasn't "
+        "agreed to them.",
+    ),
 ]
 
 
@@ -2571,22 +2584,43 @@ def _firm_faq_html() -> str:
 
 
 def build_firms_page(by_slug: dict[str, list[dict]]) -> str:
-    """B2B firm-tier landing page. Explicit price + a real inbound CTA -- still no
-    Stripe/live payment infra (2026-07-10 Wave-1 directive: CTA action stays the
-    existing mailto/inbound flow; billing swaps to a real checkout link the moment
-    payment infra exists, not before). Scoped deliberately to license-renewal
-    tracking only, matching the free tier's trust model; any future CPE-hour
-    tracking must be labeled as an unverified self-report, never given the same
-    certainty language as the sourced renewal dates -- that distinction is the
-    entire brand and must not blur on the paid tier."""
-    pilot_mailto = (
-        f"mailto:{esc(CONTACT_EMAIL)}?subject=Firm%20tier%20pilot"
-        f"&body=Firm%20name%3A%0AApprox.%20staff%20count%3A%0AState(s)%20licensed%20in%3A%0A"
-    )
+    """B2B firm-tier landing page (rewritten 2026-07-28: the real buyer is the
+    small-firm admin managing multiple staff CPAs across states, not a
+    concierge-pilot where our team manually checks every staff license --
+    that idea is retired here). The CTA is now a real HTML form
+    (POST /api/firm/lead, see worker/src/index.ts's handleFirmLead()) that
+    captures interest -- NOT an instant self-serve signup, since the actual
+    firm-admin dashboard (staff roster + confirm-email flow) is a separate,
+    parallel build that hasn't shipped yet. Do not re-add any claim of a
+    recurring human/manual per-staff license check or a concierge-style
+    onboarding where our team enters a firm's roster for them -- both were
+    removed because they were never true and were about to become
+    demonstrably false the moment the self-serve dashboard ships (it's
+    self-serve BY DESIGN: the admin adds staff directly). Scoped deliberately
+    to license-renewal tracking only, matching the free tier's trust model;
+    any future CPE-hour tracking must be labeled as an unverified self-report,
+    never given the same certainty language as the sourced renewal dates --
+    that distinction is the entire brand and must not blur on the paid tier."""
+    firm_lead_action = f"{esc(REMINDER_BACKEND_BASE_URL)}/firm/lead"
     body = f"""<h1>CPA License Tracking for Your Whole Firm</h1>
 <p class="intro">Every accounting firm has someone who has to make sure every partner's and staff CPA's
 license stays current &mdash; across however many states they're licensed in. One missed renewal slows
-down engagements and creates real regulatory risk, and most firms track it today by spreadsheet.</p>
+down engagements and creates real regulatory risk, and most firms track it today by spreadsheet. A
+spreadsheet fails in three specific ways.</p>
+
+<h2>Where a spreadsheet (and an individual CPA's own inbox) falls short</h2>
+<p><strong>Multi-state blind spot.</strong> A state board only reminds a CPA about the license held
+<em>with that board</em> &mdash; nobody sends a nudge about the other one or two states the same person
+might also be licensed in. Nothing is watching the full multi-state picture except the CPA themselves,
+one inbox at a time.</p>
+<p><strong>No firm-level visibility.</strong> The partner or admin who actually carries the regulatory
+risk for the firm never sees any of this &mdash; only the individual licensee's own inbox gets the
+reminder. If that person doesn't forward it, changes their email, or leaves the firm, the firm has zero
+visibility until a renewal is already missed.</p>
+<p><strong>Filing vs. hours.</strong> CPE-hour tracking tools (MYCPE, Illumeo, and similar) track whether
+staff completed their continuing-education hours. That's a different event from whether the actual
+renewal <em>filing</em> with the state board happened. Finishing every CPE hour and still missing the
+filing deadline is a real, common failure mode &mdash; this product is about the filing, not the hours.</p>
 
 <h2>What you get</h2>
 <p>A firm-wide view that answers what a spreadsheet can't: who's current, who's at risk, and who needs
@@ -2594,9 +2628,7 @@ to act before a deadline &mdash; for every staff CPA and the firm's own registra
 codified statute or rule we verify for every free state page on this site &mdash;
 <a href="../methodology/">see exactly how we verify every deadline</a>. Any individual CPA can already
 get free reminders on their own; what a firm gets here is the roster-level accountability view nobody's
-personal inbox provides. Each staff member's license status is also manually verified against the state
-board at onboarding and every admin update cycle &mdash; not just self-reported &mdash; so a lapsed or
-expired license doesn't sit unnoticed until the next renewal deadline.</p>
+personal inbox provides, in one place.</p>
 
 {_firm_dashboard_mockup_html(by_slug)}
 
@@ -2609,19 +2641,37 @@ trust this site.</p>
 <h2>Pricing</h2>
 <p><strong>$500/year flat for firms with up to 10 staff</strong>, about $50/seat/year above that.
 Start with a <strong>free 30-day pilot &mdash; no card required</strong>.</p>
-<div class="firm-cta">
-<p><a href="{esc(pilot_mailto)}">Start your free 30-day pilot &rarr;</a></p>
-<p class="disclosure">Say yes by email above and we'll follow up the same week with next steps.</p>
+
+<div class="remind-panel" id="firm-lead">
+  <div>
+    <h2>Reserve your spot</h2>
+    <p class="remind-copy">Self-serve signup for the firm dashboard isn't live yet. Leave your firm's
+    email below and we'll notify you the day it opens &mdash; you'll be near the front of the pilot
+    list, not starting a subscription today.</p>
+    <p class="remind-promise">No card, no account created yet &mdash; this just reserves your place.</p>
+  </div>
+  <form method="post" action="{firm_lead_action}">
+    {_BOT_DEFENSE_FIELDS_HTML}
+    <label for="firm-lead-name">Firm name</label>
+    <input type="text" id="firm-lead-name" name="firm_name" required placeholder="Example Firm, LLC">
+    <label for="firm-lead-email">Your email</label>
+    <input type="email" id="firm-lead-email" name="email" required placeholder="you@example.com">
+    <label for="firm-lead-staff-count">Approx. staff count (optional)</label>
+    <input type="text" id="firm-lead-staff-count" name="staff_count_hint" maxlength="20" placeholder="e.g. 8">
+    <button type="submit">Reserve early access &rarr;</button>
+  </form>
 </div>
 
-<h2>How a pilot actually works right now</h2>
-<p>Honest about where we are: there's no self-serve signup or payment page yet. When you say yes, we
-collect your staff roster and onboard each person through the same double opt-in signup every free
-subscriber on this site already uses (each staff member confirms their own email &mdash; a real consent
-step, not a firm admin subscribing colleagues who never agreed), then send your admin contact a status
-update each cycle: who's confirmed, who's at risk, and any license flagged expired or lapsed during our
-manual verification pass. Billing today is a simple invoice; a self-serve card-payment option is coming
-soon.</p>
+<h2>How it actually works</h2>
+<p>Honest about where we are: the form above joins our early-access list &mdash; it does not create an
+account today, because the self-serve firm dashboard hasn't shipped yet. Here's what it looks like once
+it's live: your admin creates an account and adds staff directly &mdash; name, email, state, and license
+type for each person &mdash; no concierge onboarding where our team enters a roster for you. Each staff
+member then gets one email asking them to confirm, the exact same double opt-in every free subscriber on
+this site already goes through, so reminders never start for someone who hasn't agreed to them. Deadline
+accuracy comes from the same sourced-to-codified-law data every free page on this site already uses, not
+a recurring human check-in on each staff member's status. Billing today is a simple invoice; a self-serve
+card-payment option is coming alongside the dashboard.</p>
 
 {_firm_landing_links_html()}
 

@@ -2799,7 +2799,7 @@ attention soonest.</p>
   <h2>Sign in</h2>
   <p class="signup-microcopy">Enter your firm's admin email and we'll send a one-time sign-in link.
   No password to remember or reset.</p>
-  <form method="post" action="/api/firm/login">
+  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/login">
     {_BOT_DEFENSE_FIELDS_HTML}
     <label for="login-email">Admin email</label>
     <input type="email" id="login-email" name="admin_email" required placeholder="you@yourfirm.com">
@@ -2811,7 +2811,7 @@ attention soonest.</p>
   <h2>New firm? Create your account</h2>
   <p class="signup-microcopy">Free to start &mdash; a 30-day pilot, no card required. We'll email your
   admin address a one-time sign-in link to finish setting up.</p>
-  <form method="post" action="/api/firm/signup">
+  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/signup">
     {_BOT_DEFENSE_FIELDS_HTML_ALT}
     <label for="signup-firm-name">Firm name</label>
     <input type="text" id="signup-firm-name" name="name" required maxlength="200" placeholder="Example Firm, LLC">
@@ -3136,6 +3136,18 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>"""
 
+# Substituted (not an f-string, see the comment above this constant for why):
+# every fetch() call above is hardcoded to '/api/firm/...' because that is
+# genuinely correct for production (same-origin). A preview build (2026-07-28
+# firm-dashboard preview, DR_REMINDER_BACKEND_BASE_URL set to the preview
+# Worker's own workers.dev URL, a DIFFERENT origin than the preview static
+# pages) needs those calls pointed elsewhere. Plain string replace is safe
+# here specifically because '/api/firm' is a distinctive substring that
+# appears nowhere else in this block -- confirmed byte-identical output when
+# REMINDER_BACKEND_BASE_URL is unset (default "/api", so this replace is a
+# no-op in production).
+_FIRM_DASHBOARD_JS_HTML = _FIRM_DASHBOARD_JS_HTML.replace("'/api/firm", f"'{REMINDER_BACKEND_BASE_URL}/firm")
+
 
 def build_firm_dashboard_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
     """The real firm dashboard (2026-07-28, step 3/3). Static HTML shell +
@@ -3185,7 +3197,7 @@ def build_firm_dashboard_page(by_slug: dict[str, list[dict]], as_of: date) -> st
 
 {add_staff_html}
 
-<form method="post" action="/api/firm/logout" style="margin-top:2rem;">
+<form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/logout" style="margin-top:2rem;">
   <button type="submit" style="padding:0.6rem 1.1rem;border:1px solid var(--border-strong);
   border-radius:6px;background:var(--card-bg);color:var(--fg);font-size:0.92rem;cursor:pointer;
   font-family:inherit;">Log out</button>

@@ -49,7 +49,10 @@ import {
   HONEYPOT_FIELD_NAME,
   MAX_BODY_BYTES,
   MAX_FIELD_LEN,
+  MAX_FIRM_NAME_LEN,
+  MAX_STAFF_COUNT_HINT_LEN,
   RATE_LIMIT_ACTION,
+  RATE_LIMIT_FIRM_LEAD,
   RATE_LIMIT_SUBSCRIBE,
   checkRateLimit,
   escapeHtml,
@@ -426,6 +429,83 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
   return htmlResponse(200, SUBSCRIBE_SUCCESS_PAGE);
 }
 
+// Same "one generic response regardless of which internal branch ran"
+// no-enumeration-oracle posture as SUBSCRIBE_SUCCESS_PAGE above -- a real
+// insert and a honeypot no-op must look identical from the outside.
+const FIRM_LEAD_SUCCESS_PAGE = htmlPage(
+  "You're on the list",
+  "<h1>You're on the list</h1><p>We'll email you the moment self-serve signup for the firm dashboard " +
+    "opens. No account has been created yet &mdash; this just reserves your spot.</p>"
+);
+
+/**
+ * POST /api/firm/lead -- the /for-firms/ page's "reserve early access" form
+ * (generate.py's build_firms_page()). Structurally the same hardening as
+ * handleSubscribe() above (rate limit -> body-size cap -> honeypot ->
+ * control-char check -> email format -> Turnstile), deliberately simpler
+ * where the two genuinely differ: no confirmation email, no token/lifecycle
+ * fields, and no dedupe-by-cooldown-key -- a firm_leads row isn't a consent
+ * record and this endpoint never sends anyone anything, so a repeat
+ * submission from the same address isn't a mail-bombing vector the way a
+ * repeat /subscribe would be. See store.addFirmLead()'s own docstring for
+ * why this deliberately does not reuse the subscribers table/lifecycle.
+ */
+async function handleFirmLead(request: Request, env: Env, ip: string): Promise<Response> {
+  const allowed = await checkRateLimit(env.DB, ip, "firm_lead", RATE_LIMIT_FIRM_LEAD);
+  if (!allowed) {
+    return errorPage(429, "Too many submissions from this address. Please try again later.");
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return errorPage(400, "Request too large or empty.");
+  }
+
+  let form: Record<string, string>;
+  try {
+    form = Object.fromEntries(new URLSearchParams(raw).entries());
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+
+  // Honeypot: same "any non-empty raw value, including whitespace-only"
+  // check as handleSubscribe() -- silently looks like success to a bot.
+  const honeypotValue = form[HONEYPOT_FIELD_NAME];
+  if (honeypotValue !== undefined && honeypotValue !== "") {
+    return htmlResponse(200, FIRM_LEAD_SUCCESS_PAGE);
+  }
+
+  for (const value of Object.values(form)) {
+    if (hasControlChars(value)) {
+      return errorPage(400, "Invalid characters in submission.");
+    }
+  }
+
+  const email = (form.email ?? "").trim();
+  if (!isValidEmail(email)) {
+    return errorPage(400, "That doesn't look like a valid email address.");
+  }
+
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
+  if (!turnstileOk) {
+    return errorPage(400, "Verification failed -- please try again.");
+  }
+
+  const firmNameRaw = (form.firm_name ?? "").trim().slice(0, MAX_FIRM_NAME_LEN);
+  const firmName = firmNameRaw.length > 0 ? firmNameRaw : null;
+  const staffCountHintRaw = (form.staff_count_hint ?? "").trim().slice(0, MAX_STAFF_COUNT_HINT_LEN);
+  const staffCountHint = staffCountHintRaw.length > 0 ? staffCountHintRaw : null;
+
+  await store.addFirmLead(env.DB, { email, firmName, staffCountHint });
+
+  return htmlResponse(200, FIRM_LEAD_SUCCESS_PAGE);
+}
+
 async function handleConfirm(env: Env, token: string | null): Promise<Response> {
   if (!token) return errorPage(400, "Missing confirmation link.");
   const subscriber = await store.confirm(env.DB, token);
@@ -564,6 +644,14 @@ export default {
       if (url.pathname === "/subscribe") {
         try {
           return await handleSubscribe(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
+      if (url.pathname === "/firm/lead") {
+        try {
+          return await handleFirmLead(request, env, ip);
         } catch {
           return errorPage(400, "Something went wrong processing that request.");
         }

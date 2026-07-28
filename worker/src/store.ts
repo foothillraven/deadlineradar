@@ -8,7 +8,7 @@
  * never the lifecycle rules themselves.
  */
 
-import { sanitizeFirstName } from "./validation";
+import { MAX_FIRM_NAME_LEN, MAX_STAFF_COUNT_HINT_LEN, sanitizeFirstName, sanitizeFreeText } from "./validation";
 
 export const STATUS_PENDING = "pending_confirmation";
 export const STATUS_CONFIRMED = "confirmed";
@@ -419,4 +419,64 @@ export async function markReminderSent(db: D1Database, subscriberId: string, thr
 export async function allConfirmedActive(db: D1Database): Promise<SubscriberRow[]> {
   const { results } = await db.prepare("SELECT * FROM subscribers WHERE status = ?1").bind(STATUS_CONFIRMED).all<SubscriberRow>();
   return results;
+}
+
+/**
+ * migration 0007. A firm_leads row -- NOT a subscriber. This table has no
+ * confirm/unsubscribe/renewed lifecycle at all: it just records that someone
+ * expressed interest in the firm dashboard's early-access list via the
+ * /for-firms/ page's POST /api/firm/lead form (index.ts's handleFirmLead()).
+ */
+export interface FirmLeadRow {
+  id: string;
+  email: string;
+  firm_name: string | null;
+  staff_count_hint: string | null;
+  created_at: string;
+  converted_at: string | null;
+}
+
+export interface AddFirmLeadInput {
+  email: string;
+  firmName: string | null;
+  staffCountHint: string | null;
+}
+
+/**
+ * Inserts a firm_leads row. Deliberately no dedupe/cooldown/resend logic --
+ * unlike addPending() (the subscribers table this deliberately does NOT
+ * reuse), a lead isn't a consent record and sends nobody anything, so there
+ * is no mail-bombing vector a repeat submission from the same email could
+ * open; the caller's rate limiter (index.ts's handleFirmLead(), same
+ * checkRateLimit() bucket pattern as handleSubscribe()) is what actually
+ * bounds submission volume. sanitizeFreeText() is called here independently
+ * of index.ts's own validation, same defense-in-depth rationale as
+ * addPending()'s re-call of sanitizeFirstName() above -- a future caller
+ * that forgets to validate still can't smuggle an oversized or
+ * non-printable value into storage.
+ */
+export async function addFirmLead(db: D1Database, input: AddFirmLeadInput): Promise<FirmLeadRow> {
+  const record: FirmLeadRow = {
+    id: newToken(),
+    email: input.email,
+    firm_name: sanitizeFreeText(input.firmName, MAX_FIRM_NAME_LEN),
+    staff_count_hint: sanitizeFreeText(input.staffCountHint, MAX_STAFF_COUNT_HINT_LEN),
+    created_at: nowIso(),
+    converted_at: null,
+  };
+  await db
+    .prepare(
+      `INSERT INTO firm_leads (id, email, firm_name, staff_count_hint, created_at, converted_at)
+       VALUES (?1,?2,?3,?4,?5,?6)`
+    )
+    .bind(
+      record.id,
+      record.email,
+      record.firm_name,
+      record.staff_count_hint,
+      record.created_at,
+      record.converted_at
+    )
+    .run();
+  return record;
 }

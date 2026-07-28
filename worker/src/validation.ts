@@ -28,6 +28,12 @@ export const MAX_BODY_BYTES = 8192;
 
 export const MAX_FIRST_NAME_LEN = 60;
 
+// Firm-lead capture (POST /api/firm/lead) free-text field caps -- generous
+// for a real firm name / a short staff-count hint like "8" or "10-15", not
+// free-form prose.
+export const MAX_FIRM_NAME_LEN = 200;
+export const MAX_STAFF_COUNT_HINT_LEN = 20;
+
 // Deliberately stricter than "contains an @ and a dot" -- rejects
 // whitespace, control characters, multiple @ signs, and malformed domains
 // outright. Byte-for-byte the same pattern as server.py:160's `_EMAIL_RE`.
@@ -137,6 +143,27 @@ function isPrintableChar(ch: string): boolean {
   return true;
 }
 
+/**
+ * Generic sibling of sanitizeFirstName() for other short, optional,
+ * cosmetic-only free-text fields (currently: firm_leads.firm_name and
+ * .staff_count_hint) that need the same defense-in-depth treatment --
+ * trimmed, non-printable characters stripped, hard-capped at `maxLen` --
+ * without hardcoding MAX_FIRST_NAME_LEN's specific limit. Same "called again
+ * independently at the storage layer even though the request layer already
+ * validated" rationale as sanitizeFirstName()'s own docstring.
+ */
+export function sanitizeFreeText(value: string | null | undefined, maxLen: number): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  let out = "";
+  for (const ch of trimmed) {
+    if (isPrintableChar(ch)) out += ch;
+    if (out.length >= maxLen) break;
+  }
+  const capped = out.slice(0, maxLen);
+  return capped.length > 0 ? capped : null;
+}
+
 export function escapeHtml(value: unknown): string {
   return String(value).replace(/[&<>"']/g, (ch) => {
     switch (ch) {
@@ -187,6 +214,11 @@ export interface RateLimit {
 // server.py:134-135, unchanged.
 export const RATE_LIMIT_SUBSCRIBE: RateLimit = { max: 5, windowSeconds: 600 };
 export const RATE_LIMIT_ACTION: RateLimit = { max: 30, windowSeconds: 600 };
+
+// POST /api/firm/lead (2026-07-28) -- its own bucket, same shape/limit as
+// RATE_LIMIT_SUBSCRIBE. A separate bucket (not a shared one) so a burst
+// against one endpoint can't consume the other's allowance.
+export const RATE_LIMIT_FIRM_LEAD: RateLimit = { max: 5, windowSeconds: 600 };
 
 /** Returns true if this request is ALLOWED, false if it should be blocked. */
 export async function checkRateLimit(

@@ -72,6 +72,33 @@ function newToken(): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+/**
+ * migration 0008. Hashes a raw CSPRNG token (a login link or a session
+ * token) to hex-encoded SHA-256, via the Web Crypto API the Workers runtime
+ * provides natively -- no bcrypt/argon2 dependency (neither is available in
+ * a Workers isolate without a WASM add-on). This is a defensible choice
+ * specifically BECAUSE the input is always a 32-byte CSPRNG value from
+ * `newToken()`, never a human-guessable password: there is no offline
+ * dictionary/brute-force risk a slow, salted KDF exists to mitigate, only
+ * the risk of the raw value leaking from wherever it's stored -- which a
+ * single fast hash already fully defeats (an attacker who steals the DB
+ * gets `token_hash`, not anything they can present back as a valid token
+ * without already knowing the 256 bits of the original). Deliberately NOT
+ * used for subscribers' confirm_token/unsubscribe_token/renewed_token --
+ * those are stored plaintext, an accepted existing pattern for this
+ * codebase's single-purpose action links (see this migration's own
+ * docstring for why login/session tokens are different: standing account
+ * access, not a one-shot action).
+ */
+export async function hashToken(raw: string): Promise<string> {
+  const data = new TextEncoder().encode(raw);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  const bytes = new Uint8Array(digest);
+  let hex = "";
+  for (const b of bytes) hex += b.toString(16).padStart(2, "0");
+  return hex;
+}
+
 /** store.py:83 `_normalize_email()`. */
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -479,4 +506,205 @@ export async function addFirmLead(db: D1Database, input: AddFirmLeadInput): Prom
     )
     .run();
   return record;
+}
+
+// ---------------------------------------------------------------------------
+// migration 0008 -- firm accounts + login/session auth. This is the repo's
+// FIRST real login system (everything above this line is capability-URL
+// tokens, never a login) -- see index.ts's requireFirmSession() for the one
+// place every firm-scoped route MUST call to enforce firm_id ownership, and
+// this migration's own SQL file for the hashing-convention rationale.
+// ---------------------------------------------------------------------------
+
+export interface FirmRow {
+  id: string;
+  name: string;
+  admin_email: string;
+  plan_tier: string;
+  status: string;
+  created_at: string;
+}
+
+export interface FirmLoginTokenRow {
+  id: string;
+  firm_id: string;
+  token_hash: string;
+  created_at: string;
+  expires_at: string;
+  used_at: string | null;
+}
+
+export interface FirmSessionRow {
+  id: string;
+  firm_id: string;
+  session_token_hash: string;
+  created_at: string;
+  expires_at: string;
+  last_seen_at: string;
+}
+
+// A login link is a one-shot bearer credential emailed in plaintext -- kept
+// short-lived so a delayed-open/forwarded/logged copy of the email has a
+// narrow window to matter. 15 minutes matches this codebase's existing
+// "short-lived one-time link" precedent (see RESEND_COOLDOWN_MINUTES's
+// neighborhood) and is generous enough for "click the email you just got."
+export const LOGIN_TOKEN_TTL_MINUTES = 15;
+
+// A firm admin dashboard session, not a one-time action link -- 30 days is
+// a reasonable "stay signed in" duration for a low-frequency B2B admin tool
+// (an office manager checking renewal status, not a consumer app opened
+// hourly). Deliberate MVP simplification, noted again on verifySession()
+// below: this is a HARD 30-day lifetime from creation, never extended by
+// activity (no "sliding" expiry) -- simpler to reason about and to test,
+// and a firm admin who's still active well past 30 days just gets a fresh
+// login-link email, which costs them one click.
+export const SESSION_TTL_DAYS = 30;
+
+export interface CreateFirmInput {
+  name: string;
+  adminEmail: string;
+}
+
+/**
+ * Inserts a new `firms` row. Re-sanitizes `name` independently of the
+ * request-layer validation in index.ts's handleFirmSignup() -- same
+ * defense-in-depth rationale as `addPending()`'s re-call of
+ * `sanitizeFirstName()` and `addFirmLead()`'s re-call of `sanitizeFreeText()`
+ * above: a future caller that forgets to validate still can't smuggle an
+ * oversized or non-printable name into storage. Falls back to an empty
+ * string (never null -- `firms.name` is NOT NULL, unlike firm_leads.firm_name)
+ * in the pathological case where sanitization strips a name down to
+ * nothing; index.ts's own validation should never let that input through in
+ * the first place.
+ */
+export async function createFirm(db: D1Database, input: CreateFirmInput): Promise<{ id: string }> {
+  const id = newToken();
+  const name = sanitizeFreeText(input.name, MAX_FIRM_NAME_LEN) ?? "";
+  await db
+    .prepare(
+      `INSERT INTO firms (id, name, admin_email, plan_tier, status, created_at)
+       VALUES (?1,?2,?3,'pilot','active',?4)`
+    )
+    .bind(id, name, input.adminEmail, nowIso())
+    .run();
+  return { id };
+}
+
+/**
+ * Case/whitespace-insensitive match on admin_email, mirroring
+ * `isPermanentlySuppressed()`'s `LOWER(TRIM(email))` convention above (the
+ * same normalization `normalizeEmail()` does in JS, pushed into the query).
+ * No expression index backs this one (unlike
+ * `idx_subscribers_email_normalized`, migration 0003) -- deliberately: the
+ * `firms` table is expected to stay small (one row per paying/pilot firm,
+ * not per end-user) for a long time, so a full-table scan here is cheap and
+ * not worth a migration until real growth says otherwise, unlike
+ * `subscribers` (see migration 0008's own comment on `idx_subscribers_firm_id`
+ * for why THAT table gets an index up front instead of waiting).
+ */
+export async function findFirmByAdminEmail(db: D1Database, email: string): Promise<FirmRow | null> {
+  const normalized = normalizeEmail(email);
+  const row = await db
+    .prepare(`SELECT * FROM firms WHERE LOWER(TRIM(admin_email)) = ?1 LIMIT 1`)
+    .bind(normalized)
+    .first<FirmRow>();
+  return row ?? null;
+}
+
+/**
+ * Generates a raw CSPRNG login token, stores only its hash (see
+ * `hashToken()`'s own docstring), and returns the RAW value for the caller
+ * to email -- this function is the only place the raw value ever exists
+ * outside the recipient's inbox; it is never logged, never stored anywhere
+ * else. `expires_at` = now + LOGIN_TOKEN_TTL_MINUTES.
+ */
+export async function createLoginToken(db: D1Database, firmId: string): Promise<{ rawToken: string }> {
+  const rawToken = newToken();
+  const tokenHash = await hashToken(rawToken);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + LOGIN_TOKEN_TTL_MINUTES * 60_000).toISOString();
+  await db
+    .prepare(
+      `INSERT INTO firm_login_tokens (id, firm_id, token_hash, created_at, expires_at, used_at)
+       VALUES (?1,?2,?3,?4,?5,NULL)`
+    )
+    .bind(newToken(), firmId, tokenHash, now.toISOString(), expiresAt)
+    .run();
+  return { rawToken };
+}
+
+/**
+ * Hashes the incoming raw token and looks it up by `token_hash` -- the raw
+ * value itself is never compared or stored. Single-use (`used_at`) and
+ * time-bound (`expires_at`): either an already-used or an expired token is
+ * rejected exactly like an invalid one (same "no oracle" posture as every
+ * other token check in this file -- store.confirm()/store.stop() also just
+ * return null on any of several distinct failure reasons). On success,
+ * marks `used_at` so a second attempt with the same raw token -- e.g. an
+ * email link opened twice, or a forwarded/leaked copy -- can never succeed
+ * again.
+ */
+export async function verifyAndConsumeLoginToken(db: D1Database, rawToken: string): Promise<{ firmId: string } | null> {
+  const tokenHash = await hashToken(rawToken);
+  const row = await db
+    .prepare(`SELECT * FROM firm_login_tokens WHERE token_hash = ?1`)
+    .bind(tokenHash)
+    .first<FirmLoginTokenRow>();
+  if (!row) return null;
+  if (row.used_at) return null;
+  if (Date.parse(row.expires_at) <= Date.now()) return null;
+  await db.prepare(`UPDATE firm_login_tokens SET used_at = ?1 WHERE id = ?2`).bind(nowIso(), row.id).run();
+  return { firmId: row.firm_id };
+}
+
+/**
+ * Generates a raw CSPRNG session token, stores only its hash, and returns
+ * the RAW value for the caller to set as the `dr_firm_session` cookie (see
+ * index.ts). `expires_at` = now + SESSION_TTL_DAYS.
+ */
+export async function createSession(db: D1Database, firmId: string): Promise<{ rawSessionToken: string }> {
+  const rawSessionToken = newToken();
+  const sessionTokenHash = await hashToken(rawSessionToken);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + SESSION_TTL_DAYS * 86_400_000).toISOString();
+  await db
+    .prepare(
+      `INSERT INTO firm_sessions (id, firm_id, session_token_hash, created_at, expires_at, last_seen_at)
+       VALUES (?1,?2,?3,?4,?5,?6)`
+    )
+    .bind(newToken(), firmId, sessionTokenHash, now.toISOString(), expiresAt, now.toISOString())
+    .run();
+  return { rawSessionToken };
+}
+
+/**
+ * Hashes the incoming raw session token and looks it up by
+ * `session_token_hash`. Rejects an expired session. On success, updates
+ * `last_seen_at` to now -- deliberately does NOT extend `expires_at` (no
+ * sliding-window renewal): a hard 30-day session lifetime from creation is
+ * simpler to reason about and test, and is a deliberate MVP simplification
+ * -- a real product might want sliding renewal so an active user is never
+ * logged out mid-use, but that's a real design decision for a later pass,
+ * not something to sneak in un-discussed here.
+ */
+export async function verifySession(db: D1Database, rawSessionToken: string): Promise<{ firmId: string } | null> {
+  const sessionTokenHash = await hashToken(rawSessionToken);
+  const row = await db
+    .prepare(`SELECT * FROM firm_sessions WHERE session_token_hash = ?1`)
+    .bind(sessionTokenHash)
+    .first<FirmSessionRow>();
+  if (!row) return null;
+  if (Date.parse(row.expires_at) <= Date.now()) return null;
+  await db.prepare(`UPDATE firm_sessions SET last_seen_at = ?1 WHERE id = ?2`).bind(nowIso(), row.id).run();
+  return { firmId: row.firm_id };
+}
+
+/** Logout: hash + delete the matching session row. Idempotent -- deleting a
+ * session that doesn't exist (already logged out, already expired and
+ * reaped, or a garbage cookie value) is a silent no-op, not an error;
+ * index.ts's handleFirmLogout() always returns the same success response
+ * regardless. */
+export async function deleteSession(db: D1Database, rawSessionToken: string): Promise<void> {
+  const sessionTokenHash = await hashToken(rawSessionToken);
+  await db.prepare(`DELETE FROM firm_sessions WHERE session_token_hash = ?1`).bind(sessionTokenHash).run();
 }

@@ -9,7 +9,7 @@ import {
 } from "../src/deadline";
 import { hasControlChars, isValidEmail, sanitizeFirstName, strictParseInt } from "../src/validation";
 import * as store from "../src/store";
-import type { FirmLeadRow, SubscriberRow } from "../src/store";
+import type { FirmLeadRow, FirmRow, SubscriberRow } from "../src/store";
 
 function form(fields: Record<string, string>): string {
   return new URLSearchParams(fields).toString();
@@ -412,6 +412,389 @@ describe("POST /firm/lead -- firm-tier early-access capture", () => {
       ip
     );
     expect(sixth.status).toBe(429);
+  });
+});
+
+// migration 0008 -- firm accounts + login/session auth. This is the repo's
+// FIRST real login system; every helper/test below follows this file's own
+// existing conventions (explicit per-test IP so the shared rate-limit
+// buckets never collide across unrelated tests, generic-response
+// anti-enumeration assertions matching the /subscribe and /firm/lead
+// suites above).
+async function postFirmSignup(fields: Record<string, string>, ip: string): Promise<Response> {
+  return SELF.fetch("https://deadline-radar.com/firm/signup", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": ip },
+    body: form({ hp_website: "", ...fields }),
+  });
+}
+
+async function postFirmLogin(fields: Record<string, string>, ip: string): Promise<Response> {
+  return SELF.fetch("https://deadline-radar.com/firm/login", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": ip },
+    body: form({ hp_website: "", ...fields }),
+  });
+}
+
+async function getFirmLoginVerify(token: string | null, ip: string): Promise<Response> {
+  const query = token !== null ? `?token=${encodeURIComponent(token)}` : "";
+  return SELF.fetch(`https://deadline-radar.com/firm/login/verify${query}`, {
+    headers: { "cf-connecting-ip": ip },
+    redirect: "manual",
+  });
+}
+
+async function postFirmLogout(cookie: string | null, ip: string): Promise<Response> {
+  const headers: Record<string, string> = { "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch("https://deadline-radar.com/firm/logout", { method: "POST", headers, redirect: "manual" });
+}
+
+function cookieValue(setCookieHeader: string | null, name: string): string | null {
+  if (!setCookieHeader) return null;
+  const match = new RegExp(`${name}=([^;]*)`).exec(setCookieHeader);
+  return match ? decodeURIComponent(match[1] as string) : null;
+}
+
+async function firmByAdminEmail(email: string): Promise<FirmRow | null> {
+  return (await env.DB.prepare("SELECT * FROM firms WHERE admin_email = ?1").bind(email).first<FirmRow>()) ?? null;
+}
+
+describe("POST /firm/signup -- firm account creation + login-link send", () => {
+  it("happy path: creates a firm, creates an unused login token, and returns the generic 'check your email' page", async () => {
+    const email = `firmsignup-${Date.now()}@example.com`;
+    const resp = await postFirmSignup({ name: "Example CPA Firm", admin_email: email }, "203.0.113.150");
+    expect(resp.status).toBe(200);
+    const body = await resp.text();
+    expect(body.toLowerCase()).toContain("check your email");
+
+    const firm = await firmByAdminEmail(email);
+    expect(firm).not.toBeNull();
+    expect(firm?.name).toBe("Example CPA Firm");
+    expect(firm?.plan_tier).toBe("pilot");
+    expect(firm?.status).toBe("active");
+
+    const tokenRow = await env.DB
+      .prepare("SELECT * FROM firm_login_tokens WHERE firm_id = ?1")
+      .bind(firm?.id)
+      .first<{ used_at: string | null; expires_at: string }>();
+    expect(tokenRow).not.toBeNull();
+    expect(tokenRow?.used_at).toBeNull();
+  });
+
+  it("a repeat signup for an email that already has a firm does NOT create a second firm (anti-enumeration)", async () => {
+    const email = `firmsignup-dup-${Date.now()}@example.com`;
+    const first = await postFirmSignup({ name: "First Name", admin_email: email }, "203.0.113.151");
+    expect(first.status).toBe(200);
+    const firstBody = await first.text();
+
+    const second = await postFirmSignup({ name: "Second Name Attempt", admin_email: email }, "203.0.113.152");
+    expect(second.status).toBe(200);
+    const secondBody = await second.text();
+    expect(secondBody).toBe(firstBody); // byte-identical response -- no enumeration oracle
+
+    const rows = await env.DB.prepare("SELECT * FROM firms WHERE admin_email = ?1").bind(email).all<FirmRow>();
+    expect(rows.results.length).toBe(1);
+    expect(rows.results[0]?.name).toBe("First Name"); // unchanged by the second attempt
+  });
+
+  it("rejects an empty/whitespace-only firm name", async () => {
+    const resp = await postFirmSignup(
+      { name: "   ", admin_email: `firmsignup-noname-${Date.now()}@example.com` },
+      "203.0.113.153"
+    );
+    expect(resp.status).toBe(400);
+  });
+
+  it("silently no-ops when the honeypot field is non-empty", async () => {
+    const email = `firmsignup-hp-${Date.now()}@example.com`;
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/signup", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.154" },
+      body: form({ name: "Bot Firm", admin_email: email, hp_website: "im-a-bot" }),
+    });
+    expect(resp.status).toBe(200);
+    expect(await firmByAdminEmail(email)).toBeNull();
+  });
+
+  it("rejects control characters in any field", async () => {
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/signup", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.155" },
+      body: "name=bad%0d%0aname&admin_email=a%40example.com&hp_website=",
+    });
+    expect(resp.status).toBe(400);
+  });
+
+  it("rejects a malformed email", async () => {
+    const resp = await postFirmSignup({ name: "Example Firm", admin_email: "not-an-email" }, "203.0.113.156");
+    expect(resp.status).toBe(400);
+  });
+
+  it("blocks the 6th request from the same IP within the window (own rate-limit bucket)", async () => {
+    const ip = "203.0.113.157";
+    for (let i = 0; i < 5; i++) {
+      const resp = await postFirmSignup(
+        { name: "Example Firm", admin_email: `firmsignup-rl-${i}-${Date.now()}@example.com` },
+        ip
+      );
+      expect(resp.status).not.toBe(429);
+    }
+    const sixth = await postFirmSignup(
+      { name: "Example Firm", admin_email: `firmsignup-rl-6-${Date.now()}@example.com` },
+      ip
+    );
+    expect(sixth.status).toBe(429);
+  });
+});
+
+describe("POST /firm/login -- login-link resend for an existing firm", () => {
+  it("for a nonexistent email returns the SAME generic response as a real firm, and creates nothing", async () => {
+    const email = `firmlogin-none-${Date.now()}@example.com`;
+    const resp = await postFirmLogin({ admin_email: email }, "203.0.113.160");
+    expect(resp.status).toBe(200);
+    const body = await resp.text();
+    expect(body.toLowerCase()).toContain("check your email");
+    expect(await firmByAdminEmail(email)).toBeNull();
+  });
+
+  it("for an existing firm issues a fresh login token (on top of the one signup already created)", async () => {
+    const email = `firmlogin-existing-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Existing Firm", admin_email: email }, "203.0.113.161");
+    const firm = await firmByAdminEmail(email);
+    const before = await env.DB
+      .prepare("SELECT COUNT(*) as c FROM firm_login_tokens WHERE firm_id = ?1")
+      .bind(firm?.id)
+      .first<{ c: number }>();
+
+    const resp = await postFirmLogin({ admin_email: email }, "203.0.113.162");
+    expect(resp.status).toBe(200);
+
+    const after = await env.DB
+      .prepare("SELECT COUNT(*) as c FROM firm_login_tokens WHERE firm_id = ?1")
+      .bind(firm?.id)
+      .first<{ c: number }>();
+    expect(after?.c).toBe((before?.c ?? 0) + 1);
+  });
+
+  it("silently no-ops when the honeypot field is non-empty", async () => {
+    const email = `firmlogin-hp-${Date.now()}@example.com`;
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/login", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.163" },
+      body: form({ admin_email: email, hp_website: "im-a-bot" }),
+    });
+    expect(resp.status).toBe(200);
+  });
+
+  it("rejects a malformed email", async () => {
+    const resp = await postFirmLogin({ admin_email: "not-an-email" }, "203.0.113.164");
+    expect(resp.status).toBe(400);
+  });
+
+  it("blocks the 6th request from the same IP within the window (own rate-limit bucket, separate from signup's)", async () => {
+    const ip = "203.0.113.165";
+    for (let i = 0; i < 5; i++) {
+      const resp = await postFirmLogin({ admin_email: `firmlogin-rl-${i}-${Date.now()}@example.com` }, ip);
+      expect(resp.status).not.toBe(429);
+    }
+    const sixth = await postFirmLogin({ admin_email: `firmlogin-rl-6-${Date.now()}@example.com` }, ip);
+    expect(sixth.status).toBe(429);
+  });
+});
+
+describe("GET /firm/login/verify -- consumes the login token, creates a session, sets the cookie", () => {
+  it("a valid raw login token creates a session, sets the dr_firm_session cookie, and redirects to /firm-dashboard/", async () => {
+    const email = `firmverify-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Verify Firm", admin_email: email }, "203.0.113.170");
+    const firm = await firmByAdminEmail(email);
+    const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
+
+    const resp = await getFirmLoginVerify(rawToken, "203.0.113.171");
+    expect(resp.status).toBe(302);
+    expect(resp.headers.get("Location")).toBe("/firm-dashboard/");
+    const setCookie = resp.headers.get("Set-Cookie");
+    expect(setCookie).toBeTruthy();
+    expect(setCookie).toContain("dr_firm_session=");
+    expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("Secure");
+    expect(setCookie).toContain("SameSite=Lax");
+    expect(setCookie).toContain("Max-Age=2592000"); // 30 days in seconds
+
+    const rawSession = cookieValue(setCookie, "dr_firm_session");
+    expect(rawSession).toBeTruthy();
+    const sessionCheck = await store.verifySession(env.DB, rawSession as string);
+    expect(sessionCheck?.firmId).toBe(firm!.id);
+  });
+
+  it("the SAME raw token cannot be used twice (single-use)", async () => {
+    const email = `firmverify-reuse-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Reuse Firm", admin_email: email }, "203.0.113.172");
+    const firm = await firmByAdminEmail(email);
+    const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
+
+    const first = await getFirmLoginVerify(rawToken, "203.0.113.173");
+    expect(first.status).toBe(302);
+
+    const second = await getFirmLoginVerify(rawToken, "203.0.113.174");
+    expect(second.status).toBe(400);
+    const body = await second.text();
+    expect(body.toLowerCase()).toContain("invalid");
+  });
+
+  it("an expired token is rejected", async () => {
+    const email = `firmverify-expired-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Expired Firm", admin_email: email }, "203.0.113.175");
+    const firm = await firmByAdminEmail(email);
+    const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
+    const tokenHash = await store.hashToken(rawToken);
+    // Force it into the past -- simulates 15+ minutes elapsed without waiting.
+    await env.DB
+      .prepare("UPDATE firm_login_tokens SET expires_at = ?1 WHERE token_hash = ?2")
+      .bind(new Date(Date.now() - 1000).toISOString(), tokenHash)
+      .run();
+
+    const resp = await getFirmLoginVerify(rawToken, "203.0.113.176");
+    expect(resp.status).toBe(400);
+    const body = await resp.text();
+    expect(body.toLowerCase()).toContain("expired");
+  });
+
+  it("a malformed/unknown token is rejected", async () => {
+    const resp = await getFirmLoginVerify("this-token-does-not-exist", "203.0.113.177");
+    expect(resp.status).toBe(400);
+  });
+
+  it("a missing token returns 400", async () => {
+    const resp = await getFirmLoginVerify(null, "203.0.113.178");
+    expect(resp.status).toBe(400);
+  });
+});
+
+describe("POST /firm/logout -- deletes the session and clears the cookie", () => {
+  it("deletes the session row and clears the cookie; the old raw token no longer authenticates", async () => {
+    const email = `firmlogout-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Logout Firm", admin_email: email }, "203.0.113.180");
+    const firm = await firmByAdminEmail(email);
+    const { rawSessionToken } = await store.createSession(env.DB, firm!.id);
+
+    const before = await store.verifySession(env.DB, rawSessionToken);
+    expect(before?.firmId).toBe(firm!.id);
+
+    const resp = await postFirmLogout(`dr_firm_session=${rawSessionToken}`, "203.0.113.181");
+    expect(resp.status).toBe(302);
+    const setCookie = resp.headers.get("Set-Cookie");
+    expect(setCookie).toContain("Max-Age=0");
+
+    const after = await store.verifySession(env.DB, rawSessionToken);
+    expect(after).toBeNull();
+  });
+
+  it("is a safe no-op when there's no session cookie at all", async () => {
+    const resp = await postFirmLogout(null, "203.0.113.182");
+    expect(resp.status).toBe(302);
+  });
+});
+
+describe("requireFirmSession -- the single auth gate every future firm-scoped route must call first", () => {
+  it("rejects a request with no session cookie", async () => {
+    const { requireFirmSession } = await import("../src/index");
+    const request = new Request("https://deadline-radar.com/firm-dashboard/");
+    const result = await requireFirmSession(request, env);
+    expect(result).toBeInstanceOf(Response);
+    expect((result as Response).status).toBe(401);
+  });
+
+  it("rejects a request with a garbage/unknown session cookie", async () => {
+    const { requireFirmSession } = await import("../src/index");
+    const request = new Request("https://deadline-radar.com/firm-dashboard/", {
+      headers: { Cookie: "dr_firm_session=not-a-real-token" },
+    });
+    const result = await requireFirmSession(request, env);
+    expect(result).toBeInstanceOf(Response);
+    expect((result as Response).status).toBe(401);
+  });
+
+  it("rejects an expired session cookie", async () => {
+    const { requireFirmSession } = await import("../src/index");
+    const firmId = (
+      await store.createFirm(env.DB, { name: "Expired Session Firm", adminEmail: `expsess-${Date.now()}@example.com` })
+    ).id;
+    const { rawSessionToken } = await store.createSession(env.DB, firmId);
+    const tokenHash = await store.hashToken(rawSessionToken);
+    await env.DB
+      .prepare("UPDATE firm_sessions SET expires_at = ?1 WHERE session_token_hash = ?2")
+      .bind(new Date(Date.now() - 1000).toISOString(), tokenHash)
+      .run();
+
+    const request = new Request("https://deadline-radar.com/firm-dashboard/", {
+      headers: { Cookie: `dr_firm_session=${rawSessionToken}` },
+    });
+    const result = await requireFirmSession(request, env);
+    expect(result).toBeInstanceOf(Response);
+    expect((result as Response).status).toBe(401);
+  });
+
+  it("accepts a valid, current session cookie and resolves the correct firmId", async () => {
+    const { requireFirmSession } = await import("../src/index");
+    const firmId = (
+      await store.createFirm(env.DB, { name: "Valid Session Firm", adminEmail: `validsess-${Date.now()}@example.com` })
+    ).id;
+    const { rawSessionToken } = await store.createSession(env.DB, firmId);
+
+    const request = new Request("https://deadline-radar.com/firm-dashboard/", {
+      headers: { Cookie: `dr_firm_session=${rawSessionToken}` },
+    });
+    const result = await requireFirmSession(request, env);
+    expect(result).not.toBeInstanceOf(Response);
+    expect((result as { firmId: string }).firmId).toBe(firmId);
+  });
+
+  it("picks the session cookie out from among other unrelated cookies on the request", async () => {
+    const { requireFirmSession } = await import("../src/index");
+    const firmId = (
+      await store.createFirm(env.DB, { name: "Multi Cookie Firm", adminEmail: `multicookie-${Date.now()}@example.com` })
+    ).id;
+    const { rawSessionToken } = await store.createSession(env.DB, firmId);
+
+    const request = new Request("https://deadline-radar.com/firm-dashboard/", {
+      headers: { Cookie: `some_other_cookie=xyz; dr_firm_session=${rawSessionToken}; another=1` },
+    });
+    const result = await requireFirmSession(request, env);
+    expect(result).not.toBeInstanceOf(Response);
+    expect((result as { firmId: string }).firmId).toBe(firmId);
+  });
+});
+
+describe("store.ts hashToken -- login/session token hashing", () => {
+  it("is deterministic and never contains the raw value it hashed", async () => {
+    const raw = "some-raw-token-value";
+    const h1 = await store.hashToken(raw);
+    const h2 = await store.hashToken(raw);
+    expect(h1).toBe(h2);
+    expect(h1).not.toContain(raw);
+    expect(h1).toMatch(/^[0-9a-f]{64}$/); // hex-encoded SHA-256
+  });
+
+  it("different inputs hash differently", async () => {
+    const h1 = await store.hashToken("token-a");
+    const h2 = await store.hashToken("token-b");
+    expect(h1).not.toBe(h2);
+  });
+});
+
+describe("emails.ts buildFirmLoginEmail", () => {
+  it("includes the login link, the 15-minute expiry copy, and a real mailing address", async () => {
+    const { buildFirmLoginEmail, MAILING_ADDRESS } = await import("../src/emails");
+    const built = buildFirmLoginEmail("https://deadline-radar.com/api/firm/login/verify?token=abc123");
+    expect(built.subject.toLowerCase()).toContain("sign-in link");
+    expect(built.textBody).toContain("https://deadline-radar.com/api/firm/login/verify?token=abc123");
+    expect(built.htmlBody).toContain("https://deadline-radar.com/api/firm/login/verify?token=abc123");
+    expect(built.textBody).toContain("15 minutes");
+    expect(built.htmlBody).toContain("15 minutes");
+    expect(built.htmlBody).toContain(MAILING_ADDRESS);
+    expect(built.textBody).toContain(MAILING_ADDRESS);
   });
 });
 

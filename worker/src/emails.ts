@@ -429,6 +429,55 @@ export function buildStopConfirmationEmail(
   return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
 }
 
+/**
+ * migration 0008 -- the firm admin sign-in (magic link) email, sent by
+ * POST /firm/signup and POST /firm/login (index.ts) whenever a login token
+ * is actually issued. Deliberately its own minimal footer, NOT
+ * `htmlFooter()`/`textFooter()` above -- those are hardcoded to the
+ * subscriber reminder-consent copy ("you asked us to track a CPA license
+ * renewal deadline... unsubscribe any time") which doesn't apply to a firm
+ * admin's own account sign-in link. Still asserts a real mailing address
+ * (CAN-SPAM) via `mailingAddress()` and still identifies the sender, just
+ * without the reminder-specific consent/unsubscribe language.
+ */
+export function buildFirmLoginEmail(loginUrl: string): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `Your ${SITE_NAME} sign-in link`;
+
+  const textBody =
+    `Here's your ${SITE_NAME} sign-in link:\n\n` +
+    `${loginUrl}\n\n` +
+    `This link expires in 15 minutes and can only be used once. If it's expired by the time you ` +
+    `click it, just request a new one from the sign-in page.\n\n` +
+    `If you didn't request this, you can safely ignore this email -- nobody can sign in to your ` +
+    `account without clicking the link above.\n\n` +
+    `---\n${SENDER_LINE}\n${addr}`;
+
+  const htmlBody = htmlShell(
+    `Your ${SITE_NAME} sign-in link`,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `Sign in to ${esc(SITE_NAME)}</h1>` +
+      p("Here's your sign-in link. Click below to access your firm dashboard.") +
+      `<p style="margin:0 0 20px;">${button(loginUrl, `Sign in to ${SITE_NAME}`)}</p>` +
+      p(
+        "This link expires in 15 minutes and can only be used once. If it's expired by the time " +
+          "you click it, just request a new one from the sign-in page.",
+        13,
+        LIGHT.muted
+      ) +
+      p(
+        "If you didn't request this, you can safely ignore this email &mdash; nobody can sign in " +
+          "to your account without clicking the link above.",
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
 /** Port of reminders/emails.py `confirmation_email()`. */
 export function buildConfirmationEmail(
   stateName: string,

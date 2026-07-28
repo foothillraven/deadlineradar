@@ -53,9 +53,12 @@ import {
   MAX_STAFF_COUNT_HINT_LEN,
   RATE_LIMIT_ACTION,
   RATE_LIMIT_FIRM_LEAD,
+  RATE_LIMIT_FIRM_LOGIN,
+  RATE_LIMIT_FIRM_SIGNUP,
   RATE_LIMIT_SUBSCRIBE,
   checkRateLimit,
   escapeHtml,
+  getCookie,
   hasControlChars,
   isValidEmail,
   strictParseInt,
@@ -72,7 +75,7 @@ import {
   type DeadlineFields,
 } from "./deadline";
 import * as store from "./store";
-import { buildConfirmationEmail, buildStopConfirmationEmail, fmtDate } from "./emails";
+import { buildConfirmationEmail, buildFirmLoginEmail, buildStopConfirmationEmail, fmtDate } from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, sendViaSendGrid } from "./sender";
 import { StaleDataError as SchedulerStaleDataError, runReminderPass } from "./scheduler";
 
@@ -159,6 +162,37 @@ const SUBSCRIBE_SUCCESS_PAGE = htmlPage(
 // handler strips it again on the way in). This is the public base for
 // /confirm and /unsubscribe links.
 const ACTION_BASE_URL = "https://deadline-radar.com/api";
+
+// migration 0008 -- firm admin login cookie. HttpOnly (never readable from
+// JS -- the dashboard's frontend never needs the raw token, only the
+// server does), Secure (HTTPS-only transmission), SameSite=Lax (sent on
+// top-level navigation -- e.g. following the emailed login link and its
+// redirect -- but not on cross-site subresource/XHR requests, a real CSRF
+// mitigation for a cookie whose mere presence grants dashboard access).
+// Max-Age matches store.SESSION_TTL_DAYS exactly -- kept as a separate
+// literal (not imported) since this is a COOKIE lifetime (seconds, HTTP
+// semantics) and that's a session-ROW lifetime (days, app semantics); see
+// the comment on FIRM_SESSION_COOKIE_MAX_AGE_SECONDS below for what breaks
+// if these two are ever allowed to drift apart.
+const FIRM_SESSION_COOKIE_NAME = "dr_firm_session";
+// Must stay equal to store.SESSION_TTL_DAYS * 86400 -- this is only the
+// BROWSER's copy of the expiry (when the browser stops sending the cookie
+// at all); store.ts's verifySession() independently checks the session
+// row's own `expires_at` on every request regardless, so a mismatch here
+// could only ever make the cookie disappear EARLIER than the server-side
+// session actually expires, never grant extra access.
+const FIRM_SESSION_COOKIE_MAX_AGE_SECONDS = store.SESSION_TTL_DAYS * 24 * 60 * 60;
+
+function firmSessionSetCookieHeader(rawSessionToken: string): string {
+  return (
+    `${FIRM_SESSION_COOKIE_NAME}=${encodeURIComponent(rawSessionToken)}; HttpOnly; Secure; ` +
+    `SameSite=Lax; Path=/; Max-Age=${FIRM_SESSION_COOKIE_MAX_AGE_SECONDS}`
+  );
+}
+
+function firmSessionClearCookieHeader(): string {
+  return `${FIRM_SESSION_COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`;
+}
 
 /** "north-carolina" -> "North Carolina", "california" -> "California". */
 function stateNameFromSlug(slug: string): string {
@@ -506,6 +540,281 @@ async function handleFirmLead(request: Request, env: Env, ip: string): Promise<R
   return htmlResponse(200, FIRM_LEAD_SUCCESS_PAGE);
 }
 
+// ---------------------------------------------------------------------------
+// migration 0008 -- firm accounts + login/session auth. This is the repo's
+// FIRST real login system: every route above this line is a capability-URL
+// token (one purpose, then inert), never a standing account. Auth-bypass is
+// the top risk here (a later step adversarially tests whether firm A's
+// admin can ever see firm B's data) -- requireFirmSession() at the bottom
+// of this section is the ONE place every future firm-scoped route (staff
+// CRUD, the dashboard itself -- neither built in this step) must call
+// first, and is written to make that a single obvious line, not something
+// easy to forget.
+// ---------------------------------------------------------------------------
+
+// Same anti-enumeration posture as SUBSCRIBE_SUCCESS_PAGE / FIRM_LEAD_SUCCESS_PAGE
+// above: /firm/signup and /firm/login BOTH return this exact page regardless
+// of which internal branch ran (new firm created, existing firm found and
+// re-sent a link, honeypot no-op, or -- for /firm/login only -- no firm at
+// all for that email). The copy is deliberately non-committal ("if that
+// address has...") so it's truthful in every branch and never reveals
+// whether a given email has an account.
+const FIRM_LOGIN_SENT_PAGE = htmlPage(
+  "Check your email",
+  "<h1>Check your email</h1><p>If that email has (or can have) a DeadlineRadar firm account, we've " +
+    "just sent a sign-in link. It expires in 15 minutes and works once &mdash; if it's expired by " +
+    "the time you click it, just request a new one.</p>"
+);
+
+/**
+ * Shared by handleFirmSignup() and handleFirmLogin(): issues a login token
+ * for `firmId` and, best-effort, emails it. Wrapped so ANY failure (SendGrid
+ * down, daily cap hit, build error) never surfaces as an error response --
+ * same posture as handleSubscribe()'s confirmation-email send: the caller
+ * always returns the same generic success page regardless of whether this
+ * actually sent anything, both for anti-enumeration and because a mail
+ * failure here must not be the requester's problem.
+ *
+ * Deliberately follows /subscribe's existing "no SENDGRID_API_KEY => no-op,
+ * don't crash" convention (see env.ts's own docstring) -- unconfigured
+ * sending degrades to "token created in the DB, nothing emailed" rather
+ * than an error.
+ */
+async function issueAndSendFirmLoginLink(env: Env, firmId: string, adminEmail: string): Promise<void> {
+  const { rawToken } = await store.createLoginToken(env.DB, firmId);
+  if (!env.SENDGRID_API_KEY) return;
+  try {
+    const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+    if (!underCap) return;
+    const loginUrl = `${ACTION_BASE_URL}/firm/login/verify?token=${encodeURIComponent(rawToken)}`;
+    const built = buildFirmLoginEmail(loginUrl);
+    await sendViaSendGrid(env.SENDGRID_API_KEY, adminEmail, built);
+  } catch {
+    // Swallow -- same reasoning as every other best-effort send in this
+    // file: the caller's response must never depend on whether this
+    // succeeded.
+  }
+}
+
+/**
+ * POST /firm/signup -- body: `name` (firm name), `admin_email`. Same
+ * hardening pipeline as handleFirmLead() (rate limit -> body-size cap ->
+ * honeypot -> control-char check -> email format -> Turnstile).
+ *
+ * Anti-enumeration judgment call: if `admin_email` already has a firm, this
+ * does NOT create a second one and does NOT say so -- it just sends that
+ * firm a fresh login link, exactly like a /firm/login request would. An
+ * attacker probing "does this email already have an account" gets the
+ * identical response either way (FIRM_LOGIN_SENT_PAGE), matching this
+ * codebase's existing SUBSCRIBE_SUCCESS_PAGE / FIRM_LEAD_SUCCESS_PAGE
+ * convention of one generic response regardless of internal branch.
+ */
+async function handleFirmSignup(request: Request, env: Env, ip: string): Promise<Response> {
+  const allowed = await checkRateLimit(env.DB, ip, "firm_signup", RATE_LIMIT_FIRM_SIGNUP);
+  if (!allowed) {
+    return errorPage(429, "Too many requests from this address. Please try again later.");
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return errorPage(400, "Request too large or empty.");
+  }
+
+  let form: Record<string, string>;
+  try {
+    form = Object.fromEntries(new URLSearchParams(raw).entries());
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+
+  const honeypotValue = form[HONEYPOT_FIELD_NAME];
+  if (honeypotValue !== undefined && honeypotValue !== "") {
+    return htmlResponse(200, FIRM_LOGIN_SENT_PAGE);
+  }
+
+  for (const value of Object.values(form)) {
+    if (hasControlChars(value)) {
+      return errorPage(400, "Invalid characters in submission.");
+    }
+  }
+
+  const email = (form.admin_email ?? "").trim();
+  if (!isValidEmail(email)) {
+    return errorPage(400, "That doesn't look like a valid email address.");
+  }
+  const nameRaw = (form.name ?? "").trim().slice(0, MAX_FIRM_NAME_LEN);
+  if (nameRaw.length === 0) {
+    return errorPage(400, "Please enter your firm's name.");
+  }
+
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
+  if (!turnstileOk) {
+    return errorPage(400, "Verification failed -- please try again.");
+  }
+
+  const existing = await store.findFirmByAdminEmail(env.DB, email);
+  const firmId = existing ? existing.id : (await store.createFirm(env.DB, { name: nameRaw, adminEmail: email })).id;
+
+  await issueAndSendFirmLoginLink(env, firmId, email);
+
+  return htmlResponse(200, FIRM_LOGIN_SENT_PAGE);
+}
+
+/**
+ * POST /firm/login -- body: `admin_email` only. If a firm exists for that
+ * email, issues + emails a fresh login link. If NOT, this is a silent no-op
+ * -- but the response is IDENTICAL either way (FIRM_LOGIN_SENT_PAGE): never
+ * reveal whether a given email has an account.
+ */
+async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<Response> {
+  const allowed = await checkRateLimit(env.DB, ip, "firm_login", RATE_LIMIT_FIRM_LOGIN);
+  if (!allowed) {
+    return errorPage(429, "Too many requests from this address. Please try again later.");
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return errorPage(400, "Request too large or empty.");
+  }
+
+  let form: Record<string, string>;
+  try {
+    form = Object.fromEntries(new URLSearchParams(raw).entries());
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+
+  const honeypotValue = form[HONEYPOT_FIELD_NAME];
+  if (honeypotValue !== undefined && honeypotValue !== "") {
+    return htmlResponse(200, FIRM_LOGIN_SENT_PAGE);
+  }
+
+  for (const value of Object.values(form)) {
+    if (hasControlChars(value)) {
+      return errorPage(400, "Invalid characters in submission.");
+    }
+  }
+
+  const email = (form.admin_email ?? "").trim();
+  if (!isValidEmail(email)) {
+    return errorPage(400, "That doesn't look like a valid email address.");
+  }
+
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
+  if (!turnstileOk) {
+    return errorPage(400, "Verification failed -- please try again.");
+  }
+
+  const existing = await store.findFirmByAdminEmail(env.DB, email);
+  if (existing) {
+    await issueAndSendFirmLoginLink(env, existing.id, email);
+  }
+  // No firm for this email: fall through to the SAME response, sending
+  // nothing -- this is the anti-enumeration branch this handler exists for.
+
+  return htmlResponse(200, FIRM_LOGIN_SENT_PAGE);
+}
+
+/**
+ * GET /firm/login/verify?token=... -- verifies + consumes the raw login
+ * token, and on success creates a session and sets the session cookie.
+ *
+ * Judgment call, flagged for the next reviewer: every OTHER action link in
+ * this Worker (/confirm, /unsubscribe, /renewed, /rearm) deliberately makes
+ * GET render-only and defers the actual state change to a POST -- precisely
+ * because email providers auto-GET links to scan them, and a GET that acted
+ * would let a scanner silently burn a one-time link before the human ever
+ * clicks it. This route does NOT follow that pattern -- it acts on GET, per
+ * this task's own spec -- because a magic sign-in link is the standard,
+ * expected UX for this kind of auth (that's what "click the link to sign
+ * in" means), and unlike the other action links, prefetch-then-burn here is
+ * a USER-FACING NUISANCE, not a security bypass: if a scanner's GET consumes
+ * the token first, the resulting session cookie is set on the scanner's own
+ * HTTP response, which the real recipient never sees -- the real admin
+ * simply hits "invalid or expired," requests a new link, and tries again.
+ * No cross-firm data exposure results either way. Worth reconsidering
+ * (e.g. a render-then-POST confirm step, same as the other actions) if
+ * link-scanning turns out to cause real friction in practice.
+ */
+async function handleFirmLoginVerify(env: Env, token: string | null): Promise<Response> {
+  if (!token) return errorPage(400, "Missing sign-in link.");
+  const result = await store.verifyAndConsumeLoginToken(env.DB, token);
+  if (!result) {
+    return errorPage(
+      400,
+      "That sign-in link is invalid, expired, or already used. Please request a new one and try again."
+    );
+  }
+  const { rawSessionToken } = await store.createSession(env.DB, result.firmId);
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: "/firm-dashboard/",
+      "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken),
+    },
+  });
+}
+
+/** POST /firm/logout -- reads the session cookie (if any), deletes the
+ * matching session row (a no-op if there wasn't one), and clears the
+ * cookie. Always succeeds from the caller's perspective -- there is no
+ * meaningful "logout failed" state to report. */
+async function handleFirmLogout(request: Request, env: Env): Promise<Response> {
+  const raw = getCookie(request, FIRM_SESSION_COOKIE_NAME);
+  if (raw) {
+    await store.deleteSession(env.DB, raw);
+  }
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: "/",
+      "Set-Cookie": firmSessionClearCookieHeader(),
+    },
+  });
+}
+
+/**
+ * THE single auth gate every firm-scoped route (staff CRUD, the dashboard
+ * itself -- both built by a later step on top of this branch) must call
+ * FIRST, as a one-line check:
+ *
+ *   const session = await requireFirmSession(request, env);
+ *   if (session instanceof Response) return session;
+ *   // session.firmId is now a verified, current, non-expired firm id --
+ *   // every query in this handler MUST filter by it.
+ *
+ * Returns either the resolved `{ firmId }` or a ready-to-return 401
+ * Response -- there is no third "maybe" state, and no separate step a
+ * future route could accidentally skip: either you get a firmId you can
+ * trust, or you get a Response you return immediately. This shape (rather
+ * than e.g. throwing, or returning `firmId | null` and leaving the 401 to
+ * each caller) is deliberate: a caller that forgets to check
+ * `instanceof Response` will fail TypeScript's type-narrowing on
+ * `session.firmId` (a Response has no `firmId` property), so skipping the
+ * check is a compile error, not a silent auth bypass.
+ */
+export async function requireFirmSession(request: Request, env: Env): Promise<{ firmId: string } | Response> {
+  const raw = getCookie(request, FIRM_SESSION_COOKIE_NAME);
+  if (!raw) {
+    return errorPage(401, "You need to sign in to view this.");
+  }
+  const result = await store.verifySession(env.DB, raw);
+  if (!result) {
+    return errorPage(401, "Your session has expired or is invalid. Please sign in again.");
+  }
+  return result;
+}
+
 async function handleConfirm(env: Env, token: string | null): Promise<Response> {
   if (!token) return errorPage(400, "Missing confirmation link.");
   const subscriber = await store.confirm(env.DB, token);
@@ -630,6 +939,20 @@ export default {
     // one-time link before the human ever clicks it. The state change happens
     // only on the POST below (the button on this page), which scanners don't do.
     if (request.method === "GET") {
+      // migration 0008 -- see handleFirmLoginVerify()'s own docstring for why
+      // this route, alone among this Worker's action links, is allowed to
+      // act on GET rather than following the render-only-then-POST pattern
+      // every ACTION_PATHS entry below uses.
+      if (url.pathname === "/firm/login/verify") {
+        const allowed = await checkRateLimit(env.DB, ip, "action", RATE_LIMIT_ACTION);
+        if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
+        try {
+          return await handleFirmLoginVerify(env, url.searchParams.get("token"));
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
       if (ACTION_PATHS.has(url.pathname)) {
         const allowed = await checkRateLimit(env.DB, ip, "action", RATE_LIMIT_ACTION);
         if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
@@ -652,6 +975,30 @@ export default {
       if (url.pathname === "/firm/lead") {
         try {
           return await handleFirmLead(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
+      if (url.pathname === "/firm/signup") {
+        try {
+          return await handleFirmSignup(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
+      if (url.pathname === "/firm/login") {
+        try {
+          return await handleFirmLogin(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
+      if (url.pathname === "/firm/logout") {
+        try {
+          return await handleFirmLogout(request, env);
         } catch {
           return errorPage(400, "Something went wrong processing that request.");
         }

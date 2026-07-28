@@ -164,6 +164,33 @@ export function sanitizeFreeText(value: string | null | undefined, maxLen: numbe
   return capped.length > 0 ? capped : null;
 }
 
+/**
+ * migration 0008 -- reads a single named cookie off the request's `Cookie`
+ * header (the browser sends every cookie for the origin in one
+ * semicolon-delimited header; there is no per-cookie header). Returns null
+ * if the header is absent or the named cookie isn't present. Used by
+ * index.ts's requireFirmSession() to read `dr_firm_session` -- deliberately
+ * generic (any cookie name) rather than hardcoded to that one name, so it's
+ * reusable if a later feature needs a second cookie.
+ */
+export function getCookie(request: Request, name: string): string | null {
+  const header = request.headers.get("Cookie");
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const idx = part.indexOf("=");
+    if (idx === -1) continue;
+    const key = part.slice(0, idx).trim();
+    if (key !== name) continue;
+    const value = part.slice(idx + 1).trim();
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value; // malformed percent-encoding -- return the raw value rather than throwing
+    }
+  }
+  return null;
+}
+
 export function escapeHtml(value: unknown): string {
   return String(value).replace(/[&<>"']/g, (ch) => {
     switch (ch) {
@@ -219,6 +246,15 @@ export const RATE_LIMIT_ACTION: RateLimit = { max: 30, windowSeconds: 600 };
 // RATE_LIMIT_SUBSCRIBE. A separate bucket (not a shared one) so a burst
 // against one endpoint can't consume the other's allowance.
 export const RATE_LIMIT_FIRM_LEAD: RateLimit = { max: 5, windowSeconds: 600 };
+
+// POST /api/firm/signup and POST /api/firm/login (migration 0008, firm
+// accounts) -- each its own bucket, same shape/limit as RATE_LIMIT_FIRM_LEAD
+// and same "separate, not shared" rationale: signup and login both trigger
+// a login-link email send, so without independent buckets an attacker could
+// hammer /firm/login (free of any firm-creation cost) to exhaust an
+// allowance that would otherwise also throttle /firm/signup, or vice versa.
+export const RATE_LIMIT_FIRM_SIGNUP: RateLimit = { max: 5, windowSeconds: 600 };
+export const RATE_LIMIT_FIRM_LOGIN: RateLimit = { max: 5, windowSeconds: 600 };
 
 /** Returns true if this request is ALLOWED, false if it should be blocked. */
 export async function checkRateLimit(

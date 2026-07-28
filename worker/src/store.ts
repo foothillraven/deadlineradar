@@ -8,11 +8,33 @@
  * never the lifecycle rules themselves.
  */
 
-import { MAX_FIRM_NAME_LEN, MAX_STAFF_COUNT_HINT_LEN, sanitizeFirstName, sanitizeFreeText } from "./validation";
+import {
+  MAX_FIRM_NAME_LEN,
+  MAX_STAFF_COUNT_HINT_LEN,
+  MAX_STAFF_LABEL_LEN,
+  sanitizeFirstName,
+  sanitizeFreeText,
+} from "./validation";
 
 export const STATUS_PENDING = "pending_confirmation";
 export const STATUS_CONFIRMED = "confirmed";
 export const STATUS_STOPPED = "stopped";
+
+// Firm-dashboard MVP (2026-07-28). `stop_reason` has always been free TEXT
+// with no SQL CHECK constraint (see migration 0001_init_schema.sql's own
+// comment on that column) specifically so a new value could be added
+// without a migration -- this is that new value. Distinguishes a firm
+// admin's deliberate DELETE /firm/licenses/:id ("this person left the firm,
+// take them off the roster") from the two existing self-serve reasons
+// ("unsubscribed" -- the subscriber themselves opted out; "renewed" -- the
+// subscriber said "I renewed," normally now only ever a fleeting
+// intermediate state since renewAndRearm() below never leaves a row sitting
+// in it). Without this third value, GET /firm/licenses would have no way to
+// tell "this staff member left the firm, stop showing them" apart from
+// "this staff member is mid-cycle after renewing and just hasn't re-armed
+// yet" -- exactly the ambiguity Part A #1 of this build called out.
+// listFirmLicenses() below is the one place that filters this value out.
+export const STOP_REASON_REMOVED_BY_ADMIN = "removed_by_admin";
 
 export const SIGNUP_COOLDOWN_HOURS = 24; // store.py:44
 
@@ -57,6 +79,19 @@ export interface SubscriberRow {
   // migration 0006 -- total resends this record has ever received, capped at
   // RESEND_MAX_ATTEMPTS by resendEligible().
   resend_count: number;
+  // migration 0008. NULL means "free individual subscriber, not
+  // firm-tracked" -- every row before this build. Non-NULL means this row is
+  // a staff member on a firm admin's roster (added via POST /firm/licenses,
+  // index.ts) -- every query that lists/mutates a firm's roster MUST filter
+  // by this column (see listFirmLicenses/getFirmLicense/updateFirmLicense/
+  // removeFirmLicense/renewAndRearm below -- the ownership check this
+  // build's own review singled out as the highest-priority thing to get
+  // right).
+  firm_id: string | null;
+  // migration 0008. The firm admin's OWN label for this person (e.g. "Jane
+  // D. -- Audit team"), deliberately separate from first_name (see that
+  // migration's own comment). NULL for every free-tier row.
+  staff_label: string | null;
 }
 
 function nowIso(): string {
@@ -199,6 +234,13 @@ export interface AddPendingInput {
   deadlineSource?: string;
   /** Only meaningful when deadlineSource is 'user'; null otherwise. */
   userDeadline?: string | null;
+  /** migration 0008. Set only by the firm-dashboard staff-add route
+   * (index.ts's handleFirmLicenseCreate()) -- omitted (-> null) for every
+   * free-tier /subscribe signup, exactly like every call site that predates
+   * firm accounts. */
+  firmId?: string | null;
+  /** migration 0008. Only meaningful alongside firmId; null otherwise. */
+  staffLabel?: string | null;
 }
 
 /**
@@ -232,6 +274,11 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     user_deadline: input.userDeadline ?? null,
     last_resend_at: null,
     resend_count: 0,
+    firm_id: input.firmId ?? null,
+    // Re-sanitized here independently of index.ts's own request-layer
+    // validation, same defense-in-depth rationale as sanitizeFirstName()
+    // above.
+    staff_label: sanitizeFreeText(input.staffLabel, MAX_STAFF_LABEL_LEN),
   };
   await db
     .prepare(
@@ -239,8 +286,8 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
        (id, email, cooldown_key, state_slug, deadline_fields, first_name, status,
         confirm_token, unsubscribe_token, renewed_token, created_at, confirmed_at,
         stopped_at, stop_reason, reminders_sent, cycle, deadline_source, user_deadline,
-        last_resend_at, resend_count)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20)`
+        last_resend_at, resend_count, firm_id, staff_label)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22)`
     )
     .bind(
       record.id,
@@ -262,7 +309,9 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
       record.deadline_source,
       record.user_deadline,
       record.last_resend_at,
-      record.resend_count
+      record.resend_count,
+      record.firm_id,
+      record.staff_label
     )
     .run();
   return record;
@@ -707,4 +756,305 @@ export async function verifySession(db: D1Database, rawSessionToken: string): Pr
 export async function deleteSession(db: D1Database, rawSessionToken: string): Promise<void> {
   const sessionTokenHash = await hashToken(rawSessionToken);
   await db.prepare(`DELETE FROM firm_sessions WHERE session_token_hash = ?1`).bind(sessionTokenHash).run();
+}
+
+// ---------------------------------------------------------------------------
+// Firm-dashboard MVP (2026-07-28, step 2/3) -- staff license CRUD. Every
+// function below that reads or writes a specific subscriber row takes
+// `firmId` and filters/binds it directly in its OWN SQL statement (not "the
+// caller already checked, so I don't need to") -- the same defense-in-depth
+// posture this file already applies to input sanitization
+// (sanitizeFirstName()/sanitizeFreeText() re-called here even though
+// index.ts's request layer already validated). A future route that forgets
+// to re-check ownership still cannot cross firm A/firm B here, because the
+// WHERE clause itself enforces it.
+// ---------------------------------------------------------------------------
+
+/**
+ * Every row on firm `firmId`'s roster EXCEPT ones an admin has explicitly
+ * removed (stop_reason = STOP_REASON_REMOVED_BY_ADMIN) -- see that
+ * constant's own comment for why "removed" needed a distinct value from the
+ * existing "renewed"/"unsubscribed" reasons. A row stopped for any OTHER
+ * reason (the subscriber renewed via their own email link and hasn't been
+ * re-armed, or unsubscribed themselves) still appears -- index.ts's
+ * toFirmLicenseJson() maps that to a "needs-attention" status so the admin
+ * notices it, rather than silently disappearing the way a truly-removed
+ * person does.
+ */
+export async function listFirmLicenses(db: D1Database, firmId: string): Promise<SubscriberRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT * FROM subscribers
+       WHERE firm_id = ?1 AND NOT (status = ?2 AND stop_reason = ?3)`
+    )
+    .bind(firmId, STATUS_STOPPED, STOP_REASON_REMOVED_BY_ADMIN)
+    .all<SubscriberRow>();
+  return results;
+}
+
+/**
+ * The ownership-scoped single-record lookup every PATCH/DELETE/renew route
+ * uses to decide 404-vs-proceed BEFORE doing anything else -- returns null
+ * for a nonexistent id AND for an id that belongs to a different firm,
+ * identically, so index.ts can return the same 404 either way (never a 403
+ * that would confirm the record exists under another firm -- the exact
+ * anti-enumeration posture this whole codebase already uses everywhere
+ * else).
+ */
+export async function getFirmLicense(db: D1Database, firmId: string, id: string): Promise<SubscriberRow | null> {
+  const row = await db
+    .prepare(`SELECT * FROM subscribers WHERE id = ?1 AND firm_id = ?2`)
+    .bind(id, firmId)
+    .first<SubscriberRow>();
+  return row ?? null;
+}
+
+export interface UpdateFirmLicenseInput {
+  email: string;
+  staffLabel: string | null;
+  stateSlug: string;
+  deadlineFields: Record<string, string>;
+  deadlineSource: string;
+  userDeadline: string | null;
+  /**
+   * True when index.ts detected the (normalized) email actually changed.
+   * Editing the delivery address is, in effect, re-consenting a DIFFERENT
+   * inbox -- the person who now owns that address has never clicked a
+   * confirm link. Forcing the record back through pending_confirmation
+   * mirrors this codebase's existing double-opt-in-bypass posture in
+   * stop()/rearm() (an address only ever reaches CONFIRMED by actually
+   * clicking a confirm link, never by an admin edit alone) -- without this,
+   * a firm admin could redirect someone else's reminders to an address that
+   * never agreed to receive them.
+   */
+  resetConfirmation: boolean;
+}
+
+/**
+ * PATCH /firm/licenses/:id's storage layer. Ownership-scoped (own SELECT AND
+ * own UPDATE...WHERE, both filtered on firm_id, not just the caller's prior
+ * check) -- returns null if `id` doesn't exist or isn't on this firm's
+ * roster. See UpdateFirmLicenseInput.resetConfirmation's own doc for the
+ * email-change re-consent rule.
+ */
+export async function updateFirmLicense(
+  db: D1Database,
+  firmId: string,
+  id: string,
+  input: UpdateFirmLicenseInput
+): Promise<SubscriberRow | null> {
+  const existing = await db
+    .prepare(`SELECT * FROM subscribers WHERE id = ?1 AND firm_id = ?2`)
+    .bind(id, firmId)
+    .first<SubscriberRow>();
+  if (!existing) return null;
+
+  const newCooldownKey = cooldownKey(input.email);
+  const newStaffLabel = sanitizeFreeText(input.staffLabel, MAX_STAFF_LABEL_LEN);
+
+  let status = existing.status;
+  let confirmedAt = existing.confirmed_at;
+  let confirmToken = existing.confirm_token;
+  let stoppedAt = existing.stopped_at;
+  let stopReason = existing.stop_reason;
+  let remindersSent = existing.reminders_sent;
+
+  if (input.resetConfirmation) {
+    status = STATUS_PENDING;
+    confirmedAt = null;
+    confirmToken = newToken();
+    stoppedAt = null;
+    stopReason = null;
+    remindersSent = "[]";
+  }
+
+  await db
+    .prepare(
+      `UPDATE subscribers
+       SET email = ?1, cooldown_key = ?2, staff_label = ?3, state_slug = ?4, deadline_fields = ?5,
+           deadline_source = ?6, user_deadline = ?7, status = ?8, confirmed_at = ?9, confirm_token = ?10,
+           stopped_at = ?11, stop_reason = ?12, reminders_sent = ?13
+       WHERE id = ?14 AND firm_id = ?15`
+    )
+    .bind(
+      input.email,
+      newCooldownKey,
+      newStaffLabel,
+      input.stateSlug,
+      JSON.stringify(input.deadlineFields ?? {}),
+      input.deadlineSource,
+      input.userDeadline,
+      status,
+      confirmedAt,
+      confirmToken,
+      stoppedAt,
+      stopReason,
+      remindersSent,
+      id,
+      firmId
+    )
+    .run();
+
+  return {
+    ...existing,
+    email: input.email,
+    cooldown_key: newCooldownKey,
+    staff_label: newStaffLabel,
+    state_slug: input.stateSlug,
+    deadline_fields: JSON.stringify(input.deadlineFields ?? {}),
+    deadline_source: input.deadlineSource,
+    user_deadline: input.userDeadline,
+    status,
+    confirmed_at: confirmedAt,
+    confirm_token: confirmToken,
+    stopped_at: stoppedAt,
+    stop_reason: stopReason,
+    reminders_sent: remindersSent,
+  };
+}
+
+/**
+ * DELETE /firm/licenses/:id's storage layer -- "remove from roster," NOT a
+ * SQL DELETE (see STOP_REASON_REMOVED_BY_ADMIN's own comment for why this is
+ * a status/stop_reason value rather than a row deletion: it reuses the
+ * exact same STATUS_STOPPED gate scheduler.ts's allConfirmedActive() already
+ * filters on, so a removed staff member stops receiving reminders for the
+ * same reason an unsubscribed one does -- no separate "is this person still
+ * on the roster" check needed anywhere else in the send pipeline). Ownership
+ * -scoped in both the SELECT and the UPDATE's WHERE clause.
+ */
+export async function removeFirmLicense(db: D1Database, firmId: string, id: string): Promise<SubscriberRow | null> {
+  const existing = await db
+    .prepare(`SELECT * FROM subscribers WHERE id = ?1 AND firm_id = ?2`)
+    .bind(id, firmId)
+    .first<SubscriberRow>();
+  if (!existing) return null;
+  const stoppedAt = nowIso();
+  await db
+    .prepare(`UPDATE subscribers SET status = ?1, stopped_at = ?2, stop_reason = ?3 WHERE id = ?4 AND firm_id = ?5`)
+    .bind(STATUS_STOPPED, stoppedAt, STOP_REASON_REMOVED_BY_ADMIN, id, firmId)
+    .run();
+  return { ...existing, status: STATUS_STOPPED, stopped_at: stoppedAt, stop_reason: STOP_REASON_REMOVED_BY_ADMIN };
+}
+
+/**
+ * The actual atomic write shared by BOTH renew entry points below
+ * (renewAndRearm -- firm-dashboard, ownership-authorized; renewAndRearmByToken
+ * -- free-tier email CTA, token-authorized): stop this cycle's reminders AND
+ * immediately re-arm for next cycle, as a SINGLE UPDATE statement rather than
+ * calling stop() then rearm() as two sequential prepared statements.
+ *
+ * Why one statement is enough (no explicit D1 BEGIN/COMMIT transaction
+ * needed): a D1/SQLite UPDATE is already atomic with respect to every other
+ * statement touching the same row -- there is no partial-write state another
+ * request could observe mid-way through ONE statement. The old two-hop UX
+ * this replaces (stop() now, a human clicks a second link minutes/days
+ * later, rearm() then) genuinely needed two statements because a real person
+ * was in between them; doing both halves of THIS action in direct response
+ * to one click has no such gap, so collapsing them into the same single
+ * UPDATE rearm() itself already uses (status/stopped_at/stop_reason/
+ * reminders_sent/cycle/token-rotation, all in one SET clause) removes the
+ * intermediate STOPPED state entirely rather than just making it brief -- a
+ * concurrent GET /firm/licenses, or the reminder cron's
+ * allConfirmedActive() (status='confirmed' only), can never observe this
+ * subscriber sitting in STOPPED between the two halves, because that state
+ * never exists on disk in the first place.
+ */
+async function applyRenewAndRearm(db: D1Database, row: SubscriberRow): Promise<SubscriberRow> {
+  const newUnsubscribeToken = newToken();
+  const newRenewedToken = newToken();
+  await db
+    .prepare(
+      `UPDATE subscribers
+       SET status = ?1, stopped_at = NULL, stop_reason = NULL, reminders_sent = '[]',
+           cycle = cycle + 1, unsubscribe_token = ?2, renewed_token = ?3
+       WHERE id = ?4`
+    )
+    .bind(STATUS_CONFIRMED, newUnsubscribeToken, newRenewedToken, row.id)
+    .run();
+  return {
+    ...row,
+    status: STATUS_CONFIRMED,
+    stopped_at: null,
+    stop_reason: null,
+    reminders_sent: "[]",
+    cycle: (row.cycle ?? 1) + 1,
+    unsubscribe_token: newUnsubscribeToken,
+    renewed_token: newRenewedToken,
+  };
+}
+
+/**
+ * POST /firm/licenses/:id/renew's storage layer -- the dashboard's "Mark
+ * renewed" action. Ownership-scoped (own SELECT filtered on firm_id, same
+ * posture as every other mutation in this section) and guarded by the same
+ * three eligibility rules as the free-tier path below, applied consistently:
+ *   - never-confirmed (confirmed_at IS NULL) -- same double-opt-in-bypass
+ *     guard stop()/rearm() already enforce; there's nothing to "renew" for
+ *     someone who never confirmed in the first place.
+ *   - already removed from the roster (stop_reason = STOP_REASON_REMOVED_BY_ADMIN)
+ *     -- renewing must never resurrect someone the admin explicitly took off
+ *     the roster; re-adding them is a deliberate separate action
+ *     (POST /firm/licenses), not a side effect of this one.
+ *   - "bring your own date" (deadline_source = DEADLINE_SOURCE_USER) --
+ *     same refusal as rearm() (there is no rule to auto-derive their NEXT
+ *     date); index.ts's route gives this its own tailored error copy.
+ * Returns null on any of the three refusals OR a firm-ownership mismatch,
+ * all indistinguishable at this layer -- index.ts's handleFirmLicenseRenew()
+ * re-reads the row via getFirmLicense() first to tell them apart for the
+ * error message.
+ */
+export async function renewAndRearm(db: D1Database, firmId: string, id: string): Promise<SubscriberRow | null> {
+  const row = await db
+    .prepare(`SELECT * FROM subscribers WHERE id = ?1 AND firm_id = ?2`)
+    .bind(id, firmId)
+    .first<SubscriberRow>();
+  if (!row) return null;
+  if (!row.confirmed_at) return null;
+  if (row.stop_reason === STOP_REASON_REMOVED_BY_ADMIN) return null;
+  if (row.deadline_source === DEADLINE_SOURCE_USER) return null;
+  return applyRenewAndRearm(db, row);
+}
+
+/**
+ * The free-tier reminder email's new co-equal "I've renewed -- remind me
+ * next cycle" CTA (Part B, index.ts's handleRenewedNextCycle()). Looks the
+ * row up by EITHER existing token (renewed_token or unsubscribe_token --
+ * same lookup stop() already does; no new token type minted), same
+ * double-opt-in-bypass guard as stop()/rearm(), and the same "bring your own
+ * date can't auto-rearm" refusal as rearm(). Also refuses a row an admin has
+ * removed from a firm's roster (STOP_REASON_REMOVED_BY_ADMIN) -- otherwise a
+ * removed staff member's OLD reminder email (sent before they were removed)
+ * would let them re-arm their own roster entry, silently undoing the
+ * admin's removal.
+ */
+export async function renewAndRearmByToken(db: D1Database, token: string): Promise<SubscriberRow | null> {
+  const row = await db
+    .prepare(`SELECT * FROM subscribers WHERE unsubscribe_token = ?1 OR renewed_token = ?1`)
+    .bind(token)
+    .first<SubscriberRow>();
+  if (!row) return null;
+  if (!row.confirmed_at) return null;
+  if (row.stop_reason === STOP_REASON_REMOVED_BY_ADMIN) return null;
+  if (row.deadline_source === DEADLINE_SOURCE_USER) return null;
+  return applyRenewAndRearm(db, row);
+}
+
+/**
+ * Distinguishes WHY renewAndRearmByToken() returned null, for
+ * handleRenewedNextCycle()'s error copy -- mirrors isUserDateRearmBlocked()'s
+ * own docstring exactly, just against this action's different eligibility
+ * pre-state (that function requires status=stopped/reason=renewed already;
+ * this one runs against whatever state the row is ALREADY in, since this
+ * action stops-and-rearms in one step rather than acting on an
+ * already-stopped row).
+ */
+export async function isUserDateRenewBlocked(db: D1Database, token: string): Promise<boolean> {
+  const row = await db
+    .prepare(
+      `SELECT deadline_source, confirmed_at FROM subscribers WHERE unsubscribe_token = ?1 OR renewed_token = ?1`
+    )
+    .bind(token)
+    .first<Pick<SubscriberRow, "deadline_source" | "confirmed_at">>();
+  return row !== null && row.confirmed_at !== null && row.deadline_source === DEADLINE_SOURCE_USER;
 }

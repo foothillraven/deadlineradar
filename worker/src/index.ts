@@ -51,8 +51,10 @@ import {
   MAX_FIELD_LEN,
   MAX_FIRM_NAME_LEN,
   MAX_STAFF_COUNT_HINT_LEN,
+  MAX_STAFF_LABEL_LEN,
   RATE_LIMIT_ACTION,
   RATE_LIMIT_FIRM_LEAD,
+  RATE_LIMIT_FIRM_LICENSE_CREATE,
   RATE_LIMIT_FIRM_LOGIN,
   RATE_LIMIT_FIRM_SIGNUP,
   RATE_LIMIT_SUBSCRIBE,
@@ -70,6 +72,7 @@ import {
   checkDataFreshness,
   computeSubscriberDeadline,
   isStateComputable,
+  stateNameForSlug,
   SUPPORTED_STATE_SLUGS,
   USER_DEADLINE_MAX_DAYS,
   type DeadlineFields,
@@ -103,9 +106,16 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
     button: "Unsubscribe me",
   },
   "/renewed": {
-    heading: "Stop these reminders",
-    intro: "Renewed already? Click below to stop all further reminders for this deadline.",
-    button: "Yes, stop these reminders",
+    heading: "Stop reminders entirely",
+    intro: "Click below to stop all further reminders for this deadline, permanently.",
+    button: "Yes, stop these reminders entirely",
+  },
+  "/renewed-next-cycle": {
+    heading: "You've renewed -- keep my reminders going",
+    intro:
+      "Click below to confirm you've renewed. We'll immediately re-arm reminders for your next " +
+      "renewal cycle -- nothing else to do.",
+    button: "Yes, I've renewed -- remind me next cycle",
   },
   "/rearm": {
     heading: "Turn reminders back on",
@@ -216,6 +226,118 @@ function clientIp(request: Request): string {
   return request.headers.get("cf-connecting-ip") ?? "0.0.0.0";
 }
 
+interface ResolvedDeadlineInput {
+  deadlineFields: DeadlineFields;
+  deadlineSource: string;
+  userDeadline: string | null;
+}
+
+/**
+ * Shared by handleSubscribe() (the public /subscribe form) and
+ * handleFirmLicenseCreate()/handleFirmLicensePatch() (the firm dashboard's
+ * add/edit-staff routes, added in the same build) -- the exact per-state
+ * "what deadline-computation fields does this state need" logic, in ONE
+ * place, so the dashboard's staff-add form and the public signup form can
+ * never drift apart on what a valid submission for a given state looks like.
+ * `stateSlug` must already be a validated member of SUPPORTED_STATE_SLUGS --
+ * every caller checks that itself first (the error copy for an unsupported
+ * slug differs slightly by caller: an HTML errorPage() for the public form,
+ * a JSON error for the dashboard API).
+ *
+ * Returns the resolved fields on success, or an error Response the caller
+ * should return immediately (an errorPage() -- callers that need a JSON
+ * response instead read the same message off it; see toErrorMessage() below).
+ */
+function resolveDeadlineInput(stateSlug: string, form: Record<string, string>): ResolvedDeadlineInput | Response {
+  const computable = isStateComputable(stateSlug);
+
+  if (computable) {
+    if (stateSlug === "california") {
+      const birthMonth = form.birth_month;
+      const birthYear = form.birth_year;
+      if (!birthMonth || !birthYear || birthYear.length > 4 || !/^\d+$/.test(birthYear)) {
+        return errorPage(400, "California needs your birth month and birth year.");
+      }
+      const birthMonthInt = strictParseInt(birthMonth);
+      const birthYearInt = strictParseInt(birthYear);
+      if (
+        birthMonthInt === null ||
+        birthYearInt === null ||
+        birthMonthInt < 1 ||
+        birthMonthInt > 12 ||
+        birthYearInt < 1900 ||
+        birthYearInt > 2100
+      ) {
+        return errorPage(400, "California needs a valid birth month and birth year.");
+      }
+      // Only the odd/even parity is ever persisted -- the full birth year is
+      // used transiently right here and discarded (PII minimization), same
+      // as server.py:345's comment.
+      const parity = birthYearInt % 2 === 1 ? "odd" : "even";
+      return {
+        deadlineFields: { birth_month: String(birthMonthInt), birth_year_parity: parity },
+        deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+        userDeadline: null,
+      };
+    } else if (stateSlug === "texas") {
+      const birthMonth = form.birth_month;
+      if (!birthMonth) return errorPage(400, "Texas needs your birth month.");
+      const birthMonthInt = strictParseInt(birthMonth);
+      if (birthMonthInt === null || birthMonthInt < 1 || birthMonthInt > 12) {
+        return errorPage(400, "Texas needs a valid birth month.");
+      }
+      return {
+        deadlineFields: { birth_month: String(birthMonthInt) },
+        deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+        userDeadline: null,
+      };
+    } else if (stateSlug === "ohio") {
+      const cohortGroup = form.cohort_group;
+      if (cohortGroup !== "Group 1" && cohortGroup !== "Group 2" && cohortGroup !== "Group 3") {
+        return errorPage(400, "Ohio needs your cohort group.");
+      }
+      return {
+        deadlineFields: { cohort_group: cohortGroup },
+        deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+        userDeadline: null,
+      };
+    } else if (form.license_type_id) {
+      const licenseTypeId = form.license_type_id;
+      if (licenseTypeId.length > MAX_FIELD_LEN) {
+        return errorPage(400, "Invalid license type.");
+      }
+      return {
+        deadlineFields: { license_type_id: licenseTypeId },
+        deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+        userDeadline: null,
+      };
+    }
+    return { deadlineFields: {}, deadlineSource: store.DEADLINE_SOURCE_COMPUTED, userDeadline: null };
+  }
+
+  // "Bring your own date": the worker has no way to derive this state's
+  // deadline from state rules, so the subscriber supplies their own
+  // (printed on their license). The <input type="date">'s HTML min/max
+  // (generate.py) is a UX nicety only -- this is the real, authoritative
+  // check, same "validation authority stays server-side" rule this file
+  // already follows for every other per-state field.
+  const rawDate = (form.license_expiration_date ?? "").trim();
+  const parsedDate = parseStrictIsoDate(rawDate);
+  if (!parsedDate) {
+    return errorPage(400, "Please enter your license expiration date (a real calendar date).");
+  }
+  const now = new Date();
+  const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  if (parsedDate.getTime() <= todayUtc.getTime()) {
+    return errorPage(400, "That date has already passed -- please double-check your license.");
+  }
+  const maxDate = new Date(todayUtc.getTime() + USER_DEADLINE_MAX_DAYS * 86_400_000);
+  if (parsedDate.getTime() > maxDate.getTime()) {
+    return errorPage(400, "That date looks too far out -- please double-check your license.");
+  }
+  return { deadlineFields: {}, deadlineSource: store.DEADLINE_SOURCE_USER, userDeadline: rawDate };
+}
+
 async function handleSubscribe(request: Request, env: Env, ip: string): Promise<Response> {
   const allowed = await checkRateLimit(env.DB, ip, "subscribe", RATE_LIMIT_SUBSCRIBE);
   if (!allowed) {
@@ -276,80 +398,9 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
     return errorPage(400, "Verification failed -- please try again.");
   }
 
-  let deadlineFields: DeadlineFields = {};
-  let deadlineSource: string = store.DEADLINE_SOURCE_COMPUTED;
-  let userDeadline: string | null = null;
-  const computable = isStateComputable(stateSlug);
-
-  if (computable) {
-    if (stateSlug === "california") {
-      const birthMonth = form.birth_month;
-      const birthYear = form.birth_year;
-      if (!birthMonth || !birthYear || birthYear.length > 4 || !/^\d+$/.test(birthYear)) {
-        return errorPage(400, "California needs your birth month and birth year.");
-      }
-      const birthMonthInt = strictParseInt(birthMonth);
-      const birthYearInt = strictParseInt(birthYear);
-      if (
-        birthMonthInt === null ||
-        birthYearInt === null ||
-        birthMonthInt < 1 ||
-        birthMonthInt > 12 ||
-        birthYearInt < 1900 ||
-        birthYearInt > 2100
-      ) {
-        return errorPage(400, "California needs a valid birth month and birth year.");
-      }
-      // Only the odd/even parity is ever persisted -- the full birth year is
-      // used transiently right here and discarded (PII minimization), same
-      // as server.py:345's comment.
-      const parity = birthYearInt % 2 === 1 ? "odd" : "even";
-      deadlineFields = { birth_month: String(birthMonthInt), birth_year_parity: parity };
-    } else if (stateSlug === "texas") {
-      const birthMonth = form.birth_month;
-      if (!birthMonth) return errorPage(400, "Texas needs your birth month.");
-      const birthMonthInt = strictParseInt(birthMonth);
-      if (birthMonthInt === null || birthMonthInt < 1 || birthMonthInt > 12) {
-        return errorPage(400, "Texas needs a valid birth month.");
-      }
-      deadlineFields = { birth_month: String(birthMonthInt) };
-    } else if (stateSlug === "ohio") {
-      const cohortGroup = form.cohort_group;
-      if (cohortGroup !== "Group 1" && cohortGroup !== "Group 2" && cohortGroup !== "Group 3") {
-        return errorPage(400, "Ohio needs your cohort group.");
-      }
-      deadlineFields = { cohort_group: cohortGroup };
-    } else if (form.license_type_id) {
-      const licenseTypeId = form.license_type_id;
-      if (licenseTypeId.length > MAX_FIELD_LEN) {
-        return errorPage(400, "Invalid license type.");
-      }
-      deadlineFields = { license_type_id: licenseTypeId };
-    }
-  } else {
-    // "Bring your own date": the worker has no way to derive this state's
-    // deadline from state rules, so the subscriber supplies their own
-    // (printed on their license). The <input type="date">'s HTML min/max
-    // (generate.py) is a UX nicety only -- this is the real, authoritative
-    // check, same "validation authority stays server-side" rule this file
-    // already follows for every other per-state field.
-    const rawDate = (form.license_expiration_date ?? "").trim();
-    const parsedDate = parseStrictIsoDate(rawDate);
-    if (!parsedDate) {
-      return errorPage(400, "Please enter your license expiration date (a real calendar date).");
-    }
-    const now = new Date();
-    const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    if (parsedDate.getTime() <= todayUtc.getTime()) {
-      return errorPage(400, "That date has already passed -- please double-check your license.");
-    }
-    const maxDate = new Date(todayUtc.getTime() + USER_DEADLINE_MAX_DAYS * 86_400_000);
-    if (parsedDate.getTime() > maxDate.getTime()) {
-      return errorPage(400, "That date looks too far out -- please double-check your license.");
-    }
-    deadlineSource = store.DEADLINE_SOURCE_USER;
-    userDeadline = rawDate;
-  }
+  const resolved = resolveDeadlineInput(stateSlug, form);
+  if (resolved instanceof Response) return resolved;
+  const { deadlineFields, deadlineSource, userDeadline } = resolved;
 
   try {
     checkDataFreshness(new Date());
@@ -369,7 +420,10 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
   // was already validated directly above and doesn't go through
   // computeSubscriberDeadline() at all (see scheduler.ts's own
   // deadline_source branch for the read-side of this same split).
-  if (computable && computeSubscriberDeadline(stateSlug, deadlineFields, new Date()) === null) {
+  if (
+    deadlineSource === store.DEADLINE_SOURCE_COMPUTED &&
+    computeSubscriberDeadline(stateSlug, deadlineFields, new Date()) === null
+  ) {
     return errorPage(400, "Couldn't compute a deadline from what you gave us -- please check your inputs.");
   }
 
@@ -814,6 +868,460 @@ export async function requireFirmSession(request: Request, env: Env): Promise<{ 
   return result;
 }
 
+// ---------------------------------------------------------------------------
+// Firm-dashboard MVP (2026-07-28, step 2/3) -- staff license CRUD,
+// /firm/licenses*. EVERY handler below starts with requireFirmSession() as
+// its very first line, per that function's own docstring. These are a JSON
+// API (the dashboard's own frontend, not a public HTML form) -- request
+// bodies are parsed as JSON, not application/x-www-form-urlencoded, and
+// responses are JSON, not the errorPage()/htmlPage() HTML this file's public
+// routes return. Deliberately do NOT run the honeypot/Turnstile/anonymous-IP
+// rate-limit hardening the public /subscribe form needs (see this build's
+// task doc: the requester already proved firm ownership via a verified
+// session, not an anonymous form submission) -- but DO still validate every
+// field (control chars, length, email format, state slug) exactly like
+// handleSubscribe() does, and DO still rate-limit staff creation, keyed on
+// the firm id rather than an IP (see RATE_LIMIT_FIRM_LICENSE_CREATE's own
+// comment).
+// ---------------------------------------------------------------------------
+
+const MAX_FIRM_LICENSE_BODY_BYTES = MAX_BODY_BYTES;
+
+/**
+ * Reads and JSON-parses a request body for the /firm/licenses* routes,
+ * capped at the same size this codebase already enforces on every other
+ * request body (MAX_BODY_BYTES) and tolerant of an empty body (treated as
+ * `{}`, so a PATCH with nothing to change isn't an error). Returns a
+ * ready-to-return error Response on any failure, or the parsed object on
+ * success -- same "Response | T" calling convention as resolveDeadlineInput()
+ * above, for the same reason (a caller that forgets to check
+ * `instanceof Response` fails type-narrowing, not silently misbehaves).
+ */
+async function readFirmLicenseJsonBody(request: Request): Promise<Record<string, unknown> | Response> {
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (raw.length > MAX_FIRM_LICENSE_BODY_BYTES) {
+    return jsonResponse(400, { error: "Request body too large." });
+  }
+  if (raw.length === 0) return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return jsonResponse(400, { error: "Request body must be a JSON object." });
+    }
+    return parsed as Record<string, unknown>;
+  } catch {
+    return jsonResponse(400, { error: "Malformed JSON body." });
+  }
+}
+
+/** Every string-valued field in a parsed JSON body, for the same
+ * every-field control-char check handleSubscribe() runs on its form fields. */
+function stringFieldsOf(body: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(body)) {
+    if (typeof v === "string") out[k] = v;
+  }
+  return out;
+}
+
+const DEADLINE_FIELD_KEYS = ["birth_month", "birth_year", "cohort_group", "license_type_id", "license_expiration_date"];
+
+/** The dashboard's clean status vocabulary (loosely mirrors generate.py's
+ * illustrative _MOCKUP_STATUS_CLASS terminology -- Confirmed/Pending/Needs
+ * attention -- though that's frontend copy for a marketing mockup, not this
+ * API's contract to match verbatim). A row stopped for any reason OTHER than
+ * STOP_REASON_REMOVED_BY_ADMIN (which listFirmLicenses() already filters out
+ * entirely -- see that function's own comment) surfaces as "needs-attention"
+ * so the admin notices someone stopped getting reminders unexpectedly,
+ * rather than that record silently vanishing from the roster. */
+function firmLicenseStatus(row: store.SubscriberRow): "confirmed" | "pending" | "needs-attention" {
+  if (row.status === store.STATUS_CONFIRMED) return "confirmed";
+  if (row.status === store.STATUS_PENDING) return "pending";
+  return "needs-attention";
+}
+
+/** Reuses deadline.ts's own computeSubscriberDeadline() -- never
+ * re-implements the date math, per this build's own instructions. */
+function firmLicenseNextDeadline(row: store.SubscriberRow, asOf: Date): string | null {
+  if (row.deadline_source === store.DEADLINE_SOURCE_USER) {
+    return row.user_deadline;
+  }
+  let fields: Record<string, string>;
+  try {
+    fields = JSON.parse(row.deadline_fields || "{}");
+  } catch {
+    return null;
+  }
+  const d = computeSubscriberDeadline(row.state_slug, fields, asOf);
+  return d ? d.toISOString().slice(0, 10) : null;
+}
+
+/** Only the fixed-calendar "multiple records per state" family
+ * (deadline.ts's computeSubscriberDeadline license_type_id branch --
+ * Florida's odd/even cohort, Georgia's individual-vs-firm, etc.) actually
+ * has a license_type_id; California/Texas/Ohio use different per-state
+ * fields and "bring your own date" states have none at all -- null in every
+ * one of those cases, not an error. */
+function firmLicenseLicenseTypeId(row: store.SubscriberRow): string | null {
+  try {
+    const fields = JSON.parse(row.deadline_fields || "{}") as Record<string, string>;
+    return fields.license_type_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function toFirmLicenseJson(row: store.SubscriberRow, asOf: Date): Record<string, unknown> {
+  return {
+    id: row.id,
+    staff_label: row.staff_label,
+    email: row.email,
+    state_slug: row.state_slug,
+    state_name: stateNameForSlug(row.state_slug),
+    license_type_id: firmLicenseLicenseTypeId(row),
+    status: firmLicenseStatus(row),
+    next_deadline: firmLicenseNextDeadline(row, asOf),
+    deadline_source: row.deadline_source,
+    cycle: row.cycle,
+  };
+}
+
+/** GET /firm/licenses -- every roster row for the session's firm, sorted by
+ * soonest deadline first (a null/uncomputable deadline sorts last -- there's
+ * nothing more urgent to show for it). */
+async function handleFirmLicensesList(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  const rows = await store.listFirmLicenses(env.DB, session.firmId);
+  const asOf = new Date();
+  const items = rows.map((r) => toFirmLicenseJson(r, asOf));
+  items.sort((a, b) => {
+    const ad = a.next_deadline as string | null;
+    const bd = b.next_deadline as string | null;
+    if (ad === null && bd === null) return 0;
+    if (ad === null) return 1;
+    if (bd === null) return -1;
+    return ad < bd ? -1 : ad > bd ? 1 : 0;
+  });
+  return jsonResponse(200, { licenses: items });
+}
+
+/**
+ * POST /firm/licenses -- adds a staff member to the firm's roster. Reuses
+ * the EXACT same pending_confirmation -> confirmed self-serve consent flow
+ * handleSubscribe() uses for the public form (store.addPending(), the same
+ * confirm-token/buildConfirmationEmail() machinery) -- the staff member
+ * still gets a one-time confirm email before their own reminders start; a
+ * firm admin adding someone does not itself grant consent on that person's
+ * behalf. firm_id and staff_label are the only things that differ from a
+ * free-tier signup.
+ */
+async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  // Per-FIRM daily cap (not per-IP) -- see RATE_LIMIT_FIRM_LICENSE_CREATE's
+  // own comment for why checkRateLimit()'s `ip` parameter is deliberately
+  // reused here as "the bucket's identity key," bound to the authenticated
+  // firm id rather than the caller's network address.
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_license_create", RATE_LIMIT_FIRM_LICENSE_CREATE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many staff added today for this firm. Please try again tomorrow." });
+  }
+
+  const parsed = await readFirmLicenseJsonBody(request);
+  if (parsed instanceof Response) return parsed;
+  const form = stringFieldsOf(parsed);
+
+  for (const value of Object.values(form)) {
+    if (hasControlChars(value)) {
+      return jsonResponse(400, { error: "Invalid characters in submission." });
+    }
+  }
+
+  const email = (form.email ?? "").trim();
+  if (!isValidEmail(email)) {
+    return jsonResponse(400, { error: "That doesn't look like a valid email address." });
+  }
+
+  const stateSlug = (form.state_slug ?? "").trim();
+  if (!SUPPORTED_STATE_SLUGS.has(stateSlug)) {
+    return jsonResponse(400, { error: "Unsupported or missing state." });
+  }
+
+  const staffLabelRaw = (form.staff_label ?? "").trim();
+  const staffLabel = staffLabelRaw.length > 0 ? staffLabelRaw.slice(0, MAX_STAFF_LABEL_LEN) : null;
+
+  const resolved = resolveDeadlineInput(stateSlug, form);
+  if (resolved instanceof Response) {
+    // resolveDeadlineInput() returns an HTML errorPage() Response (shared
+    // with the public form) -- re-wrap its message as JSON for this API.
+    const text = await resolved.text();
+    return jsonResponse(resolved.status, { error: stripHtmlErrorMessage(text) });
+  }
+  const { deadlineFields, deadlineSource, userDeadline } = resolved;
+
+  try {
+    checkDataFreshness(new Date());
+  } catch (err) {
+    if (err instanceof StaleDataError) {
+      return jsonResponse(503, { error: `Signups are temporarily paused: ${err.message}` });
+    }
+    throw err;
+  }
+
+  if (
+    deadlineSource === store.DEADLINE_SOURCE_COMPUTED &&
+    computeSubscriberDeadline(stateSlug, deadlineFields, new Date()) === null
+  ) {
+    return jsonResponse(400, { error: "Couldn't compute a deadline from what you gave us -- please check your inputs." });
+  }
+
+  // Surface a conflict rather than silently creating a second row for an
+  // email+state that already has an active or pending record (free-tier or
+  // another firm's) -- findActiveOrPending() is the same dedupe check
+  // handleSubscribe() uses; this table has no UNIQUE constraint on
+  // (email, state_slug) to enforce this at the DB layer, so the application
+  // layer is what has to catch it.
+  const existing = await store.findActiveOrPending(env.DB, email, stateSlug);
+  if (existing) {
+    return jsonResponse(409, {
+      error: "A subscriber already exists for this email and state (possibly a free-tier signup, or already on a firm's roster).",
+    });
+  }
+
+  const record = await store.addPending(env.DB, {
+    email,
+    stateSlug,
+    deadlineFields,
+    firstName: null,
+    deadlineSource,
+    userDeadline,
+    firmId: session.firmId,
+    staffLabel,
+  });
+
+  if (env.SENDGRID_API_KEY) {
+    try {
+      const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+      if (underCap) {
+        const confirmUrl = `${ACTION_BASE_URL}/confirm?token=${encodeURIComponent(record.confirm_token)}`;
+        const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
+        const built = buildConfirmationEmail(
+          stateNameFromSlug(stateSlug),
+          confirmUrl,
+          unsubscribeUrl,
+          record.first_name,
+          record.user_deadline ? fmtDate(new Date(`${record.user_deadline}T00:00:00Z`)) : null
+        );
+        await sendViaSendGrid(env.SENDGRID_API_KEY, record.email, built);
+      }
+    } catch {
+      // Best-effort, same posture as handleSubscribe() -- the record is
+      // already stored regardless.
+    }
+  }
+
+  return jsonResponse(201, toFirmLicenseJson(record, new Date()));
+}
+
+/** Strips this file's htmlPage() wrapper down to just the inner error
+ * message text, for re-wrapping an errorPage() Response's copy as JSON --
+ * shared error copy (resolveDeadlineInput()) without shipping HTML tags in a
+ * JSON API response. */
+function stripHtmlErrorMessage(html: string): string {
+  const match = /<p>([\s\S]*?)<\/p>/.exec(html);
+  const inner = match?.[1] ?? html;
+  return inner.replace(/&mdash;/g, "--").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+}
+
+/**
+ * PATCH /firm/licenses/:id -- edits staff_label/email/state/deadline fields.
+ * Ownership is enforced TWICE: once here (existing lookup, for the 404) and
+ * again inside store.updateFirmLicense()'s own WHERE clause -- see that
+ * function's docstring for why. Every field is optional (a true partial
+ * update): state_slug/deadline fields are only re-resolved (and
+ * re-validated, using the SAME resolveDeadlineInput() the create route uses)
+ * when the request actually touches state_slug or one of the per-state
+ * deadline field keys; otherwise the existing state/deadline fields are left
+ * untouched.
+ */
+async function handleFirmLicensePatch(request: Request, env: Env, id: string): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  const existing = await store.getFirmLicense(env.DB, session.firmId, id);
+  if (!existing) return jsonResponse(404, { error: "Not found." });
+
+  const parsed = await readFirmLicenseJsonBody(request);
+  if (parsed instanceof Response) return parsed;
+  const form = stringFieldsOf(parsed);
+
+  for (const value of Object.values(form)) {
+    if (hasControlChars(value)) {
+      return jsonResponse(400, { error: "Invalid characters in submission." });
+    }
+  }
+
+  let email = existing.email;
+  if (typeof parsed.email === "string") {
+    const trimmed = parsed.email.trim();
+    if (!isValidEmail(trimmed)) {
+      return jsonResponse(400, { error: "That doesn't look like a valid email address." });
+    }
+    email = trimmed;
+  }
+
+  let staffLabel = existing.staff_label;
+  if (typeof parsed.staff_label === "string") {
+    const trimmed = parsed.staff_label.trim();
+    staffLabel = trimmed.length > 0 ? trimmed.slice(0, MAX_STAFF_LABEL_LEN) : null;
+  }
+
+  let stateSlug = existing.state_slug;
+  let deadlineFields: Record<string, string> = JSON.parse(existing.deadline_fields || "{}");
+  let deadlineSource = existing.deadline_source;
+  let userDeadline = existing.user_deadline;
+
+  const stateSlugProvided = typeof parsed.state_slug === "string";
+  const deadlineFieldsProvided = DEADLINE_FIELD_KEYS.some((k) => typeof parsed[k] === "string");
+
+  if (stateSlugProvided) {
+    const trimmed = (parsed.state_slug as string).trim();
+    if (!SUPPORTED_STATE_SLUGS.has(trimmed)) {
+      return jsonResponse(400, { error: "Unsupported or missing state." });
+    }
+    stateSlug = trimmed;
+  }
+
+  if (stateSlugProvided || deadlineFieldsProvided) {
+    const resolved = resolveDeadlineInput(stateSlug, form);
+    if (resolved instanceof Response) {
+      const text = await resolved.text();
+      return jsonResponse(resolved.status, { error: stripHtmlErrorMessage(text) });
+    }
+    deadlineFields = resolved.deadlineFields;
+    deadlineSource = resolved.deadlineSource;
+    userDeadline = resolved.userDeadline;
+
+    try {
+      checkDataFreshness(new Date());
+    } catch (err) {
+      if (err instanceof StaleDataError) {
+        return jsonResponse(503, { error: `Temporarily paused: ${err.message}` });
+      }
+      throw err;
+    }
+    if (
+      deadlineSource === store.DEADLINE_SOURCE_COMPUTED &&
+      computeSubscriberDeadline(stateSlug, deadlineFields, new Date()) === null
+    ) {
+      return jsonResponse(400, { error: "Couldn't compute a deadline from what you gave us -- please check your inputs." });
+    }
+  }
+
+  const emailChanged = store.normalizeEmail(email) !== store.normalizeEmail(existing.email);
+
+  const updated = await store.updateFirmLicense(env.DB, session.firmId, id, {
+    email,
+    staffLabel,
+    stateSlug,
+    deadlineFields,
+    deadlineSource,
+    userDeadline,
+    resetConfirmation: emailChanged,
+  });
+  if (!updated) return jsonResponse(404, { error: "Not found." });
+
+  // Editing the delivery address is, in effect, re-consenting a DIFFERENT
+  // inbox -- see UpdateFirmLicenseInput.resetConfirmation's own doc. Send
+  // that new address its own fresh confirm email, same best-effort posture
+  // as every other send in this file.
+  if (emailChanged && env.SENDGRID_API_KEY) {
+    try {
+      const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+      if (underCap) {
+        const confirmUrl = `${ACTION_BASE_URL}/confirm?token=${encodeURIComponent(updated.confirm_token)}`;
+        const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(updated.unsubscribe_token)}`;
+        const built = buildConfirmationEmail(
+          stateNameFromSlug(updated.state_slug),
+          confirmUrl,
+          unsubscribeUrl,
+          updated.first_name,
+          updated.user_deadline ? fmtDate(new Date(`${updated.user_deadline}T00:00:00Z`)) : null
+        );
+        await sendViaSendGrid(env.SENDGRID_API_KEY, updated.email, built);
+      }
+    } catch {
+      // Best-effort -- the record is already updated regardless.
+    }
+  }
+
+  return jsonResponse(200, toFirmLicenseJson(updated, new Date()));
+}
+
+/** DELETE /firm/licenses/:id -- removes a staff member from the roster (see
+ * store.STOP_REASON_REMOVED_BY_ADMIN's own comment for why this is a
+ * status/stop_reason change, not a SQL row delete, and why that alone is
+ * sufficient to also stop any further reminder sends for this record: the
+ * reminder cron's allConfirmedActive() only ever reads status='confirmed'
+ * rows). */
+async function handleFirmLicenseDelete(request: Request, env: Env, id: string): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+  const result = await store.removeFirmLicense(env.DB, session.firmId, id);
+  if (!result) return jsonResponse(404, { error: "Not found." });
+  return jsonResponse(200, { id: result.id, status: "removed" });
+}
+
+/**
+ * POST /firm/licenses/:id/renew -- the dashboard's one-step "Mark renewed"
+ * action (Part A #5). Hits the SAME store.ts atomic write
+ * (store.applyRenewAndRearm(), via the firm-ownership-scoped
+ * store.renewAndRearm() wrapper) that the free-tier email's
+ * "I've renewed -- remind me next cycle" CTA uses (handleRenewedNextCycle()
+ * above, via store.renewAndRearmByToken()) -- one shared piece of logic, two
+ * different authorization/lookup paths, per this build's own instruction not
+ * to build two different code paths for the same operation.
+ */
+async function handleFirmLicenseRenew(request: Request, env: Env, id: string): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  // Read the row first (ownership-scoped) so a refusal can be given a
+  // specific, honest reason -- store.renewAndRearm() itself only ever
+  // returns SubscriberRow | null, the same "no distinguishing detail" shape
+  // every other store.ts mutation in this file uses.
+  const existing = await store.getFirmLicense(env.DB, session.firmId, id);
+  if (!existing) return jsonResponse(404, { error: "Not found." });
+
+  const updated = await store.renewAndRearm(env.DB, session.firmId, id);
+  if (!updated) {
+    if (existing.stop_reason === store.STOP_REASON_REMOVED_BY_ADMIN) {
+      return jsonResponse(400, {
+        error: "This person was removed from the roster. Re-add them (POST /firm/licenses) to track a new cycle.",
+      });
+    }
+    if (!existing.confirmed_at) {
+      return jsonResponse(400, { error: "This person hasn't confirmed their email yet -- there's nothing to renew." });
+    }
+    if (existing.deadline_source === store.DEADLINE_SOURCE_USER) {
+      return jsonResponse(400, {
+        error: "We can't auto-compute this person's next renewal date. Edit their record with the new expiration date once they have it.",
+      });
+    }
+    return jsonResponse(400, { error: "Couldn't renew this record." });
+  }
+
+  return jsonResponse(200, toFirmLicenseJson(updated, new Date()));
+}
+
 async function handleConfirm(env: Env, token: string | null): Promise<Response> {
   if (!token) return errorPage(400, "Missing confirmation link.");
   const subscriber = await store.confirm(env.DB, token);
@@ -848,22 +1356,28 @@ async function handleRenewed(env: Env, token: string | null): Promise<Response> 
   const subscriber = await store.stop(env.DB, token, "renewed");
   if (!subscriber) return errorPage(404, "That link is invalid.");
 
-  // Send a stop-confirmation email offering a one-click re-arm for next cycle.
-  // Best-effort + isolated, same posture as the confirmation send: only when a
-  // key is configured, guarded by the daily circuit breaker, and never allowed
-  // to fail the stop itself (the stop already happened above and is what
-  // matters). The re-arm link uses the unsubscribe_token, which is what
-  // store.rearm() looks the subscriber up by.
+  // Send a stop-confirmation email. Best-effort + isolated, same posture as
+  // the confirmation send: only when a key is configured, guarded by the
+  // daily circuit breaker, and never allowed to fail the stop itself (the
+  // stop already happened above and is what matters).
+  //
+  // Deliberately NO re-arm offer here (2026-07-28) -- passing `null` instead
+  // of a rearmUrl. The re-arm-for-next-cycle choice is now its OWN co-equal
+  // CTA in the original reminder email itself (buildReminderEmail's
+  // renewedNextCycleUrl / handleRenewedNextCycle() below); anyone reaching
+  // THIS follow-up already clicked the OTHER button ("Stop reminders
+  // entirely"), so dangling a still-open re-arm offer here would contradict
+  // the choice they just made -- exactly the "no email offering a choice
+  // that's already been made" rule this build's task called out.
   if (env.SENDGRID_API_KEY) {
     try {
       const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
       if (underCap) {
-        const rearmUrl = `${ACTION_BASE_URL}/rearm?token=${encodeURIComponent(subscriber.unsubscribe_token)}`;
         const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(subscriber.unsubscribe_token)}`;
         const built = buildStopConfirmationEmail(
           "renewed",
           stateNameFromSlug(subscriber.state_slug),
-          rearmUrl,
+          null,
           unsubscribeUrl,
           subscriber.first_name
         );
@@ -879,9 +1393,57 @@ async function handleRenewed(env: Env, token: string | null): Promise<Response> 
     200,
     htmlPage(
       "Nice work",
-      "<h1>Congrats on renewing</h1><p>All reminders for this deadline are stopped. We've emailed " +
-        "you a confirmation &mdash; if you'd like a reminder again next cycle, there's a one-click " +
-        "link in it to opt back in.</p>"
+      "<h1>Congrats on renewing</h1><p>All reminders for this deadline are stopped, and we've emailed " +
+        "you a confirmation. Want reminders again someday? You're welcome to sign up fresh any time.</p>"
+    )
+  );
+}
+
+/**
+ * POST /renewed-next-cycle -- the free-tier reminder email's new co-equal
+ * "I've renewed -- remind me next cycle" CTA (Part B, 2026-07-28). One
+ * atomic stop-this-cycle-AND-rearm-for-next-cycle action
+ * (store.renewAndRearmByToken()) using the subscriber's EXISTING
+ * renewed_token/unsubscribe_token -- no new token type minted, same
+ * GET-render/POST-act prefetch-safe pattern as every other action link here
+ * (see ACTION_PAGES["/renewed-next-cycle"] for the GET-render copy).
+ *
+ * This is deliberately a SEPARATE route/handler from the firm dashboard's
+ * POST /firm/licenses/:id/renew (handleFirmLicenseRenew() below) rather than
+ * one shared HTTP endpoint -- the two are authorized completely differently
+ * (this one by possessing a valid capability-URL token; that one by a
+ * verified firm session owning the record) and return different response
+ * shapes (an HTML landing page here; JSON there). What they DO share is the
+ * one underlying atomic write: both ultimately call store.ts's
+ * applyRenewAndRearm() (via renewAndRearmByToken() here, renewAndRearm() with
+ * firm-ownership there) -- see that function's own comment for the
+ * atomicity reasoning, and for why "one shared store.ts function" was the
+ * right place to de-duplicate this, not "one shared HTTP route."
+ */
+async function handleRenewedNextCycle(env: Env, token: string | null): Promise<Response> {
+  if (!token) return errorPage(400, "Missing link.");
+  const updated = await store.renewAndRearmByToken(env.DB, token);
+  if (!updated) {
+    // "Bring your own date" (migration 0005): same tailored refusal as
+    // handleRearm() gives -- a real, otherwise-eligible record refused
+    // specifically because we can't auto-derive its NEXT date, not a
+    // generic "invalid or already used" 404.
+    if (await store.isUserDateRenewBlocked(env.DB, token)) {
+      return errorPage(
+        400,
+        "Since we can't automatically know your next renewal date, we can't mark this renewed and " +
+          "re-arm it for you. Use \"Stop these reminders entirely\" instead, then sign up again at " +
+          "deadline-radar.com once you have your new expiration date -- it takes 10 seconds."
+      );
+    }
+    return errorPage(404, "That link is invalid or already used, or this subscriber wasn't eligible to renew.");
+  }
+  return htmlResponse(
+    200,
+    htmlPage(
+      "Nice work",
+      "<h1>You're all set</h1><p>You're marked as renewed, and we'll remind you again as your next " +
+        "renewal deadline approaches. Nothing else to do.</p>"
     )
   );
 }
@@ -931,6 +1493,14 @@ export default {
 
     const ip = clientIp(request);
 
+    // /firm/licenses*, migration 0008's firm-dashboard JSON API (2026-07-28)
+    // -- matched once here, up front, so every HTTP method branch below can
+    // reuse the same parsed :id. Every handler these route to still starts
+    // with requireFirmSession() as its own first line (see that function's
+    // docstring); this parsing step is not itself an auth check.
+    const firmLicenseRenewMatch = /^\/firm\/licenses\/([^/]+)\/renew$/.exec(url.pathname);
+    const firmLicenseIdMatch = firmLicenseRenewMatch ? null : /^\/firm\/licenses\/([^/]+)$/.exec(url.pathname);
+
     // GET on an action path renders a confirmation PAGE only -- it never
     // changes state. Email providers (Gmail, corporate filters) automatically
     // GET the links in a message to scan them; if the action fired on GET, a
@@ -938,6 +1508,13 @@ export default {
     // one-time link before the human ever clicks it. The state change happens
     // only on the POST below (the button on this page), which scanners don't do.
     if (request.method === "GET") {
+      if (url.pathname === "/firm/licenses") {
+        try {
+          return await handleFirmLicensesList(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
       if (ACTION_PATHS.has(url.pathname)) {
         const allowed = await checkRateLimit(env.DB, ip, "action", RATE_LIMIT_ACTION);
         if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
@@ -948,7 +1525,45 @@ export default {
       return errorPage(404, "Not found.");
     }
 
+    if (request.method === "PATCH") {
+      if (firmLicenseIdMatch) {
+        try {
+          return await handleFirmLicensePatch(request, env, firmLicenseIdMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      return errorPage(404, "Not found.");
+    }
+
+    if (request.method === "DELETE") {
+      if (firmLicenseIdMatch) {
+        try {
+          return await handleFirmLicenseDelete(request, env, firmLicenseIdMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      return errorPage(404, "Not found.");
+    }
+
     if (request.method === "POST") {
+      if (url.pathname === "/firm/licenses") {
+        try {
+          return await handleFirmLicenseCreate(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (firmLicenseRenewMatch) {
+        try {
+          return await handleFirmLicenseRenew(request, env, firmLicenseRenewMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
       if (url.pathname === "/subscribe") {
         try {
           return await handleSubscribe(request, env, ip);
@@ -1012,6 +1627,8 @@ export default {
               return await handleUnsubscribe(env, token);
             case "/renewed":
               return await handleRenewed(env, token);
+            case "/renewed-next-cycle":
+              return await handleRenewedNextCycle(env, token);
             case "/rearm":
               return await handleRearm(env, token);
             case "/firm/login/verify":

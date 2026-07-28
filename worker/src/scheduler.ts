@@ -175,6 +175,10 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
       continue;
     }
 
+    // Both action links use the SAME renewed_token -- store.renewAndRearmByToken()
+    // and store.stop() both accept either renewed_token or unsubscribe_token, so
+    // this is not a new token type, just a new URL path over an existing one.
+    const renewedNextCycleUrl = `${ACTION_BASE_URL}/renewed-next-cycle?token=${encodeURIComponent(sub.renewed_token)}`;
     const renewedUrl = `${ACTION_BASE_URL}/renewed?token=${encodeURIComponent(sub.renewed_token)}`;
     const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(sub.unsubscribe_token)}`;
     let built: BuiltEmail;
@@ -184,6 +188,7 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
         fmtDate(deadline),
         threshold,
         daysRemaining,
+        renewedNextCycleUrl,
         renewedUrl,
         unsubscribeUrl,
         sub.first_name

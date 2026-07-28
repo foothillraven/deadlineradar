@@ -34,6 +34,12 @@ export const MAX_FIRST_NAME_LEN = 60;
 export const MAX_FIRM_NAME_LEN = 200;
 export const MAX_STAFF_COUNT_HINT_LEN = 20;
 
+// Firm-dashboard staff license fields (2026-07-28 firm-dashboard MVP) --
+// staff_label is the admin's own short display name for a roster entry
+// (subscribers.staff_label, migration 0008), same "short, optional,
+// cosmetic-only free text" category as the two constants above.
+export const MAX_STAFF_LABEL_LEN = 120;
+
 // Deliberately stricter than "contains an @ and a dot" -- rejects
 // whitespace, control characters, multiple @ signs, and malformed domains
 // outright. Byte-for-byte the same pattern as server.py:160's `_EMAIL_RE`.
@@ -255,6 +261,19 @@ export const RATE_LIMIT_FIRM_LEAD: RateLimit = { max: 5, windowSeconds: 600 };
 // allowance that would otherwise also throttle /firm/signup, or vice versa.
 export const RATE_LIMIT_FIRM_SIGNUP: RateLimit = { max: 5, windowSeconds: 600 };
 export const RATE_LIMIT_FIRM_LOGIN: RateLimit = { max: 5, windowSeconds: 600 };
+
+// POST /firm/licenses (add a staff license, firm-dashboard MVP) -- deliberately
+// keyed on the AUTHENTICATED FIRM ID, not the caller's IP, when this is
+// checked (see index.ts's handleFirmLicenseCreate()): the requester already
+// proved firm ownership via requireFirmSession(), so the risk this bounds is
+// a compromised or careless ADMIN SESSION spam-adding rows onto its OWN
+// firm's roster, not an anonymous IP hitting a public form the way every
+// other RATE_LIMIT_* bucket above does. checkRateLimit()'s `ip` parameter is
+// really just "the bucket's identity key" -- passing a firm id there is a
+// deliberate reuse, not a type mismatch. 50/day is generous enough for a
+// large firm onboarding its whole staff roster in one sitting, while still
+// bounding a runaway script or a compromised session.
+export const RATE_LIMIT_FIRM_LICENSE_CREATE: RateLimit = { max: 50, windowSeconds: 86400 };
 
 /** Returns true if this request is ALLOWED, false if it should be blocked. */
 export async function checkRateLimit(

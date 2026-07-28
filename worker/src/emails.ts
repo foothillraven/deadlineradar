@@ -291,12 +291,29 @@ function reminderSubject(stateName: string, threshold: number, actual: number, d
   return `Your ${stateName} CPA license renewal is due ${dp} (${deadlineStr})`;
 }
 
-/** Port of reminders/emails.py `reminder_email()`. */
+/**
+ * Port of reminders/emails.py `reminder_email()`, with TWO co-equal one-click
+ * CTAs (2026-07-28 firm-dashboard MVP -- previously there was only one,
+ * "Stop these reminders," and getting to "I renewed, remind me next cycle"
+ * took a second follow-up email with its own buried re-arm link -- three hops
+ * total. Now it's one):
+ *   - renewedNextCycleUrl: "I've renewed -- remind me next cycle" -- the new
+ *     atomic stop-this-cycle-AND-rearm-for-next-cycle action
+ *     (store.renewAndRearmByToken(), index.ts's handleRenewedNextCycle()).
+ *     One click, nothing else to do.
+ *   - renewedUrl: "Stop reminders entirely" -- today's plain stop
+ *     (store.stop(token,'renewed'), index.ts's handleRenewed()), mechanically
+ *     UNCHANGED; only its label here changed (it used to be the only button).
+ * The footer's separate Unsubscribe link (unsubscribeUrl) is untouched by
+ * this change -- it was never one of the two CTAs above; it's the same
+ * always-present, permanent, no-follow-up opt-out it always was.
+ */
 export function buildReminderEmail(
   stateName: string,
   deadlineDateStr: string,
   threshold: number,
   actualDaysRemaining: number,
+  renewedNextCycleUrl: string,
   renewedUrl: string,
   unsubscribeUrl: string,
   firstName: string | null = null
@@ -326,7 +343,9 @@ export function buildReminderEmail(
   const textBody =
     `${textGreeting(firstName)}\n\n` +
     `${lead} -- your ${stateName} CPA license renewal is due ${deadlineDateStr} (${whenPhrase}).\n\n` +
-    `Already renewed? One click stops every further reminder for this deadline:\n` +
+    `Already renewed? One click confirms it and keeps your reminders going for next cycle:\n` +
+    `${renewedNextCycleUrl}\n\n` +
+    `Renewed and don't want any more reminders for this deadline at all? Stop them entirely instead:\n` +
     `${renewedUrl}\n\n` +
     `Nothing to do yet? We'll remind you again as it gets closer, right up through the day before.` +
     `${textFooter(unsubscribeUrl, addr)}`;
@@ -340,8 +359,14 @@ export function buildReminderEmail(
           `Your ${esc(stateName)} CPA license renewal is due <strong>${esc(deadlineDateStr)}</strong> ` +
           `(${esc(whenPhrase)}).`
       ) +
-      `<p style="margin:0 0 20px;">${button(renewedUrl, "Stop these reminders")}</p>` +
-      p("Already renewed? The button above stops every further reminder for this deadline.", 13, LIGHT.muted) +
+      `<p style="margin:0 0 12px;">${button(renewedNextCycleUrl, "I've renewed -- remind me next cycle")}</p>` +
+      p(
+        "One click: confirms you've renewed and keeps reminders going for your next renewal cycle.",
+        13,
+        LIGHT.muted
+      ) +
+      `<p style="margin:0 0 12px;">${button(renewedUrl, "Stop reminders entirely")}</p>` +
+      p("Use this instead if you don't want any more reminders for this deadline at all.", 13, LIGHT.muted) +
       p(
         "Nothing to do yet? We'll remind you again as it gets closer, right up through the day before.",
         13,

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import pathlib
 from datetime import date, timedelta
 
@@ -46,7 +47,12 @@ REINSTATEMENT_DATA_PATH = ROOT / "data" / "reinstatement.json"
 # convention (Settings > Pages > Deploy from a branch > /docs), so this
 # directory becomes the deploy target as-is once a repo + Pages source exist.
 # No repo/Pages source exists yet -- this only prepares the file structure.
-SITE_DIR = ROOT / "docs"
+#
+# Overridable via DR_SITE_DIR (2026-07-28, firm-dashboard preview build) --
+# unset, this is byte-identical to before. Set only by the preview build
+# script so a preview generation writes to a separate directory instead of
+# overwriting the real, committed, production docs/ tree.
+SITE_DIR = ROOT / os.environ.get("DR_SITE_DIR", "docs")
 
 # Self-hosted display font (2026-07-10 visual-trust redesign). Copied verbatim into
 # docs/fonts/ at build time, referenced by an absolute /fonts/... URL in PAGE_CSS so
@@ -58,7 +64,10 @@ FONT_ASSETS_DIR = ROOT / "assets" / "fonts"
 # Swap this single constant for the real https://<user>.github.io/<repo> URL
 # (or a real domain later) once publishing is explicitly decided -- do not
 # hardcode a real URL before that.
-SITE_BASE_URL = "https://deadline-radar.com"
+#
+# Overridable via DR_SITE_BASE_URL (2026-07-28 preview build) -- same
+# unset-is-unchanged convention as DR_SITE_DIR above.
+SITE_BASE_URL = os.environ.get("DR_SITE_BASE_URL", "https://deadline-radar.com")
 
 # IndexNow (indexnow.org) key -- proves ownership of the site to IndexNow-participating
 # search engines (Bing, Yandex; not Google, which has no public IndexNow support) so
@@ -123,7 +132,14 @@ GLEIM_AFFILIATE_URL = _GLEIM_AFFILIATE_PLACEHOLDER
 # until AFTER the Worker is deployed and verified responding (worker/
 # DEPLOY.md step 6); pushing before that would point the live, public
 # signup form at a route that doesn't exist yet.
-REMINDER_BACKEND_BASE_URL = "/api"
+#
+# Overridable via DR_REMINDER_BACKEND_BASE_URL (2026-07-28 preview build) --
+# same unset-is-unchanged convention as DR_SITE_DIR/DR_SITE_BASE_URL above.
+# The preview build points this at the preview Worker's own workers.dev URL
+# (a different origin than the static preview pages), since a preview Pages
+# deployment and a preview Worker deployment don't share one origin the way
+# production's single deadline-radar.com domain does.
+REMINDER_BACKEND_BASE_URL = os.environ.get("DR_REMINDER_BACKEND_BASE_URL", "/api")
 
 # States whose worker (deadline.ts's computeSubscriberDeadline) has dedicated
 # per-state fields to compute a deadline even without a plain

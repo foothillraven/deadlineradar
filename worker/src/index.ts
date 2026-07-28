@@ -112,6 +112,11 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
     intro: "Click below to get reminders again for your next renewal cycle.",
     button: "Yes, remind me next cycle",
   },
+  "/firm/login/verify": {
+    heading: "Sign in to DeadlineRadar",
+    intro: "Click below to finish signing in.",
+    button: "Sign in",
+  },
 };
 
 const ACTION_PATHS = new Set(Object.keys(ACTION_PAGES));
@@ -726,25 +731,19 @@ async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<
 }
 
 /**
- * GET /firm/login/verify?token=... -- verifies + consumes the raw login
- * token, and on success creates a session and sets the session cookie.
- *
- * Judgment call, flagged for the next reviewer: every OTHER action link in
- * this Worker (/confirm, /unsubscribe, /renewed, /rearm) deliberately makes
- * GET render-only and defers the actual state change to a POST -- precisely
- * because email providers auto-GET links to scan them, and a GET that acted
- * would let a scanner silently burn a one-time link before the human ever
- * clicks it. This route does NOT follow that pattern -- it acts on GET, per
- * this task's own spec -- because a magic sign-in link is the standard,
- * expected UX for this kind of auth (that's what "click the link to sign
- * in" means), and unlike the other action links, prefetch-then-burn here is
- * a USER-FACING NUISANCE, not a security bypass: if a scanner's GET consumes
- * the token first, the resulting session cookie is set on the scanner's own
- * HTTP response, which the real recipient never sees -- the real admin
- * simply hits "invalid or expired," requests a new link, and tries again.
- * No cross-firm data exposure results either way. Worth reconsidering
- * (e.g. a render-then-POST confirm step, same as the other actions) if
- * link-scanning turns out to cause real friction in practice.
+ * POST /firm/login/verify -- verifies + consumes the raw login token, and on
+ * success creates a session and sets the session cookie. Follows this
+ * Worker's standard GET-render/POST-act pattern (same as /confirm,
+ * /unsubscribe, /renewed, /rearm -- see ACTION_PAGES/ACTION_PATHS): the
+ * emailed link itself only renders a "Sign in" button (actionConfirmPage()),
+ * this handler only runs when that button's POST arrives. An earlier version
+ * of this route acted directly on GET (the standard "magic link" UX), but
+ * corporate mail-security gateways (Microsoft Defender Safe Links and
+ * similar, common at CPA firms -- exactly this product's buyer) routinely
+ * prefetch links server-side before the human clicks, which would burn the
+ * single-use token on the scanner's own request and leave the real admin
+ * stuck on "invalid or expired" every time. Render-then-POST avoids that
+ * failure mode entirely, at the cost of one extra click.
  */
 async function handleFirmLoginVerify(env: Env, token: string | null): Promise<Response> {
   if (!token) return errorPage(400, "Missing sign-in link.");
@@ -939,20 +938,6 @@ export default {
     // one-time link before the human ever clicks it. The state change happens
     // only on the POST below (the button on this page), which scanners don't do.
     if (request.method === "GET") {
-      // migration 0008 -- see handleFirmLoginVerify()'s own docstring for why
-      // this route, alone among this Worker's action links, is allowed to
-      // act on GET rather than following the render-only-then-POST pattern
-      // every ACTION_PATHS entry below uses.
-      if (url.pathname === "/firm/login/verify") {
-        const allowed = await checkRateLimit(env.DB, ip, "action", RATE_LIMIT_ACTION);
-        if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
-        try {
-          return await handleFirmLoginVerify(env, url.searchParams.get("token"));
-        } catch {
-          return errorPage(400, "Something went wrong processing that request.");
-        }
-      }
-
       if (ACTION_PATHS.has(url.pathname)) {
         const allowed = await checkRateLimit(env.DB, ip, "action", RATE_LIMIT_ACTION);
         if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
@@ -1029,6 +1014,8 @@ export default {
               return await handleRenewed(env, token);
             case "/rearm":
               return await handleRearm(env, token);
+            case "/firm/login/verify":
+              return await handleFirmLoginVerify(env, token);
           }
         } catch {
           return errorPage(400, "Something went wrong processing that request.");

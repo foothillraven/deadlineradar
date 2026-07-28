@@ -437,10 +437,23 @@ async function postFirmLogin(fields: Record<string, string>, ip: string): Promis
   });
 }
 
-async function getFirmLoginVerify(token: string | null, ip: string): Promise<Response> {
+async function getFirmLoginVerifyPage(token: string | null, ip: string): Promise<Response> {
   const query = token !== null ? `?token=${encodeURIComponent(token)}` : "";
   return SELF.fetch(`https://deadline-radar.com/firm/login/verify${query}`, {
     headers: { "cf-connecting-ip": ip },
+    redirect: "manual",
+  });
+}
+
+// The GET only renders the confirm page (render-only, prefetch-safe -- see
+// handleFirmLoginVerify()'s docstring); this POSTs the token from the form
+// body, same as the confirm-page button would, which is what actually
+// verifies+consumes the token and creates the session.
+async function postFirmLoginVerify(token: string | null, ip: string): Promise<Response> {
+  return SELF.fetch("https://deadline-radar.com/firm/login/verify", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": ip },
+    body: form(token !== null ? { token } : {}),
     redirect: "manual",
   });
 }
@@ -604,14 +617,35 @@ describe("POST /firm/login -- login-link resend for an existing firm", () => {
   });
 });
 
-describe("GET /firm/login/verify -- consumes the login token, creates a session, sets the cookie", () => {
+describe("GET /firm/login/verify -- render-only confirm page, prefetch-safe", () => {
+  it("renders a confirm page with a POST form and does NOT consume the token or set a cookie", async () => {
+    const email = `firmverify-render-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Render Firm", admin_email: email }, "203.0.113.169");
+    const firm = await firmByAdminEmail(email);
+    const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
+
+    const resp = await getFirmLoginVerifyPage(rawToken, "203.0.113.169");
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Set-Cookie")).toBeNull();
+    const body = await resp.text();
+    expect(body.toLowerCase()).toContain("sign in");
+    expect(body).toContain(`name="token" value="${rawToken}"`);
+    expect(body).toContain('method="post"');
+
+    // Token must still be unused -- rendering the page must not consume it.
+    const sameTokenPostLater = await postFirmLoginVerify(rawToken, "203.0.113.169");
+    expect(sameTokenPostLater.status).toBe(302); // still valid, consumed here for the first time
+  });
+});
+
+describe("POST /firm/login/verify -- consumes the login token, creates a session, sets the cookie", () => {
   it("a valid raw login token creates a session, sets the dr_firm_session cookie, and redirects to /firm-dashboard/", async () => {
     const email = `firmverify-${Date.now()}@example.com`;
     await postFirmSignup({ name: "Verify Firm", admin_email: email }, "203.0.113.170");
     const firm = await firmByAdminEmail(email);
     const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
 
-    const resp = await getFirmLoginVerify(rawToken, "203.0.113.171");
+    const resp = await postFirmLoginVerify(rawToken, "203.0.113.171");
     expect(resp.status).toBe(302);
     expect(resp.headers.get("Location")).toBe("/firm-dashboard/");
     const setCookie = resp.headers.get("Set-Cookie");
@@ -634,10 +668,10 @@ describe("GET /firm/login/verify -- consumes the login token, creates a session,
     const firm = await firmByAdminEmail(email);
     const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
 
-    const first = await getFirmLoginVerify(rawToken, "203.0.113.173");
+    const first = await postFirmLoginVerify(rawToken, "203.0.113.173");
     expect(first.status).toBe(302);
 
-    const second = await getFirmLoginVerify(rawToken, "203.0.113.174");
+    const second = await postFirmLoginVerify(rawToken, "203.0.113.174");
     expect(second.status).toBe(400);
     const body = await second.text();
     expect(body.toLowerCase()).toContain("invalid");
@@ -655,19 +689,19 @@ describe("GET /firm/login/verify -- consumes the login token, creates a session,
       .bind(new Date(Date.now() - 1000).toISOString(), tokenHash)
       .run();
 
-    const resp = await getFirmLoginVerify(rawToken, "203.0.113.176");
+    const resp = await postFirmLoginVerify(rawToken, "203.0.113.176");
     expect(resp.status).toBe(400);
     const body = await resp.text();
     expect(body.toLowerCase()).toContain("expired");
   });
 
   it("a malformed/unknown token is rejected", async () => {
-    const resp = await getFirmLoginVerify("this-token-does-not-exist", "203.0.113.177");
+    const resp = await postFirmLoginVerify("this-token-does-not-exist", "203.0.113.177");
     expect(resp.status).toBe(400);
   });
 
   it("a missing token returns 400", async () => {
-    const resp = await getFirmLoginVerify(null, "203.0.113.178");
+    const resp = await postFirmLoginVerify(null, "203.0.113.178");
     expect(resp.status).toBe(400);
   });
 });

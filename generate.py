@@ -2502,17 +2502,17 @@ license. A few states where we've published the firm-specific filing date:</p>
 # a hand-typed date sitting on a marketing page silently would (the exact failure class this
 # site's own trust pitch is built around catching).
 _FIRM_MOCKUP_ROSTER = [
-    ("Alex R.", "georgia", "individual", "Confirmed"),
-    ("Jordan M.", "alabama", "all", "Confirmed"),
-    ("Sam K.", "illinois", "individual", "Pending"),
+    ("Alex R.", "georgia", "individual", "Active"),
+    ("Jordan M.", "alabama", "all", "Active"),
+    ("Sam K.", "illinois", "individual", "Opted out"),
     ("Taylor B.", "missouri", "individual", "Needs attention"),
-    ("Morgan P. — Firm Registration", "louisiana", "firm", "Confirmed"),
-    ("Casey T. — Firm Registration", "missouri", "firm", "Confirmed"),
+    ("Morgan P. — Firm Registration", "louisiana", "firm", "Active"),
+    ("Casey T. — Firm Registration", "missouri", "firm", "Active"),
 ]
 
 _MOCKUP_STATUS_CLASS = {
-    "Confirmed": "mock-status--ok",
-    "Pending": "mock-status--pending",
+    "Active": "mock-status--ok",
+    "Opted out": "mock-status--pending",
     "Needs attention": "mock-status--risk",
 }
 
@@ -2575,8 +2575,10 @@ _FIRM_FAQ = [
         "&mdash; <a href=\"../methodology/\">see exactly how</a>. What this is <em>not</em> is a "
         "recurring human lookup of each staff member's individual license status &mdash; there's no "
         "manual check-in against the state board or CPAverify.org on your behalf. Signup itself is "
-        "self-serve and self-reported the same way the free tier already is: your admin adds the "
-        "roster, and each staff member confirms their own email before reminders start.",
+        "self-serve: your admin adds the roster directly, and reminders start right away for each "
+        "person &mdash; no confirmation step to wait on. Each staff member still gets one "
+        "transparent email the moment they're added, naming your firm and with an equally "
+        "prominent one-click opt-out.",
     ),
     (
         "What if my staff are licensed in a birth-month or \"bring your own date\" state?",

@@ -1054,14 +1054,19 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
 }
 
 /**
- * POST /firm/licenses -- adds a staff member to the firm's roster. Reuses
- * the EXACT same pending_confirmation -> confirmed self-serve consent flow
- * handleSubscribe() uses for the public form (store.addPending(), the same
- * confirm-token/buildConfirmationEmail() machinery) -- the staff member
- * still gets a one-time confirm email before their own reminders start; a
- * firm admin adding someone does not itself grant consent on that person's
- * behalf. firm_id and staff_label are the only things that differ from a
- * free-tier signup.
+ * POST /firm/licenses -- adds a staff member to the firm's roster.
+ *
+ * HYBRID consent model (2026-07-28, Devin's decision, firm path ONLY):
+ * reuses store.addPending() (same row shape/tokens as a free-tier signup)
+ * but with `skipConfirmation: true` -- the row is created already
+ * `confirmed`/active, reminders start immediately, no pending gate. This is
+ * DIFFERENT from handleSubscribe() (the public form), which still calls
+ * addPending() WITHOUT that flag and stays double-opt-in, unchanged. What
+ * keeps this CAN-SPAM-clean in exchange for skipping confirmation:
+ * buildFirmStaffAddedEmail() below (not buildConfirmationEmail()) fires
+ * instead, naming the firm and pointing at the SAME unsubscribe token/link
+ * every other email already uses -- a firm admin adding someone doesn't
+ * grant silent consent, it grants transparent, easily-declinable consent.
  */
 async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Response> {
   const session = await requireFirmSession(request, env);

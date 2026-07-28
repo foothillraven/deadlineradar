@@ -57,15 +57,44 @@ export async function checkAndCountSend(db: D1Database, cap: number): Promise<bo
 }
 
 /**
+ * Case-insensitive, trimmed membership check against a comma-separated
+ * allowlist string (env.EMAIL_ALLOWLIST). Returns null when `raw` is
+ * unset/empty -- meaning "no allowlist configured, gate is off" -- as
+ * distinct from an empty array, so callers can tell "not configured" apart
+ * from "configured but empty" if that distinction ever matters.
+ */
+function parseAllowlist(raw: string | undefined): string[] | null {
+  if (!raw) return null;
+  const parsed = raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s.length > 0);
+  return parsed.length > 0 ? parsed : null;
+}
+
+/**
  * One transactional send via SendGrid. Returns true on 2xx, false otherwise
  * (a failed send must never throw up into /subscribe -- a subscriber's record
  * is already stored; a transient email failure should not 500 their request).
+ *
+ * `emailAllowlist` is the raw env.EMAIL_ALLOWLIST value (see env.ts) -- a
+ * PREVIEW/STAGING-ONLY safety gate. When it parses to a non-empty list and
+ * `toEmail` (trimmed, case-insensitive) is not on it, this function returns
+ * false immediately and never calls fetch() -- the recipient is never
+ * contacted. When `emailAllowlist` is undefined/empty (the production
+ * default), this check is skipped entirely and behavior is byte-identical to
+ * before this gate existed.
  */
 export async function sendViaSendGrid(
   apiKey: string,
   toEmail: string,
-  email: BuiltEmail
+  email: BuiltEmail,
+  emailAllowlist?: string
 ): Promise<boolean> {
+  const allowlist = parseAllowlist(emailAllowlist);
+  if (allowlist && !allowlist.includes(toEmail.trim().toLowerCase())) {
+    return false;
+  }
   const personalization: Record<string, unknown> = { to: [{ email: toEmail }] };
   if (email.headers && Object.keys(email.headers).length > 0) {
     // SendGrid attaches custom transport headers per personalization, values

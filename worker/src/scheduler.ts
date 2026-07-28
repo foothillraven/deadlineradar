@@ -96,7 +96,7 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
     opts.send ??
     ((to, built) => {
       if (!env.SENDGRID_API_KEY) return Promise.resolve(false);
-      return sendViaSendGrid(env.SENDGRID_API_KEY, to, built);
+      return sendViaSendGrid(env.SENDGRID_API_KEY, to, built, env.EMAIL_ALLOWLIST);
     });
 
   const cap = dailySendCap(env);

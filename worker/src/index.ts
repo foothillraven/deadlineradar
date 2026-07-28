@@ -449,7 +449,7 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
               existing.first_name,
               existing.user_deadline ? fmtDate(new Date(`${existing.user_deadline}T00:00:00Z`)) : null
             );
-            await sendViaSendGrid(env.SENDGRID_API_KEY, existing.email, built);
+            await sendViaSendGrid(env.SENDGRID_API_KEY, existing.email, built, env.EMAIL_ALLOWLIST);
             await store.recordResend(env.DB, existing.id);
           }
         }
@@ -511,7 +511,7 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
           record.first_name,
           record.user_deadline ? fmtDate(new Date(`${record.user_deadline}T00:00:00Z`)) : null
         );
-        await sendViaSendGrid(env.SENDGRID_API_KEY, record.email, built);
+        await sendViaSendGrid(env.SENDGRID_API_KEY, record.email, built, env.EMAIL_ALLOWLIST);
       }
     } catch {
       // Swallow -- the signup is stored; a confirmation-email failure is not
@@ -647,7 +647,7 @@ async function issueAndSendFirmLoginLink(env: Env, firmId: string, adminEmail: s
     if (!underCap) return;
     const loginUrl = `${ACTION_BASE_URL}/firm/login/verify?token=${encodeURIComponent(rawToken)}`;
     const built = buildFirmLoginEmail(loginUrl);
-    await sendViaSendGrid(env.SENDGRID_API_KEY, adminEmail, built);
+    await sendViaSendGrid(env.SENDGRID_API_KEY, adminEmail, built, env.EMAIL_ALLOWLIST);
   } catch {
     // Swallow -- same reasoning as every other best-effort send in this
     // file: the caller's response must never depend on whether this
@@ -1120,7 +1120,7 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
           record.first_name,
           record.user_deadline ? fmtDate(new Date(`${record.user_deadline}T00:00:00Z`)) : null
         );
-        await sendViaSendGrid(env.SENDGRID_API_KEY, record.email, built);
+        await sendViaSendGrid(env.SENDGRID_API_KEY, record.email, built, env.EMAIL_ALLOWLIST);
       }
     } catch {
       // Best-effort, same posture as handleSubscribe() -- the record is
@@ -1256,7 +1256,7 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
           updated.first_name,
           updated.user_deadline ? fmtDate(new Date(`${updated.user_deadline}T00:00:00Z`)) : null
         );
-        await sendViaSendGrid(env.SENDGRID_API_KEY, updated.email, built);
+        await sendViaSendGrid(env.SENDGRID_API_KEY, updated.email, built, env.EMAIL_ALLOWLIST);
       }
     } catch {
       // Best-effort -- the record is already updated regardless.
@@ -1381,7 +1381,7 @@ async function handleRenewed(env: Env, token: string | null): Promise<Response> 
           unsubscribeUrl,
           subscriber.first_name
         );
-        await sendViaSendGrid(env.SENDGRID_API_KEY, subscriber.email, built);
+        await sendViaSendGrid(env.SENDGRID_API_KEY, subscriber.email, built, env.EMAIL_ALLOWLIST);
       }
     } catch {
       // Swallow -- the reminders are already stopped; a follow-up email

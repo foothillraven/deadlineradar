@@ -539,11 +539,12 @@ PAGE_CSS = """
   .remind-panel input:focus, .remind-panel select:focus {
     outline: none; border-color: #7fb0d6; box-shadow: 0 0 0 3px rgba(127,176,214,.2);
   }
-  .remind-panel button {
+  .remind-panel button, .remind-panel .cta-button {
     margin-top: 0.3rem; background: var(--gold); color: #22190a; border: 0; font-weight: 700;
-    font-size: 0.92rem; padding: 0.7rem; border-radius: 7px; cursor: pointer; font-family: inherit;
+    font-size: 0.92rem; padding: 0.7rem 1rem; border-radius: 7px; cursor: pointer; font-family: inherit;
+    display: inline-block; text-decoration: none;
   }
-  .remind-panel button:hover { background: #9c7a3c; }
+  .remind-panel button:hover, .remind-panel .cta-button:hover { background: #9c7a3c; }
   .remind-panel .field-hint { color: #8fa7bb; }
   .cpe-affiliate-heading {
     font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
@@ -2670,13 +2671,30 @@ trust this site.</p>
 <p><strong>$500/year flat for firms with up to 10 staff</strong>, about $50/seat/year above that.
 Start with a <strong>free 30-day pilot &mdash; no card required</strong>.</p>
 
+<div class="remind-panel" id="firm-signup">
+  <div>
+    <h2>Create your firm account</h2>
+    <p class="remind-copy">Self-serve, no card required. Your admin creates an account and adds staff
+    directly &mdash; name, email, state, and license type for each person &mdash; no concierge onboarding
+    where our team enters a roster for you. Each staff member then gets one email asking them to confirm,
+    the exact same double opt-in every free subscriber on this site already goes through, so reminders
+    never start for someone who hasn't agreed to them.</p>
+    <p class="remind-promise">Free 30-day pilot, no card collected anywhere in this flow.</p>
+  </div>
+  <p><a class="cta-button" href="../firm-login/">Create your firm account &rarr;</a></p>
+</div>
+
+<h2>How it actually works</h2>
+<p>Deadline accuracy comes from the same sourced-to-codified-law data every free page on this site
+already uses, not a recurring human check-in on each staff member's status. Billing today is a simple
+invoice; a self-serve card-payment option is coming soon. Not ready to create an account yet?
+<a href="#firm-lead">Leave your email instead</a> and we'll follow up.</p>
+
 <div class="remind-panel" id="firm-lead">
   <div>
-    <h2>Reserve your spot</h2>
-    <p class="remind-copy">Self-serve signup for the firm dashboard isn't live yet. Leave your firm's
-    email below and we'll notify you the day it opens &mdash; you'll be near the front of the pilot
-    list, not starting a subscription today.</p>
-    <p class="remind-promise">No card, no account created yet &mdash; this just reserves your place.</p>
+    <h2>Not ready yet? Just leave your email</h2>
+    <p class="remind-copy">No account, no commitment &mdash; we'll follow up with anything a firm admin
+    should know before signing up.</p>
   </div>
   <form method="post" action="{firm_lead_action}">
     {_BOT_DEFENSE_FIELDS_HTML}
@@ -2689,17 +2707,6 @@ Start with a <strong>free 30-day pilot &mdash; no card required</strong>.</p>
     <button type="submit">Reserve early access &rarr;</button>
   </form>
 </div>
-
-<h2>How it actually works</h2>
-<p>Honest about where we are: the form above joins our early-access list &mdash; it does not create an
-account today, because the self-serve firm dashboard hasn't shipped yet. Here's what it looks like once
-it's live: your admin creates an account and adds staff directly &mdash; name, email, state, and license
-type for each person &mdash; no concierge onboarding where our team enters a roster for you. Each staff
-member then gets one email asking them to confirm, the exact same double opt-in every free subscriber on
-this site already goes through, so reminders never start for someone who hasn't agreed to them. Deadline
-accuracy comes from the same sourced-to-codified-law data every free page on this site already uses, not
-a recurring human check-in on each staff member's status. Billing today is a simple invoice; a self-serve
-card-payment option is coming alongside the dashboard.</p>
 
 {_firm_landing_links_html()}
 

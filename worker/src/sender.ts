@@ -92,6 +92,16 @@ export async function sendViaSendGrid(
   emailAllowlist?: string
 ): Promise<boolean> {
   const allowlist = parseAllowlist(emailAllowlist);
+  // Preview/staging visibility (2026-07-28): whenever the allowlist gate is
+  // active at all, log the full built email -- readable live via
+  // `wrangler tail --config wrangler.preview.toml`. This is what makes the
+  // preview usable even before/without a real SENDGRID_API_KEY: a tester can
+  // grab a magic-link URL (or a reminder email's renew-and-rearm link)
+  // straight out of the log stream. Only fires when emailAllowlist is set,
+  // which is never true in production -- this line does not exist there.
+  if (allowlist) {
+    console.log(`[preview-email] to=${toEmail} subject=${JSON.stringify(email.subject)}\n${email.textBody}`);
+  }
   if (allowlist && !allowlist.includes(toEmail.trim().toLowerCase())) {
     return false;
   }

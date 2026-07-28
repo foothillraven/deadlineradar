@@ -79,7 +79,13 @@ import {
   type DeadlineFields,
 } from "./deadline";
 import * as store from "./store";
-import { buildConfirmationEmail, buildFirmLoginEmail, buildStopConfirmationEmail, fmtDate } from "./emails";
+import {
+  buildConfirmationEmail,
+  buildFirmLoginEmail,
+  buildFirmStaffAddedEmail,
+  buildStopConfirmationEmail,
+  fmtDate,
+} from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, sendViaSendGrid } from "./sender";
 import { StaleDataError as SchedulerStaleDataError, runReminderPass } from "./scheduler";
 
@@ -959,9 +965,24 @@ const DEADLINE_FIELD_KEYS = ["birth_month", "birth_year", "cohort_group", "licen
  * entirely -- see that function's own comment) surfaces as "needs-attention"
  * so the admin notices someone stopped getting reminders unexpectedly,
  * rather than that record silently vanishing from the roster. */
-function firmLicenseStatus(row: store.SubscriberRow): "confirmed" | "pending" | "needs-attention" {
-  if (row.status === store.STATUS_CONFIRMED) return "confirmed";
+/**
+ * HYBRID consent model (2026-07-28): a firm-added staffer is ACTIVE the
+ * moment they're added (see store.ts's addPending() `skipConfirmation`) --
+ * there is no more "pending" state on this path going forward. "pending" is
+ * kept in the return type/mapping only for OLD rows that predate this model
+ * (a stale preview record, or a genuine in-flight free-tier row that
+ * somehow ended up firm-scoped) so this function degrades sensibly rather
+ * than mislabeling them, not because new firm-add rows can produce it.
+ * "opted_out" is split out from the old catch-all "needs-attention" bucket
+ * specifically so an admin can see, at a glance, who exercised the one-click
+ * opt-out this consent model depends on -- a self-serve "renewed but not yet
+ * re-armed" row (stop_reason='renewed') is a different situation and stays
+ * "needs-attention".
+ */
+function firmLicenseStatus(row: store.SubscriberRow): "active" | "pending" | "opted_out" | "needs-attention" {
+  if (row.status === store.STATUS_CONFIRMED) return "active";
   if (row.status === store.STATUS_PENDING) return "pending";
+  if (row.status === store.STATUS_STOPPED && row.stop_reason === "unsubscribed") return "opted_out";
   return "needs-attention";
 }
 
@@ -1116,6 +1137,14 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
     });
   }
 
+  // HYBRID consent model (2026-07-28, Devin's decision, firm path only):
+  // admin-added staff go ACTIVE immediately (skipConfirmation) -- no
+  // pending-confirmation gap in the firm's coverage. The free-tier
+  // /subscribe path above is completely untouched (never passes this flag,
+  // still double opt-in). Transparency is what keeps this CAN-SPAM-clean:
+  // buildFirmStaffAddedEmail() below, not the confirm email, is sent instead
+  // -- states plainly who added them and gives an equally prominent
+  // one-click opt-out.
   const record = await store.addPending(env.DB, {
     email,
     stateSlug,
@@ -1125,26 +1154,23 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
     userDeadline,
     firmId: session.firmId,
     staffLabel,
+    skipConfirmation: true,
   });
 
   if (env.SENDGRID_API_KEY) {
     try {
       const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
       if (underCap) {
-        const confirmUrl = `${actionBaseUrl(env)}/confirm?token=${encodeURIComponent(record.confirm_token)}`;
+        const firm = await store.getFirmById(env.DB, session.firmId);
         const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
-        const built = buildConfirmationEmail(
-          stateNameFromSlug(stateSlug),
-          confirmUrl,
-          unsubscribeUrl,
-          record.first_name,
-          record.user_deadline ? fmtDate(new Date(`${record.user_deadline}T00:00:00Z`)) : null
-        );
+        const built = buildFirmStaffAddedEmail(firm?.name || "Your firm", stateNameFromSlug(stateSlug), unsubscribeUrl);
         await sendViaSendGrid(env.SENDGRID_API_KEY, record.email, built, env.EMAIL_ALLOWLIST);
       }
     } catch {
       // Best-effort, same posture as handleSubscribe() -- the record is
-      // already stored regardless.
+      // already stored (and already ACTIVE) regardless of whether this
+      // transparency email succeeds; a mail failure must not roll back
+      // consent state or silently leave reminders un-started.
     }
   }
 

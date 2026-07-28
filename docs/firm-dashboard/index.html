@@ -563,8 +563,9 @@
 
 <div class="signup-form" id="dr-add-staff">
   <h2>Add staff</h2>
-  <p class="signup-microcopy">They'll get one confirmation email before their reminders start --
-  adding someone here doesn't itself grant consent on their behalf.</p>
+  <p class="signup-microcopy">Their reminders start right away -- no confirmation step to wait on.
+  They'll get one email the moment you add them, naming your firm and with a one-click opt-out if
+  they'd rather not be tracked this way.</p>
   <form id="dr-add-staff-form">
     <label for="dr-add-label">Name or label (optional)</label>
     <input type="text" id="dr-add-label" name="staff_label" maxlength="120" placeholder="e.g. Alex Rivera">
@@ -860,8 +861,20 @@ function drEscapeHtml(s) {
   });
 }
 
-var DR_STATUS_LABELS = {confirmed: 'Confirmed', pending: 'Pending', 'needs-attention': 'Needs attention'};
-var DR_STATUS_CLASSES = {confirmed: 'mock-status--ok', pending: 'mock-status--pending', 'needs-attention': 'mock-status--risk'};
+// HYBRID consent model (2026-07-28): a firm-added staffer is active
+// immediately (no more "pending" state going forward on this path -- see
+// worker/src/index.ts's firmLicenseStatus()). 'pending' is kept here only so
+// an old/legacy row doesn't render as an unrecognized blank status; 'opted_out'
+// is the new one, shown when a staffer used the one-click opt-out this
+// consent model depends on for staying CAN-SPAM-clean.
+var DR_STATUS_LABELS = {
+  active: 'Active', confirmed: 'Active', pending: 'Pending',
+  opted_out: 'Opted out', 'needs-attention': 'Needs attention'
+};
+var DR_STATUS_CLASSES = {
+  active: 'mock-status--ok', confirmed: 'mock-status--ok', pending: 'mock-status--pending',
+  opted_out: 'mock-status--pending', 'needs-attention': 'mock-status--risk'
+};
 
 var drLicenses = [];
 var drEditingId = null;

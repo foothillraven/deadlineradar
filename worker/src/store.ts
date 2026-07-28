@@ -241,6 +241,19 @@ export interface AddPendingInput {
   firmId?: string | null;
   /** migration 0008. Only meaningful alongside firmId; null otherwise. */
   staffLabel?: string | null;
+  /**
+   * HYBRID consent model (2026-07-28, firm-tier only): when true, the row is
+   * created already `confirmed` (reminders active immediately) instead of
+   * `pending_confirmation` -- no confirm_token flow is used at all for this
+   * person. Set ONLY by handleFirmLicenseCreate() for admin-added staff; the
+   * free-tier `/subscribe` path never passes this (always double opt-in,
+   * unchanged). This is what makes an admin-added staffer "vouched for" by
+   * their firm rather than self-attesting their own email -- the tradeoff
+   * Devin explicitly chose over a silent "pending" gap in firm coverage, kept
+   * CAN-SPAM-clean by the caller always sending buildFirmStaffAddedEmail()
+   * (transparent first-contact + one-click opt-out) right after this returns.
+   */
+  skipConfirmation?: boolean;
 }
 
 /**
@@ -253,6 +266,7 @@ export interface AddPendingInput {
  * still can't smuggle an oversized or non-printable name into storage.
  */
 export async function addPending(db: D1Database, input: AddPendingInput): Promise<SubscriberRow> {
+  const now = nowIso();
   const record: SubscriberRow = {
     id: newToken(),
     email: input.email,
@@ -260,12 +274,19 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     state_slug: input.stateSlug,
     deadline_fields: JSON.stringify(input.deadlineFields ?? {}),
     first_name: sanitizeFirstName(input.firstName),
-    status: STATUS_PENDING,
+    status: input.skipConfirmation ? STATUS_CONFIRMED : STATUS_PENDING,
+    // Still generated even when skipped -- the column is NOT NULL UNIQUE and
+    // nothing else in this codebase special-cases a null confirm_token; an
+    // unused-but-valid token is simpler than widening the schema for one
+    // call path. It's just never emailed to anyone for a skip-confirmation
+    // row (handleFirmLicenseCreate() sends buildFirmStaffAddedEmail()
+    // instead of buildConfirmationEmail(), which is the only place a
+    // confirm_token ever reaches an email).
     confirm_token: newToken(),
     unsubscribe_token: newToken(),
     renewed_token: newToken(),
-    created_at: nowIso(),
-    confirmed_at: null,
+    created_at: now,
+    confirmed_at: input.skipConfirmation ? now : null,
     stopped_at: null,
     stop_reason: null,
     reminders_sent: "[]",
@@ -637,6 +658,17 @@ export async function createFirm(db: D1Database, input: CreateFirmInput): Promis
     .bind(id, name, input.adminEmail, nowIso())
     .run();
   return { id };
+}
+
+/**
+ * By id (the session-scoped id every firm-scoped route already trusts, via
+ * requireFirmSession()) -- used where the firm's own NAME is needed, e.g. the
+ * hybrid-consent first-contact email (buildFirmStaffAddedEmail()) naming
+ * which firm added a staff member.
+ */
+export async function getFirmById(db: D1Database, firmId: string): Promise<FirmRow | null> {
+  const row = await db.prepare(`SELECT * FROM firms WHERE id = ?1`).bind(firmId).first<FirmRow>();
+  return row ?? null;
 }
 
 /**

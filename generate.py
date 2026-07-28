@@ -2605,11 +2605,11 @@ _FIRM_FAQ = [
     (
         "Who actually sets up my staff -- your team, or us?",
         "You do, directly, once the self-serve dashboard is live: your admin adds each staff "
-        "member's name, email, state, and license type. There's no concierge onboarding where our "
-        "team collects a roster by email and enters it for you. Each staff member still gets their "
-        "own one-time confirmation email first &mdash; the same double opt-in every free subscriber "
-        "on this site already goes through &mdash; so reminders never start for someone who hasn't "
-        "agreed to them.",
+        "member's name, email, state, and license type, and their reminders start right away "
+        "&mdash; no waiting on them to confirm anything, so your firm's coverage never has a silent "
+        "gap. There's no concierge onboarding where our team collects a roster by email and enters "
+        "it for you. Each staff member gets one transparent email the moment they're added, naming "
+        "your firm and with an equally prominent one-click opt-out, so nobody is tracked silently.",
     ),
 ]
 
@@ -2692,9 +2692,10 @@ Start with a <strong>free 30-day pilot &mdash; no card required</strong>.</p>
     <h2>Create your firm account</h2>
     <p class="remind-copy">Self-serve, no card required. Your admin creates an account and adds staff
     directly &mdash; name, email, state, and license type for each person &mdash; no concierge onboarding
-    where our team enters a roster for you. Each staff member then gets one email asking them to confirm,
-    the exact same double opt-in every free subscriber on this site already goes through, so reminders
-    never start for someone who hasn't agreed to them.</p>
+    where our team enters a roster for you. Reminders start right away for each person added, no
+    confirmation step to wait on, so your firm's coverage never has a silent gap. Each staff member
+    gets one transparent email the moment they're added, naming your firm and with an equally
+    prominent one-click opt-out.</p>
     <p class="remind-promise">Free 30-day pilot, no card collected anywhere in this flow.</p>
   </div>
   <p><a class="cta-button" href="../firm-login/">Create your firm account &rarr;</a></p>
@@ -2866,8 +2867,9 @@ def _firm_dashboard_add_staff_form_html(by_slug: dict[str, list[dict]], as_of: d
     )
     return f"""<div class="signup-form" id="dr-add-staff">
   <h2>Add staff</h2>
-  <p class="signup-microcopy">They'll get one confirmation email before their reminders start --
-  adding someone here doesn't itself grant consent on their behalf.</p>
+  <p class="signup-microcopy">Their reminders start right away -- no confirmation step to wait on.
+  They'll get one email the moment you add them, naming your firm and with a one-click opt-out if
+  they'd rather not be tracked this way.</p>
   <form id="dr-add-staff-form">
     <label for="dr-add-label">Name or label (optional)</label>
     <input type="text" id="dr-add-label" name="staff_label" maxlength="120" placeholder="e.g. Alex Rivera">
@@ -2912,8 +2914,20 @@ function drEscapeHtml(s) {
   });
 }
 
-var DR_STATUS_LABELS = {confirmed: 'Confirmed', pending: 'Pending', 'needs-attention': 'Needs attention'};
-var DR_STATUS_CLASSES = {confirmed: 'mock-status--ok', pending: 'mock-status--pending', 'needs-attention': 'mock-status--risk'};
+// HYBRID consent model (2026-07-28): a firm-added staffer is active
+// immediately (no more "pending" state going forward on this path -- see
+// worker/src/index.ts's firmLicenseStatus()). 'pending' is kept here only so
+// an old/legacy row doesn't render as an unrecognized blank status; 'opted_out'
+// is the new one, shown when a staffer used the one-click opt-out this
+// consent model depends on for staying CAN-SPAM-clean.
+var DR_STATUS_LABELS = {
+  active: 'Active', confirmed: 'Active', pending: 'Pending',
+  opted_out: 'Opted out', 'needs-attention': 'Needs attention'
+};
+var DR_STATUS_CLASSES = {
+  active: 'mock-status--ok', confirmed: 'mock-status--ok', pending: 'mock-status--pending',
+  opted_out: 'mock-status--pending', 'needs-attention': 'mock-status--risk'
+};
 
 var drLicenses = [];
 var drEditingId = null;

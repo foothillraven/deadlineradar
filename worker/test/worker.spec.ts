@@ -886,7 +886,7 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
     expect((await renewFirmLicense(null, "nonexistent")).status).toBe(401);
   });
 
-  it("happy path: POST creates a staff license through the SAME pending_confirmation consent flow /subscribe uses", async () => {
+  it("happy path (HYBRID consent model, 2026-07-28): POST creates an ACTIVE staff license immediately -- no pending-confirmation gate on the firm path -- and sends the transparent first-contact email with a one-click opt-out instead of a confirm link", async () => {
     const { cookie } = await createFirmWithSession("Roster Firm", `roster-${Date.now()}@example.com`);
     const staffEmail = `staff-${Date.now()}@example.com`;
     const resp = await postFirmLicense(cookie, {
@@ -898,17 +898,50 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
     expect(resp.status).toBe(201);
     const body = (await resp.json()) as Record<string, unknown>;
     expect(body.staff_label).toBe("Jane D. -- Audit team");
-    expect(body.status).toBe("pending");
+    expect(body.status).toBe("active");
 
     const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(staffEmail).first<SubscriberRow>();
     expect(row).not.toBeNull();
     expect(row?.firm_id).not.toBeNull();
     expect(row?.staff_label).toBe("Jane D. -- Audit team");
-    expect(row?.status).toBe(store.STATUS_PENDING);
-    expect(row?.confirm_token).toBeTruthy();
+    expect(row?.status).toBe(store.STATUS_CONFIRMED); // ACTIVE immediately, not pending
+    expect(row?.confirmed_at).toBeTruthy();
+    expect(row?.confirm_token).toBeTruthy(); // still generated (schema requires it), just never emailed
     // No first_name was supplied by the admin -- this is the ADMIN's label
     // for the person, deliberately distinct from first_name.
     expect(row?.first_name).toBeNull();
+  });
+
+  it("HYBRID consent model: the transparent first-contact email fires (not the confirm email), names the firm, and its link is the unsubscribe token (not the confirm token)", async () => {
+    const worker = (await import("../src/index")).default;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 202 }));
+    try {
+      const { cookie } = await createFirmWithSession("Bennett CPA Group", `bennett-${Date.now()}@example.com`);
+      const staffEmail = `staff-transparency-${Date.now()}@example.com`;
+      const envWithKey = { ...env, SENDGRID_API_KEY: "test-key-not-real" };
+      const request = new Request("https://deadline-radar.com/firm/licenses", {
+        method: "POST",
+        headers: { "content-type": "application/json", Cookie: cookie },
+        body: JSON.stringify({
+          staff_label: "New Hire",
+          email: staffEmail,
+          state_slug: "georgia",
+          license_type_id: "ga-individual",
+        }),
+      });
+      const resp = await worker.fetch(request, envWithKey);
+      expect(resp.status).toBe(201);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [, sendGridCallInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      const sentBody = JSON.parse(String(sendGridCallInit.body));
+      expect(sentBody.subject).toContain("Bennett CPA Group added you to DeadlineRadar");
+      const textContent = sentBody.content.find((c: { type: string }) => c.type === "text/plain").value as string;
+      expect(textContent).toContain("Bennett CPA Group added you to DeadlineRadar");
+      expect(textContent).toContain("/api/unsubscribe?token=");
+      expect(textContent).not.toContain("/api/confirm?token=");
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it("rejects an unsupported state, an invalid email, and control characters, same as /subscribe's validation", async () => {
@@ -1191,7 +1224,7 @@ describe("POST /firm/licenses/:id/renew -- atomic renew-and-rearm (Part A #5)", 
     const resp = await renewFirmLicense(cookie, id);
     expect(resp.status).toBe(200);
     const body = (await resp.json()) as { status: string; cycle: number };
-    expect(body.status).toBe("confirmed");
+    expect(body.status).toBe("active"); // HYBRID consent model (2026-07-28) status label
     expect(body.cycle).toBe(2);
 
     // Verify directly against the DB row, not just the HTTP response.
@@ -1208,15 +1241,18 @@ describe("POST /firm/licenses/:id/renew -- atomic renew-and-rearm (Part A #5)", 
     expect(after?.renewed_token).not.toBe(beforeRenew?.renewed_token);
   });
 
-  it("refuses a record that never confirmed (nothing to renew)", async () => {
-    const { cookie } = await createFirmWithSession("Unconfirmed Firm", `unconfirmed-${Date.now()}@example.com`);
-    const created = await postFirmLicense(cookie, {
+  it("refuses a record that never confirmed (nothing to renew) -- defense-in-depth: since the HYBRID consent model (2026-07-28), the real POST /firm/licenses route always creates an ACTIVE record (skipConfirmation), so a firm-scoped pending row is no longer reachable through the normal add-staff path. Constructs one directly at the store layer to prove renewAndRearm's own guard still holds regardless of how such a row exists (a legacy record, or a future call site that forgets to skip confirmation).", async () => {
+    const { cookie, firmId } = await createFirmWithSession("Unconfirmed Firm", `unconfirmed-${Date.now()}@example.com`);
+    const pendingRow = await store.addPending(env.DB, {
       email: `unconfirmed-staff-${Date.now()}@example.com`,
-      state_slug: "georgia",
-      license_type_id: "ga-individual",
+      stateSlug: "georgia",
+      deadlineFields: { license_type_id: "ga-individual" },
+      firstName: null,
+      firmId,
+      staffLabel: "Still Pending",
     });
-    const { id } = (await created.json()) as { id: string };
-    // Deliberately never confirmed.
+    const id = pendingRow.id;
+    // Deliberately never confirmed (skipConfirmation omitted above -> defaults to pending).
     const resp = await renewFirmLicense(cookie, id);
     expect(resp.status).toBe(400);
     const row = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(id).first<SubscriberRow>();
@@ -1689,13 +1725,26 @@ describe("store.ts resendEligible / recordResend", () => {
 describe("sender.ts checkAndCountSend -- daily circuit breaker", () => {
   it("allows sends up to the cap, then refuses every further send that UTC day", async () => {
     const { checkAndCountSend } = await import("../src/sender");
-    const cap = 3;
+    // checkAndCountSend() shares ONE real send_counters row per UTC day across
+    // every test in this file (it has no day-override parameter to isolate
+    // against) -- other tests that go through a real send path (e.g. the
+    // HYBRID-consent transparency-email test above) increment the same
+    // counter. Read today's actual current count first and set the cap
+    // relative to it, so this test asserts "N more sends allowed, then
+    // refused" regardless of how many sends happened earlier in this run,
+    // instead of assuming the counter starts at zero.
+    const before = await env.DB
+      .prepare("SELECT count FROM send_counters WHERE day = strftime('%Y-%m-%d','now')")
+      .first<{ count: number }>();
+    const alreadyUsed = before?.count ?? 0;
+    const cap = alreadyUsed + 3;
     const results: boolean[] = [];
     for (let i = 0; i < 5; i++) {
       results.push(await checkAndCountSend(env.DB, cap));
     }
-    // First `cap` allowed, everything after refused -- protects sender
-    // reputation from a burst blowing past the daily cap.
+    // First 3 (relative to today's existing count) allowed, everything after
+    // refused -- protects sender reputation from a burst blowing past the
+    // daily cap.
     expect(results).toEqual([true, true, true, false, false]);
   });
 });

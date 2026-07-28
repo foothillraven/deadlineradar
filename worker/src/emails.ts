@@ -562,3 +562,55 @@ export function buildConfirmationEmail(
 
   return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
 }
+
+/**
+ * Firm-tier HYBRID consent model (2026-07-28, per Devin's decision): a firm
+ * admin adding a staff member creates an ACTIVE subscriber immediately (no
+ * pending-confirmation gate -- see store.ts's addPending() `skipConfirmation`
+ * option) so the firm's whole-roster coverage promise never has a silent
+ * "pending" gap. This is the email that makes that transparent instead of
+ * silent: sent once, on add, naming the firm that added them, stating
+ * plainly what will happen (renewal reminders only, nothing else), and
+ * giving an equally prominent one-click opt-out -- the CAN-SPAM-clean
+ * counterpart to double opt-in for this admin-vouched-for B2B case. Reuses
+ * the SAME unsubscribe_token/htmlFooter/List-Unsubscribe machinery every
+ * other email already uses -- no new token type, no new opt-out mechanism.
+ */
+export function buildFirmStaffAddedEmail(firmName: string, stateName: string, unsubscribeUrl: string): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `${firmName} added you to DeadlineRadar`;
+
+  const textBody =
+    `Hi there,\n\n` +
+    `${firmName} added you to DeadlineRadar to track your ${stateName} CPA license renewal. ` +
+    `You'll get advance email reminders before it's due -- 60, 30, 14, 7, 3, and 1 day out. ` +
+    `That's the whole schedule -- nothing else, ever: no marketing, no third-party offers.\n\n` +
+    `Not you, or would you rather not be tracked this way? One click removes you, no questions ` +
+    `asked:\n\n` +
+    `${unsubscribeUrl}\n\n` +
+    `Questions about why you're getting this? Reply to this email or reach your firm directly.` +
+    `${textFooter(unsubscribeUrl, addr)}`;
+
+  const htmlBody = htmlShell(
+    `${firmName} added you to DeadlineRadar`,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `${esc(firmName)} added you to DeadlineRadar</h1>` +
+      p(
+        `${esc(firmName)} added you to DeadlineRadar to track your ${esc(stateName)} CPA license ` +
+          `renewal. You'll get advance email reminders before it's due &mdash; 60, 30, 14, 7, 3, and ` +
+          `1 day out. That's the whole schedule &mdash; nothing else, ever: no marketing, no ` +
+          `third-party offers.`
+      ) +
+      p(
+        "Not you, or would you rather not be tracked this way? One click removes you, no questions " +
+          "asked:",
+        13,
+        LIGHT.muted
+      ) +
+      `<p style="margin:0 0 20px;">${button(unsubscribeUrl, "Remove me")}</p>` +
+      p("Questions about why you're getting this? Reply to this email or reach your firm directly.", 13, LIGHT.muted),
+    htmlFooter(unsubscribeUrl, addr)
+  );
+
+  return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
+}

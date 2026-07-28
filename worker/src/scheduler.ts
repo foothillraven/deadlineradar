@@ -36,6 +36,14 @@ const NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS = 14;
 // /api prefix; the fetch handler strips it again on the way in).
 const ACTION_BASE_URL = "https://deadline-radar.com/api";
 
+// Preview/staging override -- see env.ts's ACTION_BASE_URL docstring and
+// index.ts's identical helper. Kept as a separate local copy rather than a
+// shared import since this module already duplicates ACTION_BASE_URL itself
+// (see the comment above) rather than importing it from index.ts.
+function actionBaseUrl(env: Env): string {
+  return env.ACTION_BASE_URL || ACTION_BASE_URL;
+}
+
 const MS_PER_DAY = 86_400_000;
 
 /**
@@ -178,9 +186,9 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
     // Both action links use the SAME renewed_token -- store.renewAndRearmByToken()
     // and store.stop() both accept either renewed_token or unsubscribe_token, so
     // this is not a new token type, just a new URL path over an existing one.
-    const renewedNextCycleUrl = `${ACTION_BASE_URL}/renewed-next-cycle?token=${encodeURIComponent(sub.renewed_token)}`;
-    const renewedUrl = `${ACTION_BASE_URL}/renewed?token=${encodeURIComponent(sub.renewed_token)}`;
-    const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(sub.unsubscribe_token)}`;
+    const renewedNextCycleUrl = `${actionBaseUrl(env)}/renewed-next-cycle?token=${encodeURIComponent(sub.renewed_token)}`;
+    const renewedUrl = `${actionBaseUrl(env)}/renewed?token=${encodeURIComponent(sub.renewed_token)}`;
+    const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(sub.unsubscribe_token)}`;
     let built: BuiltEmail;
     try {
       built = buildReminderEmail(

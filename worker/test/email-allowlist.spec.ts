@@ -280,3 +280,61 @@ describe("POST /debug/run-reminder-pass -- preview-only manual cron trigger", ()
     vi.restoreAllMocks();
   });
 });
+
+describe("ACTION_BASE_URL override -- preview/staging action links point at the preview Worker, not production", () => {
+  it("a firm login-link email points at env.ACTION_BASE_URL when set, not the hardcoded production domain", async () => {
+    const worker = (await import("../src/index")).default;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(okResponse());
+    try {
+      const envPreview = {
+        ...env,
+        SENDGRID_API_KEY: "test-key-not-real",
+        EMAIL_ALLOWLIST: "dlhall86@gmail.com",
+        ACTION_BASE_URL: "https://deadlineradar-api-preview.example.workers.dev/api",
+      };
+      const request = new Request("https://deadline-radar.com/firm/signup", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.220" },
+        body: new URLSearchParams({ name: "Preview Test Firm", admin_email: "dlhall86@gmail.com", hp_website: "" }).toString(),
+      });
+      const resp = await worker.fetch(request, envPreview);
+      expect(resp.status).toBe(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [, sendGridCallInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      const sentBody = JSON.parse(String(sendGridCallInit.body));
+      const textContent = sentBody.content.find((c: { type: string }) => c.type === "text/plain").value as string;
+      expect(textContent).toContain("https://deadlineradar-api-preview.example.workers.dev/api/firm/login/verify?token=");
+      expect(textContent).not.toContain("deadline-radar.com");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("with ACTION_BASE_URL unset (production default), action links still use the hardcoded deadline-radar.com domain", async () => {
+    const worker = (await import("../src/index")).default;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(okResponse());
+    try {
+      const envProd = { ...env, SENDGRID_API_KEY: "test-key-not-real" }; // no ACTION_BASE_URL, no EMAIL_ALLOWLIST
+      const anyEmail = `prod-actionurl-${Date.now()}@example.com`;
+      const request = new Request("https://deadline-radar.com/subscribe", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.221" },
+        body: new URLSearchParams({
+          email: anyEmail,
+          state: "georgia",
+          license_type_id: "ga-individual",
+          hp_website: "",
+        }).toString(),
+      });
+      const resp = await worker.fetch(request, envProd);
+      expect(resp.status).toBe(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [, sendGridCallInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      const sentBody = JSON.parse(String(sendGridCallInit.body));
+      const textContent = sentBody.content.find((c: { type: string }) => c.type === "text/plain").value as string;
+      expect(textContent).toContain("https://deadline-radar.com/api/confirm?token=");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});

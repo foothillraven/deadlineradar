@@ -179,6 +179,13 @@ const SUBSCRIBE_SUCCESS_PAGE = htmlPage(
 // /confirm and /unsubscribe links.
 const ACTION_BASE_URL = "https://deadline-radar.com/api";
 
+// Preview/staging override -- see env.ts's ACTION_BASE_URL docstring. Every
+// call site below must use this function, not the raw constant above,
+// so a preview deployment's emailed links point back at itself.
+function actionBaseUrl(env: Env): string {
+  return env.ACTION_BASE_URL || ACTION_BASE_URL;
+}
+
 // migration 0008 -- firm admin login cookie. HttpOnly (never readable from
 // JS -- the dashboard's frontend never needs the raw token, only the
 // server does), Secure (HTTPS-only transmission), SameSite=Lax (sent on
@@ -441,8 +448,8 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
         if (store.resendEligible(existing, new Date())) {
           const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
           if (underCap) {
-            const confirmUrl = `${ACTION_BASE_URL}/confirm?token=${encodeURIComponent(existing.confirm_token)}`;
-            const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(existing.unsubscribe_token)}`;
+            const confirmUrl = `${actionBaseUrl(env)}/confirm?token=${encodeURIComponent(existing.confirm_token)}`;
+            const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(existing.unsubscribe_token)}`;
             const built = buildConfirmationEmail(
               stateNameFromSlug(stateSlug),
               confirmUrl,
@@ -503,8 +510,8 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
     try {
       const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
       if (underCap) {
-        const confirmUrl = `${ACTION_BASE_URL}/confirm?token=${encodeURIComponent(record.confirm_token)}`;
-        const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
+        const confirmUrl = `${actionBaseUrl(env)}/confirm?token=${encodeURIComponent(record.confirm_token)}`;
+        const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
         const built = buildConfirmationEmail(
           stateNameFromSlug(stateSlug),
           confirmUrl,
@@ -646,7 +653,7 @@ async function issueAndSendFirmLoginLink(env: Env, firmId: string, adminEmail: s
   try {
     const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
     if (!underCap) return;
-    const loginUrl = `${ACTION_BASE_URL}/firm/login/verify?token=${encodeURIComponent(rawToken)}`;
+    const loginUrl = `${actionBaseUrl(env)}/firm/login/verify?token=${encodeURIComponent(rawToken)}`;
     const built = buildFirmLoginEmail(loginUrl);
     await sendViaSendGrid(env.SENDGRID_API_KEY, adminEmail, built, env.EMAIL_ALLOWLIST);
   } catch {
@@ -1112,8 +1119,8 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
     try {
       const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
       if (underCap) {
-        const confirmUrl = `${ACTION_BASE_URL}/confirm?token=${encodeURIComponent(record.confirm_token)}`;
-        const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
+        const confirmUrl = `${actionBaseUrl(env)}/confirm?token=${encodeURIComponent(record.confirm_token)}`;
+        const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
         const built = buildConfirmationEmail(
           stateNameFromSlug(stateSlug),
           confirmUrl,
@@ -1248,8 +1255,8 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
     try {
       const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
       if (underCap) {
-        const confirmUrl = `${ACTION_BASE_URL}/confirm?token=${encodeURIComponent(updated.confirm_token)}`;
-        const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(updated.unsubscribe_token)}`;
+        const confirmUrl = `${actionBaseUrl(env)}/confirm?token=${encodeURIComponent(updated.confirm_token)}`;
+        const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(updated.unsubscribe_token)}`;
         const built = buildConfirmationEmail(
           stateNameFromSlug(updated.state_slug),
           confirmUrl,
@@ -1374,7 +1381,7 @@ async function handleRenewed(env: Env, token: string | null): Promise<Response> 
     try {
       const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
       if (underCap) {
-        const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(subscriber.unsubscribe_token)}`;
+        const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(subscriber.unsubscribe_token)}`;
         const built = buildStopConfirmationEmail(
           "renewed",
           stateNameFromSlug(subscriber.state_slug),

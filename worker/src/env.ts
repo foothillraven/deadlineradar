@@ -23,6 +23,14 @@
  * (sender.ts) refuses to send to any recipient not on the list, before making
  * any network call. It MUST be left unset in production -- an unset/empty
  * value leaves sendViaSendGrid()'s behavior completely unchanged (no gate).
+ *
+ * `ACTION_BASE_URL` is an OPTIONAL wrangler var -- overrides index.ts's and
+ * scheduler.ts's hardcoded `https://deadline-radar.com/api` action-link base
+ * (used to build every confirm/unsubscribe/renewed/rearm/firm-login link a
+ * built email points at). PREVIEW/STAGING-ONLY: a preview deployment lives
+ * at its own workers.dev URL, not deadline-radar.com, so its emailed links
+ * must point back at ITSELF, not at production. Unset in production, where
+ * the hardcoded default is exactly correct.
  */
 export interface Env {
   DB: D1Database;
@@ -30,4 +38,5 @@ export interface Env {
   SENDGRID_API_KEY?: string;
   REMINDERS_DAILY_SEND_CAP?: string;
   EMAIL_ALLOWLIST?: string;
+  ACTION_BASE_URL?: string;
 }

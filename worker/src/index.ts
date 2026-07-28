@@ -820,7 +820,7 @@ async function handleFirmLoginVerify(env: Env, token: string | null): Promise<Re
   return new Response(null, {
     status: 302,
     headers: {
-      Location: "/firm-dashboard/",
+      Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/`,
       "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken),
     },
   });
@@ -838,7 +838,7 @@ async function handleFirmLogout(request: Request, env: Env): Promise<Response> {
   return new Response(null, {
     status: 302,
     headers: {
-      Location: "/",
+      Location: `${env.STATIC_SITE_BASE_URL || ""}/`,
       "Set-Cookie": firmSessionClearCookieHeader(),
     },
   });

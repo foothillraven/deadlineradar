@@ -22,8 +22,13 @@ import { describe, expect, it, vi } from "vitest";
 import { env } from "cloudflare:test";
 import { sendViaSendGrid } from "../src/sender";
 import type { BuiltEmail } from "../src/emails";
+import * as store from "../src/store";
 
 const SENDGRID_URL = "https://api.sendgrid.com/v3/mail/send";
+
+function form(fields: Record<string, string>): string {
+  return new URLSearchParams(fields).toString();
+}
 
 function fakeEmail(): BuiltEmail {
   return {
@@ -336,5 +341,52 @@ describe("ACTION_BASE_URL override -- preview/staging action links point at the 
     } finally {
       fetchSpy.mockRestore();
     }
+  });
+});
+
+describe("STATIC_SITE_BASE_URL override -- login/logout redirects cross back to the preview static site, not the Worker's own origin", () => {
+  it("login-verify redirects to STATIC_SITE_BASE_URL + /firm-dashboard/ when set", async () => {
+    const worker = (await import("../src/index")).default;
+    const firmId = (
+      await store.createFirm(env.DB, { name: "Redirect Test Firm A", adminEmail: `redirect-a-${Date.now()}@example.com` })
+    ).id;
+    const { rawToken } = await store.createLoginToken(env.DB, firmId);
+    const envPreview = { ...env, STATIC_SITE_BASE_URL: "https://deadlineradar-preview.pages.dev" };
+    const request = new Request("https://deadline-radar.com/firm/login/verify", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.230" },
+      body: form({ token: rawToken }),
+    });
+    const resp = await worker.fetch(request, envPreview);
+    expect(resp.status).toBe(302);
+    expect(resp.headers.get("Location")).toBe("https://deadlineradar-preview.pages.dev/firm-dashboard/");
+  });
+
+  it("with STATIC_SITE_BASE_URL unset (production default), login-verify redirects to the relative path", async () => {
+    const worker = (await import("../src/index")).default;
+    const firmId = (
+      await store.createFirm(env.DB, { name: "Redirect Test Firm B", adminEmail: `redirect-b-${Date.now()}@example.com` })
+    ).id;
+    const { rawToken } = await store.createLoginToken(env.DB, firmId);
+    const request = new Request("https://deadline-radar.com/firm/login/verify", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.231" },
+      body: form({ token: rawToken }),
+    });
+    const resp = await worker.fetch(request, env); // no STATIC_SITE_BASE_URL at all
+    expect(resp.status).toBe(302);
+    expect(resp.headers.get("Location")).toBe("/firm-dashboard/");
+  });
+
+  it("logout redirects to STATIC_SITE_BASE_URL + / when set", async () => {
+    const worker = (await import("../src/index")).default;
+    const envPreview = { ...env, STATIC_SITE_BASE_URL: "https://deadlineradar-preview.pages.dev" };
+    const request = new Request("https://deadline-radar.com/firm/logout", {
+      method: "POST",
+      headers: { "cf-connecting-ip": "203.0.113.232" },
+    });
+    const resp = await worker.fetch(request, envPreview);
+    expect(resp.status).toBe(302);
+    expect(resp.headers.get("Location")).toBe("https://deadlineradar-preview.pages.dev/");
   });
 });

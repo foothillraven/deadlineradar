@@ -31,6 +31,18 @@
  * at its own workers.dev URL, not deadline-radar.com, so its emailed links
  * must point back at ITSELF, not at production. Unset in production, where
  * the hardcoded default is exactly correct.
+ *
+ * `STATIC_SITE_BASE_URL` is an OPTIONAL wrangler var -- overrides the
+ * relative `/firm-dashboard/` and `/` redirect targets handleFirmLoginVerify()/
+ * handleFirmLogout() send a browser to after login/logout. In production the
+ * Worker and the static site share one origin (deadline-radar.com), so a
+ * relative redirect is correct. In preview, the Worker lives on its own
+ * workers.dev origin while the static pages are a SEPARATE Pages deployment
+ * -- a relative redirect from the Worker would send the browser to a
+ * "/firm-dashboard/" path ON THE WORKER's own domain, which doesn't exist
+ * there. Set to the preview Pages site's full origin (e.g.
+ * "https://deadlineradar-preview.pages.dev") so the redirect crosses back to
+ * where the actual dashboard HTML is served. Unset in production.
  */
 export interface Env {
   DB: D1Database;
@@ -39,4 +51,5 @@ export interface Env {
   REMINDERS_DAILY_SEND_CAP?: string;
   EMAIL_ALLOWLIST?: string;
   ACTION_BASE_URL?: string;
+  STATIC_SITE_BASE_URL?: string;
 }

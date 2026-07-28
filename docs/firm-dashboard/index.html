@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pennsylvania CPA License Reinstatement: What a Lapsed License Costs — DeadlineRadar</title>
-<meta name="description" content="What does it cost to reinstate a lapsed Pennsylvania CPA license? $35 plus the exact catch-up CPE required, sourced to the state&#x27;s own rule.">
-<link rel="canonical" href="https://deadline-radar.com/pennsylvania-cpa-license-reinstatement/">
+<title>Firm Dashboard — DeadlineRadar</title>
+<meta name="description" content="Manage your firm&#x27;s CPA staff license roster: add staff, track renewal status, and mark licenses renewed.">
+<link rel="canonical" href="https://deadline-radar.com/firm-dashboard/">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "DeadlineRadar", "item": "https://deadline-radar.com/"}, {"@type": "ListItem", "position": 2, "name": "Pennsylvania CPA License Reinstatement", "item": "https://deadline-radar.com/pennsylvania-cpa-license-reinstatement/"}]}</script>
 
+<meta name="robots" content="noindex">
 <style>
 
   @font-face {
@@ -542,64 +542,546 @@
 <header class="site-header">
   <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>
 </header>
-<h1>Pennsylvania CPA License Reinstatement: What a Lapsed License Costs</h1>
-<p class="subhead">If your Pennsylvania CPA license has already lapsed</p>
-<p class="intro">What it actually takes to get a lapsed Pennsylvania CPA license back &mdash;
-the fee, the catch-up CPE, and exactly what triggers "lapsed" in the first place. Sourced the same
-way every fact on this site is: a board page plus the codified rule itself, never a guess.</p>
+<h1>Your Staff Roster</h1>
+<p class="subhead">Every CPA license you're tracking for your firm, soonest deadline first.</p>
 
-<div class="callout">
-  <span class="verified-badge">Verified</span>
-  <div class="label">Reinstatement Fee</div>
-  <div class="date">$35</div><p>Reinstatement-of-inactive-or-expired-license fee, paid IN ADDITION TO the current $100 biennial renewal fee -- $135 total plus any CPE course costs.</p>
+<div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" hidden></div>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Staff</th><th>Email</th><th>State</th><th>License type</th><th>Status</th><th>Next deadline</th><th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="dr-roster-body">
+    <tr><td colspan="7">Loading your roster...</td></tr>
+  </tbody>
+</table>
 </div>
 
-<div class="callout">
-  <div class="label">Catch-Up CPE Required</div>
-  <ul>
-    <li>Same standard 80-hour total as ordinary biennial renewal (49 Pa. Code § 11.62(c)), not an extra amount -- the only difference is the 80 hours must fall within the 24 months immediately preceding the reactivation filing, rather than the fixed biennial period.</li>
-    <li><strong>4 ethics hours</strong>, within that total.</li>
-  </ul>
-  <div class="source-cite">
-  <span class="cite-label">Source of record</span>
-  <span class="cite-stamp">49 Pa. Code § 11.4 (fees, $35 reinstatement); § 11.62(c) (reactivation CPE, 80 hrs/24-month lookback); § 11.63(a)(7) (4-hour ethics minimum)</span>
-  <a href="https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/049/chapter11/s11.4.html" class="cite-link">read the rule &rarr;</a>
+<div class="signup-form" id="dr-add-staff">
+  <h2>Add staff</h2>
+  <p class="signup-microcopy">They'll get one confirmation email before their reminders start --
+  adding someone here doesn't itself grant consent on their behalf.</p>
+  <form id="dr-add-staff-form">
+    <label for="dr-add-label">Name or label (optional)</label>
+    <input type="text" id="dr-add-label" name="staff_label" maxlength="120" placeholder="e.g. Alex Rivera">
+    <label for="dr-add-email">Email</label>
+    <input type="email" id="dr-add-email" name="email" required placeholder="alex@example.com">
+    <label for="dr-add-state">State</label>
+    <select id="dr-add-state" name="state_slug" required onchange="drUpdateFields(this.value)">
+      <option value="">Select state</option>
+      <option value="alabama">Alabama</option>
+<option value="alaska">Alaska</option>
+<option value="arizona">Arizona</option>
+<option value="arkansas">Arkansas</option>
+<option value="california">California</option>
+<option value="colorado">Colorado</option>
+<option value="connecticut">Connecticut</option>
+<option value="dc">District of Columbia</option>
+<option value="delaware">Delaware</option>
+<option value="florida">Florida</option>
+<option value="georgia">Georgia</option>
+<option value="hawaii">Hawaii</option>
+<option value="idaho">Idaho</option>
+<option value="illinois">Illinois</option>
+<option value="indiana">Indiana</option>
+<option value="iowa">Iowa</option>
+<option value="kansas">Kansas</option>
+<option value="kentucky">Kentucky</option>
+<option value="louisiana">Louisiana</option>
+<option value="maine">Maine</option>
+<option value="maryland">Maryland</option>
+<option value="massachusetts">Massachusetts</option>
+<option value="michigan">Michigan</option>
+<option value="minnesota">Minnesota</option>
+<option value="mississippi">Mississippi</option>
+<option value="missouri">Missouri</option>
+<option value="montana">Montana</option>
+<option value="nebraska">Nebraska</option>
+<option value="nevada">Nevada</option>
+<option value="new-hampshire">New Hampshire</option>
+<option value="new-jersey">New Jersey</option>
+<option value="new-mexico">New Mexico</option>
+<option value="new-york">New York</option>
+<option value="north-carolina">North Carolina</option>
+<option value="north-dakota">North Dakota</option>
+<option value="ohio">Ohio</option>
+<option value="oklahoma">Oklahoma</option>
+<option value="oregon">Oregon</option>
+<option value="pennsylvania">Pennsylvania</option>
+<option value="rhode-island">Rhode Island</option>
+<option value="south-carolina">South Carolina</option>
+<option value="south-dakota">South Dakota</option>
+<option value="tennessee">Tennessee</option>
+<option value="texas">Texas</option>
+<option value="utah">Utah</option>
+<option value="vermont">Vermont</option>
+<option value="virginia">Virginia</option>
+<option value="washington">Washington</option>
+<option value="west-virginia">West Virginia</option>
+<option value="wisconsin">Wisconsin</option>
+<option value="wyoming">Wyoming</option>
+    </select>
+    <div class="signup-extra-fields" data-for-state="alaska" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ak-individual">Individual CPA/public accountant license</option>
+<option value="ak-firm">Firm permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="arizona" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="arkansas" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ar-individual">Individual CPA/PA license</option>
+<option value="ar-firm">Firm registration</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="california" hidden><div class="signup-form-row">
+  <div>
+    <label for="birth_month">Birth month</label>
+    <select id="birth_month" name="birth_month" required><option value="1">January</option>
+<option value="2">February</option>
+<option value="3">March</option>
+<option value="4">April</option>
+<option value="5">May</option>
+<option value="6">June</option>
+<option value="7">July</option>
+<option value="8">August</option>
+<option value="9">September</option>
+<option value="10">October</option>
+<option value="11">November</option>
+<option value="12">December</option></select>
+  </div>
+  <div>
+    <label for="birth_year">Birth year</label>
+    <input type="number" id="birth_year" name="birth_year" min="1900" max="2100" required placeholder="1985">
+  </div>
 </div>
-  
-</div>
-
-<p><strong>What triggers lapsed status:</strong> Not renewed by 11:59pm December 31 of odd-numbered years. The Board states explicitly there is no grace period; the license lapses effective January 1 and a reactivation application (not a standard renewal) is required.</p>
-
-<div class="trust-line">
-  <strong>Last verified: 2026-07-25</strong> &middot; checked against the state's codified
-  statute or administrative rule, not just a board webpage &mdash; if we can't verify a date against
-  primary law, we say so instead of guessing (<a href="/methodology/">see how we verify every
-  deadline</a>). Always confirm with the
-  <a href="https://www.pa.gov/agencies/dos/department-and-offices/bpoa/boards-commissions/accountancy-board/renewal-information">official state board</a> before relying on this date. License
-  requirements and deadlines can change.
-</div>
-
-<div class="signup-form signup-form--compact" id="remind">
-  <form method="post" action="/api/subscribe">
-    <input type="hidden" name="state" value="pennsylvania">
-    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
-    <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_"></div>
-    <label for="reinstate-email-pennsylvania" class="signup-form-compact-label">
-      Don't let it lapse again &mdash; get reminded before Pennsylvania's next renewal date:
-    </label>
-    <div class="signup-form-row">
-      <input type="email" id="reinstate-email-pennsylvania" name="email" required placeholder="you@example.com">
-      <button type="submit">Remind me</button>
-    </div>
-    
+<p class="field-hint">Your renewal cycle is set by your birth month and whether your birth year is odd or even.</p></div>
+<div class="signup-extra-fields" data-for-state="colorado" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="co-individual">Certified Public Accountant (Individual Certificate)</option>
+<option value="co-firm">Public Accounting Firm Registration</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="georgia" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ga-individual">Individual CPA license</option>
+<option value="ga-firm">Firm license</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="illinois" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="il-individual">Individual CPA license</option>
+<option value="il-firm">Firm license</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="indiana" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="in-individual">CPA (Individual License)</option>
+<option value="in-firm">CPA Firm Permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="iowa" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ia-individual">Iowa CPA/LPA Individual Certificate or License</option>
+<option value="ia-firm">CPA/LPA Firm Permit to Practice</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="louisiana" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="la-individual">CPA Individual License</option>
+<option value="la-firm">CPA Firm Permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="maryland" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="massachusetts" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="michigan" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="minnesota" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="mn-individual">Individual CPA Certificate (Active or Inactive)</option>
+<option value="mn-firm">CPA Firm Permit to Practice</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="mississippi" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ms-individual">Individual CPA license</option>
+<option value="ms-firm">Firm permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="missouri" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="mo-individual">CPA Individual License</option>
+<option value="mo-firm">CPA Firm Permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="nevada" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="nv-individual">Individual CPA permit</option>
+<option value="nv-firm">Firm registration</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="new-hampshire" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="new-jersey" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="new-mexico" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="new-york" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="north-dakota" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="nd-individual">Individual CPA/LPA certificate</option>
+<option value="nd-firm">Firm permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="ohio" hidden><label for="cohort_group">Your cohort group</label>
+<select id="cohort_group" name="cohort_group" required>
+  <option value="">Select your group</option>
+  <option value="Group 1">Group 1</option>
+  <option value="Group 2">Group 2</option>
+  <option value="Group 3">Group 3</option>
+</select>
+<p class="field-hint">Check your license certificate or the Accountancy Board of Ohio lookup if you're not sure.</p></div>
+<div class="signup-extra-fields" data-for-state="rhode-island" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="south-carolina" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="sc-individual">Individual CPA License</option>
+<option value="sc-firm">Firm Registration (In-State/Out-of-State CPA Firm)</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="tennessee" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="texas" hidden><label for="birth_month">Birth month</label>
+<select id="birth_month" name="birth_month" required><option value="1">January</option>
+<option value="2">February</option>
+<option value="3">March</option>
+<option value="4">April</option>
+<option value="5">May</option>
+<option value="6">June</option>
+<option value="7">July</option>
+<option value="8">August</option>
+<option value="9">September</option>
+<option value="10">October</option>
+<option value="11">November</option>
+<option value="12">December</option></select>
+<p class="field-hint">Texas renewal is due by the last day of your birth month, every year.</p></div>
+<div class="signup-extra-fields" data-for-state="virginia" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="va-individual">Individual CPA License</option>
+<option value="va-firm">CPA Firm License</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="washington" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="west-virginia" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="wv-individual">Individual CPA certificate</option>
+<option value="wv-firm">Firm permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="wisconsin" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="wi-individual">Individual CPA License</option>
+<option value="wi-firm">Accounting Firm License</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="wyoming" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="wy-individual">Individual CPA certificate</option>
+<option value="wy-firm">Firm permit</option>
+</select></div>
+    <button type="submit">Add staff</button>
   </form>
+  <p id="dr-add-error" class="field-hint" style="color:#c33737;" hidden></p>
 </div>
 
+<form method="post" action="/api/firm/logout" style="margin-top:2rem;">
+  <button type="submit" style="padding:0.6rem 1.1rem;border:1px solid var(--border-strong);
+  border-radius:6px;background:var(--card-bg);color:var(--fg);font-size:0.92rem;cursor:pointer;
+  font-family:inherit;">Log out</button>
+</form>
 
+<script>
+function drUpdateFields(slug) {
+  document.querySelectorAll('.signup-extra-fields').forEach(function(el) {
+    var show = (el.getAttribute('data-for-state') === slug);
+    el.hidden = !show;
+    el.querySelectorAll('input, select, textarea').forEach(function(field) {
+      field.disabled = !show;
+    });
+  });
+}
 
-<p class="backlink-cross"><a href="../pennsylvania/">See Pennsylvania's CPA license renewal deadline &rarr;</a></p>
-<p class="backlink-cross"><a href="../pennsylvania-cpa-cpe-requirements/">How many CPE hours does Pennsylvania require? &rarr;</a></p>
-<p class="backlink"><a href="../">&larr; Back to all states</a></p>
+function drEscapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+  });
+}
+
+var DR_STATUS_LABELS = {confirmed: 'Confirmed', pending: 'Pending', 'needs-attention': 'Needs attention'};
+var DR_STATUS_CLASSES = {confirmed: 'mock-status--ok', pending: 'mock-status--pending', 'needs-attention': 'mock-status--risk'};
+
+var drLicenses = [];
+var drEditingId = null;
+
+function drShowError(msg) {
+  var el = document.getElementById('dr-dash-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = false;
+}
+function drClearError() {
+  var el = document.getElementById('dr-dash-error');
+  if (!el) return;
+  el.hidden = true;
+  el.textContent = '';
+}
+function drReadJsonSafe(res) {
+  return res.json().catch(function() { return null; });
+}
+function drPrettyLicenseType(id) {
+  if (!id) return '\u2014';
+  return String(id).replace(/[_-]+/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+}
+function drFormatDeadline(iso) {
+  if (!iso) return '\u2014';
+  try {
+    var d = new Date(iso + 'T00:00:00Z');
+    if (isNaN(d.getTime())) return iso;
+    var browserLocale;
+    return d.toLocaleDateString(browserLocale, {year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC'});
+  } catch (e) {
+    return iso;
+  }
+}
+
+function drRenderRow(item) {
+  var statusClass = DR_STATUS_CLASSES[item.status] || 'mock-status--risk';
+  var statusLabel = DR_STATUS_LABELS[item.status] || item.status;
+  var idAttr = drEscapeHtml(item.id);
+  var staffCell, emailCell, actionsCell;
+  if (drEditingId === item.id) {
+    staffCell = '<input type="text" class="dr-edit-label" maxlength="120" value="' + drEscapeHtml(item.staff_label || '') + '">';
+    emailCell = '<input type="email" class="dr-edit-email" value="' + drEscapeHtml(item.email) + '">';
+    actionsCell =
+      '<button type="button" class="dr-btn-save" data-id="' + idAttr + '">Save</button> ' +
+      '<button type="button" class="dr-btn-cancel" data-id="' + idAttr + '">Cancel</button>';
+  } else {
+    staffCell = item.staff_label ? drEscapeHtml(item.staff_label) : '<span style="color:var(--muted)">\u2014</span>';
+    emailCell = drEscapeHtml(item.email);
+    actionsCell =
+      '<button type="button" class="dr-btn-edit" data-id="' + idAttr + '">Edit</button> ' +
+      '<button type="button" class="dr-btn-renew" data-id="' + idAttr + '">Mark renewed</button> ' +
+      '<button type="button" class="dr-btn-remove" data-id="' + idAttr + '">Remove</button>';
+  }
+  return '<tr data-id="' + idAttr + '">' +
+    '<td>' + staffCell + '</td>' +
+    '<td>' + emailCell + '</td>' +
+    '<td>' + drEscapeHtml(item.state_name || '') + '</td>' +
+    '<td>' + drEscapeHtml(drPrettyLicenseType(item.license_type_id)) + '</td>' +
+    '<td><span class="mock-status ' + statusClass + '">' + drEscapeHtml(statusLabel) + '</span></td>' +
+    '<td>' + drEscapeHtml(drFormatDeadline(item.next_deadline)) + '</td>' +
+    '<td class="dr-actions">' + actionsCell + '</td>' +
+  '</tr>';
+}
+
+function drRenderTable() {
+  var tbody = document.getElementById('dr-roster-body');
+  if (!tbody) return;
+  if (drLicenses.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7">No staff on your roster yet -- add your first one below.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = drLicenses.map(drRenderRow).join('');
+}
+
+function drLoadLicenses() {
+  drClearError();
+  fetch('/api/firm/licenses', {credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) {
+        window.location.href = '/firm-login/';
+        return null;
+      }
+      if (!res.ok) {
+        drShowError('Something went wrong loading your roster. Please try again.');
+        return null;
+      }
+      return res.json();
+    })
+    .then(function(data) {
+      if (!data) return;
+      drLicenses = data.licenses || [];
+      drRenderTable();
+    })
+    .catch(function() {
+      drShowError('Something went wrong loading your roster. Please try again.');
+    });
+}
+
+function drRenewLicense(id) {
+  drClearError();
+  fetch('/api/firm/licenses/' + encodeURIComponent(id) + '/renew', {method: 'POST', credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      return drReadJsonSafe(res).then(function(data) {
+        if (!res.ok) {
+          drShowError(data && data.error ? data.error : 'Something went wrong, please try again.');
+          return;
+        }
+        drLoadLicenses();
+      });
+    })
+    .catch(function() { drShowError('Something went wrong, please try again.'); });
+}
+
+function drRemoveLicense(id, label) {
+  if (!window.confirm('Remove ' + (label || 'this person') + ' from the roster? They will stop receiving reminders.')) return;
+  drClearError();
+  fetch('/api/firm/licenses/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      return drReadJsonSafe(res).then(function(data) {
+        if (!res.ok) {
+          drShowError(data && data.error ? data.error : 'Something went wrong, please try again.');
+          return;
+        }
+        drLoadLicenses();
+      });
+    })
+    .catch(function() { drShowError('Something went wrong, please try again.'); });
+}
+
+function drSaveEdit(id, tr) {
+  drClearError();
+  var labelInput = tr.querySelector('.dr-edit-label');
+  var emailInput = tr.querySelector('.dr-edit-email');
+  var email = emailInput ? emailInput.value.trim() : '';
+  if (!email) { drShowError('Email is required.'); return; }
+  var body = {staff_label: labelInput ? labelInput.value.trim() : '', email: email};
+  fetch('/api/firm/licenses/' + encodeURIComponent(id), {
+    method: 'PATCH', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        drShowError(data && data.error ? data.error : 'Something went wrong, please try again.');
+        return;
+      }
+      drEditingId = null;
+      drLoadLicenses();
+    });
+  }).catch(function() { drShowError('Something went wrong, please try again.'); });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var stateSel = document.getElementById('dr-add-state');
+  drUpdateFields(stateSel ? stateSel.value : '');
+
+  drLoadLicenses();
+
+  var tbody = document.getElementById('dr-roster-body');
+  if (tbody) {
+    tbody.addEventListener('click', function(ev) {
+      var btn = ev.target.closest ? ev.target.closest('button') : null;
+      if (!btn) return;
+      var id = btn.getAttribute('data-id');
+      if (btn.classList.contains('dr-btn-edit')) {
+        drEditingId = id;
+        drRenderTable();
+      } else if (btn.classList.contains('dr-btn-cancel')) {
+        drEditingId = null;
+        drRenderTable();
+      } else if (btn.classList.contains('dr-btn-save')) {
+        drSaveEdit(id, btn.closest('tr'));
+      } else if (btn.classList.contains('dr-btn-renew')) {
+        drRenewLicense(id);
+      } else if (btn.classList.contains('dr-btn-remove')) {
+        var item = null;
+        for (var i = 0; i < drLicenses.length; i++) {
+          if (drLicenses[i].id === id) { item = drLicenses[i]; break; }
+        }
+        drRemoveLicense(id, item ? (item.staff_label || item.email) : null);
+      }
+    });
+  }
+
+  var addForm = document.getElementById('dr-add-staff-form');
+  if (addForm) {
+    addForm.addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      var errEl = document.getElementById('dr-add-error');
+      if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+      var fd = new FormData(addForm);
+      var body = {};
+      fd.forEach(function(v, k) { body[k] = v; });
+      fetch('/api/firm/licenses', {
+        method: 'POST', credentials: 'include',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+      }).then(function(res) {
+        if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+        return drReadJsonSafe(res).then(function(data) {
+          if (!res.ok) {
+            var msg = data && data.error ? data.error : 'Something went wrong, please try again.';
+            if (errEl) { errEl.textContent = msg; errEl.hidden = false; } else { drShowError(msg); }
+            return;
+          }
+          addForm.reset();
+          drUpdateFields('');
+          drLoadLicenses();
+        });
+      }).catch(function() {
+        var msg = 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; } else { drShowError(msg); }
+      });
+    });
+  }
+});
+</script>
 
 </div>
 <footer class="site-footer">

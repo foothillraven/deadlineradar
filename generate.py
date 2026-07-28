@@ -972,6 +972,32 @@ else:
     )
 
 
+# Second bot-defense field block for a page that legitimately needs TWO
+# separate forms on one page (2026-07-28, /firm-login/'s "sign in" +
+# "create account" forms) -- reusing _BOT_DEFENSE_FIELDS_HTML verbatim twice
+# on the same page would render the honeypot's `id="hp_website"` (and its
+# `<label for="hp_website">`) twice, a duplicate-id HTML defect this site had
+# never previously hit (every other page embeds at most one bot-defense
+# block). Same honeypot `name` (server-side matching is by name, not id -- see
+# index.ts's every handler) and identical Turnstile-gating logic, just a
+# distinct id suffix. Cloudflare's Turnstile widget explicitly supports
+# multiple `.cf-turnstile` widgets per page, so two independent widgets here
+# is not itself a problem.
+_BOT_DEFENSE_FIELDS_HTML_ALT = (
+    f'<div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;'
+    f'height:0;width:0;overflow:hidden;">'
+    f'<label for="{_HONEYPOT_FIELD_NAME}-alt">Leave this field blank</label>'
+    f'<input type="text" id="{_HONEYPOT_FIELD_NAME}-alt" name="{_HONEYPOT_FIELD_NAME}" '
+    f'tabindex="-1" autocomplete="off">'
+    f'</div>\n'
+    + (
+        f'    <div class="cf-turnstile" data-sitekey="{esc(TURNSTILE_SITE_KEY)}"></div>'
+        if TURNSTILE_SITE_KEY
+        else f'    <input type="hidden" name="cf-turnstile-response" value="">'
+    )
+)
+
+
 def _turnstile_head_html() -> str:
     """Cloudflare Turnstile loader script for <head> -- only when a site key is
     configured. Loading it unconditionally would be a wasted external request on
@@ -1130,6 +1156,7 @@ def page_shell(
     home_href: str,
     canonical_path: str,
     json_ld: list[dict] | None = None,
+    extra_head: str = "",
 ) -> str:
     return f"""<!doctype html>
 <html lang="en">
@@ -1142,6 +1169,7 @@ def page_shell(
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 {_turnstile_head_html()}
 {_json_ld_html(json_ld)}
+{extra_head}
 <style>
 {PAGE_CSS}
 </style>
@@ -2691,6 +2719,468 @@ card-payment option is coming alongside the dashboard.</p>
     )
 
 
+# ---------------------------------------------------------------------------
+# Firm dashboard MVP (2026-07-28, step 3/3) -- /firm-login/ + /firm-dashboard/.
+# The user-facing half of migration 0008's firm accounts + staff-license CRUD
+# (worker/src/index.ts's /firm/signup, /firm/login, /firm/login/verify,
+# /firm/logout, /firm/licenses*). Both pages are still plain static HTML
+# generated through page_shell() like every other page on this site -- no
+# framework, no build step. /firm-dashboard/ is the one page on the whole
+# site with real client-side JS beyond drUpdateFields(), because it is the
+# one page whose content (a firm's own roster) cannot be known at static-
+# build time at all -- it has to be fetched from the session-scoped API on
+# load.
+# ---------------------------------------------------------------------------
+
+
+def build_firm_login_page() -> str:
+    """Firm sign-in + create-account page. Both forms are plain top-level
+    POSTs straight to the Worker's own routes -- same "normal form POST
+    navigation, not a fetch" convention as every public signup form on this
+    site (signup_form_for_state(), _firm_lead form, etc.). The Worker's own
+    response IS the "check your email" page for both
+    (FIRM_LOGIN_SENT_PAGE in worker/src/index.ts, identical for /firm/login
+    and /firm/signup by design -- see that constant's own no-enumeration-
+    oracle docstring), so the browser navigating straight there on submit is
+    simplest and correct; there is no client-side success state to build.
+
+    Judgment call (this build's own instruction: "your call which is more
+    honest/ready to expose publicly"): this exposes a REAL "Create your firm
+    account" form (POST /api/firm/signup), not just a link back to
+    /for-firms/'s early-access lead-capture form. Reasoning: the self-serve
+    signup -> emailed login link -> staff-roster pipeline this build's task
+    describes is fully implemented and covered by this repo's test suite
+    (handleFirmSignup/handleFirmLogin/handleFirmLoginVerify + the
+    /firm/licenses* CRUD in worker/src/index.ts) -- it is not a stub. It
+    touches no billing or capital (a free pilot, no card collected anywhere
+    in this flow, matching /for-firms/'s own "no card required" promise).
+    Nothing built in this pass is deployed -- pointing a real, working sign-up
+    form at a real, working backend, on a page nobody can reach yet, is more
+    honest than shipping a dashboard whose own front door still says "reserve
+    your spot, nothing built yet." The decision of whether this is ready for
+    the PUBLIC internet is the separate, later, plan-first deploy gate --
+    this only decides what the page says once someone reaches it.
+
+    Known follow-up (not this build's scope to fix): /for-firms/
+    (build_firms_page()) still reads "Self-serve signup for the firm
+    dashboard isn't live yet" and points its own CTA at the /firm/lead
+    early-access list. That copy needs to be reconciled with this page
+    before the site is actually deployed, or a visitor bouncing between the
+    two will see a contradiction.
+    """
+    body = f"""<h1>Firm Sign In</h1>
+<p class="subhead">One roster for every staff CPA's license renewal &mdash; sorted by what needs
+attention soonest.</p>
+
+<div class="signup-form">
+  <h2>Sign in</h2>
+  <p class="signup-microcopy">Enter your firm's admin email and we'll send a one-time sign-in link.
+  No password to remember or reset.</p>
+  <form method="post" action="/api/firm/login">
+    {_BOT_DEFENSE_FIELDS_HTML}
+    <label for="login-email">Admin email</label>
+    <input type="email" id="login-email" name="admin_email" required placeholder="you@yourfirm.com">
+    <button type="submit">Send sign-in link</button>
+  </form>
+</div>
+
+<div class="signup-form">
+  <h2>New firm? Create your account</h2>
+  <p class="signup-microcopy">Free to start &mdash; a 30-day pilot, no card required. We'll email your
+  admin address a one-time sign-in link to finish setting up.</p>
+  <form method="post" action="/api/firm/signup">
+    {_BOT_DEFENSE_FIELDS_HTML_ALT}
+    <label for="signup-firm-name">Firm name</label>
+    <input type="text" id="signup-firm-name" name="name" required maxlength="200" placeholder="Example Firm, LLC">
+    <label for="signup-admin-email">Your email</label>
+    <input type="email" id="signup-admin-email" name="admin_email" required placeholder="you@yourfirm.com">
+    <button type="submit">Create firm account</button>
+  </form>
+</div>
+
+<p class="how-it-works">Want pricing and details first? <a href="/for-firms/">See the firm overview</a>.</p>
+"""
+    return page_shell(
+        f"Firm Sign In — {SITE_NAME}",
+        "Sign in to your DeadlineRadar firm dashboard, or create a new firm account to start "
+        "tracking your staff's CPA license renewals.",
+        body,
+        home_href="../",
+        canonical_path="/firm-login/",
+    )
+
+
+def _firm_dashboard_add_staff_form_html(by_slug: dict[str, list[dict]], as_of: date) -> str:
+    """The "Add staff" form. Deliberately reuses the EXACT SAME per-state
+    show/hide-by-state pattern as signup_form_homepage()/drUpdateFields() --
+    a state dropdown plus one hidden `.signup-extra-fields` group per state
+    (rendered via the same _extra_fields_html() every public signup form
+    uses), rather than inventing a second implementation of "which fields
+    does this state need" that could drift from resolveDeadlineInput() in
+    worker/src/index.ts. `state_slug` is the field name here (not `state`,
+    like the public form uses) because that's the key
+    handleFirmLicenseCreate() actually reads.
+
+    Inherits one pre-existing, harmless quirk from signup_form_homepage()'s
+    identical pattern: two different states that both fall into the
+    "multiple computed license types" family each render a
+    `<select id="license_type_id">`, so this page (like the homepage) can
+    have more than one element sharing that id. It is not a NEW defect this
+    page introduces -- drUpdateFields() disables every field outside the
+    selected state's group, and FormData only serializes ENABLED fields by
+    name, so only one `license_type_id` is ever actually submitted. The
+    duplicate id is an HTML-validity nit inherited from the homepage, not a
+    functional bug."""
+    all_slugs = sorted(by_slug)
+    state_options = "\n".join(
+        f'<option value="{esc(slug)}">{esc(by_slug[slug][0]["state"])}</option>' for slug in all_slugs
+    )
+    field_groups = "\n".join(
+        f'<div class="signup-extra-fields" data-for-state="{esc(slug)}" hidden>'
+        f'{_extra_fields_html(slug, by_slug[slug], as_of)}</div>'
+        for slug in all_slugs
+        if _extra_fields_html(slug, by_slug[slug], as_of)
+    )
+    return f"""<div class="signup-form" id="dr-add-staff">
+  <h2>Add staff</h2>
+  <p class="signup-microcopy">They'll get one confirmation email before their reminders start --
+  adding someone here doesn't itself grant consent on their behalf.</p>
+  <form id="dr-add-staff-form">
+    <label for="dr-add-label">Name or label (optional)</label>
+    <input type="text" id="dr-add-label" name="staff_label" maxlength="120" placeholder="e.g. Alex Rivera">
+    <label for="dr-add-email">Email</label>
+    <input type="email" id="dr-add-email" name="email" required placeholder="alex@example.com">
+    <label for="dr-add-state">State</label>
+    <select id="dr-add-state" name="state_slug" required onchange="drUpdateFields(this.value)">
+      <option value="">Select state</option>
+      {state_options}
+    </select>
+    {field_groups}
+    <button type="submit">Add staff</button>
+  </form>
+  <p id="dr-add-error" class="field-hint" style="color:#c33737;" hidden></p>
+</div>"""
+
+
+# The dashboard's client-side JS. A plain (non-f-string) constant -- this
+# block is 100% static and has no build-time values to interpolate, so an
+# f-string would only force every literal `{`/`}` in the JS (e.g.
+# escapeHtml()'s character map) to be doubled for no benefit. Everything the
+# dashboard renders from API data goes through escapeHtml() before ever
+# touching innerHTML -- staff_label and email are admin-entered free text
+# (see worker/src/index.ts's handleFirmLicenseCreate()/handleFirmLicensePatch(),
+# which validate format/length/control-chars but do NOT strip HTML), so an
+# unescaped render here would be a real stored-XSS hole on a page an
+# authenticated firm admin will keep open, not merely a cosmetic bug.
+_FIRM_DASHBOARD_JS_HTML = """<script>
+function drUpdateFields(slug) {
+  document.querySelectorAll('.signup-extra-fields').forEach(function(el) {
+    var show = (el.getAttribute('data-for-state') === slug);
+    el.hidden = !show;
+    el.querySelectorAll('input, select, textarea').forEach(function(field) {
+      field.disabled = !show;
+    });
+  });
+}
+
+function drEscapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+  });
+}
+
+var DR_STATUS_LABELS = {confirmed: 'Confirmed', pending: 'Pending', 'needs-attention': 'Needs attention'};
+var DR_STATUS_CLASSES = {confirmed: 'mock-status--ok', pending: 'mock-status--pending', 'needs-attention': 'mock-status--risk'};
+
+var drLicenses = [];
+var drEditingId = null;
+
+function drShowError(msg) {
+  var el = document.getElementById('dr-dash-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = false;
+}
+function drClearError() {
+  var el = document.getElementById('dr-dash-error');
+  if (!el) return;
+  el.hidden = true;
+  el.textContent = '';
+}
+function drReadJsonSafe(res) {
+  return res.json().catch(function() { return null; });
+}
+function drPrettyLicenseType(id) {
+  if (!id) return '\\u2014';
+  return String(id).replace(/[_-]+/g, ' ').replace(/\\b\\w/g, function(c) { return c.toUpperCase(); });
+}
+function drFormatDeadline(iso) {
+  if (!iso) return '\\u2014';
+  try {
+    var d = new Date(iso + 'T00:00:00Z');
+    if (isNaN(d.getTime())) return iso;
+    var browserLocale;
+    return d.toLocaleDateString(browserLocale, {year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC'});
+  } catch (e) {
+    return iso;
+  }
+}
+
+function drRenderRow(item) {
+  var statusClass = DR_STATUS_CLASSES[item.status] || 'mock-status--risk';
+  var statusLabel = DR_STATUS_LABELS[item.status] || item.status;
+  var idAttr = drEscapeHtml(item.id);
+  var staffCell, emailCell, actionsCell;
+  if (drEditingId === item.id) {
+    staffCell = '<input type="text" class="dr-edit-label" maxlength="120" value="' + drEscapeHtml(item.staff_label || '') + '">';
+    emailCell = '<input type="email" class="dr-edit-email" value="' + drEscapeHtml(item.email) + '">';
+    actionsCell =
+      '<button type="button" class="dr-btn-save" data-id="' + idAttr + '">Save</button> ' +
+      '<button type="button" class="dr-btn-cancel" data-id="' + idAttr + '">Cancel</button>';
+  } else {
+    staffCell = item.staff_label ? drEscapeHtml(item.staff_label) : '<span style="color:var(--muted)">\\u2014</span>';
+    emailCell = drEscapeHtml(item.email);
+    actionsCell =
+      '<button type="button" class="dr-btn-edit" data-id="' + idAttr + '">Edit</button> ' +
+      '<button type="button" class="dr-btn-renew" data-id="' + idAttr + '">Mark renewed</button> ' +
+      '<button type="button" class="dr-btn-remove" data-id="' + idAttr + '">Remove</button>';
+  }
+  return '<tr data-id="' + idAttr + '">' +
+    '<td>' + staffCell + '</td>' +
+    '<td>' + emailCell + '</td>' +
+    '<td>' + drEscapeHtml(item.state_name || '') + '</td>' +
+    '<td>' + drEscapeHtml(drPrettyLicenseType(item.license_type_id)) + '</td>' +
+    '<td><span class="mock-status ' + statusClass + '">' + drEscapeHtml(statusLabel) + '</span></td>' +
+    '<td>' + drEscapeHtml(drFormatDeadline(item.next_deadline)) + '</td>' +
+    '<td class="dr-actions">' + actionsCell + '</td>' +
+  '</tr>';
+}
+
+function drRenderTable() {
+  var tbody = document.getElementById('dr-roster-body');
+  if (!tbody) return;
+  if (drLicenses.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7">No staff on your roster yet -- add your first one below.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = drLicenses.map(drRenderRow).join('');
+}
+
+function drLoadLicenses() {
+  drClearError();
+  fetch('/api/firm/licenses', {credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) {
+        window.location.href = '/firm-login/';
+        return null;
+      }
+      if (!res.ok) {
+        drShowError('Something went wrong loading your roster. Please try again.');
+        return null;
+      }
+      return res.json();
+    })
+    .then(function(data) {
+      if (!data) return;
+      drLicenses = data.licenses || [];
+      drRenderTable();
+    })
+    .catch(function() {
+      drShowError('Something went wrong loading your roster. Please try again.');
+    });
+}
+
+function drRenewLicense(id) {
+  drClearError();
+  fetch('/api/firm/licenses/' + encodeURIComponent(id) + '/renew', {method: 'POST', credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      return drReadJsonSafe(res).then(function(data) {
+        if (!res.ok) {
+          drShowError(data && data.error ? data.error : 'Something went wrong, please try again.');
+          return;
+        }
+        drLoadLicenses();
+      });
+    })
+    .catch(function() { drShowError('Something went wrong, please try again.'); });
+}
+
+function drRemoveLicense(id, label) {
+  if (!window.confirm('Remove ' + (label || 'this person') + ' from the roster? They will stop receiving reminders.')) return;
+  drClearError();
+  fetch('/api/firm/licenses/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      return drReadJsonSafe(res).then(function(data) {
+        if (!res.ok) {
+          drShowError(data && data.error ? data.error : 'Something went wrong, please try again.');
+          return;
+        }
+        drLoadLicenses();
+      });
+    })
+    .catch(function() { drShowError('Something went wrong, please try again.'); });
+}
+
+function drSaveEdit(id, tr) {
+  drClearError();
+  var labelInput = tr.querySelector('.dr-edit-label');
+  var emailInput = tr.querySelector('.dr-edit-email');
+  var email = emailInput ? emailInput.value.trim() : '';
+  if (!email) { drShowError('Email is required.'); return; }
+  var body = {staff_label: labelInput ? labelInput.value.trim() : '', email: email};
+  fetch('/api/firm/licenses/' + encodeURIComponent(id), {
+    method: 'PATCH', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        drShowError(data && data.error ? data.error : 'Something went wrong, please try again.');
+        return;
+      }
+      drEditingId = null;
+      drLoadLicenses();
+    });
+  }).catch(function() { drShowError('Something went wrong, please try again.'); });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var stateSel = document.getElementById('dr-add-state');
+  drUpdateFields(stateSel ? stateSel.value : '');
+
+  drLoadLicenses();
+
+  var tbody = document.getElementById('dr-roster-body');
+  if (tbody) {
+    tbody.addEventListener('click', function(ev) {
+      var btn = ev.target.closest ? ev.target.closest('button') : null;
+      if (!btn) return;
+      var id = btn.getAttribute('data-id');
+      if (btn.classList.contains('dr-btn-edit')) {
+        drEditingId = id;
+        drRenderTable();
+      } else if (btn.classList.contains('dr-btn-cancel')) {
+        drEditingId = null;
+        drRenderTable();
+      } else if (btn.classList.contains('dr-btn-save')) {
+        drSaveEdit(id, btn.closest('tr'));
+      } else if (btn.classList.contains('dr-btn-renew')) {
+        drRenewLicense(id);
+      } else if (btn.classList.contains('dr-btn-remove')) {
+        var item = null;
+        for (var i = 0; i < drLicenses.length; i++) {
+          if (drLicenses[i].id === id) { item = drLicenses[i]; break; }
+        }
+        drRemoveLicense(id, item ? (item.staff_label || item.email) : null);
+      }
+    });
+  }
+
+  var addForm = document.getElementById('dr-add-staff-form');
+  if (addForm) {
+    addForm.addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      var errEl = document.getElementById('dr-add-error');
+      if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+      var fd = new FormData(addForm);
+      var body = {};
+      fd.forEach(function(v, k) { body[k] = v; });
+      fetch('/api/firm/licenses', {
+        method: 'POST', credentials: 'include',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+      }).then(function(res) {
+        if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+        return drReadJsonSafe(res).then(function(data) {
+          if (!res.ok) {
+            var msg = data && data.error ? data.error : 'Something went wrong, please try again.';
+            if (errEl) { errEl.textContent = msg; errEl.hidden = false; } else { drShowError(msg); }
+            return;
+          }
+          addForm.reset();
+          drUpdateFields('');
+          drLoadLicenses();
+        });
+      }).catch(function() {
+        var msg = 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; } else { drShowError(msg); }
+      });
+    });
+  }
+});
+</script>"""
+
+
+def build_firm_dashboard_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
+    """The real firm dashboard (2026-07-28, step 3/3). Static HTML shell +
+    _FIRM_DASHBOARD_JS_HTML: on load, fetches GET /api/firm/licenses
+    (credentials:'include' -- the session cookie rides along automatically
+    since the Worker's /api/* route and this static site share the
+    deadline-radar.com origin) and renders the roster, trusting the API's
+    own urgency sort rather than re-sorting client-side (per this build's own
+    instruction). A 401 (no/expired session) redirects to /firm-login/ --
+    this page assumes nothing about auth state at build time, since it's
+    static HTML with no server-side session check of its own; the JS above
+    is the only gate, exactly as it must be for a statically-hosted page.
+
+    `noindex` (via page_shell's extra_head) because this is a signed-in app
+    view, not indexable content -- unlike /firm-login/, which stays
+    indexable/linkable like every other marketing/functional page.
+
+    Edit is deliberately scoped to staff_label/email only, never
+    state/license-type/deadline fields: GET /firm/licenses only returns
+    license_type_id (see index.ts's toFirmLicenseJson()), never the
+    underlying raw birth_month/birth_year/cohort_group/user_deadline a PATCH
+    would need alongside a state_slug change to keep resolveDeadlineInput()
+    happy. An edit UI that touched those fields without the real current
+    values to pre-fill would either have to guess (risking silently
+    corrupting a working deadline) or force a full re-entry that looks like
+    an edit but actually resets configuration the admin never meant to
+    touch. To change someone's state or license type, remove and re-add
+    them -- safe, unambiguous, no silent data loss."""
+    add_staff_html = _firm_dashboard_add_staff_form_html(by_slug, as_of)
+    body = f"""<h1>Your Staff Roster</h1>
+<p class="subhead">Every CPA license you're tracking for your firm, soonest deadline first.</p>
+
+<div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" hidden></div>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Staff</th><th>Email</th><th>State</th><th>License type</th><th>Status</th><th>Next deadline</th><th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="dr-roster-body">
+    <tr><td colspan="7">Loading your roster...</td></tr>
+  </tbody>
+</table>
+</div>
+
+{add_staff_html}
+
+<form method="post" action="/api/firm/logout" style="margin-top:2rem;">
+  <button type="submit" style="padding:0.6rem 1.1rem;border:1px solid var(--border-strong);
+  border-radius:6px;background:var(--card-bg);color:var(--fg);font-size:0.92rem;cursor:pointer;
+  font-family:inherit;">Log out</button>
+</form>
+
+{_FIRM_DASHBOARD_JS_HTML}
+"""
+    return page_shell(
+        f"Firm Dashboard — {SITE_NAME}",
+        "Manage your firm's CPA staff license roster: add staff, track renewal status, and mark "
+        "licenses renewed.",
+        body,
+        home_href="../",
+        canonical_path="/firm-dashboard/",
+        extra_head='<meta name="robots" content="noindex">',
+    )
+
+
 # Firm-admin-oriented SEO landing pages (2026-07-10 Wave-1 B2B inbound directive).
 # Chosen for real, near-term firm-registration deadlines already backed by verified
 # citation data in cpa_deadlines.json -- no new legal research needed, this just
@@ -3669,6 +4159,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/for-firms/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/firm-login/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/methodology/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
@@ -3872,6 +4365,16 @@ def main() -> None:
     firms_dir.mkdir(parents=True, exist_ok=True)
     (firms_dir / "index.html").write_text(build_firms_page(by_slug), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/for-firms/index.html")
+
+    firm_login_dir = SITE_DIR / "firm-login"
+    firm_login_dir.mkdir(parents=True, exist_ok=True)
+    (firm_login_dir / "index.html").write_text(build_firm_login_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/firm-login/index.html")
+
+    firm_dashboard_dir = SITE_DIR / "firm-dashboard"
+    firm_dashboard_dir.mkdir(parents=True, exist_ok=True)
+    (firm_dashboard_dir / "index.html").write_text(build_firm_dashboard_page(by_slug, as_of), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/firm-dashboard/index.html")
 
     (SITE_DIR / "404.html").write_text(build_404_page(built), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/404.html")

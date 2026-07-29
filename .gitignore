@@ -71,3 +71,11 @@ scripts/*roster*.csv
 !scripts/roster_template.example.csv
 scripts/*admin_report*.md
 firms_register.md
+
+# Preview-build output (2026-07-28 firm-dashboard preview) -- a throwaway
+# generate.py output pointed at the preview Worker's own workers.dev origin
+# (DR_SITE_DIR=docs_preview), never the committed production docs/ tree.
+# Regenerate on demand; nothing here should ever be tracked or merged.
+docs_preview/
+worker/.wrangler/
+.wrangler/

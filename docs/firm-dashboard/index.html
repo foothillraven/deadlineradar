@@ -1,0 +1,1131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Firm Dashboard — DeadlineRadar</title>
+<meta name="description" content="Manage your firm&#x27;s CPA staff license roster: add staff, track renewal status, and mark licenses renewed.">
+<link rel="canonical" href="https://deadline-radar.com/firm-dashboard/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+
+<meta name="robots" content="noindex">
+<style>
+
+  @font-face {
+    font-family: 'Fraunces';
+    font-style: normal;
+    font-weight: 300 900;
+    font-display: swap;
+    src: url('/fonts/fraunces-variable.woff2') format('woff2');
+  }
+  :root {
+    color-scheme: light dark;
+    /* Tokens match the approved design concept exactly. */
+    --bg: #f7f9fb; --page-bg: #f7f9fb; --fg: #17212b; --muted: #5a6b7a; --faint: #8595a3;
+    --border: #e0e6ec; --border-strong: #c8d2db;
+    --accent: #1f3d54; --accent-deep: #152c3e; --accent-bg: #eaeef1; --card-bg: #ffffff;
+    --panel-dark: #152c3e; --panel-dark-fg: #eaf1f7;
+    --gold: #8a6a33; --gold-line: #d8c9a6; --gold-bg: #f4eede;
+    --verified-green: #256a4b; --verified-green-bg: #e8f1ec;
+    --trust-bg: #f4eede; --trust-border: #d8c9a6; --row-alt: #f6f8f9;
+    --shadow: 0 1px 2px rgba(23,33,43,.05), 0 6px 22px rgba(23,33,43,.06);
+    --font-display: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+    --font-mono: "SFMono-Regular", ui-monospace, "Cascadia Code", Consolas, "Liberation Mono", monospace;
+    --map-fixed: #bcd4f5; --map-fixed-hover: #1f3d54;
+    --map-variable: #e4e8ec; --map-variable-hover: #8a95a3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151a; --page-bg: #12151a; --fg: #e7ebf0; --muted: #9aa5b1; --faint: #6f7a86;
+      --border: #2a323c; --border-strong: #3a4552;
+      --accent: #7fa8d9; --accent-deep: #9cc0ea; --accent-bg: #1b2836; --card-bg: #1a1f26;
+      --panel-dark: #0d1824; --panel-dark-fg: #dbe6ef;
+      --gold: #d6b45a; --gold-line: #8a6d1f; --gold-bg: #26210f;
+      --verified-green: #4fd685; --verified-green-bg: rgba(52,199,120,0.12);
+      --trust-bg: #26210f; --trust-border: #5a4a20; --row-alt: #171b21;
+      --map-fixed: #2c4a72; --map-fixed-hover: #7fb0ff;
+      --map-variable: #262b32; --map-variable-hover: #545e6c;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--page-bg); }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0; padding: 0 0 3rem;
+    line-height: 1.55; color: var(--fg); background: var(--page-bg);
+  }
+  /* Chrome (nav, topbar, footer border) spans the FULL browser width; only the reading
+     content itself is centered in a max-width column -- .wrap is that single column,
+     reused everywhere so nav/header/body/footer all align to the same edges. */
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 1.25rem; }
+  a { color: var(--accent); }
+  .topbar {
+    background: var(--accent-deep); color: #cfe0ee;
+    font-size: 0.78rem; letter-spacing: 0.02em; text-align: center; padding: 0.4rem 1rem;
+  }
+  nav.mainnav {
+    background: rgba(247,249,251,.92); backdrop-filter: saturate(1.4) blur(8px);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20;
+  }
+  @media (prefers-color-scheme: dark) {
+    nav.mainnav { background: rgba(18,21,26,.92); }
+  }
+  .nav-inner {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  }
+  .nav-links { display: flex; gap: 1.4rem; flex-wrap: wrap; }
+  .nav-links a {
+    color: var(--muted); text-decoration: none; font-size: 0.85rem;
+    padding: 0.9rem 0; border-bottom: 2px solid transparent; white-space: nowrap;
+  }
+  .nav-links a:hover { color: var(--fg); }
+  .nav-links a.cta { color: var(--accent); font-weight: 600; }
+  .stat-strip {
+    margin: 1.1rem -1.25rem 1.75rem; background: var(--card-bg); border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border); padding: 0.65rem 1.25rem; font-size: 0.8rem; color: var(--muted);
+    display: flex; gap: 1.6rem; flex-wrap: wrap;
+  }
+  .stat-strip b { color: var(--accent); font-variant-numeric: tabular-nums; }
+  .site-header {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 1rem;
+    padding: 1.5rem 0 1rem; margin-bottom: 0;
+  }
+  .wordmark { font-family: var(--font-display); font-size: 1.5rem; font-weight: 650; letter-spacing: -0.015em; }
+  .wordmark a { color: var(--fg); text-decoration: none; }
+  .wordmark b { color: var(--accent); }
+  .tagline { color: var(--muted); font-size: 1.08rem; font-weight: 500; flex: 1 1 auto; }
+  .by-line { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
+  h1 {
+    font-family: var(--font-display); font-weight: 600; font-size: 2.1rem; margin: 0 0 0.35rem;
+    line-height: 1.12; letter-spacing: -0.01em; text-wrap: balance;
+  }
+  h2 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.005em; }
+  .subhead { color: var(--muted); margin: 0 0 1.5rem; }
+  .intro { margin: 0 0 1.25rem; }
+  .callout {
+    position: relative;
+    border: 1px solid var(--border); border-left: 4px solid var(--gold-line); border-radius: 8px;
+    padding: 1.15rem 1.4rem; background: var(--card-bg); margin: 1.4rem 0;
+  }
+  .callout + .callout { margin-top: 1rem; }
+  .callout .label {
+    font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .callout .date {
+    font-family: var(--font-display); font-weight: 620; font-size: 2.3rem; letter-spacing: -0.01em;
+    margin: 0.15rem 0 0.55rem;
+  }
+  .callout .rule { margin: 0; }
+  .table-wrap {
+    overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; min-width: 420px; }
+  th, td { padding: 0.6rem 0.8rem; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { background: var(--accent); color: #eaf1f7; font-weight: 700; }
+  tbody tr:nth-child(even) { background: var(--row-alt); }
+  tbody tr:last-child td { border-bottom: none; }
+  .trust-line {
+    border: 1px solid var(--trust-border); background: var(--trust-bg); border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
+  }
+  .trust-line strong::before { content: "\2713\a0"; color: var(--gold); }
+
+  /* ---- THE CENTERPIECE: citation-first fact sheet, per the approved concept's .sheet/.frow ---- */
+  .sheet {
+    background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
+    box-shadow: var(--shadow); overflow: hidden; margin: 1.4rem 0;
+  }
+  .sheet + .sheet { margin-top: 1.4rem; }
+  .sheethead {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.7rem 1rem;
+    padding: 0.9rem 1.2rem; background: linear-gradient(180deg,#fbfcfd,#f4f7f9); border-bottom: 1px solid var(--border);
+    font-family: var(--font-display); font-size: 1rem; font-weight: 600; color: var(--fg);
+  }
+  @media (prefers-color-scheme: dark) {
+    .sheethead { background: linear-gradient(180deg,#1c222a,#171c22); }
+  }
+  .sheethead .stamp { display: flex; align-items: center; gap: 0.45rem; font-size: 0.78rem; color: var(--verified-green); font-weight: 600; }
+  .sheethead .stamp .dot {
+    width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--verified-green);
+    box-shadow: 0 0 0 3px var(--verified-green-bg); display: inline-block;
+  }
+  .sheethead .stamp--unconfirmed { color: var(--gold); }
+  .sheethead .stamp--unconfirmed .dot { background: var(--gold); box-shadow: 0 0 0 3px var(--gold-bg); }
+  .rowlist { display: flex; flex-direction: column; }
+  .frow {
+    display: grid; grid-template-columns: 1fr auto; gap: 0.35rem 1.4rem;
+    padding: 1.1rem 1.2rem; border-top: 1px solid var(--border);
+  }
+  .frow:first-child { border-top: 0; }
+  .frow .k {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--faint); grid-column: 1 / -1; margin-bottom: 0.1rem;
+  }
+  .frow .v { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--fg); line-height: 1.2; }
+  .frow .v small {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 0.82rem; font-weight: 500; color: var(--muted); display: block; margin-top: 0.25rem; line-height: 1.4;
+  }
+  .frow .side { grid-column: 2; grid-row: 2; align-self: center; text-align: right; }
+  .cite {
+    display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: 0.78rem;
+    color: var(--gold); background: var(--gold-bg); border: 1px solid var(--gold-line); border-radius: 6px;
+    padding: 0.25rem 0.55rem; text-decoration: none; white-space: nowrap;
+  }
+  .cite:hover { background: #efe6d0; }
+  @media (prefers-color-scheme: dark) { .cite:hover { background: #2e2712; } }
+  .verified {
+    display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.76rem; color: var(--verified-green);
+    margin-top: 0.5rem;
+  }
+  .cite svg, .verified svg { width: 0.85em; height: 0.85em; flex: none; }
+  .unconfirmed { color: var(--gold); }
+  @media (max-width: 600px) {
+    .frow { grid-template-columns: 1fr; }
+    .frow .side { grid-column: 1; grid-row: auto; text-align: left; margin-top: 0.6rem; }
+  }
+  .sheetfoot {
+    padding: 0.85rem 1.2rem; background: #fbfcfd; border-top: 1px solid var(--border); font-size: 0.78rem;
+    color: var(--muted);
+  }
+  @media (prefers-color-scheme: dark) { .sheetfoot { background: #171c22; } }
+  .factsheet-note { font-size: 0.85rem; color: var(--muted); padding: 0 1.2rem 1rem; }
+
+  /* ---- homepage hero, per the approved concept ---- */
+  .eyebrow {
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase;
+    color: var(--gold); margin: 0 0 0.7rem;
+  }
+  .hero-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 2.5rem; align-items: center; }
+  @media (max-width: 860px) { .hero-grid { grid-template-columns: 1fr; } }
+  .hero-accent { color: var(--accent); }
+  .hero-lede { color: var(--muted); font-size: 1.05rem; line-height: 1.6; max-width: 60ch; margin: 1.1rem 0 0; }
+  .lookup { margin-top: 1.6rem; max-width: 30rem; }
+  .lookup-label {
+    display: block; font-size: 0.76rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 0.5rem;
+  }
+  .lookup-field {
+    display: flex; gap: 0; box-shadow: var(--shadow); border-radius: 9px; overflow: hidden;
+    border: 1px solid var(--border-strong); background: var(--card-bg);
+  }
+  .lookup-field input { flex: 1; border: 0; padding: 0.85rem 1rem; font-size: 1rem; font-family: inherit; color: var(--fg); background: transparent; }
+  .lookup-field input:focus { outline: none; }
+  .lookup-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(31,61,84,.14), var(--shadow); }
+  .lookup-field button {
+    border: 0; background: var(--accent); color: #fff; font-weight: 600; font-size: 0.92rem;
+    padding: 0 1.3rem; cursor: pointer; font-family: inherit;
+  }
+  .lookup-field button:hover { background: var(--accent-deep); }
+  .lookup-hint { margin-top: 0.6rem; font-size: 0.8rem; color: var(--faint); }
+  .trust-row {
+    display: flex; flex-wrap: wrap; gap: 0.8rem 1.8rem; margin: 1.8rem 0 2.2rem; padding-top: 1.4rem;
+    border-top: 1px solid var(--border);
+  }
+  .trust-row .item { display: flex; align-items: baseline; gap: 0.5rem; }
+  .trust-row .n { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .trust-row .lbl { font-size: 0.8rem; color: var(--muted); max-width: 22ch; line-height: 1.35; }
+
+  /* ---- hero-right: rotating verified-fact card, live proof of freshness ---- */
+  .hfc-wrap { position: relative; min-height: 300px; }
+  .hfc-card {
+    position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: 1;
+    transition: opacity 0.8s ease;
+    background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 1.4rem 1.5rem;
+    display: flex; flex-direction: column; justify-content: center; gap: 0.3rem;
+  }
+  .hfc-card.is-active { opacity: 1; pointer-events: auto; z-index: 2; }
+  .hfc-state { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--fg); }
+  .hfc-stamp { display: flex; align-items: center; gap: 0.4rem; font-size: 0.76rem; color: var(--verified-green); font-weight: 600; }
+  .hfc-stamp .dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--verified-green); display: inline-block; }
+  .hfc-date { font-family: var(--font-display); font-size: 1.7rem; font-weight: 650; color: var(--accent); margin-top: 0.3rem; }
+  .hfc-sub { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
+  .hfc-card .cite { align-self: flex-start; margin-top: 0.15rem; }
+  .hfc-card .verified { margin-top: 0.3rem; }
+  .hfc-coverage { font-size: 0.78rem; color: var(--muted); margin-top: 0.85rem; text-align: center; }
+  .hfc-coverage b { color: var(--accent); }
+  .hfc-pips { display: flex; gap: 0.4rem; justify-content: center; margin-top: 0.55rem; }
+  .hfc-pip {
+    width: 0.45rem; height: 0.45rem; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+    background: var(--border-strong);
+  }
+  .hfc-pip.is-active { background: var(--accent); }
+  @media (prefers-reduced-motion: reduce) {
+    .hfc-card { transition: none; }
+    .hfc-pips { display: none; }
+  }
+
+  /* ---- "how we verify" 3-card band ---- */
+  .band-section { margin: 2.4rem 0 2rem; padding-top: 1.8rem; border-top: 1px solid var(--border); }
+  .band-section h2 { font-size: 1.5rem; }
+  .method-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; margin: 1.6rem 0 1.8rem; }
+  @media (max-width: 700px) { .method-grid { grid-template-columns: 1fr; } }
+  .mcard { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.3rem 1.2rem; }
+  .mcard .step { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; color: var(--gold); font-weight: 600; }
+  .mcard h3 { font-size: 1.05rem; margin: 0.6rem 0 0.4rem; font-family: var(--font-display); }
+  .mcard p { margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.55; }
+
+  /* ---- reminder panel: two-column dark treatment ---- */
+  .remind-panel {
+    background: var(--panel-dark); color: var(--panel-dark-fg); border-radius: 12px; padding: 1.8rem;
+    display: grid; grid-template-columns: 1.1fr 1fr; gap: 1.6rem; align-items: center; margin: 1.75rem 0;
+  }
+  @media (max-width: 700px) { .remind-panel { grid-template-columns: 1fr; padding: 1.4rem 1.2rem; } }
+  .remind-panel h2 { color: #fff; font-size: 1.35rem; margin: 0; }
+  .remind-panel .remind-copy { color: #b9cad9; margin: 0.7rem 0 0; font-size: 0.92rem; line-height: 1.6; }
+  .remind-panel .remind-promise { margin-top: 0.8rem; font-size: 0.78rem; color: #8fa7bb; }
+  .remind-list { list-style: none; margin: 1.3rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+  .remind-list li { display: flex; align-items: flex-start; gap: 0.55rem; font-size: 0.85rem; color: #c4ceda; line-height: 1.4; }
+  .remind-list .tick { color: var(--gold); flex: none; margin-top: 0.15rem; }
+  .remind-panel form {
+    display: flex; flex-direction: column; gap: 0.65rem; background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 1.1rem;
+  }
+  .remind-panel label { color: #cfe0ee; font-size: 0.8rem; font-weight: 600; margin: 0.2rem 0 0; }
+  .remind-panel label:first-of-type { margin-top: 0; }
+  .remind-panel input, .remind-panel select {
+    width: 100%; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #fff;
+    border-radius: 7px; padding: 0.6rem 0.7rem; font-family: inherit; font-size: 0.92rem;
+  }
+  .remind-panel input::placeholder { color: #8fa7bb; }
+  .remind-panel input:focus, .remind-panel select:focus {
+    outline: none; border-color: #7fb0d6; box-shadow: 0 0 0 3px rgba(127,176,214,.2);
+  }
+  .remind-panel button, .remind-panel .cta-button {
+    margin-top: 0.3rem; background: var(--gold); color: #22190a; border: 0; font-weight: 700;
+    font-size: 0.92rem; padding: 0.7rem 1rem; border-radius: 7px; cursor: pointer; font-family: inherit;
+    display: inline-block; text-decoration: none;
+  }
+  .remind-panel button:hover, .remind-panel .cta-button:hover { background: #9c7a3c; }
+  .remind-panel .field-hint { color: #8fa7bb; }
+  .cpe-affiliate-heading {
+    font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--muted); margin: 1.6rem 0 0.5rem; padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+  .cpe-affiliate {
+    border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem;
+    background: var(--card-bg); margin: 0.6rem 0; font-size: 0.92rem;
+  }
+  .cpe-affiliate p { margin: 0 0 0.5rem; }
+  .cpe-affiliate p:last-child { margin-bottom: 0; }
+  .cpe-affiliate .disclosure { font-size: 0.8rem; color: var(--muted); }
+  .firm-cta {
+    border: 1px solid var(--accent); border-radius: 8px; padding: 1.1rem 1.3rem;
+    background: var(--accent-bg); margin: 1.75rem 0; font-size: 0.94rem;
+  }
+  .firm-cta h2 { margin-top: 0; font-size: 1.05rem; }
+  .firm-cta p { margin: 0 0 0.5rem; }
+  .firm-cta p:last-child { margin-bottom: 0; }
+  .firm-cta .disclosure { font-size: 0.8rem; color: var(--muted); }
+  .state-links { padding-left: 1.2rem; margin: 0.75rem 0 1.5rem; }
+  .state-links li { margin-bottom: 0.3rem; }
+  .mock-dashboard {
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+    margin: 1.5rem 0 0.6rem; box-shadow: 0 6px 20px rgba(20, 30, 45, 0.08);
+  }
+  .mock-chrome {
+    display: flex; align-items: center; gap: 0.4rem;
+    background: var(--row-alt); padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--border);
+  }
+  .mock-dot {
+    width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--border);
+    display: inline-block;
+  }
+  .mock-url {
+    margin-left: 0.6rem; font-size: 0.72rem; color: var(--muted);
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  .mock-body { padding: 1.1rem 1.2rem 1.3rem; background: var(--bg); }
+  .mock-firm-name { font-weight: 700; margin-bottom: 0.8rem; }
+  .mock-firm-count { font-weight: 400; color: var(--muted); font-size: 0.88rem; }
+  .mock-dashboard .table-wrap { margin: 0; }
+  .mock-dashboard table { font-size: 0.86rem; }
+  .mock-status {
+    display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.01em;
+    padding: 0.18em 0.6em; border-radius: 999px; white-space: nowrap;
+  }
+  .mock-status--ok { background: rgba(31, 158, 92, 0.15); color: #1f9e5c; }
+  .mock-status--pending { background: rgba(180, 140, 20, 0.15); color: #9c7a12; }
+  .mock-status--risk { background: rgba(200, 55, 55, 0.15); color: #c33737; }
+  @media (prefers-color-scheme: dark) {
+    .mock-status--ok { background: rgba(52, 199, 120, 0.18); color: #4fd685; }
+    .mock-status--pending { background: rgba(224, 179, 51, 0.18); color: #e0b333; }
+    .mock-status--risk { background: rgba(230, 90, 90, 0.2); color: #ff8080; }
+  }
+  .mock-caption { font-size: 0.78rem; color: var(--muted); margin: 0 0 1.75rem; }
+  .faq-list { margin: 1rem 0 1.75rem; }
+  .faq-item {
+    border-bottom: 1px solid var(--border); padding: 0.85rem 0;
+  }
+  .faq-item summary {
+    cursor: pointer; font-weight: 600; list-style: none;
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after { content: "+"; color: var(--accent); font-size: 1.2rem; font-weight: 400; }
+  .faq-item[open] summary::after { content: "\2212"; }
+  .faq-item p { margin: 0.7rem 0 0; color: var(--fg); }
+  .backlink { display: inline-block; margin-top: 0.5rem; font-size: 0.92rem; }
+  .how-it-works { color: var(--muted); font-size: 0.92rem; margin: 1.25rem 0 1.75rem; }
+  .state-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+    gap: 0.65rem; margin: 0 0 2rem; list-style: none; padding: 0;
+  }
+  .state-grid--mobile-fallback { display: none; }
+  .map-section {
+    display: grid; grid-template-columns: 1fr 220px; gap: 1.25rem; align-items: stretch;
+    margin: 0 0 2rem;
+  }
+  .map-figure { position: relative; border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem; background: var(--card-bg); }
+  .map-tooltip {
+    position: absolute; z-index: 15; pointer-events: none; white-space: nowrap;
+    background: var(--panel-dark); color: var(--panel-dark-fg); font-size: 0.8rem;
+    padding: 0.35rem 0.6rem; border-radius: 6px; box-shadow: var(--shadow);
+  }
+  .map-tooltip[hidden] { display: none; }
+  .us-map { width: 100%; height: auto; display: block; }
+  .map-state {
+    fill: var(--map-variable); stroke: var(--card-bg); stroke-width: 1.2;
+    transition: fill 0.12s ease;
+  }
+  .map-state--fixed { fill: var(--map-fixed); }
+  .map-link { cursor: pointer; outline: none; }
+  .map-link:hover .map-state, .map-link:focus .map-state--variable { fill: var(--map-variable-hover); }
+  .map-link:hover .map-state--fixed, .map-link:focus .map-state--fixed { fill: var(--map-fixed-hover); }
+  .map-side {
+    border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.1rem;
+    background: var(--card-bg); font-size: 0.85rem;
+  }
+  .map-small-label { margin: 0 0 0.6rem; font-size: 0.8rem; color: var(--muted); }
+  .map-small-pills { display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem; margin-bottom: 1rem; }
+  .map-small-pill {
+    display: inline-block; padding: 0.28em 0.6em; border-radius: 999px; font-size: 0.78rem;
+    text-decoration: none; background: var(--map-fixed); color: var(--fg); white-space: nowrap;
+  }
+  .map-small-pill--variable { background: var(--map-variable); border: 1px solid var(--border); }
+  .map-small-pill:hover { opacity: 0.82; }
+  .legend { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.76rem; color: var(--muted); }
+  .legend .swatch { width: 0.75rem; height: 0.75rem; border-radius: 3px; display: inline-block; margin-right: 0.4em; vertical-align: -1px; }
+  .swatch--fixed { background: var(--map-fixed); }
+  .swatch--variable { background: var(--map-variable); border: 1px solid var(--border); }
+  @media (max-width: 700px) {
+    .map-section { display: none; }
+    .state-grid--mobile-fallback { display: grid; }
+  }
+  .state-card {
+    display: block; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 0.85rem;
+    background: var(--card-bg); text-decoration: none; color: var(--fg);
+    transition: opacity 0.15s ease;
+  }
+  .state-card:hover { border-color: var(--accent); }
+  .state-card .state-name { font-weight: 700; margin-bottom: 0.2rem; font-size: 0.95rem; }
+  .state-card .state-hint { font-size: 0.8rem; color: var(--muted); line-height: 1.3; }
+  .state-card--dimmed { opacity: 0.3; pointer-events: none; }
+  .state-card--variable {
+    border-style: dashed;
+  }
+  .state-card--variable .state-hint { font-style: italic; }
+  .state-search {
+    margin: 1.6rem 0 0; max-width: 30rem;
+  }
+  .state-search label {
+    display: block; font-size: 0.76rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 0.5rem;
+  }
+  .state-search form {
+    display: flex; gap: 0; box-shadow: var(--shadow); border-radius: 9px; overflow: hidden;
+    border: 1px solid var(--border-strong); background: var(--card-bg);
+  }
+  .state-search-field { position: relative; flex: 1 1 auto; }
+  .state-search-field:focus-within { box-shadow: 0 0 0 3px rgba(31,61,84,.14); }
+  .state-search-field input {
+    width: 100%; padding: 0.85rem 1rem; border: 0; background: transparent; color: var(--fg);
+    font-size: 1rem; font-family: inherit;
+  }
+  .state-search-field input:focus { outline: none; }
+  .state-search-submit {
+    padding: 0 1.3rem; border: none; background: var(--accent);
+    color: #fff; font-size: 0.92rem; font-weight: 600; cursor: pointer; flex: 0 0 auto;
+  }
+  .state-search-submit:hover { background: var(--accent-deep); }
+  .state-search .field-hint { font-size: 0.8rem; color: var(--faint); margin: 0.6rem 0 0; }
+  .state-search-dropdown {
+    display: none; position: absolute; top: 100%; left: 0; right: 0; margin-top: 0.3rem;
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 6px;
+    max-height: 280px; overflow-y: auto; z-index: 30; box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  }
+  .state-search-dropdown.is-open { display: block; }
+  .state-search-option {
+    display: block; width: 100%; text-align: left; padding: 0.55rem 0.8rem; border: none;
+    background: none; color: var(--fg); font-size: 0.95rem; font-family: inherit; cursor: pointer;
+  }
+  .state-search-option:hover, .state-search-option.is-active { background: var(--accent); color: #fff; }
+  .state-search-empty { padding: 0.55rem 0.8rem; font-size: 0.85rem; color: var(--muted); }
+  .site-footer {
+    margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
+    font-size: 0.85rem; color: var(--muted); line-height: 1.6;
+  }
+  .foot-top {
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem 1.6rem;
+    padding-bottom: 1.1rem; margin-bottom: 1.1rem; border-bottom: 1px solid var(--border);
+  }
+  .foot-links { display: flex; flex-wrap: wrap; gap: 0.4rem 1.3rem; }
+  .foot-links a { color: var(--muted); text-decoration: none; }
+  .foot-links a:hover { color: var(--fg); }
+  .disc { font-size: 0.78rem; color: var(--faint); line-height: 1.6; }
+  .disc strong { color: var(--muted); }
+  .brand-glyph { flex: none; }
+  code { background: rgba(127,127,127,0.15); padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.9em; }
+  .signup-form {
+    border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.4rem;
+    background: var(--card-bg); margin: 1.75rem 0;
+  }
+  .signup-form h2 { font-size: 1.1rem; margin: 0 0 0.4rem; }
+  .signup-microcopy { font-size: 0.85rem; color: var(--muted); margin: 0 0 1rem; }
+  .signup-form label {
+    display: block; font-size: 0.85rem; font-weight: 600; margin: 0.75rem 0 0.3rem;
+  }
+  .signup-form label:first-of-type { margin-top: 0; }
+  .signup-form input, .signup-form select {
+    width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: 0.95rem; font-family: inherit;
+  }
+  .signup-form-row { display: flex; gap: 0.75rem; }
+  .signup-form-row > div { flex: 1; }
+  .signup-form button {
+    margin-top: 1rem; padding: 0.6rem 1.1rem; border: none; border-radius: 6px;
+    background: var(--accent); color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+  }
+  .signup-form button:hover { opacity: 0.92; }
+  .signup-form .field-hint { font-size: 0.78rem; color: var(--muted); margin: 0.25rem 0 0; }
+  .signup-form--compact { padding: 0.9rem 1.1rem; }
+  .signup-form--compact .signup-form-compact-label { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.5rem; display: block; }
+  .signup-form--compact .signup-form-row input { flex: 1 1 auto; }
+  .signup-form--compact .signup-form-row button { flex: 0 0 auto; margin-top: 0; }
+  @media (max-width: 480px) {
+    .site-header { flex-direction: column; align-items: flex-start; }
+    h1 { font-size: 1.7rem; }
+    .callout .date { font-size: 1.7rem; }
+    .verified-badge { position: static; display: inline-flex; margin-bottom: 0.6rem; }
+    .signup-form-row { flex-direction: column; gap: 0; }
+    .signup-form--compact .signup-form-row { gap: 0.5rem; }
+  }
+
+</style>
+</head>
+<body>
+<nav class="mainnav">
+  <div class="nav-inner wrap">
+    <a href="../" style="display:flex; align-items:center; gap:0.5rem; text-decoration:none; padding:0.7rem 0;">
+      <svg class="brand-glyph" viewBox="0 0 32 32" fill="none" aria-hidden="true" width="26" height="26">
+  <circle cx="16" cy="16" r="13.5" stroke="#1f3d54" stroke-width="1.6"/>
+  <circle cx="16" cy="16" r="8" stroke="#c8d2db" stroke-width="1.2"/>
+  <circle cx="16" cy="16" r="2.3" fill="#8a6a33"/>
+  <path d="M16 16 L26 9" stroke="#8a6a33" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M16 3.5 L16 6" stroke="#1f3d54" stroke-width="1.6" stroke-linecap="round"/>
+</svg>
+      <span class="wordmark">DeadlineRadar</span>
+    </a>
+    <div class="nav-links">
+      <a href="/">Browse States</a>
+      <a href="/methodology/">How We Verify</a>
+      <a href="/for-firms/">For Firms</a>
+      <a href="/contact/">Contact</a>
+      <a href="#remind" class="cta">Get reminders</a>
+    </div>
+  </div>
+</nav>
+<div class="wrap">
+<header class="site-header">
+  <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>
+</header>
+<h1>Your Staff Roster</h1>
+<p class="subhead">Every CPA license you're tracking for your firm, soonest deadline first.</p>
+
+<div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" hidden></div>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Staff</th><th>Email</th><th>State</th><th>License type</th><th>Status</th><th>Next deadline</th><th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="dr-roster-body">
+    <tr><td colspan="7">Loading your roster...</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="signup-form" id="dr-add-staff">
+  <h2>Add staff</h2>
+  <p class="signup-microcopy">Their reminders start right away -- no confirmation step to wait on.
+  They'll get one email the moment you add them, naming your firm and with a one-click opt-out if
+  they'd rather not be tracked this way.</p>
+  <form id="dr-add-staff-form">
+    <label for="dr-add-label">Name or label (optional)</label>
+    <input type="text" id="dr-add-label" name="staff_label" maxlength="120" placeholder="e.g. Alex Rivera">
+    <label for="dr-add-email">Email</label>
+    <input type="email" id="dr-add-email" name="email" required placeholder="alex@example.com">
+    <label for="dr-add-state">State</label>
+    <select id="dr-add-state" name="state_slug" required onchange="drUpdateFields(this.value)">
+      <option value="">Select state</option>
+      <option value="alabama">Alabama</option>
+<option value="alaska">Alaska</option>
+<option value="arizona">Arizona</option>
+<option value="arkansas">Arkansas</option>
+<option value="california">California</option>
+<option value="colorado">Colorado</option>
+<option value="connecticut">Connecticut</option>
+<option value="dc">District of Columbia</option>
+<option value="delaware">Delaware</option>
+<option value="florida">Florida</option>
+<option value="georgia">Georgia</option>
+<option value="hawaii">Hawaii</option>
+<option value="idaho">Idaho</option>
+<option value="illinois">Illinois</option>
+<option value="indiana">Indiana</option>
+<option value="iowa">Iowa</option>
+<option value="kansas">Kansas</option>
+<option value="kentucky">Kentucky</option>
+<option value="louisiana">Louisiana</option>
+<option value="maine">Maine</option>
+<option value="maryland">Maryland</option>
+<option value="massachusetts">Massachusetts</option>
+<option value="michigan">Michigan</option>
+<option value="minnesota">Minnesota</option>
+<option value="mississippi">Mississippi</option>
+<option value="missouri">Missouri</option>
+<option value="montana">Montana</option>
+<option value="nebraska">Nebraska</option>
+<option value="nevada">Nevada</option>
+<option value="new-hampshire">New Hampshire</option>
+<option value="new-jersey">New Jersey</option>
+<option value="new-mexico">New Mexico</option>
+<option value="new-york">New York</option>
+<option value="north-carolina">North Carolina</option>
+<option value="north-dakota">North Dakota</option>
+<option value="ohio">Ohio</option>
+<option value="oklahoma">Oklahoma</option>
+<option value="oregon">Oregon</option>
+<option value="pennsylvania">Pennsylvania</option>
+<option value="rhode-island">Rhode Island</option>
+<option value="south-carolina">South Carolina</option>
+<option value="south-dakota">South Dakota</option>
+<option value="tennessee">Tennessee</option>
+<option value="texas">Texas</option>
+<option value="utah">Utah</option>
+<option value="vermont">Vermont</option>
+<option value="virginia">Virginia</option>
+<option value="washington">Washington</option>
+<option value="west-virginia">West Virginia</option>
+<option value="wisconsin">Wisconsin</option>
+<option value="wyoming">Wyoming</option>
+    </select>
+    <div class="signup-extra-fields" data-for-state="alaska" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ak-individual">Individual CPA/public accountant license</option>
+<option value="ak-firm">Firm permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="arizona" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="arkansas" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ar-individual">Individual CPA/PA license</option>
+<option value="ar-firm">Firm registration</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="california" hidden><div class="signup-form-row">
+  <div>
+    <label for="birth_month">Birth month</label>
+    <select id="birth_month" name="birth_month" required><option value="1">January</option>
+<option value="2">February</option>
+<option value="3">March</option>
+<option value="4">April</option>
+<option value="5">May</option>
+<option value="6">June</option>
+<option value="7">July</option>
+<option value="8">August</option>
+<option value="9">September</option>
+<option value="10">October</option>
+<option value="11">November</option>
+<option value="12">December</option></select>
+  </div>
+  <div>
+    <label for="birth_year">Birth year</label>
+    <input type="number" id="birth_year" name="birth_year" min="1900" max="2100" required placeholder="1985">
+  </div>
+</div>
+<p class="field-hint">Your renewal cycle is set by your birth month and whether your birth year is odd or even.</p></div>
+<div class="signup-extra-fields" data-for-state="colorado" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="co-individual">Certified Public Accountant (Individual Certificate)</option>
+<option value="co-firm">Public Accounting Firm Registration</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="georgia" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ga-individual">Individual CPA license</option>
+<option value="ga-firm">Firm license</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="illinois" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="il-individual">Individual CPA license</option>
+<option value="il-firm">Firm license</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="indiana" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="in-individual">CPA (Individual License)</option>
+<option value="in-firm">CPA Firm Permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="iowa" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ia-individual">Iowa CPA/LPA Individual Certificate or License</option>
+<option value="ia-firm">CPA/LPA Firm Permit to Practice</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="louisiana" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="la-individual">CPA Individual License</option>
+<option value="la-firm">CPA Firm Permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="maryland" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="massachusetts" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="michigan" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="minnesota" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="mn-individual">Individual CPA Certificate (Active or Inactive)</option>
+<option value="mn-firm">CPA Firm Permit to Practice</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="mississippi" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ms-individual">Individual CPA license</option>
+<option value="ms-firm">Firm permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="missouri" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="mo-individual">CPA Individual License</option>
+<option value="mo-firm">CPA Firm Permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="nevada" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="nv-individual">Individual CPA permit</option>
+<option value="nv-firm">Firm registration</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="new-hampshire" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="new-jersey" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="new-mexico" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="new-york" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="north-dakota" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="nd-individual">Individual CPA/LPA certificate</option>
+<option value="nd-firm">Firm permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="ohio" hidden><label for="cohort_group">Your cohort group</label>
+<select id="cohort_group" name="cohort_group" required>
+  <option value="">Select your group</option>
+  <option value="Group 1">Group 1</option>
+  <option value="Group 2">Group 2</option>
+  <option value="Group 3">Group 3</option>
+</select>
+<p class="field-hint">Check your license certificate or the Accountancy Board of Ohio lookup if you're not sure.</p></div>
+<div class="signup-extra-fields" data-for-state="rhode-island" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="south-carolina" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="sc-individual">Individual CPA License</option>
+<option value="sc-firm">Firm Registration (In-State/Out-of-State CPA Firm)</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="tennessee" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="texas" hidden><label for="birth_month">Birth month</label>
+<select id="birth_month" name="birth_month" required><option value="1">January</option>
+<option value="2">February</option>
+<option value="3">March</option>
+<option value="4">April</option>
+<option value="5">May</option>
+<option value="6">June</option>
+<option value="7">July</option>
+<option value="8">August</option>
+<option value="9">September</option>
+<option value="10">October</option>
+<option value="11">November</option>
+<option value="12">December</option></select>
+<p class="field-hint">Texas renewal is due by the last day of your birth month, every year.</p></div>
+<div class="signup-extra-fields" data-for-state="virginia" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="va-individual">Individual CPA License</option>
+<option value="va-firm">CPA Firm License</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="washington" hidden><label for="license_expiration_date">License expiration date</label>
+<input type="date" id="license_expiration_date" name="license_expiration_date"
+  min="2026-07-18" max="2030-01-17" required>
+<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
+up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="west-virginia" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="wv-individual">Individual CPA certificate</option>
+<option value="wv-firm">Firm permit</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="wisconsin" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="wi-individual">Individual CPA License</option>
+<option value="wi-firm">Accounting Firm License</option>
+</select></div>
+<div class="signup-extra-fields" data-for-state="wyoming" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="wy-individual">Individual CPA certificate</option>
+<option value="wy-firm">Firm permit</option>
+</select></div>
+    <button type="submit">Add staff</button>
+  </form>
+  <p id="dr-add-error" class="field-hint" style="color:#c33737;" hidden></p>
+</div>
+
+<form method="post" action="/api/firm/logout" style="margin-top:2rem;">
+  <button type="submit" style="padding:0.6rem 1.1rem;border:1px solid var(--border-strong);
+  border-radius:6px;background:var(--card-bg);color:var(--fg);font-size:0.92rem;cursor:pointer;
+  font-family:inherit;">Log out</button>
+</form>
+
+<script>
+function drUpdateFields(slug) {
+  document.querySelectorAll('.signup-extra-fields').forEach(function(el) {
+    var show = (el.getAttribute('data-for-state') === slug);
+    el.hidden = !show;
+    el.querySelectorAll('input, select, textarea').forEach(function(field) {
+      field.disabled = !show;
+    });
+  });
+}
+
+function drEscapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+  });
+}
+
+// HYBRID consent model (2026-07-28): a firm-added staffer is active
+// immediately (no more "pending" state going forward on this path -- see
+// worker/src/index.ts's firmLicenseStatus()). 'pending' is kept here only so
+// an old/legacy row doesn't render as an unrecognized blank status; 'opted_out'
+// is the new one, shown when a staffer used the one-click opt-out this
+// consent model depends on for staying CAN-SPAM-clean.
+var DR_STATUS_LABELS = {
+  active: 'Active', confirmed: 'Active', pending: 'Pending',
+  opted_out: 'Opted out', 'needs-attention': 'Needs attention'
+};
+var DR_STATUS_CLASSES = {
+  active: 'mock-status--ok', confirmed: 'mock-status--ok', pending: 'mock-status--pending',
+  opted_out: 'mock-status--pending', 'needs-attention': 'mock-status--risk'
+};
+
+var drLicenses = [];
+var drEditingId = null;
+
+function drShowError(msg) {
+  var el = document.getElementById('dr-dash-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = false;
+}
+function drClearError() {
+  var el = document.getElementById('dr-dash-error');
+  if (!el) return;
+  el.hidden = true;
+  el.textContent = '';
+}
+function drReadJsonSafe(res) {
+  return res.json().catch(function() { return null; });
+}
+function drPrettyLicenseType(id) {
+  if (!id) return '\u2014';
+  return String(id).replace(/[_-]+/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+}
+function drFormatDeadline(iso) {
+  if (!iso) return '\u2014';
+  try {
+    var d = new Date(iso + 'T00:00:00Z');
+    if (isNaN(d.getTime())) return iso;
+    var browserLocale;
+    return d.toLocaleDateString(browserLocale, {year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC'});
+  } catch (e) {
+    return iso;
+  }
+}
+
+function drRenderRow(item) {
+  var statusClass = DR_STATUS_CLASSES[item.status] || 'mock-status--risk';
+  var statusLabel = DR_STATUS_LABELS[item.status] || item.status;
+  var idAttr = drEscapeHtml(item.id);
+  var staffCell, emailCell, actionsCell;
+  if (drEditingId === item.id) {
+    staffCell = '<input type="text" class="dr-edit-label" maxlength="120" value="' + drEscapeHtml(item.staff_label || '') + '">';
+    emailCell = '<input type="email" class="dr-edit-email" value="' + drEscapeHtml(item.email) + '">';
+    actionsCell =
+      '<button type="button" class="dr-btn-save" data-id="' + idAttr + '">Save</button> ' +
+      '<button type="button" class="dr-btn-cancel" data-id="' + idAttr + '">Cancel</button>';
+  } else {
+    staffCell = item.staff_label ? drEscapeHtml(item.staff_label) : '<span style="color:var(--muted)">\u2014</span>';
+    emailCell = drEscapeHtml(item.email);
+    actionsCell =
+      '<button type="button" class="dr-btn-edit" data-id="' + idAttr + '">Edit</button> ' +
+      '<button type="button" class="dr-btn-renew" data-id="' + idAttr + '">Mark renewed</button> ' +
+      '<button type="button" class="dr-btn-remove" data-id="' + idAttr + '">Remove</button>';
+  }
+  return '<tr data-id="' + idAttr + '">' +
+    '<td>' + staffCell + '</td>' +
+    '<td>' + emailCell + '</td>' +
+    '<td>' + drEscapeHtml(item.state_name || '') + '</td>' +
+    '<td>' + drEscapeHtml(drPrettyLicenseType(item.license_type_id)) + '</td>' +
+    '<td><span class="mock-status ' + statusClass + '">' + drEscapeHtml(statusLabel) + '</span></td>' +
+    '<td>' + drEscapeHtml(drFormatDeadline(item.next_deadline)) + '</td>' +
+    '<td class="dr-actions">' + actionsCell + '</td>' +
+  '</tr>';
+}
+
+function drRenderTable() {
+  var tbody = document.getElementById('dr-roster-body');
+  if (!tbody) return;
+  if (drLicenses.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7">No staff on your roster yet -- add your first one below.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = drLicenses.map(drRenderRow).join('');
+}
+
+function drLoadLicenses() {
+  drClearError();
+  fetch('/api/firm/licenses', {credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) {
+        window.location.href = '/firm-login/';
+        return null;
+      }
+      if (!res.ok) {
+        drShowError('Something went wrong loading your roster. Please try again.');
+        return null;
+      }
+      return res.json();
+    })
+    .then(function(data) {
+      if (!data) return;
+      drLicenses = data.licenses || [];
+      drRenderTable();
+    })
+    .catch(function() {
+      drShowError('Something went wrong loading your roster. Please try again.');
+    });
+}
+
+function drRenewLicense(id) {
+  drClearError();
+  fetch('/api/firm/licenses/' + encodeURIComponent(id) + '/renew', {method: 'POST', credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      return drReadJsonSafe(res).then(function(data) {
+        if (!res.ok) {
+          drShowError(data && data.error ? data.error : 'Something went wrong, please try again.');
+          return;
+        }
+        drLoadLicenses();
+      });
+    })
+    .catch(function() { drShowError('Something went wrong, please try again.'); });
+}
+
+function drRemoveLicense(id, label) {
+  if (!window.confirm('Remove ' + (label || 'this person') + ' from the roster? They will stop receiving reminders.')) return;
+  drClearError();
+  fetch('/api/firm/licenses/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      return drReadJsonSafe(res).then(function(data) {
+        if (!res.ok) {
+          drShowError(data && data.error ? data.error : 'Something went wrong, please try again.');
+          return;
+        }
+        drLoadLicenses();
+      });
+    })
+    .catch(function() { drShowError('Something went wrong, please try again.'); });
+}
+
+function drSaveEdit(id, tr) {
+  drClearError();
+  var labelInput = tr.querySelector('.dr-edit-label');
+  var emailInput = tr.querySelector('.dr-edit-email');
+  var email = emailInput ? emailInput.value.trim() : '';
+  if (!email) { drShowError('Email is required.'); return; }
+  var body = {staff_label: labelInput ? labelInput.value.trim() : '', email: email};
+  fetch('/api/firm/licenses/' + encodeURIComponent(id), {
+    method: 'PATCH', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        drShowError(data && data.error ? data.error : 'Something went wrong, please try again.');
+        return;
+      }
+      drEditingId = null;
+      drLoadLicenses();
+    });
+  }).catch(function() { drShowError('Something went wrong, please try again.'); });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var stateSel = document.getElementById('dr-add-state');
+  drUpdateFields(stateSel ? stateSel.value : '');
+
+  drLoadLicenses();
+
+  var tbody = document.getElementById('dr-roster-body');
+  if (tbody) {
+    tbody.addEventListener('click', function(ev) {
+      var btn = ev.target.closest ? ev.target.closest('button') : null;
+      if (!btn) return;
+      var id = btn.getAttribute('data-id');
+      if (btn.classList.contains('dr-btn-edit')) {
+        drEditingId = id;
+        drRenderTable();
+      } else if (btn.classList.contains('dr-btn-cancel')) {
+        drEditingId = null;
+        drRenderTable();
+      } else if (btn.classList.contains('dr-btn-save')) {
+        drSaveEdit(id, btn.closest('tr'));
+      } else if (btn.classList.contains('dr-btn-renew')) {
+        drRenewLicense(id);
+      } else if (btn.classList.contains('dr-btn-remove')) {
+        var item = null;
+        for (var i = 0; i < drLicenses.length; i++) {
+          if (drLicenses[i].id === id) { item = drLicenses[i]; break; }
+        }
+        drRemoveLicense(id, item ? (item.staff_label || item.email) : null);
+      }
+    });
+  }
+
+  var addForm = document.getElementById('dr-add-staff-form');
+  if (addForm) {
+    addForm.addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      var errEl = document.getElementById('dr-add-error');
+      if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+      var fd = new FormData(addForm);
+      var body = {};
+      fd.forEach(function(v, k) { body[k] = v; });
+      fetch('/api/firm/licenses', {
+        method: 'POST', credentials: 'include',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+      }).then(function(res) {
+        if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+        return drReadJsonSafe(res).then(function(data) {
+          if (!res.ok) {
+            var msg = data && data.error ? data.error : 'Something went wrong, please try again.';
+            if (errEl) { errEl.textContent = msg; errEl.hidden = false; } else { drShowError(msg); }
+            return;
+          }
+          addForm.reset();
+          drUpdateFields('');
+          drLoadLicenses();
+        });
+      }).catch(function() {
+        var msg = 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; } else { drShowError(msg); }
+      });
+    });
+  }
+});
+</script>
+
+</div>
+<footer class="site-footer">
+  <div class="wrap">
+  <div class="foot-top">
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+      <svg class="brand-glyph" viewBox="0 0 32 32" fill="none" aria-hidden="true" width="26" height="26">
+  <circle cx="16" cy="16" r="13.5" stroke="#1f3d54" stroke-width="1.6"/>
+  <circle cx="16" cy="16" r="8" stroke="#c8d2db" stroke-width="1.2"/>
+  <circle cx="16" cy="16" r="2.3" fill="#8a6a33"/>
+  <path d="M16 16 L26 9" stroke="#8a6a33" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M16 3.5 L16 6" stroke="#1f3d54" stroke-width="1.6" stroke-linecap="round"/>
+</svg>
+      <span class="wordmark">DeadlineRadar</span>
+    </div>
+    <div class="foot-links">
+      <a href="/">All 51 jurisdictions</a>
+      <a href="/methodology/">How We Verify</a>
+      <a href="/blog/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+      <a href="/for-firms/">For Firms</a>
+    </div>
+  </div>
+  <p class="disc"><strong>DeadlineRadar is an independent reminder service operated by Moose &amp; Raven LLC.</strong> It is not
+  affiliated with, endorsed by, or connected to NASBA, the AICPA, or any state board of
+  accountancy. Renewal dates are compiled from public sources for informational purposes only
+  &mdash; not legal, tax, or professional advice. Always confirm your exact renewal date with your
+  state board or on your license.</p>
+  </div>
+</footer>
+</body>
+</html>

@@ -9,6 +9,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "DeadlineRadar", "item": "https://deadline-radar.com/"}, {"@type": "ListItem", "position": 2, "name": "Georgia CPA CPE Requirements", "item": "https://deadline-radar.com/georgia-cpa-cpe-requirements/"}]}</script>
+
 <style>
 
   @font-face {
@@ -293,11 +294,12 @@
   .remind-panel input:focus, .remind-panel select:focus {
     outline: none; border-color: #7fb0d6; box-shadow: 0 0 0 3px rgba(127,176,214,.2);
   }
-  .remind-panel button {
+  .remind-panel button, .remind-panel .cta-button {
     margin-top: 0.3rem; background: var(--gold); color: #22190a; border: 0; font-weight: 700;
-    font-size: 0.92rem; padding: 0.7rem; border-radius: 7px; cursor: pointer; font-family: inherit;
+    font-size: 0.92rem; padding: 0.7rem 1rem; border-radius: 7px; cursor: pointer; font-family: inherit;
+    display: inline-block; text-decoration: none;
   }
-  .remind-panel button:hover { background: #9c7a3c; }
+  .remind-panel button:hover, .remind-panel .cta-button:hover { background: #9c7a3c; }
   .remind-panel .field-hint { color: #8fa7bb; }
   .cpe-affiliate-heading {
     font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;

@@ -9,6 +9,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
+
 <style>
 
   @font-face {
@@ -293,11 +294,12 @@
   .remind-panel input:focus, .remind-panel select:focus {
     outline: none; border-color: #7fb0d6; box-shadow: 0 0 0 3px rgba(127,176,214,.2);
   }
-  .remind-panel button {
+  .remind-panel button, .remind-panel .cta-button {
     margin-top: 0.3rem; background: var(--gold); color: #22190a; border: 0; font-weight: 700;
-    font-size: 0.92rem; padding: 0.7rem; border-radius: 7px; cursor: pointer; font-family: inherit;
+    font-size: 0.92rem; padding: 0.7rem 1rem; border-radius: 7px; cursor: pointer; font-family: inherit;
+    display: inline-block; text-decoration: none;
   }
-  .remind-panel button:hover { background: #9c7a3c; }
+  .remind-panel button:hover, .remind-panel .cta-button:hover { background: #9c7a3c; }
   .remind-panel .field-hint { color: #8fa7bb; }
   .cpe-affiliate-heading {
     font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
@@ -583,19 +585,19 @@ personal inbox provides, in one place.</p>
       <tr>
   <td>Alex R.</td>
   <td>Georgia</td>
-  <td><span class="mock-status mock-status--ok">Confirmed</span></td>
+  <td><span class="mock-status mock-status--ok">Active</span></td>
   <td>December 31, 2027</td>
 </tr>
 <tr>
   <td>Jordan M.</td>
   <td>Alabama</td>
-  <td><span class="mock-status mock-status--ok">Confirmed</span></td>
+  <td><span class="mock-status mock-status--ok">Active</span></td>
   <td>December 31, 2026</td>
 </tr>
 <tr>
   <td>Sam K.</td>
   <td>Illinois</td>
-  <td><span class="mock-status mock-status--pending">Pending</span></td>
+  <td><span class="mock-status mock-status--pending">Opted out</span></td>
   <td>September 30, 2027</td>
 </tr>
 <tr>
@@ -607,13 +609,13 @@ personal inbox provides, in one place.</p>
 <tr>
   <td>Morgan P. — Firm Registration</td>
   <td>Louisiana</td>
-  <td><span class="mock-status mock-status--ok">Confirmed</span></td>
+  <td><span class="mock-status mock-status--ok">Active</span></td>
   <td>December 31, 2026</td>
 </tr>
 <tr>
   <td>Casey T. — Firm Registration</td>
   <td>Missouri</td>
-  <td><span class="mock-status mock-status--ok">Confirmed</span></td>
+  <td><span class="mock-status mock-status--ok">Active</span></td>
   <td>October 31, 2026</td>
 </tr>
       </tbody>
@@ -634,13 +636,31 @@ trust this site.</p>
 <p><strong>$500/year flat for firms with up to 10 staff</strong>, about $50/seat/year above that.
 Start with a <strong>free 30-day pilot &mdash; no card required</strong>.</p>
 
+<div class="remind-panel" id="firm-signup">
+  <div>
+    <h2>Create your firm account</h2>
+    <p class="remind-copy">Self-serve, no card required. Your admin creates an account and adds staff
+    directly &mdash; name, email, state, and license type for each person &mdash; no concierge onboarding
+    where our team enters a roster for you. Reminders start right away for each person added, no
+    confirmation step to wait on, so your firm's coverage never has a silent gap. Each staff member
+    gets one transparent email the moment they're added, naming your firm and with an equally
+    prominent one-click opt-out.</p>
+    <p class="remind-promise">Free 30-day pilot, no card collected anywhere in this flow.</p>
+  </div>
+  <p><a class="cta-button" href="../firm-login/">Create your firm account &rarr;</a></p>
+</div>
+
+<h2>How it actually works</h2>
+<p>Deadline accuracy comes from the same sourced-to-codified-law data every free page on this site
+already uses, not a recurring human check-in on each staff member's status. Billing today is a simple
+invoice; a self-serve card-payment option is coming soon. Not ready to create an account yet?
+<a href="#firm-lead">Leave your email instead</a> and we'll follow up.</p>
+
 <div class="remind-panel" id="firm-lead">
   <div>
-    <h2>Reserve your spot</h2>
-    <p class="remind-copy">Self-serve signup for the firm dashboard isn't live yet. Leave your firm's
-    email below and we'll notify you the day it opens &mdash; you'll be near the front of the pilot
-    list, not starting a subscription today.</p>
-    <p class="remind-promise">No card, no account created yet &mdash; this just reserves your place.</p>
+    <h2>Not ready yet? Just leave your email</h2>
+    <p class="remind-copy">No account, no commitment &mdash; we'll follow up with anything a firm admin
+    should know before signing up.</p>
   </div>
   <form method="post" action="/api/firm/lead">
     <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
@@ -654,17 +674,6 @@ Start with a <strong>free 30-day pilot &mdash; no card required</strong>.</p>
     <button type="submit">Reserve early access &rarr;</button>
   </form>
 </div>
-
-<h2>How it actually works</h2>
-<p>Honest about where we are: the form above joins our early-access list &mdash; it does not create an
-account today, because the self-serve firm dashboard hasn't shipped yet. Here's what it looks like once
-it's live: your admin creates an account and adds staff directly &mdash; name, email, state, and license
-type for each person &mdash; no concierge onboarding where our team enters a roster for you. Each staff
-member then gets one email asking them to confirm, the exact same double opt-in every free subscriber on
-this site already goes through, so reminders never start for someone who hasn't agreed to them. Deadline
-accuracy comes from the same sourced-to-codified-law data every free page on this site already uses, not
-a recurring human check-in on each staff member's status. Billing today is a simple invoice; a self-serve
-card-payment option is coming alongside the dashboard.</p>
 
 <h2>Firm-registration deadlines by state</h2>
 <p>Your firm's own registration or permit renews on a different clock than any individual staff CPA's
@@ -682,7 +691,7 @@ license. A few states where we've published the firm-specific filing date:</p>
 <div class="faq-list">
 <details class="faq-item">
   <summary>Is the license status actually verified, or just self-reported?</summary>
-  <p>The renewal DATES are verified the same rigorous way as every free page on this site: sourced to the codified statute or rule, cited, and rechecked on our freshness cadence &mdash; <a href="../methodology/">see exactly how</a>. What this is <em>not</em> is a recurring human lookup of each staff member's individual license status &mdash; there's no manual check-in against the state board or CPAverify.org on your behalf. Signup itself is self-serve and self-reported the same way the free tier already is: your admin adds the roster, and each staff member confirms their own email before reminders start.</p>
+  <p>The renewal DATES are verified the same rigorous way as every free page on this site: sourced to the codified statute or rule, cited, and rechecked on our freshness cadence &mdash; <a href="../methodology/">see exactly how</a>. What this is <em>not</em> is a recurring human lookup of each staff member's individual license status &mdash; there's no manual check-in against the state board or CPAverify.org on your behalf. Signup itself is self-serve: your admin adds the roster directly, and reminders start right away for each person &mdash; no confirmation step to wait on. Each staff member still gets one transparent email the moment they're added, naming your firm and with an equally prominent one-click opt-out.</p>
 </details>
 <details class="faq-item">
   <summary>What if my staff are licensed in a birth-month or &quot;bring your own date&quot; state?</summary>
@@ -702,7 +711,7 @@ license. A few states where we've published the firm-specific filing date:</p>
 </details>
 <details class="faq-item">
   <summary>Who actually sets up my staff -- your team, or us?</summary>
-  <p>You do, directly, once the self-serve dashboard is live: your admin adds each staff member's name, email, state, and license type. There's no concierge onboarding where our team collects a roster by email and enters it for you. Each staff member still gets their own one-time confirmation email first &mdash; the same double opt-in every free subscriber on this site already goes through &mdash; so reminders never start for someone who hasn't agreed to them.</p>
+  <p>You do, directly, once the self-serve dashboard is live: your admin adds each staff member's name, email, state, and license type, and their reminders start right away &mdash; no waiting on them to confirm anything, so your firm's coverage never has a silent gap. There's no concierge onboarding where our team collects a roster by email and enters it for you. Each staff member gets one transparent email the moment they're added, naming your firm and with an equally prominent one-click opt-out, so nobody is tracked silently.</p>
 </details>
 </div>
 

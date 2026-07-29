@@ -291,12 +291,29 @@ function reminderSubject(stateName: string, threshold: number, actual: number, d
   return `Your ${stateName} CPA license renewal is due ${dp} (${deadlineStr})`;
 }
 
-/** Port of reminders/emails.py `reminder_email()`. */
+/**
+ * Port of reminders/emails.py `reminder_email()`, with TWO co-equal one-click
+ * CTAs (2026-07-28 firm-dashboard MVP -- previously there was only one,
+ * "Stop these reminders," and getting to "I renewed, remind me next cycle"
+ * took a second follow-up email with its own buried re-arm link -- three hops
+ * total. Now it's one):
+ *   - renewedNextCycleUrl: "I've renewed -- remind me next cycle" -- the new
+ *     atomic stop-this-cycle-AND-rearm-for-next-cycle action
+ *     (store.renewAndRearmByToken(), index.ts's handleRenewedNextCycle()).
+ *     One click, nothing else to do.
+ *   - renewedUrl: "Stop reminders entirely" -- today's plain stop
+ *     (store.stop(token,'renewed'), index.ts's handleRenewed()), mechanically
+ *     UNCHANGED; only its label here changed (it used to be the only button).
+ * The footer's separate Unsubscribe link (unsubscribeUrl) is untouched by
+ * this change -- it was never one of the two CTAs above; it's the same
+ * always-present, permanent, no-follow-up opt-out it always was.
+ */
 export function buildReminderEmail(
   stateName: string,
   deadlineDateStr: string,
   threshold: number,
   actualDaysRemaining: number,
+  renewedNextCycleUrl: string,
   renewedUrl: string,
   unsubscribeUrl: string,
   firstName: string | null = null
@@ -326,7 +343,9 @@ export function buildReminderEmail(
   const textBody =
     `${textGreeting(firstName)}\n\n` +
     `${lead} -- your ${stateName} CPA license renewal is due ${deadlineDateStr} (${whenPhrase}).\n\n` +
-    `Already renewed? One click stops every further reminder for this deadline:\n` +
+    `Already renewed? One click confirms it and keeps your reminders going for next cycle:\n` +
+    `${renewedNextCycleUrl}\n\n` +
+    `Renewed and don't want any more reminders for this deadline at all? Stop them entirely instead:\n` +
     `${renewedUrl}\n\n` +
     `Nothing to do yet? We'll remind you again as it gets closer, right up through the day before.` +
     `${textFooter(unsubscribeUrl, addr)}`;
@@ -340,8 +359,14 @@ export function buildReminderEmail(
           `Your ${esc(stateName)} CPA license renewal is due <strong>${esc(deadlineDateStr)}</strong> ` +
           `(${esc(whenPhrase)}).`
       ) +
-      `<p style="margin:0 0 20px;">${button(renewedUrl, "Stop these reminders")}</p>` +
-      p("Already renewed? The button above stops every further reminder for this deadline.", 13, LIGHT.muted) +
+      `<p style="margin:0 0 12px;">${button(renewedNextCycleUrl, "I've renewed -- remind me next cycle")}</p>` +
+      p(
+        "One click: confirms you've renewed and keeps reminders going for your next renewal cycle.",
+        13,
+        LIGHT.muted
+      ) +
+      `<p style="margin:0 0 12px;">${button(renewedUrl, "Stop reminders entirely")}</p>` +
+      p("Use this instead if you don't want any more reminders for this deadline at all.", 13, LIGHT.muted) +
       p(
         "Nothing to do yet? We'll remind you again as it gets closer, right up through the day before.",
         13,
@@ -429,6 +454,55 @@ export function buildStopConfirmationEmail(
   return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
 }
 
+/**
+ * migration 0008 -- the firm admin sign-in (magic link) email, sent by
+ * POST /firm/signup and POST /firm/login (index.ts) whenever a login token
+ * is actually issued. Deliberately its own minimal footer, NOT
+ * `htmlFooter()`/`textFooter()` above -- those are hardcoded to the
+ * subscriber reminder-consent copy ("you asked us to track a CPA license
+ * renewal deadline... unsubscribe any time") which doesn't apply to a firm
+ * admin's own account sign-in link. Still asserts a real mailing address
+ * (CAN-SPAM) via `mailingAddress()` and still identifies the sender, just
+ * without the reminder-specific consent/unsubscribe language.
+ */
+export function buildFirmLoginEmail(loginUrl: string): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `Your ${SITE_NAME} sign-in link`;
+
+  const textBody =
+    `Here's your ${SITE_NAME} sign-in link:\n\n` +
+    `${loginUrl}\n\n` +
+    `This link expires in 15 minutes and can only be used once. If it's expired by the time you ` +
+    `click it, just request a new one from the sign-in page.\n\n` +
+    `If you didn't request this, you can safely ignore this email -- nobody can sign in to your ` +
+    `account without clicking the link above.\n\n` +
+    `---\n${SENDER_LINE}\n${addr}`;
+
+  const htmlBody = htmlShell(
+    `Your ${SITE_NAME} sign-in link`,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `Sign in to ${esc(SITE_NAME)}</h1>` +
+      p("Here's your sign-in link. Click below to access your firm dashboard.") +
+      `<p style="margin:0 0 20px;">${button(loginUrl, `Sign in to ${SITE_NAME}`)}</p>` +
+      p(
+        "This link expires in 15 minutes and can only be used once. If it's expired by the time " +
+          "you click it, just request a new one from the sign-in page.",
+        13,
+        LIGHT.muted
+      ) +
+      p(
+        "If you didn't request this, you can safely ignore this email &mdash; nobody can sign in " +
+          "to your account without clicking the link above.",
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
 /** Port of reminders/emails.py `confirmation_email()`. */
 export function buildConfirmationEmail(
   stateName: string,
@@ -483,6 +557,58 @@ export function buildConfirmationEmail(
         13,
         LIGHT.muted
       ),
+    htmlFooter(unsubscribeUrl, addr)
+  );
+
+  return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
+}
+
+/**
+ * Firm-tier HYBRID consent model (2026-07-28, per Devin's decision): a firm
+ * admin adding a staff member creates an ACTIVE subscriber immediately (no
+ * pending-confirmation gate -- see store.ts's addPending() `skipConfirmation`
+ * option) so the firm's whole-roster coverage promise never has a silent
+ * "pending" gap. This is the email that makes that transparent instead of
+ * silent: sent once, on add, naming the firm that added them, stating
+ * plainly what will happen (renewal reminders only, nothing else), and
+ * giving an equally prominent one-click opt-out -- the CAN-SPAM-clean
+ * counterpart to double opt-in for this admin-vouched-for B2B case. Reuses
+ * the SAME unsubscribe_token/htmlFooter/List-Unsubscribe machinery every
+ * other email already uses -- no new token type, no new opt-out mechanism.
+ */
+export function buildFirmStaffAddedEmail(firmName: string, stateName: string, unsubscribeUrl: string): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `${firmName} added you to DeadlineRadar`;
+
+  const textBody =
+    `Hi there,\n\n` +
+    `${firmName} added you to DeadlineRadar to track your ${stateName} CPA license renewal. ` +
+    `You'll get advance email reminders before it's due -- 60, 30, 14, 7, 3, and 1 day out. ` +
+    `That's the whole schedule -- nothing else, ever: no marketing, no third-party offers.\n\n` +
+    `Not you, or would you rather not be tracked this way? One click removes you, no questions ` +
+    `asked:\n\n` +
+    `${unsubscribeUrl}\n\n` +
+    `Questions about why you're getting this? Reply to this email or reach your firm directly.` +
+    `${textFooter(unsubscribeUrl, addr)}`;
+
+  const htmlBody = htmlShell(
+    `${firmName} added you to DeadlineRadar`,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `${esc(firmName)} added you to DeadlineRadar</h1>` +
+      p(
+        `${esc(firmName)} added you to DeadlineRadar to track your ${esc(stateName)} CPA license ` +
+          `renewal. You'll get advance email reminders before it's due &mdash; 60, 30, 14, 7, 3, and ` +
+          `1 day out. That's the whole schedule &mdash; nothing else, ever: no marketing, no ` +
+          `third-party offers.`
+      ) +
+      p(
+        "Not you, or would you rather not be tracked this way? One click removes you, no questions " +
+          "asked:",
+        13,
+        LIGHT.muted
+      ) +
+      `<p style="margin:0 0 20px;">${button(unsubscribeUrl, "Remove me")}</p>` +
+      p("Questions about why you're getting this? Reply to this email or reach your firm directly.", 13, LIGHT.muted),
     htmlFooter(unsubscribeUrl, addr)
   );
 

@@ -1,0 +1,31 @@
+# PREVIEW/STAGING deploy config -- NOT production. Separate Worker name,
+# separate D1 database, NO [[routes]] block (so this only ever gets a
+# workers.dev URL, never touches the deadline-radar.com zone). Deployed with
+# `wrangler deploy --config wrangler.preview.toml`, entirely independent of
+# `wrangler.toml` (production). See HANDOFF.md / the 2026-07-28 firm-dashboard
+# preview entry for why this exists: Devin needs to click through the new
+# firm-admin dashboard end-to-end before authorizing a production deploy,
+# with zero chance of emailing a real outside person (see env.ts's
+# EMAIL_ALLOWLIST, set only via `wrangler secret put` on THIS config, never
+# on production).
+name = "deadlineradar-api-preview"
+main = "src/index.ts"
+compatibility_date = "2026-07-01"
+
+# Cron trigger included so the real reminder-pass code path is exercised the
+# same way production would run it -- harmless here since it only ever
+# touches this preview D1 (whatever Devin adds himself while testing) and
+# every send it could make is separately gated by EMAIL_ALLOWLIST. The
+# preview-only POST /debug/run-reminder-pass route is the practical way to
+# test a reminder email without waiting for the next 18:00 UTC tick.
+[triggers]
+crons = ["0 18 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "deadlineradar-preview"
+database_id = "0a91aa32-547b-4514-8a08-ff608f477306"
+
+# Deliberately NO [[routes]] block -- this must never bind to the
+# deadline-radar.com zone. Leaving this worker on its default workers.dev
+# subdomain is what keeps it structurally separate from production.

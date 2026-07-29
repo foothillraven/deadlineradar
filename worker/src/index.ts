@@ -51,11 +51,17 @@ import {
   MAX_FIELD_LEN,
   MAX_FIRM_NAME_LEN,
   MAX_STAFF_COUNT_HINT_LEN,
+  MAX_STAFF_LABEL_LEN,
   RATE_LIMIT_ACTION,
   RATE_LIMIT_FIRM_LEAD,
+  RATE_LIMIT_FIRM_LICENSE_CREATE,
+  RATE_LIMIT_DEBUG_REMINDER_PASS,
+  RATE_LIMIT_FIRM_LOGIN,
+  RATE_LIMIT_FIRM_SIGNUP,
   RATE_LIMIT_SUBSCRIBE,
   checkRateLimit,
   escapeHtml,
+  getCookie,
   hasControlChars,
   isValidEmail,
   strictParseInt,
@@ -67,12 +73,19 @@ import {
   checkDataFreshness,
   computeSubscriberDeadline,
   isStateComputable,
+  stateNameForSlug,
   SUPPORTED_STATE_SLUGS,
   USER_DEADLINE_MAX_DAYS,
   type DeadlineFields,
 } from "./deadline";
 import * as store from "./store";
-import { buildConfirmationEmail, buildStopConfirmationEmail, fmtDate } from "./emails";
+import {
+  buildConfirmationEmail,
+  buildFirmLoginEmail,
+  buildFirmStaffAddedEmail,
+  buildStopConfirmationEmail,
+  fmtDate,
+} from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, sendViaSendGrid } from "./sender";
 import { StaleDataError as SchedulerStaleDataError, runReminderPass } from "./scheduler";
 
@@ -100,14 +113,26 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
     button: "Unsubscribe me",
   },
   "/renewed": {
-    heading: "Stop these reminders",
-    intro: "Renewed already? Click below to stop all further reminders for this deadline.",
-    button: "Yes, stop these reminders",
+    heading: "Stop reminders entirely",
+    intro: "Click below to stop all further reminders for this deadline, permanently.",
+    button: "Yes, stop these reminders entirely",
+  },
+  "/renewed-next-cycle": {
+    heading: "You've renewed -- keep my reminders going",
+    intro:
+      "Click below to confirm you've renewed. We'll immediately re-arm reminders for your next " +
+      "renewal cycle -- nothing else to do.",
+    button: "Yes, I've renewed -- remind me next cycle",
   },
   "/rearm": {
     heading: "Turn reminders back on",
     intro: "Click below to get reminders again for your next renewal cycle.",
     button: "Yes, remind me next cycle",
+  },
+  "/firm/login/verify": {
+    heading: "Sign in to DeadlineRadar",
+    intro: "Click below to finish signing in.",
+    button: "Sign in",
   },
 };
 
@@ -160,6 +185,56 @@ const SUBSCRIBE_SUCCESS_PAGE = htmlPage(
 // /confirm and /unsubscribe links.
 const ACTION_BASE_URL = "https://deadline-radar.com/api";
 
+// Preview/staging override -- see env.ts's ACTION_BASE_URL docstring. Every
+// call site below must use this function, not the raw constant above,
+// so a preview deployment's emailed links point back at itself.
+function actionBaseUrl(env: Env): string {
+  return env.ACTION_BASE_URL || ACTION_BASE_URL;
+}
+
+// migration 0008 -- firm admin login cookie. HttpOnly (never readable from
+// JS -- the dashboard's frontend never needs the raw token, only the
+// server does), Secure (HTTPS-only transmission), SameSite=Lax (sent on
+// top-level navigation -- e.g. following the emailed login link and its
+// redirect -- but not on cross-site subresource/XHR requests, a real CSRF
+// mitigation for a cookie whose mere presence grants dashboard access).
+// Max-Age matches store.SESSION_TTL_DAYS exactly -- kept as a separate
+// literal (not imported) since this is a COOKIE lifetime (seconds, HTTP
+// semantics) and that's a session-ROW lifetime (days, app semantics); see
+// the comment on FIRM_SESSION_COOKIE_MAX_AGE_SECONDS below for what breaks
+// if these two are ever allowed to drift apart.
+const FIRM_SESSION_COOKIE_NAME = "dr_firm_session";
+// Must stay equal to store.SESSION_TTL_DAYS * 86400 -- this is only the
+// BROWSER's copy of the expiry (when the browser stops sending the cookie
+// at all); store.ts's verifySession() independently checks the session
+// row's own `expires_at` on every request regardless, so a mismatch here
+// could only ever make the cookie disappear EARLIER than the server-side
+// session actually expires, never grant extra access.
+const FIRM_SESSION_COOKIE_MAX_AGE_SECONDS = store.SESSION_TTL_DAYS * 24 * 60 * 60;
+
+// PREVIEW/STAGING cross-origin fix (2026-07-28): a preview deploy has the
+// static site and the Worker on two different origins (pages.dev vs.
+// workers.dev), so a Lax cookie is never sent on the dashboard's credentialed
+// cross-origin fetch() calls -- the roster silently fails to load (401,
+// looks like an auth bug, is really a cookie-scoping one). None=Secure fixes
+// that, but ONLY when env.STATIC_SITE_BASE_URL is set (i.e. never in
+// production, where Lax is the correct, tighter CSRF posture -- see the
+// comment above these functions). Same gate used for CORS below.
+function firmSessionCookieSameSite(env: Env): string {
+  return env.STATIC_SITE_BASE_URL ? "None" : "Lax";
+}
+
+function firmSessionSetCookieHeader(rawSessionToken: string, env: Env): string {
+  return (
+    `${FIRM_SESSION_COOKIE_NAME}=${encodeURIComponent(rawSessionToken)}; HttpOnly; Secure; ` +
+    `SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=${FIRM_SESSION_COOKIE_MAX_AGE_SECONDS}`
+  );
+}
+
+function firmSessionClearCookieHeader(env: Env): string {
+  return `${FIRM_SESSION_COOKIE_NAME}=; HttpOnly; Secure; SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=0`;
+}
+
 /** "north-carolina" -> "North Carolina", "california" -> "California". */
 function stateNameFromSlug(slug: string): string {
   return slug
@@ -175,6 +250,118 @@ function dailySendCap(env: Env): number {
 
 function clientIp(request: Request): string {
   return request.headers.get("cf-connecting-ip") ?? "0.0.0.0";
+}
+
+interface ResolvedDeadlineInput {
+  deadlineFields: DeadlineFields;
+  deadlineSource: string;
+  userDeadline: string | null;
+}
+
+/**
+ * Shared by handleSubscribe() (the public /subscribe form) and
+ * handleFirmLicenseCreate()/handleFirmLicensePatch() (the firm dashboard's
+ * add/edit-staff routes, added in the same build) -- the exact per-state
+ * "what deadline-computation fields does this state need" logic, in ONE
+ * place, so the dashboard's staff-add form and the public signup form can
+ * never drift apart on what a valid submission for a given state looks like.
+ * `stateSlug` must already be a validated member of SUPPORTED_STATE_SLUGS --
+ * every caller checks that itself first (the error copy for an unsupported
+ * slug differs slightly by caller: an HTML errorPage() for the public form,
+ * a JSON error for the dashboard API).
+ *
+ * Returns the resolved fields on success, or an error Response the caller
+ * should return immediately (an errorPage() -- callers that need a JSON
+ * response instead read the same message off it; see toErrorMessage() below).
+ */
+function resolveDeadlineInput(stateSlug: string, form: Record<string, string>): ResolvedDeadlineInput | Response {
+  const computable = isStateComputable(stateSlug);
+
+  if (computable) {
+    if (stateSlug === "california") {
+      const birthMonth = form.birth_month;
+      const birthYear = form.birth_year;
+      if (!birthMonth || !birthYear || birthYear.length > 4 || !/^\d+$/.test(birthYear)) {
+        return errorPage(400, "California needs your birth month and birth year.");
+      }
+      const birthMonthInt = strictParseInt(birthMonth);
+      const birthYearInt = strictParseInt(birthYear);
+      if (
+        birthMonthInt === null ||
+        birthYearInt === null ||
+        birthMonthInt < 1 ||
+        birthMonthInt > 12 ||
+        birthYearInt < 1900 ||
+        birthYearInt > 2100
+      ) {
+        return errorPage(400, "California needs a valid birth month and birth year.");
+      }
+      // Only the odd/even parity is ever persisted -- the full birth year is
+      // used transiently right here and discarded (PII minimization), same
+      // as server.py:345's comment.
+      const parity = birthYearInt % 2 === 1 ? "odd" : "even";
+      return {
+        deadlineFields: { birth_month: String(birthMonthInt), birth_year_parity: parity },
+        deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+        userDeadline: null,
+      };
+    } else if (stateSlug === "texas") {
+      const birthMonth = form.birth_month;
+      if (!birthMonth) return errorPage(400, "Texas needs your birth month.");
+      const birthMonthInt = strictParseInt(birthMonth);
+      if (birthMonthInt === null || birthMonthInt < 1 || birthMonthInt > 12) {
+        return errorPage(400, "Texas needs a valid birth month.");
+      }
+      return {
+        deadlineFields: { birth_month: String(birthMonthInt) },
+        deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+        userDeadline: null,
+      };
+    } else if (stateSlug === "ohio") {
+      const cohortGroup = form.cohort_group;
+      if (cohortGroup !== "Group 1" && cohortGroup !== "Group 2" && cohortGroup !== "Group 3") {
+        return errorPage(400, "Ohio needs your cohort group.");
+      }
+      return {
+        deadlineFields: { cohort_group: cohortGroup },
+        deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+        userDeadline: null,
+      };
+    } else if (form.license_type_id) {
+      const licenseTypeId = form.license_type_id;
+      if (licenseTypeId.length > MAX_FIELD_LEN) {
+        return errorPage(400, "Invalid license type.");
+      }
+      return {
+        deadlineFields: { license_type_id: licenseTypeId },
+        deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+        userDeadline: null,
+      };
+    }
+    return { deadlineFields: {}, deadlineSource: store.DEADLINE_SOURCE_COMPUTED, userDeadline: null };
+  }
+
+  // "Bring your own date": the worker has no way to derive this state's
+  // deadline from state rules, so the subscriber supplies their own
+  // (printed on their license). The <input type="date">'s HTML min/max
+  // (generate.py) is a UX nicety only -- this is the real, authoritative
+  // check, same "validation authority stays server-side" rule this file
+  // already follows for every other per-state field.
+  const rawDate = (form.license_expiration_date ?? "").trim();
+  const parsedDate = parseStrictIsoDate(rawDate);
+  if (!parsedDate) {
+    return errorPage(400, "Please enter your license expiration date (a real calendar date).");
+  }
+  const now = new Date();
+  const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  if (parsedDate.getTime() <= todayUtc.getTime()) {
+    return errorPage(400, "That date has already passed -- please double-check your license.");
+  }
+  const maxDate = new Date(todayUtc.getTime() + USER_DEADLINE_MAX_DAYS * 86_400_000);
+  if (parsedDate.getTime() > maxDate.getTime()) {
+    return errorPage(400, "That date looks too far out -- please double-check your license.");
+  }
+  return { deadlineFields: {}, deadlineSource: store.DEADLINE_SOURCE_USER, userDeadline: rawDate };
 }
 
 async function handleSubscribe(request: Request, env: Env, ip: string): Promise<Response> {
@@ -237,80 +424,9 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
     return errorPage(400, "Verification failed -- please try again.");
   }
 
-  let deadlineFields: DeadlineFields = {};
-  let deadlineSource: string = store.DEADLINE_SOURCE_COMPUTED;
-  let userDeadline: string | null = null;
-  const computable = isStateComputable(stateSlug);
-
-  if (computable) {
-    if (stateSlug === "california") {
-      const birthMonth = form.birth_month;
-      const birthYear = form.birth_year;
-      if (!birthMonth || !birthYear || birthYear.length > 4 || !/^\d+$/.test(birthYear)) {
-        return errorPage(400, "California needs your birth month and birth year.");
-      }
-      const birthMonthInt = strictParseInt(birthMonth);
-      const birthYearInt = strictParseInt(birthYear);
-      if (
-        birthMonthInt === null ||
-        birthYearInt === null ||
-        birthMonthInt < 1 ||
-        birthMonthInt > 12 ||
-        birthYearInt < 1900 ||
-        birthYearInt > 2100
-      ) {
-        return errorPage(400, "California needs a valid birth month and birth year.");
-      }
-      // Only the odd/even parity is ever persisted -- the full birth year is
-      // used transiently right here and discarded (PII minimization), same
-      // as server.py:345's comment.
-      const parity = birthYearInt % 2 === 1 ? "odd" : "even";
-      deadlineFields = { birth_month: String(birthMonthInt), birth_year_parity: parity };
-    } else if (stateSlug === "texas") {
-      const birthMonth = form.birth_month;
-      if (!birthMonth) return errorPage(400, "Texas needs your birth month.");
-      const birthMonthInt = strictParseInt(birthMonth);
-      if (birthMonthInt === null || birthMonthInt < 1 || birthMonthInt > 12) {
-        return errorPage(400, "Texas needs a valid birth month.");
-      }
-      deadlineFields = { birth_month: String(birthMonthInt) };
-    } else if (stateSlug === "ohio") {
-      const cohortGroup = form.cohort_group;
-      if (cohortGroup !== "Group 1" && cohortGroup !== "Group 2" && cohortGroup !== "Group 3") {
-        return errorPage(400, "Ohio needs your cohort group.");
-      }
-      deadlineFields = { cohort_group: cohortGroup };
-    } else if (form.license_type_id) {
-      const licenseTypeId = form.license_type_id;
-      if (licenseTypeId.length > MAX_FIELD_LEN) {
-        return errorPage(400, "Invalid license type.");
-      }
-      deadlineFields = { license_type_id: licenseTypeId };
-    }
-  } else {
-    // "Bring your own date": the worker has no way to derive this state's
-    // deadline from state rules, so the subscriber supplies their own
-    // (printed on their license). The <input type="date">'s HTML min/max
-    // (generate.py) is a UX nicety only -- this is the real, authoritative
-    // check, same "validation authority stays server-side" rule this file
-    // already follows for every other per-state field.
-    const rawDate = (form.license_expiration_date ?? "").trim();
-    const parsedDate = parseStrictIsoDate(rawDate);
-    if (!parsedDate) {
-      return errorPage(400, "Please enter your license expiration date (a real calendar date).");
-    }
-    const now = new Date();
-    const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    if (parsedDate.getTime() <= todayUtc.getTime()) {
-      return errorPage(400, "That date has already passed -- please double-check your license.");
-    }
-    const maxDate = new Date(todayUtc.getTime() + USER_DEADLINE_MAX_DAYS * 86_400_000);
-    if (parsedDate.getTime() > maxDate.getTime()) {
-      return errorPage(400, "That date looks too far out -- please double-check your license.");
-    }
-    deadlineSource = store.DEADLINE_SOURCE_USER;
-    userDeadline = rawDate;
-  }
+  const resolved = resolveDeadlineInput(stateSlug, form);
+  if (resolved instanceof Response) return resolved;
+  const { deadlineFields, deadlineSource, userDeadline } = resolved;
 
   try {
     checkDataFreshness(new Date());
@@ -330,7 +446,10 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
   // was already validated directly above and doesn't go through
   // computeSubscriberDeadline() at all (see scheduler.ts's own
   // deadline_source branch for the read-side of this same split).
-  if (computable && computeSubscriberDeadline(stateSlug, deadlineFields, new Date()) === null) {
+  if (
+    deadlineSource === store.DEADLINE_SOURCE_COMPUTED &&
+    computeSubscriberDeadline(stateSlug, deadlineFields, new Date()) === null
+  ) {
     return errorPage(400, "Couldn't compute a deadline from what you gave us -- please check your inputs.");
   }
 
@@ -347,8 +466,8 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
         if (store.resendEligible(existing, new Date())) {
           const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
           if (underCap) {
-            const confirmUrl = `${ACTION_BASE_URL}/confirm?token=${encodeURIComponent(existing.confirm_token)}`;
-            const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(existing.unsubscribe_token)}`;
+            const confirmUrl = `${actionBaseUrl(env)}/confirm?token=${encodeURIComponent(existing.confirm_token)}`;
+            const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(existing.unsubscribe_token)}`;
             const built = buildConfirmationEmail(
               stateNameFromSlug(stateSlug),
               confirmUrl,
@@ -356,7 +475,7 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
               existing.first_name,
               existing.user_deadline ? fmtDate(new Date(`${existing.user_deadline}T00:00:00Z`)) : null
             );
-            await sendViaSendGrid(env.SENDGRID_API_KEY, existing.email, built);
+            await sendViaSendGrid(env.SENDGRID_API_KEY, existing.email, built, env.EMAIL_ALLOWLIST);
             await store.recordResend(env.DB, existing.id);
           }
         }
@@ -409,8 +528,8 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
     try {
       const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
       if (underCap) {
-        const confirmUrl = `${ACTION_BASE_URL}/confirm?token=${encodeURIComponent(record.confirm_token)}`;
-        const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
+        const confirmUrl = `${actionBaseUrl(env)}/confirm?token=${encodeURIComponent(record.confirm_token)}`;
+        const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
         const built = buildConfirmationEmail(
           stateNameFromSlug(stateSlug),
           confirmUrl,
@@ -418,7 +537,7 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
           record.first_name,
           record.user_deadline ? fmtDate(new Date(`${record.user_deadline}T00:00:00Z`)) : null
         );
-        await sendViaSendGrid(env.SENDGRID_API_KEY, record.email, built);
+        await sendViaSendGrid(env.SENDGRID_API_KEY, record.email, built, env.EMAIL_ALLOWLIST);
       }
     } catch {
       // Swallow -- the signup is stored; a confirmation-email failure is not
@@ -506,6 +625,754 @@ async function handleFirmLead(request: Request, env: Env, ip: string): Promise<R
   return htmlResponse(200, FIRM_LEAD_SUCCESS_PAGE);
 }
 
+// ---------------------------------------------------------------------------
+// migration 0008 -- firm accounts + login/session auth. This is the repo's
+// FIRST real login system: every route above this line is a capability-URL
+// token (one purpose, then inert), never a standing account. Auth-bypass is
+// the top risk here (a later step adversarially tests whether firm A's
+// admin can ever see firm B's data) -- requireFirmSession() at the bottom
+// of this section is the ONE place every future firm-scoped route (staff
+// CRUD, the dashboard itself -- neither built in this step) must call
+// first, and is written to make that a single obvious line, not something
+// easy to forget.
+// ---------------------------------------------------------------------------
+
+// Same anti-enumeration posture as SUBSCRIBE_SUCCESS_PAGE / FIRM_LEAD_SUCCESS_PAGE
+// above: /firm/signup and /firm/login BOTH return this exact page regardless
+// of which internal branch ran (new firm created, existing firm found and
+// re-sent a link, honeypot no-op, or -- for /firm/login only -- no firm at
+// all for that email). The copy is deliberately non-committal ("if that
+// address has...") so it's truthful in every branch and never reveals
+// whether a given email has an account.
+const FIRM_LOGIN_SENT_PAGE = htmlPage(
+  "Check your email",
+  "<h1>Check your email</h1><p>If that email has (or can have) a DeadlineRadar firm account, we've " +
+    "just sent a sign-in link. It expires in 15 minutes and works once &mdash; if it's expired by " +
+    "the time you click it, just request a new one.</p>"
+);
+
+/**
+ * Shared by handleFirmSignup() and handleFirmLogin(): issues a login token
+ * for `firmId` and, best-effort, emails it. Wrapped so ANY failure (SendGrid
+ * down, daily cap hit, build error) never surfaces as an error response --
+ * same posture as handleSubscribe()'s confirmation-email send: the caller
+ * always returns the same generic success page regardless of whether this
+ * actually sent anything, both for anti-enumeration and because a mail
+ * failure here must not be the requester's problem.
+ *
+ * Deliberately follows /subscribe's existing "no SENDGRID_API_KEY => no-op,
+ * don't crash" convention (see env.ts's own docstring) -- unconfigured
+ * sending degrades to "token created in the DB, nothing emailed" rather
+ * than an error.
+ */
+async function issueAndSendFirmLoginLink(env: Env, firmId: string, adminEmail: string): Promise<void> {
+  const { rawToken } = await store.createLoginToken(env.DB, firmId);
+  if (!env.SENDGRID_API_KEY) return;
+  try {
+    const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+    if (!underCap) return;
+    const loginUrl = `${actionBaseUrl(env)}/firm/login/verify?token=${encodeURIComponent(rawToken)}`;
+    const built = buildFirmLoginEmail(loginUrl);
+    await sendViaSendGrid(env.SENDGRID_API_KEY, adminEmail, built, env.EMAIL_ALLOWLIST);
+  } catch {
+    // Swallow -- same reasoning as every other best-effort send in this
+    // file: the caller's response must never depend on whether this
+    // succeeded.
+  }
+}
+
+/**
+ * POST /firm/signup -- body: `name` (firm name), `admin_email`. Same
+ * hardening pipeline as handleFirmLead() (rate limit -> body-size cap ->
+ * honeypot -> control-char check -> email format -> Turnstile).
+ *
+ * Anti-enumeration judgment call: if `admin_email` already has a firm, this
+ * does NOT create a second one and does NOT say so -- it just sends that
+ * firm a fresh login link, exactly like a /firm/login request would. An
+ * attacker probing "does this email already have an account" gets the
+ * identical response either way (FIRM_LOGIN_SENT_PAGE), matching this
+ * codebase's existing SUBSCRIBE_SUCCESS_PAGE / FIRM_LEAD_SUCCESS_PAGE
+ * convention of one generic response regardless of internal branch.
+ */
+async function handleFirmSignup(request: Request, env: Env, ip: string): Promise<Response> {
+  const allowed = await checkRateLimit(env.DB, ip, "firm_signup", RATE_LIMIT_FIRM_SIGNUP);
+  if (!allowed) {
+    return errorPage(429, "Too many requests from this address. Please try again later.");
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return errorPage(400, "Request too large or empty.");
+  }
+
+  let form: Record<string, string>;
+  try {
+    form = Object.fromEntries(new URLSearchParams(raw).entries());
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+
+  const honeypotValue = form[HONEYPOT_FIELD_NAME];
+  if (honeypotValue !== undefined && honeypotValue !== "") {
+    return htmlResponse(200, FIRM_LOGIN_SENT_PAGE);
+  }
+
+  for (const value of Object.values(form)) {
+    if (hasControlChars(value)) {
+      return errorPage(400, "Invalid characters in submission.");
+    }
+  }
+
+  const email = (form.admin_email ?? "").trim();
+  if (!isValidEmail(email)) {
+    return errorPage(400, "That doesn't look like a valid email address.");
+  }
+  const nameRaw = (form.name ?? "").trim().slice(0, MAX_FIRM_NAME_LEN);
+  if (nameRaw.length === 0) {
+    return errorPage(400, "Please enter your firm's name.");
+  }
+
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
+  if (!turnstileOk) {
+    return errorPage(400, "Verification failed -- please try again.");
+  }
+
+  const existing = await store.findFirmByAdminEmail(env.DB, email);
+  const firmId = existing ? existing.id : (await store.createFirm(env.DB, { name: nameRaw, adminEmail: email })).id;
+
+  await issueAndSendFirmLoginLink(env, firmId, email);
+
+  return htmlResponse(200, FIRM_LOGIN_SENT_PAGE);
+}
+
+/**
+ * POST /firm/login -- body: `admin_email` only. If a firm exists for that
+ * email, issues + emails a fresh login link. If NOT, this is a silent no-op
+ * -- but the response is IDENTICAL either way (FIRM_LOGIN_SENT_PAGE): never
+ * reveal whether a given email has an account.
+ */
+async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<Response> {
+  const allowed = await checkRateLimit(env.DB, ip, "firm_login", RATE_LIMIT_FIRM_LOGIN);
+  if (!allowed) {
+    return errorPage(429, "Too many requests from this address. Please try again later.");
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return errorPage(400, "Request too large or empty.");
+  }
+
+  let form: Record<string, string>;
+  try {
+    form = Object.fromEntries(new URLSearchParams(raw).entries());
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+
+  const honeypotValue = form[HONEYPOT_FIELD_NAME];
+  if (honeypotValue !== undefined && honeypotValue !== "") {
+    return htmlResponse(200, FIRM_LOGIN_SENT_PAGE);
+  }
+
+  for (const value of Object.values(form)) {
+    if (hasControlChars(value)) {
+      return errorPage(400, "Invalid characters in submission.");
+    }
+  }
+
+  const email = (form.admin_email ?? "").trim();
+  if (!isValidEmail(email)) {
+    return errorPage(400, "That doesn't look like a valid email address.");
+  }
+
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
+  if (!turnstileOk) {
+    return errorPage(400, "Verification failed -- please try again.");
+  }
+
+  const existing = await store.findFirmByAdminEmail(env.DB, email);
+  if (existing) {
+    await issueAndSendFirmLoginLink(env, existing.id, email);
+  }
+  // No firm for this email: fall through to the SAME response, sending
+  // nothing -- this is the anti-enumeration branch this handler exists for.
+
+  return htmlResponse(200, FIRM_LOGIN_SENT_PAGE);
+}
+
+/**
+ * POST /firm/login/verify -- verifies + consumes the raw login token, and on
+ * success creates a session and sets the session cookie. Follows this
+ * Worker's standard GET-render/POST-act pattern (same as /confirm,
+ * /unsubscribe, /renewed, /rearm -- see ACTION_PAGES/ACTION_PATHS): the
+ * emailed link itself only renders a "Sign in" button (actionConfirmPage()),
+ * this handler only runs when that button's POST arrives. An earlier version
+ * of this route acted directly on GET (the standard "magic link" UX), but
+ * corporate mail-security gateways (Microsoft Defender Safe Links and
+ * similar, common at CPA firms -- exactly this product's buyer) routinely
+ * prefetch links server-side before the human clicks, which would burn the
+ * single-use token on the scanner's own request and leave the real admin
+ * stuck on "invalid or expired" every time. Render-then-POST avoids that
+ * failure mode entirely, at the cost of one extra click.
+ */
+async function handleFirmLoginVerify(env: Env, token: string | null): Promise<Response> {
+  if (!token) return errorPage(400, "Missing sign-in link.");
+  const result = await store.verifyAndConsumeLoginToken(env.DB, token);
+  if (!result) {
+    return errorPage(
+      400,
+      "That sign-in link is invalid, expired, or already used. Please request a new one and try again."
+    );
+  }
+  const { rawSessionToken } = await store.createSession(env.DB, result.firmId);
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/`,
+      "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken, env),
+    },
+  });
+}
+
+/** POST /firm/logout -- reads the session cookie (if any), deletes the
+ * matching session row (a no-op if there wasn't one), and clears the
+ * cookie. Always succeeds from the caller's perspective -- there is no
+ * meaningful "logout failed" state to report. */
+async function handleFirmLogout(request: Request, env: Env): Promise<Response> {
+  const raw = getCookie(request, FIRM_SESSION_COOKIE_NAME);
+  if (raw) {
+    await store.deleteSession(env.DB, raw);
+  }
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `${env.STATIC_SITE_BASE_URL || ""}/`,
+      "Set-Cookie": firmSessionClearCookieHeader(env),
+    },
+  });
+}
+
+/**
+ * THE single auth gate every firm-scoped route (staff CRUD, the dashboard
+ * itself -- both built by a later step on top of this branch) must call
+ * FIRST, as a one-line check:
+ *
+ *   const session = await requireFirmSession(request, env);
+ *   if (session instanceof Response) return session;
+ *   // session.firmId is now a verified, current, non-expired firm id --
+ *   // every query in this handler MUST filter by it.
+ *
+ * Returns either the resolved `{ firmId }` or a ready-to-return 401
+ * Response -- there is no third "maybe" state, and no separate step a
+ * future route could accidentally skip: either you get a firmId you can
+ * trust, or you get a Response you return immediately. This shape (rather
+ * than e.g. throwing, or returning `firmId | null` and leaving the 401 to
+ * each caller) is deliberate: a caller that forgets to check
+ * `instanceof Response` will fail TypeScript's type-narrowing on
+ * `session.firmId` (a Response has no `firmId` property), so skipping the
+ * check is a compile error, not a silent auth bypass.
+ */
+export async function requireFirmSession(request: Request, env: Env): Promise<{ firmId: string } | Response> {
+  const raw = getCookie(request, FIRM_SESSION_COOKIE_NAME);
+  if (!raw) {
+    return errorPage(401, "You need to sign in to view this.");
+  }
+  const result = await store.verifySession(env.DB, raw);
+  if (!result) {
+    return errorPage(401, "Your session has expired or is invalid. Please sign in again.");
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Firm-dashboard MVP (2026-07-28, step 2/3) -- staff license CRUD,
+// /firm/licenses*. EVERY handler below starts with requireFirmSession() as
+// its very first line, per that function's own docstring. These are a JSON
+// API (the dashboard's own frontend, not a public HTML form) -- request
+// bodies are parsed as JSON, not application/x-www-form-urlencoded, and
+// responses are JSON, not the errorPage()/htmlPage() HTML this file's public
+// routes return. Deliberately do NOT run the honeypot/Turnstile/anonymous-IP
+// rate-limit hardening the public /subscribe form needs (see this build's
+// task doc: the requester already proved firm ownership via a verified
+// session, not an anonymous form submission) -- but DO still validate every
+// field (control chars, length, email format, state slug) exactly like
+// handleSubscribe() does, and DO still rate-limit staff creation, keyed on
+// the firm id rather than an IP (see RATE_LIMIT_FIRM_LICENSE_CREATE's own
+// comment).
+// ---------------------------------------------------------------------------
+
+const MAX_FIRM_LICENSE_BODY_BYTES = MAX_BODY_BYTES;
+
+/**
+ * Reads and JSON-parses a request body for the /firm/licenses* routes,
+ * capped at the same size this codebase already enforces on every other
+ * request body (MAX_BODY_BYTES) and tolerant of an empty body (treated as
+ * `{}`, so a PATCH with nothing to change isn't an error). Returns a
+ * ready-to-return error Response on any failure, or the parsed object on
+ * success -- same "Response | T" calling convention as resolveDeadlineInput()
+ * above, for the same reason (a caller that forgets to check
+ * `instanceof Response` fails type-narrowing, not silently misbehaves).
+ */
+async function readFirmLicenseJsonBody(request: Request): Promise<Record<string, unknown> | Response> {
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (raw.length > MAX_FIRM_LICENSE_BODY_BYTES) {
+    return jsonResponse(400, { error: "Request body too large." });
+  }
+  if (raw.length === 0) return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return jsonResponse(400, { error: "Request body must be a JSON object." });
+    }
+    return parsed as Record<string, unknown>;
+  } catch {
+    return jsonResponse(400, { error: "Malformed JSON body." });
+  }
+}
+
+/** Every string-valued field in a parsed JSON body, for the same
+ * every-field control-char check handleSubscribe() runs on its form fields. */
+function stringFieldsOf(body: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(body)) {
+    if (typeof v === "string") out[k] = v;
+  }
+  return out;
+}
+
+const DEADLINE_FIELD_KEYS = ["birth_month", "birth_year", "cohort_group", "license_type_id", "license_expiration_date"];
+
+/** The dashboard's clean status vocabulary (loosely mirrors generate.py's
+ * illustrative _MOCKUP_STATUS_CLASS terminology -- Confirmed/Pending/Needs
+ * attention -- though that's frontend copy for a marketing mockup, not this
+ * API's contract to match verbatim). A row stopped for any reason OTHER than
+ * STOP_REASON_REMOVED_BY_ADMIN (which listFirmLicenses() already filters out
+ * entirely -- see that function's own comment) surfaces as "needs-attention"
+ * so the admin notices someone stopped getting reminders unexpectedly,
+ * rather than that record silently vanishing from the roster. */
+/**
+ * HYBRID consent model (2026-07-28): a firm-added staffer is ACTIVE the
+ * moment they're added (see store.ts's addPending() `skipConfirmation`) --
+ * there is no more "pending" state on this path going forward. "pending" is
+ * kept in the return type/mapping only for OLD rows that predate this model
+ * (a stale preview record, or a genuine in-flight free-tier row that
+ * somehow ended up firm-scoped) so this function degrades sensibly rather
+ * than mislabeling them, not because new firm-add rows can produce it.
+ * "opted_out" is split out from the old catch-all "needs-attention" bucket
+ * specifically so an admin can see, at a glance, who exercised the one-click
+ * opt-out this consent model depends on -- a self-serve "renewed but not yet
+ * re-armed" row (stop_reason='renewed') is a different situation and stays
+ * "needs-attention".
+ */
+function firmLicenseStatus(row: store.SubscriberRow): "active" | "pending" | "opted_out" | "needs-attention" {
+  if (row.status === store.STATUS_CONFIRMED) return "active";
+  if (row.status === store.STATUS_PENDING) return "pending";
+  if (row.status === store.STATUS_STOPPED && row.stop_reason === "unsubscribed") return "opted_out";
+  return "needs-attention";
+}
+
+/** Reuses deadline.ts's own computeSubscriberDeadline() -- never
+ * re-implements the date math, per this build's own instructions. */
+function firmLicenseNextDeadline(row: store.SubscriberRow, asOf: Date): string | null {
+  if (row.deadline_source === store.DEADLINE_SOURCE_USER) {
+    return row.user_deadline;
+  }
+  let fields: Record<string, string>;
+  try {
+    fields = JSON.parse(row.deadline_fields || "{}");
+  } catch {
+    return null;
+  }
+  const d = computeSubscriberDeadline(row.state_slug, fields, asOf);
+  return d ? d.toISOString().slice(0, 10) : null;
+}
+
+/** Only the fixed-calendar "multiple records per state" family
+ * (deadline.ts's computeSubscriberDeadline license_type_id branch --
+ * Florida's odd/even cohort, Georgia's individual-vs-firm, etc.) actually
+ * has a license_type_id; California/Texas/Ohio use different per-state
+ * fields and "bring your own date" states have none at all -- null in every
+ * one of those cases, not an error. */
+function firmLicenseLicenseTypeId(row: store.SubscriberRow): string | null {
+  try {
+    const fields = JSON.parse(row.deadline_fields || "{}") as Record<string, string>;
+    return fields.license_type_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function toFirmLicenseJson(row: store.SubscriberRow, asOf: Date): Record<string, unknown> {
+  return {
+    id: row.id,
+    staff_label: row.staff_label,
+    email: row.email,
+    state_slug: row.state_slug,
+    state_name: stateNameForSlug(row.state_slug),
+    license_type_id: firmLicenseLicenseTypeId(row),
+    status: firmLicenseStatus(row),
+    next_deadline: firmLicenseNextDeadline(row, asOf),
+    deadline_source: row.deadline_source,
+    cycle: row.cycle,
+  };
+}
+
+/** GET /firm/licenses -- every roster row for the session's firm, sorted by
+ * soonest deadline first (a null/uncomputable deadline sorts last -- there's
+ * nothing more urgent to show for it). */
+async function handleFirmLicensesList(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  const rows = await store.listFirmLicenses(env.DB, session.firmId);
+  const asOf = new Date();
+  const items = rows.map((r) => toFirmLicenseJson(r, asOf));
+  items.sort((a, b) => {
+    const ad = a.next_deadline as string | null;
+    const bd = b.next_deadline as string | null;
+    if (ad === null && bd === null) return 0;
+    if (ad === null) return 1;
+    if (bd === null) return -1;
+    return ad < bd ? -1 : ad > bd ? 1 : 0;
+  });
+  return jsonResponse(200, { licenses: items });
+}
+
+/**
+ * POST /firm/licenses -- adds a staff member to the firm's roster.
+ *
+ * HYBRID consent model (2026-07-28, Devin's decision, firm path ONLY):
+ * reuses store.addPending() (same row shape/tokens as a free-tier signup)
+ * but with `skipConfirmation: true` -- the row is created already
+ * `confirmed`/active, reminders start immediately, no pending gate. This is
+ * DIFFERENT from handleSubscribe() (the public form), which still calls
+ * addPending() WITHOUT that flag and stays double-opt-in, unchanged. What
+ * keeps this CAN-SPAM-clean in exchange for skipping confirmation:
+ * buildFirmStaffAddedEmail() below (not buildConfirmationEmail()) fires
+ * instead, naming the firm and pointing at the SAME unsubscribe token/link
+ * every other email already uses -- a firm admin adding someone doesn't
+ * grant silent consent, it grants transparent, easily-declinable consent.
+ */
+async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  // Per-FIRM daily cap (not per-IP) -- see RATE_LIMIT_FIRM_LICENSE_CREATE's
+  // own comment for why checkRateLimit()'s `ip` parameter is deliberately
+  // reused here as "the bucket's identity key," bound to the authenticated
+  // firm id rather than the caller's network address.
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_license_create", RATE_LIMIT_FIRM_LICENSE_CREATE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many staff added today for this firm. Please try again tomorrow." });
+  }
+
+  const parsed = await readFirmLicenseJsonBody(request);
+  if (parsed instanceof Response) return parsed;
+  const form = stringFieldsOf(parsed);
+
+  for (const value of Object.values(form)) {
+    if (hasControlChars(value)) {
+      return jsonResponse(400, { error: "Invalid characters in submission." });
+    }
+  }
+
+  const email = (form.email ?? "").trim();
+  if (!isValidEmail(email)) {
+    return jsonResponse(400, { error: "That doesn't look like a valid email address." });
+  }
+
+  const stateSlug = (form.state_slug ?? "").trim();
+  if (!SUPPORTED_STATE_SLUGS.has(stateSlug)) {
+    return jsonResponse(400, { error: "Unsupported or missing state." });
+  }
+
+  const staffLabelRaw = (form.staff_label ?? "").trim();
+  const staffLabel = staffLabelRaw.length > 0 ? staffLabelRaw.slice(0, MAX_STAFF_LABEL_LEN) : null;
+
+  const resolved = resolveDeadlineInput(stateSlug, form);
+  if (resolved instanceof Response) {
+    // resolveDeadlineInput() returns an HTML errorPage() Response (shared
+    // with the public form) -- re-wrap its message as JSON for this API.
+    const text = await resolved.text();
+    return jsonResponse(resolved.status, { error: stripHtmlErrorMessage(text) });
+  }
+  const { deadlineFields, deadlineSource, userDeadline } = resolved;
+
+  try {
+    checkDataFreshness(new Date());
+  } catch (err) {
+    if (err instanceof StaleDataError) {
+      return jsonResponse(503, { error: `Signups are temporarily paused: ${err.message}` });
+    }
+    throw err;
+  }
+
+  if (
+    deadlineSource === store.DEADLINE_SOURCE_COMPUTED &&
+    computeSubscriberDeadline(stateSlug, deadlineFields, new Date()) === null
+  ) {
+    return jsonResponse(400, { error: "Couldn't compute a deadline from what you gave us -- please check your inputs." });
+  }
+
+  // Surface a conflict rather than silently creating a second row for an
+  // email+state that already has an active or pending record (free-tier or
+  // another firm's) -- findActiveOrPending() is the same dedupe check
+  // handleSubscribe() uses; this table has no UNIQUE constraint on
+  // (email, state_slug) to enforce this at the DB layer, so the application
+  // layer is what has to catch it.
+  const existing = await store.findActiveOrPending(env.DB, email, stateSlug);
+  if (existing) {
+    return jsonResponse(409, {
+      error: "A subscriber already exists for this email and state (possibly a free-tier signup, or already on a firm's roster).",
+    });
+  }
+
+  // HYBRID consent model (2026-07-28, Devin's decision, firm path only):
+  // admin-added staff go ACTIVE immediately (skipConfirmation) -- no
+  // pending-confirmation gap in the firm's coverage. The free-tier
+  // /subscribe path above is completely untouched (never passes this flag,
+  // still double opt-in). Transparency is what keeps this CAN-SPAM-clean:
+  // buildFirmStaffAddedEmail() below, not the confirm email, is sent instead
+  // -- states plainly who added them and gives an equally prominent
+  // one-click opt-out.
+  const record = await store.addPending(env.DB, {
+    email,
+    stateSlug,
+    deadlineFields,
+    firstName: null,
+    deadlineSource,
+    userDeadline,
+    firmId: session.firmId,
+    staffLabel,
+    skipConfirmation: true,
+  });
+
+  if (env.SENDGRID_API_KEY) {
+    try {
+      const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+      if (underCap) {
+        const firm = await store.getFirmById(env.DB, session.firmId);
+        const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
+        const built = buildFirmStaffAddedEmail(firm?.name || "Your firm", stateNameFromSlug(stateSlug), unsubscribeUrl);
+        await sendViaSendGrid(env.SENDGRID_API_KEY, record.email, built, env.EMAIL_ALLOWLIST);
+      }
+    } catch {
+      // Best-effort, same posture as handleSubscribe() -- the record is
+      // already stored (and already ACTIVE) regardless of whether this
+      // transparency email succeeds; a mail failure must not roll back
+      // consent state or silently leave reminders un-started.
+    }
+  }
+
+  return jsonResponse(201, toFirmLicenseJson(record, new Date()));
+}
+
+/** Strips this file's htmlPage() wrapper down to just the inner error
+ * message text, for re-wrapping an errorPage() Response's copy as JSON --
+ * shared error copy (resolveDeadlineInput()) without shipping HTML tags in a
+ * JSON API response. */
+function stripHtmlErrorMessage(html: string): string {
+  const match = /<p>([\s\S]*?)<\/p>/.exec(html);
+  const inner = match?.[1] ?? html;
+  return inner.replace(/&mdash;/g, "--").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+}
+
+/**
+ * PATCH /firm/licenses/:id -- edits staff_label/email/state/deadline fields.
+ * Ownership is enforced TWICE: once here (existing lookup, for the 404) and
+ * again inside store.updateFirmLicense()'s own WHERE clause -- see that
+ * function's docstring for why. Every field is optional (a true partial
+ * update): state_slug/deadline fields are only re-resolved (and
+ * re-validated, using the SAME resolveDeadlineInput() the create route uses)
+ * when the request actually touches state_slug or one of the per-state
+ * deadline field keys; otherwise the existing state/deadline fields are left
+ * untouched.
+ */
+async function handleFirmLicensePatch(request: Request, env: Env, id: string): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  const existing = await store.getFirmLicense(env.DB, session.firmId, id);
+  if (!existing) return jsonResponse(404, { error: "Not found." });
+
+  const parsed = await readFirmLicenseJsonBody(request);
+  if (parsed instanceof Response) return parsed;
+  const form = stringFieldsOf(parsed);
+
+  for (const value of Object.values(form)) {
+    if (hasControlChars(value)) {
+      return jsonResponse(400, { error: "Invalid characters in submission." });
+    }
+  }
+
+  let email = existing.email;
+  if (typeof parsed.email === "string") {
+    const trimmed = parsed.email.trim();
+    if (!isValidEmail(trimmed)) {
+      return jsonResponse(400, { error: "That doesn't look like a valid email address." });
+    }
+    email = trimmed;
+  }
+
+  let staffLabel = existing.staff_label;
+  if (typeof parsed.staff_label === "string") {
+    const trimmed = parsed.staff_label.trim();
+    staffLabel = trimmed.length > 0 ? trimmed.slice(0, MAX_STAFF_LABEL_LEN) : null;
+  }
+
+  let stateSlug = existing.state_slug;
+  let deadlineFields: Record<string, string> = JSON.parse(existing.deadline_fields || "{}");
+  let deadlineSource = existing.deadline_source;
+  let userDeadline = existing.user_deadline;
+
+  const stateSlugProvided = typeof parsed.state_slug === "string";
+  const deadlineFieldsProvided = DEADLINE_FIELD_KEYS.some((k) => typeof parsed[k] === "string");
+
+  if (stateSlugProvided) {
+    const trimmed = (parsed.state_slug as string).trim();
+    if (!SUPPORTED_STATE_SLUGS.has(trimmed)) {
+      return jsonResponse(400, { error: "Unsupported or missing state." });
+    }
+    stateSlug = trimmed;
+  }
+
+  if (stateSlugProvided || deadlineFieldsProvided) {
+    const resolved = resolveDeadlineInput(stateSlug, form);
+    if (resolved instanceof Response) {
+      const text = await resolved.text();
+      return jsonResponse(resolved.status, { error: stripHtmlErrorMessage(text) });
+    }
+    deadlineFields = resolved.deadlineFields;
+    deadlineSource = resolved.deadlineSource;
+    userDeadline = resolved.userDeadline;
+
+    try {
+      checkDataFreshness(new Date());
+    } catch (err) {
+      if (err instanceof StaleDataError) {
+        return jsonResponse(503, { error: `Temporarily paused: ${err.message}` });
+      }
+      throw err;
+    }
+    if (
+      deadlineSource === store.DEADLINE_SOURCE_COMPUTED &&
+      computeSubscriberDeadline(stateSlug, deadlineFields, new Date()) === null
+    ) {
+      return jsonResponse(400, { error: "Couldn't compute a deadline from what you gave us -- please check your inputs." });
+    }
+  }
+
+  const emailChanged = store.normalizeEmail(email) !== store.normalizeEmail(existing.email);
+
+  const updated = await store.updateFirmLicense(env.DB, session.firmId, id, {
+    email,
+    staffLabel,
+    stateSlug,
+    deadlineFields,
+    deadlineSource,
+    userDeadline,
+    resetConfirmation: emailChanged,
+  });
+  if (!updated) return jsonResponse(404, { error: "Not found." });
+
+  // Editing the delivery address is, in effect, re-consenting a DIFFERENT
+  // inbox -- see UpdateFirmLicenseInput.resetConfirmation's own doc. Send
+  // that new address its own fresh confirm email, same best-effort posture
+  // as every other send in this file.
+  if (emailChanged && env.SENDGRID_API_KEY) {
+    try {
+      const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+      if (underCap) {
+        const confirmUrl = `${actionBaseUrl(env)}/confirm?token=${encodeURIComponent(updated.confirm_token)}`;
+        const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(updated.unsubscribe_token)}`;
+        const built = buildConfirmationEmail(
+          stateNameFromSlug(updated.state_slug),
+          confirmUrl,
+          unsubscribeUrl,
+          updated.first_name,
+          updated.user_deadline ? fmtDate(new Date(`${updated.user_deadline}T00:00:00Z`)) : null
+        );
+        await sendViaSendGrid(env.SENDGRID_API_KEY, updated.email, built, env.EMAIL_ALLOWLIST);
+      }
+    } catch {
+      // Best-effort -- the record is already updated regardless.
+    }
+  }
+
+  return jsonResponse(200, toFirmLicenseJson(updated, new Date()));
+}
+
+/** DELETE /firm/licenses/:id -- removes a staff member from the roster (see
+ * store.STOP_REASON_REMOVED_BY_ADMIN's own comment for why this is a
+ * status/stop_reason change, not a SQL row delete, and why that alone is
+ * sufficient to also stop any further reminder sends for this record: the
+ * reminder cron's allConfirmedActive() only ever reads status='confirmed'
+ * rows). */
+async function handleFirmLicenseDelete(request: Request, env: Env, id: string): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+  const result = await store.removeFirmLicense(env.DB, session.firmId, id);
+  if (!result) return jsonResponse(404, { error: "Not found." });
+  return jsonResponse(200, { id: result.id, status: "removed" });
+}
+
+/**
+ * POST /firm/licenses/:id/renew -- the dashboard's one-step "Mark renewed"
+ * action (Part A #5). Hits the SAME store.ts atomic write
+ * (store.applyRenewAndRearm(), via the firm-ownership-scoped
+ * store.renewAndRearm() wrapper) that the free-tier email's
+ * "I've renewed -- remind me next cycle" CTA uses (handleRenewedNextCycle()
+ * above, via store.renewAndRearmByToken()) -- one shared piece of logic, two
+ * different authorization/lookup paths, per this build's own instruction not
+ * to build two different code paths for the same operation.
+ */
+async function handleFirmLicenseRenew(request: Request, env: Env, id: string): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  // Read the row first (ownership-scoped) so a refusal can be given a
+  // specific, honest reason -- store.renewAndRearm() itself only ever
+  // returns SubscriberRow | null, the same "no distinguishing detail" shape
+  // every other store.ts mutation in this file uses.
+  const existing = await store.getFirmLicense(env.DB, session.firmId, id);
+  if (!existing) return jsonResponse(404, { error: "Not found." });
+
+  const updated = await store.renewAndRearm(env.DB, session.firmId, id);
+  if (!updated) {
+    if (existing.stop_reason === store.STOP_REASON_REMOVED_BY_ADMIN) {
+      return jsonResponse(400, {
+        error: "This person was removed from the roster. Re-add them (POST /firm/licenses) to track a new cycle.",
+      });
+    }
+    if (!existing.confirmed_at) {
+      return jsonResponse(400, { error: "This person hasn't confirmed their email yet -- there's nothing to renew." });
+    }
+    if (existing.deadline_source === store.DEADLINE_SOURCE_USER) {
+      return jsonResponse(400, {
+        error: "We can't auto-compute this person's next renewal date. Edit their record with the new expiration date once they have it.",
+      });
+    }
+    return jsonResponse(400, { error: "Couldn't renew this record." });
+  }
+
+  return jsonResponse(200, toFirmLicenseJson(updated, new Date()));
+}
+
 async function handleConfirm(env: Env, token: string | null): Promise<Response> {
   if (!token) return errorPage(400, "Missing confirmation link.");
   const subscriber = await store.confirm(env.DB, token);
@@ -540,26 +1407,32 @@ async function handleRenewed(env: Env, token: string | null): Promise<Response> 
   const subscriber = await store.stop(env.DB, token, "renewed");
   if (!subscriber) return errorPage(404, "That link is invalid.");
 
-  // Send a stop-confirmation email offering a one-click re-arm for next cycle.
-  // Best-effort + isolated, same posture as the confirmation send: only when a
-  // key is configured, guarded by the daily circuit breaker, and never allowed
-  // to fail the stop itself (the stop already happened above and is what
-  // matters). The re-arm link uses the unsubscribe_token, which is what
-  // store.rearm() looks the subscriber up by.
+  // Send a stop-confirmation email. Best-effort + isolated, same posture as
+  // the confirmation send: only when a key is configured, guarded by the
+  // daily circuit breaker, and never allowed to fail the stop itself (the
+  // stop already happened above and is what matters).
+  //
+  // Deliberately NO re-arm offer here (2026-07-28) -- passing `null` instead
+  // of a rearmUrl. The re-arm-for-next-cycle choice is now its OWN co-equal
+  // CTA in the original reminder email itself (buildReminderEmail's
+  // renewedNextCycleUrl / handleRenewedNextCycle() below); anyone reaching
+  // THIS follow-up already clicked the OTHER button ("Stop reminders
+  // entirely"), so dangling a still-open re-arm offer here would contradict
+  // the choice they just made -- exactly the "no email offering a choice
+  // that's already been made" rule this build's task called out.
   if (env.SENDGRID_API_KEY) {
     try {
       const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
       if (underCap) {
-        const rearmUrl = `${ACTION_BASE_URL}/rearm?token=${encodeURIComponent(subscriber.unsubscribe_token)}`;
-        const unsubscribeUrl = `${ACTION_BASE_URL}/unsubscribe?token=${encodeURIComponent(subscriber.unsubscribe_token)}`;
+        const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(subscriber.unsubscribe_token)}`;
         const built = buildStopConfirmationEmail(
           "renewed",
           stateNameFromSlug(subscriber.state_slug),
-          rearmUrl,
+          null,
           unsubscribeUrl,
           subscriber.first_name
         );
-        await sendViaSendGrid(env.SENDGRID_API_KEY, subscriber.email, built);
+        await sendViaSendGrid(env.SENDGRID_API_KEY, subscriber.email, built, env.EMAIL_ALLOWLIST);
       }
     } catch {
       // Swallow -- the reminders are already stopped; a follow-up email
@@ -571,9 +1444,57 @@ async function handleRenewed(env: Env, token: string | null): Promise<Response> 
     200,
     htmlPage(
       "Nice work",
-      "<h1>Congrats on renewing</h1><p>All reminders for this deadline are stopped. We've emailed " +
-        "you a confirmation &mdash; if you'd like a reminder again next cycle, there's a one-click " +
-        "link in it to opt back in.</p>"
+      "<h1>Congrats on renewing</h1><p>All reminders for this deadline are stopped, and we've emailed " +
+        "you a confirmation. Want reminders again someday? You're welcome to sign up fresh any time.</p>"
+    )
+  );
+}
+
+/**
+ * POST /renewed-next-cycle -- the free-tier reminder email's new co-equal
+ * "I've renewed -- remind me next cycle" CTA (Part B, 2026-07-28). One
+ * atomic stop-this-cycle-AND-rearm-for-next-cycle action
+ * (store.renewAndRearmByToken()) using the subscriber's EXISTING
+ * renewed_token/unsubscribe_token -- no new token type minted, same
+ * GET-render/POST-act prefetch-safe pattern as every other action link here
+ * (see ACTION_PAGES["/renewed-next-cycle"] for the GET-render copy).
+ *
+ * This is deliberately a SEPARATE route/handler from the firm dashboard's
+ * POST /firm/licenses/:id/renew (handleFirmLicenseRenew() below) rather than
+ * one shared HTTP endpoint -- the two are authorized completely differently
+ * (this one by possessing a valid capability-URL token; that one by a
+ * verified firm session owning the record) and return different response
+ * shapes (an HTML landing page here; JSON there). What they DO share is the
+ * one underlying atomic write: both ultimately call store.ts's
+ * applyRenewAndRearm() (via renewAndRearmByToken() here, renewAndRearm() with
+ * firm-ownership there) -- see that function's own comment for the
+ * atomicity reasoning, and for why "one shared store.ts function" was the
+ * right place to de-duplicate this, not "one shared HTTP route."
+ */
+async function handleRenewedNextCycle(env: Env, token: string | null): Promise<Response> {
+  if (!token) return errorPage(400, "Missing link.");
+  const updated = await store.renewAndRearmByToken(env.DB, token);
+  if (!updated) {
+    // "Bring your own date" (migration 0005): same tailored refusal as
+    // handleRearm() gives -- a real, otherwise-eligible record refused
+    // specifically because we can't auto-derive its NEXT date, not a
+    // generic "invalid or already used" 404.
+    if (await store.isUserDateRenewBlocked(env.DB, token)) {
+      return errorPage(
+        400,
+        "Since we can't automatically know your next renewal date, we can't mark this renewed and " +
+          "re-arm it for you. Use \"Stop these reminders entirely\" instead, then sign up again at " +
+          "deadline-radar.com once you have your new expiration date -- it takes 10 seconds."
+      );
+    }
+    return errorPage(404, "That link is invalid or already used, or this subscriber wasn't eligible to renew.");
+  }
+  return htmlResponse(
+    200,
+    htmlPage(
+      "Nice work",
+      "<h1>You're all set</h1><p>You're marked as renewed, and we'll remind you again as your next " +
+        "renewal deadline approaches. Nothing else to do.</p>"
     )
   );
 }
@@ -602,9 +1523,34 @@ async function handleRearm(env: Env, token: string | null): Promise<Response> {
   );
 }
 
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
+// PREVIEW/STAGING CORS (2026-07-28): companion to firmSessionCookieSameSite()
+// above. When env.STATIC_SITE_BASE_URL is set (never in production), the
+// dashboard's fetch() calls are genuinely cross-origin (pages.dev site,
+// workers.dev API), so the browser (a) sends a CORS preflight OPTIONS ahead
+// of any PATCH/DELETE/JSON-body request and (b) requires an explicit,
+// exact-origin Access-Control-Allow-Origin (not "*") plus
+// Access-Control-Allow-Credentials on every response before it will expose
+// the response to JS or send the cookie at all. Origin is always the exact
+// preview site (never reflected from the request), matching the same site
+// the cookie's SameSite=None already trusts.
+function corsHeaders(env: Env): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": env.STATIC_SITE_BASE_URL || "",
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    Vary: "Origin",
+  };
+}
+
+function withCorsHeaders(response: Response, env: Env): Response {
+  const headers = new Headers(response.headers);
+  for (const [k, v] of Object.entries(corsHeaders(env))) headers.set(k, v);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+async function routeRequest(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
 
     // This Worker is bound to the deadline-radar.com/api/* route, so every
     // request arrives with an /api prefix the path checks below don't expect.
@@ -623,6 +1569,14 @@ export default {
 
     const ip = clientIp(request);
 
+    // /firm/licenses*, migration 0008's firm-dashboard JSON API (2026-07-28)
+    // -- matched once here, up front, so every HTTP method branch below can
+    // reuse the same parsed :id. Every handler these route to still starts
+    // with requireFirmSession() as its own first line (see that function's
+    // docstring); this parsing step is not itself an auth check.
+    const firmLicenseRenewMatch = /^\/firm\/licenses\/([^/]+)\/renew$/.exec(url.pathname);
+    const firmLicenseIdMatch = firmLicenseRenewMatch ? null : /^\/firm\/licenses\/([^/]+)$/.exec(url.pathname);
+
     // GET on an action path renders a confirmation PAGE only -- it never
     // changes state. Email providers (Gmail, corporate filters) automatically
     // GET the links in a message to scan them; if the action fired on GET, a
@@ -630,6 +1584,13 @@ export default {
     // one-time link before the human ever clicks it. The state change happens
     // only on the POST below (the button on this page), which scanners don't do.
     if (request.method === "GET") {
+      if (url.pathname === "/firm/licenses") {
+        try {
+          return await handleFirmLicensesList(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
       if (ACTION_PATHS.has(url.pathname)) {
         const allowed = await checkRateLimit(env.DB, ip, "action", RATE_LIMIT_ACTION);
         if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
@@ -640,7 +1601,45 @@ export default {
       return errorPage(404, "Not found.");
     }
 
+    if (request.method === "PATCH") {
+      if (firmLicenseIdMatch) {
+        try {
+          return await handleFirmLicensePatch(request, env, firmLicenseIdMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      return errorPage(404, "Not found.");
+    }
+
+    if (request.method === "DELETE") {
+      if (firmLicenseIdMatch) {
+        try {
+          return await handleFirmLicenseDelete(request, env, firmLicenseIdMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      return errorPage(404, "Not found.");
+    }
+
     if (request.method === "POST") {
+      if (url.pathname === "/firm/licenses") {
+        try {
+          return await handleFirmLicenseCreate(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (firmLicenseRenewMatch) {
+        try {
+          return await handleFirmLicenseRenew(request, env, firmLicenseRenewMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
       if (url.pathname === "/subscribe") {
         try {
           return await handleSubscribe(request, env, ip);
@@ -654,6 +1653,53 @@ export default {
           return await handleFirmLead(request, env, ip);
         } catch {
           return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
+      if (url.pathname === "/firm/signup") {
+        try {
+          return await handleFirmSignup(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
+      if (url.pathname === "/firm/login") {
+        try {
+          return await handleFirmLogin(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
+      if (url.pathname === "/firm/logout") {
+        try {
+          return await handleFirmLogout(request, env);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
+      // PREVIEW/STAGING ONLY -- see RATE_LIMIT_DEBUG_REMINDER_PASS's own
+      // comment. Gated on env.EMAIL_ALLOWLIST being SET, which is never true
+      // in production (that env var only exists on a preview deployment) --
+      // so this route is unconditionally 404 in production regardless of
+      // this check ever being reached, and every email it can possibly send
+      // is itself gated by sendViaSendGrid()'s allowlist. Lets a human tester
+      // fire the daily reminder cron on demand rather than waiting for the
+      // real 18:00 UTC trigger.
+      if (url.pathname === "/debug/run-reminder-pass") {
+        if (!env.EMAIL_ALLOWLIST) return errorPage(404, "Not found.");
+        const allowed = await checkRateLimit(env.DB, ip, "debug_reminder_pass", RATE_LIMIT_DEBUG_REMINDER_PASS);
+        if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
+        try {
+          const summary = await runReminderPass(env);
+          return jsonResponse(200, summary);
+        } catch (err) {
+          if (err instanceof SchedulerStaleDataError) {
+            return jsonResponse(200, { paused: true, reason: "stale_reference_data", message: err.message });
+          }
+          return errorPage(500, "Reminder pass failed.");
         }
       }
 
@@ -680,8 +1726,12 @@ export default {
               return await handleUnsubscribe(env, token);
             case "/renewed":
               return await handleRenewed(env, token);
+            case "/renewed-next-cycle":
+              return await handleRenewedNextCycle(env, token);
             case "/rearm":
               return await handleRearm(env, token);
+            case "/firm/login/verify":
+              return await handleFirmLoginVerify(env, token);
           }
         } catch {
           return errorPage(400, "Something went wrong processing that request.");
@@ -690,6 +1740,21 @@ export default {
     }
 
     return errorPage(404, "Not found.");
+}
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    // PREVIEW/STAGING CORS only (see corsHeaders()'s own comment) -- in
+    // production env.STATIC_SITE_BASE_URL is unset, so this whole block is
+    // skipped and routeRequest() runs exactly as it always has.
+    if (env.STATIC_SITE_BASE_URL) {
+      if (request.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: corsHeaders(env) });
+      }
+      const response = await routeRequest(request, env);
+      return withCorsHeaders(response, env);
+    }
+    return routeRequest(request, env);
   },
 
   /**

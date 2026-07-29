@@ -7,9 +7,15 @@ import {
   nextBirthMonthParityDate,
   StaleDataError,
 } from "../src/deadline";
-import { hasControlChars, isValidEmail, sanitizeFirstName, strictParseInt } from "../src/validation";
+import {
+  hasControlChars,
+  isValidEmail,
+  RATE_LIMIT_FIRM_LICENSE_CREATE,
+  sanitizeFirstName,
+  strictParseInt,
+} from "../src/validation";
 import * as store from "../src/store";
-import type { FirmLeadRow, SubscriberRow } from "../src/store";
+import type { FirmLeadRow, FirmRow, SubscriberRow } from "../src/store";
 
 function form(fields: Record<string, string>): string {
   return new URLSearchParams(fields).toString();
@@ -412,6 +418,884 @@ describe("POST /firm/lead -- firm-tier early-access capture", () => {
       ip
     );
     expect(sixth.status).toBe(429);
+  });
+});
+
+// migration 0008 -- firm accounts + login/session auth. This is the repo's
+// FIRST real login system; every helper/test below follows this file's own
+// existing conventions (explicit per-test IP so the shared rate-limit
+// buckets never collide across unrelated tests, generic-response
+// anti-enumeration assertions matching the /subscribe and /firm/lead
+// suites above).
+async function postFirmSignup(fields: Record<string, string>, ip: string): Promise<Response> {
+  return SELF.fetch("https://deadline-radar.com/firm/signup", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": ip },
+    body: form({ hp_website: "", ...fields }),
+  });
+}
+
+async function postFirmLogin(fields: Record<string, string>, ip: string): Promise<Response> {
+  return SELF.fetch("https://deadline-radar.com/firm/login", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": ip },
+    body: form({ hp_website: "", ...fields }),
+  });
+}
+
+async function getFirmLoginVerifyPage(token: string | null, ip: string): Promise<Response> {
+  const query = token !== null ? `?token=${encodeURIComponent(token)}` : "";
+  return SELF.fetch(`https://deadline-radar.com/firm/login/verify${query}`, {
+    headers: { "cf-connecting-ip": ip },
+    redirect: "manual",
+  });
+}
+
+// The GET only renders the confirm page (render-only, prefetch-safe -- see
+// handleFirmLoginVerify()'s docstring); this POSTs the token from the form
+// body, same as the confirm-page button would, which is what actually
+// verifies+consumes the token and creates the session.
+async function postFirmLoginVerify(token: string | null, ip: string): Promise<Response> {
+  return SELF.fetch("https://deadline-radar.com/firm/login/verify", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": ip },
+    body: form(token !== null ? { token } : {}),
+    redirect: "manual",
+  });
+}
+
+async function postFirmLogout(cookie: string | null, ip: string): Promise<Response> {
+  const headers: Record<string, string> = { "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch("https://deadline-radar.com/firm/logout", { method: "POST", headers, redirect: "manual" });
+}
+
+function cookieValue(setCookieHeader: string | null, name: string): string | null {
+  if (!setCookieHeader) return null;
+  const match = new RegExp(`${name}=([^;]*)`).exec(setCookieHeader);
+  return match ? decodeURIComponent(match[1] as string) : null;
+}
+
+async function firmByAdminEmail(email: string): Promise<FirmRow | null> {
+  return (await env.DB.prepare("SELECT * FROM firms WHERE admin_email = ?1").bind(email).first<FirmRow>()) ?? null;
+}
+
+describe("POST /firm/signup -- firm account creation + login-link send", () => {
+  it("happy path: creates a firm, creates an unused login token, and returns the generic 'check your email' page", async () => {
+    const email = `firmsignup-${Date.now()}@example.com`;
+    const resp = await postFirmSignup({ name: "Example CPA Firm", admin_email: email }, "203.0.113.150");
+    expect(resp.status).toBe(200);
+    const body = await resp.text();
+    expect(body.toLowerCase()).toContain("check your email");
+
+    const firm = await firmByAdminEmail(email);
+    expect(firm).not.toBeNull();
+    expect(firm?.name).toBe("Example CPA Firm");
+    expect(firm?.plan_tier).toBe("pilot");
+    expect(firm?.status).toBe("active");
+
+    const tokenRow = await env.DB
+      .prepare("SELECT * FROM firm_login_tokens WHERE firm_id = ?1")
+      .bind(firm?.id)
+      .first<{ used_at: string | null; expires_at: string }>();
+    expect(tokenRow).not.toBeNull();
+    expect(tokenRow?.used_at).toBeNull();
+  });
+
+  it("a repeat signup for an email that already has a firm does NOT create a second firm (anti-enumeration)", async () => {
+    const email = `firmsignup-dup-${Date.now()}@example.com`;
+    const first = await postFirmSignup({ name: "First Name", admin_email: email }, "203.0.113.151");
+    expect(first.status).toBe(200);
+    const firstBody = await first.text();
+
+    const second = await postFirmSignup({ name: "Second Name Attempt", admin_email: email }, "203.0.113.152");
+    expect(second.status).toBe(200);
+    const secondBody = await second.text();
+    expect(secondBody).toBe(firstBody); // byte-identical response -- no enumeration oracle
+
+    const rows = await env.DB.prepare("SELECT * FROM firms WHERE admin_email = ?1").bind(email).all<FirmRow>();
+    expect(rows.results.length).toBe(1);
+    expect(rows.results[0]?.name).toBe("First Name"); // unchanged by the second attempt
+  });
+
+  it("rejects an empty/whitespace-only firm name", async () => {
+    const resp = await postFirmSignup(
+      { name: "   ", admin_email: `firmsignup-noname-${Date.now()}@example.com` },
+      "203.0.113.153"
+    );
+    expect(resp.status).toBe(400);
+  });
+
+  it("silently no-ops when the honeypot field is non-empty", async () => {
+    const email = `firmsignup-hp-${Date.now()}@example.com`;
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/signup", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.154" },
+      body: form({ name: "Bot Firm", admin_email: email, hp_website: "im-a-bot" }),
+    });
+    expect(resp.status).toBe(200);
+    expect(await firmByAdminEmail(email)).toBeNull();
+  });
+
+  it("rejects control characters in any field", async () => {
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/signup", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.155" },
+      body: "name=bad%0d%0aname&admin_email=a%40example.com&hp_website=",
+    });
+    expect(resp.status).toBe(400);
+  });
+
+  it("rejects a malformed email", async () => {
+    const resp = await postFirmSignup({ name: "Example Firm", admin_email: "not-an-email" }, "203.0.113.156");
+    expect(resp.status).toBe(400);
+  });
+
+  it("blocks the 6th request from the same IP within the window (own rate-limit bucket)", async () => {
+    const ip = "203.0.113.157";
+    for (let i = 0; i < 5; i++) {
+      const resp = await postFirmSignup(
+        { name: "Example Firm", admin_email: `firmsignup-rl-${i}-${Date.now()}@example.com` },
+        ip
+      );
+      expect(resp.status).not.toBe(429);
+    }
+    const sixth = await postFirmSignup(
+      { name: "Example Firm", admin_email: `firmsignup-rl-6-${Date.now()}@example.com` },
+      ip
+    );
+    expect(sixth.status).toBe(429);
+  });
+});
+
+describe("POST /firm/login -- login-link resend for an existing firm", () => {
+  it("for a nonexistent email returns the SAME generic response as a real firm, and creates nothing", async () => {
+    const email = `firmlogin-none-${Date.now()}@example.com`;
+    const resp = await postFirmLogin({ admin_email: email }, "203.0.113.160");
+    expect(resp.status).toBe(200);
+    const body = await resp.text();
+    expect(body.toLowerCase()).toContain("check your email");
+    expect(await firmByAdminEmail(email)).toBeNull();
+  });
+
+  it("for an existing firm issues a fresh login token (on top of the one signup already created)", async () => {
+    const email = `firmlogin-existing-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Existing Firm", admin_email: email }, "203.0.113.161");
+    const firm = await firmByAdminEmail(email);
+    const before = await env.DB
+      .prepare("SELECT COUNT(*) as c FROM firm_login_tokens WHERE firm_id = ?1")
+      .bind(firm?.id)
+      .first<{ c: number }>();
+
+    const resp = await postFirmLogin({ admin_email: email }, "203.0.113.162");
+    expect(resp.status).toBe(200);
+
+    const after = await env.DB
+      .prepare("SELECT COUNT(*) as c FROM firm_login_tokens WHERE firm_id = ?1")
+      .bind(firm?.id)
+      .first<{ c: number }>();
+    expect(after?.c).toBe((before?.c ?? 0) + 1);
+  });
+
+  it("silently no-ops when the honeypot field is non-empty", async () => {
+    const email = `firmlogin-hp-${Date.now()}@example.com`;
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/login", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.163" },
+      body: form({ admin_email: email, hp_website: "im-a-bot" }),
+    });
+    expect(resp.status).toBe(200);
+  });
+
+  it("rejects a malformed email", async () => {
+    const resp = await postFirmLogin({ admin_email: "not-an-email" }, "203.0.113.164");
+    expect(resp.status).toBe(400);
+  });
+
+  it("blocks the 6th request from the same IP within the window (own rate-limit bucket, separate from signup's)", async () => {
+    const ip = "203.0.113.165";
+    for (let i = 0; i < 5; i++) {
+      const resp = await postFirmLogin({ admin_email: `firmlogin-rl-${i}-${Date.now()}@example.com` }, ip);
+      expect(resp.status).not.toBe(429);
+    }
+    const sixth = await postFirmLogin({ admin_email: `firmlogin-rl-6-${Date.now()}@example.com` }, ip);
+    expect(sixth.status).toBe(429);
+  });
+});
+
+describe("GET /firm/login/verify -- render-only confirm page, prefetch-safe", () => {
+  it("renders a confirm page with a POST form and does NOT consume the token or set a cookie", async () => {
+    const email = `firmverify-render-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Render Firm", admin_email: email }, "203.0.113.169");
+    const firm = await firmByAdminEmail(email);
+    const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
+
+    const resp = await getFirmLoginVerifyPage(rawToken, "203.0.113.169");
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Set-Cookie")).toBeNull();
+    const body = await resp.text();
+    expect(body.toLowerCase()).toContain("sign in");
+    expect(body).toContain(`name="token" value="${rawToken}"`);
+    expect(body).toContain('method="post"');
+
+    // Token must still be unused -- rendering the page must not consume it.
+    const sameTokenPostLater = await postFirmLoginVerify(rawToken, "203.0.113.169");
+    expect(sameTokenPostLater.status).toBe(302); // still valid, consumed here for the first time
+  });
+});
+
+describe("POST /firm/login/verify -- consumes the login token, creates a session, sets the cookie", () => {
+  it("a valid raw login token creates a session, sets the dr_firm_session cookie, and redirects to /firm-dashboard/", async () => {
+    const email = `firmverify-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Verify Firm", admin_email: email }, "203.0.113.170");
+    const firm = await firmByAdminEmail(email);
+    const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
+
+    const resp = await postFirmLoginVerify(rawToken, "203.0.113.171");
+    expect(resp.status).toBe(302);
+    expect(resp.headers.get("Location")).toBe("/firm-dashboard/");
+    const setCookie = resp.headers.get("Set-Cookie");
+    expect(setCookie).toBeTruthy();
+    expect(setCookie).toContain("dr_firm_session=");
+    expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("Secure");
+    expect(setCookie).toContain("SameSite=Lax");
+    expect(setCookie).toContain("Max-Age=2592000"); // 30 days in seconds
+
+    const rawSession = cookieValue(setCookie, "dr_firm_session");
+    expect(rawSession).toBeTruthy();
+    const sessionCheck = await store.verifySession(env.DB, rawSession as string);
+    expect(sessionCheck?.firmId).toBe(firm!.id);
+  });
+
+  it("the SAME raw token cannot be used twice (single-use)", async () => {
+    const email = `firmverify-reuse-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Reuse Firm", admin_email: email }, "203.0.113.172");
+    const firm = await firmByAdminEmail(email);
+    const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
+
+    const first = await postFirmLoginVerify(rawToken, "203.0.113.173");
+    expect(first.status).toBe(302);
+
+    const second = await postFirmLoginVerify(rawToken, "203.0.113.174");
+    expect(second.status).toBe(400);
+    const body = await second.text();
+    expect(body.toLowerCase()).toContain("invalid");
+  });
+
+  it("an expired token is rejected", async () => {
+    const email = `firmverify-expired-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Expired Firm", admin_email: email }, "203.0.113.175");
+    const firm = await firmByAdminEmail(email);
+    const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
+    const tokenHash = await store.hashToken(rawToken);
+    // Force it into the past -- simulates 15+ minutes elapsed without waiting.
+    await env.DB
+      .prepare("UPDATE firm_login_tokens SET expires_at = ?1 WHERE token_hash = ?2")
+      .bind(new Date(Date.now() - 1000).toISOString(), tokenHash)
+      .run();
+
+    const resp = await postFirmLoginVerify(rawToken, "203.0.113.176");
+    expect(resp.status).toBe(400);
+    const body = await resp.text();
+    expect(body.toLowerCase()).toContain("expired");
+  });
+
+  it("a malformed/unknown token is rejected", async () => {
+    const resp = await postFirmLoginVerify("this-token-does-not-exist", "203.0.113.177");
+    expect(resp.status).toBe(400);
+  });
+
+  it("a missing token returns 400", async () => {
+    const resp = await postFirmLoginVerify(null, "203.0.113.178");
+    expect(resp.status).toBe(400);
+  });
+});
+
+describe("POST /firm/logout -- deletes the session and clears the cookie", () => {
+  it("deletes the session row and clears the cookie; the old raw token no longer authenticates", async () => {
+    const email = `firmlogout-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Logout Firm", admin_email: email }, "203.0.113.180");
+    const firm = await firmByAdminEmail(email);
+    const { rawSessionToken } = await store.createSession(env.DB, firm!.id);
+
+    const before = await store.verifySession(env.DB, rawSessionToken);
+    expect(before?.firmId).toBe(firm!.id);
+
+    const resp = await postFirmLogout(`dr_firm_session=${rawSessionToken}`, "203.0.113.181");
+    expect(resp.status).toBe(302);
+    const setCookie = resp.headers.get("Set-Cookie");
+    expect(setCookie).toContain("Max-Age=0");
+
+    const after = await store.verifySession(env.DB, rawSessionToken);
+    expect(after).toBeNull();
+  });
+
+  it("is a safe no-op when there's no session cookie at all", async () => {
+    const resp = await postFirmLogout(null, "203.0.113.182");
+    expect(resp.status).toBe(302);
+  });
+});
+
+describe("requireFirmSession -- the single auth gate every future firm-scoped route must call first", () => {
+  it("rejects a request with no session cookie", async () => {
+    const { requireFirmSession } = await import("../src/index");
+    const request = new Request("https://deadline-radar.com/firm-dashboard/");
+    const result = await requireFirmSession(request, env);
+    expect(result).toBeInstanceOf(Response);
+    expect((result as Response).status).toBe(401);
+  });
+
+  it("rejects a request with a garbage/unknown session cookie", async () => {
+    const { requireFirmSession } = await import("../src/index");
+    const request = new Request("https://deadline-radar.com/firm-dashboard/", {
+      headers: { Cookie: "dr_firm_session=not-a-real-token" },
+    });
+    const result = await requireFirmSession(request, env);
+    expect(result).toBeInstanceOf(Response);
+    expect((result as Response).status).toBe(401);
+  });
+
+  it("rejects an expired session cookie", async () => {
+    const { requireFirmSession } = await import("../src/index");
+    const firmId = (
+      await store.createFirm(env.DB, { name: "Expired Session Firm", adminEmail: `expsess-${Date.now()}@example.com` })
+    ).id;
+    const { rawSessionToken } = await store.createSession(env.DB, firmId);
+    const tokenHash = await store.hashToken(rawSessionToken);
+    await env.DB
+      .prepare("UPDATE firm_sessions SET expires_at = ?1 WHERE session_token_hash = ?2")
+      .bind(new Date(Date.now() - 1000).toISOString(), tokenHash)
+      .run();
+
+    const request = new Request("https://deadline-radar.com/firm-dashboard/", {
+      headers: { Cookie: `dr_firm_session=${rawSessionToken}` },
+    });
+    const result = await requireFirmSession(request, env);
+    expect(result).toBeInstanceOf(Response);
+    expect((result as Response).status).toBe(401);
+  });
+
+  it("accepts a valid, current session cookie and resolves the correct firmId", async () => {
+    const { requireFirmSession } = await import("../src/index");
+    const firmId = (
+      await store.createFirm(env.DB, { name: "Valid Session Firm", adminEmail: `validsess-${Date.now()}@example.com` })
+    ).id;
+    const { rawSessionToken } = await store.createSession(env.DB, firmId);
+
+    const request = new Request("https://deadline-radar.com/firm-dashboard/", {
+      headers: { Cookie: `dr_firm_session=${rawSessionToken}` },
+    });
+    const result = await requireFirmSession(request, env);
+    expect(result).not.toBeInstanceOf(Response);
+    expect((result as { firmId: string }).firmId).toBe(firmId);
+  });
+
+  it("picks the session cookie out from among other unrelated cookies on the request", async () => {
+    const { requireFirmSession } = await import("../src/index");
+    const firmId = (
+      await store.createFirm(env.DB, { name: "Multi Cookie Firm", adminEmail: `multicookie-${Date.now()}@example.com` })
+    ).id;
+    const { rawSessionToken } = await store.createSession(env.DB, firmId);
+
+    const request = new Request("https://deadline-radar.com/firm-dashboard/", {
+      headers: { Cookie: `some_other_cookie=xyz; dr_firm_session=${rawSessionToken}; another=1` },
+    });
+    const result = await requireFirmSession(request, env);
+    expect(result).not.toBeInstanceOf(Response);
+    expect((result as { firmId: string }).firmId).toBe(firmId);
+  });
+});
+
+describe("store.ts hashToken -- login/session token hashing", () => {
+  it("is deterministic and never contains the raw value it hashed", async () => {
+    const raw = "some-raw-token-value";
+    const h1 = await store.hashToken(raw);
+    const h2 = await store.hashToken(raw);
+    expect(h1).toBe(h2);
+    expect(h1).not.toContain(raw);
+    expect(h1).toMatch(/^[0-9a-f]{64}$/); // hex-encoded SHA-256
+  });
+
+  it("different inputs hash differently", async () => {
+    const h1 = await store.hashToken("token-a");
+    const h2 = await store.hashToken("token-b");
+    expect(h1).not.toBe(h2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Firm-dashboard MVP (2026-07-28, step 2/3) -- staff license CRUD,
+// /firm/licenses*. Helpers below create a real firm + a real logged-in
+// session (bypassing the login-link email flow, same shortcut the
+// requireFirmSession() describe block above already takes) so every test
+// exercises the ACTUAL HTTP routes end-to-end, not just store.ts functions.
+// ---------------------------------------------------------------------------
+
+async function createFirmWithSession(name: string, adminEmail: string): Promise<{ firmId: string; cookie: string }> {
+  const firm = await store.createFirm(env.DB, { name, adminEmail });
+  const { rawSessionToken } = await store.createSession(env.DB, firm.id);
+  return { firmId: firm.id, cookie: `dr_firm_session=${rawSessionToken}` };
+}
+
+async function getFirmLicenses(cookie: string | null, ip = "203.0.113.200"): Promise<Response> {
+  const headers: Record<string, string> = { "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch("https://deadline-radar.com/firm/licenses", { headers });
+}
+
+async function postFirmLicense(
+  cookie: string | null,
+  body: Record<string, string>,
+  ip = "203.0.113.200"
+): Promise<Response> {
+  const headers: Record<string, string> = { "content-type": "application/json", "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch("https://deadline-radar.com/firm/licenses", { method: "POST", headers, body: JSON.stringify(body) });
+}
+
+async function patchFirmLicense(
+  cookie: string | null,
+  id: string,
+  body: Record<string, string>,
+  ip = "203.0.113.200"
+): Promise<Response> {
+  const headers: Record<string, string> = { "content-type": "application/json", "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch(`https://deadline-radar.com/firm/licenses/${id}`, { method: "PATCH", headers, body: JSON.stringify(body) });
+}
+
+async function deleteFirmLicense(cookie: string | null, id: string, ip = "203.0.113.200"): Promise<Response> {
+  const headers: Record<string, string> = { "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch(`https://deadline-radar.com/firm/licenses/${id}`, { method: "DELETE", headers });
+}
+
+async function renewFirmLicense(cookie: string | null, id: string, ip = "203.0.113.200"): Promise<Response> {
+  const headers: Record<string, string> = { "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch(`https://deadline-radar.com/firm/licenses/${id}/renew`, { method: "POST", headers });
+}
+
+describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashboard MVP)", () => {
+  it("every route 401s without a session cookie", async () => {
+    expect((await getFirmLicenses(null)).status).toBe(401);
+    expect((await postFirmLicense(null, { email: "a@example.com", state_slug: "georgia" })).status).toBe(401);
+    expect((await patchFirmLicense(null, "nonexistent", { staff_label: "x" })).status).toBe(401);
+    expect((await deleteFirmLicense(null, "nonexistent")).status).toBe(401);
+    expect((await renewFirmLicense(null, "nonexistent")).status).toBe(401);
+  });
+
+  it("happy path (HYBRID consent model, 2026-07-28): POST creates an ACTIVE staff license immediately -- no pending-confirmation gate on the firm path -- and sends the transparent first-contact email with a one-click opt-out instead of a confirm link", async () => {
+    const { cookie } = await createFirmWithSession("Roster Firm", `roster-${Date.now()}@example.com`);
+    const staffEmail = `staff-${Date.now()}@example.com`;
+    const resp = await postFirmLicense(cookie, {
+      staff_label: "Jane D. -- Audit team",
+      email: staffEmail,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    expect(resp.status).toBe(201);
+    const body = (await resp.json()) as Record<string, unknown>;
+    expect(body.staff_label).toBe("Jane D. -- Audit team");
+    expect(body.status).toBe("active");
+
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(staffEmail).first<SubscriberRow>();
+    expect(row).not.toBeNull();
+    expect(row?.firm_id).not.toBeNull();
+    expect(row?.staff_label).toBe("Jane D. -- Audit team");
+    expect(row?.status).toBe(store.STATUS_CONFIRMED); // ACTIVE immediately, not pending
+    expect(row?.confirmed_at).toBeTruthy();
+    expect(row?.confirm_token).toBeTruthy(); // still generated (schema requires it), just never emailed
+    // No first_name was supplied by the admin -- this is the ADMIN's label
+    // for the person, deliberately distinct from first_name.
+    expect(row?.first_name).toBeNull();
+  });
+
+  it("HYBRID consent model: the transparent first-contact email fires (not the confirm email), names the firm, and its link is the unsubscribe token (not the confirm token)", async () => {
+    const worker = (await import("../src/index")).default;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 202 }));
+    try {
+      const { cookie } = await createFirmWithSession("Bennett CPA Group", `bennett-${Date.now()}@example.com`);
+      const staffEmail = `staff-transparency-${Date.now()}@example.com`;
+      const envWithKey = { ...env, SENDGRID_API_KEY: "test-key-not-real" };
+      const request = new Request("https://deadline-radar.com/firm/licenses", {
+        method: "POST",
+        headers: { "content-type": "application/json", Cookie: cookie },
+        body: JSON.stringify({
+          staff_label: "New Hire",
+          email: staffEmail,
+          state_slug: "georgia",
+          license_type_id: "ga-individual",
+        }),
+      });
+      const resp = await worker.fetch(request, envWithKey);
+      expect(resp.status).toBe(201);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [, sendGridCallInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      const sentBody = JSON.parse(String(sendGridCallInit.body));
+      expect(sentBody.subject).toContain("Bennett CPA Group added you to DeadlineRadar");
+      const textContent = sentBody.content.find((c: { type: string }) => c.type === "text/plain").value as string;
+      expect(textContent).toContain("Bennett CPA Group added you to DeadlineRadar");
+      expect(textContent).toContain("/api/unsubscribe?token=");
+      expect(textContent).not.toContain("/api/confirm?token=");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("rejects an unsupported state, an invalid email, and control characters, same as /subscribe's validation", async () => {
+    const { cookie } = await createFirmWithSession("Validation Firm", `validation-${Date.now()}@example.com`);
+    const badState = await postFirmLicense(cookie, { email: "a@example.com", state_slug: "not-a-real-state" });
+    expect(badState.status).toBe(400);
+
+    const badEmail = await postFirmLicense(cookie, { email: "not-an-email", state_slug: "georgia", license_type_id: "ga-individual" });
+    expect(badEmail.status).toBe(400);
+
+    const controlChars = await postFirmLicense(cookie, {
+      email: "a@example.com",
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+      staff_label: "bad\r\nlabel",
+    });
+    expect(controlChars.status).toBe(400);
+  });
+
+  it("does NOT require the honeypot/Turnstile fields the public form needs (an authenticated session is proof enough)", async () => {
+    const { cookie } = await createFirmWithSession("No Honeypot Firm", `nohp-${Date.now()}@example.com`);
+    // Deliberately omits hp_website/cf-turnstile-response entirely -- unlike
+    // postSubscribe()'s helper, which always includes hp_website: "".
+    const resp = await postFirmLicense(cookie, {
+      email: `nohp-staff-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    expect(resp.status).toBe(201);
+  });
+
+  it("refuses a duplicate email+state that already has an active/pending record (409, no silent double row)", async () => {
+    const { cookie } = await createFirmWithSession("Dup Firm", `dup-${Date.now()}@example.com`);
+    const email = `dup-staff-${Date.now()}@example.com`;
+    const first = await postFirmLicense(cookie, { email, state_slug: "georgia", license_type_id: "ga-individual" });
+    expect(first.status).toBe(201);
+    const second = await postFirmLicense(cookie, { email, state_slug: "georgia", license_type_id: "ga-individual" });
+    expect(second.status).toBe(409);
+    const rows = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).all<SubscriberRow>();
+    expect(rows.results.length).toBe(1);
+  });
+
+  it("blocks the 51st staff-add for the SAME firm within the window (own per-firm bucket, distinct from per-IP buckets)", async () => {
+    const { cookie } = await createFirmWithSession("Rate Limited Firm", `ratelimit-${Date.now()}@example.com`);
+    for (let i = 0; i < RATE_LIMIT_FIRM_LICENSE_CREATE.max; i++) {
+      const resp = await postFirmLicense(cookie, {
+        email: `ratelimit-staff-${i}-${Date.now()}@example.com`,
+        state_slug: "georgia",
+        license_type_id: "ga-individual",
+      });
+      expect(resp.status).toBe(201);
+    }
+    const overCap = await postFirmLicense(cookie, {
+      email: `ratelimit-staff-over-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    expect(overCap.status).toBe(429);
+  }, 20_000);
+
+  it("GET lists only this firm's roster, sorted soonest-deadline-first", async () => {
+    const { cookie } = await createFirmWithSession("List Firm", `list-${Date.now()}@example.com`);
+    // Texas (birth_month 7) and Ohio (Group 1) resolve to different, both
+    // computable, deadlines -- sort order is asserted below, not assumed.
+    await postFirmLicense(cookie, { email: `list-tx-${Date.now()}@example.com`, state_slug: "texas", birth_month: "7", staff_label: "TX Person" });
+    await postFirmLicense(cookie, { email: `list-oh-${Date.now()}@example.com`, state_slug: "ohio", cohort_group: "Group 1", staff_label: "OH Person" });
+
+    const resp = await getFirmLicenses(cookie);
+    expect(resp.status).toBe(200);
+    const body = (await resp.json()) as { licenses: { staff_label: string; next_deadline: string | null }[] };
+    expect(body.licenses.length).toBe(2);
+    // Every entry has a computed next_deadline (both states are computable).
+    for (const item of body.licenses) expect(item.next_deadline).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // Sorted ascending.
+    const dates = body.licenses.map((l) => l.next_deadline as string);
+    expect([...dates].sort()).toEqual(dates);
+  });
+
+  it("PATCH updates staff_label/state without requiring every field, and re-triggers confirmation when the email changes", async () => {
+    const { cookie } = await createFirmWithSession("Patch Firm", `patch-${Date.now()}@example.com`);
+    const created = await postFirmLicense(cookie, {
+      email: `patch-staff-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+      staff_label: "Original Label",
+    });
+    const createdBody = (await created.json()) as { id: string };
+    const originalRow = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(createdBody.id).first<SubscriberRow>();
+    await store.confirm(env.DB, originalRow!.confirm_token);
+
+    // Label-only edit: does not touch state/email/confirmation status.
+    const labelPatch = await patchFirmLicense(cookie, createdBody.id, { staff_label: "New Label" });
+    expect(labelPatch.status).toBe(200);
+    const afterLabel = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(createdBody.id).first<SubscriberRow>();
+    expect(afterLabel?.staff_label).toBe("New Label");
+    expect(afterLabel?.status).toBe(store.STATUS_CONFIRMED); // unchanged -- no email edit here
+
+    // Email edit: must force back through pending_confirmation (see
+    // UpdateFirmLicenseInput.resetConfirmation's own doc for why) -- editing
+    // the delivery address is re-consenting a DIFFERENT inbox, which has
+    // never clicked anything.
+    const newEmail = `patch-newemail-${Date.now()}@example.com`;
+    const emailPatch = await patchFirmLicense(cookie, createdBody.id, { email: newEmail });
+    expect(emailPatch.status).toBe(200);
+    const afterEmail = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(createdBody.id).first<SubscriberRow>();
+    expect(afterEmail?.email).toBe(newEmail);
+    expect(afterEmail?.status).toBe(store.STATUS_PENDING);
+    expect(afterEmail?.confirmed_at).toBeNull();
+  });
+
+  it("returns 404 for a nonexistent id on PATCH/DELETE/renew (not a 500 or a 200)", async () => {
+    const { cookie } = await createFirmWithSession("Missing Id Firm", `missing-${Date.now()}@example.com`);
+    expect((await patchFirmLicense(cookie, "does-not-exist", { staff_label: "x" })).status).toBe(404);
+    expect((await deleteFirmLicense(cookie, "does-not-exist")).status).toBe(404);
+    expect((await renewFirmLicense(cookie, "does-not-exist")).status).toBe(404);
+  });
+});
+
+describe("Cross-firm ownership -- the single most important test in this build", () => {
+  // Firm A must NEVER be able to read, edit, delete, or renew Firm B's
+  // license via GET/PATCH/DELETE/POST .../renew, and the failure mode for
+  // PATCH/DELETE/renew must be 404 (not 403 -- a 403 would CONFIRM the
+  // record exists under another firm, the exact enumeration oracle this
+  // codebase's every other route already avoids). This test is written to
+  // fail loudly (a wrong status code, or -- far worse -- a mutated row) if
+  // this check is ever weakened.
+  it("firm A cannot read, edit, delete, or renew firm B's license", async () => {
+    const firmA = await createFirmWithSession("Firm A", `firma-${Date.now()}@example.com`);
+    const firmB = await createFirmWithSession("Firm B", `firmb-${Date.now()}@example.com`);
+
+    const staffEmail = `firmb-staff-${Date.now()}@example.com`;
+    const created = await postFirmLicense(firmB.cookie, {
+      email: staffEmail,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+      staff_label: "Firm B's Staffer",
+    });
+    expect(created.status).toBe(201);
+    const { id } = (await created.json()) as { id: string };
+    const originalRow = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(id).first<SubscriberRow>();
+    await store.confirm(env.DB, originalRow!.confirm_token);
+    const confirmedRow = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(id).first<SubscriberRow>();
+
+    // GET (list) -- firm B's record must never appear in firm A's roster.
+    const listA = await getFirmLicenses(firmA.cookie);
+    expect(listA.status).toBe(200);
+    const listABody = (await listA.json()) as { licenses: { id: string }[] };
+    expect(listABody.licenses.find((l) => l.id === id)).toBeUndefined();
+
+    // PATCH -- 404, not 403, and the row must be completely untouched.
+    const patchAttempt = await patchFirmLicense(firmA.cookie, id, { staff_label: "Hijacked by Firm A" });
+    expect(patchAttempt.status).toBe(404);
+
+    // DELETE -- 404, and the row must still be active (not removed).
+    const deleteAttempt = await deleteFirmLicense(firmA.cookie, id);
+    expect(deleteAttempt.status).toBe(404);
+
+    // POST .../renew -- 404, and the row's cycle/tokens must be untouched.
+    const renewAttempt = await renewFirmLicense(firmA.cookie, id);
+    expect(renewAttempt.status).toBe(404);
+
+    const afterAllAttempts = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(id).first<SubscriberRow>();
+    expect(afterAllAttempts?.staff_label).toBe("Firm B's Staffer"); // NOT "Hijacked by Firm A"
+    expect(afterAllAttempts?.status).toBe(store.STATUS_CONFIRMED); // NOT removed/stopped
+    expect(afterAllAttempts?.stop_reason).toBeNull();
+    expect(afterAllAttempts?.cycle).toBe(confirmedRow?.cycle); // unchanged
+    expect(afterAllAttempts?.unsubscribe_token).toBe(confirmedRow?.unsubscribe_token); // unchanged
+    expect(afterAllAttempts?.renewed_token).toBe(confirmedRow?.renewed_token); // unchanged
+    expect(afterAllAttempts?.firm_id).toBe(firmB.firmId); // still firm B's, never reassigned
+
+    // Sanity check: firm B itself CAN do every one of these -- proves the
+    // 404s above are an ownership refusal, not a route/bug that 404s for
+    // everyone.
+    expect((await getFirmLicenses(firmB.cookie)).status).toBe(200);
+    const bList = (await (await getFirmLicenses(firmB.cookie)).json()) as { licenses: { id: string }[] };
+    expect(bList.licenses.find((l) => l.id === id)).toBeTruthy();
+    expect((await patchFirmLicense(firmB.cookie, id, { staff_label: "Firm B edits its own" })).status).toBe(200);
+    expect((await renewFirmLicense(firmB.cookie, id)).status).toBe(200);
+    expect((await deleteFirmLicense(firmB.cookie, id)).status).toBe(200);
+  });
+
+  it("store.getFirmLicense()/updateFirmLicense()/removeFirmLicense()/renewAndRearm() all return null for a real id under the WRONG firmId, at the storage layer directly", async () => {
+    const firmA = (await store.createFirm(env.DB, { name: "Storage Firm A", adminEmail: `storagea-${Date.now()}@example.com` })).id;
+    const firmB = (await store.createFirm(env.DB, { name: "Storage Firm B", adminEmail: `storageb-${Date.now()}@example.com` })).id;
+    const rec = await store.addPending(env.DB, {
+      email: `storage-staff-${Date.now()}@example.com`,
+      stateSlug: "georgia",
+      deadlineFields: { license_type_id: "ga-individual" },
+      firstName: null,
+      firmId: firmB,
+      staffLabel: "Storage Test",
+    });
+    await store.confirm(env.DB, rec.confirm_token);
+
+    expect(await store.getFirmLicense(env.DB, firmA, rec.id)).toBeNull();
+    expect(
+      await store.updateFirmLicense(env.DB, firmA, rec.id, {
+        email: rec.email,
+        staffLabel: "hijacked",
+        stateSlug: rec.state_slug,
+        deadlineFields: {},
+        deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+        userDeadline: null,
+        resetConfirmation: false,
+      })
+    ).toBeNull();
+    expect(await store.removeFirmLicense(env.DB, firmA, rec.id)).toBeNull();
+    expect(await store.renewAndRearm(env.DB, firmA, rec.id)).toBeNull();
+
+    // The row itself is untouched by any of the four wrong-firm attempts above.
+    const stillIntact = await store.getFirmLicense(env.DB, firmB, rec.id);
+    expect(stillIntact?.staff_label).toBe("Storage Test");
+    expect(stillIntact?.status).toBe(store.STATUS_CONFIRMED);
+  });
+});
+
+describe("DELETE /firm/licenses/:id -- removes from roster and stops further reminders", () => {
+  it("marks stop_reason = removed_by_admin, disappears from GET /firm/licenses, and is excluded from allConfirmedActive() (no more reminders will ever be sent)", async () => {
+    const { cookie } = await createFirmWithSession("Removal Firm", `removal-${Date.now()}@example.com`);
+    const email = `removal-staff-${Date.now()}@example.com`;
+    const created = await postFirmLicense(cookie, { email, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id } = (await created.json()) as { id: string };
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(id).first<SubscriberRow>();
+    await store.confirm(env.DB, row!.confirm_token);
+
+    // Confirmed -- would appear in allConfirmedActive() (what the reminder
+    // cron actually sends off of) before removal.
+    let active = await store.allConfirmedActive(env.DB);
+    expect(active.some((r) => r.id === id)).toBe(true);
+
+    const del = await deleteFirmLicense(cookie, id);
+    expect(del.status).toBe(200);
+
+    const removedRow = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(id).first<SubscriberRow>();
+    expect(removedRow?.status).toBe(store.STATUS_STOPPED);
+    expect(removedRow?.stop_reason).toBe(store.STOP_REASON_REMOVED_BY_ADMIN);
+
+    // Gone from the dashboard roster...
+    const list = await getFirmLicenses(cookie);
+    const listBody = (await list.json()) as { licenses: { id: string }[] };
+    expect(listBody.licenses.find((l) => l.id === id)).toBeUndefined();
+
+    // ...and gone from the reminder cron's own send-eligibility query --
+    // this is what "stops any pending reminder sends" actually means at the
+    // send-pipeline layer, not just the dashboard's own display.
+    active = await store.allConfirmedActive(env.DB);
+    expect(active.some((r) => r.id === id)).toBe(false);
+  });
+
+  it("a removed license cannot be resurrected via POST .../renew (renew must not undo an admin removal)", async () => {
+    const { cookie } = await createFirmWithSession("No Resurrect Firm", `noresurrect-${Date.now()}@example.com`);
+    const email = `noresurrect-staff-${Date.now()}@example.com`;
+    const created = await postFirmLicense(cookie, { email, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id } = (await created.json()) as { id: string };
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(id).first<SubscriberRow>();
+    await store.confirm(env.DB, row!.confirm_token);
+    await deleteFirmLicense(cookie, id);
+
+    const renewAttempt = await renewFirmLicense(cookie, id);
+    expect(renewAttempt.status).toBe(400);
+    const stillRemoved = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(id).first<SubscriberRow>();
+    expect(stillRemoved?.status).toBe(store.STATUS_STOPPED);
+    expect(stillRemoved?.stop_reason).toBe(store.STOP_REASON_REMOVED_BY_ADMIN);
+  });
+});
+
+describe("POST /firm/licenses/:id/renew -- atomic renew-and-rearm (Part A #5)", () => {
+  it("stops this cycle AND re-arms for next cycle in one call: cycle+1, reminders_sent cleared, stop fields cleared, tokens rotated", async () => {
+    const { cookie } = await createFirmWithSession("Renew Firm", `renew-${Date.now()}@example.com`);
+    const email = `renew-staff-${Date.now()}@example.com`;
+    const created = await postFirmLicense(cookie, { email, state_slug: "texas", birth_month: "7" });
+    const { id } = (await created.json()) as { id: string };
+    const original = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(id).first<SubscriberRow>();
+    await store.confirm(env.DB, original!.confirm_token);
+    await store.markReminderSent(env.DB, id, 30); // pretend a reminder already fired this cycle
+    const beforeRenew = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(id).first<SubscriberRow>();
+    expect(beforeRenew?.cycle).toBe(1);
+    expect(JSON.parse(beforeRenew?.reminders_sent ?? "[]")).toEqual([30]);
+
+    const resp = await renewFirmLicense(cookie, id);
+    expect(resp.status).toBe(200);
+    const body = (await resp.json()) as { status: string; cycle: number };
+    expect(body.status).toBe("active"); // HYBRID consent model (2026-07-28) status label
+    expect(body.cycle).toBe(2);
+
+    // Verify directly against the DB row, not just the HTTP response.
+    const after = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(id).first<SubscriberRow>();
+    expect(after?.status).toBe(store.STATUS_CONFIRMED);
+    expect(after?.cycle).toBe(2);
+    expect(after?.stopped_at).toBeNull();
+    expect(after?.stop_reason).toBeNull();
+    expect(JSON.parse(after?.reminders_sent ?? "[]")).toEqual([]);
+    // Tokens rotated, same posture as rearm() -- an old copy of either
+    // token (e.g. from a previously sent, now-stale reminder email) must not
+    // remain valid.
+    expect(after?.unsubscribe_token).not.toBe(beforeRenew?.unsubscribe_token);
+    expect(after?.renewed_token).not.toBe(beforeRenew?.renewed_token);
+  });
+
+  it("refuses a record that never confirmed (nothing to renew) -- defense-in-depth: since the HYBRID consent model (2026-07-28), the real POST /firm/licenses route always creates an ACTIVE record (skipConfirmation), so a firm-scoped pending row is no longer reachable through the normal add-staff path. Constructs one directly at the store layer to prove renewAndRearm's own guard still holds regardless of how such a row exists (a legacy record, or a future call site that forgets to skip confirmation).", async () => {
+    const { cookie, firmId } = await createFirmWithSession("Unconfirmed Firm", `unconfirmed-${Date.now()}@example.com`);
+    const pendingRow = await store.addPending(env.DB, {
+      email: `unconfirmed-staff-${Date.now()}@example.com`,
+      stateSlug: "georgia",
+      deadlineFields: { license_type_id: "ga-individual" },
+      firstName: null,
+      firmId,
+      staffLabel: "Still Pending",
+    });
+    const id = pendingRow.id;
+    // Deliberately never confirmed (skipConfirmation omitted above -> defaults to pending).
+    const resp = await renewFirmLicense(cookie, id);
+    expect(resp.status).toBe(400);
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(id).first<SubscriberRow>();
+    expect(row?.status).toBe(store.STATUS_PENDING); // unchanged
+  });
+
+  it("refuses to auto-rearm a bring-your-own-date record, with a tailored message (same rule as the free-tier rearm())", async () => {
+    const { firmId, cookie } = await createFirmWithSession("BYOD Firm", `byodfirm-${Date.now()}@example.com`);
+    const email = `byod-firm-staff-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, {
+      email,
+      stateSlug: "new-jersey", // uncomputable -- BYOD
+      deadlineFields: {},
+      firstName: null,
+      deadlineSource: "user",
+      userDeadline: "2026-08-15",
+      firmId,
+      staffLabel: "BYOD Staffer",
+    });
+    await store.confirm(env.DB, rec.confirm_token);
+
+    const resp = await renewFirmLicense(cookie, rec.id);
+    expect(resp.status).toBe(400);
+    const body = (await resp.json()) as { error: string };
+    expect(body.error.toLowerCase()).toContain("can't auto-compute");
+
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(rec.id).first<SubscriberRow>();
+    expect(row?.status).toBe(store.STATUS_CONFIRMED); // never stopped, never touched
+    expect(row?.cycle).toBe(1);
+  });
+});
+
+describe("emails.ts buildFirmLoginEmail", () => {
+  it("includes the login link, the 15-minute expiry copy, and a real mailing address", async () => {
+    const { buildFirmLoginEmail, MAILING_ADDRESS } = await import("../src/emails");
+    const built = buildFirmLoginEmail("https://deadline-radar.com/api/firm/login/verify?token=abc123");
+    expect(built.subject.toLowerCase()).toContain("sign-in link");
+    expect(built.textBody).toContain("https://deadline-radar.com/api/firm/login/verify?token=abc123");
+    expect(built.htmlBody).toContain("https://deadline-radar.com/api/firm/login/verify?token=abc123");
+    expect(built.textBody).toContain("15 minutes");
+    expect(built.htmlBody).toContain("15 minutes");
+    expect(built.htmlBody).toContain(MAILING_ADDRESS);
+    expect(built.textBody).toContain(MAILING_ADDRESS);
   });
 });
 
@@ -841,13 +1725,26 @@ describe("store.ts resendEligible / recordResend", () => {
 describe("sender.ts checkAndCountSend -- daily circuit breaker", () => {
   it("allows sends up to the cap, then refuses every further send that UTC day", async () => {
     const { checkAndCountSend } = await import("../src/sender");
-    const cap = 3;
+    // checkAndCountSend() shares ONE real send_counters row per UTC day across
+    // every test in this file (it has no day-override parameter to isolate
+    // against) -- other tests that go through a real send path (e.g. the
+    // HYBRID-consent transparency-email test above) increment the same
+    // counter. Read today's actual current count first and set the cap
+    // relative to it, so this test asserts "N more sends allowed, then
+    // refused" regardless of how many sends happened earlier in this run,
+    // instead of assuming the counter starts at zero.
+    const before = await env.DB
+      .prepare("SELECT count FROM send_counters WHERE day = strftime('%Y-%m-%d','now')")
+      .first<{ count: number }>();
+    const alreadyUsed = before?.count ?? 0;
+    const cap = alreadyUsed + 3;
     const results: boolean[] = [];
     for (let i = 0; i < 5; i++) {
       results.push(await checkAndCountSend(env.DB, cap));
     }
-    // First `cap` allowed, everything after refused -- protects sender
-    // reputation from a burst blowing past the daily cap.
+    // First 3 (relative to today's existing count) allowed, everything after
+    // refused -- protects sender reputation from a burst blowing past the
+    // daily cap.
     expect(results).toEqual([true, true, true, false, false]);
   });
 });
@@ -1104,13 +2001,127 @@ describe("emails.ts buildStopConfirmationEmail", () => {
   });
 });
 
+describe("Reminder email's two co-equal CTAs (2026-07-28) -- end-to-end via the real cron pass", () => {
+  it("the actual scheduler-built reminder email contains BOTH CTAs, and the new one's link/token works end-to-end via POST /renewed-next-cycle", async () => {
+    const { runReminderPass } = await import("../src/scheduler");
+    const email = `tworcta-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, {
+      email,
+      stateSlug: "texas",
+      deadlineFields: { birth_month: "7" }, // TX deadline = end of July
+      firstName: "Tester",
+    });
+    await store.confirm(env.DB, rec.confirm_token);
+
+    let capturedHtml = "";
+    let capturedText = "";
+    const summary = await runReminderPass(env, {
+      asOf: new Date(Date.UTC(2026, 6, 24)), // 7 days out -> tier 7
+      send: async (to, built) => {
+        if (to === email) {
+          capturedHtml = built.htmlBody;
+          capturedText = built.textBody;
+        }
+        return true;
+      },
+    });
+    expect(summary.errors).toEqual([]);
+    expect(capturedHtml).toBeTruthy();
+
+    // Both CTAs present, co-equal (both rendered as buttons), plus the
+    // unchanged footer Unsubscribe link. escapeHtml() turns the apostrophe
+    // into &#39; in the HTML body (not the text body), so the HTML
+    // assertion matches the escaped form.
+    expect(capturedHtml).toContain("I&#39;ve renewed -- remind me next cycle");
+    expect(capturedText).toContain("Already renewed?");
+    expect(capturedHtml).toContain("Stop reminders entirely");
+    expect(capturedHtml).toMatch(/\/api\/renewed-next-cycle\?token=/);
+    expect(capturedHtml).toMatch(/\/api\/renewed\?token=/);
+    expect(capturedText).toContain("/api/renewed-next-cycle?token=");
+    expect(capturedText).toContain("/api/renewed?token=");
+
+    // Pull the renewed-next-cycle token out of the actual built email (not a
+    // hand-constructed URL) and click through it for real.
+    const match = /renewed-next-cycle\?token=([^"&\s]+)/.exec(capturedHtml);
+    expect(match).toBeTruthy();
+    const token = decodeURIComponent(match![1] as string);
+
+    const before = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(rec.id).first<SubscriberRow>();
+    expect(before?.cycle).toBe(1);
+
+    const resp = await postAction(`/renewed-next-cycle?token=${encodeURIComponent(token)}`, "203.0.113.220");
+    expect(resp.status).toBe(200);
+    expect((await resp.text()).toLowerCase()).toContain("all set");
+
+    const after = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(rec.id).first<SubscriberRow>();
+    expect(after?.status).toBe(store.STATUS_CONFIRMED);
+    expect(after?.cycle).toBe(2);
+    expect(after?.stop_reason).toBeNull();
+    expect(JSON.parse(after?.reminders_sent ?? "[]")).toEqual([]);
+  });
+
+  it("GET /api/renewed-next-cycle renders a confirm page WITHOUT changing state (prefetch-safe); a stale token 404s on POST", async () => {
+    const email = `rncrender-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, { email, stateSlug: "texas", deadlineFields: { birth_month: "7" }, firstName: null });
+    await store.confirm(env.DB, rec.confirm_token);
+
+    const getResp = await SELF.fetch(`https://deadline-radar.com/api/renewed-next-cycle?token=${rec.renewed_token}`, {
+      headers: { "cf-connecting-ip": "203.0.113.221" },
+    });
+    expect(getResp.status).toBe(200);
+    // escapeHtml() turns the apostrophe into &#39; in the rendered page.
+    expect(await getResp.text()).toContain("I&#39;ve renewed -- remind me next cycle"); // the button, not a done page
+
+    const unchanged = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(rec.id).first<SubscriberRow>();
+    expect(unchanged?.cycle).toBe(1);
+    expect(unchanged?.status).toBe(store.STATUS_CONFIRMED);
+
+    // A never-confirmed subscriber's token must not work either (same
+    // double-opt-in-bypass guard as /renewed).
+    const email2 = `rncunconfirmed-${Date.now()}@example.com`;
+    const rec2 = await store.addPending(env.DB, { email: email2, stateSlug: "texas", deadlineFields: { birth_month: "7" }, firstName: null });
+    const blocked = await postAction(`/renewed-next-cycle?token=${rec2.renewed_token}`, "203.0.113.222");
+    expect(blocked.status).toBe(404);
+  });
+
+  it("refuses to auto-rearm a bring-your-own-date subscriber via the token-based route, with the tailored message", async () => {
+    const email = `rncbyod-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, {
+      email,
+      stateSlug: "new-jersey",
+      deadlineFields: {},
+      firstName: null,
+      deadlineSource: "user",
+      userDeadline: "2026-08-20",
+    });
+    await store.confirm(env.DB, rec.confirm_token);
+
+    const resp = await postAction(`/renewed-next-cycle?token=${rec.renewed_token}`, "203.0.113.223");
+    expect(resp.status).toBe(400);
+    const body = await resp.text();
+    expect(body.toLowerCase()).toContain("sign up again");
+
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(rec.id).first<SubscriberRow>();
+    expect(row?.status).toBe(store.STATUS_CONFIRMED); // untouched
+    expect(row?.cycle).toBe(1);
+  });
+});
+
 describe("prefetch-safe actions + List-Unsubscribe", () => {
   it("emails carry RFC 8058 one-click List-Unsubscribe headers", async () => {
     const { buildConfirmationEmail, buildReminderEmail } = await import("../src/emails");
     const conf = buildConfirmationEmail("California", "https://deadline-radar.com/api/confirm?token=c", "https://deadline-radar.com/api/unsubscribe?token=u");
     expect(conf.headers["List-Unsubscribe"]).toBe("<https://deadline-radar.com/api/unsubscribe?token=u>");
     expect(conf.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
-    const rem = buildReminderEmail("California", "July 31, 2026", 30, 30, "https://deadline-radar.com/api/renewed?token=r", "https://deadline-radar.com/api/unsubscribe?token=u");
+    const rem = buildReminderEmail(
+      "California",
+      "July 31, 2026",
+      30,
+      30,
+      "https://deadline-radar.com/api/renewed-next-cycle?token=r",
+      "https://deadline-radar.com/api/renewed?token=r",
+      "https://deadline-radar.com/api/unsubscribe?token=u"
+    );
     expect(rem.headers["List-Unsubscribe"]).toContain("token=u");
   });
 

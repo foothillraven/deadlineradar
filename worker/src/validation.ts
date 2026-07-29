@@ -34,6 +34,12 @@ export const MAX_FIRST_NAME_LEN = 60;
 export const MAX_FIRM_NAME_LEN = 200;
 export const MAX_STAFF_COUNT_HINT_LEN = 20;
 
+// Firm-dashboard staff license fields (2026-07-28 firm-dashboard MVP) --
+// staff_label is the admin's own short display name for a roster entry
+// (subscribers.staff_label, migration 0008), same "short, optional,
+// cosmetic-only free text" category as the two constants above.
+export const MAX_STAFF_LABEL_LEN = 120;
+
 // Deliberately stricter than "contains an @ and a dot" -- rejects
 // whitespace, control characters, multiple @ signs, and malformed domains
 // outright. Byte-for-byte the same pattern as server.py:160's `_EMAIL_RE`.
@@ -164,6 +170,33 @@ export function sanitizeFreeText(value: string | null | undefined, maxLen: numbe
   return capped.length > 0 ? capped : null;
 }
 
+/**
+ * migration 0008 -- reads a single named cookie off the request's `Cookie`
+ * header (the browser sends every cookie for the origin in one
+ * semicolon-delimited header; there is no per-cookie header). Returns null
+ * if the header is absent or the named cookie isn't present. Used by
+ * index.ts's requireFirmSession() to read `dr_firm_session` -- deliberately
+ * generic (any cookie name) rather than hardcoded to that one name, so it's
+ * reusable if a later feature needs a second cookie.
+ */
+export function getCookie(request: Request, name: string): string | null {
+  const header = request.headers.get("Cookie");
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const idx = part.indexOf("=");
+    if (idx === -1) continue;
+    const key = part.slice(0, idx).trim();
+    if (key !== name) continue;
+    const value = part.slice(idx + 1).trim();
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value; // malformed percent-encoding -- return the raw value rather than throwing
+    }
+  }
+  return null;
+}
+
 export function escapeHtml(value: unknown): string {
   return String(value).replace(/[&<>"']/g, (ch) => {
     switch (ch) {
@@ -219,6 +252,35 @@ export const RATE_LIMIT_ACTION: RateLimit = { max: 30, windowSeconds: 600 };
 // RATE_LIMIT_SUBSCRIBE. A separate bucket (not a shared one) so a burst
 // against one endpoint can't consume the other's allowance.
 export const RATE_LIMIT_FIRM_LEAD: RateLimit = { max: 5, windowSeconds: 600 };
+
+// POST /api/firm/signup and POST /api/firm/login (migration 0008, firm
+// accounts) -- each its own bucket, same shape/limit as RATE_LIMIT_FIRM_LEAD
+// and same "separate, not shared" rationale: signup and login both trigger
+// a login-link email send, so without independent buckets an attacker could
+// hammer /firm/login (free of any firm-creation cost) to exhaust an
+// allowance that would otherwise also throttle /firm/signup, or vice versa.
+export const RATE_LIMIT_FIRM_SIGNUP: RateLimit = { max: 5, windowSeconds: 600 };
+export const RATE_LIMIT_FIRM_LOGIN: RateLimit = { max: 5, windowSeconds: 600 };
+
+// POST /firm/licenses (add a staff license, firm-dashboard MVP) -- deliberately
+// keyed on the AUTHENTICATED FIRM ID, not the caller's IP, when this is
+// checked (see index.ts's handleFirmLicenseCreate()): the requester already
+// proved firm ownership via requireFirmSession(), so the risk this bounds is
+// a compromised or careless ADMIN SESSION spam-adding rows onto its OWN
+// firm's roster, not an anonymous IP hitting a public form the way every
+// other RATE_LIMIT_* bucket above does. checkRateLimit()'s `ip` parameter is
+// really just "the bucket's identity key" -- passing a firm id there is a
+// deliberate reuse, not a type mismatch. 50/day is generous enough for a
+// large firm onboarding its whole staff roster in one sitting, while still
+// bounding a runaway script or a compromised session.
+export const RATE_LIMIT_FIRM_LICENSE_CREATE: RateLimit = { max: 50, windowSeconds: 86400 };
+
+// POST /debug/run-reminder-pass -- PREVIEW/STAGING ONLY, see index.ts's own
+// gate (the route 404s outright unless env.EMAIL_ALLOWLIST is set, which is
+// never true in production). Lets a human tester fire the daily reminder
+// cron on demand instead of waiting for the real 18:00 UTC trigger. A tight
+// cap since this is a manual test aid, not a real feature.
+export const RATE_LIMIT_DEBUG_REMINDER_PASS: RateLimit = { max: 5, windowSeconds: 600 };
 
 /** Returns true if this request is ALLOWED, false if it should be blocked. */
 export async function checkRateLimit(

@@ -739,7 +739,7 @@
     <li><span class="dr-nav-soon">Documents<span class="dr-soon-badge">Soon</span></span></li>
     </ul>
     <div class="dr-sidebar-foot">
-      <form method="post" action="/api/firm/logout">
+      <form method="post" action="https://deadlineradar-api-preview.foothillraven.workers.dev/firm/logout">
         <button type="submit">Log out</button>
       </form>
     </div>
@@ -1838,7 +1838,7 @@ function drRenderCpeRecent() {
 }
 
 function drLoadCpeEntries() {
-  return fetch('/api/firm/cpe', {credentials: 'include'})
+  return fetch('https://deadlineradar-api-preview.foothillraven.workers.dev/firm/cpe', {credentials: 'include'})
     .then(function(res) {
       if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
       if (!res.ok) return null;
@@ -1860,7 +1860,7 @@ function drSubmitCpeEntry(form) {
   var fd = new FormData(form);
   var body = {};
   fd.forEach(function(v, k) { body[k] = v; });
-  fetch('/api/firm/cpe', {
+  fetch('https://deadlineradar-api-preview.foothillraven.workers.dev/firm/cpe', {
     method: 'POST', credentials: 'include',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(body)
@@ -1885,7 +1885,7 @@ function drSubmitCpeEntry(form) {
 
 function drRemoveCpeEntry(id, label) {
   if (!window.confirm('Remove this CPE entry' + (label ? ' (' + label + ')' : '') + '? This cannot be undone from the dashboard.')) return;
-  fetch('/api/firm/cpe/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
+  fetch('https://deadlineradar-api-preview.foothillraven.workers.dev/firm/cpe/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
     .then(function(res) {
       if (res.status === 401) { window.location.href = '/firm-login/'; return; }
       if (res.ok) { drLoadCpeEntries(); return; }
@@ -1900,7 +1900,7 @@ function drRemoveCpeEntry(id, label) {
 
 function drLoadLicenses() {
   drClearError();
-  fetch('/api/firm/licenses', {credentials: 'include'})
+  fetch('https://deadlineradar-api-preview.foothillraven.workers.dev/firm/licenses', {credentials: 'include'})
     .then(function(res) {
       if (res.status === 401) {
         window.location.href = '/firm-login/';
@@ -1932,7 +1932,7 @@ function drLoadLicenses() {
 
 function drRenewLicense(id) {
   drClearError();
-  fetch('/api/firm/licenses/' + encodeURIComponent(id) + '/renew', {method: 'POST', credentials: 'include'})
+  fetch('https://deadlineradar-api-preview.foothillraven.workers.dev/firm/licenses/' + encodeURIComponent(id) + '/renew', {method: 'POST', credentials: 'include'})
     .then(function(res) {
       if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
       return drReadJsonSafe(res).then(function(data) {
@@ -1949,7 +1949,7 @@ function drRenewLicense(id) {
 function drRemoveLicense(id, label) {
   if (!window.confirm('Remove ' + (label || 'this person') + ' from the roster? They will stop receiving reminders.')) return;
   drClearError();
-  fetch('/api/firm/licenses/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
+  fetch('https://deadlineradar-api-preview.foothillraven.workers.dev/firm/licenses/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
     .then(function(res) {
       if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
       return drReadJsonSafe(res).then(function(data) {
@@ -1970,7 +1970,7 @@ function drSaveEdit(id, tr) {
   var email = emailInput ? emailInput.value.trim() : '';
   if (!email) { drShowError('Email is required.'); return; }
   var body = {staff_label: labelInput ? labelInput.value.trim() : '', email: email};
-  fetch('/api/firm/licenses/' + encodeURIComponent(id), {
+  fetch('https://deadlineradar-api-preview.foothillraven.workers.dev/firm/licenses/' + encodeURIComponent(id), {
     method: 'PATCH', credentials: 'include',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(body)
@@ -2080,7 +2080,7 @@ document.addEventListener('DOMContentLoaded', function() {
       var fd = new FormData(addForm);
       var body = {};
       fd.forEach(function(v, k) { body[k] = v; });
-      fetch('/api/firm/licenses', {
+      fetch('https://deadlineradar-api-preview.foothillraven.workers.dev/firm/licenses', {
         method: 'POST', credentials: 'include',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(body)

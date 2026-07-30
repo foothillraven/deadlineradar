@@ -52,4 +52,24 @@ export interface Env {
   EMAIL_ALLOWLIST?: string;
   ACTION_BASE_URL?: string;
   STATIC_SITE_BASE_URL?: string;
+  /**
+   * OAuth/SSO client credentials (2026-07-30, auth suite). OPTIONAL and
+   * gated PER PROVIDER: `getConfiguredProvider()` in oauth.ts returns null
+   * unless BOTH of a provider's values are present, in which case that
+   * provider's routes 404 and its sign-in button is not rendered. Same
+   * degrade-safely convention as TURNSTILE_SECRET_KEY/SENDGRID_API_KEY --
+   * an unconfigured provider is invisible, never a broken button.
+   *
+   * Set via `wrangler secret put` per environment, never in wrangler.toml
+   * and never committed. See worker/AUTH_SSO_SETUP.md for the registration
+   * steps and the exact redirect URIs that must be registered.
+   *
+   * Microsoft is intentionally absent: deferred 2026-07-30 (Devin's call)
+   * because Microsoft deprecated directory-less app registration, leaving
+   * only an expiring dev-sandbox tenant or a card-on-file Azure signup --
+   * neither justified pre-revenue. Adding it later is one PROVIDERS entry
+   * in oauth.ts plus its two secrets; no other code changes.
+   */
+  GOOGLE_OAUTH_CLIENT_ID?: string;
+  GOOGLE_OAUTH_CLIENT_SECRET?: string;
 }

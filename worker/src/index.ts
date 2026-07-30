@@ -48,11 +48,14 @@ import type { Env } from "./env";
 import {
   HONEYPOT_FIELD_NAME,
   MAX_BODY_BYTES,
+  MAX_CPE_DESCRIPTION_LEN,
+  MAX_CPE_HOURS_PER_ENTRY,
   MAX_FIELD_LEN,
   MAX_FIRM_NAME_LEN,
   MAX_STAFF_COUNT_HINT_LEN,
   MAX_STAFF_LABEL_LEN,
   RATE_LIMIT_ACTION,
+  RATE_LIMIT_CPE_ENTRY_CREATE,
   RATE_LIMIT_FIRM_LEAD,
   RATE_LIMIT_FIRM_LICENSE_CREATE,
   RATE_LIMIT_DEBUG_REMINDER_PASS,
@@ -64,7 +67,10 @@ import {
   escapeHtml,
   getCookie,
   hasControlChars,
+  isValidCpeCategory,
   isValidEmail,
+  parseStrictCpeHours,
+  sanitizeFreeText,
   strictParseInt,
   parseStrictIsoDate,
   verifyTurnstile,
@@ -915,7 +921,10 @@ async function handleFirmLogout(request: Request, env: Env): Promise<Response> {
  * `session.firmId` (a Response has no `firmId` property), so skipping the
  * check is a compile error, not a silent auth bypass.
  */
-export async function requireFirmSession(request: Request, env: Env): Promise<{ firmId: string } | Response> {
+export async function requireFirmSession(
+  request: Request,
+  env: Env
+): Promise<{ firmId: string; sessionId: string } | Response> {
   const raw = getCookie(request, FIRM_SESSION_COOKIE_NAME);
   if (!raw) {
     return errorPage(401, "You need to sign in to view this.");
@@ -1427,6 +1436,136 @@ async function handleFirmLicenseRenew(request: Request, env: Env, id: string): P
   return jsonResponse(200, toFirmLicenseJson(updated, new Date()));
 }
 
+// ---------------------------------------------------------------------------
+// CPE-hours tracker (2026-07-30, new BUILD v2 phase). Lightweight INTERNAL
+// firm visibility only -- NOT an official state-reporting integration (CE
+// Broker is the mandated official reporter in several states, e.g. Florida),
+// NOT a course marketplace, NOT a provider integration. v1 is admin-only
+// (the firm's own session logs entries on a staffer's behalf), but every
+// entry already carries entered_by_actor_type/entered_by_firm_session_id so
+// a future individual staff login is additive, not a rewrite -- see
+// migration 0009's own comment for the full rationale.
+//
+// Requirement matching (how many hours are required, ethics sub-requirement,
+// cycle length) happens entirely CLIENT-SIDE in the dashboard JS, from
+// data/cpe_hours.json inlined at build time (generate.py) -- same "static
+// reference data inlined once, dynamic per-firm data fetched live" split
+// this dashboard already uses everywhere else (e.g. DR_STATES). The worker
+// only owns the cpe_entries CRUD below; it has no opinion on what any given
+// state requires.
+function toCpeEntryJson(row: store.CpeEntryRow): Record<string, unknown> {
+  return {
+    id: row.id,
+    subscriber_id: row.subscriber_id,
+    entry_date: row.entry_date,
+    hours: row.hours,
+    category: row.category,
+    description: row.description,
+  };
+}
+
+/** GET /firm/cpe -- every non-deleted CPE entry across the firm's whole
+ * roster. The dashboard rolls this up per staffer client-side (same
+ * pattern as GET /firm/licenses's roster-wide fetch). */
+async function handleCpeEntriesList(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+  const rows = await store.listCpeEntriesForFirm(env.DB, session.firmId);
+  return jsonResponse(200, { entries: rows.map(toCpeEntryJson) });
+}
+
+/**
+ * POST /firm/cpe -- body: `subscriber_id`, `entry_date` (YYYY-MM-DD, must
+ * not be in the future -- can't log CPE not yet completed), `hours`
+ * (decimal string), `category` (general|ethics|other), `description`
+ * (optional). store.addCpeEntry() itself re-confirms subscriber_id belongs
+ * to this firm before writing anything (defense-in-depth, not just this
+ * handler's own check) -- returns null -> 404 for a subscriber_id belonging
+ * to a different firm, same anti-enumeration posture as every other
+ * firm-scoped mutation in this file.
+ */
+async function handleCpeEntryCreate(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "cpe_entry_create", RATE_LIMIT_CPE_ENTRY_CREATE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many CPE entries logged today for this firm. Please try again tomorrow." });
+  }
+
+  const parsed = await readFirmLicenseJsonBody(request); // generic despite the name -- see that function's own signature
+  if (parsed instanceof Response) return parsed;
+  const form = stringFieldsOf(parsed);
+
+  for (const value of Object.values(form)) {
+    if (hasControlChars(value)) {
+      return jsonResponse(400, { error: "Invalid characters in submission." });
+    }
+  }
+
+  const subscriberId = (form.subscriber_id ?? "").trim();
+  if (!subscriberId) {
+    return jsonResponse(400, { error: "Missing subscriber_id." });
+  }
+
+  const entryDateParsed = parseStrictIsoDate(form.entry_date ?? "");
+  if (!entryDateParsed) {
+    return jsonResponse(400, { error: "Please enter a valid completion date." });
+  }
+  const entryDateIso = (form.entry_date ?? "").trim();
+  // A one-UTC-day grace window, not a raw `> Date.now()` comparison
+  // (adversarial review caught this): entryDateParsed is always UTC
+  // midnight of the given date, but the Worker runs in UTC while the actual
+  // submitter can be in any timezone -- for anyone at a positive UTC offset
+  // (most of Europe/Africa/Asia/Pacific), their own local "today" is
+  // already UTC's "tomorrow" for part of the day. Without this grace, a
+  // completely legitimate same-day entry from those timezones would get
+  // wrongly rejected as "in the future." Allowing up to UTC-tomorrow still
+  // catches the real abuse case this check exists for (a date dated weeks
+  // or months ahead).
+  const now = new Date();
+  const utcTodayPlusOneDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+  if (entryDateParsed.getTime() > utcTodayPlusOneDay) {
+    return jsonResponse(400, { error: "Completion date can't be in the future." });
+  }
+
+  const hours = parseStrictCpeHours(form.hours ?? "");
+  if (hours === null) {
+    return jsonResponse(400, { error: `Please enter a valid number of hours (greater than 0, up to ${MAX_CPE_HOURS_PER_ENTRY}).` });
+  }
+
+  const categoryRaw = (form.category ?? "general").trim();
+  if (!isValidCpeCategory(categoryRaw)) {
+    return jsonResponse(400, { error: "Category must be general, ethics, or other." });
+  }
+
+  const descriptionRaw = (form.description ?? "").trim();
+  const description = descriptionRaw.length > 0 ? sanitizeFreeText(descriptionRaw, MAX_CPE_DESCRIPTION_LEN) : null;
+
+  const created = await store.addCpeEntry(env.DB, {
+    firmId: session.firmId,
+    subscriberId,
+    entryDate: entryDateIso,
+    hours,
+    category: categoryRaw,
+    description,
+    enteredByFirmSessionId: session.sessionId,
+  });
+  if (!created) return jsonResponse(404, { error: "Not found." });
+
+  return jsonResponse(201, toCpeEntryJson(created));
+}
+
+/** DELETE /firm/cpe/:id -- soft-delete (see migration 0009's comment for
+ * why it's not a real DELETE), firm-scoped. */
+async function handleCpeEntryDelete(request: Request, env: Env, id: string): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+  const removed = await store.removeCpeEntry(env.DB, session.firmId, id);
+  if (!removed) return jsonResponse(404, { error: "Not found." });
+  return jsonResponse(200, { id, status: "removed" });
+}
+
 async function handleConfirm(env: Env, token: string | null): Promise<Response> {
   if (!token) return errorPage(400, "Missing confirmation link.");
   const subscriber = await store.confirm(env.DB, token);
@@ -1631,6 +1770,10 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
     const firmLicenseRenewMatch = /^\/firm\/licenses\/([^/]+)\/renew$/.exec(url.pathname);
     const firmLicenseIdMatch = firmLicenseRenewMatch ? null : /^\/firm\/licenses\/([^/]+)$/.exec(url.pathname);
 
+    // /firm/cpe/:id, same up-front-parsing pattern as /firm/licenses/:id
+    // above -- 2026-07-30, CPE-hours tracker.
+    const cpeEntryIdMatch = /^\/firm\/cpe\/([^/]+)$/.exec(url.pathname);
+
     // GET on an action path renders a confirmation PAGE only -- it never
     // changes state. Email providers (Gmail, corporate filters) automatically
     // GET the links in a message to scan them; if the action fired on GET, a
@@ -1641,6 +1784,13 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
       if (url.pathname === "/firm/licenses") {
         try {
           return await handleFirmLicensesList(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/cpe") {
+        try {
+          return await handleCpeEntriesList(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -1674,6 +1824,13 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
       }
+      if (cpeEntryIdMatch) {
+        try {
+          return await handleCpeEntryDelete(request, env, cpeEntryIdMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
       return errorPage(404, "Not found.");
     }
 
@@ -1689,6 +1846,14 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
       if (firmLicenseRenewMatch) {
         try {
           return await handleFirmLicenseRenew(request, env, firmLicenseRenewMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/cpe") {
+        try {
+          return await handleCpeEntryCreate(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }

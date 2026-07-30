@@ -768,7 +768,10 @@ export async function createSession(db: D1Database, firmId: string): Promise<{ r
  * logged out mid-use, but that's a real design decision for a later pass,
  * not something to sneak in un-discussed here.
  */
-export async function verifySession(db: D1Database, rawSessionToken: string): Promise<{ firmId: string } | null> {
+export async function verifySession(
+  db: D1Database,
+  rawSessionToken: string
+): Promise<{ firmId: string; sessionId: string } | null> {
   const sessionTokenHash = await hashToken(rawSessionToken);
   const row = await db
     .prepare(`SELECT * FROM firm_sessions WHERE session_token_hash = ?1`)
@@ -777,7 +780,11 @@ export async function verifySession(db: D1Database, rawSessionToken: string): Pr
   if (!row) return null;
   if (Date.parse(row.expires_at) <= Date.now()) return null;
   await db.prepare(`UPDATE firm_sessions SET last_seen_at = ?1 WHERE id = ?2`).bind(nowIso(), row.id).run();
-  return { firmId: row.firm_id };
+  // sessionId (2026-07-30, CPE-hours tracker): the session row's own id was
+  // already fetched above -- returning it too (previously discarded) costs
+  // nothing extra and lets cpe_entries.entered_by_firm_session_id record
+  // WHICH session logged an entry, not just which firm.
+  return { firmId: row.firm_id, sessionId: row.id };
 }
 
 /** Logout: hash + delete the matching session row. Idempotent -- deleting a
@@ -1089,4 +1096,115 @@ export async function isUserDateRenewBlocked(db: D1Database, token: string): Pro
     .bind(token)
     .first<Pick<SubscriberRow, "deadline_source" | "confirmed_at">>();
   return row !== null && row.confirmed_at !== null && row.deadline_source === DEADLINE_SOURCE_USER;
+}
+
+// ---------------------------------------------------------------------------
+// CPE-hours tracker (migration 0009, 2026-07-30). See that migration's own
+// comment for the forward-compat rationale behind entered_by_actor_type/
+// entered_by_firm_session_id -- v1 only ever writes 'admin', but the columns
+// exist so a future individual staff login doesn't need a schema change.
+// ---------------------------------------------------------------------------
+
+export type CpeCategory = "general" | "ethics" | "other";
+
+export interface CpeEntryRow {
+  id: string;
+  firm_id: string;
+  subscriber_id: string;
+  entry_date: string;
+  hours: number;
+  category: string;
+  description: string | null;
+  certificate_document_id: string | null;
+  entered_by_actor_type: string;
+  entered_by_firm_session_id: string | null;
+  created_at: string;
+  deleted_at: string | null;
+}
+
+export interface AddCpeEntryInput {
+  firmId: string;
+  subscriberId: string;
+  entryDate: string;
+  hours: number;
+  category: CpeCategory;
+  description: string | null;
+  enteredByFirmSessionId: string | null;
+}
+
+/**
+ * Confirms `subscriberId` actually belongs to `firmId` BEFORE writing a CPE
+ * entry against it -- same "look the parent up scoped to the firm first"
+ * discipline getFirmLicense() already uses, so a crafted subscriber_id
+ * belonging to a DIFFERENT firm can never get a CPE entry attached to it.
+ * Returns null (the caller 404s) rather than throwing, matching this file's
+ * existing anti-enumeration convention.
+ */
+export async function addCpeEntry(db: D1Database, input: AddCpeEntryInput): Promise<CpeEntryRow | null> {
+  const owns = await db
+    .prepare(`SELECT id FROM subscribers WHERE id = ?1 AND firm_id = ?2`)
+    .bind(input.subscriberId, input.firmId)
+    .first<{ id: string }>();
+  if (!owns) return null;
+
+  const id = newToken();
+  const createdAt = nowIso();
+  await db
+    .prepare(
+      `INSERT INTO cpe_entries
+       (id, firm_id, subscriber_id, entry_date, hours, category, description,
+        certificate_document_id, entered_by_actor_type, entered_by_firm_session_id, created_at)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,NULL,'admin',?8,?9)`
+    )
+    .bind(
+      id,
+      input.firmId,
+      input.subscriberId,
+      input.entryDate,
+      input.hours,
+      input.category,
+      input.description,
+      input.enteredByFirmSessionId,
+      createdAt
+    )
+    .run();
+
+  return {
+    id,
+    firm_id: input.firmId,
+    subscriber_id: input.subscriberId,
+    entry_date: input.entryDate,
+    hours: input.hours,
+    category: input.category,
+    description: input.description,
+    certificate_document_id: null,
+    entered_by_actor_type: "admin",
+    entered_by_firm_session_id: input.enteredByFirmSessionId,
+    created_at: createdAt,
+    deleted_at: null,
+  };
+}
+
+/** Every non-deleted CPE entry across the WHOLE firm's roster -- the
+ * dashboard's CPE tab rolls this up per staffer client-side, same pattern
+ * listFirmLicenses() already established for the roster itself. */
+export async function listCpeEntriesForFirm(db: D1Database, firmId: string): Promise<CpeEntryRow[]> {
+  const { results } = await db
+    .prepare(`SELECT * FROM cpe_entries WHERE firm_id = ?1 AND deleted_at IS NULL ORDER BY entry_date DESC`)
+    .bind(firmId)
+    .all<CpeEntryRow>();
+  return results;
+}
+
+/** Soft-delete only (deleted_at, never a real DELETE) -- see migration
+ * 0009's own comment for why: preserves the audit trail of what was
+ * actually logged, matching subscribers.stopped_at's existing convention.
+ * firm_id-bound in the UPDATE's own WHERE clause, not just the earlier
+ * lookup -- defense-in-depth, same as every other mutating query here. */
+export async function removeCpeEntry(db: D1Database, firmId: string, id: string): Promise<boolean> {
+  const result = await db
+    .prepare(`UPDATE cpe_entries SET deleted_at = ?1 WHERE id = ?2 AND firm_id = ?3 AND deleted_at IS NULL`)
+    .bind(nowIso(), id, firmId)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
 }

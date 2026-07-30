@@ -15,7 +15,7 @@ import {
   strictParseInt,
 } from "../src/validation";
 import * as store from "../src/store";
-import type { FirmLeadRow, FirmRow, SubscriberRow } from "../src/store";
+import type { CpeEntryRow, FirmLeadRow, FirmRow, SubscriberRow } from "../src/store";
 
 function form(fields: Record<string, string>): string {
   return new URLSearchParams(fields).toString();
@@ -2387,4 +2387,210 @@ describe("prefetch-safe actions + List-Unsubscribe", () => {
     expect(updated?.status).toBe(store.STATUS_STOPPED);
     expect(updated?.stop_reason).toBe("unsubscribed");
   });
+});
+
+// 2026-07-30, new BUILD v2 phase (Devin-approved): CPE-hours tracker. Admin
+// logs a staffer's completed hours; requirement matching itself happens
+// client-side in the dashboard JS (from data/cpe_hours.json inlined at
+// build time), so these tests only cover the worker's CRUD surface --
+// cross-firm isolation, validation, and the soft-delete/rate-limit
+// mechanics, same discipline as every other firm-scoped mutation.
+
+async function getCpeEntries(cookie: string | null, ip = "203.0.113.210"): Promise<Response> {
+  const headers: Record<string, string> = { "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch("https://deadline-radar.com/firm/cpe", { headers });
+}
+
+async function postCpeEntry(
+  cookie: string | null,
+  body: Record<string, string>,
+  ip = "203.0.113.210"
+): Promise<Response> {
+  const headers: Record<string, string> = { "content-type": "application/json", "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch("https://deadline-radar.com/firm/cpe", { method: "POST", headers, body: JSON.stringify(body) });
+}
+
+async function deleteCpeEntry(cookie: string | null, id: string, ip = "203.0.113.210"): Promise<Response> {
+  const headers: Record<string, string> = { "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch(`https://deadline-radar.com/firm/cpe/${encodeURIComponent(id)}`, { method: "DELETE", headers });
+}
+
+describe("GET/POST/DELETE /firm/cpe -- CPE-hours entry CRUD", () => {
+  it("every route 401s without a session cookie", async () => {
+    expect((await getCpeEntries(null)).status).toBe(401);
+    expect((await postCpeEntry(null, { subscriber_id: "x", entry_date: "2026-01-01", hours: "1" })).status).toBe(401);
+    expect((await deleteCpeEntry(null, "nonexistent")).status).toBe(401);
+  });
+
+  it("happy path: logs an entry against the firm's own roster record, returns it, and lists it back", async () => {
+    const { cookie, firmId } = await createFirmWithSession("CPE Firm", `cpe-${Date.now()}@example.com`);
+    const staffEmail = `cpe-staff-${Date.now()}@example.com`;
+    const created = await postFirmLicense(cookie, { email: staffEmail, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberId } = (await created.json()) as { id: string };
+
+    const resp = await postCpeEntry(cookie, {
+      subscriber_id: subscriberId,
+      entry_date: "2026-06-15",
+      hours: "8.5",
+      category: "ethics",
+      description: "Annual ethics course",
+    });
+    expect(resp.status).toBe(201);
+    const body = (await resp.json()) as Record<string, unknown>;
+    expect(body.subscriber_id).toBe(subscriberId);
+    expect(body.hours).toBe(8.5);
+    expect(body.category).toBe("ethics");
+    expect(body.description).toBe("Annual ethics course");
+    expect(body).not.toHaveProperty("firm_id"); // internal, never echoed to the client
+
+    const row = await env.DB.prepare("SELECT * FROM cpe_entries WHERE id = ?1").bind(body.id).first<CpeEntryRow>();
+    expect(row?.firm_id).toBe(firmId);
+    expect(row?.entered_by_actor_type).toBe("admin");
+    expect(row?.entered_by_firm_session_id).toBeTruthy(); // forward-compat field actually populated, not left null
+
+    const list = await getCpeEntries(cookie);
+    const listBody = (await list.json()) as { entries: Array<{ id: string }> };
+    expect(listBody.entries.some((e) => e.id === body.id)).toBe(true);
+  });
+
+  it("cross-firm isolation: cannot log a CPE entry against ANOTHER firm's staff record (404, not 403 -- anti-enumeration)", async () => {
+    const firmA = await createFirmWithSession("CPE Firm A", `cpe-a-${Date.now()}@example.com`);
+    const firmB = await createFirmWithSession("CPE Firm B", `cpe-b-${Date.now()}@example.com`);
+    const staffEmail = `cpe-cross-${Date.now()}@example.com`;
+    const created = await postFirmLicense(firmA.cookie, { email: staffEmail, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberIdInFirmA } = (await created.json()) as { id: string };
+
+    const resp = await postCpeEntry(firmB.cookie, {
+      subscriber_id: subscriberIdInFirmA,
+      entry_date: "2026-06-15",
+      hours: "4",
+      category: "general",
+    });
+    expect(resp.status).toBe(404);
+
+    const count = await env.DB.prepare("SELECT COUNT(*) as c FROM cpe_entries WHERE subscriber_id = ?1").bind(subscriberIdInFirmA).first<{ c: number }>();
+    expect(count?.c).toBe(0);
+  });
+
+  it("cross-firm isolation: GET /firm/cpe never returns another firm's entries", async () => {
+    const firmA = await createFirmWithSession("CPE List Firm A", `cpe-list-a-${Date.now()}@example.com`);
+    const firmB = await createFirmWithSession("CPE List Firm B", `cpe-list-b-${Date.now()}@example.com`);
+    const createdA = await postFirmLicense(firmA.cookie, { email: `cpe-list-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subA } = (await createdA.json()) as { id: string };
+    const entryA = await postCpeEntry(firmA.cookie, { subscriber_id: subA, entry_date: "2026-06-01", hours: "3", category: "general" });
+    const { id: entryAId } = (await entryA.json()) as { id: string };
+
+    const listB = await getCpeEntries(firmB.cookie);
+    const listBBody = (await listB.json()) as { entries: Array<{ id: string }> };
+    expect(listBBody.entries.some((e) => e.id === entryAId)).toBe(false);
+  });
+
+  it("rejects a future entry_date (can't log CPE not yet completed)", async () => {
+    const { cookie } = await createFirmWithSession("CPE Future Firm", `cpe-future-${Date.now()}@example.com`);
+    const created = await postFirmLicense(cookie, { email: `cpe-future-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberId } = (await created.json()) as { id: string };
+    const farFuture = "2099-01-01";
+    const resp = await postCpeEntry(cookie, { subscriber_id: subscriberId, entry_date: farFuture, hours: "2", category: "general" });
+    expect(resp.status).toBe(400);
+  });
+
+  it("accepts an entry_date of UTC-tomorrow (timezone grace window -- adversarial-review fix, 2026-07-30)", async () => {
+    // A firm admin at a positive UTC offset (most of Europe/Africa/Asia/
+    // Pacific) can have a local "today" that's already UTC's "tomorrow" for
+    // part of the day -- a real bug an earlier version of this check had
+    // (raw `entryDateParsed.getTime() > Date.now()`, no grace window) would
+    // have wrongly rejected this as "in the future."
+    const { cookie } = await createFirmWithSession("CPE Timezone Firm", `cpe-tz-${Date.now()}@example.com`);
+    const created = await postFirmLicense(cookie, { email: `cpe-tz-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberId } = (await created.json()) as { id: string };
+    const now = new Date();
+    const utcTomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+    const utcTomorrowIso = utcTomorrow.toISOString().slice(0, 10);
+    const resp = await postCpeEntry(cookie, { subscriber_id: subscriberId, entry_date: utcTomorrowIso, hours: "2", category: "general" });
+    expect(resp.status).toBe(201);
+
+    // But the day AFTER that (genuinely in the future for everyone,
+    // regardless of timezone) must still be rejected.
+    const utcDayAfterTomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 2));
+    const rejectResp = await postCpeEntry(cookie, {
+      subscriber_id: subscriberId,
+      entry_date: utcDayAfterTomorrow.toISOString().slice(0, 10),
+      hours: "2",
+      category: "general",
+    });
+    expect(rejectResp.status).toBe(400);
+  });
+
+  it("rejects invalid hours: zero, negative, non-numeric, and above the per-entry sanity cap", async () => {
+    const { cookie } = await createFirmWithSession("CPE Hours Firm", `cpe-hours-${Date.now()}@example.com`);
+    const created = await postFirmLicense(cookie, { email: `cpe-hours-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberId } = (await created.json()) as { id: string };
+    for (const badHours of ["0", "-1", "abc", "1e10", "9999"]) {
+      const resp = await postCpeEntry(cookie, { subscriber_id: subscriberId, entry_date: "2026-06-01", hours: badHours, category: "general" });
+      expect(resp.status, `hours=${badHours} should be rejected`).toBe(400);
+    }
+  });
+
+  it("rejects an invalid category", async () => {
+    const { cookie } = await createFirmWithSession("CPE Category Firm", `cpe-cat-${Date.now()}@example.com`);
+    const created = await postFirmLicense(cookie, { email: `cpe-cat-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberId } = (await created.json()) as { id: string };
+    const resp = await postCpeEntry(cookie, { subscriber_id: subscriberId, entry_date: "2026-06-01", hours: "2", category: "not-a-real-category" });
+    expect(resp.status).toBe(400);
+  });
+
+  it("rejects control characters in the description field", async () => {
+    const { cookie } = await createFirmWithSession("CPE Control Firm", `cpe-control-${Date.now()}@example.com`);
+    const created = await postFirmLicense(cookie, { email: `cpe-control-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberId } = (await created.json()) as { id: string };
+    const resp = await postCpeEntry(cookie, {
+      subscriber_id: subscriberId,
+      entry_date: "2026-06-01",
+      hours: "2",
+      category: "general",
+      description: "bad\r\ndescription",
+    });
+    expect(resp.status).toBe(400);
+  });
+
+  it("DELETE soft-deletes (deleted_at set, row still exists) and the entry disappears from GET /firm/cpe, firm-scoped", async () => {
+    const firmA = await createFirmWithSession("CPE Delete Firm A", `cpe-del-a-${Date.now()}@example.com`);
+    const firmB = await createFirmWithSession("CPE Delete Firm B", `cpe-del-b-${Date.now()}@example.com`);
+    const created = await postFirmLicense(firmA.cookie, { email: `cpe-del-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberId } = (await created.json()) as { id: string };
+    const entry = await postCpeEntry(firmA.cookie, { subscriber_id: subscriberId, entry_date: "2026-06-01", hours: "2", category: "general" });
+    const { id: entryId } = (await entry.json()) as { id: string };
+
+    // Firm B cannot delete firm A's entry.
+    const crossDelete = await deleteCpeEntry(firmB.cookie, entryId);
+    expect(crossDelete.status).toBe(404);
+    const stillThere = await env.DB.prepare("SELECT deleted_at FROM cpe_entries WHERE id = ?1").bind(entryId).first<{ deleted_at: string | null }>();
+    expect(stillThere?.deleted_at).toBeNull();
+
+    const ownDelete = await deleteCpeEntry(firmA.cookie, entryId);
+    expect(ownDelete.status).toBe(200);
+    const afterDelete = await env.DB.prepare("SELECT deleted_at FROM cpe_entries WHERE id = ?1").bind(entryId).first<{ deleted_at: string | null }>();
+    expect(afterDelete?.deleted_at).toBeTruthy(); // row preserved, not a real DELETE
+
+    const list = await getCpeEntries(firmA.cookie);
+    const listBody = (await list.json()) as { entries: Array<{ id: string }> };
+    expect(listBody.entries.some((e) => e.id === entryId)).toBe(false);
+  });
+
+  it("blocks the 101st CPE entry from the same firm within the daily window (own rate-limit bucket)", async () => {
+    // 100 real sequential DB-writing requests genuinely takes longer than
+    // vitest's 5s default -- explicit timeout, not a sign anything's wrong.
+    const { cookie } = await createFirmWithSession("CPE Rate Firm", `cpe-rate-${Date.now()}@example.com`);
+    const created = await postFirmLicense(cookie, { email: `cpe-rate-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberId } = (await created.json()) as { id: string };
+    for (let i = 0; i < 100; i++) {
+      const resp = await postCpeEntry(cookie, { subscriber_id: subscriberId, entry_date: "2026-06-01", hours: "1", category: "general" }, `203.0.113.${210 + (i % 40)}`);
+      expect(resp.status, `entry ${i} should succeed`).not.toBe(429);
+    }
+    const overCap = await postCpeEntry(cookie, { subscriber_id: subscriberId, entry_date: "2026-06-01", hours: "1", category: "general" }, "203.0.113.250");
+    expect(overCap.status).toBe(429);
+  }, 20000);
 });

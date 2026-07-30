@@ -89,11 +89,17 @@ def audit(records: list[dict]) -> dict:
 
         source_url = r.get("source_url", "")
         secondary_url = r.get("secondary_source_url", "")
-        text = r.get("cycle_description", "") or ""
+        citation_url = r.get("citation_url", "")
+        text = (r.get("cycle_description", "") or "") + " " + (r.get("citation", "") or "")
 
-        has_codified_host = host_is_codified(source_url) or host_is_codified(secondary_url)
+        has_codified_host = (
+            host_is_codified(source_url)
+            or host_is_codified(secondary_url)
+            or host_is_codified(citation_url)
+        )
         has_citation_text = bool(CITATION_TEXT_RE.search(text))
-        has_codified_reference = has_codified_host or has_citation_text
+        has_codified_class = r.get("citation_class") == "codified_law"
+        has_codified_reference = has_codified_host or has_citation_text or has_codified_class
 
         if not has_codified_reference:
             flagged.append({

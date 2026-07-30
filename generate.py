@@ -254,6 +254,7 @@ def build_texas_table(as_of: date) -> list[dict]:
 SITE_NAME = "DeadlineRadar"
 SITE_TAGLINE = "CPA license renewal deadlines by state — verified and kept current"
 BRAND_NAME = "Moose & Raven LLC"
+JURISDICTION_COUNT = 51  # overwritten in main() from the real record count once data is loaded
 
 
 def esc(s: str) -> str:
@@ -819,7 +820,7 @@ def site_footer() -> str:
       <span class="wordmark">{esc(SITE_NAME)}</span>
     </div>
     <div class="foot-links">
-      <a href="/">All 51 jurisdictions</a>
+      <a href="/">All {JURISDICTION_COUNT} jurisdictions</a>
       <a href="/methodology/">How We Verify</a>
       <a href="/blog/">Guides</a>
       <a href="/privacy/">Privacy</a>
@@ -4268,12 +4269,15 @@ STALENESS_THRESHOLD_DAYS = 30
 
 
 def main() -> None:
+    global JURISDICTION_COUNT
+
     with open(DATA_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     as_of = date.fromisoformat(data["as_of_date"])
     real_today = date.today()
     records = data["records"]
+    JURISDICTION_COUNT = len({r["state_slug"] for r in records})
 
     # Wall-clock staleness guard. Checking computed deadlines only against the
     # data file's OWN as_of_date (as the first version of this script did) is

@@ -886,7 +886,14 @@ _BRAND_GLYPH_SVG = """<svg class="brand-glyph" viewBox="0 0 32 32" fill="none" a
 </svg>"""
 
 
-def site_header(home_href: str) -> str:
+def site_header(home_href: str, hide_signin: bool = False) -> str:
+    # hide_signin (2026-07-30, UX fix follow-up): the dashboard page
+    # (build_firm_dashboard_page()) uses this SAME shared shell, but a
+    # visitor there is by definition already signed in (the page's own JS
+    # redirects to /firm-login/ on a 401) -- showing a site-wide "Sign In"
+    # link next to the sidebar's own "Log out" reads as a real contradiction,
+    # caught by adversarial review. Every other page keeps the link.
+    signin_link_html = "" if hide_signin else '<a href="/firm-login/">Sign In</a>\n      '
     return f"""<nav class="mainnav">
   <div class="nav-inner wrap">
     <a href="{esc(home_href)}" style="display:flex; align-items:center; gap:0.5rem; text-decoration:none; padding:0.7rem 0;">
@@ -898,7 +905,7 @@ def site_header(home_href: str) -> str:
       <a href="/methodology/">How We Verify</a>
       <a href="/for-firms/">For Firms</a>
       <a href="/contact/">Contact</a>
-      <a href="#remind" class="cta">Get reminders</a>
+      {signin_link_html}<a href="#remind" class="cta">Get reminders</a>
     </div>
   </div>
 </nav>
@@ -1273,6 +1280,7 @@ def page_shell(
     canonical_path: str,
     json_ld: list[dict] | None = None,
     extra_head: str = "",
+    hide_signin: bool = False,
 ) -> str:
     return f"""<!doctype html>
 <html lang="en">
@@ -1291,7 +1299,7 @@ def page_shell(
 </style>
 </head>
 <body>
-{site_header(home_href)}
+{site_header(home_href, hide_signin=hide_signin)}
 {body}
 {site_footer()}
 </body>
@@ -2991,8 +2999,8 @@ def build_firm_login_page() -> str:
     navigation, not a fetch" convention as every public signup form on this
     site (signup_form_for_state(), _firm_lead form, etc.). The Worker's own
     response IS the "check your email" page for both
-    (FIRM_LOGIN_SENT_PAGE in worker/src/index.ts, identical for /firm/login
-    and /firm/signup by design -- see that constant's own no-enumeration-
+    (firmLoginSentPage() in worker/src/index.ts, identical for /firm/login
+    and /firm/signup by design -- see that function's own no-enumeration-
     oracle docstring), so the browser navigating straight there on submit is
     simplest and correct; there is no client-side success state to build.
 
@@ -3020,25 +3028,14 @@ def build_firm_login_page() -> str:
     before the site is actually deployed, or a visitor bouncing between the
     two will see a contradiction.
     """
-    body = f"""<h1>Firm Sign In</h1>
+    body = f"""<h1>Sign in or create your firm account</h1>
 <p class="subhead">One roster for every staff CPA's license renewal &mdash; sorted by what needs
 attention soonest.</p>
 
 <div class="signup-form">
-  <h2>Sign in</h2>
-  <p class="signup-microcopy">Enter your firm's admin email and we'll send a one-time sign-in link.
-  No password to remember or reset.</p>
-  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/login">
-    {_BOT_DEFENSE_FIELDS_HTML}
-    <label for="login-email">Admin email</label>
-    <input type="email" id="login-email" name="admin_email" required placeholder="you@yourfirm.com">
-    <button type="submit">Send sign-in link</button>
-  </form>
-</div>
-
-<div class="signup-form">
-  <h2>New firm? Create your account</h2>
-  <p class="signup-microcopy">Free to start &mdash; a 30-day pilot, no card required. We'll email your
+  <h2>New firm? Start here</h2>
+  <p class="signup-microcopy">Most first-time visitors don't have an account yet &mdash; this is
+  the one you want. Free to start &mdash; a 30-day pilot, no card required. We'll email your
   admin address a one-time sign-in link to finish setting up.</p>
   <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/signup">
     {_BOT_DEFENSE_FIELDS_HTML_ALT}
@@ -3050,10 +3047,22 @@ attention soonest.</p>
   </form>
 </div>
 
+<div class="signup-form">
+  <h2>Already set up? Sign in</h2>
+  <p class="signup-microcopy">Enter your firm's admin email and, if it has an account, we'll send a
+  one-time sign-in link. No password to remember or reset.</p>
+  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/login">
+    {_BOT_DEFENSE_FIELDS_HTML}
+    <label for="login-email">Admin email</label>
+    <input type="email" id="login-email" name="admin_email" required placeholder="you@yourfirm.com">
+    <button type="submit">Send sign-in link</button>
+  </form>
+</div>
+
 <p class="how-it-works">Want pricing and details first? <a href="/for-firms/">See the firm overview</a>.</p>
 """
     return page_shell(
-        f"Firm Sign In — {SITE_NAME}",
+        f"Sign In / Create Account — {SITE_NAME}",
         "Sign in to your DeadlineRadar firm dashboard, or create a new firm account to start "
         "tracking your staff's CPA license renewals.",
         body,
@@ -3668,6 +3677,7 @@ def build_firm_dashboard_page(by_slug: dict[str, list[dict]], as_of: date) -> st
         home_href="../",
         canonical_path="/firm-dashboard/",
         extra_head='<meta name="robots" content="noindex">',
+        hide_signin=True,
     )
 
 

@@ -645,12 +645,32 @@ async function handleFirmLead(request: Request, env: Env, ip: string): Promise<R
 // all for that email). The copy is deliberately non-committal ("if that
 // address has...") so it's truthful in every branch and never reveals
 // whether a given email has an account.
-const FIRM_LOGIN_SENT_PAGE = htmlPage(
-  "Check your email",
-  "<h1>Check your email</h1><p>If that email has (or can have) a DeadlineRadar firm account, we've " +
-    "just sent a sign-in link. It expires in 15 minutes and works once &mdash; if it's expired by " +
-    "the time you click it, just request a new one.</p>"
-);
+/**
+ * 2026-07-30 (UX fix): a first-time firm submitting the Sign In form here
+ * used to land on this exact page with ZERO navigation and ZERO email ever
+ * sent (handleFirmLogin no-ops for an unknown email, by design -- see its
+ * own anti-enumeration comment) -- a real dead end for a brand-new
+ * customer. Two additions, both deliberately generic (shown identically
+ * regardless of whether the submitted email actually has an account, so
+ * the anti-enumeration property this page exists for is unchanged): a
+ * pointer to the Create-account form for anyone who doesn't already have
+ * one, and a way back to the site instead of a blank terminal page.
+ * `env.STATIC_SITE_BASE_URL` is the same preview-vs-production absolute-
+ * vs-relative link pattern already used for the /firm/login/verify and
+ * /firm/logout redirects just below.
+ */
+function firmLoginSentPage(env: Env): string {
+  const homeUrl = env.STATIC_SITE_BASE_URL || "";
+  return htmlPage(
+    "Check your email",
+    "<h1>Check your email</h1><p>If that email has (or can have) a DeadlineRadar firm account, we've " +
+      "just sent a sign-in link. It expires in 15 minutes and works once &mdash; if it's expired by " +
+      "the time you click it, just request a new one.</p>" +
+      `<p>New here? If you haven't created a firm account yet, nothing will arrive for that address &mdash; ` +
+      `<a href="${homeUrl}/firm-login/">create your account</a> instead.</p>` +
+      `<p><a href="${homeUrl}/">&larr; Back to the homepage</a></p>`
+  );
+}
 
 /**
  * Shared by handleFirmSignup() and handleFirmLogin(): issues a login token
@@ -691,7 +711,7 @@ async function issueAndSendFirmLoginLink(env: Env, firmId: string, adminEmail: s
  * does NOT create a second one and does NOT say so -- it just sends that
  * firm a fresh login link, exactly like a /firm/login request would. An
  * attacker probing "does this email already have an account" gets the
- * identical response either way (FIRM_LOGIN_SENT_PAGE), matching this
+ * identical response either way (firmLoginSentPage(env)), matching this
  * codebase's existing SUBSCRIBE_SUCCESS_PAGE / FIRM_LEAD_SUCCESS_PAGE
  * convention of one generic response regardless of internal branch.
  */
@@ -720,7 +740,7 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
 
   const honeypotValue = form[HONEYPOT_FIELD_NAME];
   if (honeypotValue !== undefined && honeypotValue !== "") {
-    return htmlResponse(200, FIRM_LOGIN_SENT_PAGE);
+    return htmlResponse(200, firmLoginSentPage(env));
   }
 
   for (const value of Object.values(form)) {
@@ -788,13 +808,13 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
 
   await issueAndSendFirmLoginLink(env, firmId, email);
 
-  return htmlResponse(200, FIRM_LOGIN_SENT_PAGE);
+  return htmlResponse(200, firmLoginSentPage(env));
 }
 
 /**
  * POST /firm/login -- body: `admin_email` only. If a firm exists for that
  * email, issues + emails a fresh login link. If NOT, this is a silent no-op
- * -- but the response is IDENTICAL either way (FIRM_LOGIN_SENT_PAGE): never
+ * -- but the response is IDENTICAL either way (firmLoginSentPage(env)): never
  * reveal whether a given email has an account.
  */
 async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<Response> {
@@ -822,7 +842,7 @@ async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<
 
   const honeypotValue = form[HONEYPOT_FIELD_NAME];
   if (honeypotValue !== undefined && honeypotValue !== "") {
-    return htmlResponse(200, FIRM_LOGIN_SENT_PAGE);
+    return htmlResponse(200, firmLoginSentPage(env));
   }
 
   for (const value of Object.values(form)) {
@@ -848,7 +868,7 @@ async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<
   // No firm for this email: fall through to the SAME response, sending
   // nothing -- this is the anti-enumeration branch this handler exists for.
 
-  return htmlResponse(200, FIRM_LOGIN_SENT_PAGE);
+  return htmlResponse(200, firmLoginSentPage(env));
 }
 
 /**

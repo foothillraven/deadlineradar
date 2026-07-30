@@ -771,6 +771,53 @@ describe("POST /firm/login -- login-link resend for an existing firm", () => {
     expect(await firmByAdminEmail(email)).toBeNull();
   });
 
+  it("2026-07-30 UX fix: body is BYTE-IDENTICAL for an existing firm vs. a nonexistent email -- the new nav links must not become a new enumeration oracle", async () => {
+    const existingEmail = `firmlogin-identical-existing-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Identical Body Firm", admin_email: existingEmail }, "203.0.113.166");
+
+    const respExisting = await postFirmLogin({ admin_email: existingEmail }, "203.0.113.167");
+    const respNone = await postFirmLogin({ admin_email: `firmlogin-identical-none-${Date.now()}@example.com` }, "203.0.113.168");
+
+    expect(respExisting.status).toBe(200);
+    expect(respNone.status).toBe(200);
+    expect(await respExisting.text()).toBe(await respNone.text());
+  });
+
+  it("2026-07-30 UX fix: includes a link to the create-account form and a way back to the homepage (relative, production default)", async () => {
+    const email = `firmlogin-navlinks-${Date.now()}@example.com`;
+    const resp = await postFirmLogin({ admin_email: email }, "203.0.113.171");
+    const body = await resp.text();
+    expect(body).toContain('href="/firm-login/"');
+    expect(body).toContain('href="/"');
+  });
+
+  it("2026-07-30 UX fix: nav links are absolute to STATIC_SITE_BASE_URL when set (preview), for BOTH an existing firm and a nonexistent email", async () => {
+    const worker = (await import("../src/index")).default;
+    const envPreview = { ...env, STATIC_SITE_BASE_URL: "https://deadlineradar-preview.pages.dev" };
+
+    const existingEmail = `firmlogin-navlinks-preview-existing-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Preview Navlinks Firm", admin_email: existingEmail }, "203.0.113.173");
+    const requestExisting = new Request("https://deadline-radar.com/firm/login", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.174" },
+      body: form({ admin_email: existingEmail }),
+    });
+    const bodyExisting = await (await worker.fetch(requestExisting, envPreview)).text();
+
+    const requestNone = new Request("https://deadline-radar.com/firm/login", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.175" },
+      body: form({ admin_email: `firmlogin-navlinks-preview-none-${Date.now()}@example.com` }),
+    });
+    const bodyNone = await (await worker.fetch(requestNone, envPreview)).text();
+
+    for (const body of [bodyExisting, bodyNone]) {
+      expect(body).toContain('href="https://deadlineradar-preview.pages.dev/firm-login/"');
+      expect(body).toContain('href="https://deadlineradar-preview.pages.dev/"');
+    }
+    expect(bodyExisting).toBe(bodyNone);
+  });
+
   it("for an existing firm issues a fresh login token (on top of the one signup already created)", async () => {
     const email = `firmlogin-existing-${Date.now()}@example.com`;
     await postFirmSignup({ name: "Existing Firm", admin_email: email }, "203.0.113.161");

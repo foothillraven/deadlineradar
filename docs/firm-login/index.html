@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Firm Sign In — DeadlineRadar</title>
+<title>Sign In / Create Account — DeadlineRadar</title>
 <meta name="description" content="Sign in to your DeadlineRadar firm dashboard, or create a new firm account to start tracking your staff&#x27;s CPA license renewals.">
 <link rel="canonical" href="https://deadline-radar.com/firm-login/">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -633,6 +633,7 @@
       <a href="/methodology/">How We Verify</a>
       <a href="/for-firms/">For Firms</a>
       <a href="/contact/">Contact</a>
+      <a href="/firm-login/">Sign In</a>
       <a href="#remind" class="cta">Get reminders</a>
     </div>
   </div>
@@ -641,26 +642,14 @@
 <header class="site-header">
   <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>
 </header>
-<h1>Firm Sign In</h1>
+<h1>Sign in or create your firm account</h1>
 <p class="subhead">One roster for every staff CPA's license renewal &mdash; sorted by what needs
 attention soonest.</p>
 
 <div class="signup-form">
-  <h2>Sign in</h2>
-  <p class="signup-microcopy">Enter your firm's admin email and we'll send a one-time sign-in link.
-  No password to remember or reset.</p>
-  <form method="post" action="/api/firm/login">
-    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
-    <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_"></div>
-    <label for="login-email">Admin email</label>
-    <input type="email" id="login-email" name="admin_email" required placeholder="you@yourfirm.com">
-    <button type="submit">Send sign-in link</button>
-  </form>
-</div>
-
-<div class="signup-form">
-  <h2>New firm? Create your account</h2>
-  <p class="signup-microcopy">Free to start &mdash; a 30-day pilot, no card required. We'll email your
+  <h2>New firm? Start here</h2>
+  <p class="signup-microcopy">Most first-time visitors don't have an account yet &mdash; this is
+  the one you want. Free to start &mdash; a 30-day pilot, no card required. We'll email your
   admin address a one-time sign-in link to finish setting up.</p>
   <form method="post" action="/api/firm/signup">
     <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website-alt">Leave this field blank</label><input type="text" id="hp_website-alt" name="hp_website" tabindex="-1" autocomplete="off"></div>
@@ -670,6 +659,19 @@ attention soonest.</p>
     <label for="signup-admin-email">Your email</label>
     <input type="email" id="signup-admin-email" name="admin_email" required placeholder="you@yourfirm.com">
     <button type="submit">Create firm account</button>
+  </form>
+</div>
+
+<div class="signup-form">
+  <h2>Already set up? Sign in</h2>
+  <p class="signup-microcopy">Enter your firm's admin email and, if it has an account, we'll send a
+  one-time sign-in link. No password to remember or reset.</p>
+  <form method="post" action="/api/firm/login">
+    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
+    <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_"></div>
+    <label for="login-email">Admin email</label>
+    <input type="email" id="login-email" name="admin_email" required placeholder="you@yourfirm.com">
+    <button type="submit">Send sign-in link</button>
   </form>
 </div>
 

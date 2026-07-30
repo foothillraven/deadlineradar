@@ -68,6 +68,87 @@ export function isValidEmail(email: string): boolean {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Firm-signup trial gate (2026-07-30 BUILD v2, Phase A) -- competitor-intel
+// protection per the directive: require a business email on POST
+// /firm/signup, blocking both free consumer-email providers and named
+// incumbent competitors from opening a free-pilot trial account. Deliberately
+// NOT applied to /firm/login (an existing account, whatever domain it was
+// created under, must always be able to sign back in -- this gates NEW trial
+// creation, not existing access).
+// ---------------------------------------------------------------------------
+
+// The 5 the directive names explicitly (gmail/yahoo/outlook/icloud/aol), each
+// provider's other real domains (hotmail/live/msn are all Microsoft's
+// consumer webmail; me.com/mac.com are iCloud aliases; ymail.com/
+// rocketmail.com/googlemail.com are Yahoo/Gmail aliases), plus a handful of
+// other common free providers an adversarial review flagged as an obvious gap
+// (protonmail/gmx/mail.com/zoho/yandex/fastmail). Still explicitly a "light
+// check" per the directive, not a maintained industry-wide list -- a
+// determined competitor can always find a provider not on it.
+const FREE_EMAIL_DOMAINS: readonly string[] = [
+  "gmail.com",
+  "googlemail.com",
+  "yahoo.com",
+  "ymail.com",
+  "rocketmail.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "msn.com",
+  "icloud.com",
+  "me.com",
+  "mac.com",
+  "aol.com",
+  "protonmail.com",
+  "proton.me",
+  "gmx.com",
+  "mail.com",
+  "zoho.com",
+  "yandex.com",
+  "fastmail.com",
+];
+
+// Named incumbents from the directive's own competitor scan (CPA QualityPro,
+// Certemy, Harbor Compliance, Copliancy). Not exhaustive -- a "light check"
+// per the directive, not a maintained industry-wide blocklist.
+const COMPETITOR_EMAIL_DOMAINS: readonly string[] = [
+  "cpaqualitypro.com",
+  "certemy.com",
+  "harborcompliance.com",
+  "copliancy.com",
+];
+
+function emailDomain(email: string): string {
+  const at = email.lastIndexOf("@");
+  return at === -1 ? "" : email.slice(at + 1).toLowerCase();
+}
+
+// Exact match OR a real subdomain of a blocked domain (foo.gmail.com) --
+// deliberately NOT a substring/`.includes()` test, which would false-positive
+// on a legitimate business domain that merely CONTAINS a blocked name as a
+// prefix (e.g. "gmail.com.someconsultancy.com" is not Google's gmail.com and
+// must not be blocked; "mail.gmail.com" IS a subdomain of it and should be).
+function matchesBlockedDomain(domain: string, blocklist: readonly string[]): boolean {
+  return blocklist.some((blocked) => domain === blocked || domain.endsWith(`.${blocked}`));
+}
+
+export type SignupDomainGateResult =
+  | { blocked: false }
+  | { blocked: true; reason: "free_email" | "competitor" };
+
+/**
+ * `email` must already have passed `isValidEmail()` -- this does no format
+ * validation of its own, only the domain-allowlist/blocklist decision.
+ */
+export function checkSignupDomainGate(email: string): SignupDomainGateResult {
+  const domain = emailDomain(email);
+  if (domain.length === 0) return { blocked: false };
+  if (matchesBlockedDomain(domain, FREE_EMAIL_DOMAINS)) return { blocked: true, reason: "free_email" };
+  if (matchesBlockedDomain(domain, COMPETITOR_EMAIL_DOMAINS)) return { blocked: true, reason: "competitor" };
+  return { blocked: false };
+}
+
 // Whole-string optional-sign-then-digits, after trimming ASCII whitespace --
 // matches Python's `int(str)` constructor semantics, which is what
 // server.py's California/Texas birth-month validation actually relies on

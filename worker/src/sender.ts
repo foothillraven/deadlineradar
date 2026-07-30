@@ -73,6 +73,21 @@ function parseAllowlist(raw: string | undefined): string[] | null {
 }
 
 /**
+ * Exported for callers OTHER than sendViaSendGrid that need the same
+ * "is this a known preview/staging test address" membership check (2026-07-30
+ * addition: the firm-signup trial gate exempts EMAIL_ALLOWLIST addresses so a
+ * tester can still sign up a preview firm with their own real personal
+ * address -- EMAIL_ALLOWLIST is never set in production, so this exemption
+ * is structurally a no-op there, same as every other EMAIL_ALLOWLIST-gated
+ * behavior in this file).
+ */
+export function isEmailAllowlisted(raw: string | undefined, email: string): boolean {
+  const allowlist = parseAllowlist(raw);
+  if (!allowlist) return false;
+  return allowlist.includes(email.trim().toLowerCase());
+}
+
+/**
  * One transactional send via SendGrid. Returns true on 2xx, false otherwise
  * (a failed send must never throw up into /subscribe -- a subscriber's record
  * is already stored; a transient email failure should not 500 their request).

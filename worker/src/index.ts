@@ -60,6 +60,7 @@ import {
   RATE_LIMIT_FIRM_SIGNUP,
   RATE_LIMIT_SUBSCRIBE,
   checkRateLimit,
+  checkSignupDomainGate,
   escapeHtml,
   getCookie,
   hasControlChars,
@@ -86,7 +87,7 @@ import {
   buildStopConfirmationEmail,
   fmtDate,
 } from "./emails";
-import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, sendViaSendGrid } from "./sender";
+import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, isEmailAllowlisted, sendViaSendGrid } from "./sender";
 import { StaleDataError as SchedulerStaleDataError, runReminderPass } from "./scheduler";
 
 function htmlPage(title: string, bodyHtml: string): string {
@@ -737,12 +738,44 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
     return errorPage(400, "Please enter your firm's name.");
   }
 
+  // Trial gate (2026-07-30, BUILD v2 item 4): a free-pilot firm account is a
+  // real product surface a competitor could use to see how this works. Looked
+  // up BEFORE the gate (not after) and skipped entirely when a firm already
+  // exists for this email -- an adversarial RE-QA pass on the first version
+  // of this gate (which ran unconditionally) correctly caught that blocking
+  // an EXISTING account's repeat visit to the signup form would be a real
+  // regression from today's silent-resend behavior, and that this product's
+  // own target market includes solo practitioners who may only have a
+  // personal-email-provider address as their "business" email -- an already-
+  // created account under such a domain must keep working. This does mean
+  // POST /firm/signup's response can now distinguish "blocked domain, has an
+  // account" (generic resend) from "blocked domain, no account" (explicit
+  // 400) -- a narrow anti-enumeration exception scoped ONLY to the 24
+  // hardcoded domains in validation.ts, accepted as the better tradeoff (see the
+  // "existing account" test for exactly what this proves).
+  // Deliberately NOT applied to /firm/login at all: an existing account must
+  // always be able to sign back in regardless of what domain it was created
+  // under. Exempts env.EMAIL_ALLOWLIST addresses (preview/staging only, never
+  // set in production -- see sender.ts's isEmailAllowlisted docstring) so a
+  // real tester can still stand up a preview firm under their own personal
+  // address, same posture as the rest of this Worker's EMAIL_ALLOWLIST gate.
+  const existing = await store.findFirmByAdminEmail(env.DB, email);
+  if (!existing && !isEmailAllowlisted(env.EMAIL_ALLOWLIST, email)) {
+    const domainGate = checkSignupDomainGate(email);
+    if (domainGate.blocked) {
+      return errorPage(
+        400,
+        "Please sign up with your firm's business email address. We don't offer trial accounts on " +
+          "free personal email providers or to other compliance-software vendors."
+      );
+    }
+  }
+
   const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
   if (!turnstileOk) {
     return errorPage(400, "Verification failed -- please try again.");
   }
 
-  const existing = await store.findFirmByAdminEmail(env.DB, email);
   const firmId = existing ? existing.id : (await store.createFirm(env.DB, { name: nameRaw, adminEmail: email })).id;
 
   await issueAndSendFirmLoginLink(env, firmId, email);

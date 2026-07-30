@@ -568,6 +568,175 @@ describe("POST /firm/signup -- firm account creation + login-link send", () => {
   });
 });
 
+// 2026-07-30, BUILD v2 Phase A -- trial gate against free-email signups and
+// named competitors opening a free-pilot account to see the product.
+describe("POST /firm/signup -- trial gate (business email required)", () => {
+  it("rejects a free-email-provider domain and creates no firm", async () => {
+    const email = `trialgate-free-${Date.now()}@gmail.com`;
+    const resp = await postFirmSignup({ name: "Some Firm", admin_email: email }, "203.0.113.170");
+    expect(resp.status).toBe(400);
+    expect(await firmByAdminEmail(email)).toBeNull();
+  });
+
+  it("rejects every free-email domain named in the directive (gmail/yahoo/outlook/icloud/aol), case-insensitively", async () => {
+    const domains = ["gmail.com", "Yahoo.com", "OUTLOOK.COM", "icloud.com", "aol.com", "hotmail.com"];
+    for (const [i, domain] of domains.entries()) {
+      const email = `trialgate-free-${i}-${Date.now()}@${domain}`;
+      const resp = await postFirmSignup(
+        { name: "Some Firm", admin_email: email },
+        `203.0.113.${180 + i}`
+      );
+      expect(resp.status).toBe(400);
+    }
+  });
+
+  it("rejects a named competitor domain and creates no firm", async () => {
+    const email = `trialgate-competitor-${Date.now()}@certemy.com`;
+    const resp = await postFirmSignup({ name: "Certemy Employee", admin_email: email }, "203.0.113.171");
+    expect(resp.status).toBe(400);
+    expect(await firmByAdminEmail(email)).toBeNull();
+  });
+
+  it("rejects every named competitor domain (cpaqualitypro/certemy/harborcompliance/copliancy)", async () => {
+    const domains = ["cpaqualitypro.com", "certemy.com", "harborcompliance.com", "copliancy.com"];
+    for (const [i, domain] of domains.entries()) {
+      const email = `trialgate-comp-${i}-${Date.now()}@${domain}`;
+      const resp = await postFirmSignup(
+        { name: "Some Firm", admin_email: email },
+        `203.0.113.${190 + i}`
+      );
+      expect(resp.status).toBe(400);
+    }
+  });
+
+  it("blocks a real subdomain of a blocked domain (subdomain bypass attempt)", async () => {
+    const email = `trialgate-subdomain-${Date.now()}@mail.gmail.com`;
+    const resp = await postFirmSignup({ name: "Some Firm", admin_email: email }, "203.0.113.172");
+    expect(resp.status).toBe(400);
+    expect(await firmByAdminEmail(email)).toBeNull();
+  });
+
+  it("does NOT block a legitimate business domain that merely contains a blocked name as a prefix (false-positive check)", async () => {
+    const email = `trialgate-notfree-${Date.now()}@gmail.com.someconsultancy.com`;
+    const resp = await postFirmSignup({ name: "Some Consultancy LLC", admin_email: email }, "203.0.113.173");
+    expect(resp.status).toBe(200);
+    expect(await firmByAdminEmail(email)).not.toBeNull();
+  });
+
+  it("allows a normal business domain through to the existing happy path", async () => {
+    const email = `trialgate-legit-${Date.now()}@example-cpa-firm.com`;
+    const resp = await postFirmSignup({ name: "Legit CPA Firm", admin_email: email }, "203.0.113.174");
+    expect(resp.status).toBe(200);
+    const body = await resp.text();
+    expect(body.toLowerCase()).toContain("check your email");
+    expect(await firmByAdminEmail(email)).not.toBeNull();
+  });
+
+  it("exempts an address on env.EMAIL_ALLOWLIST from the blocked-domain gate (preview/staging tester convenience)", async () => {
+    const worker = (await import("../src/index")).default;
+    const email = `trialgate-allowlisted-tester-${Date.now()}@gmail.com`;
+    const envWithAllowlist = { ...env, EMAIL_ALLOWLIST: `${email}, someone-else@example.com` };
+    const request = new Request("https://deadline-radar.com/firm/signup", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.176" },
+      body: new URLSearchParams({ name: "Allowlisted Tester Firm", admin_email: email, hp_website: "" }).toString(),
+    });
+    const resp = await worker.fetch(request, envWithAllowlist);
+    expect(resp.status).toBe(200);
+    expect(await firmByAdminEmail(email)).not.toBeNull();
+  });
+
+  it("an allowlisted domain gate exemption does NOT also exempt a DIFFERENT blocked-domain email not on the list", async () => {
+    const worker = (await import("../src/index")).default;
+    const allowlistedEmail = `trialgate-allowlisted-other-${Date.now()}@gmail.com`;
+    const notAllowlistedEmail = `trialgate-not-allowlisted-${Date.now()}@gmail.com`;
+    const envWithAllowlist = { ...env, EMAIL_ALLOWLIST: allowlistedEmail };
+    const request = new Request("https://deadline-radar.com/firm/signup", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.177" },
+      body: new URLSearchParams({ name: "Some Firm", admin_email: notAllowlistedEmail, hp_website: "" }).toString(),
+    });
+    const resp = await worker.fetch(request, envWithAllowlist);
+    expect(resp.status).toBe(400);
+    expect(await firmByAdminEmail(notAllowlistedEmail)).toBeNull();
+  });
+
+  it("does NOT block a repeat /firm/signup submission for an email that already has a firm, even on a blocked domain", async () => {
+    // Adversarial-RE-QA-driven case: the gate must not regress this
+    // codebase's existing "repeat signup for an existing email just resends
+    // the login link" behavior -- including for an account that happens to
+    // sit on a now-blocked domain (e.g. a solo practitioner whose only
+    // "business" email is gmail.com, or any account that predates this
+    // gate). Insert a firm directly under a blocked domain, then hit
+    // /firm/signup again for that exact email and confirm it succeeds with
+    // the normal generic response, not a 400.
+    const email = `trialgate-existing-signup-${Date.now()}@gmail.com`;
+    const firmId = crypto.randomUUID();
+    await env.DB
+      .prepare(
+        "INSERT INTO firms (id, name, admin_email, plan_tier, status, created_at) VALUES (?1, ?2, ?3, 'pilot', 'active', datetime('now'))"
+      )
+      .bind(firmId, "Preexisting Gmail Firm", email)
+      .run();
+
+    const resp = await postFirmSignup({ name: "Preexisting Gmail Firm", admin_email: email }, "203.0.113.178");
+    expect(resp.status).toBe(200);
+    const body = await resp.text();
+    expect(body.toLowerCase()).toContain("check your email");
+
+    // Confirms it's really the SAME firm row reused, not blocked-then-
+    // silently-recreated under a different id.
+    const rows = await env.DB.prepare("SELECT * FROM firms WHERE admin_email = ?1").bind(email).all<FirmRow>();
+    expect(rows.results.length).toBe(1);
+    expect(rows.results[0]?.id).toBe(firmId);
+  });
+
+  it("a genuinely NEW signup attempt on a blocked domain is still rejected even after an unrelated firm already exists on that same domain", async () => {
+    // Guards against a sloppy "any firm on this domain" check instead of the
+    // correct per-EMAIL existing-account check -- two different people at the
+    // same free-email provider must not let one's account exempt the other.
+    const existingEmail = `trialgate-domain-a-${Date.now()}@gmail.com`;
+    await env.DB
+      .prepare(
+        "INSERT INTO firms (id, name, admin_email, plan_tier, status, created_at) VALUES (?1, ?2, ?3, 'pilot', 'active', datetime('now'))"
+      )
+      .bind(crypto.randomUUID(), "Someone Else's Firm", existingEmail)
+      .run();
+
+    const newEmail = `trialgate-domain-b-${Date.now()}@gmail.com`;
+    const resp = await postFirmSignup({ name: "A Different New Firm", admin_email: newEmail }, "203.0.113.179");
+    expect(resp.status).toBe(400);
+    expect(await firmByAdminEmail(newEmail)).toBeNull();
+  });
+
+  it("is NOT applied to /firm/login -- an existing account on a blocked domain can still sign back in", async () => {
+    // Insert a firm directly (simulating a pre-gate account, or any edge case
+    // where a firm already exists under a domain now on the blocklist) and
+    // confirm /firm/login still works for it -- the gate only protects new
+    // trial creation via /firm/signup, never blocks existing access.
+    const email = `trialgate-preexisting-${Date.now()}@gmail.com`;
+    const firmId = crypto.randomUUID();
+    await env.DB
+      .prepare(
+        "INSERT INTO firms (id, name, admin_email, plan_tier, status, created_at) VALUES (?1, ?2, ?3, 'pilot', 'active', datetime('now'))"
+      )
+      .bind(firmId, "Preexisting Gmail Firm", email)
+      .run();
+
+    const before = await env.DB
+      .prepare("SELECT COUNT(*) as c FROM firm_login_tokens WHERE firm_id = ?1")
+      .bind(firmId)
+      .first<{ c: number }>();
+    const resp = await postFirmLogin({ admin_email: email }, "203.0.113.175");
+    expect(resp.status).toBe(200);
+    const after = await env.DB
+      .prepare("SELECT COUNT(*) as c FROM firm_login_tokens WHERE firm_id = ?1")
+      .bind(firmId)
+      .first<{ c: number }>();
+    expect((after?.c ?? 0)).toBeGreaterThan(before?.c ?? 0); // a fresh login token WAS issued
+  });
+});
+
 describe("POST /firm/login -- login-link resend for an existing firm", () => {
   it("for a nonexistent email returns the SAME generic response as a real firm, and creates nothing", async () => {
     const email = `firmlogin-none-${Date.now()}@example.com`;

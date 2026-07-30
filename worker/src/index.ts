@@ -55,6 +55,9 @@ import {
   MAX_STAFF_COUNT_HINT_LEN,
   MAX_STAFF_LABEL_LEN,
   RATE_LIMIT_ACTION,
+  RATE_LIMIT_FIRM_PASSWORD_LOGIN,
+  RATE_LIMIT_FIRM_PASSWORD_SET,
+  RATE_LIMIT_OAUTH_START,
   RATE_LIMIT_CPE_ENTRY_CREATE,
   RATE_LIMIT_FIRM_LEAD,
   RATE_LIMIT_FIRM_LICENSE_CREATE,
@@ -95,6 +98,20 @@ import {
 } from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, isEmailAllowlisted, sendViaSendGrid } from "./sender";
 import { StaleDataError as SchedulerStaleDataError, runReminderPass } from "./scheduler";
+import {
+  hashPassword,
+  verifyPassword,
+  validatePasswordStrength,
+  needsRehash,
+  dummyVerifyForTiming,
+} from "./password";
+import {
+  getConfiguredProvider,
+  buildRedirectUri,
+  buildAuthorizeUrl,
+  exchangeCodeForTokens,
+  parseAndValidateIdToken,
+} from "./oauth";
 
 function htmlPage(title: string, bodyHtml: string): string {
   return `<!doctype html>
@@ -665,6 +682,19 @@ async function handleFirmLead(request: Request, env: Env, ip: string): Promise<R
  * vs-relative link pattern already used for the /firm/login/verify and
  * /firm/logout redirects just below.
  */
+/** One message for every credential failure -- no such firm, no password
+ * set, wrong password. Distinct wording per branch would rebuild exactly
+ * the enumeration oracle the timing equalization exists to close. */
+const INVALID_CREDENTIALS_MESSAGE = "That email and password combination isn't right.";
+
+const SSO_FAILED_MESSAGE = "We couldn't complete that sign-in. Please try again.";
+
+const SSO_UNVERIFIED_EMAIL_MESSAGE =
+  "Your provider didn't confirm that email address is verified, so we can't connect it to a DeadlineRadar account. Please verify the address with your provider and try again.";
+
+const SSO_NO_ACCOUNT_MESSAGE =
+  "We couldn't find a DeadlineRadar firm account for that email address. Please create your firm account first, then connect this sign-in method.";
+
 function firmLoginSentPage(env: Env): string {
   const homeUrl = env.STATIC_SITE_BASE_URL || "";
   return htmlPage(
@@ -1815,6 +1845,27 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
       }
+      // SSO (2026-07-30). The provider id is constrained by the pattern
+      // itself, and getConfiguredProvider() 404s anything unknown or
+      // unconfigured -- so an unregistered provider cannot be reached by
+      // guessing a URL.
+      const oauthStartMatch = /^\/firm\/auth\/([a-z0-9-]+)\/start$/.exec(url.pathname);
+      if (oauthStartMatch) {
+        try {
+          return await handleOauthStart(env, ip, oauthStartMatch[1] as string);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+      const oauthCallbackMatch = /^\/firm\/auth\/([a-z0-9-]+)\/callback$/.exec(url.pathname);
+      if (oauthCallbackMatch) {
+        try {
+          return await handleOauthCallback(request, env, oauthCallbackMatch[1] as string);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
       if (ACTION_PATHS.has(url.pathname)) {
         const allowed = await checkRateLimit(env.DB, ip, "action", RATE_LIMIT_ACTION);
         if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
@@ -1911,6 +1962,22 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
         }
       }
 
+      if (url.pathname === "/firm/login/password") {
+        try {
+          return await handleFirmPasswordLogin(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
+      if (url.pathname === "/firm/password") {
+        try {
+          return await handleFirmPasswordSet(request, env, ip);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
       if (url.pathname === "/firm/logout") {
         try {
           return await handleFirmLogout(request, env);
@@ -1979,6 +2046,352 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
     }
 
     return errorPage(404, "Not found.");
+}
+
+
+// ---------------------------------------------------------------------------
+// Auth suite (2026-07-30): password login, password set/change, and SSO.
+//
+// The emailed magic link is NOT removed. It is demoted in the UI to the
+// "no password yet / forgot password" path, and its existing route pair
+// (/firm/login -> /firm/login/verify) is untouched. That matters for a
+// concrete reason: every firm that existed before this change has NO
+// password, so the emailed link is still their only way in. Deleting it
+// would have locked out every current customer, including Devin's own
+// production firm.
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /firm/login/password -- email + password.
+ *
+ * Anti-enumeration is the whole shape of this handler. Every failure path
+ * -- no such firm, firm with no password set, wrong password -- returns
+ * the SAME generic message, and the no-such-firm branch still burns an
+ * equivalent PBKDF2 derivation via dummyVerifyForTiming(). Without that
+ * dummy, a wrong email returns in ~5ms while a wrong password takes
+ * ~120ms, which turns this form into a firm-directory oracle that
+ * cheerfully confirms which accounting firms use the product.
+ */
+async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): Promise<Response> {
+  const ipAllowed = await checkRateLimit(env.DB, ip, "firm_password_login", RATE_LIMIT_FIRM_PASSWORD_LOGIN);
+  if (!ipAllowed) {
+    return errorPage(429, "Too many sign-in attempts from this address. Please try again later.");
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return errorPage(400, "Request too large or empty.");
+  }
+
+  let form: Record<string, string>;
+  try {
+    form = Object.fromEntries(new URLSearchParams(raw).entries());
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+
+  const honeypotValue = form[HONEYPOT_FIELD_NAME];
+  if (honeypotValue !== undefined && honeypotValue !== "") {
+    return errorPage(400, INVALID_CREDENTIALS_MESSAGE);
+  }
+
+  // Deliberately does NOT control-char-check the password itself: a
+  // password is never rendered or stored raw, and rejecting on content
+  // here would leak that the field reached validation. The email is
+  // checked, since it IS echoed into queries and logs.
+  const email = (form.admin_email ?? "").trim();
+  if (hasControlChars(email) || !isValidEmail(email)) {
+    return errorPage(400, INVALID_CREDENTIALS_MESSAGE);
+  }
+  const password = form.password ?? "";
+
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
+  if (!turnstileOk) {
+    return errorPage(400, "Verification failed -- please try again.");
+  }
+
+  // Second bucket, keyed on the ACCOUNT rather than the source IP. Per-IP
+  // throttling alone does nothing against a distributed attack aimed at
+  // one high-value firm. Keyed on the normalized email so case/whitespace
+  // variants share a bucket instead of each getting a fresh allowance.
+  const accountAllowed = await checkRateLimit(
+    env.DB,
+    `account:${store.normalizeEmail(email)}`,
+    "firm_password_login_account",
+    RATE_LIMIT_FIRM_PASSWORD_LOGIN
+  );
+  if (!accountAllowed) {
+    return errorPage(429, "Too many sign-in attempts for this account. Please try again later.");
+  }
+
+  const firm = await store.findFirmByAdminEmail(env.DB, email);
+
+  if (!firm || !firm.password_hash) {
+    // No account, or an account that has never set a password (SSO-only or
+    // magic-link-only). Burn comparable work so this branch is not
+    // distinguishable by timing, then fail identically.
+    await dummyVerifyForTiming();
+    return errorPage(400, INVALID_CREDENTIALS_MESSAGE);
+  }
+
+  const ok = await verifyPassword(password, {
+    algo: firm.password_algo ?? undefined,
+    salt: firm.password_salt ?? undefined,
+    iterations: firm.password_iterations ?? undefined,
+    rounds: firm.password_rounds ?? undefined,
+    hash: firm.password_hash,
+  });
+  if (!ok) {
+    return errorPage(400, INVALID_CREDENTIALS_MESSAGE);
+  }
+
+  // Successful login is the only moment the plaintext is legitimately in
+  // hand, so it is the only moment an outdated work factor can be upgraded
+  // without asking the user to do anything.
+  if (
+    needsRehash({
+      algo: firm.password_algo ?? undefined,
+      iterations: firm.password_iterations ?? undefined,
+      rounds: firm.password_rounds ?? undefined,
+      hash: firm.password_hash,
+    })
+  ) {
+    try {
+      await store.setFirmPassword(env.DB, firm.id, await hashPassword(password));
+    } catch {
+      // A failed opportunistic upgrade must never fail the login itself.
+    }
+  }
+
+  // A brand-new session row per login (never reusing or accepting a
+  // caller-supplied identifier) is what makes session fixation impossible
+  // here: there is no way to pre-plant a session id and have it become
+  // authenticated.
+  const { rawSessionToken } = await store.createSession(env.DB, firm.id);
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/`,
+      "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken, env),
+    },
+  });
+}
+
+/**
+ * POST /firm/password -- set a first password, or change an existing one.
+ *
+ * Requires a live session. If the firm ALREADY has a password, the current
+ * one must be supplied: a session cookie alone must not be enough to
+ * silently rotate the credential, or an attacker with a stolen cookie
+ * could lock the real owner out permanently. When no password exists yet
+ * (the normal case right after a magic-link sign-in), there is nothing to
+ * prove and the current-password field is not required.
+ */
+async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  const allowed = await checkRateLimit(env.DB, ip, "firm_password_set", RATE_LIMIT_FIRM_PASSWORD_SET);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  const newPassword = typeof body.new_password === "string" ? body.new_password : "";
+  const currentPassword = typeof body.current_password === "string" ? body.current_password : "";
+
+  const strength = validatePasswordStrength(newPassword);
+  if (!strength.ok) {
+    return jsonResponse(400, { error: strength.error });
+  }
+
+  const firm = await store.getFirmById(env.DB, session.firmId);
+  if (!firm) {
+    return jsonResponse(404, { error: "Not found." });
+  }
+
+  if (firm.password_hash) {
+    const currentOk = await verifyPassword(currentPassword, {
+      algo: firm.password_algo ?? undefined,
+      salt: firm.password_salt ?? undefined,
+      iterations: firm.password_iterations ?? undefined,
+      rounds: firm.password_rounds ?? undefined,
+      hash: firm.password_hash,
+    });
+    if (!currentOk) {
+      return jsonResponse(400, { error: "That current password isn't right." });
+    }
+  }
+
+  await store.setFirmPassword(env.DB, firm.id, await hashPassword(newPassword));
+
+  // Changing a password must end every OTHER session. If the reason for
+  // the change is that a session was stolen, leaving that session alive
+  // makes the change cosmetic -- the attacker just keeps using the cookie
+  // they already hold. The caller's own session survives so they aren't
+  // logged out of the tab they're sitting in.
+  const endedSessions = await store.deleteOtherSessionsForFirm(env.DB, firm.id, session.sessionId);
+
+  return jsonResponse(200, { ok: true, other_sessions_ended: endedSessions });
+}
+
+/**
+ * GET /firm/auth/:provider/start -- opens an SSO handshake and redirects.
+ *
+ * 404s for an unknown or unconfigured provider, so a provider that has no
+ * secrets set is genuinely absent rather than a button that errors.
+ */
+async function handleOauthStart(env: Env, ip: string, providerId: string): Promise<Response> {
+  const provider = getConfiguredProvider(env, providerId);
+  if (!provider) return errorPage(404, "Not found.");
+
+  const allowed = await checkRateLimit(env.DB, ip, "oauth_start", RATE_LIMIT_OAUTH_START);
+  if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
+
+  // Opportunistic cleanup of handshakes nobody ever completed, so the
+  // table can't grow without bound from abandoned sign-ins.
+  try {
+    await store.deleteExpiredOauthStates(env.DB);
+  } catch {
+    // Housekeeping must never block a sign-in.
+  }
+
+  const { rawState, codeVerifier, nonce } = await store.createOauthState(env.DB, provider.id);
+  const redirectUri = buildRedirectUri(actionBaseUrl(env), provider.id);
+  const authorizeUrl = await buildAuthorizeUrl({ provider, redirectUri, state: rawState, nonce, codeVerifier });
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: authorizeUrl,
+      // The authorize URL carries a live single-use state; keep it out of
+      // any shared cache.
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+/**
+ * GET /firm/auth/:provider/callback -- completes the handshake.
+ *
+ * Order matters here. `state` is consumed BEFORE the code is exchanged, so
+ * a replayed callback URL is rejected without ever spending a network call
+ * on the provider, and so a captured URL cannot mint a second session.
+ */
+async function handleOauthCallback(request: Request, env: Env, providerId: string): Promise<Response> {
+  const provider = getConfiguredProvider(env, providerId);
+  if (!provider) return errorPage(404, "Not found.");
+
+  const url = new URL(request.url);
+
+  // The user declined consent, or the provider rejected the request. Not
+  // an error to surface verbatim -- provider error text echoes request
+  // parameters back and would leak configuration into the browser.
+  if (url.searchParams.get("error")) {
+    return errorPage(400, SSO_FAILED_MESSAGE);
+  }
+
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  if (!code || !state) return errorPage(400, SSO_FAILED_MESSAGE);
+
+  const consumed = await store.consumeOauthState(env.DB, state);
+  if (!consumed) return errorPage(400, SSO_FAILED_MESSAGE);
+
+  // A handshake opened for one provider must not be redeemable at
+  // another's callback.
+  if (consumed.provider !== provider.id) return errorPage(400, SSO_FAILED_MESSAGE);
+
+  const redirectUri = buildRedirectUri(actionBaseUrl(env), provider.id);
+  const tokens = await exchangeCodeForTokens({
+    provider,
+    code,
+    redirectUri,
+    codeVerifier: consumed.codeVerifier,
+  });
+  if (!tokens || !tokens.id_token) return errorPage(400, SSO_FAILED_MESSAGE);
+
+  const claims = parseAndValidateIdToken({
+    idToken: tokens.id_token,
+    provider,
+    expectedNonce: consumed.nonce,
+  });
+  if (!claims) return errorPage(400, SSO_FAILED_MESSAGE);
+
+  // Already-linked identity: the stable subject resolves the firm
+  // directly, and no email is consulted at all.
+  const existingIdentity = await store.findOauthIdentity(env.DB, provider.id, claims.sub);
+  if (existingIdentity) {
+    await store.touchOauthIdentityLogin(env.DB, existingIdentity.id, claims.email);
+    const { rawSessionToken } = await store.createSession(env.DB, existingIdentity.firm_id);
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/`,
+        "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken, env),
+      },
+    });
+  }
+
+  // First time this provider account has been seen. Linking it to an
+  // existing firm requires a VERIFIED email: an unverified address proves
+  // nothing, and honouring it would let anyone who can create an account
+  // at a provider with an arbitrary unverified email claim a firm.
+  if (!claims.email || !claims.emailVerified) {
+    return errorPage(400, SSO_UNVERIFIED_EMAIL_MESSAGE);
+  }
+
+  const firm = await store.findFirmByAdminEmail(env.DB, claims.email);
+  if (!firm) {
+    // Deliberately NOT auto-creating a firm here. Signup runs a domain
+    // gate (checkSignupDomainGate: free-mail providers and competitor
+    // domains are refused a trial), and minting an account through the
+    // SSO callback would route straight around it. SSO connects to an
+    // account that already exists; it is not a second signup door.
+    return errorPage(400, SSO_NO_ACCOUNT_MESSAGE);
+  }
+
+  const linked = await store.linkOauthIdentity(env.DB, {
+    firmId: firm.id,
+    provider: provider.id,
+    providerSubject: claims.sub,
+    providerEmail: claims.email,
+  });
+  if (!linked) {
+    // The UNIQUE(provider, subject) constraint fired between our lookup
+    // and this insert -- i.e. a concurrent callback linked it first. Fall
+    // through by re-reading rather than treating it as an error.
+    const raced = await store.findOauthIdentity(env.DB, provider.id, claims.sub);
+    if (!raced) return errorPage(400, SSO_FAILED_MESSAGE);
+    const { rawSessionToken } = await store.createSession(env.DB, raced.firm_id);
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/`,
+        "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken, env),
+      },
+    });
+  }
+
+  const { rawSessionToken } = await store.createSession(env.DB, firm.id);
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/`,
+      "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken, env),
+    },
+  });
 }
 
 export default {

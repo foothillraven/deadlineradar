@@ -1464,3 +1464,24 @@ export async function consumeOauthState(
 export async function deleteExpiredOauthStates(db: D1Database): Promise<void> {
   await db.prepare(`DELETE FROM firm_oauth_states WHERE expires_at <= ?1`).bind(nowIso()).run();
 }
+
+/**
+ * Deletes every session for a firm EXCEPT the one making the request.
+ *
+ * Called after a successful password change. If someone else's stolen
+ * session is what prompted the change, leaving that session alive would
+ * make the password change pointless -- the attacker simply keeps using
+ * the cookie they already have. The caller's own session is preserved so
+ * changing a password doesn't log you out of the tab you're in.
+ */
+export async function deleteOtherSessionsForFirm(
+  db: D1Database,
+  firmId: string,
+  keepSessionId: string
+): Promise<number> {
+  const result = await db
+    .prepare(`DELETE FROM firm_sessions WHERE firm_id = ?1 AND id != ?2`)
+    .bind(firmId, keepSessionId)
+    .run();
+  return result.meta.changes ?? 0;
+}

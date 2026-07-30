@@ -15,6 +15,7 @@ import {
   strictParseInt,
 } from "../src/validation";
 import * as store from "../src/store";
+import { hashPassword } from "../src/password";
 import type { CpeEntryRow, FirmLeadRow, FirmRow, SubscriberRow } from "../src/store";
 
 function form(fields: Record<string, string>): string {
@@ -2640,4 +2641,396 @@ describe("GET/POST/DELETE /firm/cpe -- CPE-hours entry CRUD", () => {
     const overCap = await postCpeEntry(cookie, { subscriber_id: subscriberId, entry_date: "2026-06-01", hours: "1", category: "general" }, "203.0.113.250");
     expect(overCap.status).toBe(429);
   }, 20000);
+});
+
+// ---------------------------------------------------------------------------
+// Auth suite routes (2026-07-30): password login, password set/change, SSO.
+// ---------------------------------------------------------------------------
+
+async function postPasswordLogin(fields: Record<string, string>, ip: string): Promise<Response> {
+  return SELF.fetch("https://deadline-radar.com/firm/login/password", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": ip },
+    body: form(fields),
+    redirect: "manual",
+  });
+}
+
+async function postPasswordSet(
+  body: Record<string, unknown>,
+  cookie: string | null,
+  ip: string
+): Promise<Response> {
+  const headers: Record<string, string> = { "content-type": "application/json", "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch("https://deadline-radar.com/firm/password", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+}
+
+/** Creates a firm with a known password and returns it. */
+async function firmWithPassword(email: string, password: string): Promise<FirmRow> {
+  const { id } = await store.createFirm(env.DB, { name: "Password Test Firm", adminEmail: email });
+  await store.setFirmPassword(env.DB, id, await hashPassword(password));
+  const firm = await store.getFirmById(env.DB, id);
+  return firm as FirmRow;
+}
+
+const STRONG_PASSWORD = "correct horse battery staple";
+
+describe("POST /firm/login/password", () => {
+  it("signs in with the right password: new session row + cookie + redirect to the dashboard", async () => {
+    const email = `pwlogin-ok-${Date.now()}@examplefirm.com`;
+    const firm = await firmWithPassword(email, STRONG_PASSWORD);
+
+    const resp = await postPasswordLogin({ admin_email: email, password: STRONG_PASSWORD }, "203.0.113.190");
+    expect(resp.status).toBe(302);
+    expect(resp.headers.get("Location")).toBe("/firm-dashboard/");
+
+    const setCookie = resp.headers.get("Set-Cookie") ?? "";
+    expect(setCookie).toContain("dr_firm_session=");
+    expect(setCookie).toContain("HttpOnly");
+
+    const sessions = await env.DB
+      .prepare("SELECT COUNT(*) AS c FROM firm_sessions WHERE firm_id = ?1")
+      .bind(firm.id)
+      .first<{ c: number }>();
+    expect(sessions?.c).toBe(1);
+  });
+
+  it("rejects the wrong password and creates NO session", async () => {
+    const email = `pwlogin-wrong-${Date.now()}@examplefirm.com`;
+    const firm = await firmWithPassword(email, STRONG_PASSWORD);
+
+    const resp = await postPasswordLogin({ admin_email: email, password: "not the right password" }, "203.0.113.191");
+    expect(resp.status).toBe(400);
+    expect(resp.headers.get("Set-Cookie")).toBeNull();
+
+    const sessions = await env.DB
+      .prepare("SELECT COUNT(*) AS c FROM firm_sessions WHERE firm_id = ?1")
+      .bind(firm.id)
+      .first<{ c: number }>();
+    expect(sessions?.c).toBe(0);
+  });
+
+  it("ANTI-ENUMERATION: a nonexistent email and a wrong password produce byte-identical responses", async () => {
+    const email = `pwlogin-enum-${Date.now()}@examplefirm.com`;
+    await firmWithPassword(email, STRONG_PASSWORD);
+
+    const wrongPw = await postPasswordLogin({ admin_email: email, password: "wrong password here" }, "203.0.113.192");
+    const noSuchFirm = await postPasswordLogin(
+      { admin_email: `pwlogin-nobody-${Date.now()}@examplefirm.com`, password: "wrong password here" },
+      "203.0.113.193"
+    );
+
+    expect(wrongPw.status).toBe(noSuchFirm.status);
+    expect(await wrongPw.text()).toBe(await noSuchFirm.text());
+  });
+
+  it("ANTI-ENUMERATION: a firm that exists but has NO password is also indistinguishable", async () => {
+    // SSO-only / magic-link-only firms must not be identifiable by probing
+    // the password form.
+    const email = `pwlogin-nopw-${Date.now()}@examplefirm.com`;
+    await store.createFirm(env.DB, { name: "No Password Firm", adminEmail: email });
+
+    const noPassword = await postPasswordLogin({ admin_email: email, password: STRONG_PASSWORD }, "203.0.113.194");
+    const noSuchFirm = await postPasswordLogin(
+      { admin_email: `pwlogin-ghost-${Date.now()}@examplefirm.com`, password: STRONG_PASSWORD },
+      "203.0.113.195"
+    );
+
+    expect(noPassword.status).toBe(noSuchFirm.status);
+    expect(await noPassword.text()).toBe(await noSuchFirm.text());
+  });
+
+  it("is case-insensitive on the email but exact on the password", async () => {
+    const email = `pwlogin-case-${Date.now()}@examplefirm.com`;
+    await firmWithPassword(email, STRONG_PASSWORD);
+
+    const upper = await postPasswordLogin(
+      { admin_email: email.toUpperCase(), password: STRONG_PASSWORD },
+      "203.0.113.196"
+    );
+    expect(upper.status).toBe(302);
+
+    const wrongCasePw = await postPasswordLogin(
+      { admin_email: email, password: STRONG_PASSWORD.toUpperCase() },
+      "203.0.113.197"
+    );
+    expect(wrongCasePw.status).toBe(400);
+  });
+
+  it("silently fails on a filled honeypot without creating a session", async () => {
+    const email = `pwlogin-hp-${Date.now()}@examplefirm.com`;
+    const firm = await firmWithPassword(email, STRONG_PASSWORD);
+    const resp = await postPasswordLogin(
+      { admin_email: email, password: STRONG_PASSWORD, hp_website: "im-a-bot" },
+      "203.0.113.198"
+    );
+    expect(resp.status).toBe(400);
+    const sessions = await env.DB
+      .prepare("SELECT COUNT(*) AS c FROM firm_sessions WHERE firm_id = ?1")
+      .bind(firm.id)
+      .first<{ c: number }>();
+    expect(sessions?.c).toBe(0);
+  });
+
+  it("rate limits by IP", async () => {
+    const ip = "203.0.113.199";
+    for (let i = 0; i < 10; i++) {
+      const r = await postPasswordLogin(
+        { admin_email: `pwlogin-rl-${i}-${Date.now()}@examplefirm.com`, password: "x".repeat(20) },
+        ip
+      );
+      expect(r.status).not.toBe(429);
+    }
+    const blocked = await postPasswordLogin(
+      { admin_email: `pwlogin-rl-final-${Date.now()}@examplefirm.com`, password: "x".repeat(20) },
+      ip
+    );
+    expect(blocked.status).toBe(429);
+  }, 30_000);
+
+  it("rate limits per ACCOUNT even when attempts come from different IPs (distributed guessing)", async () => {
+    const email = `pwlogin-acct-rl-${Date.now()}@examplefirm.com`;
+    await firmWithPassword(email, STRONG_PASSWORD);
+    for (let i = 0; i < 10; i++) {
+      const r = await postPasswordLogin({ admin_email: email, password: "wrong guess here" }, `198.51.100.${i}`);
+      expect(r.status).not.toBe(429);
+    }
+    // Fresh IP, same account -> still throttled.
+    const blocked = await postPasswordLogin({ admin_email: email, password: "wrong guess here" }, "198.51.100.200");
+    expect(blocked.status).toBe(429);
+  }, 30_000);
+});
+
+describe("POST /firm/password -- set and change", () => {
+  it("requires a session", async () => {
+    const resp = await postPasswordSet({ new_password: STRONG_PASSWORD }, null, "203.0.113.200");
+    expect(resp.status).toBe(401);
+  });
+
+  it("sets a FIRST password with no current password required, then that password works for login", async () => {
+    const email = `pwset-first-${Date.now()}@examplefirm.com`;
+    const { id } = await store.createFirm(env.DB, { name: "Set First Firm", adminEmail: email });
+    const { rawSessionToken } = await store.createSession(env.DB, id);
+
+    const resp = await postPasswordSet(
+      { new_password: STRONG_PASSWORD },
+      `dr_firm_session=${rawSessionToken}`,
+      "203.0.113.201"
+    );
+    expect(resp.status).toBe(200);
+
+    const login = await postPasswordLogin({ admin_email: email, password: STRONG_PASSWORD }, "203.0.113.202");
+    expect(login.status).toBe(302);
+  });
+
+  it("requires the CURRENT password to change an existing one -- a stolen cookie alone must not rotate the credential", async () => {
+    const email = `pwset-change-${Date.now()}@examplefirm.com`;
+    const firm = await firmWithPassword(email, STRONG_PASSWORD);
+    const { rawSessionToken } = await store.createSession(env.DB, firm.id);
+
+    const noCurrent = await postPasswordSet(
+      { new_password: "a brand new password value" },
+      `dr_firm_session=${rawSessionToken}`,
+      "203.0.113.203"
+    );
+    expect(noCurrent.status).toBe(400);
+
+    const wrongCurrent = await postPasswordSet(
+      { new_password: "a brand new password value", current_password: "not the current one" },
+      `dr_firm_session=${rawSessionToken}`,
+      "203.0.113.204"
+    );
+    expect(wrongCurrent.status).toBe(400);
+
+    // The original password must still work after those failed attempts.
+    const stillWorks = await postPasswordLogin({ admin_email: email, password: STRONG_PASSWORD }, "203.0.113.205");
+    expect(stillWorks.status).toBe(302);
+  });
+
+  it("changes the password with the correct current one, and the OLD password stops working", async () => {
+    const email = `pwset-rotate-${Date.now()}@examplefirm.com`;
+    const firm = await firmWithPassword(email, STRONG_PASSWORD);
+    const { rawSessionToken } = await store.createSession(env.DB, firm.id);
+    const newPassword = "an entirely different passphrase";
+
+    const resp = await postPasswordSet(
+      { new_password: newPassword, current_password: STRONG_PASSWORD },
+      `dr_firm_session=${rawSessionToken}`,
+      "203.0.113.206"
+    );
+    expect(resp.status).toBe(200);
+
+    expect((await postPasswordLogin({ admin_email: email, password: newPassword }, "203.0.113.207")).status).toBe(302);
+    expect((await postPasswordLogin({ admin_email: email, password: STRONG_PASSWORD }, "203.0.113.208")).status).toBe(
+      400
+    );
+  });
+
+  it("ends every OTHER session on change, but keeps the caller's own", async () => {
+    // If the reason for the change is a stolen session, leaving it alive
+    // makes the change cosmetic.
+    const email = `pwset-sessions-${Date.now()}@examplefirm.com`;
+    const firm = await firmWithPassword(email, STRONG_PASSWORD);
+    const mine = await store.createSession(env.DB, firm.id);
+    const otherA = await store.createSession(env.DB, firm.id);
+    const otherB = await store.createSession(env.DB, firm.id);
+
+    const resp = await postPasswordSet(
+      { new_password: "yet another good passphrase", current_password: STRONG_PASSWORD },
+      `dr_firm_session=${mine.rawSessionToken}`,
+      "203.0.113.209"
+    );
+    expect(resp.status).toBe(200);
+    expect((await resp.json<{ other_sessions_ended: number }>()).other_sessions_ended).toBe(2);
+
+    expect(await store.verifySession(env.DB, mine.rawSessionToken)).not.toBeNull();
+    expect(await store.verifySession(env.DB, otherA.rawSessionToken)).toBeNull();
+    expect(await store.verifySession(env.DB, otherB.rawSessionToken)).toBeNull();
+  });
+
+  it("enforces the minimum length", async () => {
+    const email = `pwset-weak-${Date.now()}@examplefirm.com`;
+    const { id } = await store.createFirm(env.DB, { name: "Weak Firm", adminEmail: email });
+    const { rawSessionToken } = await store.createSession(env.DB, id);
+    const resp = await postPasswordSet(
+      { new_password: "short" },
+      `dr_firm_session=${rawSessionToken}`,
+      "203.0.113.210"
+    );
+    expect(resp.status).toBe(400);
+  });
+
+  it("cannot set a password on ANOTHER firm -- the session decides the target, not the request body", async () => {
+    const victim = await firmWithPassword(`pwset-victim-${Date.now()}@examplefirm.com`, STRONG_PASSWORD);
+    const attackerEmail = `pwset-attacker-${Date.now()}@examplefirm.com`;
+    const { id: attackerId } = await store.createFirm(env.DB, { name: "Attacker Firm", adminEmail: attackerEmail });
+    const { rawSessionToken } = await store.createSession(env.DB, attackerId);
+
+    // Even with the victim's id supplied in the body, the handler must act
+    // only on the session's own firm.
+    const resp = await postPasswordSet(
+      { new_password: "attacker chosen password", firm_id: victim.id, id: victim.id },
+      `dr_firm_session=${rawSessionToken}`,
+      "203.0.113.211"
+    );
+    expect(resp.status).toBe(200);
+
+    const victimAfter = await store.getFirmById(env.DB, victim.id);
+    expect(victimAfter?.password_hash).toBe(victim.password_hash);
+    const victimLogin = await postPasswordLogin(
+      { admin_email: victim.admin_email, password: STRONG_PASSWORD },
+      "203.0.113.212"
+    );
+    expect(victimLogin.status).toBe(302);
+  });
+});
+
+describe("SSO routes", () => {
+  const ssoEnv = { GOOGLE_OAUTH_CLIENT_ID: "test-client-id", GOOGLE_OAUTH_CLIENT_SECRET: "test-client-secret" };
+
+  it("404s /firm/auth/google/start when the provider is NOT configured", async () => {
+    const worker = (await import("../src/index")).default;
+    const req = new Request("https://deadline-radar.com/firm/auth/google/start", {
+      headers: { "cf-connecting-ip": "203.0.113.213" },
+    });
+    const resp = await worker.fetch(req, env);
+    expect(resp.status).toBe(404);
+  });
+
+  it("redirects to Google with state, nonce, and a PKCE S256 challenge when configured", async () => {
+    const worker = (await import("../src/index")).default;
+    const req = new Request("https://deadline-radar.com/firm/auth/google/start", {
+      headers: { "cf-connecting-ip": "203.0.113.214" },
+    });
+    const resp = await worker.fetch(req, { ...env, ...ssoEnv });
+    expect(resp.status).toBe(302);
+
+    const location = new URL(resp.headers.get("Location") as string);
+    expect(location.origin + location.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
+    expect(location.searchParams.get("code_challenge_method")).toBe("S256");
+    expect(location.searchParams.get("state")).toBeTruthy();
+    expect(location.searchParams.get("nonce")).toBeTruthy();
+    expect(location.searchParams.get("client_id")).toBe("test-client-id");
+    // The secret must never reach the browser.
+    expect(resp.headers.get("Location")).not.toContain("test-client-secret");
+  });
+
+  it("stores only a HASH of state, never the raw value", async () => {
+    const worker = (await import("../src/index")).default;
+    const req = new Request("https://deadline-radar.com/firm/auth/google/start", {
+      headers: { "cf-connecting-ip": "203.0.113.215" },
+    });
+    const resp = await worker.fetch(req, { ...env, ...ssoEnv });
+    const rawState = new URL(resp.headers.get("Location") as string).searchParams.get("state") as string;
+
+    const row = await env.DB
+      .prepare("SELECT COUNT(*) AS c FROM firm_oauth_states WHERE state_hash = ?1")
+      .bind(rawState)
+      .first<{ c: number }>();
+    expect(row?.c).toBe(0); // raw value is not what's stored
+    expect(await store.consumeOauthState(env.DB, rawState)).not.toBeNull();
+  });
+
+  it("404s an unknown provider id rather than revealing route shape", async () => {
+    const worker = (await import("../src/index")).default;
+    for (const path of ["/firm/auth/microsoft/start", "/firm/auth/evil/start", "/firm/auth/okta/callback"]) {
+      const resp = await worker.fetch(
+        new Request(`https://deadline-radar.com${path}`, { headers: { "cf-connecting-ip": "203.0.113.216" } }),
+        { ...env, ...ssoEnv }
+      );
+      expect(resp.status).toBe(404);
+    }
+  });
+
+  it("rejects a callback with a missing, unknown, or already-used state", async () => {
+    const worker = (await import("../src/index")).default;
+    const call = (qs: string) =>
+      worker.fetch(
+        new Request(`https://deadline-radar.com/firm/auth/google/callback${qs}`, {
+          headers: { "cf-connecting-ip": "203.0.113.217" },
+        }),
+        { ...env, ...ssoEnv }
+      );
+
+    expect((await call("")).status).toBe(400);
+    expect((await call("?code=abc")).status).toBe(400);
+    expect((await call("?code=abc&state=never-issued")).status).toBe(400);
+
+    // A state that WAS issued but has already been consumed must not work
+    // a second time -- this is what stops a captured callback URL being
+    // replayed into a session.
+    const { rawState } = await store.createOauthState(env.DB, "google");
+    await store.consumeOauthState(env.DB, rawState);
+    expect((await call(`?code=abc&state=${rawState}`)).status).toBe(400);
+  });
+
+  it("rejects a provider-side error without echoing the provider's text back to the browser", async () => {
+    const worker = (await import("../src/index")).default;
+    const resp = await worker.fetch(
+      new Request(
+        "https://deadline-radar.com/firm/auth/google/callback?error=access_denied&error_description=leaky-internal-detail",
+        { headers: { "cf-connecting-ip": "203.0.113.218" } }
+      ),
+      { ...env, ...ssoEnv }
+    );
+    expect(resp.status).toBe(400);
+    expect(await resp.text()).not.toContain("leaky-internal-detail");
+  });
+
+  it("does NOT accept a state issued for a different provider at this callback", async () => {
+    const worker = (await import("../src/index")).default;
+    const { rawState } = await store.createOauthState(env.DB, "someotherprovider");
+    const resp = await worker.fetch(
+      new Request(`https://deadline-radar.com/firm/auth/google/callback?code=abc&state=${rawState}`, {
+        headers: { "cf-connecting-ip": "203.0.113.219" },
+      }),
+      { ...env, ...ssoEnv }
+    );
+    expect(resp.status).toBe(400);
+  });
 });

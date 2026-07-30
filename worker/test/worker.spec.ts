@@ -1081,6 +1081,81 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
     expect(row?.first_name).toBeNull();
   });
 
+  it("GET /firm/licenses exposes created_at/confirmed_at/stopped_at/stop_reason for the dashboard's activity panel (2026-07-30, BUILD v2 Phase B), scoped to the caller's own firm only", async () => {
+    const { cookie: cookieA } = await createFirmWithSession("Timestamps Firm A", `ts-firm-a-${Date.now()}@example.com`);
+    const { cookie: cookieB } = await createFirmWithSession("Timestamps Firm B", `ts-firm-b-${Date.now()}@example.com`);
+    const staffEmail = `staff-ts-${Date.now()}@example.com`;
+    const created = await postFirmLicense(cookieA, {
+      staff_label: "Timestamp Test",
+      email: staffEmail,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    expect(created.status).toBe(201);
+
+    const listA = (await (await getFirmLicenses(cookieA)).json()) as { licenses: Array<Record<string, unknown>> };
+    const item = listA.licenses.find((l) => l.email === staffEmail);
+    expect(item).toBeTruthy();
+    expect(typeof item?.created_at).toBe("string");
+    expect(item?.created_at).toBeTruthy();
+    expect(typeof item?.confirmed_at).toBe("string"); // HYBRID model: confirmed immediately
+    expect(item?.stopped_at).toBeNull();
+    expect(item?.stop_reason).toBeNull();
+    // No fabricated "renewed_at" -- this schema has no such fact yet (see
+    // toFirmLicenseJson()'s own comment), so the field must not exist at all
+    // rather than exist as an invented/null placeholder that could later be
+    // mistaken for real data.
+    expect(item).not.toHaveProperty("renewed_at");
+
+    // Firm B's roster must never see firm A's staff or their timestamps.
+    const listB = (await (await getFirmLicenses(cookieB)).json()) as { licenses: Array<Record<string, unknown>> };
+    expect(listB.licenses.find((l) => l.email === staffEmail)).toBeUndefined();
+  });
+
+  it("stopped_at/stop_reason are populated once a staffer opts out, and stay scoped to the owning firm only (adversarial-review-driven, 2026-07-30)", async () => {
+    // The prior test only proved the new fields exist on a fresh, never-
+    // stopped row -- an independent adversarial review correctly flagged
+    // that as the weaker case: the activity panel's whole point is showing
+    // an opt-out event, so that's the state that actually needs a cross-firm
+    // proof, not just the happy path.
+    const { cookie: cookieA } = await createFirmWithSession("Optout Firm A", `optout-a-${Date.now()}@example.com`);
+    const { cookie: cookieB } = await createFirmWithSession("Optout Firm B", `optout-b-${Date.now()}@example.com`);
+    const staffEmail = `staff-optout-${Date.now()}@example.com`;
+    const created = await postFirmLicense(cookieA, {
+      staff_label: "Opts Out",
+      email: staffEmail,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    const { id } = (await created.json()) as { id: string };
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(id).first<SubscriberRow>();
+    // The transparent first-contact email's one-click opt-out uses the same
+    // unsubscribe_token + store.stop() path every other opt-out in this repo
+    // uses -- exercising that real path rather than hand-writing stop_reason
+    // directly, so this proves the actual transition, not just the schema.
+    await store.stop(env.DB, row!.unsubscribe_token, "unsubscribed");
+
+    const listA = (await (await getFirmLicenses(cookieA)).json()) as { licenses: Array<Record<string, unknown>> };
+    const itemA = listA.licenses.find((l) => l.email === staffEmail);
+    expect(itemA?.status).toBe("opted_out");
+    expect(typeof itemA?.stopped_at).toBe("string");
+    expect(itemA?.stopped_at).toBeTruthy();
+    expect(itemA?.stop_reason).toBe("unsubscribed");
+
+    // Firm B must never see firm A's opted-out staffer or their stop timestamp.
+    const listB = (await (await getFirmLicenses(cookieB)).json()) as { licenses: Array<Record<string, unknown>> };
+    expect(listB.licenses.find((l) => l.email === staffEmail)).toBeUndefined();
+  });
+
+  it("GET /firm/licenses returns firm_name for the dashboard sidebar, correctly scoped to the caller's OWN firm (2026-07-30, BUILD v2 Phase B)", async () => {
+    const { cookie: cookieA } = await createFirmWithSession("Sidebar Firm A", `sidebar-a-${Date.now()}@example.com`);
+    const { cookie: cookieB } = await createFirmWithSession("Sidebar Firm B", `sidebar-b-${Date.now()}@example.com`);
+    const bodyA = (await (await getFirmLicenses(cookieA)).json()) as { firm_name: string };
+    const bodyB = (await (await getFirmLicenses(cookieB)).json()) as { firm_name: string };
+    expect(bodyA.firm_name).toBe("Sidebar Firm A");
+    expect(bodyB.firm_name).toBe("Sidebar Firm B");
+  });
+
   it("HYBRID consent model: the transparent first-contact email fires (not the confirm email), names the firm, and its link is the unsubscribe token (not the confirm token)", async () => {
     const worker = (await import("../src/index")).default;
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 202 }));

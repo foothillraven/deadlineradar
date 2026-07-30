@@ -606,6 +606,16 @@ PAGE_CSS = """
   .mock-firm-count { font-weight: 400; color: var(--muted); font-size: 0.88rem; }
   .mock-dashboard .table-wrap { margin: 0; }
   .mock-dashboard table { font-size: 0.86rem; }
+  /* The mockup embeds the REAL dashboard shell (.dr-*) so the marketing
+     preview is pixel-consistent with the real product (2026-07-30, BUILD v2
+     Phase C) -- these two overrides only fix things that don't make sense
+     inside a small decorative preview box: a sticky sidebar would try to
+     stick to PAGE scroll instead of staying inside the mock frame, and the
+     nested .table-wrap already gets .mock-dashboard's own margin/font-size
+     rules above. */
+  .mock-dashboard .dr-sidebar { position: static; }
+  .mock-dashboard .dr-dash-shell { margin: 0; }
+  .mock-dashboard .dr-nav a { pointer-events: none; }
   .mock-status {
     display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.01em;
     padding: 0.18em 0.6em; border-radius: 999px; white-space: nowrap;
@@ -776,6 +786,94 @@ PAGE_CSS = """
     .signup-form-row { flex-direction: column; gap: 0; }
     .signup-form--compact .signup-form-row { gap: 0.5rem; }
   }
+
+  /* ---- Firm dashboard app shell (2026-07-30, BUILD v2 Phase B redesign) ----
+     Own visual identity, not a copy of any incumbent's layout: reuses this
+     site's existing tokens (--panel-dark is the same dark navy the homepage's
+     .remind-panel already uses; --gold/--verified-green are the same citation/
+     freshness accents everywhere else) inside a standard, generic dashboard
+     idiom (dark sidebar nav + light content cards) -- gauge/donut/sidebar are
+     universal dashboard components, not anyone's protected expression. */
+  .dr-dash-shell { display: grid; grid-template-columns: 216px 1fr; gap: 1.5rem; margin: 1.5rem 0 2rem; align-items: start; }
+  @media (max-width: 860px) { .dr-dash-shell { grid-template-columns: 1fr; } }
+
+  .dr-sidebar { background: var(--panel-dark); color: var(--panel-dark-fg); border-radius: 12px; padding: 1.3rem 1rem; position: sticky; top: 5rem; }
+  @media (max-width: 860px) { .dr-sidebar { position: static; } }
+  .dr-firm-name {
+    font-family: var(--font-display); font-size: 1.02rem; font-weight: 600; color: #fff;
+    padding: 0 0.4rem 1rem; border-bottom: 1px solid rgba(255,255,255,.14); margin-bottom: 0.9rem; word-break: break-word;
+  }
+  .dr-nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+  .dr-nav a, .dr-nav-soon {
+    display: flex; align-items: center; gap: 0.55rem; padding: 0.55rem 0.6rem; border-radius: 7px;
+    color: #b9cad9; text-decoration: none; font-size: 0.87rem; font-weight: 500;
+  }
+  .dr-nav a.is-active { background: rgba(255,255,255,.1); color: #fff; font-weight: 600; }
+  .dr-nav a:hover { background: rgba(255,255,255,.06); color: #fff; }
+  .dr-nav-soon { color: #6e8296; cursor: default; }
+  .dr-soon-badge {
+    margin-left: auto; font-size: 0.6rem; letter-spacing: 0.04em; text-transform: uppercase;
+    background: rgba(255,255,255,.09); color: #9fb1c2; padding: 0.15em 0.5em; border-radius: 999px; white-space: nowrap;
+  }
+  .dr-sidebar-foot { margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,.14); }
+  .dr-sidebar-foot button {
+    width: 100%; padding: 0.55rem 0.7rem; border: 1px solid rgba(255,255,255,.2); border-radius: 7px;
+    background: transparent; color: #cfe0ee; font-size: 0.84rem; cursor: pointer; font-family: inherit;
+  }
+  .dr-sidebar-foot button:hover { background: rgba(255,255,255,.07); }
+
+  .dr-main { min-width: 0; }
+
+  .dr-stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.2rem; }
+  @media (max-width: 760px) { .dr-stat-row { grid-template-columns: 1fr; } }
+  .dr-stat-card {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px;
+    padding: 1.05rem 1.15rem; display: flex; align-items: center; gap: 1rem;
+  }
+  .dr-stat-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 0.3rem; }
+  .dr-stat-value { font-family: var(--font-display); font-size: 1.55rem; font-weight: 650; color: var(--fg); line-height: 1.1; }
+  .dr-stat-sub { font-size: 0.76rem; color: var(--muted); margin-top: 0.2rem; }
+
+  .dr-ring-wrap { position: relative; width: 58px; height: 58px; flex: none; }
+  .dr-ring-wrap svg { transform: rotate(-90deg); display: block; }
+  .dr-ring-track { fill: none; stroke: var(--border); stroke-width: 6.5; }
+  .dr-ring-value { fill: none; stroke: var(--verified-green); stroke-width: 6.5; stroke-linecap: round; transition: stroke-dasharray 0.5s ease; }
+  .dr-ring-wrap.is-risk .dr-ring-value { stroke: #c33737; }
+  @media (prefers-color-scheme: dark) { .dr-ring-wrap.is-risk .dr-ring-value { stroke: #ff8080; } }
+  .dr-ring-pct {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-weight: 650; font-size: 0.85rem; color: var(--fg);
+  }
+
+  .dr-donut-wrap { display: flex; align-items: center; gap: 0.85rem; flex: none; }
+  .dr-donut-legend { list-style: none; margin: 0; padding: 0; font-size: 0.74rem; color: var(--muted); display: flex; flex-direction: column; gap: 0.28rem; }
+  .dr-donut-legend .swatch { width: 0.6rem; height: 0.6rem; border-radius: 2px; display: inline-block; margin-right: 0.4em; }
+
+  .dr-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.2rem; }
+  @media (max-width: 860px) { .dr-panel-row { grid-template-columns: 1fr; } }
+  .dr-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; }
+  .dr-panel h2 { font-size: 0.98rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
+  .dr-panel-empty { color: var(--muted); font-size: 0.85rem; padding: 0.3rem 0; }
+  .dr-at-risk-list, .dr-activity-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+  .dr-at-risk-item {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 0.8rem; font-size: 0.86rem;
+    padding-bottom: 0.55rem; border-bottom: 1px solid var(--border);
+  }
+  .dr-at-risk-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .dr-at-risk-name { font-weight: 600; }
+  .dr-at-risk-sub { color: var(--muted); font-size: 0.77rem; display: block; }
+  .dr-at-risk-days { font-family: var(--font-display); font-weight: 650; white-space: nowrap; }
+  .dr-at-risk-days--soon { color: #c33737; }
+  @media (prefers-color-scheme: dark) { .dr-at-risk-days--soon { color: #ff8080; } }
+  .dr-activity-item { display: flex; gap: 0.6rem; font-size: 0.85rem; align-items: flex-start; }
+  .dr-activity-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; margin-top: 0.4rem; flex: none; background: var(--accent); }
+  .dr-activity-dot--confirm { background: var(--verified-green); }
+  .dr-activity-dot--optout { background: var(--gold); }
+  .dr-activity-when { color: var(--faint); font-size: 0.75rem; display: block; margin-top: 0.1rem; }
+
+  .dr-roster-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem 0.2rem; margin-bottom: 1.2rem; }
+  .dr-roster-panel h2 { font-size: 0.98rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
+  .dr-roster-panel .table-wrap { margin-top: 0; }
 """
 
 
@@ -2242,6 +2340,19 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   <a href="illinois/" style="font-weight:600;">Open the full Illinois fact sheet &rarr;</a></p>
 </section>"""
 
+    firm_preview_html = f"""<section class="band-section">
+  <p class="eyebrow">Built for firms too</p>
+  <h2>One roster, not twenty separate inboxes.</h2>
+  <p style="color:var(--muted); margin:0.7rem 0 1.4rem; font-size:1.02rem;">Free reminders above are
+  for tracking your own individual license, always at no cost. If you're the one keeping track of a
+  whole firm's staff across multiple states, the firm dashboard below is the same sourced-to-codified-
+  law data in one roster view &mdash; who's current, who's at risk, and who needs to act.</p>
+  {_firm_dashboard_mockup_html(by_slug, as_of)}
+  <p class="how-it-works"><strong>$500/year flat for up to 10 staff</strong>, starting with a free
+  30-day pilot, no card required. <a href="for-firms/" style="font-weight:600;">See firm-tier pricing
+  and details &rarr;</a></p>
+</section>"""
+
     body = f"""{hero_html}
 {demo_html}
 {build_us_map_html(by_slug)}
@@ -2249,6 +2360,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
 {chr(10).join(cards)}
 </div>
 {method_band_html}
+{firm_preview_html}
 <p class="how-it-works">How it works: each state page shows the actual next renewal deadline
 (or, where the rule depends on your birth month, a full lookup table) computed from the
 verified renewal rule, with a link back to the official source and a "last verified" date.</p>
@@ -2525,19 +2637,100 @@ def _mockup_record(by_slug: dict[str, list[dict]], state_slug: str, license_type
     return None
 
 
-def _firm_dashboard_mockup_html(by_slug: dict[str, list[dict]]) -> str:
+def _mock_ring_svg(pct: int, is_risk: bool) -> str:
+    """Server-rendered twin of the dashboard's own drRingSvg() (generate.py's
+    _FIRM_DASHBOARD_JS_HTML) -- same math, same CSS classes (.dr-ring-*), so
+    the marketing preview is pixel-consistent with the real product a
+    visitor will actually see after signing up, not a separately-styled
+    approximation of it."""
+    import math
+
+    r = 24.0
+    c = 2 * math.pi * r
+    clamped = max(0, min(100, pct))
+    dash = (clamped / 100) * c
+    risk_class = " is-risk" if is_risk else ""
+    return f"""<div class="dr-ring-wrap{risk_class}">
+  <svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">
+    <circle class="dr-ring-track" cx="29" cy="29" r="{r:g}"></circle>
+    <circle class="dr-ring-value" cx="29" cy="29" r="{r:g}" stroke-dasharray="{dash:.1f} {c:.1f}"></circle>
+  </svg>
+  <div class="dr-ring-pct">{clamped}%</div>
+</div>"""
+
+
+_MOCK_DONUT_COLORS = {
+    "Active": "#1f9e5c",
+    "Pending": "#9c7a12",
+    "Needs attention": "#c33737",
+    "Opted out": "#8595a3",
+}
+
+
+def _mock_donut_svg(counts: dict[str, int], total: int) -> str:
+    """Server-rendered twin of drDonutSvg() -- same conic-gradient approach, same
+    color mapping (matching DR_DONUT_COLORS in the real dashboard's JS)."""
+    if not total:
+        return ""
+    order = ["Active", "Pending", "Needs attention", "Opted out"]
+    acc = 0
+    segments = []
+    legend_items = []
+    for key in order:
+        n = counts.get(key, 0)
+        if not n:
+            continue
+        start = (acc / total) * 360
+        acc += n
+        end = (acc / total) * 360
+        segments.append(f"{_MOCK_DONUT_COLORS[key]} {start:.1f}deg {end:.1f}deg")
+        legend_items.append(
+            f'<li><span class="swatch" style="background:{_MOCK_DONUT_COLORS[key]}"></span>'
+            f"{esc(key)} ({n})</li>"
+        )
+    gradient = ", ".join(segments)
+    legend = "\n".join(legend_items)
+    return f"""<div class="dr-donut-wrap">
+  <div style="width:58px;height:58px;border-radius:50%;flex:none;display:flex;align-items:center;
+  justify-content:center;background:conic-gradient({gradient});" aria-hidden="true">
+    <div style="width:30px;height:30px;border-radius:50%;background:var(--card-bg);"></div>
+  </div>
+  <ul class="dr-donut-legend">{legend}</ul>
+</div>"""
+
+
+def _firm_dashboard_mockup_html(by_slug: dict[str, list[dict]], as_of: date) -> str:
     """A labeled, illustrative dashboard mockup -- NOT a screenshot of a real product (none
     exists yet) and NOT a real firm's data (every name is a fictional example, same honest
     convention PE License Pro's own marketing mockup uses ("Cardinal Engineering Group") and CE
     Broker's uses. Explicitly captioned as an example so this can never be mistaken for a claim
     that a real customer exists. Every date shown is real, current, computed from
-    cpa_deadlines.json -- only the names and the roster grouping are invented."""
+    cpa_deadlines.json -- only the names and the roster grouping are invented.
+
+    2026-07-30 (BUILD v2 Phase C): rebuilt to match the REAL dashboard's redesigned shell
+    (build_firm_dashboard_page(), same tick) instead of the old plain-table mockup -- reuses
+    the exact .dr-* CSS classes (dark sidebar, coverage ring, status donut) so a visitor sees
+    the actual product, not a differently-styled placeholder of it."""
     rows = []
+    status_counts: dict[str, int] = {}
+    due_soon = 0
     for name, state_slug, license_type, status in _FIRM_MOCKUP_ROSTER:
         record = _mockup_record(by_slug, state_slug, license_type)
         if record is None:
             continue
-        date_label = fmt_date(date.fromisoformat(record["next_deadline_computed"]))
+        status_counts[status] = status_counts.get(status, 0) + 1
+        deadline = date.fromisoformat(record["next_deadline_computed"])
+        # Same definition drRenderStats() uses for the real dashboard's "Due
+        # soon" tile: within 30 days, excluding opted-out (an earlier version
+        # of this mockup counted the "Needs attention" STATUS instead, which
+        # is a different concept entirely and produced a number that
+        # disagreed with this exact sub-label's own text -- caught by
+        # adversarial review; every _FIRM_MOCKUP_ROSTER record always has a
+        # real computed date, so the real dashboard's "or unresolved" branch
+        # never applies here).
+        if status != "Opted out" and (deadline - as_of).days <= 30:
+            due_soon += 1
+        date_label = fmt_date(deadline)
         status_class = _MOCKUP_STATUS_CLASS.get(status, "mock-status--ok")
         rows.append(f"""<tr>
   <td>{esc(name)}</td>
@@ -2547,25 +2740,55 @@ def _firm_dashboard_mockup_html(by_slug: dict[str, list[dict]]) -> str:
 </tr>""")
     if not rows:
         return ""
+    total = sum(status_counts.values())
+    active = status_counts.get("Active", 0)
+    coverage_pct = round((active / total) * 100) if total else 0
+    due_soon_pct = round((due_soon / total) * 100) if total else 0
+
     return f"""<div class="mock-dashboard">
   <div class="mock-chrome">
     <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
-    <span class="mock-url">deadline-radar.com/firm/example</span>
+    <span class="mock-url">deadline-radar.com/firm-dashboard/</span>
   </div>
   <div class="mock-body">
-    <div class="mock-firm-name">Example Firm, LLC <span class="mock-firm-count">&middot; 6 staff</span></div>
-    <div class="table-wrap">
-    <table>
-      <thead><tr><th>Staff</th><th>State</th><th>Status</th><th>Next deadline</th></tr></thead>
-      <tbody>
-      {chr(10).join(rows)}
-      </tbody>
-    </table>
+  <div class="dr-dash-shell">
+    <aside class="dr-sidebar">
+      <div class="dr-firm-name">Example Firm, LLC</div>
+      <ul class="dr-nav">
+        <li><a href="#" class="is-active" tabindex="-1">Roster</a></li>
+        <li><span class="dr-nav-soon">Calendar<span class="dr-soon-badge">Soon</span></span></li>
+        <li><span class="dr-nav-soon">Map<span class="dr-soon-badge">Soon</span></span></li>
+        <li><span class="dr-nav-soon">Reports<span class="dr-soon-badge">Soon</span></span></li>
+        <li><span class="dr-nav-soon">Documents<span class="dr-soon-badge">Soon</span></span></li>
+      </ul>
+    </aside>
+    <div class="dr-main">
+      <div class="dr-stat-row">
+        <div class="dr-stat-card">{_mock_ring_svg(coverage_pct, False)}
+          <div><div class="dr-stat-label">Coverage</div><div class="dr-stat-value">{coverage_pct}%</div>
+          <div class="dr-stat-sub">{active} of {total} active</div></div></div>
+        <div class="dr-stat-card">{_mock_donut_svg(status_counts, total)}
+          <div><div class="dr-stat-label">Roster status</div><div class="dr-stat-value">{total}</div>
+          <div class="dr-stat-sub">staff tracked</div></div></div>
+        <div class="dr-stat-card">{_mock_ring_svg(due_soon_pct, due_soon > 0)}
+          <div><div class="dr-stat-label">Due soon</div><div class="dr-stat-value">{due_soon}</div>
+          <div class="dr-stat-sub">due within 30 days or unresolved</div></div></div>
+      </div>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Staff</th><th>State</th><th>Status</th><th>Next deadline</th></tr></thead>
+        <tbody>
+        {chr(10).join(rows)}
+        </tbody>
+      </table>
+      </div>
     </div>
+  </div>
   </div>
 </div>
 <p class="mock-caption">Illustrative example &mdash; not a real firm. Dates shown are the actual
-current deadlines for these states, computed the same way as every free page on this site.</p>"""
+current deadlines for these states, computed the same way as every free page on this site. This is
+the real product design, not a mockup of a different one.</p>"""
 
 
 _FIRM_FAQ = [
@@ -2631,7 +2854,7 @@ def _firm_faq_html() -> str:
 </div>"""
 
 
-def build_firms_page(by_slug: dict[str, list[dict]]) -> str:
+def build_firms_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
     """B2B firm-tier landing page (rewritten 2026-07-28: the real buyer is the
     small-firm admin managing multiple staff CPAs across states, not a
     concierge-pilot where our team manually checks every staff license --
@@ -2678,7 +2901,7 @@ codified statute or rule we verify for every free state page on this site &mdash
 get free reminders on their own; what a firm gets here is the roster-level accountability view nobody's
 personal inbox provides, in one place.</p>
 
-{_firm_dashboard_mockup_html(by_slug)}
+{_firm_dashboard_mockup_html(by_slug, as_of)}
 
 <p><strong>Scope, plainly stated:</strong> this tracks license <em>renewal dates</em> &mdash; the part we
 can verify against actual state law, the same way we already do for individuals. It does not track CPE
@@ -3006,6 +3229,179 @@ function drRenderTable() {
   tbody.innerHTML = drLicenses.map(drRenderRow).join('');
 }
 
+// ---------------------------------------------------------------------------
+// Dashboard overview panels (2026-07-30, BUILD v2 Phase B redesign): coverage
+// gauge, status donut, staff-at-risk list, recent-activity feed. All computed
+// client-side from the SAME drLicenses array the roster table already uses --
+// no new endpoint, no new data beyond the created_at/confirmed_at/stopped_at/
+// stop_reason/firm_name fields the API now also returns (index.ts's
+// toFirmLicenseJson()/handleFirmLicensesList()). Deliberately no fabricated
+// "renewed" activity type -- see toFirmLicenseJson()'s own comment for why
+// that fact doesn't exist yet in this schema.
+// ---------------------------------------------------------------------------
+
+// Whole-day difference between an ISO date (YYYY-MM-DD, UTC-anchored, same
+// convention drFormatDeadline() already uses) and today, in UTC calendar
+// days -- not a raw ms/86400000 divide, which would drift by a day near a
+// DST boundary if this ever ran against local time instead of UTC.
+function drDaysUntil(iso) {
+  if (!iso) return null;
+  var target = new Date(iso + 'T00:00:00Z').getTime();
+  if (isNaN(target)) return null;
+  var now = new Date();
+  var todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.round((target - todayUtc) / 86400000);
+}
+
+function drDaysAgo(isoTimestamp) {
+  if (!isoTimestamp) return null;
+  var then = new Date(isoTimestamp).getTime();
+  if (isNaN(then)) return null;
+  var days = Math.floor((Date.now() - then) / 86400000);
+  if (days <= 0) return 'today';
+  if (days === 1) return '1 day ago';
+  if (days < 30) return days + ' days ago';
+  var months = Math.floor(days / 30);
+  return months === 1 ? '1 month ago' : months + ' months ago';
+}
+
+function drRingSvg(pct, isRisk) {
+  var r = 24, c = 2 * Math.PI * r;
+  var clamped = Math.max(0, Math.min(100, pct));
+  var dash = (clamped / 100) * c;
+  return '<div class="dr-ring-wrap' + (isRisk ? ' is-risk' : '') + '">' +
+    '<svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">' +
+    '<circle class="dr-ring-track" cx="29" cy="29" r="' + r + '"></circle>' +
+    '<circle class="dr-ring-value" cx="29" cy="29" r="' + r + '" stroke-dasharray="' + dash.toFixed(1) + ' ' + c.toFixed(1) + '"></circle>' +
+    '</svg><div class="dr-ring-pct">' + clamped + '%</div></div>';
+}
+
+var DR_DONUT_ORDER = ['active', 'pending', 'needs-attention', 'opted_out'];
+var DR_DONUT_COLORS = {active: '#1f9e5c', pending: '#9c7a12', 'needs-attention': '#c33737', opted_out: '#8595a3'};
+var DR_DONUT_LABELS = {active: 'Active', pending: 'Pending', 'needs-attention': 'Needs attention', opted_out: 'Opted out'};
+
+// Plain CSS conic-gradient, not an SVG pie -- no path-arc trigonometry needed
+// for a simple ring, and it's one element instead of N <path>s.
+function drDonutSvg(counts, total) {
+  if (!total) return '<div class="dr-donut-wrap"><div class="dr-panel-empty">No staff yet</div></div>';
+  var acc = 0;
+  var segments = [];
+  DR_DONUT_ORDER.forEach(function(key) {
+    var n = counts[key] || 0;
+    if (!n) return;
+    var start = (acc / total) * 360;
+    acc += n;
+    var end = (acc / total) * 360;
+    segments.push(DR_DONUT_COLORS[key] + ' ' + start.toFixed(1) + 'deg ' + end.toFixed(1) + 'deg');
+  });
+  var legend = DR_DONUT_ORDER.filter(function(k) { return counts[k]; }).map(function(k) {
+    return '<li><span class="swatch" style="background:' + DR_DONUT_COLORS[k] + '"></span>' +
+      drEscapeHtml(DR_DONUT_LABELS[k]) + ' (' + counts[k] + ')</li>';
+  }).join('');
+  return '<div class="dr-donut-wrap">' +
+    '<div style="width:58px;height:58px;border-radius:50%;flex:none;display:flex;align-items:center;' +
+    'justify-content:center;background:conic-gradient(' + segments.join(', ') + ');" aria-hidden="true">' +
+    '<div style="width:30px;height:30px;border-radius:50%;background:var(--card-bg);"></div></div>' +
+    '<ul class="dr-donut-legend">' + legend + '</ul></div>';
+}
+
+function drRenderStats() {
+  var row = document.getElementById('dr-stat-row');
+  if (!row) return;
+  var total = drLicenses.length;
+  var counts = {active: 0, pending: 0, 'needs-attention': 0, opted_out: 0};
+  var atRisk = 0;
+  drLicenses.forEach(function(item) {
+    var s = item.status || 'needs-attention';
+    counts[s] = (counts[s] || 0) + 1;
+    if (s === 'opted_out') return;
+    var days = drDaysUntil(item.next_deadline);
+    if (days === null || days <= 30) atRisk++;
+  });
+  var coveragePct = total ? Math.round((counts.active / total) * 100) : 0;
+  var riskPct = total ? Math.round((atRisk / total) * 100) : 0;
+
+  row.innerHTML =
+    '<div class="dr-stat-card">' + drRingSvg(coveragePct, false) +
+      '<div><div class="dr-stat-label">Coverage</div><div class="dr-stat-value">' + coveragePct + '%</div>' +
+      '<div class="dr-stat-sub">' + counts.active + ' of ' + total + ' active</div></div></div>' +
+    '<div class="dr-stat-card">' + drDonutSvg(counts, total) +
+      '<div><div class="dr-stat-label">Roster status</div><div class="dr-stat-value">' + total + '</div>' +
+      '<div class="dr-stat-sub">staff tracked</div></div></div>' +
+    '<div class="dr-stat-card">' + drRingSvg(riskPct, atRisk > 0) +
+      // Deliberately labeled "Due soon", not "Needs attention" -- that exact
+      // phrase is already the donut/roster-table's label for the DIFFERENT,
+      // narrower "needs-attention" status enum (a stuck/anomalous record).
+      // This tile counts something broader (due within 30 days OR
+      // unresolved, regardless of status, including healthy "active" rows),
+      // so the two would routinely show different numbers under an
+      // identical label on the same screen -- kept deliberately distinct.
+      '<div><div class="dr-stat-label">Due soon</div><div class="dr-stat-value">' + atRisk + '</div>' +
+      '<div class="dr-stat-sub">due within 30 days or unresolved</div></div></div>';
+}
+
+function drRenderAtRisk() {
+  var el = document.getElementById('dr-at-risk-list');
+  if (!el) return;
+  var items = drLicenses.filter(function(item) {
+    if (item.status === 'opted_out') return false;
+    var days = drDaysUntil(item.next_deadline);
+    return days === null || days <= 30;
+  }).slice(0, 6);
+  if (items.length === 0) {
+    el.innerHTML = '<li class="dr-panel-empty">Nobody at risk right now.</li>';
+    return;
+  }
+  el.innerHTML = items.map(function(item) {
+    var days = drDaysUntil(item.next_deadline);
+    var daysLabel = days === null ? 'Unresolved' : days < 0 ? 'Overdue' : days === 0 ? 'Due today' : 'in ' + days + 'd';
+    var soon = days !== null && days <= 7;
+    return '<li class="dr-at-risk-item"><span><span class="dr-at-risk-name">' +
+      drEscapeHtml(item.staff_label || item.email) + '</span>' +
+      '<span class="dr-at-risk-sub">' + drEscapeHtml(item.state_name || '') + '</span></span>' +
+      '<span class="dr-at-risk-days' + (soon ? ' dr-at-risk-days--soon' : '') + '">' + daysLabel + '</span></li>';
+  }).join('');
+}
+
+var DR_ACTIVITY_LABELS = {added: 'added to the roster', confirmed: 'went active', optout: 'opted out of reminders'};
+var DR_ACTIVITY_DOT_CLASS = {added: '', confirmed: 'dr-activity-dot--confirm', optout: 'dr-activity-dot--optout'};
+
+function drRenderActivity() {
+  var el = document.getElementById('dr-activity-list');
+  if (!el) return;
+  var events = [];
+  drLicenses.forEach(function(item) {
+    var name = item.staff_label || item.email;
+    if (item.created_at) events.push({type: 'added', at: item.created_at, name: name});
+    // Skip a 'confirmed' event that landed at the exact same instant as
+    // 'added' -- under the HYBRID consent model (the only path that creates
+    // a firm-scoped roster entry today) every admin-added staffer is
+    // confirmed immediately, so created_at === confirmed_at always. Without
+    // this check one atomic "add staff" click would render as two separate
+    // feed entries.
+    if (item.confirmed_at && item.confirmed_at !== item.created_at) {
+      events.push({type: 'confirmed', at: item.confirmed_at, name: name});
+    }
+    if (item.status === 'opted_out' && item.stopped_at) events.push({type: 'optout', at: item.stopped_at, name: name});
+  });
+  events.sort(function(a, b) { return new Date(b.at).getTime() - new Date(a.at).getTime(); });
+  events = events.slice(0, 6);
+  if (events.length === 0) {
+    el.innerHTML = '<li class="dr-panel-empty">No activity yet.</li>';
+    return;
+  }
+  el.innerHTML = events.map(function(ev) {
+    return '<li class="dr-activity-item"><span class="dr-activity-dot ' + DR_ACTIVITY_DOT_CLASS[ev.type] + '"></span>' +
+      '<span class="dr-activity-text"><b>' + drEscapeHtml(ev.name) + '</b> ' + DR_ACTIVITY_LABELS[ev.type] +
+      '<span class="dr-activity-when">' + drDaysAgo(ev.at) + '</span></span></li>';
+  }).join('');
+}
+
+function drRenderFirmName(name) {
+  var el = document.getElementById('dr-firm-name');
+  if (el && name) el.textContent = name;
+}
+
 function drLoadLicenses() {
   drClearError();
   fetch('/api/firm/licenses', {credentials: 'include'})
@@ -3023,7 +3419,11 @@ function drLoadLicenses() {
     .then(function(data) {
       if (!data) return;
       drLicenses = data.licenses || [];
+      drRenderFirmName(data.firm_name);
       drRenderTable();
+      drRenderStats();
+      drRenderAtRisk();
+      drRenderActivity();
     })
     .catch(function() {
       drShowError('Something went wrong loading your roster. Please try again.');
@@ -3194,31 +3594,67 @@ def build_firm_dashboard_page(by_slug: dict[str, list[dict]], as_of: date) -> st
     touch. To change someone's state or license type, remove and re-add
     them -- safe, unambiguous, no silent data loss."""
     add_staff_html = _firm_dashboard_add_staff_form_html(by_slug, as_of)
-    body = f"""<h1>Your Staff Roster</h1>
-<p class="subhead">Every CPA license you're tracking for your firm, soonest deadline first.</p>
+    # Sidebar nav: only "Roster" is a real, built feature today -- Calendar/
+    # Map/Reports/Documents are BUILD v2 phases D/D/F/G, not yet built. Shown
+    # as disabled "Soon" items (the intended IA, honestly labeled) rather than
+    # either omitted (misrepresenting scope as smaller than planned) or linked
+    # (a link to nothing would be a real defect).
+    sidebar_nav_soon_items = "\n    ".join(
+        f'<li><span class="dr-nav-soon">{esc(label)}<span class="dr-soon-badge">Soon</span></span></li>'
+        for label in ("Calendar", "Map", "Reports", "Documents")
+    )
+    body = f"""<div class="dr-dash-shell">
+  <aside class="dr-sidebar">
+    <div class="dr-firm-name" id="dr-firm-name">Dashboard</div>
+    <ul class="dr-nav">
+      <li><a href="/firm-dashboard/" class="is-active">Roster</a></li>
+      {sidebar_nav_soon_items}
+    </ul>
+    <div class="dr-sidebar-foot">
+      <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/logout">
+        <button type="submit">Log out</button>
+      </form>
+    </div>
+  </aside>
 
-<div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" hidden></div>
+  <div class="dr-main">
+    <h1>Coverage overview</h1>
+    <p class="subhead">Every CPA license you're tracking for your firm, at a glance.</p>
 
-<div class="table-wrap">
-<table>
-  <thead>
-    <tr>
-      <th>Staff</th><th>Email</th><th>State</th><th>License type</th><th>Status</th><th>Next deadline</th><th>Actions</th>
-    </tr>
-  </thead>
-  <tbody id="dr-roster-body">
-    <tr><td colspan="7">Loading your roster...</td></tr>
-  </tbody>
-</table>
+    <div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" hidden></div>
+
+    <div class="dr-stat-row" id="dr-stat-row"></div>
+
+    <div class="dr-panel-row">
+      <div class="dr-panel">
+        <h2>Staff at risk</h2>
+        <ul class="dr-at-risk-list" id="dr-at-risk-list"><li class="dr-panel-empty">Loading&hellip;</li></ul>
+      </div>
+      <div class="dr-panel">
+        <h2>Recent activity</h2>
+        <ul class="dr-activity-list" id="dr-activity-list"><li class="dr-panel-empty">Loading&hellip;</li></ul>
+      </div>
+    </div>
+
+    <div class="dr-roster-panel">
+      <h2>Full roster</h2>
+      <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Staff</th><th>Email</th><th>State</th><th>License type</th><th>Status</th><th>Next deadline</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="dr-roster-body">
+          <tr><td colspan="7">Loading your roster...</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    {add_staff_html}
+  </div>
 </div>
-
-{add_staff_html}
-
-<form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/logout" style="margin-top:2rem;">
-  <button type="submit" style="padding:0.6rem 1.1rem;border:1px solid var(--border-strong);
-  border-radius:6px;background:var(--card-bg);color:var(--fg);font-size:0.92rem;cursor:pointer;
-  font-family:inherit;">Log out</button>
-</form>
 
 {_FIRM_DASHBOARD_JS_HTML}
 """
@@ -4418,7 +4854,7 @@ def main() -> None:
 
     firms_dir = SITE_DIR / "for-firms"
     firms_dir.mkdir(parents=True, exist_ok=True)
-    (firms_dir / "index.html").write_text(build_firms_page(by_slug), encoding="utf-8")
+    (firms_dir / "index.html").write_text(build_firms_page(by_slug, as_of), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/for-firms/index.html")
 
     firm_login_dir = SITE_DIR / "firm-login"

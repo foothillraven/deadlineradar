@@ -344,6 +344,16 @@
   .mock-firm-count { font-weight: 400; color: var(--muted); font-size: 0.88rem; }
   .mock-dashboard .table-wrap { margin: 0; }
   .mock-dashboard table { font-size: 0.86rem; }
+  /* The mockup embeds the REAL dashboard shell (.dr-*) so the marketing
+     preview is pixel-consistent with the real product (2026-07-30, BUILD v2
+     Phase C) -- these two overrides only fix things that don't make sense
+     inside a small decorative preview box: a sticky sidebar would try to
+     stick to PAGE scroll instead of staying inside the mock frame, and the
+     nested .table-wrap already gets .mock-dashboard's own margin/font-size
+     rules above. */
+  .mock-dashboard .dr-sidebar { position: static; }
+  .mock-dashboard .dr-dash-shell { margin: 0; }
+  .mock-dashboard .dr-nav a { pointer-events: none; }
   .mock-status {
     display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.01em;
     padding: 0.18em 0.6em; border-radius: 999px; white-space: nowrap;
@@ -514,6 +524,94 @@
     .signup-form-row { flex-direction: column; gap: 0; }
     .signup-form--compact .signup-form-row { gap: 0.5rem; }
   }
+
+  /* ---- Firm dashboard app shell (2026-07-30, BUILD v2 Phase B redesign) ----
+     Own visual identity, not a copy of any incumbent's layout: reuses this
+     site's existing tokens (--panel-dark is the same dark navy the homepage's
+     .remind-panel already uses; --gold/--verified-green are the same citation/
+     freshness accents everywhere else) inside a standard, generic dashboard
+     idiom (dark sidebar nav + light content cards) -- gauge/donut/sidebar are
+     universal dashboard components, not anyone's protected expression. */
+  .dr-dash-shell { display: grid; grid-template-columns: 216px 1fr; gap: 1.5rem; margin: 1.5rem 0 2rem; align-items: start; }
+  @media (max-width: 860px) { .dr-dash-shell { grid-template-columns: 1fr; } }
+
+  .dr-sidebar { background: var(--panel-dark); color: var(--panel-dark-fg); border-radius: 12px; padding: 1.3rem 1rem; position: sticky; top: 5rem; }
+  @media (max-width: 860px) { .dr-sidebar { position: static; } }
+  .dr-firm-name {
+    font-family: var(--font-display); font-size: 1.02rem; font-weight: 600; color: #fff;
+    padding: 0 0.4rem 1rem; border-bottom: 1px solid rgba(255,255,255,.14); margin-bottom: 0.9rem; word-break: break-word;
+  }
+  .dr-nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+  .dr-nav a, .dr-nav-soon {
+    display: flex; align-items: center; gap: 0.55rem; padding: 0.55rem 0.6rem; border-radius: 7px;
+    color: #b9cad9; text-decoration: none; font-size: 0.87rem; font-weight: 500;
+  }
+  .dr-nav a.is-active { background: rgba(255,255,255,.1); color: #fff; font-weight: 600; }
+  .dr-nav a:hover { background: rgba(255,255,255,.06); color: #fff; }
+  .dr-nav-soon { color: #6e8296; cursor: default; }
+  .dr-soon-badge {
+    margin-left: auto; font-size: 0.6rem; letter-spacing: 0.04em; text-transform: uppercase;
+    background: rgba(255,255,255,.09); color: #9fb1c2; padding: 0.15em 0.5em; border-radius: 999px; white-space: nowrap;
+  }
+  .dr-sidebar-foot { margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,.14); }
+  .dr-sidebar-foot button {
+    width: 100%; padding: 0.55rem 0.7rem; border: 1px solid rgba(255,255,255,.2); border-radius: 7px;
+    background: transparent; color: #cfe0ee; font-size: 0.84rem; cursor: pointer; font-family: inherit;
+  }
+  .dr-sidebar-foot button:hover { background: rgba(255,255,255,.07); }
+
+  .dr-main { min-width: 0; }
+
+  .dr-stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.2rem; }
+  @media (max-width: 760px) { .dr-stat-row { grid-template-columns: 1fr; } }
+  .dr-stat-card {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px;
+    padding: 1.05rem 1.15rem; display: flex; align-items: center; gap: 1rem;
+  }
+  .dr-stat-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 0.3rem; }
+  .dr-stat-value { font-family: var(--font-display); font-size: 1.55rem; font-weight: 650; color: var(--fg); line-height: 1.1; }
+  .dr-stat-sub { font-size: 0.76rem; color: var(--muted); margin-top: 0.2rem; }
+
+  .dr-ring-wrap { position: relative; width: 58px; height: 58px; flex: none; }
+  .dr-ring-wrap svg { transform: rotate(-90deg); display: block; }
+  .dr-ring-track { fill: none; stroke: var(--border); stroke-width: 6.5; }
+  .dr-ring-value { fill: none; stroke: var(--verified-green); stroke-width: 6.5; stroke-linecap: round; transition: stroke-dasharray 0.5s ease; }
+  .dr-ring-wrap.is-risk .dr-ring-value { stroke: #c33737; }
+  @media (prefers-color-scheme: dark) { .dr-ring-wrap.is-risk .dr-ring-value { stroke: #ff8080; } }
+  .dr-ring-pct {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-weight: 650; font-size: 0.85rem; color: var(--fg);
+  }
+
+  .dr-donut-wrap { display: flex; align-items: center; gap: 0.85rem; flex: none; }
+  .dr-donut-legend { list-style: none; margin: 0; padding: 0; font-size: 0.74rem; color: var(--muted); display: flex; flex-direction: column; gap: 0.28rem; }
+  .dr-donut-legend .swatch { width: 0.6rem; height: 0.6rem; border-radius: 2px; display: inline-block; margin-right: 0.4em; }
+
+  .dr-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.2rem; }
+  @media (max-width: 860px) { .dr-panel-row { grid-template-columns: 1fr; } }
+  .dr-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; }
+  .dr-panel h2 { font-size: 0.98rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
+  .dr-panel-empty { color: var(--muted); font-size: 0.85rem; padding: 0.3rem 0; }
+  .dr-at-risk-list, .dr-activity-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+  .dr-at-risk-item {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 0.8rem; font-size: 0.86rem;
+    padding-bottom: 0.55rem; border-bottom: 1px solid var(--border);
+  }
+  .dr-at-risk-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .dr-at-risk-name { font-weight: 600; }
+  .dr-at-risk-sub { color: var(--muted); font-size: 0.77rem; display: block; }
+  .dr-at-risk-days { font-family: var(--font-display); font-weight: 650; white-space: nowrap; }
+  .dr-at-risk-days--soon { color: #c33737; }
+  @media (prefers-color-scheme: dark) { .dr-at-risk-days--soon { color: #ff8080; } }
+  .dr-activity-item { display: flex; gap: 0.6rem; font-size: 0.85rem; align-items: flex-start; }
+  .dr-activity-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; margin-top: 0.4rem; flex: none; background: var(--accent); }
+  .dr-activity-dot--confirm { background: var(--verified-green); }
+  .dr-activity-dot--optout { background: var(--gold); }
+  .dr-activity-when { color: var(--faint); font-size: 0.75rem; display: block; margin-top: 0.1rem; }
+
+  .dr-roster-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem 0.2rem; margin-bottom: 1.2rem; }
+  .dr-roster-panel h2 { font-size: 0.98rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
+  .dr-roster-panel .table-wrap { margin-top: 0; }
 
 </style>
 </head>

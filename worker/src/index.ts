@@ -1062,6 +1062,17 @@ function toFirmLicenseJson(row: store.SubscriberRow, asOf: Date): Record<string,
     next_deadline: firmLicenseNextDeadline(row, asOf),
     deadline_source: row.deadline_source,
     cycle: row.cycle,
+    // 2026-07-30 (BUILD v2 Phase B) -- surfaces columns this table has always
+    // had (created_at since migration 0001, confirmed_at/stopped_at/
+    // stop_reason since the HYBRID consent model) for the dashboard's
+    // "recent activity" panel. Deliberately does NOT add a "renewed_at":
+    // renewAndRearm() (this file, POST /firm/licenses/:id/renew) only bumps
+    // `cycle`, never a timestamp -- there is no real "when was this last
+    // renewed" fact in this schema yet, so the dashboard doesn't claim one.
+    created_at: row.created_at,
+    confirmed_at: row.confirmed_at,
+    stopped_at: row.stopped_at,
+    stop_reason: row.stop_reason,
   };
 }
 
@@ -1083,7 +1094,17 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     if (bd === null) return -1;
     return ad < bd ? -1 : ad > bd ? 1 : 0;
   });
-  return jsonResponse(200, { licenses: items });
+  // firm_name (2026-07-30, BUILD v2 Phase B): the dashboard's sidebar shows
+  // which firm the signed-in admin is looking at -- looked up by
+  // session.firmId (never client-supplied), so this can't be used to probe
+  // another firm's name. `?? null` only covers "no firm row found" (should
+  // be unreachable given a valid session already resolved this same
+  // firmId) -- it does NOT guard against getFirmById() itself throwing (a
+  // real D1 outage would still fail this whole request, same as every other
+  // unguarded D1 call in this handler; not a new resilience gap this
+  // endpoint introduces, just not one it fixes either).
+  const firm = await store.getFirmById(env.DB, session.firmId);
+  return jsonResponse(200, { licenses: items, firm_name: firm?.name ?? null });
 }
 
 /**

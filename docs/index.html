@@ -345,6 +345,16 @@
   .mock-firm-count { font-weight: 400; color: var(--muted); font-size: 0.88rem; }
   .mock-dashboard .table-wrap { margin: 0; }
   .mock-dashboard table { font-size: 0.86rem; }
+  /* The mockup embeds the REAL dashboard shell (.dr-*) so the marketing
+     preview is pixel-consistent with the real product (2026-07-30, BUILD v2
+     Phase C) -- these two overrides only fix things that don't make sense
+     inside a small decorative preview box: a sticky sidebar would try to
+     stick to PAGE scroll instead of staying inside the mock frame, and the
+     nested .table-wrap already gets .mock-dashboard's own margin/font-size
+     rules above. */
+  .mock-dashboard .dr-sidebar { position: static; }
+  .mock-dashboard .dr-dash-shell { margin: 0; }
+  .mock-dashboard .dr-nav a { pointer-events: none; }
   .mock-status {
     display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.01em;
     padding: 0.18em 0.6em; border-radius: 999px; white-space: nowrap;
@@ -1009,6 +1019,116 @@
     </div>
   </div>
   <a href="/methodology/" style="font-weight:600;">Read our full verification standard &rarr;</a>
+</section>
+<section class="band-section">
+  <p class="eyebrow">Built for firms too</p>
+  <h2>One roster, not twenty separate inboxes.</h2>
+  <p style="color:var(--muted); margin:0.7rem 0 1.4rem; font-size:1.02rem;">Free reminders above are
+  for tracking your own individual license, always at no cost. If you're the one keeping track of a
+  whole firm's staff across multiple states, the firm dashboard below is the same sourced-to-codified-
+  law data in one roster view &mdash; who's current, who's at risk, and who needs to act.</p>
+  <div class="mock-dashboard">
+  <div class="mock-chrome">
+    <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
+    <span class="mock-url">deadline-radar.com/firm-dashboard/</span>
+  </div>
+  <div class="mock-body">
+  <div class="dr-dash-shell">
+    <aside class="dr-sidebar">
+      <div class="dr-firm-name">Example Firm, LLC</div>
+      <ul class="dr-nav">
+        <li><a href="#" class="is-active" tabindex="-1">Roster</a></li>
+        <li><span class="dr-nav-soon">Calendar<span class="dr-soon-badge">Soon</span></span></li>
+        <li><span class="dr-nav-soon">Map<span class="dr-soon-badge">Soon</span></span></li>
+        <li><span class="dr-nav-soon">Reports<span class="dr-soon-badge">Soon</span></span></li>
+        <li><span class="dr-nav-soon">Documents<span class="dr-soon-badge">Soon</span></span></li>
+      </ul>
+    </aside>
+    <div class="dr-main">
+      <div class="dr-stat-row">
+        <div class="dr-stat-card"><div class="dr-ring-wrap">
+  <svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">
+    <circle class="dr-ring-track" cx="29" cy="29" r="24"></circle>
+    <circle class="dr-ring-value" cx="29" cy="29" r="24" stroke-dasharray="101.0 150.8"></circle>
+  </svg>
+  <div class="dr-ring-pct">67%</div>
+</div>
+          <div><div class="dr-stat-label">Coverage</div><div class="dr-stat-value">67%</div>
+          <div class="dr-stat-sub">4 of 6 active</div></div></div>
+        <div class="dr-stat-card"><div class="dr-donut-wrap">
+  <div style="width:58px;height:58px;border-radius:50%;flex:none;display:flex;align-items:center;
+  justify-content:center;background:conic-gradient(#1f9e5c 0.0deg 240.0deg, #c33737 240.0deg 300.0deg, #8595a3 300.0deg 360.0deg);" aria-hidden="true">
+    <div style="width:30px;height:30px;border-radius:50%;background:var(--card-bg);"></div>
+  </div>
+  <ul class="dr-donut-legend"><li><span class="swatch" style="background:#1f9e5c"></span>Active (4)</li>
+<li><span class="swatch" style="background:#c33737"></span>Needs attention (1)</li>
+<li><span class="swatch" style="background:#8595a3"></span>Opted out (1)</li></ul>
+</div>
+          <div><div class="dr-stat-label">Roster status</div><div class="dr-stat-value">6</div>
+          <div class="dr-stat-sub">staff tracked</div></div></div>
+        <div class="dr-stat-card"><div class="dr-ring-wrap">
+  <svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">
+    <circle class="dr-ring-track" cx="29" cy="29" r="24"></circle>
+    <circle class="dr-ring-value" cx="29" cy="29" r="24" stroke-dasharray="0.0 150.8"></circle>
+  </svg>
+  <div class="dr-ring-pct">0%</div>
+</div>
+          <div><div class="dr-stat-label">Due soon</div><div class="dr-stat-value">0</div>
+          <div class="dr-stat-sub">due within 30 days or unresolved</div></div></div>
+      </div>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Staff</th><th>State</th><th>Status</th><th>Next deadline</th></tr></thead>
+        <tbody>
+        <tr>
+  <td>Alex R.</td>
+  <td>Georgia</td>
+  <td><span class="mock-status mock-status--ok">Active</span></td>
+  <td>December 31, 2027</td>
+</tr>
+<tr>
+  <td>Jordan M.</td>
+  <td>Alabama</td>
+  <td><span class="mock-status mock-status--ok">Active</span></td>
+  <td>December 31, 2026</td>
+</tr>
+<tr>
+  <td>Sam K.</td>
+  <td>Illinois</td>
+  <td><span class="mock-status mock-status--pending">Opted out</span></td>
+  <td>September 30, 2027</td>
+</tr>
+<tr>
+  <td>Taylor B.</td>
+  <td>Missouri</td>
+  <td><span class="mock-status mock-status--risk">Needs attention</span></td>
+  <td>September 30, 2027</td>
+</tr>
+<tr>
+  <td>Morgan P. — Firm Registration</td>
+  <td>Louisiana</td>
+  <td><span class="mock-status mock-status--ok">Active</span></td>
+  <td>December 31, 2026</td>
+</tr>
+<tr>
+  <td>Casey T. — Firm Registration</td>
+  <td>Missouri</td>
+  <td><span class="mock-status mock-status--ok">Active</span></td>
+  <td>October 31, 2026</td>
+</tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+  </div>
+</div>
+<p class="mock-caption">Illustrative example &mdash; not a real firm. Dates shown are the actual
+current deadlines for these states, computed the same way as every free page on this site. This is
+the real product design, not a mockup of a different one.</p>
+  <p class="how-it-works"><strong>$500/year flat for up to 10 staff</strong>, starting with a free
+  30-day pilot, no card required. <a href="for-firms/" style="font-weight:600;">See firm-tier pricing
+  and details &rarr;</a></p>
 </section>
 <p class="how-it-works">How it works: each state page shows the actual next renewal deadline
 (or, where the rule depends on your birth month, a full lookup table) computed from the

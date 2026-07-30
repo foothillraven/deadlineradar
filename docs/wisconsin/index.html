@@ -344,6 +344,16 @@
   .mock-firm-count { font-weight: 400; color: var(--muted); font-size: 0.88rem; }
   .mock-dashboard .table-wrap { margin: 0; }
   .mock-dashboard table { font-size: 0.86rem; }
+  /* The mockup embeds the REAL dashboard shell (.dr-*) so the marketing
+     preview is pixel-consistent with the real product (2026-07-30, BUILD v2
+     Phase C) -- these two overrides only fix things that don't make sense
+     inside a small decorative preview box: a sticky sidebar would try to
+     stick to PAGE scroll instead of staying inside the mock frame, and the
+     nested .table-wrap already gets .mock-dashboard's own margin/font-size
+     rules above. */
+  .mock-dashboard .dr-sidebar { position: static; }
+  .mock-dashboard .dr-dash-shell { margin: 0; }
+  .mock-dashboard .dr-nav a { pointer-events: none; }
   .mock-status {
     display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.01em;
     padding: 0.18em 0.6em; border-radius: 999px; white-space: nowrap;

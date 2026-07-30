@@ -1795,7 +1795,7 @@ function drRenderCpeStaffProgress() {
     var totalBar = p.totalRequired !== null ? drCpeBarHtml('Total', p.totalLogged, p.totalRequired) : '';
     var ethicsBar = p.ethicsRequired !== null ? drCpeBarHtml('Ethics', p.ethicsLogged, p.ethicsRequired) : '';
     var cycleNote = p.noCycleDate ?
-      '<p class="dr-cpe-gap-note">No renewal date on file &mdash; add one to track this cycle's progress.</p>' : '';
+      '<p class="dr-cpe-gap-note">No renewal date on file &mdash; add one to track progress for this cycle.</p>' : '';
     return '<div class="dr-cpe-staff-card"><div class="dr-cpe-staff-head">' +
       '<span class="dr-cpe-staff-name">' + name + '</span><span class="dr-cpe-staff-state">' + state + '</span></div>' +
       totalBar + ethicsBar + cycleNote + '</div>';

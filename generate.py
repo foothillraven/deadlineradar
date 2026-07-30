@@ -937,6 +937,29 @@ PAGE_CSS = """
   .dr-map-legend { display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.82rem; color: var(--muted); }
   .dr-map-legend .swatch { width: 0.75rem; height: 0.75rem; border-radius: 3px; display: inline-block; margin-right: 0.5em; vertical-align: -1px; }
   .dr-map-note { font-size: 0.78rem; color: var(--faint); margin-top: 0.8rem; }
+
+  /* ---- CPE Hours tab (2026-07-30, new BUILD v2 phase) ---- */
+  .dr-cpe-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.2rem; }
+  .dr-cpe-staff-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
+  .dr-cpe-staff-panel h2 { font-size: 1.05rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
+  .dr-cpe-staff-card { border: 1px solid var(--border); border-radius: 9px; padding: 0.9rem 1rem; margin-bottom: 0.7rem; }
+  .dr-cpe-staff-card:last-child { margin-bottom: 0; }
+  .dr-cpe-staff-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.8rem; margin-bottom: 0.6rem; }
+  .dr-cpe-staff-name { font-weight: 600; }
+  .dr-cpe-staff-state { color: var(--muted); font-size: 0.82rem; }
+  .dr-cpe-bar-row { display: flex; align-items: center; gap: 0.7rem; font-size: 0.82rem; margin-top: 0.4rem; }
+  .dr-cpe-bar-label { flex: 0 0 5.5rem; color: var(--muted); }
+  .dr-cpe-bar-track { flex: 1 1 auto; height: 0.55rem; border-radius: 999px; background: var(--border); overflow: hidden; }
+  .dr-cpe-bar-fill { height: 100%; border-radius: 999px; background: #1f9e5c; transition: width 0.3s ease; }
+  .dr-cpe-bar-fill--behind { background: #c33737; }
+  .dr-cpe-bar-value { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+  .dr-cpe-gap-note { font-size: 0.8rem; color: var(--faint); margin-top: 0.4rem; }
+  .dr-cpe-log-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
+  .dr-cpe-log-panel h2 { font-size: 1.05rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
+  .dr-cpe-recent-item { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; font-size: 0.85rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+  .dr-cpe-recent-item:last-child { border-bottom: none; }
+  .dr-cpe-recent-remove { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 6px; padding: 0.2rem 0.55rem; cursor: pointer; font-family: inherit; font-size: 0.78rem; }
+  .dr-cpe-recent-remove:hover { background: var(--row-alt); color: #c33737; }
 """
 
 
@@ -3692,6 +3715,215 @@ function drWireMapTooltip() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// CPE Hours tab (2026-07-30, new BUILD v2 phase). DR_CPE_REQUIREMENTS is
+// inlined static reference data (generate.py, from data/cpe_hours.json) --
+// the worker knows nothing about requirements, only entry CRUD. Requirement
+// matching happens entirely here: sum this staffer's logged hours within
+// their current cycle window (approximated as their own renewal date minus
+// the state's period_years -- see the Python-side comment on
+// cpe_requirements_json for why this is a deliberate simplification, not an
+// authoritative legal cycle-boundary calculation) against the state's own
+// published total/ethics requirement. A state with no requirement entry at
+// all, or a null total_hours (codified law never states a figure, e.g.
+// Nebraska), shows an honest gap note instead of a fabricated number --
+// same standard as every public page on this site.
+// ---------------------------------------------------------------------------
+
+var drCpeEntries = [];
+
+function drCpeCycleWindow(nextDeadlineIso, periodYears) {
+  if (!nextDeadlineIso || !periodYears) return null;
+  var end = new Date(nextDeadlineIso + 'T00:00:00Z');
+  if (isNaN(end.getTime())) return null;
+  var start = new Date(Date.UTC(end.getUTCFullYear() - periodYears, end.getUTCMonth(), end.getUTCDate()));
+  return {start: start.toISOString().slice(0, 10), end: nextDeadlineIso};
+}
+
+// Ethics hours are treated as a SUBSET of the total (not additional) --
+// matches how every state's own requirement is actually structured
+// (e.g. Alabama: "40 hours... at least 2 hours must be a qualifying ethics
+// course"), so totalLogged sums every category and ethicsLogged separately
+// sums only 'ethics' entries within the same window.
+function drCpeProgressForSubscriber(item) {
+  var req = DR_CPE_REQUIREMENTS[item.state_slug];
+  if (!req || (req.total_hours === null && req.ethics_hours === null)) {
+    return {hasRequirement: false, dataGapNote: req ? req.data_gap_note : null};
+  }
+  var win = drCpeCycleWindow(item.next_deadline, req.period_years);
+  var totalLogged = 0, ethicsLogged = 0;
+  drCpeEntries.forEach(function(e) {
+    if (e.subscriber_id !== item.id) return;
+    // No renewal date means we don't know the cycle boundary -- excluding
+    // every entry (rather than summing an unbounded lifetime total) keeps
+    // "0 logged" as an honest signal instead of a false on-track reading.
+    if (!win) return;
+    if (e.entry_date < win.start || e.entry_date > win.end) return;
+    totalLogged += e.hours;
+    if (e.category === 'ethics') ethicsLogged += e.hours;
+  });
+  var behind =
+    (req.total_hours !== null && totalLogged < req.total_hours) ||
+    (req.ethics_hours !== null && ethicsLogged < req.ethics_hours);
+  return {
+    hasRequirement: true,
+    totalRequired: req.total_hours, totalLogged: totalLogged,
+    ethicsRequired: req.ethics_hours, ethicsLogged: ethicsLogged,
+    behind: behind,
+    noCycleDate: !win,
+  };
+}
+
+function drCpeBarHtml(label, logged, required) {
+  var pct = required ? Math.min(100, Math.round((logged / required) * 100)) : 0;
+  var behind = required !== null && logged < required;
+  return '<div class="dr-cpe-bar-row"><span class="dr-cpe-bar-label">' + drEscapeHtml(label) + '</span>' +
+    '<span class="dr-cpe-bar-track"><span class="dr-cpe-bar-fill' + (behind ? ' dr-cpe-bar-fill--behind' : '') +
+    '" style="width:' + pct + '%"></span></span>' +
+    '<span class="dr-cpe-bar-value">' + logged + ' / ' + required + 'h</span></div>';
+}
+
+function drRenderCpeSummary() {
+  var el = document.getElementById('dr-cpe-summary');
+  if (!el) return;
+  var behindCount = 0, trackedCount = 0;
+  drLicenses.forEach(function(item) {
+    if (item.status === 'opted_out') return;
+    var p = drCpeProgressForSubscriber(item);
+    if (!p.hasRequirement) return;
+    trackedCount++;
+    if (p.behind) behindCount++;
+  });
+  el.innerHTML =
+    '<div class="dr-stat-card">' + drRingSvg(trackedCount ? Math.round((behindCount / trackedCount) * 100) : 0, behindCount > 0) +
+    '<div><div class="dr-stat-label">Behind on hours</div><div class="dr-stat-value">' + behindCount + '</div>' +
+    '<div class="dr-stat-sub">of ' + trackedCount + ' staff with a known requirement</div></div></div>';
+}
+
+function drRenderCpeStaffProgress() {
+  var el = document.getElementById('dr-cpe-staff-body');
+  if (!el) return;
+  var active = drLicenses.filter(function(item) { return item.status !== 'opted_out'; });
+  if (active.length === 0) {
+    el.innerHTML = '<p class="dr-panel-empty">No staff on your roster yet.</p>';
+    return;
+  }
+  el.innerHTML = active.map(function(item) {
+    var p = drCpeProgressForSubscriber(item);
+    var name = drEscapeHtml(item.staff_label || item.email);
+    var state = drEscapeHtml(item.state_name || '');
+    if (!p.hasRequirement) {
+      var gapText = p.dataGapNote ? drEscapeHtml(p.dataGapNote) : 'Requirement not codified for this state &mdash; track manually.';
+      return '<div class="dr-cpe-staff-card"><div class="dr-cpe-staff-head">' +
+        '<span class="dr-cpe-staff-name">' + name + '</span><span class="dr-cpe-staff-state">' + state + '</span></div>' +
+        '<p class="dr-cpe-gap-note">' + gapText + '</p></div>';
+    }
+    var totalBar = p.totalRequired !== null ? drCpeBarHtml('Total', p.totalLogged, p.totalRequired) : '';
+    var ethicsBar = p.ethicsRequired !== null ? drCpeBarHtml('Ethics', p.ethicsLogged, p.ethicsRequired) : '';
+    var cycleNote = p.noCycleDate ?
+      '<p class="dr-cpe-gap-note">No renewal date on file &mdash; add one to track this cycle\'s progress.</p>' : '';
+    return '<div class="dr-cpe-staff-card"><div class="dr-cpe-staff-head">' +
+      '<span class="dr-cpe-staff-name">' + name + '</span><span class="dr-cpe-staff-state">' + state + '</span></div>' +
+      totalBar + ethicsBar + cycleNote + '</div>';
+  }).join('');
+}
+
+function drRenderCpeStaffSelect() {
+  var sel = document.getElementById('dr-cpe-staff-select');
+  if (!sel) return;
+  var current = sel.value;
+  var active = drLicenses.filter(function(item) { return item.status !== 'opted_out'; });
+  sel.innerHTML = '<option value="">Select staff member</option>' + active.map(function(item) {
+    return '<option value="' + drEscapeHtml(item.id) + '">' + drEscapeHtml(item.staff_label || item.email) + '</option>';
+  }).join('');
+  sel.value = current;
+}
+
+function drRenderCpeRecent() {
+  var el = document.getElementById('dr-cpe-recent-body');
+  if (!el) return;
+  if (drCpeEntries.length === 0) {
+    el.innerHTML = '<p class="dr-panel-empty">Nothing logged yet.</p>';
+    return;
+  }
+  var byId = {};
+  drLicenses.forEach(function(item) { byId[item.id] = item; });
+  var sorted = drCpeEntries.slice().sort(function(a, b) {
+    return a.entry_date < b.entry_date ? 1 : a.entry_date > b.entry_date ? -1 : 0;
+  });
+  el.innerHTML = sorted.slice(0, 15).map(function(e) {
+    var staffer = byId[e.subscriber_id];
+    var name = staffer ? drEscapeHtml(staffer.staff_label || staffer.email) : 'Removed staff member';
+    var desc = e.description ? ' &mdash; ' + drEscapeHtml(e.description) : '';
+    return '<div class="dr-cpe-recent-item"><span><b>' + name + '</b> logged ' + drEscapeHtml(String(e.hours)) +
+      'h (' + drEscapeHtml(e.category) + ')' + desc +
+      '<span class="dr-agenda-date" style="display:block;">' + drEscapeHtml(drFormatDeadline(e.entry_date)) + '</span></span>' +
+      '<button type="button" class="dr-cpe-recent-remove" data-id="' + drEscapeHtml(e.id) + '" data-label="' +
+      drEscapeHtml(String(e.hours) + 'h for ' + name) + '">Remove</button></div>';
+  }).join('');
+}
+
+function drLoadCpeEntries() {
+  return fetch('/api/firm/cpe', {credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      if (!res.ok) return null;
+      return res.json();
+    })
+    .then(function(data) {
+      drCpeEntries = (data && data.entries) || [];
+      drRenderCpeStaffSelect();
+      drRenderCpeSummary();
+      drRenderCpeStaffProgress();
+      drRenderCpeRecent();
+    })
+    .catch(function() {});
+}
+
+function drSubmitCpeEntry(form) {
+  var errEl = document.getElementById('dr-cpe-log-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  var fd = new FormData(form);
+  var body = {};
+  fd.forEach(function(v, k) { body[k] = v; });
+  fetch('/api/firm/cpe', {
+    method: 'POST', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        var msg = data && data.error ? data.error : 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        return;
+      }
+      var keepStaffId = body.subscriber_id;
+      form.reset();
+      var staffSel = document.getElementById('dr-cpe-staff-select');
+      if (staffSel) staffSel.value = keepStaffId;
+      drLoadCpeEntries();
+    });
+  }).catch(function() {
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
+function drRemoveCpeEntry(id, label) {
+  if (!window.confirm('Remove this CPE entry' + (label ? ' (' + label + ')' : '') + '? This cannot be undone from the dashboard.')) return;
+  fetch('/api/firm/cpe/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return; }
+      if (res.ok) { drLoadCpeEntries(); return; }
+      drReadJsonSafe(res).then(function(data) {
+        window.alert((data && data.error) || 'Something went wrong removing that entry. Please try again.');
+      });
+    })
+    .catch(function() {
+      window.alert('Something went wrong removing that entry. Please try again.');
+    });
+}
+
 function drLoadLicenses() {
   drClearError();
   fetch('/api/firm/licenses', {credentials: 'include'})
@@ -3717,6 +3949,7 @@ function drLoadLicenses() {
       drRenderCalendar();
       drRenderAgenda();
       drRenderMap();
+      drLoadCpeEntries();
     })
     .catch(function() {
       drShowError('Something went wrong loading your roster. Please try again.');
@@ -3821,6 +4054,23 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  var cpeLogForm = document.getElementById('dr-cpe-log-form');
+  if (cpeLogForm) {
+    cpeLogForm.addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      drSubmitCpeEntry(cpeLogForm);
+    });
+  }
+  var cpeRecentBody = document.getElementById('dr-cpe-recent-body');
+  if (cpeRecentBody) {
+    cpeRecentBody.addEventListener('click', function(ev) {
+      var btn = ev.target.closest ? ev.target.closest('.dr-cpe-recent-remove') : null;
+      if (!btn) return;
+      var id = btn.getAttribute('data-id');
+      if (id) drRemoveCpeEntry(id, btn.getAttribute('data-label'));
+    });
+  }
+
   var tbody = document.getElementById('dr-roster-body');
   if (tbody) {
     tbody.addEventListener('click', function(ev) {
@@ -3894,7 +4144,9 @@ document.addEventListener('DOMContentLoaded', function() {
 _FIRM_DASHBOARD_JS_HTML = _FIRM_DASHBOARD_JS_HTML.replace("'/api/firm", f"'{REMINDER_BACKEND_BASE_URL}/firm")
 
 
-def build_firm_dashboard_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
+def build_firm_dashboard_page(
+    by_slug: dict[str, list[dict]], as_of: date, cpe_hours_by_slug: dict[str, dict]
+) -> str:
     """The real firm dashboard (2026-07-28, step 3/3). Static HTML shell +
     _FIRM_DASHBOARD_JS_HTML: on load, fetches GET /api/firm/licenses
     (credentials:'include' -- the session cookie rides along automatically
@@ -3923,6 +4175,24 @@ def build_firm_dashboard_page(by_slug: dict[str, list[dict]], as_of: date) -> st
     them -- safe, unambiguous, no silent data loss."""
     add_staff_html = _firm_dashboard_add_staff_form_html(by_slug, as_of)
     map_svg_html = _firm_dashboard_map_svg_html(by_slug)
+    # CPE Hours tab (2026-07-30): the state-by-state REQUIREMENT (how many
+    # hours, ethics sub-requirement, cycle length) is static reference data,
+    # so it's inlined once at build time -- same "static data inlined,
+    # dynamic per-firm data fetched live" split DR_STATES already uses on
+    # the homepage. Deliberately a SMALL projection of cpe_hours.json's full
+    # record (no citation/source_url/notes -- those belong on the public CPE
+    # pages, not duplicated into every dashboard page load) -- just the
+    # fields the progress calculation and the honest-gap message need.
+    cpe_requirements_json = {
+        slug: {
+            "total_hours": rec.get("total_hours"),
+            "period_years": rec.get("period_years"),
+            "ethics_hours": rec.get("ethics_hours"),
+            "ethics_period_years": rec.get("ethics_period_years"),
+            "data_gap_note": rec.get("data_gap_note"),
+        }
+        for slug, rec in cpe_hours_by_slug.items()
+    }
     # Sidebar nav: Roster/Calendar/Map are real in-page tabs (2026-07-30, BUILD
     # v2 Phase D -- all three render from the SAME already-fetched drLicenses,
     # no separate page load/re-auth). Reports/Documents are still BUILD v2
@@ -3941,6 +4211,7 @@ def build_firm_dashboard_page(by_slug: dict[str, list[dict]], as_of: date) -> st
       <li><a href="#" class="is-active" data-view="roster" role="tab" aria-selected="true">Roster</a></li>
       <li><a href="#" data-view="calendar" role="tab" aria-selected="false">Calendar</a></li>
       <li><a href="#" data-view="map" role="tab" aria-selected="false">Map</a></li>
+      <li><a href="#" data-view="cpe" role="tab" aria-selected="false">CPE Hours</a></li>
       {sidebar_nav_soon_items}
     </ul>
     <div class="dr-sidebar-foot">
@@ -4016,8 +4287,61 @@ def build_firm_dashboard_page(by_slug: dict[str, list[dict]], as_of: date) -> st
         {map_svg_html}
       </div>
     </div>
+
+    <div id="dr-view-cpe" class="dr-view" role="tabpanel" hidden>
+      <h1>CPE Hours</h1>
+      <p class="subhead">Track completed continuing-education hours against each state's own
+      requirement. Internal visibility only -- not an official state filing, and not a substitute for
+      your state board's own CPE reporting system.</p>
+
+      <div class="dr-cpe-summary" id="dr-cpe-summary"></div>
+
+      <div class="dr-cpe-staff-panel">
+        <h2>Progress by staff member</h2>
+        <div id="dr-cpe-staff-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
+      </div>
+
+      <div class="dr-cpe-log-panel">
+        <h2>Log completed hours</h2>
+        <form id="dr-cpe-log-form">
+          <label for="dr-cpe-staff-select">Staff member</label>
+          <select id="dr-cpe-staff-select" name="subscriber_id" required>
+            <option value="">Select staff member</option>
+          </select>
+          <div class="signup-form-row">
+            <div>
+              <label for="dr-cpe-entry-date">Date completed</label>
+              <input type="date" id="dr-cpe-entry-date" name="entry_date" required>
+            </div>
+            <div>
+              <label for="dr-cpe-hours">Hours</label>
+              <input type="number" id="dr-cpe-hours" name="hours" min="0.1" max="100" step="0.1" required>
+            </div>
+          </div>
+          <label for="dr-cpe-category">Category</label>
+          <select id="dr-cpe-category" name="category">
+            <option value="general">General</option>
+            <option value="ethics">Ethics</option>
+            <option value="other">Other</option>
+          </select>
+          <label for="dr-cpe-description">Course/provider (optional)</label>
+          <input type="text" id="dr-cpe-description" name="description" maxlength="200" placeholder="e.g. AICPA ethics update">
+          <button type="submit">Log hours</button>
+        </form>
+        <p id="dr-cpe-log-error" class="field-hint" style="color:#c33737;" hidden></p>
+      </div>
+
+      <div class="dr-cpe-log-panel">
+        <h2>Recently logged</h2>
+        <div id="dr-cpe-recent-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
+      </div>
+    </div>
   </div>
 </div>
+
+<script>
+var DR_CPE_REQUIREMENTS = {json.dumps(cpe_requirements_json)};
+</script>
 
 {_FIRM_DASHBOARD_JS_HTML}
 """
@@ -5227,7 +5551,9 @@ def main() -> None:
 
     firm_dashboard_dir = SITE_DIR / "firm-dashboard"
     firm_dashboard_dir.mkdir(parents=True, exist_ok=True)
-    (firm_dashboard_dir / "index.html").write_text(build_firm_dashboard_page(by_slug, as_of), encoding="utf-8")
+    (firm_dashboard_dir / "index.html").write_text(
+        build_firm_dashboard_page(by_slug, as_of, cpe_hours_by_slug), encoding="utf-8"
+    )
     print(f"wrote {SITE_DIR.name}/firm-dashboard/index.html")
 
     (SITE_DIR / "404.html").write_text(build_404_page(built), encoding="utf-8")

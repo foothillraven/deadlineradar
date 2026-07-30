@@ -677,6 +677,29 @@
   .dr-map-legend .swatch { width: 0.75rem; height: 0.75rem; border-radius: 3px; display: inline-block; margin-right: 0.5em; vertical-align: -1px; }
   .dr-map-note { font-size: 0.78rem; color: var(--faint); margin-top: 0.8rem; }
 
+  /* ---- CPE Hours tab (2026-07-30, new BUILD v2 phase) ---- */
+  .dr-cpe-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.2rem; }
+  .dr-cpe-staff-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
+  .dr-cpe-staff-panel h2 { font-size: 1.05rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
+  .dr-cpe-staff-card { border: 1px solid var(--border); border-radius: 9px; padding: 0.9rem 1rem; margin-bottom: 0.7rem; }
+  .dr-cpe-staff-card:last-child { margin-bottom: 0; }
+  .dr-cpe-staff-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.8rem; margin-bottom: 0.6rem; }
+  .dr-cpe-staff-name { font-weight: 600; }
+  .dr-cpe-staff-state { color: var(--muted); font-size: 0.82rem; }
+  .dr-cpe-bar-row { display: flex; align-items: center; gap: 0.7rem; font-size: 0.82rem; margin-top: 0.4rem; }
+  .dr-cpe-bar-label { flex: 0 0 5.5rem; color: var(--muted); }
+  .dr-cpe-bar-track { flex: 1 1 auto; height: 0.55rem; border-radius: 999px; background: var(--border); overflow: hidden; }
+  .dr-cpe-bar-fill { height: 100%; border-radius: 999px; background: #1f9e5c; transition: width 0.3s ease; }
+  .dr-cpe-bar-fill--behind { background: #c33737; }
+  .dr-cpe-bar-value { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+  .dr-cpe-gap-note { font-size: 0.8rem; color: var(--faint); margin-top: 0.4rem; }
+  .dr-cpe-log-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
+  .dr-cpe-log-panel h2 { font-size: 1.05rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
+  .dr-cpe-recent-item { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; font-size: 0.85rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+  .dr-cpe-recent-item:last-child { border-bottom: none; }
+  .dr-cpe-recent-remove { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 6px; padding: 0.2rem 0.55rem; cursor: pointer; font-family: inherit; font-size: 0.78rem; }
+  .dr-cpe-recent-remove:hover { background: var(--row-alt); color: #c33737; }
+
 </style>
 </head>
 <body>

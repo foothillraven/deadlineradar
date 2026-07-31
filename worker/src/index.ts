@@ -63,6 +63,7 @@ import {
   RATE_LIMIT_FIRM_LICENSE_CREATE,
   RATE_LIMIT_DEBUG_REMINDER_PASS,
   RATE_LIMIT_FIRM_LOGIN,
+  RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT,
   RATE_LIMIT_FIRM_SIGNUP,
   RATE_LIMIT_SUBSCRIBE,
   checkRateLimit,
@@ -174,19 +175,96 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
 
 const ACTION_PATHS = new Set(Object.keys(ACTION_PAGES));
 
-function actionConfirmPage(pathname: string, token: string): Response {
+// ---------------------------------------------------------------------------
+// LOGIN CSRF / session fixation defence (2026-07-31, from the free-tier
+// security review, which demonstrated the attack against a live route).
+//
+// The attack: an attacker requests a sign-in link for THEIR OWN address,
+// never clicks it, and instead hosts an auto-submitting cross-site form
+// POSTing that still-valid token to /subscriber/login/verify. The victim's
+// browser silently receives Set-Cookie and is now signed in AS THE
+// ATTACKER, looking at the attacker's deadlines on our domain -- shown, for
+// a renewal-deadline product, exactly the wrong dates. It also pre-poisons
+// any write endpoint either dashboard grows later.
+//
+// SameSite=Lax does not stop this, and this repo already knows why:
+// migration 0011 says it verbatim -- Lax governs cookie SENDING, not
+// Set-Cookie. 0011 fixed this same attack class for the OAuth flow one day
+// before the magic-link flow reintroduced it; this is the same fix carried
+// across, and it closes the identical pre-existing hole on
+// /firm/login/verify at the same time.
+//
+// The mechanism is double-submit: the GET render mints a CSPRNG nonce, puts
+// it in a hidden field AND in a short-lived cookie, and the POST requires
+// the two to match. An attacker can produce a valid token and a valid form,
+// but cannot set a cookie in the victim's browser from their own site, so
+// the halves can never match in a victim's browser.
+const ACTION_CSRF_COOKIE_NAME = "dr_action_csrf";
+const ACTION_CSRF_FIELD_NAME = "action_csrf";
+// Long enough to read an email and click, short enough that a stale nonce
+// on a shared machine is not lying around. Expiry is enforced only by the
+// cookie: the nonce is a same-browser proof, not a credential -- the actual
+// authority is the login token, which has its own 15-minute server-side TTL.
+const ACTION_CSRF_MAX_AGE_SECONDS = 30 * 60;
+
+/**
+ * The paths where the POST actually requires the nonce.
+ *
+ * Deliberately NOT every action path. /unsubscribe in particular must keep
+ * accepting a bare cross-origin POST, because RFC 8058 List-Unsubscribe
+ * one-click is a POST issued by the MAIL CLIENT, which never renders our
+ * page and so can never carry a nonce -- requiring one there would break
+ * one-click unsubscribe, a deliverability and CAN-SPAM obligation.
+ *
+ * That is an acceptable line to draw because CSRF only matters where the
+ * request GRANTS something. /confirm, /unsubscribe, /renewed and /rearm all
+ * require an unguessable per-subscriber token and change only that
+ * subscriber's own reminder state; the two login routes below are the only
+ * ones that hand the browser a session.
+ */
+const ACTION_CSRF_REQUIRED_PATHS = new Set(["/firm/login/verify", "/subscriber/login/verify"]);
+
+function actionCsrfSetCookieHeader(nonce: string, env: Env): string {
+  return (
+    `${ACTION_CSRF_COOKIE_NAME}=${encodeURIComponent(nonce)}; HttpOnly; Secure; ` +
+    `SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=${ACTION_CSRF_MAX_AGE_SECONDS}`
+  );
+}
+
+/**
+ * Compares the form's nonce against the cookie's. Constant-time is not
+ * required (the nonce is not a secret being guessed one byte at a time --
+ * it is a same-browser proof, and a mismatch reveals nothing), but a
+ * non-empty check is: two absent values must never compare equal, or the
+ * whole defence inverts into "send neither and you're in."
+ */
+function actionCsrfOk(request: Request, formNonce: string | null): boolean {
+  const cookieNonce = getCookie(request, ACTION_CSRF_COOKIE_NAME);
+  if (!cookieNonce || !formNonce) return false;
+  return cookieNonce === formNonce;
+}
+
+function actionConfirmPage(pathname: string, token: string, env: Env): Response {
   const meta = ACTION_PAGES[pathname];
   if (!meta) return errorPage(404, "Not found.");
   const action = `/api${pathname}`; // the Worker is bound to /api/*
+  const needsCsrf = ACTION_CSRF_REQUIRED_PATHS.has(pathname);
+  const nonce = needsCsrf ? store.newToken() : null;
+  const csrfFieldHtml = nonce
+    ? `<input type="hidden" name="${ACTION_CSRF_FIELD_NAME}" value="${escapeHtml(nonce)}">`
+    : "";
   const body =
     `<h1>${escapeHtml(meta.heading)}</h1>` +
     `<p>${escapeHtml(meta.intro)}</p>` +
     `<form method="post" action="${escapeHtml(action)}" style="margin-top:1.5rem;">` +
     `<input type="hidden" name="token" value="${escapeHtml(token)}">` +
+    csrfFieldHtml +
     `<button type="submit" style="font-size:16px;padding:12px 24px;border:0;border-radius:8px;` +
     `background:#1f5fbf;color:#fff;font-weight:700;cursor:pointer;">${escapeHtml(meta.button)}</button>` +
     `</form>`;
-  return htmlResponse(200, htmlPage(meta.heading, body));
+  const headers: Record<string, string> = { "Content-Type": "text/html; charset=utf-8" };
+  if (nonce) headers["Set-Cookie"] = actionCsrfSetCookieHeader(nonce, env);
+  return new Response(htmlPage(meta.heading, body), { status: 200, headers });
 }
 
 function htmlResponse(status: number, body: string): Response {
@@ -1102,6 +1180,12 @@ export async function requireFirmSession(
  * response must never depend on whether delivery worked.
  */
 async function issueAndSendSubscriberLoginLink(env: Env, email: string): Promise<void> {
+  // Suppression is checked HERE, not at the caller, so no future caller can
+  // route around it (2026-07-31, security review: every other send path in
+  // this Worker honours suppression -- see scheduler.ts -- and this one
+  // originally did not, which meant a person who had unsubscribed from
+  // everything could still be mailed indefinitely at a stranger's request).
+  if (await store.isPermanentlySuppressed(env.DB, email)) return;
   const { rawToken } = await store.createSubscriberLoginToken(env.DB, email);
   if (!env.SENDGRID_API_KEY) return;
   try {
@@ -1137,7 +1221,12 @@ async function issueAndSendSubscriberLoginLink(env: Env, email: string): Promise
  * /firm-login/ after Devin walked into its version of this trap. Fixing it
  * by branching the copy would just reintroduce the oracle.
  */
-async function handleSubscriberLoginRequest(request: Request, env: Env, ip: string): Promise<Response> {
+async function handleSubscriberLoginRequest(
+  request: Request,
+  env: Env,
+  ip: string,
+  ctx: ExecutionContext
+): Promise<Response> {
   const allowed = await checkRateLimit(env.DB, ip, "subscriber_login", RATE_LIMIT_FIRM_LOGIN);
   if (!allowed) {
     return errorPage(429, "Too many requests from this address. Please try again later.");
@@ -1181,12 +1270,44 @@ async function handleSubscriberLoginRequest(request: Request, env: Env, ip: stri
     return errorPage(400, "Verification failed -- please try again.");
   }
 
+  // PER-RECIPIENT throttle, on top of the per-IP one above (2026-07-31,
+  // security review). Per-IP alone does nothing against a distributed
+  // attack aimed at one person -- the review demonstrated 12 sends to one
+  // victim from 12 IPs. This is the same second bucket
+  // handleFirmPasswordLogin() already keys on the account rather than the
+  // caller, for the same reason.
+  //
+  // It also protects the reminders themselves: the daily send cap is GLOBAL
+  // and shared with them, so an unthrottled mail-bomb here would exhaust the
+  // day's budget and silently stop that day's real renewal reminders.
+  const accountAllowed = await checkRateLimit(
+    env.DB,
+    `account:${store.normalizeEmail(email)}`,
+    "subscriber_login_account",
+    RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT
+  );
+
   // Only send if there's actually something to sign in to. Note this reads
   // through the SAME scoping function the dashboard uses, so "we sent a
   // link" and "you'll see rows" can never disagree.
+  //
+  // CONFIRMED rows only. A `pending_confirmation` row proves nothing -- it
+  // is created by anyone who types an address into the public signup form,
+  // so honouring it would turn this route into a mail primitive pointed at
+  // any stranger (plant a pending row, then request sign-in links forever).
+  // Someone whose rows are all still pending has nothing to look at anyway;
+  // their next step is the confirmation email they were already sent.
   const existing = await store.listSubscriberLicenses(env.DB, store.normalizeEmail(email));
-  if (existing.length > 0) {
-    await issueAndSendSubscriberLoginLink(env, email);
+  const hasRealAccount = existing.some((r) => r.status !== store.STATUS_PENDING);
+  if (accountAllowed && hasRealAccount) {
+    // ctx.waitUntil, NOT await (2026-07-31, security review): issuing the
+    // token writes to D1 and sends an HTTPS request to SendGrid, work the
+    // no-such-subscriber branch never does. Awaiting it made the two
+    // branches differ by a visible ~100-500ms -- byte-identical bodies over
+    // a plainly different response time, which is exactly the timing oracle
+    // this repo already had to fix once on the firm password login. Off the
+    // response path, both branches return immediately.
+    ctx.waitUntil(issueAndSendSubscriberLoginLink(env, email));
   }
 
   return htmlResponse(200, subscriberLoginSentPage(env));
@@ -1208,7 +1329,12 @@ async function handleSubscriberLoginVerify(env: Env, token: string | null): Prom
       "That sign-in link is invalid, expired, or already used. Please request a new one and try again."
     );
   }
-  const { rawSessionToken } = await store.createSubscriberSession(env.DB, result.emailNormalized);
+  const { rawSessionToken, sessionId } = await store.createSubscriberSession(env.DB, result.emailNormalized);
+  // Signing in revokes every other session for this email -- see
+  // deleteOtherSubscriberSessions()'s own docstring. This tier has no
+  // account screen, so "request a fresh link" IS the sign-out-everywhere
+  // control, and it only works if it actually revokes.
+  await store.deleteOtherSubscriberSessions(env.DB, result.emailNormalized, sessionId);
   return new Response(null, {
     status: 302,
     headers: {
@@ -2124,7 +2250,7 @@ function withCorsHeaders(response: Response, env: Env): Response {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
-async function routeRequest(request: Request, env: Env): Promise<Response> {
+async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
 
     // This Worker is bound to the deadline-radar.com/api/* route, so every
@@ -2221,7 +2347,7 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
         if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
         const token = url.searchParams.get("token");
         if (!token) return errorPage(400, "That link is missing its token.");
-        return actionConfirmPage(url.pathname, token);
+        return actionConfirmPage(url.pathname, token, env);
       }
       return errorPage(404, "Not found.");
     }
@@ -2345,7 +2471,7 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
 
       if (url.pathname === "/subscriber/login") {
         try {
-          return await handleSubscriberLoginRequest(request, env, ip);
+          return await handleSubscriberLoginRequest(request, env, ip, ctx);
         } catch {
           return errorPage(400, "Something went wrong processing that request.");
         }
@@ -2388,14 +2514,33 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
         // Token from the form body (our confirmation-page button) OR the URL
         // query (RFC 8058 List-Unsubscribe one-click POST, whose body is
         // "List-Unsubscribe=One-Click" and carries no token of its own).
-        let token = url.searchParams.get("token");
+        //
+        // The query fallback is NOT allowed for the login routes (2026-07-31,
+        // security review): it exists solely for that one-click unsubscribe
+        // case, and on a route that hands out a session it just makes the
+        // CSRF attack a one-liner -- no body to forge, only a URL. A login
+        // token must arrive in the form body, alongside its nonce.
+        const csrfRequired = ACTION_CSRF_REQUIRED_PATHS.has(url.pathname);
+        let token = csrfRequired ? null : url.searchParams.get("token");
+        let formNonce: string | null = null;
         try {
           const raw = await request.text();
           if (raw.length > 0 && raw.length <= MAX_BODY_BYTES) {
-            token = new URLSearchParams(raw).get("token") ?? token;
+            const parsed = new URLSearchParams(raw);
+            token = parsed.get("token") ?? token;
+            formNonce = parsed.get(ACTION_CSRF_FIELD_NAME);
           }
         } catch {
           // keep whatever the query gave us
+        }
+        if (csrfRequired && !actionCsrfOk(request, formNonce)) {
+          // Deliberately does NOT consume the login token -- a victim hit by
+          // this must still be able to use their own link afterwards.
+          return errorPage(
+            400,
+            "That sign-in couldn't be completed. Please open the sign-in link from your email " +
+              "again and use the button on that page."
+          );
         }
         try {
           switch (url.pathname) {
@@ -2910,7 +3055,7 @@ async function handleOauthIdentityDelete(request: Request, env: Env, id: string)
 
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     // PREVIEW/STAGING CORS only (see corsHeaders()'s own comment) -- in
     // production env.STATIC_SITE_BASE_URL is unset, so this whole block is
     // skipped and routeRequest() runs exactly as it always has.
@@ -2918,10 +3063,10 @@ export default {
       if (request.method === "OPTIONS") {
         return new Response(null, { status: 204, headers: corsHeaders(env) });
       }
-      const response = await routeRequest(request, env);
+      const response = await routeRequest(request, env, ctx);
       return withCorsHeaders(response, env);
     }
-    return routeRequest(request, env);
+    return routeRequest(request, env, ctx);
   },
 
   /**

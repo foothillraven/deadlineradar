@@ -2,16 +2,14 @@ import { env } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
 import * as store from "../src/store";
 
-async function seed(email: string, stateSlug: string, over: Partial<{ firmId: string }> = {}) {
-  const row = await store.addPending(env.DB, {
+async function seed(email: string, stateSlug: string) {
+  return store.addPending(env.DB, {
     email,
     stateSlug,
     deadlineFields: {},
     firstName: null,
     skipConfirmation: true,
-    ...(over.firmId ? { firmId: over.firmId } : {}),
-  } as Parameters<typeof store.addPending>[1]);
-  return row;
+  });
 }
 
 describe("subscriber sign-in: identity is the EMAIL, and it must not over-match", () => {
@@ -25,7 +23,40 @@ describe("subscriber sign-in: identity is the EMAIL, and it must not over-match"
   });
 
   it("rejects an unknown token, and cannot be distinguished from a used one", async () => {
-    expect(await store.verifyAndConsumeSubscriberLoginToken(env.DB, "never-issued-token")).toBeNull();
+    // Every negative needs a POSITIVE CONTROL in the same test -- otherwise
+    // this passes even if the function were a bare `return null`.
+    const email = `sub-oracle-${Date.now()}@examplefirm.com`;
+    const live = await store.createSubscriberLoginToken(env.DB, email);
+    const used = await store.createSubscriberLoginToken(env.DB, email);
+    expect(await store.verifyAndConsumeSubscriberLoginToken(env.DB, used.rawToken)).not.toBeNull();
+
+    const usedResult = await store.verifyAndConsumeSubscriberLoginToken(env.DB, used.rawToken);
+    const unknownResult = await store.verifyAndConsumeSubscriberLoginToken(env.DB, "never-issued-token");
+    // used and unknown must be INDISTINGUISHABLE
+    expect(usedResult).toEqual(unknownResult);
+    expect(usedResult).toBeNull();
+    // and the control still works, proving the nulls above mean something
+    expect(await store.verifyAndConsumeSubscriberLoginToken(env.DB, live.rawToken)).not.toBeNull();
+  });
+
+  it("rejects an EXPIRED login token", async () => {
+    const email = `sub-expired-${Date.now()}@examplefirm.com`;
+    const { rawToken } = await store.createSubscriberLoginToken(env.DB, email);
+    await env.DB
+      .prepare("UPDATE subscriber_login_tokens SET expires_at = ?1 WHERE email_normalized = ?2")
+      .bind(new Date(Date.now() - 60_000).toISOString(), email.toLowerCase())
+      .run();
+    expect(await store.verifyAndConsumeSubscriberLoginToken(env.DB, rawToken)).toBeNull();
+  });
+
+  it("two concurrent redemptions of one link yield exactly one session", async () => {
+    const email = `sub-race-${Date.now()}@examplefirm.com`;
+    const { rawToken } = await store.createSubscriberLoginToken(env.DB, email);
+    const results = await Promise.all([
+      store.verifyAndConsumeSubscriberLoginToken(env.DB, rawToken),
+      store.verifyAndConsumeSubscriberLoginToken(env.DB, rawToken),
+    ]);
+    expect(results.filter((r) => r !== null).length).toBe(1);
   });
 
   it("normalises case and whitespace, so the same person signs in either way", async () => {
@@ -61,25 +92,45 @@ describe("subscriber sessions", () => {
     expect(await store.verifySubscriberSession(env.DB, rawSessionToken)).toBeNull();
   });
 
-  it("rejects a forged session token", async () => {
+  it("rejects a forged session token, while a real one still works", async () => {
+    const { rawSessionToken } = await store.createSubscriberSession(env.DB, `sub-forge-${Date.now()}@examplefirm.com`);
     expect(await store.verifySubscriberSession(env.DB, "forged-not-a-real-token")).toBeNull();
+    expect(await store.verifySubscriberSession(env.DB, rawSessionToken)).not.toBeNull();
   });
 
-  it("stores only a HASH -- the raw token is not in the table", async () => {
+  it("rejects an EXPIRED session", async () => {
+    const email = `sub-sessexp-${Date.now()}@examplefirm.com`;
+    const { rawSessionToken } = await store.createSubscriberSession(env.DB, email);
+    await env.DB
+      .prepare("UPDATE subscriber_sessions SET expires_at = ?1 WHERE email_normalized = ?2")
+      .bind(new Date(Date.now() - 60_000).toISOString(), email)
+      .run();
+    expect(await store.verifySubscriberSession(env.DB, rawSessionToken)).toBeNull();
+  });
+
+  it("stores only a HASH -- the raw token is in NO column of the row", async () => {
     const email = `sub-hash-${Date.now()}@examplefirm.com`;
     const { rawSessionToken } = await store.createSubscriberSession(env.DB, email);
+    // SELECT * so a raw token smuggled into some OTHER column is caught too,
+    // which the original single-column check would have missed.
     const row = await env.DB
-      .prepare("SELECT COUNT(*) AS c FROM subscriber_sessions WHERE session_token_hash = ?1")
-      .bind(rawSessionToken)
-      .first<{ c: number }>();
-    expect(row?.c).toBe(0);
+      .prepare("SELECT * FROM subscriber_sessions WHERE email_normalized = ?1")
+      .bind(email)
+      .first<Record<string, unknown>>();
+    expect(row).not.toBeNull();
+    for (const [col, value] of Object.entries(row ?? {})) {
+      expect(`${col}=${String(value)}`).not.toContain(rawSessionToken);
+    }
     expect(await store.verifySubscriberSession(env.DB, rawSessionToken)).not.toBeNull();
   });
 
   it("a SUBSCRIBER session token is not usable as a FIRM session -- separate tables, separate principals", async () => {
     // The whole reason these are different tables: an individual must never
-    // be resolvable to a firm principal.
+    // be resolvable to a firm principal. Asserting only that the FIRM
+    // verifier returns null would also pass if that verifier were simply
+    // broken -- so assert the token DOES resolve in its own system first.
     const { rawSessionToken } = await store.createSubscriberSession(env.DB, `sub-x-${Date.now()}@examplefirm.com`);
+    expect(await store.verifySubscriberSession(env.DB, rawSessionToken)).not.toBeNull();
     expect(await store.verifySession(env.DB, rawSessionToken)).toBeNull();
   });
 
@@ -89,6 +140,7 @@ describe("subscriber sessions", () => {
       adminEmail: `crossp-${Date.now()}@examplefirm.com`,
     });
     const { rawSessionToken } = await store.createSession(env.DB, id);
+    expect(await store.verifySession(env.DB, rawSessionToken)).not.toBeNull();
     expect(await store.verifySubscriberSession(env.DB, rawSessionToken)).toBeNull();
   });
 });
@@ -106,12 +158,15 @@ describe("listSubscriberLicenses -- scoping is the whole security property", () 
     expect(rows.every((r) => r.email.toLowerCase() === mine)).toBe(true);
   });
 
-  it("matches case-insensitively but does NOT match a different address", async () => {
-    const email = `roster-case-${Date.now()}@examplefirm.com`;
-    await seed(email, "ohio");
-    expect((await store.listSubscriberLicenses(env.DB, email)).length).toBe(1);
+  it("matches a MIXED-CASE stored address from its normalised form", async () => {
+    // This test previously claimed to check case-insensitivity while using a
+    // lowercase address at every step, so it proved nothing. The row is now
+    // genuinely stored mixed-case and queried lowercase.
+    const stored = `Roster-Case-${Date.now()}@ExampleFirm.com`;
+    await seed(stored, "ohio");
+    expect((await store.listSubscriberLicenses(env.DB, stored.toLowerCase())).length).toBe(1);
     // a near-miss address must return nothing
-    expect((await store.listSubscriberLicenses(env.DB, "x" + email)).length).toBe(0);
+    expect((await store.listSubscriberLicenses(env.DB, `x${stored.toLowerCase()}`)).length).toBe(0);
   });
 
   it("returns an empty list for an unknown email rather than throwing", async () => {
@@ -126,5 +181,29 @@ describe("listSubscriberLicenses -- scoping is the whole security property", () 
       .bind("stopped", "removed_by_admin", row.id)
       .run();
     expect((await store.listSubscriberLicenses(env.DB, email)).length).toBe(0);
+  });
+});
+
+describe("deleteOtherSubscriberSessions", () => {
+  it("revokes the other sessions for that email and keeps the current one", async () => {
+    const email = `sub-revoke-${Date.now()}@examplefirm.com`;
+    const older = await store.createSubscriberSession(env.DB, email);
+    const newer = await store.createSubscriberSession(env.DB, email);
+
+    await store.deleteOtherSubscriberSessions(env.DB, email, newer.sessionId);
+
+    expect(await store.verifySubscriberSession(env.DB, older.rawSessionToken)).toBeNull();
+    expect(await store.verifySubscriberSession(env.DB, newer.rawSessionToken)).not.toBeNull();
+  });
+
+  it("never touches another person's sessions", async () => {
+    const mine = `sub-revoke-mine-${Date.now()}@examplefirm.com`;
+    const theirs = `sub-revoke-theirs-${Date.now()}@examplefirm.com`;
+    const other = await store.createSubscriberSession(env.DB, theirs);
+    const current = await store.createSubscriberSession(env.DB, mine);
+
+    await store.deleteOtherSubscriberSessions(env.DB, mine, current.sessionId);
+
+    expect(await store.verifySubscriberSession(env.DB, other.rawSessionToken)).not.toBeNull();
   });
 });

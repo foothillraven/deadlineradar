@@ -408,6 +408,15 @@ export const RATE_LIMIT_FIRM_LEAD: RateLimit = { max: 5, windowSeconds: 600 };
 export const RATE_LIMIT_FIRM_SIGNUP: RateLimit = { max: 5, windowSeconds: 600 };
 export const RATE_LIMIT_FIRM_LOGIN: RateLimit = { max: 5, windowSeconds: 600 };
 
+// POST /api/subscriber/login, keyed on the RECIPIENT rather than the caller
+// (2026-07-31, free-tier security review). The per-IP bucket above cannot
+// see a distributed mail-bomb aimed at one person -- the review confirmed 12
+// sends to a single victim from 12 IPs. Tighter than the per-IP limits
+// because the legitimate need is genuinely small: a person signing in asks
+// for one link, maybe two if the first is slow to arrive. Anything past that
+// in an hour is not a user having trouble, it is someone else's traffic.
+export const RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT: RateLimit = { max: 3, windowSeconds: 3600 };
+
 // POST /firm/licenses (add a staff license, firm-dashboard MVP) -- deliberately
 // keyed on the AUTHENTICATED FIRM ID, not the caller's IP, when this is
 // checked (see index.ts's handleFirmLicenseCreate()): the requester already

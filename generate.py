@@ -3388,6 +3388,9 @@ def build_signin_page() -> str:
         body,
         home_href="../",
         canonical_path="/signin/",
+        # A nav "Sign In" link pointing at the sign-in page you are already
+        # on is noise at best and a confusing no-op at worst.
+        hide_signin=True,
     )
 
 

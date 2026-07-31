@@ -614,6 +614,94 @@
   .dr-roster-panel h2 { font-size: 0.98rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
   .dr-roster-panel .table-wrap { margin-top: 0; }
 
+  /* ---- Full-roster table: keep Actions reachable (2026-07-31) ----------
+     The problem reported (with screenshots): 7 columns overflowed to the
+     right, and the Actions column -- Edit / Mark renewed / Remove -- fell
+     off the end. .table-wrap already scrolled, but a control you have to
+     go hunting for is effectively missing, and horizontal scrolling to
+     reach the primary controls for every row is miserable.
+
+     Three changes, in the order they matter:
+       1. Actions is STICKY to the right edge, so it is on screen at every
+          scroll position rather than merely reachable. This is the actual
+          fix; the rest is about not needing to scroll in the first place.
+       2. Email truncates with an ellipsis and keeps the full value in a
+          title tooltip. Email was the widest low-value column and the main
+          reason the table overflowed at all.
+       3. Below 860px the table becomes stacked cards, because no amount of
+          column trimming makes 7 columns work on a phone. */
+  .dr-roster-panel table { width: 100%; }
+  .dr-roster-panel td, .dr-roster-panel th { white-space: nowrap; }
+
+  /* Email: the width hog. Truncate, full value on hover/focus via title. */
+  .dr-roster-panel td.dr-cell-email {
+    max-width: 15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* Sticky Actions. The background is opaque and matches the row so the
+     scrolled-under content does not bleed through, and the left shadow
+     signals there is more table behind it. */
+  .dr-roster-panel th.dr-actions-head,
+  .dr-roster-panel td.dr-actions {
+    position: sticky; right: 0; z-index: 2;
+    background: var(--card-bg);
+    box-shadow: -6px 0 6px -6px rgba(0,0,0,0.18);
+  }
+  .dr-roster-panel tbody tr:nth-child(even) td.dr-actions { background: var(--row-alt); }
+  .dr-roster-panel th.dr-actions-head { z-index: 3; }
+
+  /* Tighter action buttons so the sticky column costs less width. */
+  .dr-roster-panel td.dr-actions button { padding: 0.22rem 0.5rem; font-size: 0.76rem; white-space: nowrap; }
+
+  @media (max-width: 860px) {
+    /* Stacked cards. Each cell carries its own label via data-label, so the
+       header row can be hidden without losing what each value means. */
+    /* min-width MUST be reset here. The global `table { min-width: 420px }`
+       (line ~397, there to stop wide tables collapsing) outranks width:100%
+       and kept the stacked cards 420px wide inside a ~308px container --
+       which the overflow-x:hidden below then CLIPPED, silently cutting off
+       the right edge of every card. That is the same defect this change
+       exists to fix, so it would have shipped the bug wearing a different
+       hat. Caught by measuring computed min-width at 390px. */
+    .dr-roster-panel table, .dr-roster-panel thead, .dr-roster-panel tbody,
+    .dr-roster-panel tr, .dr-roster-panel td {
+      display: block; width: 100%; min-width: 0; max-width: 100%;
+    }
+    .dr-roster-panel thead { position: absolute; left: -9999px; }
+    .dr-roster-panel tbody tr {
+      border: 1px solid var(--border); border-radius: 9px;
+      padding: 0.7rem 0.85rem; margin-bottom: 0.7rem; background: var(--card-bg);
+    }
+    .dr-roster-panel td {
+      display: flex; justify-content: space-between; gap: 1rem;
+      border: none; padding: 0.25rem 0; white-space: normal;
+    }
+    .dr-roster-panel td::before {
+      content: attr(data-label); font-weight: 600; color: var(--muted);
+      font-size: 0.78rem; flex: 0 0 auto;
+    }
+    /* Must also undo the desktop nowrap/ellipsis, not just max-width: a long
+       address kept forcing the card wider than the viewport and reintroduced
+       horizontal scrolling on phones -- the exact problem this fix is for.
+       Caught by measuring scrollWidth at 390px, not by eye. */
+    .dr-roster-panel td.dr-cell-email {
+      max-width: none; text-align: right;
+      white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere;
+    }
+    /* Same reason: the global nowrap would otherwise keep cards wide. */
+    .dr-roster-panel td, .dr-roster-panel th { white-space: normal; }
+    .dr-roster-panel .table-wrap { overflow-x: hidden; }
+    /* Sticky is meaningless once stacked -- unset it or the buttons pin
+       oddly mid-card. */
+    .dr-roster-panel td.dr-actions {
+      position: static; box-shadow: none; background: none;
+      display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-start;
+      padding-top: 0.6rem; margin-top: 0.4rem; border-top: 1px solid var(--border);
+    }
+    .dr-roster-panel td.dr-actions::before { content: ""; display: none; }
+    .dr-roster-panel tbody tr:nth-child(even) td.dr-actions { background: none; }
+  }
+
   /* ---- Calendar + Map views (2026-07-30, BUILD v2 Phase D) -- in-page tabs,
      same fetched drLicenses data the roster view already has, no new endpoint. ---- */
   .dr-view[hidden] { display: none; }

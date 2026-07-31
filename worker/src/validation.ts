@@ -434,6 +434,29 @@ export const RATE_LIMIT_CPE_ENTRY_CREATE: RateLimit = { max: 100, windowSeconds:
 // never true in production). Lets a human tester fire the daily reminder
 // cron on demand instead of waiting for the real 18:00 UTC trigger. A tight
 // cap since this is a manual test aid, not a real feature.
+/**
+ * Auth suite (2026-07-30). Password login is rate limited on TWO buckets --
+ * per-IP AND per-account (see handleFirmPasswordLogin) -- because per-IP
+ * alone does nothing against a distributed attack on one high-value firm,
+ * and per-account alone lets one IP spray many accounts.
+ *
+ * These limits also protect AVAILABILITY, not just the credential: each
+ * attempt costs ~120ms of PBKDF2 CPU, and the Workers CPU budget starts
+ * returning "error code: 1102" under sustained concurrent hashing (measured
+ * 2026-07-30). An unthrottled login endpoint is therefore a self-DoS lever
+ * as well as a guessing oracle.
+ */
+export const RATE_LIMIT_FIRM_PASSWORD_LOGIN: RateLimit = { max: 10, windowSeconds: 600 };
+
+/** Setting/changing a password is authenticated already; this only stops a
+ * compromised session being used to burn CPU. */
+export const RATE_LIMIT_FIRM_PASSWORD_SET: RateLimit = { max: 10, windowSeconds: 3600 };
+
+/** Opening an SSO handshake is cheap, but each one writes a
+ * firm_oauth_states row -- throttled so an abandoned-handshake flood can't
+ * grow the table. */
+export const RATE_LIMIT_OAUTH_START: RateLimit = { max: 20, windowSeconds: 600 };
+
 export const RATE_LIMIT_DEBUG_REMINDER_PASS: RateLimit = { max: 5, windowSeconds: 600 };
 
 /** Returns true if this request is ALLOWED, false if it should be blocked. */

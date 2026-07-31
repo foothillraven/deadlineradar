@@ -1,0 +1,36 @@
+-- Bind an in-flight OAuth handshake to the browser that started it
+-- (2026-07-30, from two independent security reviews that both flagged the
+-- same gap).
+--
+-- WHAT WAS WRONG: migration 0010's `firm_oauth_states` made `state`
+-- single-use, hashed, and TTL-bounded -- and that comment called it "CSRF
+-- on the callback". That was overstated. Single-use state gives REPLAY
+-- protection; it does not give CSRF protection, because nothing tied a
+-- handshake to a particular browser and an attacker can always obtain a
+-- perfectly valid `state` simply by calling /start themselves.
+--
+-- THE ATTACK it allowed (login CSRF / session swapping, RFC 6749 s10.12,
+-- OAuth 2.0 Security BCP s4.7): the attacker opens a handshake, completes
+-- Google consent as THEMSELVES, captures the resulting callback URL
+-- without loading it, and gets a firm admin to open that URL. The Worker
+-- validates everything, mints a session for the ATTACKER'S firm, and sets
+-- it on the VICTIM'S browser. The victim then works in a normal-looking
+-- dashboard and types client license numbers, renewal dates and CPE
+-- records straight into the attacker's tenant. SameSite=Lax does not help:
+-- it governs cookie sending, not Set-Cookie, and this is a top-level GET.
+--
+-- THE FIX: /start also mints a second CSPRNG value, returns it to the
+-- browser as a short-lived HttpOnly cookie, and stores only its HASH here
+-- (same never-persist-a-live-bearer-value rule as every other token in
+-- this schema). The callback must present a cookie matching the consumed
+-- row. An attacker can still obtain a valid `state`, but the matching
+-- cookie is in THEIR browser, not the victim's, so the victim's request
+-- fails closed.
+--
+-- Nullable because rows written by 0010 predate the column. Those are
+-- rejected rather than grandfathered -- see consumeOauthState(), which
+-- treats a missing binding as a failure. The only cost is that a handshake
+-- already in flight at deploy time fails and the user clicks sign-in
+-- again; handshakes live 10 minutes, so the window is tiny and the
+-- alternative (accepting unbound rows) would leave the hole open.
+ALTER TABLE firm_oauth_states ADD COLUMN browser_binding_hash TEXT;

@@ -593,6 +593,15 @@ export interface FirmRow {
   plan_tier: string;
   status: string;
   created_at: string;
+  // migration 0010 (auth suite). ALL nullable: a firm that signs in only
+  // via the emailed link, or only via SSO, legitimately has no password.
+  // Callers must treat null as "no password set", never as an error.
+  password_hash: string | null;
+  password_salt: string | null;
+  password_algo: string | null;
+  password_iterations: number | null;
+  password_rounds: number | null;
+  password_updated_at: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -1207,4 +1216,313 @@ export async function removeCpeEntry(db: D1Database, firmId: string, id: string)
     .bind(nowIso(), id, firmId)
     .run();
   return (result.meta.changes ?? 0) > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Auth suite (2026-07-30, migration 0010) -- password storage + OAuth/SSO
+// identity linking and handshake state.
+//
+// Same defense-in-depth posture as the firm-license CRUD above: every
+// function that resolves a firm from an external identity binds the
+// matching value directly in its OWN WHERE clause rather than trusting a
+// caller's prior check.
+// ---------------------------------------------------------------------------
+
+/** Persists a password hash + the exact parameters it was derived with, so
+ * verification never has to assume the current defaults were in force when
+ * this row was written (see password.ts's needsRehash()). Overwrites any
+ * existing password. Callers MUST have validated strength first -- this
+ * function deliberately does not, because it is also the target of the
+ * transparent re-hash path, where the plaintext already passed validation
+ * at set time. */
+export async function setFirmPassword(
+  db: D1Database,
+  firmId: string,
+  record: { algo: string; salt: string; iterations: number; rounds: number; hash: string }
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE firms
+          SET password_hash = ?1, password_salt = ?2, password_algo = ?3,
+              password_iterations = ?4, password_rounds = ?5, password_updated_at = ?6
+        WHERE id = ?7`
+    )
+    .bind(record.hash, record.salt, record.algo, record.iterations, record.rounds, nowIso(), firmId)
+    .run();
+}
+
+/** Clears a firm's password entirely (e.g. an admin who wants to go
+ * SSO-only). Leaves the account reachable via SSO and the emailed reset
+ * link -- it does NOT lock anyone out, because those paths never consult
+ * these columns. */
+export async function clearFirmPassword(db: D1Database, firmId: string): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE firms
+          SET password_hash = NULL, password_salt = NULL, password_algo = NULL,
+              password_iterations = NULL, password_rounds = NULL, password_updated_at = ?1
+        WHERE id = ?2`
+    )
+    .bind(nowIso(), firmId)
+    .run();
+}
+
+export interface FirmOauthIdentityRow {
+  id: string;
+  firm_id: string;
+  provider: string;
+  provider_subject: string;
+  provider_email: string | null;
+  created_at: string;
+  last_login_at: string | null;
+}
+
+/**
+ * Looks up a linked identity by the provider's STABLE subject claim.
+ *
+ * Deliberately keyed on (provider, provider_subject) and never on email.
+ * A provider's `sub` is documented as immutable for the life of the
+ * account; an email address is not -- it can be renamed or reassigned to a
+ * different human inside the same tenant. Resolving a login by email would
+ * therefore hand the firm account to whoever inherits the address.
+ */
+export async function findOauthIdentity(
+  db: D1Database,
+  provider: string,
+  providerSubject: string
+): Promise<FirmOauthIdentityRow | null> {
+  const row = await db
+    .prepare(`SELECT * FROM firm_oauth_identities WHERE provider = ?1 AND provider_subject = ?2 LIMIT 1`)
+    .bind(provider, providerSubject)
+    .first<FirmOauthIdentityRow>();
+  return row ?? null;
+}
+
+/** Every provider identity currently linked to a firm -- powers the
+ * "connected accounts" view.
+ *
+ * An earlier version of this comment claimed it also backed a check
+ * stopping an admin from unlinking their LAST way to sign in. No such
+ * check existed, and security review rightly flagged the comment as
+ * misleading. It is also unnecessary: the emailed sign-in link is ALWAYS
+ * available to the firm's admin address, so removing every password and
+ * every linked provider still cannot lock anyone out. Unlinking is
+ * therefore safe unconditionally -- that is a property of the design, not
+ * an oversight. */
+export async function listOauthIdentitiesForFirm(db: D1Database, firmId: string): Promise<FirmOauthIdentityRow[]> {
+  const { results } = await db
+    .prepare(`SELECT * FROM firm_oauth_identities WHERE firm_id = ?1 ORDER BY created_at ASC`)
+    .bind(firmId)
+    .all<FirmOauthIdentityRow>();
+  return results ?? [];
+}
+
+/**
+ * Binds a provider account to a firm.
+ *
+ * Returns null when the (provider, subject) pair is ALREADY linked -- the
+ * UNIQUE constraint from migration 0010 is what enforces this, and the
+ * insert is allowed to fail rather than being preceded by a check-then-act
+ * that could race two concurrent callbacks into a double link. The caller
+ * treats null as "already linked" and re-reads, instead of assuming
+ * success.
+ */
+export async function linkOauthIdentity(
+  db: D1Database,
+  input: { firmId: string; provider: string; providerSubject: string; providerEmail: string | null }
+): Promise<FirmOauthIdentityRow | null> {
+  const id = newToken();
+  const now = nowIso();
+  try {
+    await db
+      .prepare(
+        `INSERT INTO firm_oauth_identities
+           (id, firm_id, provider, provider_subject, provider_email, created_at, last_login_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?6)`
+      )
+      .bind(id, input.firmId, input.provider, input.providerSubject, input.providerEmail, now)
+      .run();
+  } catch {
+    return null;
+  }
+  return {
+    id,
+    firm_id: input.firmId,
+    provider: input.provider,
+    provider_subject: input.providerSubject,
+    provider_email: input.providerEmail,
+    created_at: now,
+    last_login_at: now,
+  };
+}
+
+/** Records a successful SSO sign-in. Also refreshes the cached
+ * provider_email purely for display -- it is never used to resolve a
+ * login. */
+export async function touchOauthIdentityLogin(
+  db: D1Database,
+  id: string,
+  firmId: string,
+  providerEmail: string | null
+): Promise<void> {
+  // firm_id bound here too. It is not reachable today (the id comes from a
+  // row just read), but this was the ONE new mutating query that broke the
+  // convention this section's own header promises, and review flagged it
+  // as the shape a future caller would copy somewhere it does matter.
+  await db
+    .prepare(`UPDATE firm_oauth_identities SET last_login_at = ?1, provider_email = ?2 WHERE id = ?3 AND firm_id = ?4`)
+    .bind(nowIso(), providerEmail, id, firmId)
+    .run();
+}
+
+/** Unlinks a provider from a firm. firm_id is bound in the WHERE clause so
+ * one firm can never unlink another's identity even if a route forgets to
+ * check ownership. */
+export async function unlinkOauthIdentity(db: D1Database, firmId: string, id: string): Promise<boolean> {
+  const result = await db
+    .prepare(`DELETE FROM firm_oauth_identities WHERE id = ?1 AND firm_id = ?2`)
+    .bind(id, firmId)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+/** An in-flight OAuth handshake is short-lived by design: it exists only
+ * between the redirect out and the callback back. 10 minutes is generous
+ * for a human completing a provider consent screen, and short enough that
+ * a captured `state` is stale almost immediately. */
+export const OAUTH_STATE_TTL_MINUTES = 10;
+
+export interface CreateOauthStateResult {
+  rawState: string;
+  codeVerifier: string;
+  nonce: string;
+  /** Raw value for the short-lived handshake COOKIE. Only its hash is
+   * persisted; this is the copy that goes to the browser. */
+  rawBrowserBinding: string;
+}
+
+/**
+ * Opens a handshake: mints the CSRF `state`, the PKCE code_verifier, and
+ * the OIDC `nonce`, persisting only the HASH of state (same
+ * never-store-a-live-bearer-value rule as login/session tokens).
+ *
+ * code_verifier and nonce are stored in the clear because they must be
+ * replayed to the provider / compared against a returned claim, and
+ * neither is presented back to us by the browser as proof of anything --
+ * only `state` is, which is why only `state` is hashed.
+ */
+export async function createOauthState(db: D1Database, provider: string): Promise<CreateOauthStateResult> {
+  const rawState = newToken();
+  const codeVerifier = newToken();
+  const nonce = newToken();
+  // migration 0011: the browser binding. `state` travels through the
+  // provider and back via the URL, so anyone can hold a valid one; THIS
+  // value only ever exists in the initiating browser's cookie jar, which
+  // is what actually proves same-browser and stops login CSRF.
+  const rawBrowserBinding = newToken();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + OAUTH_STATE_TTL_MINUTES * 60_000).toISOString();
+  await db
+    .prepare(
+      `INSERT INTO firm_oauth_states
+         (id, provider, state_hash, code_verifier, nonce, created_at, expires_at, used_at, browser_binding_hash)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,NULL,?8)`
+    )
+    .bind(
+      newToken(),
+      provider,
+      await hashToken(rawState),
+      codeVerifier,
+      nonce,
+      now.toISOString(),
+      expiresAt,
+      await hashToken(rawBrowserBinding)
+    )
+    .run();
+  return { rawState, codeVerifier, nonce, rawBrowserBinding };
+}
+
+/**
+ * Validates and CONSUMES a handshake. Returns null for unknown, expired,
+ * or already-used state -- all three indistinguishable to the caller, the
+ * same no-oracle posture as verifyAndConsumeLoginToken().
+ *
+ * Marking used_at is what makes a captured callback URL non-replayable:
+ * the second attempt to redeem the same state finds used_at set and fails,
+ * so an attacker who records a full callback URL still cannot mint a
+ * session with it.
+ *
+ * The provider is returned (not accepted as a parameter) so the caller can
+ * assert it matches the route it arrived on -- a state opened for Google
+ * must not be redeemable at the Microsoft callback.
+ */
+export async function consumeOauthState(
+  db: D1Database,
+  rawState: string,
+  rawBrowserBinding: string | null
+): Promise<{ provider: string; codeVerifier: string; nonce: string } | null> {
+  const stateHash = await hashToken(rawState);
+  const row = await db
+    .prepare(`SELECT * FROM firm_oauth_states WHERE state_hash = ?1`)
+    .bind(stateHash)
+    .first<{
+      id: string;
+      provider: string;
+      code_verifier: string;
+      nonce: string;
+      expires_at: string;
+      used_at: string | null;
+      browser_binding_hash: string | null;
+    }>();
+  if (!row) return null;
+  if (row.used_at) return null;
+  if (Date.parse(row.expires_at) <= Date.now()) return null;
+
+  // migration 0011. Fails CLOSED on a missing cookie, a missing stored
+  // binding (a pre-0011 row), or a mismatch -- all indistinguishable to
+  // the caller, same no-oracle posture as every other check here. This is
+  // what makes a callback URL captured by someone else useless in a
+  // victim's browser: they hold the state, but not this cookie.
+  if (!rawBrowserBinding || !row.browser_binding_hash) return null;
+  if ((await hashToken(rawBrowserBinding)) !== row.browser_binding_hash) return null;
+
+  // Conditional UPDATE (not a bare one): `used_at IS NULL` in the WHERE
+  // clause makes redemption atomic, so two concurrent callbacks carrying
+  // the same state cannot both observe used_at as null above and both
+  // proceed. Exactly one gets changes=1; the loser is rejected.
+  const result = await db
+    .prepare(`UPDATE firm_oauth_states SET used_at = ?1 WHERE id = ?2 AND used_at IS NULL`)
+    .bind(nowIso(), row.id)
+    .run();
+  if ((result.meta.changes ?? 0) === 0) return null;
+
+  return { provider: row.provider, codeVerifier: row.code_verifier, nonce: row.nonce };
+}
+
+/** Housekeeping: drop handshakes that were opened and never completed.
+ * Called opportunistically from the OAuth start route so the table cannot
+ * grow without bound from abandoned sign-in attempts. */
+export async function deleteExpiredOauthStates(db: D1Database): Promise<void> {
+  await db.prepare(`DELETE FROM firm_oauth_states WHERE expires_at <= ?1`).bind(nowIso()).run();
+}
+
+/**
+ * Deletes every session for a firm EXCEPT the one making the request.
+ *
+ * Called after a successful password change. If someone else's stolen
+ * session is what prompted the change, leaving that session alive would
+ * make the password change pointless -- the attacker simply keeps using
+ * the cookie they already have. The caller's own session is preserved so
+ * changing a password doesn't log you out of the tab you're in.
+ */
+export async function deleteOtherSessionsForFirm(
+  db: D1Database,
+  firmId: string,
+  keepSessionId: string
+): Promise<number> {
+  const result = await db
+    .prepare(`DELETE FROM firm_sessions WHERE firm_id = ?1 AND id != ?2`)
+    .bind(firmId, keepSessionId)
+    .run();
+  return result.meta.changes ?? 0;
 }

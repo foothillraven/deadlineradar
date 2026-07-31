@@ -141,6 +141,17 @@ GLEIM_AFFILIATE_URL = _GLEIM_AFFILIATE_PLACEHOLDER
 # production's single deadline-radar.com domain does.
 REMINDER_BACKEND_BASE_URL = os.environ.get("DR_REMINDER_BACKEND_BASE_URL", "/api")
 
+# 2026-07-30 (auth suite). Comma-separated provider ids to render SSO
+# buttons for, e.g. DR_SSO_PROVIDERS="google".
+#
+# Defaults to EMPTY -- no SSO buttons -- deliberately. The Worker gates each
+# provider on ITS OWN secrets and 404s when they are absent, so a build that
+# advertises a provider the deployed Worker has no credentials for would
+# render a button that dead-ends on click. Safe-by-default means production
+# shows nothing until the secrets are actually in place, and the flag is set
+# for a build only alongside setting that environment's secrets.
+SSO_PROVIDERS = [p.strip() for p in os.environ.get("DR_SSO_PROVIDERS", "").split(",") if p.strip()]
+
 # States whose worker (deadline.ts's computeSubscriberDeadline) has dedicated
 # per-state fields to compute a deadline even without a plain
 # next_deadline_computed on any record -- birth-month (California/Texas) or a
@@ -960,6 +971,19 @@ PAGE_CSS = """
   .dr-cpe-recent-item:last-child { border-bottom: none; }
   .dr-cpe-recent-remove { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 6px; padding: 0.2rem 0.55rem; cursor: pointer; font-family: inherit; font-size: 0.78rem; }
   .dr-cpe-recent-remove:hover { background: var(--row-alt); color: #c33737; }
+
+  /* ---- SSO sign-in button + account settings (2026-07-30, auth suite) ---- */
+  .dr-sso-block { margin-top: 1rem; }
+  .dr-sso-divider { display: flex; align-items: center; gap: 0.75rem; color: var(--faint); font-size: 0.8rem; margin: 0.9rem 0; }
+  .dr-sso-divider::before, .dr-sso-divider::after { content: ""; flex: 1 1 auto; height: 1px; background: var(--border); }
+  .dr-sso-button { display: flex; align-items: center; justify-content: center; gap: 0.6rem; width: 100%; box-sizing: border-box; padding: 0.62rem 1rem; border: 1px solid var(--border-strong); border-radius: 8px; background: #fff; color: #1f1f1f; font-family: inherit; font-size: 0.95rem; font-weight: 500; text-decoration: none; cursor: pointer; }
+  .dr-sso-button:hover { background: #f6f8fa; }
+  .dr-sso-mark { flex: 0 0 auto; }
+  .dr-sso-note { margin-top: 0.55rem; }
+  .dr-account-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; max-width: 32rem; }
+  .dr-account-panel h2 { font-size: 1.05rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
+  .dr-account-ok { color: #1f9e5c; font-size: 0.85rem; margin-top: 0.6rem; }
+  .dr-account-err { color: #c33737; font-size: 0.85rem; margin-top: 0.6rem; }
 """
 
 
@@ -1155,56 +1179,50 @@ _FIRST_NAME_FIELD_HTML = (
 # submission that arrives without a widget token.
 TURNSTILE_SITE_KEY = "0x4AAAAAADvxskBA78YAubz_"
 
-_HONEYPOT_HTML = (
-    f'<div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;'
-    f'height:0;width:0;overflow:hidden;">'
-    f'<label for="{_HONEYPOT_FIELD_NAME}">Leave this field blank</label>'
-    f'<input type="text" id="{_HONEYPOT_FIELD_NAME}" name="{_HONEYPOT_FIELD_NAME}" '
-    f'tabindex="-1" autocomplete="off">'
-    f'</div>'
-)
+def _bot_defense_fields_html(id_suffix: str = "") -> str:
+    """Honeypot + Turnstile widget for ONE form.
 
-if TURNSTILE_SITE_KEY:
-    # Real widget. Cloudflare's api.js (loaded in <head> by _turnstile_head_html)
-    # renders this div and injects the hidden `cf-turnstile-response` token input
-    # inside it on solve, which then submits with the form.
-    _BOT_DEFENSE_FIELDS_HTML = (
-        _HONEYPOT_HTML + "\n"
-        f'    <div class="cf-turnstile" data-sitekey="{esc(TURNSTILE_SITE_KEY)}"></div>'
+    Parameterised by id suffix because a page can legitimately carry more
+    than one form (2026-07-28 /firm-login/ had two; the 2026-07-30 auth
+    suite made it three: create-account, password sign-in, and the emailed
+    sign-in link). Repeating a fixed `id="hp_website"` per form would emit
+    duplicate ids and duplicate `<label for=...>` targets on one page -- an
+    HTML-validity defect, and a real accessibility one, since a label would
+    point at whichever field the browser resolved first.
+
+    The honeypot NAME is deliberately identical across all of them: every
+    handler in index.ts matches by name, never by id. Only the id varies.
+
+    Cloudflare explicitly supports multiple independent `.cf-turnstile`
+    widgets on a page, so one per form is fine.
+
+    An absent TURNSTILE_SITE_KEY emits an empty hidden field instead, which
+    the Worker treats as "not configured yet" rather than a failed check --
+    matching verifyTurnstile()'s own degrade-safely contract.
+    """
+    field_id = f"{_HONEYPOT_FIELD_NAME}{id_suffix}"
+    honeypot = (
+        f'<div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;'
+        f'height:0;width:0;overflow:hidden;">'
+        f'<label for="{field_id}">Leave this field blank</label>'
+        f'<input type="text" id="{field_id}" name="{_HONEYPOT_FIELD_NAME}" '
+        f'tabindex="-1" autocomplete="off">'
+        f'</div>'
     )
-else:
-    _BOT_DEFENSE_FIELDS_HTML = (
-        _HONEYPOT_HTML + "\n"
-        f'    <!-- Turnstile reserved: set TURNSTILE_SITE_KEY (+ the Worker secret) to activate. '
-        f'Empty/absent is treated as "not configured yet," not as a failed check. -->\n'
-        f'    <input type="hidden" name="cf-turnstile-response" value="">'
-    )
+    if TURNSTILE_SITE_KEY:
+        widget = f'    <div class="cf-turnstile" data-sitekey="{esc(TURNSTILE_SITE_KEY)}"></div>'
+    else:
+        widget = (
+            f'    <!-- Turnstile reserved: set TURNSTILE_SITE_KEY (+ the Worker secret) to activate. '
+            f'Empty/absent is treated as "not configured yet," not as a failed check. -->\n'
+            f'    <input type="hidden" name="cf-turnstile-response" value="">'
+        )
+    return honeypot + "\n" + widget
 
 
-# Second bot-defense field block for a page that legitimately needs TWO
-# separate forms on one page (2026-07-28, /firm-login/'s "sign in" +
-# "create account" forms) -- reusing _BOT_DEFENSE_FIELDS_HTML verbatim twice
-# on the same page would render the honeypot's `id="hp_website"` (and its
-# `<label for="hp_website">`) twice, a duplicate-id HTML defect this site had
-# never previously hit (every other page embeds at most one bot-defense
-# block). Same honeypot `name` (server-side matching is by name, not id -- see
-# index.ts's every handler) and identical Turnstile-gating logic, just a
-# distinct id suffix. Cloudflare's Turnstile widget explicitly supports
-# multiple `.cf-turnstile` widgets per page, so two independent widgets here
-# is not itself a problem.
-_BOT_DEFENSE_FIELDS_HTML_ALT = (
-    f'<div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;'
-    f'height:0;width:0;overflow:hidden;">'
-    f'<label for="{_HONEYPOT_FIELD_NAME}-alt">Leave this field blank</label>'
-    f'<input type="text" id="{_HONEYPOT_FIELD_NAME}-alt" name="{_HONEYPOT_FIELD_NAME}" '
-    f'tabindex="-1" autocomplete="off">'
-    f'</div>\n'
-    + (
-        f'    <div class="cf-turnstile" data-sitekey="{esc(TURNSTILE_SITE_KEY)}"></div>'
-        if TURNSTILE_SITE_KEY
-        else f'    <input type="hidden" name="cf-turnstile-response" value="">'
-    )
-)
+_BOT_DEFENSE_FIELDS_HTML = _bot_defense_fields_html()
+_BOT_DEFENSE_FIELDS_HTML_ALT = _bot_defense_fields_html("-alt")
+_BOT_DEFENSE_FIELDS_HTML_SIGNIN = _bot_defense_fields_html("-signin")
 
 
 def _turnstile_head_html() -> str:
@@ -2442,10 +2460,9 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   whole firm's staff across multiple states, the firm dashboard below is the same sourced-to-codified-
   law data in one roster view &mdash; who's current, who's at risk, and who needs to act.</p>
   {_firm_dashboard_mockup_html(by_slug, as_of)}
-  <p class="how-it-works"><strong>$500/year, flat &mdash; up to 25 staff. No per-person pricing.</strong>
-  Starting with a free 30-day pilot, no card required. More than 25 staff?
-  <a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a>. <a href="for-firms/" style="font-weight:600;">See
-  firm-tier pricing and details &rarr;</a></p>
+  <p class="how-it-works"><strong>$500/year flat for up to 10 staff</strong>, starting with a free
+  30-day pilot, no card required. <a href="for-firms/" style="font-weight:600;">See firm-tier pricing
+  and details &rarr;</a></p>
 </section>"""
 
     body = f"""{hero_html}
@@ -3005,9 +3022,8 @@ independently verified &mdash; we won't blur it with the sourced renewal dates t
 trust this site.</p>
 
 <h2>Pricing</h2>
-<p><strong>$500/year, flat &mdash; up to 25 staff. No per-person pricing.</strong>
-Start with a <strong>free 30-day pilot &mdash; no card required</strong>. More than 25 staff?
-<a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a>.</p>
+<p><strong>$500/year flat for firms with up to 10 staff</strong>, about $50/seat/year above that.
+Start with a <strong>free 30-day pilot &mdash; no card required</strong>.</p>
 
 <div class="remind-panel" id="firm-signup">
   <div>
@@ -3057,7 +3073,7 @@ invoice; a self-serve card-payment option is coming soon. Not ready to create an
 """
     return page_shell(
         f"For Firms — {SITE_NAME}",
-        "CPA firm license tracking: $500/year flat for up to 25 staff, free 30-day pilot. "
+        "CPA firm license tracking: $500/year flat for up to 10 staff, free 30-day pilot. "
         "Sourced to the same codified state law DeadlineRadar verifies for every state.",
         body,
         home_href="../",
@@ -3114,6 +3130,24 @@ def build_firm_login_page() -> str:
     before the site is actually deployed, or a visitor bouncing between the
     two will see a contradiction.
     """
+    sso_buttons_html = ""
+    if "google" in SSO_PROVIDERS:
+        sso_buttons_html = f"""
+  <div class="dr-sso-block">
+    <div class="dr-sso-divider"><span>or</span></div>
+    <a class="dr-sso-button" href="{REMINDER_BACKEND_BASE_URL}/firm/auth/google/start">
+      <svg class="dr-sso-mark" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+        <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
+        <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/>
+        <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/>
+        <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/>
+      </svg>
+      <span>Sign in with Google</span>
+    </a>
+    <p class="signup-microcopy dr-sso-note">Uses your existing Google account &mdash; no extra password to
+    manage. You'll need a DeadlineRadar account first.</p>
+  </div>"""
+
     body = f"""<h1>Sign in or create your firm account</h1>
 <p class="subhead">One roster for every staff CPA's license renewal &mdash; sorted by what needs
 attention soonest.</p>
@@ -3122,7 +3156,7 @@ attention soonest.</p>
   <h2>New firm? Start here</h2>
   <p class="signup-microcopy">Most first-time visitors don't have an account yet &mdash; this is
   the one you want. Free to start &mdash; a 30-day pilot, no card required. We'll email your
-  admin address a one-time sign-in link to finish setting up.</p>
+  admin address a one-time link to finish setting up.</p>
   <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/signup">
     {_BOT_DEFENSE_FIELDS_HTML_ALT}
     <label for="signup-firm-name">Firm name</label>
@@ -3135,18 +3169,34 @@ attention soonest.</p>
 
 <div class="signup-form">
   <h2>Already set up? Sign in</h2>
-  <p class="signup-microcopy">Enter your firm's admin email and, if it has an account, we'll send a
-  one-time sign-in link. No password to remember or reset.</p>
+  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/login/password">
+    {_BOT_DEFENSE_FIELDS_HTML_SIGNIN}
+    <label for="signin-email">Admin email</label>
+    <input type="email" id="signin-email" name="admin_email" required autocomplete="username"
+    placeholder="you@yourfirm.com">
+    <label for="signin-password">Password</label>
+    <input type="password" id="signin-password" name="password" required
+    autocomplete="current-password">
+    <button type="submit">Sign in</button>
+  </form>
+{sso_buttons_html}
+</div>
+
+<div class="signup-form">
+  <h2>No password yet, or forgot it?</h2>
+  <p class="signup-microcopy">We'll email you a one-time link. It signs you straight in, and from your
+  dashboard you can set a password for next time. Works whether or not you've set one before.</p>
   <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/login">
     {_BOT_DEFENSE_FIELDS_HTML}
     <label for="login-email">Admin email</label>
     <input type="email" id="login-email" name="admin_email" required placeholder="you@yourfirm.com">
-    <button type="submit">Send sign-in link</button>
+    <button type="submit">Email me a sign-in link</button>
   </form>
 </div>
 
 <p class="how-it-works">Want pricing and details first? <a href="/for-firms/">See the firm overview</a>.</p>
 """
+
     return page_shell(
         f"Sign In / Create Account — {SITE_NAME}",
         "Sign in to your DeadlineRadar firm dashboard, or create a new firm account to start "
@@ -3935,6 +3985,90 @@ function drRemoveCpeEntry(id, label) {
     });
 }
 
+function drRenderIdentities(items) {
+  var el = document.getElementById('dr-identities-body');
+  if (!el) return;
+  if (!items || items.length === 0) {
+    el.innerHTML = '<p class="dr-panel-empty">None connected. You sign in with a password or an emailed link.</p>';
+    return;
+  }
+  el.innerHTML = items.map(function(it) {
+    var label = it.provider === 'google' ? 'Google' : it.provider;
+    var who = it.provider_email ? ' (' + drEscapeHtml(it.provider_email) + ')' : '';
+    var last = it.last_login_at ? 'Last used ' + drEscapeHtml(drFormatDeadline(String(it.last_login_at).slice(0, 10))) : 'Never used';
+    return '<div class="dr-cpe-recent-item"><span><b>' + drEscapeHtml(label) + '</b>' + who +
+      '<span class="dr-agenda-date" style="display:block;">' + last + '</span></span>' +
+      '<button type="button" class="dr-cpe-recent-remove" data-identity-id="' + drEscapeHtml(it.id) +
+      '" data-identity-label="' + drEscapeHtml(label) + '">Remove</button></div>';
+  }).join('');
+}
+
+function drLoadIdentities() {
+  return fetch('/api/firm/oauth-identities', {credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      if (!res.ok) return null;
+      return res.json();
+    })
+    .then(function(data) { drRenderIdentities(data && data.identities); })
+    .catch(function() {});
+}
+
+function drRemoveIdentity(id, label) {
+  if (!window.confirm('Remove the ' + label + ' sign-in from this account? You can still sign in with a password or an emailed link.')) return;
+  var errEl = document.getElementById('dr-identity-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  fetch('/api/firm/oauth-identities/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return; }
+      if (res.ok) { drLoadIdentities(); return; }
+      if (errEl) { errEl.textContent = 'Could not remove that sign-in method. Please try again.'; errEl.hidden = false; }
+    })
+    .catch(function() {
+      if (errEl) { errEl.textContent = 'Could not remove that sign-in method. Please try again.'; errEl.hidden = false; }
+    });
+}
+
+function drSubmitPassword(form) {
+  var okEl = document.getElementById('dr-password-ok');
+  var errEl = document.getElementById('dr-password-error');
+  if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+
+  var fd = new FormData(form);
+  var body = {new_password: fd.get('new_password') || ''};
+  // Only sent when non-empty: a firm setting its FIRST password has no
+  // current one to prove, and sending an empty string would look like a
+  // failed check rather than an absent one.
+  var current = fd.get('current_password');
+  if (current) body.current_password = current;
+
+  fetch('/api/firm/password', {
+    method: 'POST', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        return;
+      }
+      form.reset();
+      if (okEl) {
+        var ended = (data && data.other_sessions_ended) || 0;
+        okEl.textContent = ended > 0
+          ? 'Password saved. You were signed out on ' + ended + ' other device' + (ended === 1 ? '' : 's') + '.'
+          : 'Password saved.';
+        okEl.hidden = false;
+      }
+    });
+  }).catch(function() {
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
 function drLoadLicenses() {
   drClearError();
   fetch('/api/firm/licenses', {credentials: 'include'})
@@ -4062,6 +4196,24 @@ document.addEventListener('DOMContentLoaded', function() {
     calToday.addEventListener('click', function() {
       drCalendarRefDate = null;
       drRenderCalendar();
+    });
+  }
+
+  var identitiesBody = document.getElementById('dr-identities-body');
+  if (identitiesBody) {
+    drLoadIdentities();
+    identitiesBody.addEventListener('click', function(ev) {
+      var btn = ev.target.closest ? ev.target.closest('[data-identity-id]') : null;
+      if (!btn) return;
+      drRemoveIdentity(btn.getAttribute('data-identity-id'), btn.getAttribute('data-identity-label'));
+    });
+  }
+
+  var passwordForm = document.getElementById('dr-password-form');
+  if (passwordForm) {
+    passwordForm.addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      drSubmitPassword(passwordForm);
     });
   }
 
@@ -4223,6 +4375,7 @@ def build_firm_dashboard_page(
       <li><a href="#" data-view="calendar" role="tab" aria-selected="false">Calendar</a></li>
       <li><a href="#" data-view="map" role="tab" aria-selected="false">Map</a></li>
       <li><a href="#" data-view="cpe" role="tab" aria-selected="false">CPE Hours</a></li>
+      <li><a href="#" data-view="account" role="tab" aria-selected="false">Account</a></li>
       {sidebar_nav_soon_items}
     </ul>
     <div class="dr-sidebar-foot">
@@ -4345,6 +4498,41 @@ def build_firm_dashboard_page(
       <div class="dr-cpe-log-panel">
         <h2>Recently logged</h2>
         <div id="dr-cpe-recent-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
+      </div>
+    </div>
+
+    <div id="dr-view-account" class="dr-view" role="tabpanel" hidden>
+      <div class="dr-account-panel">
+        <h2>Password</h2>
+        <p class="signup-microcopy">Set a password to sign in directly, instead of waiting on an
+        emailed link each time. If you already have one, enter it below to change it.</p>
+        <!-- method/action are REQUIRED here even though JS intercepts the
+             submit. Without them a native submit (JS error earlier in the
+             bundle, an extension, Enter pressed before DOMContentLoaded)
+             defaults to GET on the current URL, writing BOTH plaintext
+             passwords into the URL bar, browser history, the static host's
+             access logs, and any Referer sent from this page. Caught in
+             the 2026-07-30 security review. -->
+        <form id="dr-password-form" method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/password">
+          <label for="dr-current-password">Current password <span class="field-hint">(leave blank if you've never set one)</span></label>
+          <input type="password" id="dr-current-password" name="current_password" autocomplete="current-password">
+          <label for="dr-new-password">New password</label>
+          <input type="password" id="dr-new-password" name="new_password" required minlength="12"
+          autocomplete="new-password">
+          <p class="field-hint">At least 12 characters. A short phrase you'll remember beats a short
+          jumble you won't &mdash; length matters more than symbols.</p>
+          <button type="submit">Save password</button>
+        </form>
+        <p id="dr-password-ok" class="dr-account-ok" hidden></p>
+        <p id="dr-password-error" class="dr-account-err" hidden></p>
+      </div>
+
+      <div class="dr-account-panel">
+        <h2>Connected sign-in accounts</h2>
+        <p class="signup-microcopy">Accounts you can sign in with directly. Removing one doesn't lock
+        you out &mdash; you can always request an emailed sign-in link.</p>
+        <div id="dr-identities-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
+        <p id="dr-identity-error" class="dr-account-err" hidden></p>
       </div>
     </div>
   </div>

@@ -107,48 +107,75 @@ export function isValidEmail(email: string): boolean {
 
 // ---------------------------------------------------------------------------
 // Firm-signup trial gate (2026-07-30 BUILD v2, Phase A) -- competitor-intel
-// protection per the directive: require a business email on POST
-// /firm/signup, blocking both free consumer-email providers and named
-// incumbent competitors from opening a free-pilot trial account. Deliberately
+// protection per the directive: gate POST /firm/signup against disposable
+// (temp-mail) domains and named incumbent competitors opening a free-pilot
+// trial account. Free consumer-email providers are deliberately ALLOWED --
+// see the DISPOSABLE_EMAIL_DOMAINS comment below for the evidence that
+// reversed the original policy. Deliberately
 // NOT applied to /firm/login (an existing account, whatever domain it was
 // created under, must always be able to sign back in -- this gates NEW trial
 // creation, not existing access).
 // ---------------------------------------------------------------------------
 
-// The 5 the directive names explicitly (gmail/yahoo/outlook/icloud/aol), each
-// provider's other real domains (hotmail/live/msn are all Microsoft's
-// consumer webmail; me.com/mac.com are iCloud aliases; ymail.com/
-// rocketmail.com/googlemail.com are Yahoo/Gmail aliases), plus a handful of
-// other common free providers an adversarial review flagged as an obvious gap
-// (protonmail/gmx/mail.com/zoho/yandex/fastmail). Still explicitly a "light
-// check" per the directive, not a maintained industry-wide list -- a
-// determined competitor can always find a provider not on it.
-const FREE_EMAIL_DOMAINS: readonly string[] = [
-  "gmail.com",
-  "googlemail.com",
-  "yahoo.com",
-  "ymail.com",
-  "rocketmail.com",
-  "outlook.com",
-  "hotmail.com",
-  "live.com",
-  "msn.com",
-  "icloud.com",
-  "me.com",
-  "mac.com",
-  "aol.com",
-  "protonmail.com",
-  "proton.me",
-  "gmx.com",
-  "mail.com",
-  "zoho.com",
-  "yandex.com",
-  "fastmail.com",
+// FREE-EMAIL BLOCKING WAS REMOVED 2026-07-30, replaced by disposable-only.
+//
+// The original list blocked gmail/yahoo/outlook/icloud/aol and friends, to
+// stop free-pilot trials from non-business addresses. Competitive research
+// across 14 products in this market found that policy has no support here
+// and real cost:
+//
+//   * The AICPA -- the buyer's OWN governing body, selling CPE self-serve to
+//     individual CPAs at $385-569 -- blocks ONLY disposable domains. Their
+//     live site config lists exactly `gufum.com,yopmail.com`, both temp-mail
+//     services, with no free provider anywhere on their registration pages.
+//   * Of 14 products checked, every single free-email block sat on a
+//     SALES-ROUTING form (demo requests via HubSpot/ChiliPiper/Calendly).
+//     Zero blocked free email on genuinely self-serve signup. The pattern is
+//     lead qualification for a human sales team -- which this product does
+//     not have, so the block was filtering buyers to protect a step that
+//     does not exist in our funnel.
+//   * Accounting is full of solo and micro firms with no custom domain at
+//     all. At $500/yr for up to 25 staff, a sole practitioner is squarely a
+//     target customer, and the old list turned every one of them away.
+//   * It also blocked outlook.com/hotmail.com/live.com while the product
+//     strategy explicitly targets an "M365-heavy" audience -- turning away
+//     Microsoft-identity users at the door.
+//
+// Disposable/temp-mail domains are still refused: those are throwaway by
+// construction, so an account behind one cannot receive the renewal
+// reminders this product exists to send, and the address is unreachable the
+// moment the trial matters. Unlike the free-email list, being non-exhaustive
+// here costs almost nothing -- a missed disposable domain just means one
+// junk trial, whereas a missed real buyer was a lost customer.
+const DISPOSABLE_EMAIL_DOMAINS: readonly string[] = [
+  // The two the AICPA itself blocks.
+  "gufum.com",
+  "yopmail.com",
+  // Long-standing, widely-used temp-mail services.
+  "mailinator.com",
+  "guerrillamail.com",
+  "sharklasers.com",
+  "10minutemail.com",
+  "temp-mail.org",
+  "tempmail.com",
+  "throwawaymail.com",
+  "trashmail.com",
+  "dispostable.com",
+  "maildrop.cc",
+  "getnada.com",
+  "fakeinbox.com",
+  "moakt.com",
+  "mailnesia.com",
+  "spam4.me",
 ];
 
 // Named incumbents from the directive's own competitor scan (CPA QualityPro,
 // Certemy, Harbor Compliance, Copliancy). Not exhaustive -- a "light check"
 // per the directive, not a maintained industry-wide blocklist.
+//
+// This half of the gate SURVIVED the 2026-07-30 policy change: it is
+// targeted, cheap, and cannot turn away a real buyer, unlike the free-email
+// list it used to sit beside.
 const COMPETITOR_EMAIL_DOMAINS: readonly string[] = [
   "cpaqualitypro.com",
   "certemy.com",
@@ -161,18 +188,19 @@ function emailDomain(email: string): string {
   return at === -1 ? "" : email.slice(at + 1).toLowerCase();
 }
 
-// Exact match OR a real subdomain of a blocked domain (foo.gmail.com) --
+// Exact match OR a real subdomain of a blocked domain (foo.mailinator.com) --
 // deliberately NOT a substring/`.includes()` test, which would false-positive
 // on a legitimate business domain that merely CONTAINS a blocked name as a
-// prefix (e.g. "gmail.com.someconsultancy.com" is not Google's gmail.com and
-// must not be blocked; "mail.gmail.com" IS a subdomain of it and should be).
+// prefix (e.g. "mailinator.com.someconsultancy.com" is not mailinator.com and
+// must not be blocked; "mail.mailinator.com" IS a subdomain of it and should
+// be).
 function matchesBlockedDomain(domain: string, blocklist: readonly string[]): boolean {
   return blocklist.some((blocked) => domain === blocked || domain.endsWith(`.${blocked}`));
 }
 
 export type SignupDomainGateResult =
   | { blocked: false }
-  | { blocked: true; reason: "free_email" | "competitor" };
+  | { blocked: true; reason: "disposable" | "competitor" };
 
 /**
  * `email` must already have passed `isValidEmail()` -- this does no format
@@ -181,7 +209,7 @@ export type SignupDomainGateResult =
 export function checkSignupDomainGate(email: string): SignupDomainGateResult {
   const domain = emailDomain(email);
   if (domain.length === 0) return { blocked: false };
-  if (matchesBlockedDomain(domain, FREE_EMAIL_DOMAINS)) return { blocked: true, reason: "free_email" };
+  if (matchesBlockedDomain(domain, DISPOSABLE_EMAIL_DOMAINS)) return { blocked: true, reason: "disposable" };
   if (matchesBlockedDomain(domain, COMPETITOR_EMAIL_DOMAINS)) return { blocked: true, reason: "competitor" };
   return { blocked: false };
 }

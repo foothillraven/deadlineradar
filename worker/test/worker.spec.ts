@@ -569,24 +569,48 @@ describe("POST /firm/signup -- firm account creation + login-link send", () => {
   });
 });
 
-// 2026-07-30, BUILD v2 Phase A -- trial gate against free-email signups and
-// named competitors opening a free-pilot account to see the product.
-describe("POST /firm/signup -- trial gate (business email required)", () => {
-  it("rejects a free-email-provider domain and creates no firm", async () => {
-    const email = `trialgate-free-${Date.now()}@gmail.com`;
-    const resp = await postFirmSignup({ name: "Some Firm", admin_email: email }, "203.0.113.170");
-    expect(resp.status).toBe(400);
-    expect(await firmByAdminEmail(email)).toBeNull();
+// Trial gate. POLICY CHANGED 2026-07-30: free consumer-email providers are
+// now ALLOWED; only disposable/temp-mail domains and named competitors are
+// refused. Competitive research across 14 products found every free-email
+// block in this market sits on a sales-routing form, and the AICPA itself --
+// selling self-serve to individual CPAs -- blocks only disposable domains.
+// Accounting is full of solo practitioners with no custom domain, so the old
+// list was turning away real buyers to protect a sales step we don't have.
+describe("POST /firm/signup -- trial gate (disposable + competitor domains)", () => {
+  it("ALLOWS a Gmail signup -- solo practitioners are real customers (policy reversed 2026-07-30)", async () => {
+    const email = `trialgate-gmail-${Date.now()}@gmail.com`;
+    const resp = await postFirmSignup({ name: "Solo CPA", admin_email: email }, "203.0.113.170");
+    expect(resp.status).toBe(200);
+    expect(await firmByAdminEmail(email)).not.toBeNull();
   });
 
-  it("rejects every free-email domain named in the directive (gmail/yahoo/outlook/icloud/aol), case-insensitively", async () => {
+  it("ALLOWS every consumer-email provider the old list blocked, including Microsoft's", async () => {
+    // outlook/hotmail/live were blocked while the product strategy targeted
+    // an "M365-heavy" audience -- turning away Microsoft-identity users at
+    // the door.
     const domains = ["gmail.com", "Yahoo.com", "OUTLOOK.COM", "icloud.com", "aol.com", "hotmail.com"];
     for (const [i, domain] of domains.entries()) {
-      const email = `trialgate-free-${i}-${Date.now()}@${domain}`;
+      const email = `trialgate-consumer-${i}-${Date.now()}@${domain}`;
       const resp = await postFirmSignup(
         { name: "Some Firm", admin_email: email },
         `203.0.113.${180 + i}`
       );
+      expect(resp.status).toBe(200);
+    }
+  });
+
+  it("rejects a disposable/temp-mail domain -- it cannot receive the reminders this product exists to send", async () => {
+    const email = `trialgate-disposable-${Date.now()}@mailinator.com`;
+    const resp = await postFirmSignup({ name: "Throwaway", admin_email: email }, "203.0.113.176");
+    expect(resp.status).toBe(400);
+    expect(await firmByAdminEmail(email)).toBeNull();
+  });
+
+  it("rejects the two disposable domains the AICPA itself blocks, case-insensitively", async () => {
+    const domains = ["gufum.com", "YOPMAIL.COM"];
+    for (const [i, domain] of domains.entries()) {
+      const email = `trialgate-disp-${i}-${Date.now()}@${domain}`;
+      const resp = await postFirmSignup({ name: "Some Firm", admin_email: email }, `203.0.113.${200 + i}`);
       expect(resp.status).toBe(400);
     }
   });
@@ -611,14 +635,14 @@ describe("POST /firm/signup -- trial gate (business email required)", () => {
   });
 
   it("blocks a real subdomain of a blocked domain (subdomain bypass attempt)", async () => {
-    const email = `trialgate-subdomain-${Date.now()}@mail.gmail.com`;
+    const email = `trialgate-subdomain-${Date.now()}@mail.mailinator.com`;
     const resp = await postFirmSignup({ name: "Some Firm", admin_email: email }, "203.0.113.172");
     expect(resp.status).toBe(400);
     expect(await firmByAdminEmail(email)).toBeNull();
   });
 
   it("does NOT block a legitimate business domain that merely contains a blocked name as a prefix (false-positive check)", async () => {
-    const email = `trialgate-notfree-${Date.now()}@gmail.com.someconsultancy.com`;
+    const email = `trialgate-notdisp-${Date.now()}@mailinator.com.someconsultancy.com`;
     const resp = await postFirmSignup({ name: "Some Consultancy LLC", admin_email: email }, "203.0.113.173");
     expect(resp.status).toBe(200);
     expect(await firmByAdminEmail(email)).not.toBeNull();
@@ -649,8 +673,8 @@ describe("POST /firm/signup -- trial gate (business email required)", () => {
 
   it("an allowlisted domain gate exemption does NOT also exempt a DIFFERENT blocked-domain email not on the list", async () => {
     const worker = (await import("../src/index")).default;
-    const allowlistedEmail = `trialgate-allowlisted-other-${Date.now()}@gmail.com`;
-    const notAllowlistedEmail = `trialgate-not-allowlisted-${Date.now()}@gmail.com`;
+    const allowlistedEmail = `trialgate-allowlisted-other-${Date.now()}@mailinator.com`;
+    const notAllowlistedEmail = `trialgate-not-allowlisted-${Date.now()}@mailinator.com`;
     const envWithAllowlist = { ...env, EMAIL_ALLOWLIST: allowlistedEmail };
     const request = new Request("https://deadline-radar.com/firm/signup", {
       method: "POST",
@@ -667,7 +691,7 @@ describe("POST /firm/signup -- trial gate (business email required)", () => {
     // codebase's existing "repeat signup for an existing email just resends
     // the login link" behavior -- including for an account that happens to
     // sit on a now-blocked domain (e.g. a solo practitioner whose only
-    // "business" email is gmail.com, or any account that predates this
+    // email is on a now-blocked domain, or any account that predates this
     // gate). Insert a firm directly under a blocked domain, then hit
     // /firm/signup again for that exact email and confirm it succeeds with
     // the normal generic response, not a 400.
@@ -696,7 +720,7 @@ describe("POST /firm/signup -- trial gate (business email required)", () => {
     // Guards against a sloppy "any firm on this domain" check instead of the
     // correct per-EMAIL existing-account check -- two different people at the
     // same free-email provider must not let one's account exempt the other.
-    const existingEmail = `trialgate-domain-a-${Date.now()}@gmail.com`;
+    const existingEmail = `trialgate-domain-a-${Date.now()}@mailinator.com`;
     await env.DB
       .prepare(
         "INSERT INTO firms (id, name, admin_email, plan_tier, status, created_at) VALUES (?1, ?2, ?3, 'pilot', 'active', datetime('now'))"
@@ -704,7 +728,7 @@ describe("POST /firm/signup -- trial gate (business email required)", () => {
       .bind(crypto.randomUUID(), "Someone Else's Firm", existingEmail)
       .run();
 
-    const newEmail = `trialgate-domain-b-${Date.now()}@gmail.com`;
+    const newEmail = `trialgate-domain-b-${Date.now()}@mailinator.com`;
     const resp = await postFirmSignup({ name: "A Different New Firm", admin_email: newEmail }, "203.0.113.179");
     expect(resp.status).toBe(400);
     expect(await firmByAdminEmail(newEmail)).toBeNull();

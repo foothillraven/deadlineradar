@@ -699,6 +699,19 @@
   .dr-cpe-recent-remove { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 6px; padding: 0.2rem 0.55rem; cursor: pointer; font-family: inherit; font-size: 0.78rem; }
   .dr-cpe-recent-remove:hover { background: var(--row-alt); color: #c33737; }
 
+  /* ---- SSO sign-in button + account settings (2026-07-30, auth suite) ---- */
+  .dr-sso-block { margin-top: 1rem; }
+  .dr-sso-divider { display: flex; align-items: center; gap: 0.75rem; color: var(--faint); font-size: 0.8rem; margin: 0.9rem 0; }
+  .dr-sso-divider::before, .dr-sso-divider::after { content: ""; flex: 1 1 auto; height: 1px; background: var(--border); }
+  .dr-sso-button { display: flex; align-items: center; justify-content: center; gap: 0.6rem; width: 100%; box-sizing: border-box; padding: 0.62rem 1rem; border: 1px solid var(--border-strong); border-radius: 8px; background: #fff; color: #1f1f1f; font-family: inherit; font-size: 0.95rem; font-weight: 500; text-decoration: none; cursor: pointer; }
+  .dr-sso-button:hover { background: #f6f8fa; }
+  .dr-sso-mark { flex: 0 0 auto; }
+  .dr-sso-note { margin-top: 0.55rem; }
+  .dr-account-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; max-width: 32rem; }
+  .dr-account-panel h2 { font-size: 1.05rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
+  .dr-account-ok { color: #1f9e5c; font-size: 0.85rem; margin-top: 0.6rem; }
+  .dr-account-err { color: #c33737; font-size: 0.85rem; margin-top: 0.6rem; }
+
 </style>
 </head>
 <body>
@@ -782,7 +795,7 @@
   <li><span class="tick">&#10003;</span> One-click unsubscribe, no account or login required</li>
 </ul>
   </div>
-  <form method="post" action="https://deadlineradar-api-preview.foothillraven.workers.dev/subscribe">
+  <form method="post" action="/api/subscribe">
     <input type="hidden" name="state" value="florida">
     <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
     <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_"></div>

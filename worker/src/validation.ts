@@ -40,6 +40,43 @@ export const MAX_STAFF_COUNT_HINT_LEN = 20;
 // cosmetic-only free text" category as the two constants above.
 export const MAX_STAFF_LABEL_LEN = 120;
 
+// CPE-hours tracker (migration 0009, 2026-07-30) -- same "short, optional,
+// cosmetic-only free text" category as MAX_STAFF_LABEL_LEN above, this time
+// for a CPE entry's provider/course description.
+export const MAX_CPE_DESCRIPTION_LEN = 200;
+
+// A per-entry sanity cap, not a real regulatory limit -- generous enough for
+// a legitimate multi-day conference (e.g. a 40-hour week-long course) while
+// still catching a fat-fingered or malicious value (a bare "800" typed where
+// "8.0" was meant, or a deliberately absurd number meant to fake progress).
+// This is NOT the state's own total_hours requirement (data/cpe_hours.json)
+// -- that's compared separately, client-side, against the sum of real
+// entries; this cap only bounds a single entry's plausibility.
+export const MAX_CPE_HOURS_PER_ENTRY = 100;
+
+const CPE_CATEGORIES = new Set(["general", "ethics", "other"]);
+
+export function isValidCpeCategory(value: string): value is "general" | "ethics" | "other" {
+  return CPE_CATEGORIES.has(value);
+}
+
+/** Whole-string decimal (one optional leading sign, digits, optional
+ * .digits) -- deliberately stricter than `Number(value)`, which accepts
+ * garbage like "" (0), "  12  " (12, silently trims), "0x10" (16, hex), and
+ * "Infinity" -- none of which should ever count as a valid hours value.
+ * Same "closes a gap Number()/parseFloat() leaves open" rationale as
+ * strictParseInt()'s own docstring above. */
+const STRICT_DECIMAL_RE = /^[+-]?\d+(\.\d+)?$/;
+
+export function parseStrictCpeHours(value: string): number | null {
+  const trimmed = value.trim();
+  if (!STRICT_DECIMAL_RE.test(trimmed)) return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n)) return null;
+  if (n <= 0 || n > MAX_CPE_HOURS_PER_ENTRY) return null;
+  return n;
+}
+
 // Deliberately stricter than "contains an @ and a dot" -- rejects
 // whitespace, control characters, multiple @ signs, and malformed domains
 // outright. Byte-for-byte the same pattern as server.py:160's `_EMAIL_RE`.
@@ -383,6 +420,14 @@ export const RATE_LIMIT_FIRM_LOGIN: RateLimit = { max: 5, windowSeconds: 600 };
 // large firm onboarding its whole staff roster in one sitting, while still
 // bounding a runaway script or a compromised session.
 export const RATE_LIMIT_FIRM_LICENSE_CREATE: RateLimit = { max: 50, windowSeconds: 86400 };
+
+// POST /firm/cpe (log a CPE entry, 2026-07-30) -- same "keyed on the
+// authenticated firm id, not IP" reasoning as RATE_LIMIT_FIRM_LICENSE_CREATE
+// above: the risk this bounds is a compromised/careless admin session
+// spamming entries, not an anonymous caller. Generous enough for a firm
+// bulk-logging a whole roster's worth of CPE at once (e.g. right after a
+// conference), tight enough to bound a runaway script.
+export const RATE_LIMIT_CPE_ENTRY_CREATE: RateLimit = { max: 100, windowSeconds: 86400 };
 
 // POST /debug/run-reminder-pass -- PREVIEW/STAGING ONLY, see index.ts's own
 // gate (the route 404s outright unless env.EMAIL_ALLOWLIST is set, which is

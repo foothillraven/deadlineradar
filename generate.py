@@ -874,6 +874,92 @@ PAGE_CSS = """
   .dr-roster-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem 0.2rem; margin-bottom: 1.2rem; }
   .dr-roster-panel h2 { font-size: 0.98rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
   .dr-roster-panel .table-wrap { margin-top: 0; }
+
+  /* ---- Calendar + Map views (2026-07-30, BUILD v2 Phase D) -- in-page tabs,
+     same fetched drLicenses data the roster view already has, no new endpoint. ---- */
+  .dr-view[hidden] { display: none; }
+
+  .dr-cal-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
+  .dr-cal-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.9rem; }
+  .dr-cal-header h2 { font-size: 1.05rem; margin: 0; font-family: var(--font-display); }
+  .dr-cal-nav { display: flex; gap: 0.4rem; }
+  .dr-cal-nav button {
+    border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--fg);
+    border-radius: 6px; padding: 0.3rem 0.6rem; cursor: pointer; font-family: inherit; font-size: 0.85rem;
+  }
+  .dr-cal-nav button:hover { background: var(--row-alt); }
+  .dr-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.35rem; }
+  .dr-cal-dow { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); text-align: center; padding-bottom: 0.3rem; }
+  .dr-cal-day {
+    min-height: 4.2rem; border: 1px solid var(--border); border-radius: 7px; padding: 0.3rem 0.35rem;
+    font-size: 0.78rem; display: flex; flex-direction: column; gap: 0.2rem; background: var(--bg);
+  }
+  .dr-cal-day--empty { border-color: transparent; background: transparent; }
+  .dr-cal-day--today { border-color: var(--accent); border-width: 2px; }
+  .dr-cal-daynum { font-weight: 600; color: var(--muted); }
+  .dr-cal-day--today .dr-cal-daynum { color: var(--accent); }
+  .dr-cal-item {
+    font-size: 0.7rem; line-height: 1.25; padding: 0.1rem 0.3rem; border-radius: 4px;
+    background: var(--accent-bg); color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .dr-cal-item--soon { background: rgba(200, 55, 55, 0.15); color: #c33737; }
+  @media (prefers-color-scheme: dark) { .dr-cal-item--soon { background: rgba(230, 90, 90, 0.2); color: #ff8080; } }
+  @media (max-width: 640px) {
+    .dr-cal-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+    .dr-cal-day { min-height: 3rem; font-size: 0.68rem; }
+    .dr-cal-item { display: none; }
+    .dr-cal-day--has-item::after { content: "\\2022"; color: var(--accent); font-size: 1.1rem; line-height: 1; }
+  }
+  .dr-agenda-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
+  .dr-agenda-panel h2 { font-size: 1.05rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
+  .dr-agenda-group + .dr-agenda-group { margin-top: 0.9rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
+  .dr-agenda-month { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0 0 0.5rem; }
+  .dr-agenda-item { display: flex; justify-content: space-between; gap: 0.8rem; font-size: 0.86rem; padding: 0.35rem 0; }
+  .dr-agenda-date { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .dr-map-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
+  .dr-map-panel h2 { font-size: 1.05rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
+  .dr-map-body { display: grid; grid-template-columns: 1fr 220px; gap: 1.25rem; align-items: start; }
+  @media (max-width: 760px) { .dr-map-body { grid-template-columns: 1fr; } }
+  .dr-map-figure { position: relative; border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem; background: var(--bg); }
+  .dr-us-map { width: 100%; height: auto; display: block; }
+  .dr-map-state { fill: var(--border); stroke: var(--card-bg); stroke-width: 1.2; transition: fill 0.12s ease; }
+  .dr-map-state--active { fill: #1f9e5c; }
+  .dr-map-state--risk { fill: #c33737; }
+  .dr-map-link { cursor: default; outline: none; }
+  .dr-map-link[data-has-staff="true"] { cursor: pointer; }
+  .dr-map-tooltip {
+    position: absolute; z-index: 15; pointer-events: none; white-space: nowrap;
+    background: var(--panel-dark); color: var(--panel-dark-fg); font-size: 0.8rem;
+    padding: 0.35rem 0.6rem; border-radius: 6px; box-shadow: var(--shadow);
+  }
+  .dr-map-tooltip[hidden] { display: none; }
+  .dr-map-legend { display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.82rem; color: var(--muted); }
+  .dr-map-legend .swatch { width: 0.75rem; height: 0.75rem; border-radius: 3px; display: inline-block; margin-right: 0.5em; vertical-align: -1px; }
+  .dr-map-note { font-size: 0.78rem; color: var(--faint); margin-top: 0.8rem; }
+
+  /* ---- CPE Hours tab (2026-07-30, new BUILD v2 phase) ---- */
+  .dr-cpe-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.2rem; }
+  .dr-cpe-staff-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
+  .dr-cpe-staff-panel h2 { font-size: 1.05rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
+  .dr-cpe-staff-card { border: 1px solid var(--border); border-radius: 9px; padding: 0.9rem 1rem; margin-bottom: 0.7rem; }
+  .dr-cpe-staff-card:last-child { margin-bottom: 0; }
+  .dr-cpe-staff-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.8rem; margin-bottom: 0.6rem; }
+  .dr-cpe-staff-name { font-weight: 600; }
+  .dr-cpe-staff-state { color: var(--muted); font-size: 0.82rem; }
+  .dr-cpe-bar-row { display: flex; align-items: center; gap: 0.7rem; font-size: 0.82rem; margin-top: 0.4rem; }
+  .dr-cpe-bar-label { flex: 0 0 5.5rem; color: var(--muted); }
+  .dr-cpe-bar-track { flex: 1 1 auto; height: 0.55rem; border-radius: 999px; background: var(--border); overflow: hidden; }
+  .dr-cpe-bar-fill { height: 100%; border-radius: 999px; background: #1f9e5c; transition: width 0.3s ease; }
+  .dr-cpe-bar-fill--behind { background: #c33737; }
+  .dr-cpe-bar-value { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+  .dr-cpe-gap-note { font-size: 0.8rem; color: var(--faint); margin-top: 0.4rem; }
+  .dr-cpe-log-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
+  .dr-cpe-log-panel h2 { font-size: 1.05rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
+  .dr-cpe-recent-item { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; font-size: 0.85rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+  .dr-cpe-recent-item:last-child { border-bottom: none; }
+  .dr-cpe-recent-remove { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 6px; padding: 0.2rem 0.55rem; cursor: pointer; font-family: inherit; font-size: 0.78rem; }
+  .dr-cpe-recent-remove:hover { background: var(--row-alt); color: #c33737; }
 """
 
 
@@ -3071,6 +3157,51 @@ attention soonest.</p>
     )
 
 
+def _firm_dashboard_map_svg_html(by_slug: dict[str, list[dict]]) -> str:
+    """The dashboard's US map view (2026-07-30, BUILD v2 Phase D): renders all 51 state paths
+    (same public-domain outline data as build_us_map_html() -- assets/us-map/LICENSE.txt) ONCE
+    at build time, since geography doesn't change. Every path is left uncolored here (fill is
+    entirely CSS default, i.e. "no staff" gray) and carries a `data-state-slug` attribute --
+    the actual per-firm coloring (green/red by which states the signed-in firm has staff in,
+    and whether any of them are at risk) can only be known client-side, from drLicenses, after
+    the page loads and the firm's own roster is fetched. Territories (Guam/Puerto Rico/USVI/
+    Northern Mariana Islands) have no path on a US outline map -- an inherent limitation of a
+    geographic map, not a gap this view is hiding; the roster table already covers them.
+
+    Keyboard/screen-reader access (2026-07-30, adversarial-review fix): tabindex="0" (not -1) +
+    an initial aria-label -- an earlier version excluded these links from the tab order entirely,
+    a real regression against this SAME file's own homepage map (build_us_map_html()), which
+    keeps its links focusable with a focus/blur-wired tooltip. drRenderMap() (the JS) updates
+    aria-label to the real per-state roster info once the firm's data loads, same as it already
+    updates data-tip for the mouse-hover case."""
+    map_states = json.loads(_US_MAP_PATHS_PATH.read_text(encoding="utf-8"))
+    path_links = "\n".join(
+        f'<a class="dr-map-link" data-state-slug="{esc(s["slug"])}" tabindex="0" '
+        f'aria-label="{esc(by_slug[s["slug"]][0]["state"] if by_slug.get(s["slug"]) else s["slug"].replace("-", " ").title())} '
+        f'-- no staff licensed here">'
+        f'<path class="dr-map-state" d="{esc(s["d"])}"></path></a>'
+        for s in map_states
+    )
+    return f"""<div class="dr-map-body">
+  <div class="dr-map-figure">
+    <svg class="dr-us-map" viewBox="0 0 959 593" xmlns="http://www.w3.org/2000/svg" role="img"
+    aria-label="US map colored by whether your firm has staff licensed there, and their risk level">
+{path_links}
+    </svg>
+    <div class="dr-map-tooltip" id="dr-map-tooltip" hidden aria-hidden="true"></div>
+  </div>
+  <div>
+    <div class="dr-map-legend">
+      <span><span class="swatch" style="background:#1f9e5c"></span>Staff licensed here, all current</span>
+      <span><span class="swatch" style="background:#c33737"></span>Staff licensed here, due soon or unresolved</span>
+      <span><span class="swatch" style="background:var(--border)"></span>No staff licensed here</span>
+    </div>
+    <p class="dr-map-note">Territories (Guam, Puerto Rico, U.S. Virgin Islands, Northern Mariana
+    Islands) aren't shown on the map -- see the roster table for your full list.</p>
+  </div>
+</div>"""
+
+
 def _firm_dashboard_add_staff_form_html(by_slug: dict[str, list[dict]], as_of: date) -> str:
     """The "Add staff" form. Deliberately reuses the EXACT SAME per-state
     show/hide-by-state pattern as signup_form_homepage()/drUpdateFields() --
@@ -3413,6 +3544,397 @@ function drRenderFirmName(name) {
   if (el && name) el.textContent = name;
 }
 
+// ---------------------------------------------------------------------------
+// Calendar + Map views (2026-07-30, BUILD v2 Phase D) -- both render from the
+// SAME drLicenses array the roster view already fetched; no new endpoint,
+// no separate page load. Switching tabs never re-fetches.
+// ---------------------------------------------------------------------------
+
+function drSwitchView(view) {
+  document.querySelectorAll('.dr-view').forEach(function(el) {
+    el.hidden = (el.id !== 'dr-view-' + view);
+  });
+  document.querySelectorAll('.dr-nav a[data-view]').forEach(function(a) {
+    var isActive = (a.getAttribute('data-view') === view);
+    a.classList.toggle('is-active', isActive);
+    a.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+}
+
+var DR_MONTH_NAMES = ['January','February','March','April','May','June','July',
+  'August','September','October','November','December'];
+var DR_DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+// null until drRenderCalendar()'s first call, then holds the UTC first-of-
+// month currently shown -- prev/next/today buttons mutate this and re-render.
+var drCalendarRefDate = null;
+
+function drLicensesByDate() {
+  var map = {};
+  drLicenses.forEach(function(item) {
+    if (item.status === 'opted_out' || !item.next_deadline) return;
+    if (!map[item.next_deadline]) map[item.next_deadline] = [];
+    map[item.next_deadline].push(item);
+  });
+  return map;
+}
+
+function drRenderCalendar() {
+  var grid = document.getElementById('dr-cal-grid');
+  var label = document.getElementById('dr-cal-month-label');
+  if (!grid || !label) return;
+  if (!drCalendarRefDate) {
+    var now = new Date();
+    drCalendarRefDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  }
+  var ref = drCalendarRefDate;
+  label.textContent = DR_MONTH_NAMES[ref.getUTCMonth()] + ' ' + ref.getUTCFullYear();
+
+  var byDate = drLicensesByDate();
+  var firstDow = ref.getUTCDay();
+  var numDays = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() + 1, 0)).getUTCDate();
+  var todayIso = new Date().toISOString().slice(0, 10);
+
+  var html = DR_DOW_NAMES.map(function(d) { return '<div class="dr-cal-dow">' + d + '</div>'; }).join('');
+  for (var lead = 0; lead < firstDow; lead++) {
+    html += '<div class="dr-cal-day dr-cal-day--empty"></div>';
+  }
+  for (var day = 1; day <= numDays; day++) {
+    var iso = ref.getUTCFullYear() + '-' + String(ref.getUTCMonth() + 1).padStart(2, '0') +
+      '-' + String(day).padStart(2, '0');
+    var items = byDate[iso] || [];
+    var cellItems = items.slice(0, 3).map(function(item) {
+      var days = drDaysUntil(item.next_deadline);
+      var soon = days !== null && days <= 7;
+      return '<div class="dr-cal-item' + (soon ? ' dr-cal-item--soon' : '') + '">' +
+        drEscapeHtml(item.staff_label || item.email) + '</div>';
+    }).join('');
+    if (items.length > 3) {
+      cellItems += '<div class="dr-cal-item">+' + (items.length - 3) + ' more</div>';
+    }
+    html += '<div class="dr-cal-day' + (iso === todayIso ? ' dr-cal-day--today' : '') +
+      (items.length ? ' dr-cal-day--has-item' : '') + '">' +
+      '<span class="dr-cal-daynum">' + day + '</span>' + cellItems + '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+function drRenderAgenda() {
+  var el = document.getElementById('dr-agenda-body');
+  if (!el) return;
+  var items = drLicenses.filter(function(item) {
+    if (item.status === 'opted_out' || !item.next_deadline) return false;
+    var days = drDaysUntil(item.next_deadline);
+    return days !== null && days >= 0 && days <= 90;
+  });
+  if (items.length === 0) {
+    el.innerHTML = '<p class="dr-panel-empty">Nothing due in the next 90 days.</p>';
+    return;
+  }
+  var groups = {};
+  var order = [];
+  items.forEach(function(item) {
+    var key = item.next_deadline.slice(0, 7); // 'YYYY-MM', next_deadline is already YYYY-MM-DD
+    if (!groups[key]) { groups[key] = []; order.push(key); }
+    groups[key].push(item);
+  });
+  el.innerHTML = order.map(function(key) {
+    var parts = key.split('-');
+    var monthLabel = DR_MONTH_NAMES[parseInt(parts[1], 10) - 1] + ' ' + parts[0];
+    var rows = groups[key].map(function(item) {
+      return '<div class="dr-agenda-item"><span>' + drEscapeHtml(item.staff_label || item.email) +
+        ' &mdash; ' + drEscapeHtml(item.state_name || '') + '</span>' +
+        '<span class="dr-agenda-date">' + drEscapeHtml(drFormatDeadline(item.next_deadline)) + '</span></div>';
+    }).join('');
+    return '<div class="dr-agenda-group"><div class="dr-agenda-month">' + monthLabel + '</div>' + rows + '</div>';
+  }).join('');
+}
+
+function drRenderMap() {
+  var links = document.querySelectorAll('.dr-map-link');
+  if (!links.length) return;
+  var byState = {};
+  drLicenses.forEach(function(item) {
+    if (item.status === 'opted_out' || !item.state_slug) return;
+    if (!byState[item.state_slug]) byState[item.state_slug] = {items: [], risk: false};
+    byState[item.state_slug].items.push(item);
+    var days = drDaysUntil(item.next_deadline);
+    if (days === null || days <= 30) byState[item.state_slug].risk = true;
+  });
+  links.forEach(function(link) {
+    var slug = link.getAttribute('data-state-slug');
+    var path = link.querySelector('path');
+    var info = byState[slug];
+    if (!info) {
+      // Leave the server-rendered "-- no staff licensed here" aria-label as-is
+      // (already correct, set at build time) -- nothing to update here.
+      path.classList.remove('dr-map-state--active', 'dr-map-state--risk');
+      link.setAttribute('data-has-staff', 'false');
+      link.removeAttribute('data-tip');
+      return;
+    }
+    link.setAttribute('data-has-staff', 'true');
+    path.classList.toggle('dr-map-state--risk', info.risk);
+    path.classList.toggle('dr-map-state--active', !info.risk);
+    var names = info.items.map(function(i) { return i.staff_label || i.email; }).join(', ');
+    var summary = names + ' (' + info.items.length + (info.items.length === 1 ? ' person' : ' people') +
+      (info.risk ? ', due soon or unresolved' : ', all current') + ')';
+    // setAttribute escapes automatically (DOM API, not innerHTML) -- consistent
+    // with data-tip below, both safe from the same admin-controlled staff_label/
+    // email text the roster table already renders via drEscapeHtml() for the
+    // innerHTML case.
+    link.setAttribute('data-tip', summary);
+    link.setAttribute('aria-label', summary);
+  });
+}
+
+function drWireMapTooltip() {
+  var tip = document.getElementById('dr-map-tooltip');
+  var figure = tip ? tip.closest('.dr-map-figure') : null;
+  if (!tip || !figure) return;
+  function move(evt) {
+    var rect = figure.getBoundingClientRect();
+    tip.style.left = (evt.clientX - rect.left + 14) + 'px';
+    tip.style.top = (evt.clientY - rect.top + 14) + 'px';
+  }
+  function hide() { tip.hidden = true; }
+  function showAtElement(el) {
+    var t = el.getAttribute('data-tip');
+    if (!t) return;
+    tip.textContent = t;
+    tip.hidden = false;
+    var rect = el.getBoundingClientRect();
+    var frect = figure.getBoundingClientRect();
+    tip.style.left = (rect.left - frect.left) + 'px';
+    tip.style.top = (rect.top - frect.top - 28) + 'px';
+  }
+  figure.querySelectorAll('.dr-map-link').forEach(function(el) {
+    // Keyboard/screen-reader parity with mouse hover -- matches the homepage
+    // map's own focus/blur wiring (_MAP_TOOLTIP_JS) so a keyboard-only user
+    // gets the same tooltip a mouse user does, not just the color.
+    el.addEventListener('focus', function() { showAtElement(el); });
+    el.addEventListener('blur', hide);
+    el.addEventListener('mouseenter', function(evt) {
+      var t = el.getAttribute('data-tip');
+      if (!t) return;
+      tip.textContent = t;
+      tip.hidden = false;
+      move(evt);
+    });
+    el.addEventListener('mousemove', move);
+    el.addEventListener('mouseleave', hide);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// CPE Hours tab (2026-07-30, new BUILD v2 phase). DR_CPE_REQUIREMENTS is
+// inlined static reference data (generate.py, from data/cpe_hours.json) --
+// the worker knows nothing about requirements, only entry CRUD. Requirement
+// matching happens entirely here: sum this staffer's logged hours within
+// their current cycle window (approximated as their own renewal date minus
+// the state's period_years -- see the Python-side comment on
+// cpe_requirements_json for why this is a deliberate simplification, not an
+// authoritative legal cycle-boundary calculation) against the state's own
+// published total/ethics requirement. A state with no requirement entry at
+// all, or a null total_hours (codified law never states a figure, e.g.
+// Nebraska), shows an honest gap note instead of a fabricated number --
+// same standard as every public page on this site.
+// ---------------------------------------------------------------------------
+
+var drCpeEntries = [];
+
+function drCpeCycleWindow(nextDeadlineIso, periodYears) {
+  if (!nextDeadlineIso || !periodYears) return null;
+  var end = new Date(nextDeadlineIso + 'T00:00:00Z');
+  if (isNaN(end.getTime())) return null;
+  var start = new Date(Date.UTC(end.getUTCFullYear() - periodYears, end.getUTCMonth(), end.getUTCDate()));
+  return {start: start.toISOString().slice(0, 10), end: nextDeadlineIso};
+}
+
+// Ethics hours are treated as a SUBSET of the total (not additional) --
+// matches how every state's own requirement is actually structured
+// (e.g. Alabama: "40 hours... at least 2 hours must be a qualifying ethics
+// course"), so totalLogged sums every category and ethicsLogged separately
+// sums only 'ethics' entries within the same window.
+function drCpeProgressForSubscriber(item) {
+  var req = DR_CPE_REQUIREMENTS[item.state_slug];
+  if (!req || (req.total_hours === null && req.ethics_hours === null)) {
+    return {hasRequirement: false, dataGapNote: req ? req.data_gap_note : null};
+  }
+  var win = drCpeCycleWindow(item.next_deadline, req.period_years);
+  var totalLogged = 0, ethicsLogged = 0;
+  drCpeEntries.forEach(function(e) {
+    if (e.subscriber_id !== item.id) return;
+    // No renewal date means we don't know the cycle boundary -- excluding
+    // every entry (rather than summing an unbounded lifetime total) keeps
+    // "0 logged" as an honest signal instead of a false on-track reading.
+    if (!win) return;
+    if (e.entry_date < win.start || e.entry_date > win.end) return;
+    totalLogged += e.hours;
+    if (e.category === 'ethics') ethicsLogged += e.hours;
+  });
+  var behind =
+    (req.total_hours !== null && totalLogged < req.total_hours) ||
+    (req.ethics_hours !== null && ethicsLogged < req.ethics_hours);
+  return {
+    hasRequirement: true,
+    totalRequired: req.total_hours, totalLogged: totalLogged,
+    ethicsRequired: req.ethics_hours, ethicsLogged: ethicsLogged,
+    behind: behind,
+    noCycleDate: !win,
+  };
+}
+
+function drCpeBarHtml(label, logged, required) {
+  var pct = required ? Math.min(100, Math.round((logged / required) * 100)) : 0;
+  var behind = required !== null && logged < required;
+  return '<div class="dr-cpe-bar-row"><span class="dr-cpe-bar-label">' + drEscapeHtml(label) + '</span>' +
+    '<span class="dr-cpe-bar-track"><span class="dr-cpe-bar-fill' + (behind ? ' dr-cpe-bar-fill--behind' : '') +
+    '" style="width:' + pct + '%"></span></span>' +
+    '<span class="dr-cpe-bar-value">' + logged + ' / ' + required + 'h</span></div>';
+}
+
+function drRenderCpeSummary() {
+  var el = document.getElementById('dr-cpe-summary');
+  if (!el) return;
+  var behindCount = 0, trackedCount = 0;
+  drLicenses.forEach(function(item) {
+    if (item.status === 'opted_out') return;
+    var p = drCpeProgressForSubscriber(item);
+    if (!p.hasRequirement) return;
+    trackedCount++;
+    if (p.behind) behindCount++;
+  });
+  el.innerHTML =
+    '<div class="dr-stat-card">' + drRingSvg(trackedCount ? Math.round((behindCount / trackedCount) * 100) : 0, behindCount > 0) +
+    '<div><div class="dr-stat-label">Behind on hours</div><div class="dr-stat-value">' + behindCount + '</div>' +
+    '<div class="dr-stat-sub">of ' + trackedCount + ' staff with a known requirement</div></div></div>';
+}
+
+function drRenderCpeStaffProgress() {
+  var el = document.getElementById('dr-cpe-staff-body');
+  if (!el) return;
+  var active = drLicenses.filter(function(item) { return item.status !== 'opted_out'; });
+  if (active.length === 0) {
+    el.innerHTML = '<p class="dr-panel-empty">No staff on your roster yet.</p>';
+    return;
+  }
+  el.innerHTML = active.map(function(item) {
+    var p = drCpeProgressForSubscriber(item);
+    var name = drEscapeHtml(item.staff_label || item.email);
+    var state = drEscapeHtml(item.state_name || '');
+    if (!p.hasRequirement) {
+      var gapText = p.dataGapNote ? drEscapeHtml(p.dataGapNote) : 'Requirement not codified for this state &mdash; track manually.';
+      return '<div class="dr-cpe-staff-card"><div class="dr-cpe-staff-head">' +
+        '<span class="dr-cpe-staff-name">' + name + '</span><span class="dr-cpe-staff-state">' + state + '</span></div>' +
+        '<p class="dr-cpe-gap-note">' + gapText + '</p></div>';
+    }
+    var totalBar = p.totalRequired !== null ? drCpeBarHtml('Total', p.totalLogged, p.totalRequired) : '';
+    var ethicsBar = p.ethicsRequired !== null ? drCpeBarHtml('Ethics', p.ethicsLogged, p.ethicsRequired) : '';
+    var cycleNote = p.noCycleDate ?
+      '<p class="dr-cpe-gap-note">No renewal date on file &mdash; add one to track progress for this cycle.</p>' : '';
+    return '<div class="dr-cpe-staff-card"><div class="dr-cpe-staff-head">' +
+      '<span class="dr-cpe-staff-name">' + name + '</span><span class="dr-cpe-staff-state">' + state + '</span></div>' +
+      totalBar + ethicsBar + cycleNote + '</div>';
+  }).join('');
+}
+
+function drRenderCpeStaffSelect() {
+  var sel = document.getElementById('dr-cpe-staff-select');
+  if (!sel) return;
+  var current = sel.value;
+  var active = drLicenses.filter(function(item) { return item.status !== 'opted_out'; });
+  sel.innerHTML = '<option value="">Select staff member</option>' + active.map(function(item) {
+    return '<option value="' + drEscapeHtml(item.id) + '">' + drEscapeHtml(item.staff_label || item.email) + '</option>';
+  }).join('');
+  sel.value = current;
+}
+
+function drRenderCpeRecent() {
+  var el = document.getElementById('dr-cpe-recent-body');
+  if (!el) return;
+  if (drCpeEntries.length === 0) {
+    el.innerHTML = '<p class="dr-panel-empty">Nothing logged yet.</p>';
+    return;
+  }
+  var byId = {};
+  drLicenses.forEach(function(item) { byId[item.id] = item; });
+  var sorted = drCpeEntries.slice().sort(function(a, b) {
+    return a.entry_date < b.entry_date ? 1 : a.entry_date > b.entry_date ? -1 : 0;
+  });
+  el.innerHTML = sorted.slice(0, 15).map(function(e) {
+    var staffer = byId[e.subscriber_id];
+    var name = staffer ? drEscapeHtml(staffer.staff_label || staffer.email) : 'Removed staff member';
+    var desc = e.description ? ' &mdash; ' + drEscapeHtml(e.description) : '';
+    return '<div class="dr-cpe-recent-item"><span><b>' + name + '</b> logged ' + drEscapeHtml(String(e.hours)) +
+      'h (' + drEscapeHtml(e.category) + ')' + desc +
+      '<span class="dr-agenda-date" style="display:block;">' + drEscapeHtml(drFormatDeadline(e.entry_date)) + '</span></span>' +
+      '<button type="button" class="dr-cpe-recent-remove" data-id="' + drEscapeHtml(e.id) + '" data-label="' +
+      drEscapeHtml(String(e.hours) + 'h for ' + name) + '">Remove</button></div>';
+  }).join('');
+}
+
+function drLoadCpeEntries() {
+  return fetch('/api/firm/cpe', {credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      if (!res.ok) return null;
+      return res.json();
+    })
+    .then(function(data) {
+      drCpeEntries = (data && data.entries) || [];
+      drRenderCpeStaffSelect();
+      drRenderCpeSummary();
+      drRenderCpeStaffProgress();
+      drRenderCpeRecent();
+    })
+    .catch(function() {});
+}
+
+function drSubmitCpeEntry(form) {
+  var errEl = document.getElementById('dr-cpe-log-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  var fd = new FormData(form);
+  var body = {};
+  fd.forEach(function(v, k) { body[k] = v; });
+  fetch('/api/firm/cpe', {
+    method: 'POST', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        var msg = data && data.error ? data.error : 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        return;
+      }
+      var keepStaffId = body.subscriber_id;
+      form.reset();
+      var staffSel = document.getElementById('dr-cpe-staff-select');
+      if (staffSel) staffSel.value = keepStaffId;
+      drLoadCpeEntries();
+    });
+  }).catch(function() {
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
+function drRemoveCpeEntry(id, label) {
+  if (!window.confirm('Remove this CPE entry' + (label ? ' (' + label + ')' : '') + '? This cannot be undone from the dashboard.')) return;
+  fetch('/api/firm/cpe/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return; }
+      if (res.ok) { drLoadCpeEntries(); return; }
+      drReadJsonSafe(res).then(function(data) {
+        window.alert((data && data.error) || 'Something went wrong removing that entry. Please try again.');
+      });
+    })
+    .catch(function() {
+      window.alert('Something went wrong removing that entry. Please try again.');
+    });
+}
+
 function drLoadLicenses() {
   drClearError();
   fetch('/api/firm/licenses', {credentials: 'include'})
@@ -3435,6 +3957,10 @@ function drLoadLicenses() {
       drRenderStats();
       drRenderAtRisk();
       drRenderActivity();
+      drRenderCalendar();
+      drRenderAgenda();
+      drRenderMap();
+      drLoadCpeEntries();
     })
     .catch(function() {
       drShowError('Something went wrong loading your roster. Please try again.');
@@ -3503,6 +4029,58 @@ document.addEventListener('DOMContentLoaded', function() {
   drUpdateFields(stateSel ? stateSel.value : '');
 
   drLoadLicenses();
+  drWireMapTooltip();
+
+  document.querySelectorAll('.dr-nav a[data-view]').forEach(function(a) {
+    a.addEventListener('click', function(ev) {
+      ev.preventDefault();
+      drSwitchView(a.getAttribute('data-view'));
+    });
+  });
+
+  var calPrev = document.getElementById('dr-cal-prev');
+  var calNext = document.getElementById('dr-cal-next');
+  var calToday = document.getElementById('dr-cal-today');
+  if (calPrev) {
+    calPrev.addEventListener('click', function() {
+      // drCalendarRefDate is only set once drLoadLicenses()'s async fetch
+      // resolves and drRenderCalendar() runs for the first time -- guard
+      // against a click landing in that brief window before it's set.
+      if (!drCalendarRefDate) return;
+      drCalendarRefDate = new Date(Date.UTC(drCalendarRefDate.getUTCFullYear(), drCalendarRefDate.getUTCMonth() - 1, 1));
+      drRenderCalendar();
+    });
+  }
+  if (calNext) {
+    calNext.addEventListener('click', function() {
+      if (!drCalendarRefDate) return;
+      drCalendarRefDate = new Date(Date.UTC(drCalendarRefDate.getUTCFullYear(), drCalendarRefDate.getUTCMonth() + 1, 1));
+      drRenderCalendar();
+    });
+  }
+  if (calToday) {
+    calToday.addEventListener('click', function() {
+      drCalendarRefDate = null;
+      drRenderCalendar();
+    });
+  }
+
+  var cpeLogForm = document.getElementById('dr-cpe-log-form');
+  if (cpeLogForm) {
+    cpeLogForm.addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      drSubmitCpeEntry(cpeLogForm);
+    });
+  }
+  var cpeRecentBody = document.getElementById('dr-cpe-recent-body');
+  if (cpeRecentBody) {
+    cpeRecentBody.addEventListener('click', function(ev) {
+      var btn = ev.target.closest ? ev.target.closest('.dr-cpe-recent-remove') : null;
+      if (!btn) return;
+      var id = btn.getAttribute('data-id');
+      if (id) drRemoveCpeEntry(id, btn.getAttribute('data-label'));
+    });
+  }
 
   var tbody = document.getElementById('dr-roster-body');
   if (tbody) {
@@ -3577,7 +4155,9 @@ document.addEventListener('DOMContentLoaded', function() {
 _FIRM_DASHBOARD_JS_HTML = _FIRM_DASHBOARD_JS_HTML.replace("'/api/firm", f"'{REMINDER_BACKEND_BASE_URL}/firm")
 
 
-def build_firm_dashboard_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
+def build_firm_dashboard_page(
+    by_slug: dict[str, list[dict]], as_of: date, cpe_hours_by_slug: dict[str, dict]
+) -> str:
     """The real firm dashboard (2026-07-28, step 3/3). Static HTML shell +
     _FIRM_DASHBOARD_JS_HTML: on load, fetches GET /api/firm/licenses
     (credentials:'include' -- the session cookie rides along automatically
@@ -3605,20 +4185,44 @@ def build_firm_dashboard_page(by_slug: dict[str, list[dict]], as_of: date) -> st
     touch. To change someone's state or license type, remove and re-add
     them -- safe, unambiguous, no silent data loss."""
     add_staff_html = _firm_dashboard_add_staff_form_html(by_slug, as_of)
-    # Sidebar nav: only "Roster" is a real, built feature today -- Calendar/
-    # Map/Reports/Documents are BUILD v2 phases D/D/F/G, not yet built. Shown
-    # as disabled "Soon" items (the intended IA, honestly labeled) rather than
-    # either omitted (misrepresenting scope as smaller than planned) or linked
-    # (a link to nothing would be a real defect).
+    map_svg_html = _firm_dashboard_map_svg_html(by_slug)
+    # CPE Hours tab (2026-07-30): the state-by-state REQUIREMENT (how many
+    # hours, ethics sub-requirement, cycle length) is static reference data,
+    # so it's inlined once at build time -- same "static data inlined,
+    # dynamic per-firm data fetched live" split DR_STATES already uses on
+    # the homepage. Deliberately a SMALL projection of cpe_hours.json's full
+    # record (no citation/source_url/notes -- those belong on the public CPE
+    # pages, not duplicated into every dashboard page load) -- just the
+    # fields the progress calculation and the honest-gap message need.
+    cpe_requirements_json = {
+        slug: {
+            "total_hours": rec.get("total_hours"),
+            "period_years": rec.get("period_years"),
+            "ethics_hours": rec.get("ethics_hours"),
+            "ethics_period_years": rec.get("ethics_period_years"),
+            "data_gap_note": rec.get("data_gap_note"),
+        }
+        for slug, rec in cpe_hours_by_slug.items()
+    }
+    # Sidebar nav: Roster/Calendar/Map are real in-page tabs (2026-07-30, BUILD
+    # v2 Phase D -- all three render from the SAME already-fetched drLicenses,
+    # no separate page load/re-auth). Reports/Documents are still BUILD v2
+    # phases F/G, not built yet -- shown as disabled "Soon" items (the intended
+    # IA, honestly labeled) rather than either omitted (misrepresenting scope
+    # as smaller than planned) or linked (a link to nothing would be a real
+    # defect).
     sidebar_nav_soon_items = "\n    ".join(
         f'<li><span class="dr-nav-soon">{esc(label)}<span class="dr-soon-badge">Soon</span></span></li>'
-        for label in ("Calendar", "Map", "Reports", "Documents")
+        for label in ("Reports", "Documents")
     )
     body = f"""<div class="dr-dash-shell">
   <aside class="dr-sidebar">
     <div class="dr-firm-name" id="dr-firm-name">Dashboard</div>
-    <ul class="dr-nav">
-      <li><a href="/firm-dashboard/" class="is-active">Roster</a></li>
+    <ul class="dr-nav" role="tablist" aria-label="Dashboard views">
+      <li><a href="#" class="is-active" data-view="roster" role="tab" aria-selected="true">Roster</a></li>
+      <li><a href="#" data-view="calendar" role="tab" aria-selected="false">Calendar</a></li>
+      <li><a href="#" data-view="map" role="tab" aria-selected="false">Map</a></li>
+      <li><a href="#" data-view="cpe" role="tab" aria-selected="false">CPE Hours</a></li>
       {sidebar_nav_soon_items}
     </ul>
     <div class="dr-sidebar-foot">
@@ -3629,10 +4233,11 @@ def build_firm_dashboard_page(by_slug: dict[str, list[dict]], as_of: date) -> st
   </aside>
 
   <div class="dr-main">
+    <div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" hidden></div>
+
+    <div id="dr-view-roster" class="dr-view" role="tabpanel">
     <h1>Coverage overview</h1>
     <p class="subhead">Every CPA license you're tracking for your firm, at a glance.</p>
-
-    <div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" hidden></div>
 
     <div class="dr-stat-row" id="dr-stat-row"></div>
 
@@ -3664,8 +4269,90 @@ def build_firm_dashboard_page(by_slug: dict[str, list[dict]], as_of: date) -> st
     </div>
 
     {add_staff_html}
+    </div>
+
+    <div id="dr-view-calendar" class="dr-view" role="tabpanel" hidden>
+      <h1>Calendar</h1>
+      <p class="subhead">Upcoming renewal deadlines for your firm, by date.</p>
+      <div class="dr-cal-panel">
+        <div class="dr-cal-header">
+          <h2 id="dr-cal-month-label">&nbsp;</h2>
+          <div class="dr-cal-nav">
+            <button type="button" id="dr-cal-prev" aria-label="Previous month">&larr;</button>
+            <button type="button" id="dr-cal-today">Today</button>
+            <button type="button" id="dr-cal-next" aria-label="Next month">&rarr;</button>
+          </div>
+        </div>
+        <div class="dr-cal-grid" id="dr-cal-grid"></div>
+      </div>
+      <div class="dr-agenda-panel">
+        <h2>Next 90 days</h2>
+        <div id="dr-agenda-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
+      </div>
+    </div>
+
+    <div id="dr-view-map" class="dr-view" role="tabpanel" hidden>
+      <h1>Map</h1>
+      <p class="subhead">Where your firm has staff licensed, and who's at risk.</p>
+      <div class="dr-map-panel">
+        {map_svg_html}
+      </div>
+    </div>
+
+    <div id="dr-view-cpe" class="dr-view" role="tabpanel" hidden>
+      <h1>CPE Hours</h1>
+      <p class="subhead">Track completed continuing-education hours against each state's own
+      requirement. Internal visibility only -- not an official state filing, and not a substitute for
+      your state board's own CPE reporting system.</p>
+
+      <div class="dr-cpe-summary" id="dr-cpe-summary"></div>
+
+      <div class="dr-cpe-staff-panel">
+        <h2>Progress by staff member</h2>
+        <div id="dr-cpe-staff-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
+      </div>
+
+      <div class="dr-cpe-log-panel">
+        <h2>Log completed hours</h2>
+        <form id="dr-cpe-log-form">
+          <label for="dr-cpe-staff-select">Staff member</label>
+          <select id="dr-cpe-staff-select" name="subscriber_id" required>
+            <option value="">Select staff member</option>
+          </select>
+          <div class="signup-form-row">
+            <div>
+              <label for="dr-cpe-entry-date">Date completed</label>
+              <input type="date" id="dr-cpe-entry-date" name="entry_date" required>
+            </div>
+            <div>
+              <label for="dr-cpe-hours">Hours</label>
+              <input type="number" id="dr-cpe-hours" name="hours" min="0.1" max="100" step="0.1" required>
+            </div>
+          </div>
+          <label for="dr-cpe-category">Category</label>
+          <select id="dr-cpe-category" name="category">
+            <option value="general">General</option>
+            <option value="ethics">Ethics</option>
+            <option value="other">Other</option>
+          </select>
+          <label for="dr-cpe-description">Course/provider (optional)</label>
+          <input type="text" id="dr-cpe-description" name="description" maxlength="200" placeholder="e.g. AICPA ethics update">
+          <button type="submit">Log hours</button>
+        </form>
+        <p id="dr-cpe-log-error" class="field-hint" style="color:#c33737;" hidden></p>
+      </div>
+
+      <div class="dr-cpe-log-panel">
+        <h2>Recently logged</h2>
+        <div id="dr-cpe-recent-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
+      </div>
+    </div>
   </div>
 </div>
+
+<script>
+var DR_CPE_REQUIREMENTS = {json.dumps(cpe_requirements_json)};
+</script>
 
 {_FIRM_DASHBOARD_JS_HTML}
 """
@@ -4876,7 +5563,9 @@ def main() -> None:
 
     firm_dashboard_dir = SITE_DIR / "firm-dashboard"
     firm_dashboard_dir.mkdir(parents=True, exist_ok=True)
-    (firm_dashboard_dir / "index.html").write_text(build_firm_dashboard_page(by_slug, as_of), encoding="utf-8")
+    (firm_dashboard_dir / "index.html").write_text(
+        build_firm_dashboard_page(by_slug, as_of, cpe_hours_by_slug), encoding="utf-8"
+    )
     print(f"wrote {SITE_DIR.name}/firm-dashboard/index.html")
 
     (SITE_DIR / "404.html").write_text(build_404_page(built), encoding="utf-8")

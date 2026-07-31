@@ -3142,3 +3142,87 @@ describe("SSO routes", () => {
     expect(resp.status).toBe(400);
   });
 });
+
+describe("GET/DELETE /firm/oauth-identities -- connected accounts", () => {
+  async function callList(cookie: string | null): Promise<Response> {
+    const headers: Record<string, string> = { "cf-connecting-ip": "203.0.113.240" };
+    if (cookie) headers["Cookie"] = cookie;
+    return SELF.fetch("https://deadline-radar.com/firm/oauth-identities", { headers });
+  }
+  async function callDelete(id: string, cookie: string | null): Promise<Response> {
+    const headers: Record<string, string> = { "cf-connecting-ip": "203.0.113.241" };
+    if (cookie) headers["Cookie"] = cookie;
+    return SELF.fetch(`https://deadline-radar.com/firm/oauth-identities/${id}`, { method: "DELETE", headers });
+  }
+
+  it("requires a session", async () => {
+    expect((await callList(null)).status).toBe(401);
+    expect((await callDelete("anything", null)).status).toBe(401);
+  });
+
+  it("lists this firm's linked identities and unlinks one", async () => {
+    const email = `ident-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "Ident Firm", adminEmail: email });
+    const linked = await store.linkOauthIdentity(env.DB, {
+      firmId,
+      provider: "google",
+      providerSubject: `sub-${Date.now()}`,
+      providerEmail: email,
+    });
+    const { rawSessionToken } = await store.createSession(env.DB, firmId);
+    const cookie = `dr_firm_session=${rawSessionToken}`;
+
+    const list = await callList(cookie);
+    expect(list.status).toBe(200);
+    const body = await list.json<{ identities: Array<{ id: string; provider: string }> }>();
+    expect(body.identities).toHaveLength(1);
+    expect(body.identities[0]!.provider).toBe("google");
+
+    expect((await callDelete(linked!.id, cookie)).status).toBe(200);
+    expect((await (await callList(cookie)).json<{ identities: unknown[] }>()).identities).toHaveLength(0);
+  });
+
+  it("CROSS-FIRM: cannot see or unlink another firm's identity, and returns a generic 404 not a 403", async () => {
+    const victimEmail = `ident-victim-${Date.now()}@examplefirm.com`;
+    const { id: victimId } = await store.createFirm(env.DB, { name: "Victim", adminEmail: victimEmail });
+    const victimIdentity = await store.linkOauthIdentity(env.DB, {
+      firmId: victimId,
+      provider: "google",
+      providerSubject: `victim-sub-${Date.now()}`,
+      providerEmail: victimEmail,
+    });
+
+    const { id: attackerId } = await store.createFirm(env.DB, {
+      name: "Attacker",
+      adminEmail: `ident-attacker-${Date.now()}@examplefirm.com`,
+    });
+    const { rawSessionToken } = await store.createSession(env.DB, attackerId);
+    const cookie = `dr_firm_session=${rawSessionToken}`;
+
+    // Not visible in the attacker's list...
+    expect((await (await callList(cookie)).json<{ identities: unknown[] }>()).identities).toHaveLength(0);
+    // ...and not deletable, with a 404 that doesn't confirm it exists.
+    expect((await callDelete(victimIdentity!.id, cookie)).status).toBe(404);
+    // Victim's identity survives.
+    expect(await store.listOauthIdentitiesForFirm(env.DB, victimId)).toHaveLength(1);
+  });
+
+  it("unlinking is always allowed -- the emailed sign-in link means it cannot lock anyone out", async () => {
+    // Deliberate design property, and the reason no "last sign-in method"
+    // guard exists (an earlier comment wrongly claimed one did).
+    const email = `ident-last-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "Last Method Firm", adminEmail: email });
+    const linked = await store.linkOauthIdentity(env.DB, {
+      firmId,
+      provider: "google",
+      providerSubject: `last-sub-${Date.now()}`,
+      providerEmail: email,
+    });
+    const { rawSessionToken } = await store.createSession(env.DB, firmId);
+    // No password set, and this is the only linked provider.
+    expect((await callDelete(linked!.id, `dr_firm_session=${rawSessionToken}`)).status).toBe(200);
+    // The magic-link path still works, which is why the above is safe.
+    const resp = await postFirmLogin({ admin_email: email }, "203.0.113.242");
+    expect(resp.status).toBe(200);
+  });
+});

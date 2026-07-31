@@ -70,6 +70,24 @@ export interface Env {
    * neither justified pre-revenue. Adding it later is one PROVIDERS entry
    * in oauth.ts plus its two secrets; no other code changes.
    */
+  /**
+   * OPTIONAL HMAC pepper for password hashing (2026-07-30, from security
+   * review). Held as a Worker secret, deliberately NEVER in D1 -- that
+   * separation is the entire point: a stolen database snapshot is not
+   * offline-attackable at any work factor without a secret from a
+   * different trust domain, which is what makes the 200k-vs-OWASP-600k
+   * iteration shortfall irrelevant for the threat iterations defend
+   * against.
+   *
+   * Unset is fully supported: hashes are written as v1 (no pepper) and
+   * nothing changes. Setting it makes new and changed passwords v2, and
+   * existing v1 records upgrade transparently on next successful login.
+   *
+   * WARNING: once v2 records exist, LOSING this secret makes them
+   * unverifiable -- affected admins must use the emailed sign-in link and
+   * set a new password. Treat it as a durable secret, not a rotatable one.
+   */
+  PASSWORD_PEPPER?: string;
   GOOGLE_OAUTH_CLIENT_ID?: string;
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
 }

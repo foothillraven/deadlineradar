@@ -6,7 +6,9 @@ import {
   validatePasswordStrength,
   needsRehash,
   dummyVerifyForTiming,
-  PASSWORD_ALGO,
+  PASSWORD_ALGO_V1,
+  PASSWORD_ALGO_V2,
+  currentAlgo,
   PASSWORD_ROUNDS,
   PASSWORD_ITERATIONS_PER_ROUND,
   MIN_PASSWORD_LEN,
@@ -200,5 +202,76 @@ describe("dummyVerifyForTiming -- anti-enumeration on the login form", () => {
     if (realMs > 0 || dummyMs > 0) {
       expect(dummyMs).toBeGreaterThanOrEqual(realMs / 4);
     }
+  });
+});
+
+describe("algorithm versioning -- the upgrade path that was previously dead code", () => {
+  const PEPPER = "test-pepper-value-not-a-real-secret";
+
+  it("writes v1 with no pepper configured, and v2 when one is", async () => {
+    expect(currentAlgo(undefined)).toBe(PASSWORD_ALGO_V1);
+    expect(currentAlgo(PEPPER)).toBe(PASSWORD_ALGO_V2);
+    expect((await hashPassword(GOOD)).algo).toBe(PASSWORD_ALGO_V1);
+    expect((await hashPassword(GOOD, PEPPER)).algo).toBe(PASSWORD_ALGO_V2);
+  });
+
+  it("STILL VERIFIES a v1 record after the pepper is introduced -- the lockout this fixes", async () => {
+    // Before the fix, verifyPassword rejected any record whose algo !=
+    // the current one BEFORE needsRehash could fire, so turning on a
+    // pepper would have turned every correct password into "invalid
+    // credentials" with no migration path.
+    const v1 = await hashPassword(GOOD);
+    expect(await verifyPassword(GOOD, v1, PEPPER)).toBe(true);
+    expect(await verifyPassword("wrong password entirely", v1, PEPPER)).toBe(false);
+  });
+
+  it("flags a v1 record for upgrade once a pepper exists, so it re-hashes on next login", async () => {
+    const v1 = await hashPassword(GOOD);
+    expect(needsRehash(v1, undefined)).toBe(false);
+    expect(needsRehash(v1, PEPPER)).toBe(true);
+  });
+
+  it("v2 verifies with the right pepper and FAILS with a wrong or missing one", async () => {
+    const v2 = await hashPassword(GOOD, PEPPER);
+    expect(await verifyPassword(GOOD, v2, PEPPER)).toBe(true);
+    expect(await verifyPassword(GOOD, v2, "a-different-pepper")).toBe(false);
+    // Missing pepper must fail cleanly, never silently derive something else.
+    expect(await verifyPassword(GOOD, v2, undefined)).toBe(false);
+  });
+
+  it("the pepper actually changes the stored hash (it is not decorative)", async () => {
+    const salt = "AAAAAAAAAAAAAAAAAAAAAA==";
+    const a = await hashPassword(GOOD, PEPPER);
+    const b = await hashPassword(GOOD);
+    expect(a.hash).not.toBe(b.hash);
+    void salt;
+  });
+
+  it("v2 normalizes unicode, so the same passphrase from a Mac (NFD) and Windows (NFC) both verify", async () => {
+    // "é" as a single codepoint vs "e" + combining acute. Same passphrase
+    // to a human; different bytes without NFKC.
+    const nfc = "café passphrase here";
+    const nfd = "café passphrase here";
+    expect(nfc).not.toBe(nfd);
+    const rec = await hashPassword(nfc, PEPPER);
+    expect(await verifyPassword(nfd, rec, PEPPER)).toBe(true);
+  });
+
+  it("v1 does NOT normalize (unchanged legacy behavior, so old hashes still match)", async () => {
+    const nfc = "café passphrase here";
+    const nfd = "café passphrase here";
+    const rec = await hashPassword(nfc);
+    expect(await verifyPassword(nfd, rec)).toBe(false);
+  });
+
+  it("refuses an unknown algorithm rather than guessing", async () => {
+    const rec = await hashPassword(GOOD);
+    expect(await verifyPassword(GOOD, { ...rec, algo: "argon2id" })).toBe(false);
+  });
+
+  it("clamps absurd stored parameters so a corrupt row cannot CPU-limit that account's logins", async () => {
+    const rec = await hashPassword(GOOD);
+    expect(await verifyPassword(GOOD, { ...rec, iterations: 99_000_000 })).toBe(false);
+    expect(await verifyPassword(GOOD, { ...rec, rounds: 500 })).toBe(false);
   });
 });

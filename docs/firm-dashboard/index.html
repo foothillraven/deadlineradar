@@ -1261,6 +1261,14 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
         <p id="dr-password-ok" class="dr-account-ok" hidden></p>
         <p id="dr-password-error" class="dr-account-err" hidden></p>
       </div>
+
+      <div class="dr-account-panel">
+        <h2>Connected sign-in accounts</h2>
+        <p class="signup-microcopy">Accounts you can sign in with directly. Removing one doesn't lock
+        you out &mdash; you can always request an emailed sign-in link.</p>
+        <div id="dr-identities-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
+        <p id="dr-identity-error" class="dr-account-err" hidden></p>
+      </div>
     </div>
   </div>
 </div>
@@ -1939,6 +1947,50 @@ function drRemoveCpeEntry(id, label) {
     });
 }
 
+function drRenderIdentities(items) {
+  var el = document.getElementById('dr-identities-body');
+  if (!el) return;
+  if (!items || items.length === 0) {
+    el.innerHTML = '<p class="dr-panel-empty">None connected. You sign in with a password or an emailed link.</p>';
+    return;
+  }
+  el.innerHTML = items.map(function(it) {
+    var label = it.provider === 'google' ? 'Google' : it.provider;
+    var who = it.provider_email ? ' (' + drEscapeHtml(it.provider_email) + ')' : '';
+    var last = it.last_login_at ? 'Last used ' + drEscapeHtml(drFormatDeadline(String(it.last_login_at).slice(0, 10))) : 'Never used';
+    return '<div class="dr-cpe-recent-item"><span><b>' + drEscapeHtml(label) + '</b>' + who +
+      '<span class="dr-agenda-date" style="display:block;">' + last + '</span></span>' +
+      '<button type="button" class="dr-cpe-recent-remove" data-identity-id="' + drEscapeHtml(it.id) +
+      '" data-identity-label="' + drEscapeHtml(label) + '">Remove</button></div>';
+  }).join('');
+}
+
+function drLoadIdentities() {
+  return fetch('/api/firm/oauth-identities', {credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      if (!res.ok) return null;
+      return res.json();
+    })
+    .then(function(data) { drRenderIdentities(data && data.identities); })
+    .catch(function() {});
+}
+
+function drRemoveIdentity(id, label) {
+  if (!window.confirm('Remove the ' + label + ' sign-in from this account? You can still sign in with a password or an emailed link.')) return;
+  var errEl = document.getElementById('dr-identity-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  fetch('/api/firm/oauth-identities/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return; }
+      if (res.ok) { drLoadIdentities(); return; }
+      if (errEl) { errEl.textContent = 'Could not remove that sign-in method. Please try again.'; errEl.hidden = false; }
+    })
+    .catch(function() {
+      if (errEl) { errEl.textContent = 'Could not remove that sign-in method. Please try again.'; errEl.hidden = false; }
+    });
+}
+
 function drSubmitPassword(form) {
   var okEl = document.getElementById('dr-password-ok');
   var errEl = document.getElementById('dr-password-error');
@@ -2106,6 +2158,16 @@ document.addEventListener('DOMContentLoaded', function() {
     calToday.addEventListener('click', function() {
       drCalendarRefDate = null;
       drRenderCalendar();
+    });
+  }
+
+  var identitiesBody = document.getElementById('dr-identities-body');
+  if (identitiesBody) {
+    drLoadIdentities();
+    identitiesBody.addEventListener('click', function(ev) {
+      var btn = ev.target.closest ? ev.target.closest('[data-identity-id]') : null;
+      if (!btn) return;
+      drRemoveIdentity(btn.getAttribute('data-identity-id'), btn.getAttribute('data-identity-label'));
     });
   }
 

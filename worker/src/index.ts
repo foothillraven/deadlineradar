@@ -1846,6 +1846,9 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
     // above -- 2026-07-30, CPE-hours tracker.
     const cpeEntryIdMatch = /^\/firm\/cpe\/([^/]+)$/.exec(url.pathname);
 
+    // /firm/oauth-identities/:id -- same up-front parsing pattern.
+    const oauthIdentityIdMatch = /^\/firm\/oauth-identities\/([^/]+)$/.exec(url.pathname);
+
     // GET on an action path renders a confirmation PAGE only -- it never
     // changes state. Email providers (Gmail, corporate filters) automatically
     // GET the links in a message to scan them; if the action fired on GET, a
@@ -1856,6 +1859,13 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
       if (url.pathname === "/firm/licenses") {
         try {
           return await handleFirmLicensesList(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/oauth-identities") {
+        try {
+          return await handleOauthIdentitiesList(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -1910,6 +1920,13 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
     }
 
     if (request.method === "DELETE") {
+      if (oauthIdentityIdMatch) {
+        try {
+          return await handleOauthIdentityDelete(request, env, oauthIdentityIdMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
       if (firmLicenseIdMatch) {
         try {
           return await handleFirmLicenseDelete(request, env, firmLicenseIdMatch[1] as string);
@@ -2148,7 +2165,7 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
   // Handling length uniformly for every email, before any lookup, means no
   // input shape can produce a branch that skips the derivation.
   if (password.length === 0 || password.length > MAX_PASSWORD_LEN) {
-    await dummyVerifyForTiming();
+    await dummyVerifyForTiming(env.PASSWORD_PEPPER);
     return errorPage(400, INVALID_CREDENTIALS_MESSAGE);
   }
 
@@ -2177,17 +2194,21 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
     // No account, or an account that has never set a password (SSO-only or
     // magic-link-only). Burn comparable work so this branch is not
     // distinguishable by timing, then fail identically.
-    await dummyVerifyForTiming();
+    await dummyVerifyForTiming(env.PASSWORD_PEPPER);
     return errorPage(400, INVALID_CREDENTIALS_MESSAGE);
   }
 
-  const ok = await verifyPassword(password, {
-    algo: firm.password_algo ?? undefined,
-    salt: firm.password_salt ?? undefined,
-    iterations: firm.password_iterations ?? undefined,
-    rounds: firm.password_rounds ?? undefined,
-    hash: firm.password_hash,
-  });
+  const ok = await verifyPassword(
+    password,
+    {
+      algo: firm.password_algo ?? undefined,
+      salt: firm.password_salt ?? undefined,
+      iterations: firm.password_iterations ?? undefined,
+      rounds: firm.password_rounds ?? undefined,
+      hash: firm.password_hash,
+    },
+    env.PASSWORD_PEPPER
+  );
   if (!ok) {
     return errorPage(400, INVALID_CREDENTIALS_MESSAGE);
   }
@@ -2196,15 +2217,18 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
   // hand, so it is the only moment an outdated work factor can be upgraded
   // without asking the user to do anything.
   if (
-    needsRehash({
-      algo: firm.password_algo ?? undefined,
-      iterations: firm.password_iterations ?? undefined,
-      rounds: firm.password_rounds ?? undefined,
-      hash: firm.password_hash,
-    })
+    needsRehash(
+      {
+        algo: firm.password_algo ?? undefined,
+        iterations: firm.password_iterations ?? undefined,
+        rounds: firm.password_rounds ?? undefined,
+        hash: firm.password_hash,
+      },
+      env.PASSWORD_PEPPER
+    )
   ) {
     try {
-      await store.setFirmPassword(env.DB, firm.id, await hashPassword(password));
+      await store.setFirmPassword(env.DB, firm.id, await hashPassword(password, env.PASSWORD_PEPPER));
     } catch {
       // A failed opportunistic upgrade must never fail the login itself.
     }
@@ -2279,19 +2303,23 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
   }
 
   if (firm.password_hash) {
-    const currentOk = await verifyPassword(currentPassword, {
-      algo: firm.password_algo ?? undefined,
-      salt: firm.password_salt ?? undefined,
-      iterations: firm.password_iterations ?? undefined,
-      rounds: firm.password_rounds ?? undefined,
-      hash: firm.password_hash,
-    });
+    const currentOk = await verifyPassword(
+      currentPassword,
+      {
+        algo: firm.password_algo ?? undefined,
+        salt: firm.password_salt ?? undefined,
+        iterations: firm.password_iterations ?? undefined,
+        rounds: firm.password_rounds ?? undefined,
+        hash: firm.password_hash,
+      },
+      env.PASSWORD_PEPPER
+    );
     if (!currentOk) {
       return jsonResponse(400, { error: "That current password isn't right." });
     }
   }
 
-  await store.setFirmPassword(env.DB, firm.id, await hashPassword(newPassword));
+  await store.setFirmPassword(env.DB, firm.id, await hashPassword(newPassword, env.PASSWORD_PEPPER));
 
   // Changing a password must end every OTHER session. If the reason for
   // the change is that a session was stolen, leaving that session alive
@@ -2497,6 +2525,53 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
     },
   });
 }
+
+
+/**
+ * GET /firm/oauth-identities -- what is currently linked to this firm.
+ *
+ * Existed as a store function with no route until security review pointed
+ * out the consequence: a linked provider account could mint sessions
+ * forever, and nobody could even SEE it, let alone remove it. Anyone who
+ * controlled the admin mailbox for one window -- a departing office
+ * manager, a briefly-compromised inbox -- had a permanent way in that
+ * survived password rotation and session termination.
+ */
+async function handleOauthIdentitiesList(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+  const rows = await store.listOauthIdentitiesForFirm(env.DB, session.firmId);
+  return jsonResponse(200, {
+    identities: rows.map((r) => ({
+      id: r.id,
+      provider: r.provider,
+      provider_email: r.provider_email,
+      created_at: r.created_at,
+      last_login_at: r.last_login_at,
+    })),
+  });
+}
+
+/**
+ * DELETE /firm/oauth-identities/:id -- unlink a provider account.
+ *
+ * Unconditionally safe: the emailed sign-in link always works for the
+ * firm's admin address, so this cannot lock anyone out even if it removes
+ * the only linked provider and no password is set.
+ *
+ * store.unlinkOauthIdentity() binds firm_id in its own WHERE clause, so a
+ * session for firm A cannot unlink firm B's identity; a miss returns the
+ * same generic 404 as a nonexistent id, matching this file's
+ * no-oracle convention.
+ */
+async function handleOauthIdentityDelete(request: Request, env: Env, id: string): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+  const removed = await store.unlinkOauthIdentity(env.DB, session.firmId, id);
+  if (!removed) return jsonResponse(404, { error: "Not found." });
+  return jsonResponse(200, { ok: true });
+}
+
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {

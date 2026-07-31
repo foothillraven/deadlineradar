@@ -1299,8 +1299,16 @@ export async function findOauthIdentity(
 }
 
 /** Every provider identity currently linked to a firm -- powers the
- * "connected accounts" view and, critically, the check that stops an admin
- * from unlinking their LAST remaining way to sign in. */
+ * "connected accounts" view.
+ *
+ * An earlier version of this comment claimed it also backed a check
+ * stopping an admin from unlinking their LAST way to sign in. No such
+ * check existed, and security review rightly flagged the comment as
+ * misleading. It is also unnecessary: the emailed sign-in link is ALWAYS
+ * available to the firm's admin address, so removing every password and
+ * every linked provider still cannot lock anyone out. Unlinking is
+ * therefore safe unconditionally -- that is a property of the design, not
+ * an oversight. */
 export async function listOauthIdentitiesForFirm(db: D1Database, firmId: string): Promise<FirmOauthIdentityRow[]> {
   const { results } = await db
     .prepare(`SELECT * FROM firm_oauth_identities WHERE firm_id = ?1 ORDER BY created_at ASC`)

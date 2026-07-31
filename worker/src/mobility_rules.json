@@ -1,0 +1,11 @@
+{
+  "_meta": {
+    "purpose": "CPA practice-privilege (mobility) rules, per state, for mobility.ts.",
+    "staged_by_design": "Records are added in batches, each with a primary-source citation. A state ABSENT from `records` returns not_verified from the engine, which is the intended behavior, not a gap to fill with guesses. NEVER add a state without a citation just to make coverage look complete -- mobility.ts will refuse to emit a permissive verdict for an uncited row anyway (requireCitationOrDowngrade), so an uncited entry buys nothing and risks a wrong answer.",
+    "evidence_standard": "Same as data/cpa_deadlines.json: prefer BOTH the state board's own page (source_url) AND the codified statute/administrative rule (citation + citation_url). `confidence` records which was achieved -- dual_source, single_source, or unverified. Any field that could not be verified is null with an explanatory data_gap_note; null NEVER means 'not required'.",
+    "liability_note": "A wrong permissive answer here means a CPA practices without authority. Conservative default is mandatory: when in doubt, leave it null.",
+    "as_of_date": "2026-07-30",
+    "batch_status": "Batch 1 in research (TX, CA, NY, FL, IL, then PA, OH, NJ, GA, NC). No records committed yet -- the engine and routes ship first and degrade honestly."
+  },
+  "records": []
+}

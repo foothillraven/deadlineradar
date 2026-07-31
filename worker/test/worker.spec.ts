@@ -2388,3 +2388,143 @@ describe("prefetch-safe actions + List-Unsubscribe", () => {
     expect(updated?.stop_reason).toBe("unsubscribed");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Mobility / practice-privilege routes (2026-07-30) -- the first PAY-GATED
+// feature. The gate and the never-assert-unverified property are what these
+// tests attack; the determination logic itself is covered in mobility.spec.ts.
+// ---------------------------------------------------------------------------
+
+async function postMobilityCheck(
+  body: Record<string, unknown>,
+  cookie: string | null,
+  ip = "203.0.113.250"
+): Promise<Response> {
+  const headers: Record<string, string> = { "content-type": "application/json", "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch("https://deadline-radar.com/firm/mobility/check", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+}
+
+async function firmOnTier(tier: string, createdAt: string): Promise<{ firmId: string; cookie: string }> {
+  const { id } = await store.createFirm(env.DB, {
+    name: `Mobility ${tier} Firm`,
+    adminEmail: `mobility-${tier}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@examplefirm.com`,
+  });
+  await env.DB.prepare("UPDATE firms SET plan_tier = ?1, created_at = ?2 WHERE id = ?3")
+    .bind(tier, createdAt, id)
+    .run();
+  const { rawSessionToken } = await store.createSession(env.DB, id);
+  return { firmId: id, cookie: `dr_firm_session=${rawSessionToken}` };
+}
+
+const VALID_CHECK = {
+  home_state_slug: "california",
+  target_state_slug: "texas",
+  service_type: "tax",
+  license_in_good_standing: true,
+  substantially_equivalent: true,
+};
+
+describe("POST /firm/mobility/check -- pay gate", () => {
+  it("requires a session", async () => {
+    expect((await postMobilityCheck(VALID_CHECK, null)).status).toBe(401);
+  });
+
+  it("allows a firm inside its free pilot window", async () => {
+    const { cookie } = await firmOnTier("pilot", new Date().toISOString());
+    const resp = await postMobilityCheck(VALID_CHECK, cookie);
+    expect(resp.status).toBe(200);
+  });
+
+  it("BLOCKS a firm whose pilot has expired, and returns no determination at all", async () => {
+    const longAgo = new Date(Date.now() - 90 * 86_400_000).toISOString();
+    const { cookie } = await firmOnTier("pilot", longAgo);
+    const resp = await postMobilityCheck(VALID_CHECK, cookie);
+    expect(resp.status).toBe(403);
+    const body = await resp.json<{ reason: string; individual?: unknown; overall?: unknown }>();
+    expect(body.reason).toBe("pilot_expired");
+    // The determination must not leak in the denial payload.
+    expect(body.individual).toBeUndefined();
+    expect(body.overall).toBeUndefined();
+  });
+
+  it("allows a paid tier regardless of account age", async () => {
+    const { cookie } = await firmOnTier("firm", "2020-01-01T00:00:00Z");
+    expect((await postMobilityCheck(VALID_CHECK, cookie)).status).toBe(200);
+  });
+
+  it("BLOCKS an unrecognised tier -- the gate fails closed", async () => {
+    const { cookie } = await firmOnTier("enterprise_typo", new Date().toISOString());
+    const resp = await postMobilityCheck(VALID_CHECK, cookie);
+    expect(resp.status).toBe(403);
+  });
+
+  it("BLOCKS an inactive firm even on a paid tier", async () => {
+    const { firmId, cookie } = await firmOnTier("firm", new Date().toISOString());
+    await env.DB.prepare("UPDATE firms SET status = 'suspended' WHERE id = ?1").bind(firmId).run();
+    const resp = await postMobilityCheck(VALID_CHECK, cookie);
+    expect(resp.status).toBe(403);
+    expect((await resp.json<{ reason: string }>()).reason).toBe("firm_inactive");
+  });
+
+  it("gates the COVERAGE endpoint too -- the premium dataset's shape is not free", async () => {
+    const longAgo = new Date(Date.now() - 90 * 86_400_000).toISOString();
+    const { cookie } = await firmOnTier("pilot", longAgo);
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/mobility/coverage", {
+      headers: { Cookie: cookie, "cf-connecting-ip": "203.0.113.251" },
+    });
+    expect(resp.status).toBe(403);
+  });
+});
+
+describe("POST /firm/mobility/check -- never asserts what it hasn't verified", () => {
+  it("returns not_verified with a disclaimer while the dataset is empty", async () => {
+    const { cookie } = await firmOnTier("firm", new Date().toISOString());
+    const resp = await postMobilityCheck(VALID_CHECK, cookie);
+    expect(resp.status).toBe(200);
+    const body = await resp.json<{
+      overall: string;
+      disclaimer: string;
+      individual: { verdict: string; disclaimer: string };
+      firm: { verdict: string };
+    }>();
+    expect(body.overall).toBe("not_verified");
+    expect(body.individual.verdict).toBe("not_verified");
+    expect(body.disclaimer).toMatch(/not legal advice/i);
+    expect(body.individual.disclaimer).toMatch(/not legal advice/i);
+  });
+
+  it("rejects an unknown state slug as a 400, NOT as a silent 'not verified' that looks like a data gap", async () => {
+    const { cookie } = await firmOnTier("firm", new Date().toISOString());
+    for (const bad of [
+      { ...VALID_CHECK, target_state_slug: "atlantis" },
+      { ...VALID_CHECK, home_state_slug: "" },
+      { ...VALID_CHECK, target_state_slug: "__proto__" },
+    ]) {
+      expect((await postMobilityCheck(bad, cookie)).status).toBe(400);
+    }
+  });
+
+  it("rejects an invalid service type", async () => {
+    const { cookie } = await firmOnTier("firm", new Date().toISOString());
+    for (const st of ["", "audit", "ATTEST", "constructor"]) {
+      const resp = await postMobilityCheck({ ...VALID_CHECK, service_type: st }, cookie);
+      expect(resp.status).toBe(400);
+    }
+  });
+
+  it("treats a missing attestation as FALSE rather than assuming good standing", async () => {
+    const { cookie } = await firmOnTier("firm", new Date().toISOString());
+    const resp = await postMobilityCheck(
+      { ...VALID_CHECK, license_in_good_standing: undefined, substantially_equivalent: undefined },
+      cookie
+    );
+    expect(resp.status).toBe(200);
+    const body = await resp.json<{ individual: { verdict: string } }>();
+    expect(body.individual.verdict).toBe("action_required");
+  });
+});

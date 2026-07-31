@@ -361,6 +361,10 @@ export const RATE_LIMIT_FIRM_LICENSE_CREATE: RateLimit = { max: 50, windowSecond
 // never true in production). Lets a human tester fire the daily reminder
 // cron on demand instead of waiting for the real 18:00 UTC trigger. A tight
 // cap since this is a manual test aid, not a real feature.
+/** Mobility checks are cheap to compute but are the premium feature; this
+ * bounds automated harvesting of the rules dataset by a subscriber. */
+export const RATE_LIMIT_MOBILITY_CHECK: RateLimit = { max: 120, windowSeconds: 3600 };
+
 export const RATE_LIMIT_DEBUG_REMINDER_PASS: RateLimit = { max: 5, windowSeconds: 600 };
 
 /** Returns true if this request is ALLOWED, false if it should be blocked. */

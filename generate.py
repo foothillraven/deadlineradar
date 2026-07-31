@@ -3701,6 +3701,32 @@ _MOBILITY_JS_HTML = """<script>
 _MOBILITY_JS_HTML = _MOBILITY_JS_HTML.replace("'/api/firm", f"'{REMINDER_BACKEND_BASE_URL}/firm")
 
 
+def _mobility_covered_slugs() -> set[str]:
+    """State slugs with a verified mobility rule, read from the SAME file the
+    Worker imports (`worker/src/mobility_rules.json`).
+
+    Reading the Worker's own data file rather than keeping a second list here
+    is the point: a duplicated list would drift, and the failure mode of
+    drift is the worst one this feature has -- offering a state we cannot
+    answer for, or hiding one we can.
+
+    A missing or unreadable file yields an EMPTY set, which disables every
+    target state. That is deliberately the safe direction: a checker that
+    offers nothing is obviously broken and gets fixed, whereas one that
+    offers everything looks fine while returning not_verified for all of it.
+    """
+    path = pathlib.Path(__file__).resolve().parent / "worker" / "src" / "mobility_rules.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return {
+        r["state_slug"]
+        for r in data.get("records", [])
+        if isinstance(r, dict) and isinstance(r.get("state_slug"), str)
+    }
+
+
 def build_firm_mobility_page(by_slug: dict[str, list[dict]]) -> str:
     """Practice-privilege (mobility) checker -- a PAY-GATED tool page.
 
@@ -3723,8 +3749,53 @@ def build_firm_mobility_page(by_slug: dict[str, list[dict]]) -> str:
     precisely so the UI cannot display a verdict without them.
     """
     all_slugs = sorted(by_slug)
-    state_options = "\n".join(
+
+    # HOME state: every jurisdiction, always. The determination is made
+    # against the TARGET state's rules -- index.ts looks up
+    # MOBILITY_RULES_BY_SLUG[targetStateSlug] and nothing else -- and
+    # substantial equivalence is self-attested. So we need no data about
+    # where the license is held, and restricting this list would block real
+    # questions we can actually answer.
+    home_state_options = "\n".join(
         f'<option value="{esc(slug)}">{esc(by_slug[slug][0]["state"])}</option>' for slug in all_slugs
+    )
+
+    # TARGET state: split by whether we have a verified rule row.
+    #
+    # The honest answer to "what do we do about the 50 states we have not
+    # sourced yet" is: offer only the ones we can actually answer, and say
+    # plainly that the rest are not covered. The engine already refuses to
+    # guess (an absent state returns not_verified), but letting someone pick
+    # a state and THEN telling them we don't know is a dead end -- the same
+    # silent-failure shape as the /firm-login/ trap. Better to show the
+    # limit before they spend the click.
+    #
+    # Uncovered states are rendered as DISABLED options rather than omitted.
+    # Omitting them looks like a broken or incomplete list; showing them
+    # greyed under an explicit label communicates "we know this state exists
+    # and we have not verified it yet," which is the true statement.
+    covered_slugs = _mobility_covered_slugs()
+    covered = [s for s in all_slugs if s in covered_slugs]
+    uncovered = [s for s in all_slugs if s not in covered_slugs]
+
+    def _opt(slug: str, disabled: bool = False) -> str:
+        return (
+            f'<option value="{esc(slug)}"{" disabled" if disabled else ""}>'
+            f'{esc(by_slug[slug][0]["state"])}</option>'
+        )
+
+    target_state_options = "\n".join(_opt(s) for s in covered)
+    if uncovered:
+        target_state_options += (
+            '\n<optgroup label="Not yet verified -- we will not guess" disabled>\n'
+            + "\n".join(_opt(s, disabled=True) for s in uncovered)
+            + "\n</optgroup>"
+        )
+
+    coverage_line = (
+        f"Verified in <strong>{len(covered)} of {len(all_slugs)}</strong> jurisdictions so far. "
+        "We add states only once a primary source has been read and independently checked, so the "
+        "list grows slowly on purpose."
     )
 
     body = f"""<h1>Practice-privilege check</h1>
@@ -3745,15 +3816,16 @@ first? Every answer is tied to the rule it came from.</p>
         <label for="dr-mob-home">Home state (where the license is held)</label>
         <select id="dr-mob-home" name="home_state_slug" required>
           <option value="">Select state</option>
-          {state_options}
+          {home_state_options}
         </select>
       </div>
       <div>
         <label for="dr-mob-target">Target state (where the work happens)</label>
         <select id="dr-mob-target" name="target_state_slug" required>
           <option value="">Select state</option>
-          {state_options}
+          {target_state_options}
         </select>
+        <p class="field-hint">{coverage_line}</p>
       </div>
     </div>
 

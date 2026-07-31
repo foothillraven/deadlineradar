@@ -8,7 +8,139 @@
     "batch_status": "Batch 1 research returned. Illinois has a full primary-source record but is IN FLUX (see above) and must ship flagged, not clean. Texas/California/New York/Florida findings were prose-only in that pass and need their records finalised before commit. NOTHING committed yet -- the engine degrades honestly to not_verified for every state meanwhile.",
     "schema_note_2026_07_30": "equivalence_test is REQUIRED and cannot be inferred. Primary-source research found the states are actively diverging on what substantial equivalence even means: Texas abandoned NASBA state-level equivalency for an individual-criteria test (SB 522, eff. 2025-09-01); Illinois adopted NASBA NQAS state-level equivalency (P.A. 104-0228, eff. 2026-01-01); New York moves to individual criteria 2026-11-21. A single boolean 'is the home state substantially equivalent?' encodes the WRONG question for whichever kind a state does not use, so the engine refuses to interpret the user's attestation until this field is set.",
     "verification_ttl": "Rows EXPIRE after MOBILITY_VERIFICATION_TTL_DAYS (180) and expiry downgrades to not_verified rather than merely warning. Four of five priority states changed or will change mobility rules inside a 14-month window (2025-09-01 to 2026-11-21), so treating verification as durable would make this dataset confidently wrong within months. Put known changeover dates in rule_changes_on.",
-    "rule_in_flux": "Set true when primary sources DISAGREE or a change is mid-flight, and the engine will decline to answer for that state entirely. Illinois is the live example: enrolled P.A. 104-0228 and the compiled ILCS text state different tests for the same section, and the compiled text cites the very act that contradicts it. Do not resolve such a conflict in the data -- flag it and let the user confirm with the board."
+    "rule_in_flux": "Set true when primary sources DISAGREE or a change is mid-flight, and the engine will decline to answer for that state entirely. Illinois is the live example: enrolled P.A. 104-0228 and the compiled ILCS text state different tests for the same section, and the compiled text cites the very act that contradicts it. Do not resolve such a conflict in the data -- flag it and let the user confirm with the board.",
+    "batches": [
+      {
+        "batch": 1,
+        "merged_on": "2026-07-31",
+        "states": [
+          "california",
+          "florida",
+          "illinois",
+          "new-york",
+          "texas"
+        ],
+        "sourced_by": "scoutlab",
+        "method": "scoutlab, workflow wf_ae45f5bf-8aa, 2026-07-31: 5 per-state dual-source researchers + 5 independent adversarial verifiers + 1 cross-state legislative flux sweeper (11 agents, 232 fetches). Zero fields refuted; all 5 records PASS with enrichment edits, applied below and marked 'UPDATE (verifier)'.",
+        "evidence_file": "Orchestrator/inbox/scoutlab_mobility_rules_batch1_evidence.json",
+        "coverage_after": "5/55 jurisdictions -- NOT shippable coverage; mobility stays HELD from production until Devin says otherwise.",
+        "corrections_to_assetlab_prior_reads": [
+          "The Illinois 'contradiction' was an EXTRACTION ARTIFACT, not a legal conflict: P.A. 104-0228 deletes the NASBA NQAS language (stricken), and the act and the compiled ILCS state the same new Section-14 test. Stricken text losing its strikethrough during extraction reads as live.",
+          "AssetLab's note that Illinois 'adopted NASBA state-level equivalency' is BACKWARDS -- the act REMOVES NQAS reliance.",
+          "Texas law is settled; only the TSBPA web page is stale. rule_in_flux stays true solely under the source-disagreement rule, and narrows the day that page updates."
+        ],
+        "recheck_dates": {
+          "new-york": "2026-11-21 -- the equivalence test flips; MUST be re-verified before then",
+          "all_rows": "2027-01-27 -- every row hits the 180-day verification TTL"
+        }
+      }
+    ]
   },
-  "records": []
+  "records": [
+    {
+      "state": "California",
+      "state_slug": "california",
+      "individual_practice_privilege": true,
+      "notice_required": false,
+      "fee_required": false,
+      "firm_registration_attest": true,
+      "firm_registration_tax": false,
+      "peer_review_required": null,
+      "equivalence_test": "other",
+      "citation": "Cal. Bus. & Prof. Code §§ 5096-5096.22 (Accountancy Act, Art. 5.1 Practice Privileges), as amended by AB 1175 (Stats. 2025, ch. 293), eff. 2026-01-01; esp. §§ 5096(a)-(b) (individual open mobility, no notice/fee), 5096(c) (attest via registered firm), 5096(h) (7-year discipline pre-notification), 5096.12 (out-of-state firm registration)",
+      "citation_url": "https://leginfo.legislature.ca.gov/faces/codes_displayText.xhtml?lawCode=BPC&division=3.&title=&part=&chapter=1.&article=5.1.",
+      "source_url": "https://www.dca.ca.gov/cba/outreach/california-legislation.shtml",
+      "verified_date": "2026-07-31",
+      "confidence": "dual_source",
+      "rule_in_flux": true,
+      "flux_note": "AB 1175 (Stats. 2025, ch. 293, signed 2025-10-03, eff. 2026-01-01) replaced California's substantial-equivalency practice privilege with an 'open mobility' framework: any current-and-active out-of-state license qualifies, no notice/fee, and no equivalency test; the CBA may withdraw a specific state's no-notice privilege (BPC 5096.21/5096.22), in which case that state's licensees must file a notification form and pay fees. HOWEVER, the CBA's own Licensee FAQs (last updated 2026-05-04, AFTER the effective date) and practice-privilege pages STILL describe the pre-2026 regime (license from a substantially equivalent state, 4-of-last-10-years practice, or individually equivalent qualifications) - board guidance and the compiled statute currently disagree; practitioner-facing confusion risk is high until CBA guidance conforms. UPDATE (verifier): the CBA has ACTIVE AB 1175 implementation rulemaking (initiated Nov 2025; 16 CCR amendments incl. sections 5.5 and 19 approved Sept 2025 and reauthorized with corrections; 'accounting concentration' definition on the July 2026 board agenda). Separately, AB 1175's licensure-pathway changes phase in 2027-01-01 (new B&P 5093.2/5093.3 pathway) through 2029-01-01 (150-hr legacy route sunset) - licensure, not mobility, but it will change the inbound-CPA population profile. Monitor for CBA guidance/regulation updates and any state-specific privilege withdrawals under 5096.21.",
+      "rule_changes_on": "2026-01-01",
+      "data_gap_note": "peer_review_required left null: BPC 5096.12 imposes no peer-review condition on out-of-state firm registration, and the CBA's OFR registration (Form PP-13) and renewal forms contain no peer-review section (and no fee), suggesting peer review is NOT a condition of the OFR - but BPC 5076(a) requires peer review for 'a firm, as defined in Section 5035.1' renewing 'its registration in an active status,' and 5035.1's definition does not expressly exclude out-of-state registrants; no primary source affirmatively states the exemption, so this stays unresolved (verifier concurs null is correct). RESOLVED (verifier): the 7-year disciplinary/criminal pre-notification requirement on the CBA's pp_reporting page DOES retain a statutory basis in the post-AB 1175 compiled Article 5.1, at BPC 5096(h).",
+      "notes": "Individual: BPC 5096(a)-(b) (current text, eff. 2026-01-01) grants a practice privilege to any individual whose principal place of business is outside California holding a current, active license from another state; 'a notice, fee, or other requirement shall not be imposed.' Conditions: no California office (except as employee of a registered firm), report criminal charges within 30 days, cease practice on home-state discipline or SEC/PCAOB bar, and perform BPC 5096(c) attest services (audit/review of financial statements, compilations where third-party use expected and independence not disclaimed, examinations of prospective financial information, for entities headquartered in California) only through a firm registered with the CBA. Per BPC 5096(h) (statutory basis verifier-confirmed) and the CBA's pp_reporting page: individuals with specified disciplinary/criminal events in the previous 7 years must submit a Pre-Notification Form and obtain CBA approval BEFORE practicing - a live exception to the no-notice rule. Firm: an out-of-state firm with no California office may practice through privilege holders WITHOUT registration (5096.12(a)); registration (Form PP-13, no fee, renewable every two years at no fee) is required only to perform 5096(c) attest services for California-headquartered entities (5096.12(c)) - tax and other non-attest services trigger no CBA firm registration (Secretary of State foreign-qualification rules may apply separately for intrastate business, per the CBA form notice). Equivalence test: 'other' = open mobility, no equivalency screening at all (neither NASBA state-level nor individual criteria); board retains state-by-state withdrawal power (5096.21/5096.22). Pre-2026 rules (substantial equivalency; no-notice no-fee since 2013-07-01) remain visible on stale CBA pages."
+    },
+    {
+      "state": "Florida",
+      "state_slug": "florida",
+      "individual_practice_privilege": true,
+      "notice_required": false,
+      "fee_required": false,
+      "firm_registration_attest": false,
+      "firm_registration_tax": false,
+      "peer_review_required": true,
+      "equivalence_test": "nasba_state_level",
+      "citation": "Fla. Stat. § 473.3141 (individual practice privilege); Fla. Stat. § 473.3101 (firm licensure and out-of-state firm exemptions); Fla. Stat. § 473.302(8)(a) (attest-type services definition)",
+      "citation_url": "http://www.leg.state.fl.us/statutes/index.cfm?App_mode=Display_Statute&URL=0400-0499/0473/Sections/0473.3141.html",
+      "source_url": "https://www2.myfloridalicense.com/certified-public-accounting/mobility/",
+      "verified_date": "2026-07-31",
+      "confidence": "dual_source",
+      "rule_in_flux": false,
+      "flux_note": null,
+      "rule_changes_on": null,
+      "data_gap_note": "firm_registration_tax=false rests primarily on the codified text of Fla. Stat. 473.3101(3) (verbatim, official legislature site); the DBPR board mobility page does not specifically address non-attest/tax services by out-of-state firms, so that field's board-page leg is weaker than the others. The four exemption conditions in 473.3101(1)(c)1.a-d are listed without an express 'and'; DBPR's presentation treats them as cumulative and the UAA model they derive from requires all four - treat them as conjunctive but verify against Rule 61H1 (Fla. Admin. Code, not directly fetched) if precision is critical.",
+      "notes": "IMPORTANT SCOPE: firm_registration_attest=false means no Florida firm license is required ONLY IF the out-of-state firm (with no Florida office) meets ALL of 473.3101(1)(c)1.a-d: (a) complies with s.473.309 firm qualifications (ownership), (b) is enrolled in a peer review program per s.473.3125(4), (c) performs through an individual with 473.3141 practice privileges, and (d) lawfully performs the services in the privileged individual's home state. A firm failing any condition MUST hold a Florida firm license to perform 473.302(8)(a) attest-type services for a client having its home office in Florida. Practice-privilege individuals may perform 473.302(8)(a) services only through a firm licensed under or authorized by 473.3101 (473.3141(4)). Privilege applies only to individuals with no office in Florida; establishing a Florida office requires full licensure. Equivalence test is state-level substantial equivalency to UAA s.5 as determined by the board or its designee (NASBA/CPAverify model; DBPR lists all 50 states plus territories as substantially equivalent), with an individual-verification fallback under 473.3141(1)(b) for CPAs from non-approved states. Fallback route: individuals not qualifying for substantial-equivalency privileges (e.g., certificate-only holders from two-tier states; post-2012 NY/OH legacy-pathway licensees per DBPR asterisks) may use a temporary license (Fla. Stat. 473.314; Rule 61H1-29.002 F.A.C.). LEGISLATIVE WATCH: SB 160/HB 133 (2025) - new licensure pathways plus enhanced automatic mobility - died June 2025. SB 364 (2026) passed the Senate 35-0 (2026-01-29) but Died in Messages in the House 2026-03-13; companion HB 333 never received a House committee hearing; a separate 2026 measure to eliminate the Board of Accountancy (HB 607) also failed. FICPA has signaled it will refile; expect a 2027-session bill touching 473.3141. Compiled 473.3141 last amended by ch. 2012-212, consistent with no enacted change."
+    },
+    {
+      "state": "Illinois",
+      "state_slug": "illinois",
+      "individual_practice_privilege": true,
+      "notice_required": false,
+      "fee_required": false,
+      "firm_registration_attest": false,
+      "firm_registration_tax": false,
+      "peer_review_required": true,
+      "equivalence_test": "other",
+      "citation": "225 ILCS 450/5.2 (with 225 ILCS 450/13, 14, 14.4, 16); 68 Ill. Adm. Code 1420.75",
+      "citation_url": "https://ilga.gov/Legislation/ILCS/Articles?ActID=1363&ChapAct=225%C2%A0ILCS%C2%A0450%2F&ChapterID=24&ChapterName=PROFESSIONS+AND+OCCUPATIONS&ActName=Illinois+Public+Accounting+Act.",
+      "source_url": "https://idfpr.illinois.gov/profs/pa.html",
+      "verified_date": "2026-07-31",
+      "confidence": "single_source",
+      "rule_in_flux": true,
+      "flux_note": "P.A. 104-0228 (HB2459, signed 2025-08-15, eff. 2026-01-01) retitled 225 ILCS 450/5.2 from 'Substantial equivalency' to 'Enhanced mobility' and REPLACED the NASBA NQAS substantial-equivalency test with: (1) issuing state's licensure requirements equivalent to the criteria in Section 14, or (2) individual petition to the Public Accountant Registration and Licensure Committee for an equivalency determination of education, exam, and experience. NOTE: the prior-research claim that IL 'adopted NASBA NQAS state-level equivalency' is BACKWARDS - the enrolled act DELETES the NQAS language (shown stricken in the act). The prior-research claim that the enrolled act and compiled ILCS state DIFFERENT tests could not be reproduced: researcher AND independent adversarial verifier each fetched the enrolled act's raw HTML with strike/underline markup preserved and the compiled ILCS text; both state the SAME new Section-14-equivalence/petition test (compiled source line: 'P.A. 103-309, eff. 1-1-24; 104-228, eff. 1-1-26'). The apparent contradiction arises when the act's STRICKEN NQAS text loses strikethrough formatting during text extraction and reads as live text - both versions are reproduced verbatim in the evidence quotes; human review of the enrolled act PDF should confirm. Still genuinely in flux: (a) Section 14 licensure criteria - the referent of the 5.2(a)(1) equivalence test - gain two new pathways on 2027-01-01 (bachelor's in accounting + 2 yrs experience; master's or bachelor's + 30 accounting hrs + 1 yr), which will shift which states are 'equivalent'; (b) IDFPR's administrative rules (68 Ill. Adm. Code 1420) contain no mobility/practice-privilege section and have not been updated for P.A. 104-0228 (1420.35 Temporary Practice is repealed) - rulemaking is likely; (c) the entire Public Accounting Act is scheduled to be repealed 2029-01-01 (sunset).",
+      "rule_changes_on": "2027-01-01",
+      "data_gap_note": "notice_required=false and fee_required=false reflect the automatic privilege path (5.2(a)(1) plus 5.2(b): 'no notice or other submission'). For CPAs from states NOT equivalent to Section 14, the 5.2(a)(2) petition to the Committee is itself a pre-condition submission, and whether a fee attaches to that petition is not resolved (statute silent; 68 IAC 1420.40 fee schedule not yet updated for the new petition). No published list of 'equivalent' states exists yet - out-of-state CPAs cannot currently self-verify path (1) eligibility from official sources. firm_registration_attest=false is CONDITIONAL: an out-of-state firm avoids licensure only if it complies with Sections 14.4 (ownership) and 16 (peer review) through its home state; a firm with an Illinois office, or one without an Illinois office that fails 5.2 privilege requirements and performs 5.2(e) audit/attest engagements for an Illinois-headquartered client, MUST hold an Illinois CPA firm license (Section 13). Record-level confidence set to single_source (minimum across answered fields): individual_practice_privilege and equivalence_test are effectively dual-sourced (IDFPR OLA page + compiled ILCS + enrolled act), but notice/fee, firm registration, and peer review fields rest on statute and administrative rule only - no IDFPR page states their substance.",
+      "notes": "Scheme as of 2026-07-31: Illinois grants automatic practice privilege - no license, notice, or fee - to an individual CPA whose principal place of business is out of state if the issuing state's requirements are equivalent to 225 ILCS 450/14; otherwise the individual must first obtain a Committee equivalency determination. Firm mobility: an out-of-state CPA firm has full privileges without license or notice if it complies with Sections 14.4 and 16 (including peer review) through enhanced mobility of its licensed state (5.2(a-5)); this covers attest and non-attest alike, but audits/attestation engagements for Illinois-headquartered entities may only be performed through a licensed or privileged CPA firm (5.2(d)-(e)). Tax/non-attest by an out-of-state firm with no Illinois office triggers none of the Section 13 licensure prongs. Peer review (3-year cycle, Section 16; 68 IAC 1420.75) is a condition of firm license renewal for firms performing 8.05(a)(1) attest activities and is incorporated into firm mobility via the Section 16 compliance condition. Caution: an IDFPR reinstatement form states 'The firm cannot advertise or offer any professional services in Illinois without a valid CPA Firm license' - in context it addresses lapsed Illinois firm licenses, not privileged out-of-state firms, but the tension is logged in the evidence open_questions."
+    },
+    {
+      "state": "New York",
+      "state_slug": "new-york",
+      "individual_practice_privilege": true,
+      "notice_required": false,
+      "fee_required": false,
+      "firm_registration_attest": true,
+      "firm_registration_tax": false,
+      "peer_review_required": true,
+      "equivalence_test": "other",
+      "citation": "N.Y. Educ. Law § 7406(2) (practice privilege); §§ 7408, 7410 (firm registration and peer review); 8 NYCRR 70.7",
+      "citation_url": "https://www.nysenate.gov/legislation/laws/EDN/7406",
+      "source_url": "https://www.op.nysed.gov/professions/certified-public-accountants/news/mobility-in-nys-took-effect",
+      "verified_date": "2026-07-31",
+      "confidence": "dual_source",
+      "rule_in_flux": true,
+      "flux_note": "Chapter 530 of the Laws of 2025 (S6891B), signed 2025-11-21 and effective 2026-11-21 ('This act shall take effect twelve months after it shall have become a law'), rewrites Educ. Law 7406(2): the current test - licensure by a state the Board of Regents has determined substantially equivalent, or individual qualifications verified by the department - is replaced by individual criteria: valid license in good standing, out-of-state principal place of business, completion of either of the professional education and experience requirements in 7404(1)(2)-(3), and passage of the written examination in 7404(1)(4). NY Senate OpenLegislation already displays both versions of 7406 side by side (pre- and post-2026-11-21) and they AGREE with the enacted bill text, so this is a clean enacted-but-not-yet-effective change, not a source contradiction. Chapter 530 also adds a bachelor's-degree + exam + 2-years-experience licensure pathway. UPDATE (verifier): implementing rulemaking has actively begun - the proposed Part 70 amendment implementing Chapter 530 was published in the State Register for a 60-day comment period, with anticipated adoption at the September 2026 Board of Regents meeting and effective date 2026-11-21 (per the July 29, 2026 NYS Board for Public Accountancy public meeting packet). 8 NYCRR 70.7 itself is not yet conformed.",
+      "rule_changes_on": "2026-11-21",
+      "data_gap_note": "equivalence_test set to 'other' rather than 'nasba_state_level' because the codified regulation (8 NYCRR 70.7) references states recognized by 'a national professional accounting organization acceptable to the Department' plus an individual department-verification fallback - NASBA/NQAS is the de facto mechanism but is not named in the statute or regulation, so nasba_state_level could not be confirmed from primary sources. fee_required=false rests on NYSED's explicit statement plus the absence of any fee provision for the privilege in 7406(2)/70.7 (no affirmative 'no fee' clause in the statute itself; the 7408 FIRM registration fee amount was not verified and fee_required refers only to the individual privilege). The post-2026-11-21 statutory text was verified via the enrolled bill text (S6891B/Ch. 530) and the OpenLegislation future-version display; fetched excerpts contained ellipses, so exact punctuation of full paragraphs was not captured.",
+      "notes": "Framework: out-of-state CPAs (principal place of business outside NY) practice under Educ. Law 7406(2) with no license, no notice, and no fee. EXCEPTION: a CPA with discipline, pending charges, or license denial within the preceding 7 years must notify the department on a prescribed form and receive written permission BEFORE practicing. Service-type split is statutory: services under 7401 subds. 1-2 (attest and compilation) may be performed only through a firm registered under 7408; services under 7401 subd. 3 (tax, advisory, other non-attest) may be performed through an out-of-state firm holding a valid license/registration/permit in another state with no NY registration. CAVEAT on firm_registration_tax=false: 7408 independently requires registration of any firm that uses 'CPA'/'CPA firm' (or 'PA') in its title - a non-attest out-of-state firm holding itself out under a CPA firm name in NY may still trigger title-based registration; no NYSED guidance found on this intersection. Peer review of attest services at least every 3 years (7410; first review within 18 months of initial attest service) is a condition of firm registration - 7408 lists failure to undergo peer review as a ground against registration, and NYSED requires peer review documents each time the firm registers. An out-of-state CPA whose principal place of business is IN New York gets no privilege and must obtain a NY license. Privilege-holders are automatically subject to NYSED regulatory oversight as if NY-licensed. Note: prior hint referenced '7406-a' - no such section exists; the privilege is 7406(2)."
+    },
+    {
+      "state": "Texas",
+      "state_slug": "texas",
+      "individual_practice_privilege": true,
+      "notice_required": false,
+      "fee_required": false,
+      "firm_registration_attest": false,
+      "firm_registration_tax": false,
+      "peer_review_required": true,
+      "equivalence_test": "individual_criteria",
+      "citation": "Tex. Occ. Code §§ 901.461, 901.462 (practice privileges); § 901.351(a-1) (firm license required only if office in Texas); as amended by Acts 2025, 89th Leg., R.S., Ch. 40 (S.B. 522), § 2, eff. Sept. 1, 2025; 22 TAC § 517.2 (as amended eff. 2025-10-09)",
+      "citation_url": "https://statutes.capitol.texas.gov/Docs/OC/htm/OC.901.htm",
+      "source_url": "https://www.tsbpa.texas.gov/cpas/practice-privilege/",
+      "verified_date": "2026-07-31",
+      "confidence": "dual_source",
+      "rule_in_flux": true,
+      "flux_note": "SB 522 (89th Leg., 2025, Ch. 40) rewrote the individual mobility test effective 2025-09-01: it deleted the NASBA NQAS substantial-equivalency test from 901.462(a) and replaced it with individual criteria (passed uniform CPA exam + education pathway of (A) 150-hr baccalaureate w/ accounting concentration, (B) graduate degree w/ accounting concentration, or (C) baccalaureate w/ accounting concentration + experience of 1 year for pathways A/B or 2 years for pathway C, measured at time of home-state licensure). The enrolled SB 522 text and the compiled statute AGREE exactly - no enrolled-vs-compiled contradiction. However, the TSBPA's own practice-privilege page (fetched 2026-07-31) STILL describes the repealed pre-SB 522 NASBA NQAS substantial-equivalency checklist - board page and statute currently DISAGREE on the equivalence test; the board page appears stale, not evidence of a pending change. 901.462(f) grandfathers individuals who on 2024-12-31 held an out-of-state license and practiced under the privilege. Firm-side rules (901.461 full firm mobility) unchanged since HB 1520 eff. 2019-09-01. UPDATE (verifier): the board HAS conformed its rules - 22 TAC 517.2 was amended to delete the NASBA NQAS reference and add no notice/fee/registration requirement (proposed 50 TexReg 4198, 2025-07-25; adopted without changes; filed with SOS 2025-09-19; effective 2025-10-09), and 22 TAC 501.53 (eff. 2025-04-02) requires privilege practitioners to comply with all Board rules of professional conduct. The legal test is therefore settled at BOTH statute and rule level; the only remaining disagreement is the stale TSBPA web page, so rule_in_flux=true is a conservative flag AssetLab may judge narrowable once the board page updates. Adjacent 2025 enactments (do not change any field): SB 262 adds a home-state licensure pathway operative 2026-08-01 (120-hr bachelor's + 2 yrs experience; TSBPA rules eff. 2025-10-10), which affects how pathway-C comparability under 901.462(a) is exercised by inbound CPAs; SB 522 § 1 also amended 901.259 (reciprocal certification, incl. NQAS verification route).",
+      "rule_changes_on": "2025-09-01",
+      "data_gap_note": "equivalence_test rests on statute + enrolled act + conformed board rule (board WEB PAGE stale, still shows NASBA test). fee_required=false: board page states no fee explicitly; statute 901.462 contains no fee provision but does not use the words 'no fee'; no fee-schedule entry was checked for privilege holders. 901.461(b) attest conditions (ownership/peer review) textually apply only to attest for entities with home office IN Texas; conditions for attest work for non-Texas-home-office entities performed in Texas were not separately verified. Scope of the 901.462(f) grandfather clause - board interpretation/documentation of who qualifies - was not found on the board site.",
+      "notes": "Individuals: out-of-state CPA with ACTIVE license and principal place of business outside Texas may exercise all privileges of Texas license holders with no notice, no fee, no registration, if they meet the SB 522 individual criteria (exam + education pathway + 1-2 yrs experience). Privilege conditions: board jurisdiction, comply with Act and rules, home-state regulator deemed agent for service of process, must cease if home license invalid; board may bar an individual it determines does not meet 901.462(a) (901.462(e)). Firms: Texas has full firm mobility (HB 1520, 2019) - an out-of-state firm needs NO Texas firm license, registration, or notice for attest OR non-attest work performed by licensed/privileged individuals, UNLESS it establishes or maintains an office in Texas (901.351(a-1) then requires a firm license). Attest services (901.002(a)(1)) for an entity with its HOME OFFICE in Texas additionally require: 901.354(a)-(b) ownership compliance (CPA-majority), compliance with the board's peer review program (901.159), and performance by a Texas-licensed or privileged individual. peer_review_required=true refers to that condition on the no-license attest privilege - there is no registration/permit for it to attach to; board FAQ says compliance may be via the home-state peer review program."
+    }
+  ]
 }

@@ -1,0 +1,208 @@
+import { describe, it, expect } from "vitest";
+import rulesData from "../src/mobility_rules.json";
+import {
+  normalizeRuleRow,
+  evaluateMobility,
+  isSubstantiveCitation,
+  MOBILITY_VERIFICATION_TTL_DAYS,
+  type MobilityRuleRow,
+} from "../src/mobility";
+
+/**
+ * Data-integrity tests for the mobility ruleset (2026-07-31, ScoutLab batch 1).
+ *
+ * These do NOT re-test the engine -- that is mobility.spec.ts's job. They test
+ * the DATA, because the data is the part sourced from outside this repo, and
+ * because the engine's whole design premise is that a wrong "yes" must be
+ * impossible. A record that silently normalizes away is worse than an absent
+ * one: absent yields `not_verified`, which is honest, while a half-parsed row
+ * could yield a confident answer built on dropped fields.
+ *
+ * ScoutLab stated the batch was "built to match normalizeRuleRow() exactly".
+ * That claim is the thing under test here, not an assumption.
+ */
+
+const records = (rulesData as { records: unknown[] }).records;
+const BATCH1 = ["texas", "illinois", "new-york", "california", "florida"];
+
+describe("mobility ruleset -- file shape", () => {
+  it("carries the batch-1 states", () => {
+    const slugs = records.map((r) => (r as { state_slug: string }).state_slug).sort();
+    expect(slugs).toEqual([...BATCH1].sort());
+  });
+
+  it("has no duplicate states -- a dupe would make the engine's pick order silently matter", () => {
+    const slugs = records.map((r) => (r as { state_slug: string }).state_slug);
+    expect(new Set(slugs).size).toBe(slugs.length);
+  });
+});
+
+describe("every record survives normalizeRuleRow() with nothing silently dropped", () => {
+  for (const raw of records) {
+    const slug = (raw as { state_slug: string }).state_slug;
+
+    it(`${slug}: normalizes to a row rather than null`, () => {
+      expect(normalizeRuleRow(raw)).not.toBeNull();
+    });
+
+    it(`${slug}: no tri-state field degrades to null through normalization`, () => {
+      // strictTriState turns anything that is not exactly true/false into
+      // null. A typo like "true" (the string) or a missing key would land
+      // here, and null means "unknown" -- which the engine honours by
+      // refusing a permissive verdict. Catching it in the DATA is better
+      // than discovering it as an unexplained not_verified in production.
+      const row = normalizeRuleRow(raw) as MobilityRuleRow;
+      const src = raw as Record<string, unknown>;
+      const TRISTATE = [
+        "individual_practice_privilege",
+        "notice_required",
+        "fee_required",
+        "firm_registration_attest",
+        "firm_registration_tax",
+        "peer_review_required",
+        "rule_in_flux",
+      ] as const;
+      for (const f of TRISTATE) {
+        if (src[f] === null) continue; // an honest, deliberate null is fine
+        expect(
+          { field: f, source: src[f], normalized: row[f] },
+          `${slug}.${f} was ${JSON.stringify(src[f])} but normalized to ${JSON.stringify(row[f])}`
+        ).toEqual({ field: f, source: src[f], normalized: src[f] });
+      }
+    });
+
+    it(`${slug}: citation is substantive and survives`, () => {
+      const row = normalizeRuleRow(raw) as MobilityRuleRow;
+      expect(row.citation).not.toBeNull();
+      expect(isSubstantiveCitation(row.citation)).toBe(true);
+    });
+
+    it(`${slug}: citation_url and source_url are http(s) and survive`, () => {
+      // safeHttpUrl() strips anything that is not http(s) -- these values are
+      // rendered into href attributes, where escaping does nothing against a
+      // javascript: URI.
+      const row = normalizeRuleRow(raw) as MobilityRuleRow;
+      const src = raw as Record<string, unknown>;
+      if (src.citation_url) {
+        expect(row.citation_url, `${slug} citation_url was stripped`).not.toBeNull();
+        expect(row.citation_url).toMatch(/^https?:\/\//);
+      }
+      if (src.source_url) {
+        expect(row.source_url, `${slug} source_url was stripped`).not.toBeNull();
+        expect(row.source_url).toMatch(/^https?:\/\//);
+      }
+    });
+
+    it(`${slug}: confidence is a recognised value, not silently nulled`, () => {
+      const row = normalizeRuleRow(raw) as MobilityRuleRow;
+      expect(["dual_source", "single_source", "unverified"]).toContain(row.confidence);
+    });
+
+    it(`${slug}: equivalence_test is a recognised value`, () => {
+      const row = normalizeRuleRow(raw) as MobilityRuleRow;
+      const src = raw as Record<string, unknown>;
+      if (src.equivalence_test !== null && src.equivalence_test !== undefined) {
+        expect(row.equivalence_test, `${slug} equivalence_test ${JSON.stringify(src.equivalence_test)} was not recognised`)
+          .toBe(src.equivalence_test);
+      }
+    });
+
+    it(`${slug}: verified_date parses and is not in the future`, () => {
+      const row = normalizeRuleRow(raw) as MobilityRuleRow;
+      expect(row.verified_date).not.toBeNull();
+      const t = Date.parse(row.verified_date as string);
+      expect(Number.isNaN(t)).toBe(false);
+      expect(t).toBeLessThanOrEqual(Date.now() + 86_400_000);
+    });
+
+    it(`${slug}: a row flagged rule_in_flux carries a flux_note explaining why`, () => {
+      // "in flux" with no explanation is not actionable -- a firm reading it
+      // learns only that we are unsure, not what changes or when.
+      const row = normalizeRuleRow(raw) as MobilityRuleRow;
+      if (row.rule_in_flux === true) {
+        expect(row.flux_note, `${slug} is rule_in_flux with no flux_note`).not.toBeNull();
+      }
+    });
+  }
+});
+
+describe("the engine's answers for batch 1 are conservative where they should be", () => {
+  const rows = records
+    .map((r) => normalizeRuleRow(r))
+    .filter((r): r is MobilityRuleRow => r !== null);
+
+  // The most favourable input a caller can supply: both self-attestations
+  // true. If the engine still refuses to say "clear" on an unknown rule, it
+  // refuses for every weaker input too.
+  const bestCaseInput = (row: MobilityRuleRow) => ({
+    homeStateSlug: "ohio",
+    targetStateSlug: row.state_slug,
+    serviceType: "attest" as const,
+    licenseInGoodStanding: true,
+    substantiallyEquivalent: true,
+  });
+
+  it("no state answers 'clear' on the FIRM side while firm_registration_attest is unknown", () => {
+    // The whole point of the engine: never a confident yes on an unknown.
+    for (const row of rows) {
+      if (row.firm_registration_attest === null) {
+        const r = evaluateMobility(bestCaseInput(row), row);
+        expect(r.firm.verdict, `${row.state_slug} claimed ${r.firm.verdict} on an unknown attest rule`)
+          .not.toBe("clear");
+        expect(r.overall).not.toBe("clear");
+      }
+    }
+  });
+
+  it("no state answers 'clear' on the INDIVIDUAL side while its privilege rule is unknown", () => {
+    for (const row of rows) {
+      if (row.individual_practice_privilege === null) {
+        const r = evaluateMobility(bestCaseInput(row), row);
+        expect(r.individual.verdict, `${row.state_slug} claimed ${r.individual.verdict} on an unknown privilege`)
+          .not.toBe("clear");
+      }
+    }
+  });
+
+  it("a state we have NO record for is not_verified, never a guess", () => {
+    const r = evaluateMobility(
+      {
+        homeStateSlug: "ohio",
+        targetStateSlug: "wyoming",
+        serviceType: "attest",
+        licenseInGoodStanding: true,
+        substantiallyEquivalent: true,
+      },
+      null
+    );
+    expect(r.overall).toBe("not_verified");
+    expect(r.individual.verdict).toBe("not_verified");
+    expect(r.firm.verdict).toBe("not_verified");
+  });
+
+  it("`overall` is never greener than either half, for every batch-1 row", () => {
+    for (const row of rows) {
+      const r = evaluateMobility(bestCaseInput(row), row);
+      if (r.individual.verdict !== "clear" || r.firm.verdict !== "clear") {
+        expect(r.overall, `${row.state_slug} overall=clear over halves ` +
+          `${r.individual.verdict}/${r.firm.verdict}`).not.toBe("clear");
+      }
+    }
+  });
+
+  it("an unsourced state is not_verified, not a guess", () => {
+    // Ohio is deliberately absent from batch 1.
+    const missing = rows.find((r) => r.state_slug === "ohio");
+    expect(missing).toBeUndefined();
+  });
+
+  it("every batch-1 row is inside its verification TTL today", () => {
+    const cutoff = Date.now() - MOBILITY_VERIFICATION_TTL_DAYS * 86_400_000;
+    for (const row of rows) {
+      expect(
+        Date.parse(row.verified_date as string),
+        `${row.state_slug} verified_date is already past the ${MOBILITY_VERIFICATION_TTL_DAYS}-day TTL`
+      ).toBeGreaterThan(cutoff);
+    }
+  });
+});

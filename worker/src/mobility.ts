@@ -75,6 +75,66 @@ export interface MobilityRuleRow {
   confidence: "dual_source" | "single_source" | "unverified" | null;
   data_gap_note: string | null;
   notes: string | null;
+
+  /**
+   * WHICH TEST this state uses to decide substantial equivalence. Added
+   * 2026-07-30 after primary-source research found this cannot be modelled
+   * as one boolean, because the states are actively DIVERGING on what the
+   * question even is:
+   *   - `nasba_state_level` -- the state defers to NASBA's National
+   *     Qualification Appraisal Service determination about your home
+   *     STATE (Illinois adopted this, P.A. 104-0228 eff. 2026-01-01)
+   *   - `individual_criteria` -- the state tests YOUR credentials directly,
+   *     regardless of your home state's status (Texas moved to this, SB 522
+   *     eff. 2025-09-01; New York follows 2026-11-21)
+   *
+   * A single "are you substantially equivalent?" self-attestation asks the
+   * WRONG question for whichever kind the state doesn't use. The engine
+   * therefore refuses to interpret that attestation until it knows which
+   * test applies. null = unknown, which forces not_verified.
+   */
+  equivalence_test: "nasba_state_level" | "individual_criteria" | "other" | null;
+
+  /**
+   * True when this state's rule is mid-change or its primary sources
+   * disagree -- e.g. Illinois, where the enrolled Public Act and the
+   * compiled statute currently state DIFFERENT tests for the same section,
+   * and the compiled text cites the very act that contradicts it.
+   *
+   * Forces not_verified regardless of every other field. This is precisely
+   * the situation where a confident product answer is worse than no answer,
+   * so the engine refuses to pick a side between conflicting primary
+   * sources.
+   */
+  rule_in_flux: boolean | null;
+
+  /** Explanation of the conflict/change, shown to the user when
+   * rule_in_flux is set. */
+  flux_note: string | null;
+
+  /** A known future date on which this state's rule changes, so the product
+   * can warn ahead of time instead of silently going stale on the morning
+   * the new rule takes effect. */
+  rule_changes_on: string | null;
+}
+
+/**
+ * How long a verified row stays trustworthy.
+ *
+ * Research found FOUR of five priority states changed or will change their
+ * mobility rules inside a 14-month window (2025-09-01 through 2026-11-21).
+ * A dataset that treats verification as durable would be confidently wrong
+ * within months, so rows EXPIRE -- and expiry downgrades to not_verified
+ * rather than merely annotating, because a stale permission is the exact
+ * failure this feature cannot have.
+ */
+export const MOBILITY_VERIFICATION_TTL_DAYS = 180;
+
+export function isRuleStale(rule: MobilityRuleRow, now: Date = new Date()): boolean {
+  if (!rule.verified_date) return true;
+  const verified = Date.parse(rule.verified_date);
+  if (Number.isNaN(verified)) return true;
+  return now.getTime() - verified > MOBILITY_VERIFICATION_TTL_DAYS * 86_400_000;
 }
 
 export interface MobilityInput {
@@ -139,6 +199,54 @@ function requireCitationOrDowngrade(finding: MobilityFinding): MobilityFinding {
   return finding;
 }
 
+/**
+ * Conditions that make a row untrustworthy AS A WHOLE, checked before any
+ * of its fields are read. Returns a finding to short-circuit with, or null
+ * to proceed. Both evaluators call it, so a state in flux or past its
+ * verification TTL cannot produce an answer through either path.
+ */
+function blockingRuleCondition(rule: MobilityRuleRow, now: Date): MobilityFinding | null {
+  if (rule.rule_in_flux === true) {
+    return {
+      verdict: "not_verified",
+      summary:
+        "This state's rule is mid-change, or its primary sources currently disagree with each other. " +
+        "We are not going to pick a side. Confirm directly with the state board before relying on this.",
+      requirements: [rule.flux_note ?? "The governing rule is in transition or disputed between sources."],
+      citation: rule.citation,
+      citationUrl: rule.citation_url,
+      sourceUrl: rule.source_url,
+      verifiedDate: rule.verified_date,
+      confidence: rule.confidence,
+      dataGapNote: rule.data_gap_note,
+      disclaimer: MOBILITY_DISCLAIMER,
+    };
+  }
+  if (isRuleStale(rule, now)) {
+    return {
+      verdict: "not_verified",
+      summary:
+        "Our verification of this state's rule is older than we are willing to rely on. Rules in this " +
+        "area have been changing quickly, so treat it as unverified and confirm with the board.",
+      requirements: [
+        "Last verified " +
+          (rule.verified_date ?? "never") +
+          "; we re-verify at least every " +
+          MOBILITY_VERIFICATION_TTL_DAYS +
+          " days.",
+      ],
+      citation: rule.citation,
+      citationUrl: rule.citation_url,
+      sourceUrl: rule.source_url,
+      verifiedDate: rule.verified_date,
+      confidence: rule.confidence,
+      dataGapNote: rule.data_gap_note,
+      disclaimer: MOBILITY_DISCLAIMER,
+    };
+  }
+  return null;
+}
+
 function notVerified(rule: MobilityRuleRow | null, reason: string): MobilityFinding {
   return {
     verdict: "not_verified",
@@ -166,7 +274,8 @@ function notVerified(rule: MobilityRuleRow | null, reason: string): MobilityFind
  */
 export function evaluateIndividualMobility(
   input: MobilityInput,
-  rule: MobilityRuleRow | null
+  rule: MobilityRuleRow | null,
+  now: Date = new Date()
 ): MobilityFinding {
   if (input.homeStateSlug === input.targetStateSlug) {
     return {
@@ -224,6 +333,16 @@ export function evaluateIndividualMobility(
 
   if (!rule) {
     return notVerified(null, "This state isn't in our verified rules dataset yet.");
+  }
+  const blocked = blockingRuleCondition(rule, now);
+  if (blocked) return blocked;
+  // The practitioner's substantial-equivalence attestation cannot be
+  // interpreted without knowing WHICH test this state applies: a
+  // state-level NASBA determination and an individual-criteria test are
+  // different questions, and answering one as though it were the other is
+  // exactly the silent wrongness this engine exists to prevent.
+  if (rule.equivalence_test === null) {
+    return notVerified(rule, "We haven't verified which substantial-equivalence test this state applies.");
   }
   if (rule.individual_practice_privilege === null) {
     return notVerified(rule, "We haven't verified this state's individual practice-privilege rule.");
@@ -287,7 +406,8 @@ export function evaluateIndividualMobility(
  */
 export function evaluateFirmRegistration(
   input: MobilityInput,
-  rule: MobilityRuleRow | null
+  rule: MobilityRuleRow | null,
+  now: Date = new Date()
 ): MobilityFinding {
   if (input.homeStateSlug === input.targetStateSlug) {
     return {
@@ -306,6 +426,8 @@ export function evaluateFirmRegistration(
   if (!rule) {
     return notVerified(null, "This state isn't in our verified rules dataset yet.");
   }
+  const blockedFirm = blockingRuleCondition(rule, now);
+  if (blockedFirm) return blockedFirm;
 
   // Explicit per-service mapping. `other_non_attest` deliberately has NO
   // fallback: an earlier version resolved it to the TAX rule, which is
@@ -380,9 +502,13 @@ export interface MobilityResult {
   overall: MobilityVerdict;
 }
 
-export function evaluateMobility(input: MobilityInput, rule: MobilityRuleRow | null): MobilityResult {
-  const individual = evaluateIndividualMobility(input, rule);
-  const firm = evaluateFirmRegistration(input, rule);
+export function evaluateMobility(
+  input: MobilityInput,
+  rule: MobilityRuleRow | null,
+  now: Date = new Date()
+): MobilityResult {
+  const individual = evaluateIndividualMobility(input, rule, now);
+  const firm = evaluateFirmRegistration(input, rule, now);
   const verdicts = [individual.verdict, firm.verdict];
   const overall: MobilityVerdict = verdicts.includes("action_required")
     ? "action_required"

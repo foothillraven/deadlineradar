@@ -24,10 +24,14 @@ function verifiedPermissiveRule(over: Partial<MobilityRuleRow> = {}): MobilityRu
     citation: "Tex. Occ. Code s 901.462",
     citation_url: "https://example.gov/statute",
     source_url: "https://example.gov/board",
-    verified_date: "2026-07-30",
+    verified_date: new Date().toISOString().slice(0, 10),
     confidence: "dual_source",
     data_gap_note: null,
     notes: null,
+    equivalence_test: "individual_criteria",
+    rule_in_flux: false,
+    flux_note: null,
+    rule_changes_on: null,
     ...over,
   };
 }
@@ -100,6 +104,10 @@ describe("SAFETY: the engine must never assert a clearance it cannot cite", () =
       confidence: "unverified",
       data_gap_note: "Nothing verified yet.",
       notes: null,
+      equivalence_test: null,
+      rule_in_flux: null,
+      flux_note: null,
+      rule_changes_on: null,
     };
     const res = evaluateMobility(input(), blank);
     expect(res.overall).toBe("not_verified");
@@ -240,5 +248,61 @@ describe("service type validation", () => {
     for (const bad of ["", "audit", "ATTEST", "constructor", "__proto__", "toString"]) {
       expect(isValidServiceType(bad)).toBe(false);
     }
+  });
+});
+
+describe("SAFETY: rules that are in flux, stale, or of an unknown test kind", () => {
+  it("refuses to answer when the state's rule is IN FLUX, even if every other field is verified", () => {
+    // Illinois, 2026-07-30: the enrolled Public Act and the compiled
+    // statute state DIFFERENT tests for the same section, and the compiled
+    // text cites the very act that contradicts it. Picking a side would be
+    // worse than declining.
+    const rule = verifiedPermissiveRule({
+      rule_in_flux: true,
+      flux_note: "P.A. 104-0228 and the compiled ILCS text disagree on the 5.2(a)(1) test.",
+    });
+    const res = evaluateMobility(input(), rule);
+    expect(res.individual.verdict).toBe("not_verified");
+    expect(res.firm.verdict).toBe("not_verified");
+    expect(res.individual.requirements.join(" ")).toMatch(/disagree|transition|104-0228/i);
+  });
+
+  it("refuses to answer when verification is older than the TTL", () => {
+    // Four of five priority states changed mobility rules inside a
+    // 14-month window, so a stale row is a live hazard, not a nit.
+    const stale = verifiedPermissiveRule({ verified_date: "2020-01-01" });
+    const res = evaluateMobility(input(), stale);
+    expect(res.overall).toBe("not_verified");
+    expect(res.individual.requirements.join(" ")).toMatch(/verified/i);
+  });
+
+  it("treats a missing or unparseable verified_date as stale, not as fresh", () => {
+    for (const d of [null, "", "not-a-date"]) {
+      const rule = verifiedPermissiveRule({ verified_date: d as string | null });
+      expect(evaluateMobility(input(), rule).overall, `verified_date ${JSON.stringify(d)}`).toBe(
+        "not_verified"
+      );
+    }
+  });
+
+  it("refuses when we don't know WHICH substantial-equivalence test the state applies", () => {
+    // A state-level NASBA determination and an individual-criteria test are
+    // different questions. Interpreting the user's one attestation against
+    // the wrong one is silent wrongness.
+    const res = evaluateIndividualMobility(input(), verifiedPermissiveRule({ equivalence_test: null }));
+    expect(res.verdict).toBe("not_verified");
+    expect(res.requirements.join(" ")).toMatch(/substantial-equivalence test/i);
+  });
+
+  it("still answers for a state whose test kind IS known", () => {
+    for (const kind of ["nasba_state_level", "individual_criteria"] as const) {
+      const res = evaluateIndividualMobility(input(), verifiedPermissiveRule({ equivalence_test: kind }));
+      expect(res.verdict, `test kind ${kind}`).toBe("clear");
+    }
+  });
+
+  it("the flux block cannot be bypassed via the firm path", () => {
+    const rule = verifiedPermissiveRule({ rule_in_flux: true, firm_registration_tax: false });
+    expect(evaluateFirmRegistration(input({ serviceType: "tax" }), rule).verdict).toBe("not_verified");
   });
 });

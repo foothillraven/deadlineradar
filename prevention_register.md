@@ -29,9 +29,19 @@ that would burn real per-IP rate-limit budget for no good reason when a local gi
 the same question for free. Run it any time `cpa_deadlines.json` changes, and periodically otherwise.
 
 **Process fix**: any change touching `data/cpa_deadlines.json` / `worker/src/cpa_deadlines.json`
-needs a `wrangler deploy` as part of the same ship, not just a docs regenerate + push. Added to the
-mental ship checklist here so it's not just tribal knowledge — **if you changed the CPA dataset,
-redeploy the Worker before calling the ship done, and update `worker/.last_deploy_commit`.**
+needs a `wrangler deploy` as part of the same ship, not just a docs regenerate + push.
+
+**UPDATED 2026-07-31 — the manual half of this fix failed, so it was automated.** The original
+instruction ended "...and update `worker/.last_deploy_commit`" — a manual step, which then got skipped
+across four production deploys on 2026-07-31, leaving the marker pointing at a commit from days
+earlier. The deploys were real; only the bookkeeping drifted, but that marker is precisely how a future
+session answers "did this actually ship?", so a stale one is worse than none.
+
+**Use `python3 scripts/deploy_worker.py` instead of a bare `wrangler deploy`.** It deploys and then
+writes the marker itself, so it cannot drift. It also refuses to deploy a dirty `worker/` tree (the
+marker records a commit hash as shorthand for "this code is deployed"; deploying uncommitted code makes
+that claim false), and it deliberately does NOT stamp the marker on preview deploys, which track
+nothing about production. Documenting a manual step harder does not fix a step that gets forgotten.
 
 **Status**: CLOSED pending orchestrator confirmation (detector built + verified both directions —
 correctly flags a stale state and correctly passes a current one — 2026-07-09).

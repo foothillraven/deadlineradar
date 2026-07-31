@@ -58,7 +58,12 @@ npx wrangler deploy --dry-run
 #    onward, the Worker is reachable at https://deadline-radar.com/api/* to anyone who
 #    knows or guesses a URL, even though the live site's own form still points elsewhere
 #    (see item 4 below, "staged, not pushed").
-npx wrangler deploy
+# Prefer the wrapper -- it updates worker/.last_deploy_commit for you.
+# A bare `npx wrangler deploy` leaves that marker stale, which is how a
+# future session loses track of what actually shipped (happened 2026-07-31).
+python3 ../scripts/deploy_worker.py
+# (equivalent, but marker must then be updated by hand:)
+# npx wrangler deploy
 
 # 5. Turnstile stays OFF in Phase 1 -- do not run `wrangler secret put TURNSTILE_SECRET_KEY`
 #    yet. (Listed here only so it's not accidentally run out of order; it is NOT part of

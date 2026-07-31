@@ -131,6 +131,34 @@
     padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
   }
   .trust-line strong::before { content: "\2713\a0"; color: var(--gold); }
+# ---------------------------------------------------------------------------
+# 2026-07-31 CARD LAYOUT BUGFIX -- rationale kept HERE, in Python, deliberately.
+#
+# An earlier version of this explanation lived in the CSS itself, which is
+# INLINED INTO EVERY RENDERED PAGE -- so it shipped internal language onto 181
+# public URLs and preship_gate.py caught it. Lesson worth keeping: the CSS
+# string in this file is PUBLIC OUTPUT, not source commentary. Explain things
+# here; keep shipped comments terse and neutral.
+#
+# The bug: `.frow` was `grid-template-columns: 1fr auto` with `.cite` set to
+# `white-space: nowrap`. A short statutory citation ("68 Ill. Admin. Code
+# 1420.80(a)") fits, so most cards looked fine -- but a long prose citation
+# ("Confirmed via Illinois IDFPR's public open-data licence register...")
+# cannot wrap, so the `auto` track sized itself to the full 1850px chip inside
+# an 1138px card. That left the `1fr` description track at 112px (measured),
+# wrapping prose to 1-2 words per line for 20+ lines, and pushed the chip past
+# the card edge.
+#
+# The report described the citation as "truncated". It was NOT: scrollWidth ==
+# width and title == text, so the full string was always in the DOM and in the
+# link -- it was overflowing the card and being visually clipped. No citation
+# data was ever lost, which matters because the citation is the credibility
+# asset this product sells.
+#
+# Fix: minmax(0,...) on both tracks (removing the min-content floor that let an
+# un-wrappable chip dictate the layout) + a cap on the side track; `.cite`
+# wraps; and citations over _CITATION_CHIP_MAX_CHARS render as their own
+# full-width row instead of a right-aligned pill.
 
   /* ---- THE CENTERPIECE: citation-first fact sheet, per the approved concept's .sheet/.frow ---- */
   .sheet {
@@ -154,10 +182,13 @@
   .sheethead .stamp--unconfirmed { color: var(--gold); }
   .sheethead .stamp--unconfirmed .dot { background: var(--gold); box-shadow: 0 0 0 3px var(--gold-bg); }
   .rowlist { display: flex; flex-direction: column; }
+  /* Both tracks are minmax(0,...) on purpose: a grid track's automatic minimum
+     is min-content, which lets an un-wrappable child dictate the whole row. */
   .frow {
-    display: grid; grid-template-columns: 1fr auto; gap: 0.35rem 1.4rem;
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 18rem); gap: 0.35rem 1.4rem;
     padding: 1.1rem 1.2rem; border-top: 1px solid var(--border);
   }
+  .frow .v, .frow .side { min-width: 0; }
   .frow:first-child { border-top: 0; }
   .frow .k {
     font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
@@ -169,11 +200,17 @@
     font-size: 0.82rem; font-weight: 500; color: var(--muted); display: block; margin-top: 0.25rem; line-height: 1.4;
   }
   .frow .side { grid-column: 2; grid-row: 2; align-self: center; text-align: right; }
+  /* Citations wrap rather than nowrap -- a citation must never be cut. */
   .cite {
-    display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: 0.78rem;
+    display: inline-flex; align-items: flex-start; gap: 0.4rem; font-family: var(--font-mono); font-size: 0.78rem;
     color: var(--gold); background: var(--gold-bg); border: 1px solid var(--gold-line); border-radius: 6px;
-    padding: 0.25rem 0.55rem; text-decoration: none; white-space: nowrap;
+    padding: 0.25rem 0.55rem; text-decoration: none; white-space: normal; overflow-wrap: anywhere;
+    text-align: left;
   }
+  /* Long (prose) citations get their own full-width row; short statutory
+     cites keep the right-aligned chip. Chosen in Python, so no :has() needed. */
+  .frow .side--stacked { grid-column: 1 / -1; grid-row: auto; text-align: left; margin-top: 0.7rem; }
+  .frow .side--stacked .cite { display: flex; }
   .cite:hover { background: #efe6d0; }
   @media (prefers-color-scheme: dark) { .cite:hover { background: #2e2712; } }
   .verified {
@@ -899,7 +936,7 @@
     <div class="frow">
       <div class="k">Next renewal date</div>
       <div class="v">Not confirmed<small>Multiple third-party CPA-exam-prep sites (not the Board itself) describe Guam CPA licenses as renewing on a 3-year cycle expiring June 30, with a $100 renewal fee and 120 CPE hours (incl. 6 ethics, 30 accounting/auditing) required over the rolling period. We could not confirm this cycle against a current, live primary source -- see data_gap_note.</small></div>
-      <div class="side">
+      <div class="side side--stacked">
         <a class="cite" href="https://guamcourts.gov/compileroflaws/GCA/22gca/22gc035.PDF" title="22 Guam Code Ann. (GCA) ch. 35 (Guam Accountancy Act of 2003); 25 Guam Admin. R. &amp; Regs. (GAR) ch. 2 (Guam Board of Public Accountancy Regulations)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>22 Guam Code Ann. (GCA) ch. 35 (Guam Accountancy Act of 2003); 25 Guam Admin. R. &amp; Regs. (GAR) ch. 2 (Guam Board of Public Accountancy Regulations)</a><div class="verified unconfirmed">Anchor year not confirmed</div>
       </div>
     </div>

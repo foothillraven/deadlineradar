@@ -503,6 +503,71 @@ export function buildFirmLoginEmail(loginUrl: string): BuiltEmail {
   return { subject, textBody, htmlBody, headers: {} };
 }
 
+/**
+ * Sent whenever a firm's password is set or changed (2026-07-30, from the
+ * security review).
+ *
+ * This is a DETECTION control, and it closes a real hole. Because every
+ * firm predating migration 0010 has no password, the "prove the current
+ * password" check does not run for them -- so anyone holding a single
+ * session cookie could set a permanent password, and the same request
+ * terminates all of the owner's other sessions. Without this email the
+ * owner's only symptom is one logout that looks exactly like normal
+ * session expiry, while the attacker keeps a standing credential
+ * indefinitely.
+ *
+ * Deliberately does NOT include a one-click "undo" link: that would be a
+ * new unauthenticated state-changing capability sent over email, which is
+ * its own attack surface. Recovery is the existing emailed sign-in link,
+ * which the attacker cannot intercept without the mailbox.
+ */
+export function buildFirmPasswordChangedEmail(firmName: string, whenIso: string): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `A password was set on your ${SITE_NAME} account`;
+
+  const textBody =
+    `The password for ${firmName} on ${SITE_NAME} was just set or changed (${whenIso}).
+
+` +
+    `Any other devices signed in to this account were signed out.
+
+` +
+    `If this was you, nothing further is needed.
+
+` +
+    `IF THIS WAS NOT YOU, someone else may have had access to your account. Request a sign-in ` +
+    `link from the sign-in page to get back in, then change the password immediately. The sign-in ` +
+    `link goes only to this address, so whoever set the password cannot intercept it.
+
+` +
+    `---
+${SENDER_LINE}
+${addr}`;
+
+  const htmlBody = htmlShell(
+    `A password was set on your ${SITE_NAME} account`,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `A password was set on your account</h1>` +
+      p(
+        `The password for ${esc(firmName)} on ${esc(SITE_NAME)} was just set or changed ` +
+          `(${esc(whenIso)}). Any other devices signed in to this account were signed out.`
+      ) +
+      p("If this was you, nothing further is needed.", 13, LIGHT.muted) +
+      p(
+        "<strong>If this was not you</strong>, someone else may have had access to your account. " +
+          "Request a sign-in link from the sign-in page to get back in, then change the password " +
+          "immediately. That link goes only to this address, so whoever set the password cannot " +
+          "intercept it.",
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
 /** Port of reminders/emails.py `confirmation_email()`. */
 export function buildConfirmationEmail(
   stateName: string,

@@ -2745,6 +2745,45 @@ describe("POST /firm/login/password", () => {
     expect(await noPassword.text()).toBe(await noSuchFirm.text());
   });
 
+  it("TIMING: an over-length or empty password does NOT short-circuit -- the oracle the reviews found", async () => {
+    // Regression test for the real bug both 2026-07-30 reviews caught.
+    // verifyPassword() used to return early (no derivation) for an empty
+    // or over-length candidate, while the no-such-firm branch ran the full
+    // dummy KDF. That INVERTED the timing signal this handler exists to
+    // remove: a fast reply meant "this firm exists and has a password".
+    //
+    // Crucially, the pre-existing anti-enumeration tests still passed
+    // while the hole was open, because they asserted equal BODIES. This
+    // asserts equal WORK, which is the property that actually matters.
+    const email = `pwlogin-timing-${Date.now()}@examplefirm.com`;
+    await firmWithPassword(email, STRONG_PASSWORD);
+
+    const timed = async (password: string, addr: string) => {
+      const t0 = Date.now();
+      const r = await postPasswordLogin({ admin_email: email, password }, addr);
+      return { ms: Date.now() - t0, status: r.status };
+    };
+
+    // Baseline: a normal wrong password, which performs a full derivation.
+    const baseline = await timed("a wrong but plausible password", "203.0.113.230");
+    const overLength = await timed("a".repeat(400), "203.0.113.231");
+    const empty = await timed("", "203.0.113.232");
+
+    expect(baseline.status).toBe(400);
+    expect(overLength.status).toBe(400);
+    expect(empty.status).toBe(400);
+
+    // Generous bound: this is asserting "still does real work", not
+    // indistinguishability. Before the fix these returned in ~0ms against
+    // a ~59ms baseline; a quarter of baseline cleanly separates the two
+    // without being flaky on a loaded machine. Workers can freeze
+    // Date.now() between I/O, so skip the assertion if nothing registered.
+    if (baseline.ms > 10) {
+      expect(overLength.ms).toBeGreaterThan(baseline.ms / 4);
+      expect(empty.ms).toBeGreaterThan(baseline.ms / 4);
+    }
+  }, 30_000);
+
   it("is case-insensitive on the email but exact on the password", async () => {
     const email = `pwlogin-case-${Date.now()}@examplefirm.com`;
     await firmWithPassword(email, STRONG_PASSWORD);
@@ -2973,7 +3012,8 @@ describe("SSO routes", () => {
       .bind(rawState)
       .first<{ c: number }>();
     expect(row?.c).toBe(0); // raw value is not what's stored
-    expect(await store.consumeOauthState(env.DB, rawState)).not.toBeNull();
+    const binding = cookieValue(resp.headers.get("Set-Cookie") ?? "", "dr_oauth_handshake");
+    expect(await store.consumeOauthState(env.DB, rawState, binding)).not.toBeNull();
   });
 
   it("404s an unknown provider id rather than revealing route shape", async () => {
@@ -3004,9 +3044,77 @@ describe("SSO routes", () => {
     // A state that WAS issued but has already been consumed must not work
     // a second time -- this is what stops a captured callback URL being
     // replayed into a session.
-    const { rawState } = await store.createOauthState(env.DB, "google");
-    await store.consumeOauthState(env.DB, rawState);
+    const { rawState, rawBrowserBinding } = await store.createOauthState(env.DB, "google");
+    await store.consumeOauthState(env.DB, rawState, rawBrowserBinding);
     expect((await call(`?code=abc&state=${rawState}`)).status).toBe(400);
+  });
+
+  it("SECURITY: a valid state is useless without the matching handshake cookie (login CSRF / session swap)", async () => {
+    // Both 2026-07-30 reviews flagged this: single-use state gives replay
+    // protection, NOT CSRF protection, because an attacker can mint a
+    // perfectly valid state by calling /start themselves. Without a
+    // browser binding, an attacker could complete consent as themselves,
+    // hand the victim the callback URL, and have the victim's browser
+    // silently signed into the ATTACKER'S firm -- so the victim's client
+    // data lands in the attacker's tenant.
+    const worker = (await import("../src/index")).default;
+    const { rawState, rawBrowserBinding } = await store.createOauthState(env.DB, "google");
+
+    // Victim's browser: holds the attacker's state, but NOT the cookie.
+    const noCookie = await worker.fetch(
+      new Request(`https://deadline-radar.com/firm/auth/google/callback?code=abc&state=${rawState}`, {
+        headers: { "cf-connecting-ip": "203.0.113.220" },
+      }),
+      { ...env, ...ssoEnv }
+    );
+    expect(noCookie.status).toBe(400);
+
+    // A cookie from a DIFFERENT handshake must not work either.
+    const other = await store.createOauthState(env.DB, "google");
+    const wrongCookie = await worker.fetch(
+      new Request(`https://deadline-radar.com/firm/auth/google/callback?code=abc&state=${rawState}`, {
+        headers: { "cf-connecting-ip": "203.0.113.221", Cookie: `dr_oauth_handshake=${other.rawBrowserBinding}` },
+      }),
+      { ...env, ...ssoEnv }
+    );
+    expect(wrongCookie.status).toBe(400);
+
+    // And the state must still be unconsumed after those failures, so a
+    // rejected attempt can't be used to burn a legitimate handshake.
+    expect(await store.consumeOauthState(env.DB, rawState, rawBrowserBinding)).not.toBeNull();
+  });
+
+  it("/start issues the handshake cookie: HttpOnly, Secure, SameSite=Lax", async () => {
+    const worker = (await import("../src/index")).default;
+    const resp = await worker.fetch(
+      new Request("https://deadline-radar.com/firm/auth/google/start", {
+        headers: { "cf-connecting-ip": "203.0.113.222" },
+      }),
+      { ...env, ...ssoEnv }
+    );
+    const setCookie = resp.headers.get("Set-Cookie") ?? "";
+    expect(setCookie).toContain("dr_oauth_handshake=");
+    expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("Secure");
+    // Lax specifically -- the callback is a cross-site top-level GET from
+    // the provider, which Strict would block, breaking every SSO sign-in.
+    expect(setCookie).toContain("SameSite=Lax");
+  });
+
+  it("rejects a pre-0011 state row that has no stored browser binding (fails closed, not grandfathered)", async () => {
+    const worker = (await import("../src/index")).default;
+    const { rawState, rawBrowserBinding } = await store.createOauthState(env.DB, "google");
+    // Simulate a row written before migration 0011.
+    await env.DB.prepare("UPDATE firm_oauth_states SET browser_binding_hash = NULL WHERE state_hash = ?1")
+      .bind(await store.hashToken(rawState))
+      .run();
+    const resp = await worker.fetch(
+      new Request(`https://deadline-radar.com/firm/auth/google/callback?code=abc&state=${rawState}`, {
+        headers: { "cf-connecting-ip": "203.0.113.223", Cookie: `dr_oauth_handshake=${rawBrowserBinding}` },
+      }),
+      { ...env, ...ssoEnv }
+    );
+    expect(resp.status).toBe(400);
   });
 
   it("rejects a provider-side error without echoing the provider's text back to the browser", async () => {

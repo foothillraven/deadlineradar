@@ -92,6 +92,7 @@ import * as store from "./store";
 import {
   buildConfirmationEmail,
   buildFirmLoginEmail,
+  buildFirmPasswordChangedEmail,
   buildFirmStaffAddedEmail,
   buildStopConfirmationEmail,
   fmtDate,
@@ -99,6 +100,7 @@ import {
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, isEmailAllowlisted, sendViaSendGrid } from "./sender";
 import { StaleDataError as SchedulerStaleDataError, runReminderPass } from "./scheduler";
 import {
+  MAX_PASSWORD_LEN,
   hashPassword,
   verifyPassword,
   validatePasswordStrength,
@@ -685,6 +687,26 @@ async function handleFirmLead(request: Request, env: Env, ip: string): Promise<R
 /** One message for every credential failure -- no such firm, no password
  * set, wrong password. Distinct wording per branch would rebuild exactly
  * the enumeration oracle the timing equalization exists to close. */
+/** Short-lived cookie binding an in-flight OAuth handshake to the browser
+ * that started it (migration 0011). SameSite=Lax is required, not Lax by
+ * habit: the callback arrives as a cross-site TOP-LEVEL GET navigation
+ * from the provider, which Lax permits and Strict would block -- Strict
+ * here would break every SSO sign-in. 10 minutes matches the handshake TTL. */
+const OAUTH_HANDSHAKE_COOKIE_NAME = "dr_oauth_handshake";
+
+function oauthHandshakeSetCookieHeader(rawBinding: string): string {
+  return (
+    `${OAUTH_HANDSHAKE_COOKIE_NAME}=${encodeURIComponent(rawBinding)}; HttpOnly; Secure; ` +
+    `SameSite=Lax; Path=/; Max-Age=600`
+  );
+}
+
+/** Cleared as soon as the handshake is consumed, so a completed sign-in
+ * leaves nothing reusable behind. */
+function oauthHandshakeClearCookieHeader(): string {
+  return `${OAUTH_HANDSHAKE_COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`;
+}
+
 const INVALID_CREDENTIALS_MESSAGE = "That email and password combination isn't right.";
 
 const SSO_FAILED_MESSAGE = "We couldn't complete that sign-in. Please try again.";
@@ -1860,7 +1882,7 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
       const oauthCallbackMatch = /^\/firm\/auth\/([a-z0-9-]+)\/callback$/.exec(url.pathname);
       if (oauthCallbackMatch) {
         try {
-          return await handleOauthCallback(request, env, oauthCallbackMatch[1] as string);
+          return await handleOauthCallback(request, env, ip, oauthCallbackMatch[1] as string);
         } catch {
           return errorPage(400, "Something went wrong processing that request.");
         }
@@ -2110,6 +2132,26 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
   }
   const password = form.password ?? "";
 
+  // Out-of-range candidates are rejected HERE, before the firm lookup, and
+  // still pay the full KDF cost.
+  //
+  // Both 2026-07-30 security reviews caught this independently, and one
+  // reproduced it end to end: verifyPassword() returns early (no
+  // derivation) for an empty or over-length password, while the
+  // no-such-firm branch runs the full dummy derivation. That INVERTS the
+  // timing signal this handler exists to remove -- a firm that exists WITH
+  // a password answered in ~12ms, a nonexistent one in ~68ms, making a
+  // fast reply a positive existence signal. Response bodies were
+  // byte-identical throughout, which is why the original tests passed:
+  // they asserted equal bodies, never equal work.
+  //
+  // Handling length uniformly for every email, before any lookup, means no
+  // input shape can produce a branch that skips the derivation.
+  if (password.length === 0 || password.length > MAX_PASSWORD_LEN) {
+    await dummyVerifyForTiming();
+    return errorPage(400, INVALID_CREDENTIALS_MESSAGE);
+  }
+
   const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
   if (!turnstileOk) {
     return errorPage(400, "Verification failed -- please try again.");
@@ -2201,10 +2243,25 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
     return jsonResponse(429, { error: "Too many attempts. Please try again later." });
   }
 
+  // Size-capped like every other JSON route in this file (the others go
+  // through readFirmLicenseJsonBody). Flagged in review as the one
+  // deviation from that convention.
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return jsonResponse(400, { error: "Request too large or empty." });
+  }
   let body: Record<string, unknown>;
   try {
-    body = (await request.json()) as Record<string, unknown>;
+    body = JSON.parse(raw) as Record<string, unknown>;
   } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
     return jsonResponse(400, { error: "Something went wrong processing that request." });
   }
 
@@ -2243,6 +2300,35 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
   // logged out of the tab they're sitting in.
   const endedSessions = await store.deleteOtherSessionsForFirm(env.DB, firm.id, session.sessionId);
 
+  // Notify the account owner. This is the DETECTION control for the hole
+  // the security review found: every firm predating migration 0010 has no
+  // password, so the "prove the current password" branch above does not
+  // run for them -- meaning a single stolen session cookie can mint a
+  // permanent credential AND (via the line above) sign the real owner out
+  // everywhere. Without this email the owner sees only one logout, which
+  // is indistinguishable from ordinary session expiry.
+  //
+  // Best-effort and never allowed to fail the request, matching every
+  // other send in this file: a mail outage must not leave the user unsure
+  // whether their password actually changed.
+  //
+  // Guarded and capped exactly like issueAndSendFirmLoginLink(): no API key
+  // means no send (unconfigured degrades to silence, not an error), and it
+  // counts against the same daily circuit breaker. Letting a security
+  // notice bypass the cap would hand an attacker a way to burn the send
+  // quota, so consistency wins over always-notify here.
+  if (env.SENDGRID_API_KEY) {
+    try {
+      const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+      if (underCap) {
+        const built = buildFirmPasswordChangedEmail(firm.name, new Date().toISOString());
+        await sendViaSendGrid(env.SENDGRID_API_KEY, firm.admin_email, built, env.EMAIL_ALLOWLIST);
+      }
+    } catch {
+      // Intentionally swallowed -- see above.
+    }
+  }
+
   return jsonResponse(200, { ok: true, other_sessions_ended: endedSessions });
 }
 
@@ -2267,7 +2353,7 @@ async function handleOauthStart(env: Env, ip: string, providerId: string): Promi
     // Housekeeping must never block a sign-in.
   }
 
-  const { rawState, codeVerifier, nonce } = await store.createOauthState(env.DB, provider.id);
+  const { rawState, codeVerifier, nonce, rawBrowserBinding } = await store.createOauthState(env.DB, provider.id);
   const redirectUri = buildRedirectUri(actionBaseUrl(env), provider.id);
   const authorizeUrl = await buildAuthorizeUrl({ provider, redirectUri, state: rawState, nonce, codeVerifier });
 
@@ -2278,6 +2364,9 @@ async function handleOauthStart(env: Env, ip: string, providerId: string): Promi
       // The authorize URL carries a live single-use state; keep it out of
       // any shared cache.
       "Cache-Control": "no-store",
+      // Proves same-browser at the callback. `state` alone cannot: an
+      // attacker can mint a valid one by calling /start themselves.
+      "Set-Cookie": oauthHandshakeSetCookieHeader(rawBrowserBinding),
     },
   });
 }
@@ -2289,9 +2378,17 @@ async function handleOauthStart(env: Env, ip: string, providerId: string): Promi
  * a replayed callback URL is rejected without ever spending a network call
  * on the provider, and so a captured URL cannot mint a second session.
  */
-async function handleOauthCallback(request: Request, env: Env, providerId: string): Promise<Response> {
+async function handleOauthCallback(request: Request, env: Env, ip: string, providerId: string): Promise<Response> {
   const provider = getConfiguredProvider(env, providerId);
   if (!provider) return errorPage(404, "Not found.");
+
+  // Review finding 4c: this was the only unauthenticated auth route with no
+  // rate limit. Every request costs a SHA-256 plus a D1 SELECT, and one
+  // carrying valid state costs an outbound fetch to the provider -- so it
+  // was both a cheap amplification target and a way to burn the provider
+  // token-endpoint quota.
+  const allowed = await checkRateLimit(env.DB, ip, "oauth_callback", RATE_LIMIT_OAUTH_START);
+  if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
 
   const url = new URL(request.url);
 
@@ -2306,7 +2403,8 @@ async function handleOauthCallback(request: Request, env: Env, providerId: strin
   const state = url.searchParams.get("state");
   if (!code || !state) return errorPage(400, SSO_FAILED_MESSAGE);
 
-  const consumed = await store.consumeOauthState(env.DB, state);
+  const browserBinding = getCookie(request, OAUTH_HANDSHAKE_COOKIE_NAME);
+  const consumed = await store.consumeOauthState(env.DB, state, browserBinding);
   if (!consumed) return errorPage(400, SSO_FAILED_MESSAGE);
 
   // A handshake opened for one provider must not be redeemable at
@@ -2333,7 +2431,7 @@ async function handleOauthCallback(request: Request, env: Env, providerId: strin
   // directly, and no email is consulted at all.
   const existingIdentity = await store.findOauthIdentity(env.DB, provider.id, claims.sub);
   if (existingIdentity) {
-    await store.touchOauthIdentityLogin(env.DB, existingIdentity.id, claims.email);
+    await store.touchOauthIdentityLogin(env.DB, existingIdentity.id, existingIdentity.firm_id, claims.email);
     const { rawSessionToken } = await store.createSession(env.DB, existingIdentity.firm_id);
     return new Response(null, {
       status: 302,
@@ -2374,6 +2472,12 @@ async function handleOauthCallback(request: Request, env: Env, providerId: strin
     // through by re-reading rather than treating it as an error.
     const raced = await store.findOauthIdentity(env.DB, provider.id, claims.sub);
     if (!raced) return errorPage(400, SSO_FAILED_MESSAGE);
+    // Fail closed if the concurrent winner bound this subject to a
+    // DIFFERENT firm than the one we just validated -- reachable only if
+    // the provider account's email changed mid-flight, but seating a
+    // session on an unvalidated firm is not a thing to reason about at
+    // 3am. Review finding 4f.
+    if (raced.firm_id !== firm.id) return errorPage(400, SSO_FAILED_MESSAGE);
     const { rawSessionToken } = await store.createSession(env.DB, raced.firm_id);
     return new Response(null, {
       status: 302,

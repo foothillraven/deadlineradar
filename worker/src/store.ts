@@ -1354,11 +1354,16 @@ export async function linkOauthIdentity(
 export async function touchOauthIdentityLogin(
   db: D1Database,
   id: string,
+  firmId: string,
   providerEmail: string | null
 ): Promise<void> {
+  // firm_id bound here too. It is not reachable today (the id comes from a
+  // row just read), but this was the ONE new mutating query that broke the
+  // convention this section's own header promises, and review flagged it
+  // as the shape a future caller would copy somewhere it does matter.
   await db
-    .prepare(`UPDATE firm_oauth_identities SET last_login_at = ?1, provider_email = ?2 WHERE id = ?3`)
-    .bind(nowIso(), providerEmail, id)
+    .prepare(`UPDATE firm_oauth_identities SET last_login_at = ?1, provider_email = ?2 WHERE id = ?3 AND firm_id = ?4`)
+    .bind(nowIso(), providerEmail, id, firmId)
     .run();
 }
 
@@ -1383,6 +1388,9 @@ export interface CreateOauthStateResult {
   rawState: string;
   codeVerifier: string;
   nonce: string;
+  /** Raw value for the short-lived handshake COOKIE. Only its hash is
+   * persisted; this is the copy that goes to the browser. */
+  rawBrowserBinding: string;
 }
 
 /**
@@ -1399,16 +1407,31 @@ export async function createOauthState(db: D1Database, provider: string): Promis
   const rawState = newToken();
   const codeVerifier = newToken();
   const nonce = newToken();
+  // migration 0011: the browser binding. `state` travels through the
+  // provider and back via the URL, so anyone can hold a valid one; THIS
+  // value only ever exists in the initiating browser's cookie jar, which
+  // is what actually proves same-browser and stops login CSRF.
+  const rawBrowserBinding = newToken();
   const now = new Date();
   const expiresAt = new Date(now.getTime() + OAUTH_STATE_TTL_MINUTES * 60_000).toISOString();
   await db
     .prepare(
-      `INSERT INTO firm_oauth_states (id, provider, state_hash, code_verifier, nonce, created_at, expires_at, used_at)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,NULL)`
+      `INSERT INTO firm_oauth_states
+         (id, provider, state_hash, code_verifier, nonce, created_at, expires_at, used_at, browser_binding_hash)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,NULL,?8)`
     )
-    .bind(newToken(), provider, await hashToken(rawState), codeVerifier, nonce, now.toISOString(), expiresAt)
+    .bind(
+      newToken(),
+      provider,
+      await hashToken(rawState),
+      codeVerifier,
+      nonce,
+      now.toISOString(),
+      expiresAt,
+      await hashToken(rawBrowserBinding)
+    )
     .run();
-  return { rawState, codeVerifier, nonce };
+  return { rawState, codeVerifier, nonce, rawBrowserBinding };
 }
 
 /**
@@ -1427,7 +1450,8 @@ export async function createOauthState(db: D1Database, provider: string): Promis
  */
 export async function consumeOauthState(
   db: D1Database,
-  rawState: string
+  rawState: string,
+  rawBrowserBinding: string | null
 ): Promise<{ provider: string; codeVerifier: string; nonce: string } | null> {
   const stateHash = await hashToken(rawState);
   const row = await db
@@ -1440,10 +1464,19 @@ export async function consumeOauthState(
       nonce: string;
       expires_at: string;
       used_at: string | null;
+      browser_binding_hash: string | null;
     }>();
   if (!row) return null;
   if (row.used_at) return null;
   if (Date.parse(row.expires_at) <= Date.now()) return null;
+
+  // migration 0011. Fails CLOSED on a missing cookie, a missing stored
+  // binding (a pre-0011 row), or a mismatch -- all indistinguishable to
+  // the caller, same no-oracle posture as every other check here. This is
+  // what makes a callback URL captured by someone else useless in a
+  // victim's browser: they hold the state, but not this cookie.
+  if (!rawBrowserBinding || !row.browser_binding_hash) return null;
+  if ((await hashToken(rawBrowserBinding)) !== row.browser_binding_hash) return null;
 
   // Conditional UPDATE (not a bare one): `used_at IS NULL` in the WHERE
   // clause makes redemption atomic, so two concurrent callbacks carrying

@@ -4452,7 +4452,14 @@ def build_firm_dashboard_page(
         <h2>Password</h2>
         <p class="signup-microcopy">Set a password to sign in directly, instead of waiting on an
         emailed link each time. If you already have one, enter it below to change it.</p>
-        <form id="dr-password-form">
+        <!-- method/action are REQUIRED here even though JS intercepts the
+             submit. Without them a native submit (JS error earlier in the
+             bundle, an extension, Enter pressed before DOMContentLoaded)
+             defaults to GET on the current URL, writing BOTH plaintext
+             passwords into the URL bar, browser history, the static host's
+             access logs, and any Referer sent from this page. Caught in
+             the 2026-07-30 security review. -->
+        <form id="dr-password-form" method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/password">
           <label for="dr-current-password">Current password <span class="field-hint">(leave blank if you've never set one)</span></label>
           <input type="password" id="dr-current-password" name="current_password" autocomplete="current-password">
           <label for="dr-new-password">New password</label>

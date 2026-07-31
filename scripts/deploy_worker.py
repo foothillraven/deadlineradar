@@ -105,6 +105,23 @@ def main() -> int:
     proc = subprocess.run([exe(cmd[0]), *cmd[1:]], cwd=WORKER_DIR)
     if proc.returncode != 0:
         print("\nDeploy FAILED -- marker left unchanged.", file=sys.stderr)
+        print(
+            "\nIF THE ERROR MENTIONED /zones/.../workers/routes WITH 'Authentication error"
+            " [code: 10000]',\n"
+            "the SCRIPT almost certainly uploaded fine and only the ROUTE binding call failed.\n"
+            "That happened on 2026-07-31: the API token lacks Zone > Workers Routes: Edit, but the\n"
+            "routes for deadline-radar.com/api/* already existed, so nothing actually needed\n"
+            "changing and the new code went live anyway.\n"
+            "\n"
+            "DO NOT assume either outcome. Fetch the deployed bundle and grep it -- that is the\n"
+            "only ground truth (see HANDOFF's verification traps):\n"
+            "  curl -H \"Authorization: Bearer $CLOUDFLARE_API_TOKEN\" \\\n"
+            "    https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/deadlineradar-api\n"
+            "If your change IS in that bundle, the deploy landed: write HEAD into\n"
+            "worker/.last_deploy_commit by hand, or the marker silently lies in the other\n"
+            "direction (code deployed, marker stale) -- the exact drift this script exists to stop.",
+            file=sys.stderr,
+        )
         return proc.returncode
 
     if args.preview:

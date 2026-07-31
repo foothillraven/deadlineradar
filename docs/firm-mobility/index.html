@@ -561,6 +561,7 @@
   .dr-verdict-reqs { margin: 0.6rem 0 0; padding-left: 1.1rem; font-size: 0.88rem; }
   .dr-verdict-reqs li { margin-bottom: 0.3rem; }
   .dr-verdict-cite { font-size: 0.8rem; color: var(--muted); margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px solid var(--border); }
+  .dr-verdict-overall { border-width: 2px; border-color: var(--border-strong); }
   .dr-verdict-disclaimer { font-size: 0.78rem; color: var(--faint); margin-top: 0.6rem; font-style: italic; }
   .dr-nav-soon { color: #6e8296; cursor: default; }
   .dr-soon-badge {
@@ -795,6 +796,7 @@ first? Every answer is tied to the rule it came from.</p>
 
     <label for="dr-mob-service">Service type</label>
     <select id="dr-mob-service" name="service_type" required>
+      <option value="">Select service type</option>
       <option value="tax">Tax</option>
       <option value="attest">Attest (audit, review, other attest)</option>
       <option value="other_non_attest">Other non-attest (consulting, advisory)</option>
@@ -838,7 +840,15 @@ first? Every answer is tied to the rule it came from.</p>
   function badge(verdict) {
     if (verdict === 'clear') return '<span class="dr-verdict-badge dr-verdict-clear">Clear</span>';
     if (verdict === 'action_required') return '<span class="dr-verdict-badge dr-verdict-action">Action required</span>';
+    if (verdict === 'not_applicable') return '<span class="dr-verdict-badge dr-verdict-unverified">Not applicable</span>';
     return '<span class="dr-verdict-badge dr-verdict-unverified">Not verified</span>';
+  }
+
+  function overallText(v) {
+    if (v === 'clear') return 'Nothing outstanding that we could identify.';
+    if (v === 'action_required') return 'Something has to happen before this work can proceed.';
+    if (v === 'not_applicable') return 'This combination does not raise a practice-privilege question.';
+    return 'We cannot confirm this. Treat it as unresolved and check with the state board.';
   }
 
   // Citation and disclaimer are read straight from the API payload rather
@@ -860,6 +870,11 @@ first? Every answer is tied to the rule it came from.</p>
       }
       if (f.verifiedDate) { cite += ' &middot; verified ' + esc(f.verifiedDate); }
       cite = '<p class="dr-verdict-cite">Source: ' + cite + '</p>';
+    } else if (f.verdict === 'not_applicable') {
+      // Telling a CPA we have "no verified citation" for their OWN home
+      // state is both false and alarming. The question simply doesn't
+      // apply here, so there is nothing to cite.
+      cite = '';
     } else {
       cite = '<p class="dr-verdict-cite">No verified citation on file for this one &mdash; which is exactly why it is not a yes.</p>';
     }
@@ -895,7 +910,15 @@ first? Every answer is tied to the rule it came from.</p>
           return;
         }
         if (!data) return;
+        // The combined verdict is rendered FIRST and on its own. It exists
+        // precisely so a reader cannot take the greener of the two cards as
+        // the answer -- e.g. a green firm badge sitting above a grey
+        // unverified individual card. Review found this field was being
+        // discarded by the only caller, which made that safeguard dead code
+        // exactly where it mattered.
         var html = '<h2>' + esc(data.home_state) + ' &rarr; ' + esc(data.target_state) + '</h2>' +
+          '<div class="dr-verdict dr-verdict-overall"><h3>Overall</h3>' +
+          badge(data.overall) + '<p>' + esc(overallText(data.overall)) + '</p></div>' +
           findingHtml('The individual CPA', data.individual) +
           findingHtml('The firm', data.firm);
         if (resultEl) { resultEl.innerHTML = html; resultEl.hidden = false; }

@@ -47,7 +47,12 @@ export type MobilityVerdict =
   | "action_required"
   /** We do not have verified data for this combination. The ONLY safe
    * default, and where every unknown lands. */
-  | "not_verified";
+  | "not_verified"
+  /** The question does not apply (e.g. home state == target state). NOT
+   * the same as "we lack data", and conflating the two told a CPA we had
+   * no information about their OWN home state -- false and alarming.
+   * Separated 2026-07-30 after review. */
+  | "not_applicable";
 
 export type ServiceType = "attest" | "tax" | "other_non_attest";
 
@@ -55,6 +60,113 @@ const SERVICE_TYPES = new Set<ServiceType>(["attest", "tax", "other_non_attest"]
 
 export function isValidServiceType(v: string): v is ServiceType {
   return SERVICE_TYPES.has(v as ServiceType);
+}
+
+/**
+ * Coerces an untrusted rule field to a STRICT tri-state.
+ *
+ * This exists because of a confirmed critical defect (2026-07-30 review):
+ * every guard in this engine was written `=== null`, so any non-null
+ * unknown -- most importantly an OMITTED JSON KEY, which reads as
+ * `undefined` -- sailed through both the null check and the false check
+ * and landed in the PERMISSIVE branch. A researcher adding a state and
+ * leaving out the fields they could not verify (the natural reading of
+ * "when in doubt, leave it null") produced a green "practice privilege
+ * exists, no notice or fee" verdict from a row that verified none of it.
+ * The reviewer reproduced that end-to-end over HTTP.
+ *
+ * TypeScript did not catch it (`as MobilityRuleRow[]` erases the shape at
+ * the JSON boundary), and the tests did not either -- they exercised
+ * explicit `null` exhaustively and `undefined` not at all.
+ *
+ * Fixing it at 15 comparison sites would have left the next one to be
+ * added wrong. Normalizing once, here, means anything that is not
+ * literally `true` or `false` becomes `null`, and every downstream
+ * `=== null` guard becomes correct by construction.
+ */
+export function strictTriState(v: unknown): boolean | null {
+  if (v === true) return true;
+  if (v === false) return false;
+  return null;
+}
+
+/**
+ * A citation must be substantive, not merely present.
+ *
+ * requireCitationOrDowngrade() was a truthiness test, so `"   "`, `"TBD"`,
+ * `"pending"` or `"-"` all satisfied it and produced a green verdict --
+ * exactly the placeholder-masquerading-as-a-source case its own docstring
+ * warned about. This does not attempt to validate a legal citation format
+ * (too varied across jurisdictions to do without false negatives); it
+ * rejects the placeholder shapes that were actually getting through.
+ */
+export function isSubstantiveCitation(c: string | null | undefined): boolean {
+  if (typeof c !== "string") return false;
+  const trimmed = c.trim();
+  if (trimmed.length < 8) return false;
+  const placeholder = /^(tbd|todo|pending|unknown|n\/a|na|none|see board|see website|-+|\?+)$/i;
+  return !placeholder.test(trimmed);
+}
+
+/**
+ * Normalizes a raw JSON row into a trustworthy MobilityRuleRow, or returns
+ * null if it is too malformed to use. Called by the loader so no unchecked
+ * row ever reaches an evaluator.
+ */
+export function normalizeRuleRow(raw: unknown): MobilityRuleRow | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.state_slug !== "string" || r.state_slug.length === 0) return null;
+
+  const str = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
+  const conf = r.confidence;
+  return {
+    state: typeof r.state === "string" ? r.state : r.state_slug,
+    state_slug: r.state_slug,
+    individual_practice_privilege: strictTriState(r.individual_practice_privilege),
+    notice_required: strictTriState(r.notice_required),
+    fee_required: strictTriState(r.fee_required),
+    firm_registration_attest: strictTriState(r.firm_registration_attest),
+    firm_registration_tax: strictTriState(r.firm_registration_tax),
+    peer_review_required: strictTriState(r.peer_review_required),
+    // A non-substantive citation is normalized AWAY, so the downstream
+    // guard sees null and downgrades -- rather than being handed "TBD".
+    citation: isSubstantiveCitation(str(r.citation)) ? (r.citation as string) : null,
+    citation_url: safeHttpUrl(str(r.citation_url)),
+    source_url: safeHttpUrl(str(r.source_url)),
+    verified_date: str(r.verified_date),
+    confidence:
+      conf === "dual_source" || conf === "single_source" || conf === "unverified" ? conf : null,
+    data_gap_note: str(r.data_gap_note),
+    notes: str(r.notes),
+    equivalence_test:
+      r.equivalence_test === "nasba_state_level" ||
+      r.equivalence_test === "individual_criteria" ||
+      r.equivalence_test === "other"
+        ? r.equivalence_test
+        : null,
+    rule_in_flux: strictTriState(r.rule_in_flux),
+    flux_note: str(r.flux_note),
+    rule_changes_on: str(r.rule_changes_on),
+  };
+}
+
+/**
+ * Only http(s) URLs survive. These values are rendered into `href`
+ * attributes, where HTML-escaping does NOTHING to stop a
+ * `javascript:` URI -- it contains none of the escaped characters and
+ * executes as same-origin script on click. Confirmed reachable in review.
+ * The dataset is populated in batches from URLs found on the web, so a
+ * poisoned or mistyped row is a realistic path, not a theoretical one.
+ */
+export function safeHttpUrl(v: string | null): string | null {
+  if (!v) return null;
+  try {
+    const u = new URL(v);
+    return u.protocol === "https:" || u.protocol === "http:" ? v : null;
+  } catch {
+    return null;
+  }
 }
 
 /** One state's verified rules. Every field is nullable BY DESIGN: null
@@ -186,14 +298,23 @@ const NOT_VERIFIED_SUMMARY =
  * permissive verdict it cannot show a citation for.
  */
 function requireCitationOrDowngrade(finding: MobilityFinding): MobilityFinding {
-  if (finding.verdict === "clear" && !finding.citation) {
+  if (finding.verdict === "clear" && !isSubstantiveCitation(finding.citation)) {
     return {
       ...finding,
       verdict: "not_verified",
       summary: NOT_VERIFIED_SUMMARY,
       requirements: [
-        "This state's rule is in our dataset but has no primary-source citation, so we won't treat it as verified.",
+        "This state's rule is in our dataset but has no usable primary-source citation, so we won't treat it as verified.",
       ],
+      // Provenance is cleared, not carried over: a downgraded finding that
+      // still advertises `confidence: "single_source"` and a source URL
+      // reads to any other consumer of this JSON as verified. Flagged in
+      // review as harmless in THIS UI and wrong in general.
+      citation: null,
+      citationUrl: null,
+      sourceUrl: null,
+      verifiedDate: null,
+      confidence: null,
     };
   }
   return finding;
@@ -279,7 +400,7 @@ export function evaluateIndividualMobility(
 ): MobilityFinding {
   if (input.homeStateSlug === input.targetStateSlug) {
     return {
-      verdict: "not_verified",
+      verdict: "not_applicable",
       summary:
         "That's your home state, so practice privilege doesn't apply -- you're working under your own " +
         "license. Check your license status and renewal date instead.",
@@ -411,7 +532,7 @@ export function evaluateFirmRegistration(
 ): MobilityFinding {
   if (input.homeStateSlug === input.targetStateSlug) {
     return {
-      verdict: "not_verified",
+      verdict: "not_applicable",
       summary: "That's your home state -- firm registration there is a licensing question, not a mobility one.",
       requirements: [],
       citation: null,
@@ -510,10 +631,18 @@ export function evaluateMobility(
   const individual = evaluateIndividualMobility(input, rule, now);
   const firm = evaluateFirmRegistration(input, rule, now);
   const verdicts = [individual.verdict, firm.verdict];
-  const overall: MobilityVerdict = verdicts.includes("action_required")
-    ? "action_required"
-    : verdicts.includes("not_verified")
-      ? "not_verified"
-      : "clear";
+  // not_verified now outranks action_required. Review finding: merging them
+  // the other way let "we know nothing about this state" surface as
+  // "do X and you're set" -- action_required IMPLIES we evaluated the
+  // state, which is a stronger claim than we can make when any part is
+  // unverified. not_applicable ranks lowest; it is not a finding about the
+  // state at all.
+  const overall: MobilityVerdict = verdicts.includes("not_verified")
+    ? "not_verified"
+    : verdicts.includes("action_required")
+      ? "action_required"
+      : verdicts.includes("clear")
+        ? "clear"
+        : "not_applicable";
   return { individual, firm, overall };
 }

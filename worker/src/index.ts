@@ -95,6 +95,7 @@ import {
   MOBILITY_DISCLAIMER,
   evaluateMobility,
   isValidServiceType,
+  normalizeRuleRow,
   type MobilityRuleRow,
 } from "./mobility";
 import { checkPremiumAccess, entitlementMessage } from "./entitlements";
@@ -1838,8 +1839,15 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
 /** Rules are looked up by slug. Built once at module load rather than per
  * request -- the dataset is static and small. */
 const MOBILITY_RULES_BY_SLUG: Record<string, MobilityRuleRow> = Object.create(null);
-for (const row of (mobilityRulesData.records ?? []) as MobilityRuleRow[]) {
-  if (row && typeof row.state_slug === "string") MOBILITY_RULES_BY_SLUG[row.state_slug] = row;
+for (const raw of (mobilityRulesData.records ?? []) as unknown[]) {
+  // normalizeRuleRow() coerces every field to a strict tri-state and drops
+  // unusable rows. Without it, an OMITTED key in the JSON reads as
+  // `undefined`, passes both the `=== null` and `=== false` guards
+  // downstream, and yields a green "practice privilege exists" verdict for
+  // a row that verified nothing -- reproduced over HTTP in the 2026-07-30
+  // review. TypeScript cannot catch this at the JSON boundary.
+  const row = normalizeRuleRow(raw);
+  if (row) MOBILITY_RULES_BY_SLUG[row.state_slug] = row;
 }
 
 /**
@@ -1899,11 +1907,12 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
   const session = await requireFirmSession(request, env);
   if (session instanceof Response) return session;
 
-  const allowed = await checkRateLimit(env.DB, ip, "mobility_check", RATE_LIMIT_MOBILITY_CHECK);
-  if (!allowed) {
-    return jsonResponse(429, { error: "Too many requests. Please try again later." });
-  }
-
+  // Keyed on the AUTHENTICATED FIRM, not the caller's IP. The stated threat
+  // is "harvesting by a subscriber", which an IP key does not bound (rotate
+  // IPs and it never binds) while it DOES punish a whole firm behind one
+  // office NAT. Matches RATE_LIMIT_FIRM_LICENSE_CREATE's convention for
+  // authenticated routes. Also moved after the entitlement check so an
+  // unentitled session cannot burn a paying firm's budget.
   const firm = await store.getFirmById(env.DB, session.firmId);
   if (!firm) return jsonResponse(404, { error: "Not found." });
 
@@ -1916,6 +1925,14 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
       reason: access.reason,
       pilot_days_remaining: access.pilotDaysRemaining,
     });
+  }
+
+  // Rate limit AFTER the gate. Review finding: with it first, an
+  // authenticated-but-unentitled session could exhaust the firm's budget
+  // purely on 403s.
+  const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_check", RATE_LIMIT_MOBILITY_CHECK);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many requests. Please try again later." });
   }
 
   let raw: string;

@@ -50,7 +50,14 @@ export function pilotDaysRemaining(firm: Pick<FirmRow, "created_at">, now: Date)
   const created = Date.parse(firm.created_at);
   if (Number.isNaN(created)) return null;
   const elapsedDays = Math.floor((now.getTime() - created) / 86_400_000);
-  return PILOT_DAYS - elapsedDays;
+  const remaining = PILOT_DAYS - elapsedDays;
+  // A FUTURE created_at would otherwise yield more than a full pilot --
+  // e.g. a 2030 date evaluated today returned 1281 days, contradicting
+  // this module's own claim that a corrupt timestamp cannot grant an
+  // unbounded pilot. Not user-reachable today (no UPDATE firms exists in
+  // production code) but the invariant was claimed and not held.
+  if (remaining > PILOT_DAYS) return null;
+  return remaining;
 }
 
 /**

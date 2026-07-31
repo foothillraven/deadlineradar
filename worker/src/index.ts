@@ -238,10 +238,67 @@ function actionCsrfSetCookieHeader(nonce: string, env: Env): string {
  * non-empty check is: two absent values must never compare equal, or the
  * whole defence inverts into "send neither and you're in."
  */
-function actionCsrfOk(request: Request, formNonce: string | null): boolean {
+function actionCsrfOk(request: Request, pathname: string, formNonce: string | null): boolean {
   const cookieNonce = getCookie(request, ACTION_CSRF_COOKIE_NAME);
   if (!cookieNonce || !formNonce) return false;
-  return cookieNonce === formNonce;
+  // Bound to the PATH it was minted for, so a nonce handed out by one login
+  // route cannot be replayed at the other (2026-07-31 verification pass).
+  // The binding is in the cookie's own value rather than a second cookie,
+  // which keeps this to one name and one comparison.
+  return cookieNonce === `${pathname}|${formNonce}`;
+}
+
+/**
+ * ORIGIN CHECK for the session-granting POSTs that are NOT action pages
+ * (2026-07-31, verification pass).
+ *
+ * The nonce above only protects routes that have a GET render to mint it.
+ * POST /firm/login/password has none -- it is a direct form POST that ends
+ * in Set-Cookie: dr_firm_session -- so the verification pass demonstrated
+ * the SAME login-CSRF/session-fixation attack against it: an attacker
+ * auto-submits their own credentials from their own site, and the victim's
+ * browser silently becomes signed in as the attacker. That route is the
+ * PAID tier's primary sign-in, so leaving it open while announcing the
+ * class closed would have been the worst of both.
+ *
+ * Origin is the right tool here because there is no render step to hang a
+ * nonce on: every browser sends Origin on a cross-site POST, and a page on
+ * evil.example cannot forge it.
+ *
+ * Absent Origin is ALLOWED, deliberately. Some non-browser clients and
+ * older agents omit it entirely, and the attack this defends against is
+ * inherently browser-driven -- a browser that can be made to submit a
+ * cross-site form is also a browser that sends Origin on it. Rejecting
+ * absent-Origin would break legitimate callers without closing anything.
+ *
+ * The allowed set mirrors the CORS allowlist: this Worker's own origin,
+ * plus env.STATIC_SITE_BASE_URL when set. That second entry is required,
+ * not optional -- on a preview deploy the static site and the Worker are
+ * genuinely different origins, so the honest form POST IS cross-origin
+ * there and would otherwise be rejected.
+ */
+function originAllowed(request: Request, env: Env): boolean {
+  const origin = request.headers.get("Origin");
+  if (!origin) return true;
+  const allowed = new Set<string>();
+  try {
+    allowed.add(new URL(actionBaseUrl(env)).origin);
+  } catch {
+    // a malformed ACTION_BASE_URL must not silently allow everything
+  }
+  try {
+    allowed.add(new URL(request.url).origin);
+  } catch {
+    /* unreachable for a real Request */
+  }
+  if (env.STATIC_SITE_BASE_URL) {
+    try {
+      allowed.add(new URL(env.STATIC_SITE_BASE_URL).origin);
+    } catch {
+      /* ignore a malformed override */
+    }
+  }
+  return allowed.has(origin);
 }
 
 function actionConfirmPage(pathname: string, token: string, env: Env): Response {
@@ -263,7 +320,18 @@ function actionConfirmPage(pathname: string, token: string, env: Env): Response 
     `background:#1f5fbf;color:#fff;font-weight:700;cursor:pointer;">${escapeHtml(meta.button)}</button>` +
     `</form>`;
   const headers: Record<string, string> = { "Content-Type": "text/html; charset=utf-8" };
-  if (nonce) headers["Set-Cookie"] = actionCsrfSetCookieHeader(nonce, env);
+  if (nonce) headers["Set-Cookie"] = actionCsrfSetCookieHeader(`${pathname}|${nonce}`, env);
+  // This page carries a live login token in its URL and its markup, and its
+  // button grants a session (2026-07-31 verification pass):
+  //   * DENY framing, so it cannot be overlaid in a clickjacking frame;
+  //   * no-store, so a shared machine's cache/back-button cannot resurrect
+  //     the token;
+  //   * no-referrer, so the token in the URL is not leaked to anything the
+  //     page links to.
+  headers["X-Frame-Options"] = "DENY";
+  headers["Content-Security-Policy"] = "frame-ancestors 'none'";
+  headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private";
+  headers["Referrer-Policy"] = "no-referrer";
   return new Response(htmlPage(meta.heading, body), { status: 200, headers });
 }
 
@@ -1280,13 +1348,6 @@ async function handleSubscriberLoginRequest(
   // It also protects the reminders themselves: the daily send cap is GLOBAL
   // and shared with them, so an unthrottled mail-bomb here would exhaust the
   // day's budget and silently stop that day's real renewal reminders.
-  const accountAllowed = await checkRateLimit(
-    env.DB,
-    `account:${store.normalizeEmail(email)}`,
-    "subscriber_login_account",
-    RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT
-  );
-
   // Only send if there's actually something to sign in to. Note this reads
   // through the SAME scoping function the dashboard uses, so "we sent a
   // link" and "you'll see rows" can never disagree.
@@ -1299,6 +1360,28 @@ async function handleSubscriberLoginRequest(
   // their next step is the confirmation email they were already sent.
   const existing = await store.listSubscriberLicenses(env.DB, store.normalizeEmail(email));
   const hasRealAccount = existing.some((r) => r.status !== store.STATUS_PENDING);
+
+  // The per-recipient bucket is consumed ONLY when a send would actually
+  // fire (2026-07-31, verification pass). Charging it earlier turned the
+  // mail-bomb fix into a silent lockout: an attacker spent the victim's
+  // whole hourly allowance from throwaway IPs without a single email being
+  // sent, and the victim -- who has no password and no SSO to fall back on
+  // -- then got "check your email" and nothing in their inbox, with no way
+  // to tell why. Now an attacker aiming at a non-subscriber burns nothing,
+  // and aiming at a real subscriber costs them the same sends it caps.
+  //
+  // Note this check sits AFTER the two reads both branches already perform
+  // and gates only the deferred send, so it adds no observable difference
+  // between a known and an unknown address.
+  const accountAllowed =
+    hasRealAccount &&
+    (await checkRateLimit(
+      env.DB,
+      `account:${store.normalizeEmail(email)}`,
+      "subscriber_login_account",
+      RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT
+    ));
+
   if (accountAllowed && hasRealAccount) {
     // ctx.waitUntil, NOT await (2026-07-31, security review): issuing the
     // token writes to D1 and sends an HTTPS request to SendGrid, work the
@@ -2533,7 +2616,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         } catch {
           // keep whatever the query gave us
         }
-        if (csrfRequired && !actionCsrfOk(request, formNonce)) {
+        if (csrfRequired && !actionCsrfOk(request, url.pathname, formNonce)) {
           // Deliberately does NOT consume the login token -- a victim hit by
           // this must still be able to use their own link afterwards.
           return errorPage(
@@ -2593,6 +2676,16 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
  * cheerfully confirms which accounting firms use the product.
  */
 async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): Promise<Response> {
+  // LOGIN CSRF (2026-07-31, verification pass): this route ends in
+  // Set-Cookie: dr_firm_session, and unlike the magic-link routes it has no
+  // GET render to mint a nonce from -- so an attacker could auto-submit
+  // their OWN credentials cross-site and silently sign the victim in as
+  // themselves. See originAllowed()'s docstring. Checked FIRST, before the
+  // rate limit, so a cross-site attempt cannot burn the victim's bucket.
+  if (!originAllowed(request, env)) {
+    return errorPage(400, "That sign-in couldn't be completed. Please sign in from the DeadlineRadar site.");
+  }
+
   const ipAllowed = await checkRateLimit(env.DB, ip, "firm_password_login", RATE_LIMIT_FIRM_PASSWORD_LOGIN);
   if (!ipAllowed) {
     return errorPage(429, "Too many sign-in attempts from this address. Please try again later.");

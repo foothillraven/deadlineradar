@@ -800,6 +800,64 @@
   .dr-account-ok { color: #1f9e5c; font-size: 0.85rem; margin-top: 0.6rem; }
   .dr-account-err { color: #c33737; font-size: 0.85rem; margin-top: 0.6rem; }
 
+  /* ---- Conventional sign-in card, /firm-login/ (2026-07-31) ---- */
+  /* One form at a time, centred, narrow. The width cap is the point: a
+     sign-in form stretched to a content column is one of the tells that made
+     the old page read unfinished. */
+  .dr-auth-card { max-width: 26rem; margin: 0 auto; }
+  .dr-auth-card h1 { font-size: 1.5rem; margin-bottom: 0.4rem; }
+  .dr-auth-card .subhead { font-size: 0.92rem; margin-bottom: 1.4rem; }
+  .dr-auth-card form { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.3rem 1.4rem; }
+  .dr-auth-card label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.9rem 0 0.3rem; }
+  .dr-auth-card form > label:first-of-type { margin-top: 0; }
+  .dr-auth-card input[type="email"], .dr-auth-card input[type="text"], .dr-auth-card input[type="password"] {
+    width: 100%; box-sizing: border-box; padding: 0.6rem 0.7rem; border: 1px solid var(--border-strong);
+    border-radius: 7px; font-family: inherit; font-size: 0.95rem; background: var(--bg); color: inherit; }
+  .dr-auth-card button[type="submit"] { width: 100%; margin-top: 1.1rem; padding: 0.7rem 1rem; border: 0;
+    border-radius: 8px; background: #1f5fbf; color: #fff; font-family: inherit; font-size: 0.98rem;
+    font-weight: 700; cursor: pointer; }
+  .dr-auth-card button[type="submit"]:hover { background: #1a4f9e; }
+  .dr-auth-secondary { margin-top: 0.9rem; font-size: 0.86rem; text-align: center; }
+  .dr-auth-alt { margin-top: 1.1rem; font-size: 0.9rem; text-align: center; }
+  .dr-sso-top { margin-bottom: 1.2rem; }
+  /* interaction-only: normally renders nothing at all, so the slot must not
+     reserve space or leave a gap where the old green box used to sit. */
+  .dr-turnstile-slot { display: flex; justify-content: center; }
+  .dr-turnstile-slot:empty { display: none; }
+  .dr-turnstile-slot .cf-turnstile:not(:empty) { margin-top: 1.1rem; }
+
+  /* ---- Free-tier individual dashboard, /my/ (2026-07-31) ---- */
+  /* Deliberately CARDS, not the firm dashboard's table: an individual has a
+     handful of licenses, not a roster of dozens, and cards reflow on a phone
+     with no horizontal-scroll problem to solve -- the exact problem the firm
+     roster table needed fixing for. */
+  .dr-my-shell { max-width: 46rem; }
+  .dr-my-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .dr-my-head h1 { margin-bottom: 0.3rem; }
+  .dr-my-signout { margin-top: 0.3rem; }
+  .dr-my-signout button { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 7px; padding: 0.4rem 0.85rem; cursor: pointer; font-family: inherit; font-size: 0.85rem; }
+  .dr-my-signout button:hover { background: var(--row-alt); }
+  .dr-my-list { list-style: none; padding: 0; margin: 1.4rem 0 0; }
+  .dr-my-loading { color: var(--muted); font-size: 0.9rem; }
+  .dr-my-card { background: var(--card-bg); border: 1px solid var(--border); border-left: 4px solid var(--border-strong); border-radius: 11px; padding: 1rem 1.2rem; margin-bottom: 0.9rem; }
+  .dr-my-card.is-soon { border-left-color: #d08a1f; }
+  .dr-my-card.is-overdue { border-left-color: #c33737; }
+  .dr-my-card-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+  .dr-my-card-head h3 { margin: 0; font-size: 1.05rem; font-family: var(--font-display); }
+  .dr-my-pill { font-size: 0.72rem; letter-spacing: 0.02em; text-transform: uppercase; background: var(--row-alt); border: 1px solid var(--border); color: var(--muted); border-radius: 999px; padding: 0.15rem 0.55rem; }
+  .dr-my-pill-quiet { color: var(--faint); }
+  .dr-my-date { font-size: 1.15rem; font-variant-numeric: tabular-nums; margin-top: 0.5rem; }
+  .dr-my-count { font-size: 0.85rem; color: var(--muted); margin-top: 0.15rem; }
+  .is-soon .dr-my-count { color: #a86a10; }
+  .is-overdue .dr-my-count { color: #c33737; }
+  .dr-my-note { font-size: 0.82rem; color: var(--muted); margin-top: 0.55rem; }
+  .dr-my-error { border: 1px solid #c33737; border-radius: 11px; padding: 0.9rem 1.1rem; margin-top: 1.2rem; font-size: 0.9rem; }
+  .dr-my-empty { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.2rem; margin-top: 1.2rem; }
+  .dr-my-actions { margin-top: 1.4rem; font-size: 0.9rem; }
+  .dr-my-upsell { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.3rem 1.4rem; margin-top: 2rem; }
+  .dr-my-upsell h2 { font-size: 1.1rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
+  .dr-my-upsell p { font-size: 0.92rem; }
+
 </style>
 </head>
 <body>
@@ -820,7 +878,6 @@
       <a href="/methodology/">How We Verify</a>
       <a href="/for-firms/">For Firms</a>
       <a href="/contact/">Contact</a>
-      <a href="/firm-login/">Sign In</a>
       <a href="#remind" class="cta">Get reminders</a>
     </div>
   </div>
@@ -829,32 +886,17 @@
 <header class="site-header">
   <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>
 </header>
-<h1>Sign in or create your firm account</h1>
-<p class="subhead">One roster for every staff CPA's license renewal &mdash; sorted by what needs
-attention soonest.</p>
+<div class="dr-auth-card">
 
-<div class="signup-form">
-  <h2>New firm? Start here</h2>
-  <p class="signup-microcopy">Most first-time visitors don't have an account yet &mdash; this is
-  the one you want. Free to start &mdash; a 30-day pilot, no card required. We'll email your
-  admin address a one-time link to finish setting up.</p>
-  <form method="post" action="/api/firm/signup">
-    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website-alt">Leave this field blank</label><input type="text" id="hp_website-alt" name="hp_website" tabindex="-1" autocomplete="off"></div>
-    <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_"></div>
-    <label for="signup-firm-name">Firm name</label>
-    <input type="text" id="signup-firm-name" name="name" required maxlength="200" placeholder="Example Firm, LLC">
-    <label for="signup-admin-email">Your email</label>
-    <input type="email" id="signup-admin-email" name="admin_email" required placeholder="you@yourfirm.com">
-    <button type="submit">Create firm account</button>
-  </form>
-</div>
+<div class="dr-auth-view" id="dr-view-signin">
+  <h1>Sign in</h1>
+  <p class="subhead">One roster for every staff CPA's license renewal.</p>
 
-<div class="signup-form">
-  <h2>Already set up? Sign in</h2>
   <form method="post" action="/api/firm/login/password">
     <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website-signin">Leave this field blank</label><input type="text" id="hp_website-signin" name="hp_website" tabindex="-1" autocomplete="off"></div>
-    <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_"></div>
-    <label for="signin-email">Admin email</label>
+    <!-- Turnstile reserved: set TURNSTILE_SITE_KEY (+ the Worker secret) to activate. Empty/absent is treated as "not configured yet," not as a failed check. -->
+    <input type="hidden" name="cf-turnstile-response" value="">
+    <label for="signin-email">Email</label>
     <input type="email" id="signin-email" name="admin_email" required autocomplete="username"
     placeholder="you@yourfirm.com">
     <label for="signin-password">Password</label>
@@ -862,23 +904,120 @@ attention soonest.</p>
     autocomplete="current-password">
     <button type="submit">Sign in</button>
   </form>
-
+  <p class="dr-auth-secondary">
+    <a href="#dr-view-magic" class="dr-auth-switch" data-target="dr-view-magic">Forgot your password?
+    Email me a sign-in link instead</a>
+  </p>
+  <p class="dr-auth-alt">New firm?
+    <a href="#dr-view-signup" class="dr-auth-switch" data-target="dr-view-signup">Create an account</a>
+  </p>
 </div>
 
-<div class="signup-form">
-  <h2>No password yet, or forgot it?</h2>
-  <p class="signup-microcopy">We'll email you a one-time link. It signs you straight in, and from your
-  dashboard you can set a password for next time. Works whether or not you've set one before.</p>
+<div class="dr-auth-view" id="dr-view-signup">
+  <h1>Create your firm account</h1>
+  <p class="subhead">Free to start &mdash; a 30-day pilot, no card required.</p>
+  <form method="post" action="/api/firm/signup">
+    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website-alt">Leave this field blank</label><input type="text" id="hp_website-alt" name="hp_website" tabindex="-1" autocomplete="off"></div>
+    <!-- Turnstile reserved: set TURNSTILE_SITE_KEY (+ the Worker secret) to activate. Empty/absent is treated as "not configured yet," not as a failed check. -->
+    <input type="hidden" name="cf-turnstile-response" value="">
+    <label for="signup-firm-name">Firm name</label>
+    <input type="text" id="signup-firm-name" name="name" required maxlength="200"
+    placeholder="Example Firm, LLC">
+    <label for="signup-admin-email">Your email</label>
+    <input type="email" id="signup-admin-email" name="admin_email" required
+    autocomplete="email" placeholder="you@yourfirm.com">
+    <button type="submit">Create firm account</button>
+  </form>
+  <p class="signup-microcopy">We'll email your admin address a one-time link to finish setting up.</p>
+  <p class="dr-auth-alt">Already have an account?
+    <a href="#dr-view-signin" class="dr-auth-switch" data-target="dr-view-signin">Sign in</a>
+  </p>
+</div>
+
+<div class="dr-auth-view" id="dr-view-magic">
+  <h1>Email me a sign-in link</h1>
+  <p class="subhead">Works whether or not you've set a password. From your dashboard you can set one
+  for next time.</p>
   <form method="post" action="/api/firm/login">
-    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
-    <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_"></div>
-    <label for="login-email">Admin email</label>
-    <input type="email" id="login-email" name="admin_email" required placeholder="you@yourfirm.com">
+    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website-magic">Leave this field blank</label><input type="text" id="hp_website-magic" name="hp_website" tabindex="-1" autocomplete="off"></div>
+    <!-- Turnstile reserved: set TURNSTILE_SITE_KEY (+ the Worker secret) to activate. Empty/absent is treated as "not configured yet," not as a failed check. -->
+    <input type="hidden" name="cf-turnstile-response" value="">
+    <label for="login-email">Email</label>
+    <input type="email" id="login-email" name="admin_email" required autocomplete="email"
+    placeholder="you@yourfirm.com">
     <button type="submit">Email me a sign-in link</button>
   </form>
+  <p class="dr-auth-alt">
+    <a href="#dr-view-signin" class="dr-auth-switch" data-target="dr-view-signin">&larr; Back to sign in</a>
+  </p>
+</div>
+
+<div class="dr-turnstile-slot">
+  <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_"
+       data-appearance="interaction-only" data-callback="drTurnstileDone"
+       data-expired-callback="drTurnstileExpired" data-error-callback="drTurnstileExpired"></div>
+</div>
+<script>
+(function () {
+  var drTurnstileToken = "";
+  window.drTurnstileDone = function (token) { drTurnstileToken = token || ""; };
+  window.drTurnstileExpired = function () { drTurnstileToken = ""; };
+  // Fill whichever form is actually submitted. Listening in the CAPTURE
+  // phase on the document means a form added or swapped later is covered
+  // too, and there is no per-form wiring to forget.
+  document.addEventListener("submit", function (e) {
+    var f = e.target;
+    if (!f || f.tagName !== "FORM") return;
+    var field = f.querySelector('input[name="cf-turnstile-response"]');
+    if (field && !field.value) field.value = drTurnstileToken;
+  }, true);
+})();
+</script>
 </div>
 
 <p class="how-it-works">Want pricing and details first? <a href="/for-firms/">See the firm overview</a>.</p>
+<p class="how-it-works">Not a firm &mdash; just tracking your own license?
+<a href="/signin/">Sign in here</a>.</p>
+
+<script>
+(function () {
+  var views = ["dr-view-signin", "dr-view-signup", "dr-view-magic"];
+
+  function show(id) {
+    for (var i = 0; i < views.length; i++) {
+      var el = document.getElementById(views[i]);
+      if (el) el.hidden = views[i] !== id;
+    }
+    // Move focus to the new view's first field, so a keyboard or
+    // screen-reader user is not left where the old form used to be.
+    var target = document.getElementById(id);
+    if (target) {
+      var first = target.querySelector("input:not([type=hidden]):not([tabindex='-1'])");
+      if (first) first.focus();
+    }
+  }
+
+  // Deep links (/firm-login/#dr-view-signup) and the back button both work.
+  function fromHash() {
+    var h = (window.location.hash || "").replace("#", "");
+    return views.indexOf(h) !== -1 ? h : "dr-view-signin";
+  }
+
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest ? e.target.closest(".dr-auth-switch") : null;
+    if (!a) return;
+    e.preventDefault();
+    var target = a.getAttribute("data-target");
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, "", "#" + target);
+    }
+    show(target);
+  });
+
+  window.addEventListener("hashchange", function () { show(fromHash()); });
+  show(fromHash());
+})();
+</script>
 
 </div>
 <footer class="site-footer">

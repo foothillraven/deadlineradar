@@ -504,6 +504,69 @@ export function buildFirmLoginEmail(loginUrl: string): BuiltEmail {
 }
 
 /**
+ * The FREE-TIER individual's sign-in link (2026-07-31, migration 0012).
+ *
+ * Separate from buildFirmLoginEmail() rather than parameterised, because the
+ * two say different things: a firm admin signs in to a work tool they
+ * already pay for, whereas this person may not remember signing up for
+ * anything at all -- they entered an email on a state page months ago and
+ * have since only ever seen reminder emails. So this one re-establishes
+ * WHAT the account is ("the reminders you're already getting") before asking
+ * them to click.
+ *
+ * Like the firm version, it carries its own minimal footer instead of
+ * `htmlFooter()`/`textFooter()`: those assert the reminder-consent copy
+ * ("unsubscribe any time" wired to a specific subscriber row's token), and
+ * this email is not a reminder for any one row -- it's account access
+ * spanning all of them. Unsubscribing from an individual deadline still
+ * happens where it always has, in that deadline's own reminder emails.
+ */
+export function buildSubscriberLoginEmail(loginUrl: string): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `Your ${SITE_NAME} sign-in link`;
+
+  const textBody =
+    `Here's your ${SITE_NAME} sign-in link:\n\n` +
+    `${loginUrl}\n\n` +
+    `Signing in shows you every renewal deadline we're tracking for this email address, all in ` +
+    `one place. It's the same free reminders you're already getting -- just somewhere you can ` +
+    `see them.\n\n` +
+    `This link expires in 15 minutes and can only be used once. If it's expired by the time you ` +
+    `click it, just request a new one.\n\n` +
+    `If you didn't request this, you can safely ignore this email -- nobody can sign in without ` +
+    `clicking the link above.\n\n` +
+    `---\n${SENDER_LINE}\n${addr}`;
+
+  const htmlBody = htmlShell(
+    `Your ${SITE_NAME} sign-in link`,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `Sign in to ${esc(SITE_NAME)}</h1>` +
+      p(
+        "Signing in shows you every renewal deadline we're tracking for this email address, all " +
+          "in one place. It's the same free reminders you're already getting &mdash; just " +
+          "somewhere you can see them."
+      ) +
+      `<p style="margin:0 0 20px;">${button(loginUrl, "Sign in")}</p>` +
+      p(
+        "This link expires in 15 minutes and can only be used once. If it's expired by the time " +
+          "you click it, just request a new one.",
+        13,
+        LIGHT.muted
+      ) +
+      p(
+        "If you didn't request this, you can safely ignore this email &mdash; nobody can sign in " +
+          "without clicking the link above.",
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
  * Sent whenever a firm's password is set or changed (2026-07-30, from the
  * security review).
  *

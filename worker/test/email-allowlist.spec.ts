@@ -24,6 +24,54 @@ import { sendViaSendGrid } from "../src/sender";
 import type { BuiltEmail } from "../src/emails";
 import * as store from "../src/store";
 
+// Minimal ExecutionContext for direct worker.fetch() calls (2026-07-31): the
+// Worker now defers best-effort email sends via ctx.waitUntil() so they stay
+// off the response path (see handleSubscriberLoginRequest).
+function testExecutionContext(): ExecutionContext {
+  return {
+    waitUntil() {},
+    passThroughOnException() {},
+    props: {},
+  } as unknown as ExecutionContext;
+}
+
+// 2026-07-31 (login-CSRF fix): /firm/login/verify's POST now requires the
+// double-submit nonce minted by its GET render, so these tests perform the
+// same two-step flow a browser does. What each one asserts (redirect target,
+// cookie SameSite) is unchanged. `worker` is imported per-test in this file,
+// so this helper imports it too rather than closing over one.
+async function firmLoginVerifyPost(
+  rawToken: string,
+  targetEnv: unknown,
+  ip: string
+): Promise<Response> {
+  const worker = (await import("../src/index")).default;
+  const page = await worker.fetch(
+    new Request(`https://deadline-radar.com/firm/login/verify?token=${encodeURIComponent(rawToken)}`, {
+      headers: { "cf-connecting-ip": ip },
+    }),
+    targetEnv as never,
+    testExecutionContext()
+  );
+  const html = await page.text();
+  const nonce = /name="action_csrf" value="([^"]+)"/.exec(html)?.[1] ?? "";
+  const cookie = (page.headers.get("Set-Cookie") ?? "").split(";")[0] ?? "";
+  return worker.fetch(
+    new Request("https://deadline-radar.com/firm/login/verify", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "cf-connecting-ip": ip,
+        Cookie: cookie,
+      },
+      body: form({ token: rawToken, action_csrf: nonce }),
+    }),
+    targetEnv as never,
+    testExecutionContext()
+  );
+}
+
+
 const SENDGRID_URL = "https://api.sendgrid.com/v3/mail/send";
 
 function form(fields: Record<string, string>): string {
@@ -151,7 +199,7 @@ describe("EMAIL_ALLOWLIST gate -- wired up end-to-end through a real call site (
         headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.201" },
         body,
       });
-      const resp = await worker.fetch(request, envWithGate);
+      const resp = await worker.fetch(request, envWithGate, testExecutionContext());
       expect(resp.status).toBe(200);
       // The signup itself must still succeed (email failure is best-effort
       // and must never fail the caller's request) --
@@ -185,7 +233,7 @@ describe("EMAIL_ALLOWLIST gate -- wired up end-to-end through a real call site (
         headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.202" },
         body,
       });
-      const resp = await worker.fetch(request, envWithGate);
+      const resp = await worker.fetch(request, envWithGate, testExecutionContext());
       expect(resp.status).toBe(200);
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       expect(fetchSpy).toHaveBeenCalledWith(SENDGRID_URL, expect.objectContaining({ method: "POST" }));
@@ -211,7 +259,7 @@ describe("EMAIL_ALLOWLIST gate -- wired up end-to-end through a real call site (
         headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.203" },
         body,
       });
-      const resp = await worker.fetch(request, envNoGate);
+      const resp = await worker.fetch(request, envNoGate, testExecutionContext());
       expect(resp.status).toBe(200);
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       expect(fetchSpy).toHaveBeenCalledWith(SENDGRID_URL, expect.objectContaining({ method: "POST" }));
@@ -229,7 +277,7 @@ describe("POST /debug/run-reminder-pass -- preview-only manual cron trigger", ()
       method: "POST",
       headers: { "cf-connecting-ip": "203.0.113.210" },
     });
-    const resp = await worker.fetch(request, envNoGate);
+    const resp = await worker.fetch(request, envNoGate, testExecutionContext());
     expect(resp.status).toBe(404);
   });
 
@@ -246,7 +294,7 @@ describe("POST /debug/run-reminder-pass -- preview-only manual cron trigger", ()
         method: "POST",
         headers: { "cf-connecting-ip": "203.0.113.211" },
       });
-      const resp = await worker.fetch(request, envWithGate);
+      const resp = await worker.fetch(request, envWithGate, testExecutionContext());
       expect(resp.status).toBe(200);
       const body = await resp.json();
       expect(typeof body).toBe("object");
@@ -270,7 +318,8 @@ describe("POST /debug/run-reminder-pass -- preview-only manual cron trigger", ()
           method: "POST",
           headers: { "cf-connecting-ip": ip },
         }),
-        envWithGate
+        envWithGate,
+        testExecutionContext()
       );
       expect(resp.status).not.toBe(429);
     }
@@ -279,7 +328,8 @@ describe("POST /debug/run-reminder-pass -- preview-only manual cron trigger", ()
         method: "POST",
         headers: { "cf-connecting-ip": ip },
       }),
-      envWithGate
+      envWithGate,
+        testExecutionContext()
     );
     expect(sixth.status).toBe(429);
     vi.restoreAllMocks();
@@ -302,7 +352,7 @@ describe("ACTION_BASE_URL override -- preview/staging action links point at the 
         headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.220" },
         body: new URLSearchParams({ name: "Preview Test Firm", admin_email: "dlhall86@gmail.com", hp_website: "" }).toString(),
       });
-      const resp = await worker.fetch(request, envPreview);
+      const resp = await worker.fetch(request, envPreview, testExecutionContext());
       expect(resp.status).toBe(200);
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [, sendGridCallInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
@@ -331,7 +381,7 @@ describe("ACTION_BASE_URL override -- preview/staging action links point at the 
           hp_website: "",
         }).toString(),
       });
-      const resp = await worker.fetch(request, envProd);
+      const resp = await worker.fetch(request, envProd, testExecutionContext());
       expect(resp.status).toBe(200);
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [, sendGridCallInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
@@ -352,12 +402,7 @@ describe("STATIC_SITE_BASE_URL override -- login/logout redirects cross back to 
     ).id;
     const { rawToken } = await store.createLoginToken(env.DB, firmId);
     const envPreview = { ...env, STATIC_SITE_BASE_URL: "https://deadlineradar-preview.pages.dev" };
-    const request = new Request("https://deadline-radar.com/firm/login/verify", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.230" },
-      body: form({ token: rawToken }),
-    });
-    const resp = await worker.fetch(request, envPreview);
+    const resp = await firmLoginVerifyPost(rawToken, envPreview, "203.0.113.230");
     expect(resp.status).toBe(302);
     expect(resp.headers.get("Location")).toBe("https://deadlineradar-preview.pages.dev/firm-dashboard/");
   });
@@ -368,12 +413,7 @@ describe("STATIC_SITE_BASE_URL override -- login/logout redirects cross back to 
       await store.createFirm(env.DB, { name: "Redirect Test Firm B", adminEmail: `redirect-b-${Date.now()}@example.com` })
     ).id;
     const { rawToken } = await store.createLoginToken(env.DB, firmId);
-    const request = new Request("https://deadline-radar.com/firm/login/verify", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.231" },
-      body: form({ token: rawToken }),
-    });
-    const resp = await worker.fetch(request, env); // no STATIC_SITE_BASE_URL at all
+    const resp = await firmLoginVerifyPost(rawToken, env, "203.0.113.231"); // no STATIC_SITE_BASE_URL at all
     expect(resp.status).toBe(302);
     expect(resp.headers.get("Location")).toBe("/firm-dashboard/");
   });
@@ -385,7 +425,7 @@ describe("STATIC_SITE_BASE_URL override -- login/logout redirects cross back to 
       method: "POST",
       headers: { "cf-connecting-ip": "203.0.113.232" },
     });
-    const resp = await worker.fetch(request, envPreview);
+    const resp = await worker.fetch(request, envPreview, testExecutionContext());
     expect(resp.status).toBe(302);
     expect(resp.headers.get("Location")).toBe("https://deadlineradar-preview.pages.dev/");
   });
@@ -401,12 +441,7 @@ describe("Preview cross-origin fix: SameSite=None + CORS when STATIC_SITE_BASE_U
     ).id;
     const { rawToken } = await store.createLoginToken(env.DB, firmId);
     const envPreview = { ...env, STATIC_SITE_BASE_URL: previewOrigin };
-    const request = new Request("https://deadline-radar.com/firm/login/verify", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.240" },
-      body: form({ token: rawToken }),
-    });
-    const resp = await worker.fetch(request, envPreview);
+    const resp = await firmLoginVerifyPost(rawToken, envPreview, "203.0.113.240");
     const setCookie = resp.headers.get("Set-Cookie") ?? "";
     expect(setCookie).toContain("SameSite=None");
     expect(setCookie).not.toContain("SameSite=Lax");
@@ -418,12 +453,7 @@ describe("Preview cross-origin fix: SameSite=None + CORS when STATIC_SITE_BASE_U
       await store.createFirm(env.DB, { name: "Prod Cookie Firm", adminEmail: `prodcookie-${Date.now()}@example.com` })
     ).id;
     const { rawToken } = await store.createLoginToken(env.DB, firmId);
-    const request = new Request("https://deadline-radar.com/firm/login/verify", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.241" },
-      body: form({ token: rawToken }),
-    });
-    const resp = await worker.fetch(request, env);
+    const resp = await firmLoginVerifyPost(rawToken, env, "203.0.113.241");
     const setCookie = resp.headers.get("Set-Cookie") ?? "";
     expect(setCookie).toContain("SameSite=Lax");
     expect(setCookie).not.toContain("SameSite=None");
@@ -436,7 +466,7 @@ describe("Preview cross-origin fix: SameSite=None + CORS when STATIC_SITE_BASE_U
       method: "OPTIONS",
       headers: { Origin: previewOrigin },
     });
-    const resp = await worker.fetch(request, envPreview);
+    const resp = await worker.fetch(request, envPreview, testExecutionContext());
     expect(resp.status).toBe(204);
     expect(resp.headers.get("Access-Control-Allow-Origin")).toBe(previewOrigin);
     expect(resp.headers.get("Access-Control-Allow-Credentials")).toBe("true");
@@ -449,7 +479,7 @@ describe("Preview cross-origin fix: SameSite=None + CORS when STATIC_SITE_BASE_U
     const request = new Request("https://deadline-radar.com/api/firm/licenses", {
       headers: { Origin: previewOrigin },
     });
-    const resp = await worker.fetch(request, envPreview);
+    const resp = await worker.fetch(request, envPreview, testExecutionContext());
     expect(resp.status).toBe(401); // no session cookie -- the point is the CORS headers are present regardless
     expect(resp.headers.get("Access-Control-Allow-Origin")).toBe(previewOrigin);
     expect(resp.headers.get("Access-Control-Allow-Credentials")).toBe("true");
@@ -458,7 +488,7 @@ describe("Preview cross-origin fix: SameSite=None + CORS when STATIC_SITE_BASE_U
   it("with STATIC_SITE_BASE_URL unset, no CORS headers are added and OPTIONS is not specially handled (production unchanged)", async () => {
     const worker = (await import("../src/index")).default;
     const request = new Request("https://deadline-radar.com/api/firm/licenses", { method: "OPTIONS" });
-    const resp = await worker.fetch(request, env);
+    const resp = await worker.fetch(request, env, testExecutionContext());
     expect(resp.headers.get("Access-Control-Allow-Origin")).toBeNull();
     expect(resp.status).not.toBe(204);
   });

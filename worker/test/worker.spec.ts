@@ -18,6 +18,20 @@ import * as store from "../src/store";
 import { hashPassword } from "../src/password";
 import type { CpeEntryRow, FirmLeadRow, FirmRow, SubscriberRow } from "../src/store";
 
+// Minimal ExecutionContext for direct worker.fetch() calls (2026-07-31):
+// the Worker now defers best-effort email sends via ctx.waitUntil() so they
+// stay off the response path (see handleSubscriberLoginRequest). The
+// promises are collected rather than dropped so a test can await them.
+function testExecutionContext(): ExecutionContext {
+  const pending: Promise<unknown>[] = [];
+  return {
+    waitUntil(p: Promise<unknown>) { pending.push(p); },
+    passThroughOnException() {},
+    props: {},
+  } as unknown as ExecutionContext;
+}
+
+
 function form(fields: Record<string, string>): string {
   return new URLSearchParams(fields).toString();
 }
@@ -456,11 +470,29 @@ async function getFirmLoginVerifyPage(token: string | null, ip: string): Promise
 // handleFirmLoginVerify()'s docstring); this POSTs the token from the form
 // body, same as the confirm-page button would, which is what actually
 // verifies+consumes the token and creates the session.
+// 2026-07-31 (login-CSRF fix): the POST now also requires the double-submit
+// nonce that the GET render mints into both a hidden field and a cookie, so
+// this helper performs the real two-step flow a human does -- render the
+// confirm page, then submit its button. A POST missing either half is
+// exactly the CSRF attack, and has its own tests.
 async function postFirmLoginVerify(token: string | null, ip: string): Promise<Response> {
+  let nonce = "";
+  let cookie = "";
+  if (token !== null) {
+    const page = await getFirmLoginVerifyPage(token, ip);
+    const html = await page.text();
+    nonce = /name="action_csrf" value="([^"]+)"/.exec(html)?.[1] ?? "";
+    cookie = (page.headers.get("Set-Cookie") ?? "").split(";")[0] ?? "";
+  }
+  const headers: Record<string, string> = {
+    "content-type": "application/x-www-form-urlencoded",
+    "cf-connecting-ip": ip,
+  };
+  if (cookie) headers["Cookie"] = cookie;
   return SELF.fetch("https://deadline-radar.com/firm/login/verify", {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": ip },
-    body: form(token !== null ? { token } : {}),
+    headers,
+    body: form(token !== null ? { token, action_csrf: nonce } : {}),
     redirect: "manual",
   });
 }
@@ -666,7 +698,7 @@ describe("POST /firm/signup -- trial gate (disposable + competitor domains)", ()
       headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.176" },
       body: new URLSearchParams({ name: "Allowlisted Tester Firm", admin_email: email, hp_website: "" }).toString(),
     });
-    const resp = await worker.fetch(request, envWithAllowlist);
+    const resp = await worker.fetch(request, envWithAllowlist, testExecutionContext());
     expect(resp.status).toBe(200);
     expect(await firmByAdminEmail(email)).not.toBeNull();
   });
@@ -681,7 +713,7 @@ describe("POST /firm/signup -- trial gate (disposable + competitor domains)", ()
       headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.177" },
       body: new URLSearchParams({ name: "Some Firm", admin_email: notAllowlistedEmail, hp_website: "" }).toString(),
     });
-    const resp = await worker.fetch(request, envWithAllowlist);
+    const resp = await worker.fetch(request, envWithAllowlist, testExecutionContext());
     expect(resp.status).toBe(400);
     expect(await firmByAdminEmail(notAllowlistedEmail)).toBeNull();
   });
@@ -803,14 +835,14 @@ describe("POST /firm/login -- login-link resend for an existing firm", () => {
       headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.174" },
       body: form({ admin_email: existingEmail }),
     });
-    const bodyExisting = await (await worker.fetch(requestExisting, envPreview)).text();
+    const bodyExisting = await (await worker.fetch(requestExisting, envPreview, testExecutionContext())).text();
 
     const requestNone = new Request("https://deadline-radar.com/firm/login", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.175" },
       body: form({ admin_email: `firmlogin-navlinks-preview-none-${Date.now()}@example.com` }),
     });
-    const bodyNone = await (await worker.fetch(requestNone, envPreview)).text();
+    const bodyNone = await (await worker.fetch(requestNone, envPreview, testExecutionContext())).text();
 
     for (const body of [bodyExisting, bodyNone]) {
       expect(body).toContain('href="https://deadlineradar-preview.pages.dev/firm-login/"');
@@ -873,11 +905,17 @@ describe("GET /firm/login/verify -- render-only confirm page, prefetch-safe", ()
 
     const resp = await getFirmLoginVerifyPage(rawToken, "203.0.113.169");
     expect(resp.status).toBe(200);
-    expect(resp.headers.get("Set-Cookie")).toBeNull();
+    // 2026-07-31 (login-CSRF fix): the render DOES now set the double-submit
+    // nonce cookie -- that is the whole point of the render step. What it
+    // must still never set is a SESSION.
+    const rendered = resp.headers.get("Set-Cookie") ?? "";
+    expect(rendered).toContain("dr_action_csrf=");
+    expect(rendered).not.toContain("dr_firm_session");
     const body = await resp.text();
     expect(body.toLowerCase()).toContain("sign in");
     expect(body).toContain(`name="token" value="${rawToken}"`);
     expect(body).toContain('method="post"');
+    expect(body).toContain('name="action_csrf" value=');
 
     // Token must still be unused -- rendering the page must not consume it.
     const sameTokenPostLater = await postFirmLoginVerify(rawToken, "203.0.113.169");
@@ -1245,7 +1283,7 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
           license_type_id: "ga-individual",
         }),
       });
-      const resp = await worker.fetch(request, envWithKey);
+      const resp = await worker.fetch(request, envWithKey, testExecutionContext());
       expect(resp.status).toBe(201);
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [, sendGridCallInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
@@ -3001,7 +3039,7 @@ describe("SSO routes", () => {
     const req = new Request("https://deadline-radar.com/firm/auth/google/start", {
       headers: { "cf-connecting-ip": "203.0.113.213" },
     });
-    const resp = await worker.fetch(req, env);
+    const resp = await worker.fetch(req, env, testExecutionContext());
     expect(resp.status).toBe(404);
   });
 
@@ -3010,7 +3048,7 @@ describe("SSO routes", () => {
     const req = new Request("https://deadline-radar.com/firm/auth/google/start", {
       headers: { "cf-connecting-ip": "203.0.113.214" },
     });
-    const resp = await worker.fetch(req, { ...env, ...ssoEnv });
+    const resp = await worker.fetch(req, { ...env, ...ssoEnv }, testExecutionContext());
     expect(resp.status).toBe(302);
 
     const location = new URL(resp.headers.get("Location") as string);
@@ -3028,7 +3066,7 @@ describe("SSO routes", () => {
     const req = new Request("https://deadline-radar.com/firm/auth/google/start", {
       headers: { "cf-connecting-ip": "203.0.113.215" },
     });
-    const resp = await worker.fetch(req, { ...env, ...ssoEnv });
+    const resp = await worker.fetch(req, { ...env, ...ssoEnv }, testExecutionContext());
     const rawState = new URL(resp.headers.get("Location") as string).searchParams.get("state") as string;
 
     const row = await env.DB
@@ -3045,7 +3083,8 @@ describe("SSO routes", () => {
     for (const path of ["/firm/auth/microsoft/start", "/firm/auth/evil/start", "/firm/auth/okta/callback"]) {
       const resp = await worker.fetch(
         new Request(`https://deadline-radar.com${path}`, { headers: { "cf-connecting-ip": "203.0.113.216" } }),
-        { ...env, ...ssoEnv }
+        { ...env, ...ssoEnv },
+        testExecutionContext()
       );
       expect(resp.status).toBe(404);
     }
@@ -3058,7 +3097,8 @@ describe("SSO routes", () => {
         new Request(`https://deadline-radar.com/firm/auth/google/callback${qs}`, {
           headers: { "cf-connecting-ip": "203.0.113.217" },
         }),
-        { ...env, ...ssoEnv }
+        { ...env, ...ssoEnv },
+        testExecutionContext()
       );
 
     expect((await call("")).status).toBe(400);
@@ -3089,7 +3129,8 @@ describe("SSO routes", () => {
       new Request(`https://deadline-radar.com/firm/auth/google/callback?code=abc&state=${rawState}`, {
         headers: { "cf-connecting-ip": "203.0.113.220" },
       }),
-      { ...env, ...ssoEnv }
+      { ...env, ...ssoEnv },
+        testExecutionContext()
     );
     expect(noCookie.status).toBe(400);
 
@@ -3099,7 +3140,8 @@ describe("SSO routes", () => {
       new Request(`https://deadline-radar.com/firm/auth/google/callback?code=abc&state=${rawState}`, {
         headers: { "cf-connecting-ip": "203.0.113.221", Cookie: `dr_oauth_handshake=${other.rawBrowserBinding}` },
       }),
-      { ...env, ...ssoEnv }
+      { ...env, ...ssoEnv },
+        testExecutionContext()
     );
     expect(wrongCookie.status).toBe(400);
 
@@ -3114,7 +3156,8 @@ describe("SSO routes", () => {
       new Request("https://deadline-radar.com/firm/auth/google/start", {
         headers: { "cf-connecting-ip": "203.0.113.222" },
       }),
-      { ...env, ...ssoEnv }
+      { ...env, ...ssoEnv },
+        testExecutionContext()
     );
     const setCookie = resp.headers.get("Set-Cookie") ?? "";
     expect(setCookie).toContain("dr_oauth_handshake=");
@@ -3136,7 +3179,8 @@ describe("SSO routes", () => {
       new Request(`https://deadline-radar.com/firm/auth/google/callback?code=abc&state=${rawState}`, {
         headers: { "cf-connecting-ip": "203.0.113.223", Cookie: `dr_oauth_handshake=${rawBrowserBinding}` },
       }),
-      { ...env, ...ssoEnv }
+      { ...env, ...ssoEnv },
+        testExecutionContext()
     );
     expect(resp.status).toBe(400);
   });
@@ -3148,7 +3192,8 @@ describe("SSO routes", () => {
         "https://deadline-radar.com/firm/auth/google/callback?error=access_denied&error_description=leaky-internal-detail",
         { headers: { "cf-connecting-ip": "203.0.113.218" } }
       ),
-      { ...env, ...ssoEnv }
+      { ...env, ...ssoEnv },
+        testExecutionContext()
     );
     expect(resp.status).toBe(400);
     expect(await resp.text()).not.toContain("leaky-internal-detail");
@@ -3161,7 +3206,8 @@ describe("SSO routes", () => {
       new Request(`https://deadline-radar.com/firm/auth/google/callback?code=abc&state=${rawState}`, {
         headers: { "cf-connecting-ip": "203.0.113.219" },
       }),
-      { ...env, ...ssoEnv }
+      { ...env, ...ssoEnv },
+        testExecutionContext()
     );
     expect(resp.status).toBe(400);
   });

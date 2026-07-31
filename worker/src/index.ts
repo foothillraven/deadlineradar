@@ -63,6 +63,7 @@ import {
   RATE_LIMIT_FIRM_LICENSE_CREATE,
   RATE_LIMIT_DEBUG_REMINDER_PASS,
   RATE_LIMIT_FIRM_LOGIN,
+  RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT,
   RATE_LIMIT_FIRM_SIGNUP,
   RATE_LIMIT_SUBSCRIBE,
   checkRateLimit,
@@ -92,6 +93,7 @@ import * as store from "./store";
 import {
   buildConfirmationEmail,
   buildFirmLoginEmail,
+  buildSubscriberLoginEmail,
   buildFirmPasswordChangedEmail,
   buildFirmStaffAddedEmail,
   buildStopConfirmationEmail,
@@ -160,23 +162,177 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
     intro: "Click below to finish signing in.",
     button: "Sign in",
   },
+  // Free-tier individual sign-in (2026-07-31). Routed through the same
+  // render-then-POST machinery as everything above, for the same reason:
+  // corporate mail scanners prefetch links, and a token consumed by a
+  // scanner leaves the real person permanently stuck on "already used".
+  "/subscriber/login/verify": {
+    heading: "Sign in to DeadlineRadar",
+    intro: "Click below to see the renewal deadlines we're tracking for you.",
+    button: "Sign in",
+  },
 };
 
 const ACTION_PATHS = new Set(Object.keys(ACTION_PAGES));
 
-function actionConfirmPage(pathname: string, token: string): Response {
+// ---------------------------------------------------------------------------
+// LOGIN CSRF / session fixation defence (2026-07-31, from the free-tier
+// security review, which demonstrated the attack against a live route).
+//
+// The attack: an attacker requests a sign-in link for THEIR OWN address,
+// never clicks it, and instead hosts an auto-submitting cross-site form
+// POSTing that still-valid token to /subscriber/login/verify. The victim's
+// browser silently receives Set-Cookie and is now signed in AS THE
+// ATTACKER, looking at the attacker's deadlines on our domain -- shown, for
+// a renewal-deadline product, exactly the wrong dates. It also pre-poisons
+// any write endpoint either dashboard grows later.
+//
+// SameSite=Lax does not stop this, and this repo already knows why:
+// migration 0011 says it verbatim -- Lax governs cookie SENDING, not
+// Set-Cookie. 0011 fixed this same attack class for the OAuth flow one day
+// before the magic-link flow reintroduced it; this is the same fix carried
+// across, and it closes the identical pre-existing hole on
+// /firm/login/verify at the same time.
+//
+// The mechanism is double-submit: the GET render mints a CSPRNG nonce, puts
+// it in a hidden field AND in a short-lived cookie, and the POST requires
+// the two to match. An attacker can produce a valid token and a valid form,
+// but cannot set a cookie in the victim's browser from their own site, so
+// the halves can never match in a victim's browser.
+const ACTION_CSRF_COOKIE_NAME = "dr_action_csrf";
+const ACTION_CSRF_FIELD_NAME = "action_csrf";
+// Long enough to read an email and click, short enough that a stale nonce
+// on a shared machine is not lying around. Expiry is enforced only by the
+// cookie: the nonce is a same-browser proof, not a credential -- the actual
+// authority is the login token, which has its own 15-minute server-side TTL.
+const ACTION_CSRF_MAX_AGE_SECONDS = 30 * 60;
+
+/**
+ * The paths where the POST actually requires the nonce.
+ *
+ * Deliberately NOT every action path. /unsubscribe in particular must keep
+ * accepting a bare cross-origin POST, because RFC 8058 List-Unsubscribe
+ * one-click is a POST issued by the MAIL CLIENT, which never renders our
+ * page and so can never carry a nonce -- requiring one there would break
+ * one-click unsubscribe, a deliverability and CAN-SPAM obligation.
+ *
+ * That is an acceptable line to draw because CSRF only matters where the
+ * request GRANTS something. /confirm, /unsubscribe, /renewed and /rearm all
+ * require an unguessable per-subscriber token and change only that
+ * subscriber's own reminder state; the two login routes below are the only
+ * ones that hand the browser a session.
+ */
+const ACTION_CSRF_REQUIRED_PATHS = new Set(["/firm/login/verify", "/subscriber/login/verify"]);
+
+function actionCsrfSetCookieHeader(nonce: string, env: Env): string {
+  return (
+    `${ACTION_CSRF_COOKIE_NAME}=${encodeURIComponent(nonce)}; HttpOnly; Secure; ` +
+    `SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=${ACTION_CSRF_MAX_AGE_SECONDS}`
+  );
+}
+
+/**
+ * Compares the form's nonce against the cookie's. Constant-time is not
+ * required (the nonce is not a secret being guessed one byte at a time --
+ * it is a same-browser proof, and a mismatch reveals nothing), but a
+ * non-empty check is: two absent values must never compare equal, or the
+ * whole defence inverts into "send neither and you're in."
+ */
+function actionCsrfOk(request: Request, pathname: string, formNonce: string | null): boolean {
+  const cookieNonce = getCookie(request, ACTION_CSRF_COOKIE_NAME);
+  if (!cookieNonce || !formNonce) return false;
+  // Bound to the PATH it was minted for, so a nonce handed out by one login
+  // route cannot be replayed at the other (2026-07-31 verification pass).
+  // The binding is in the cookie's own value rather than a second cookie,
+  // which keeps this to one name and one comparison.
+  return cookieNonce === `${pathname}|${formNonce}`;
+}
+
+/**
+ * ORIGIN CHECK for the session-granting POSTs that are NOT action pages
+ * (2026-07-31, verification pass).
+ *
+ * The nonce above only protects routes that have a GET render to mint it.
+ * POST /firm/login/password has none -- it is a direct form POST that ends
+ * in Set-Cookie: dr_firm_session -- so the verification pass demonstrated
+ * the SAME login-CSRF/session-fixation attack against it: an attacker
+ * auto-submits their own credentials from their own site, and the victim's
+ * browser silently becomes signed in as the attacker. That route is the
+ * PAID tier's primary sign-in, so leaving it open while announcing the
+ * class closed would have been the worst of both.
+ *
+ * Origin is the right tool here because there is no render step to hang a
+ * nonce on: every browser sends Origin on a cross-site POST, and a page on
+ * evil.example cannot forge it.
+ *
+ * Absent Origin is ALLOWED, deliberately. Some non-browser clients and
+ * older agents omit it entirely, and the attack this defends against is
+ * inherently browser-driven -- a browser that can be made to submit a
+ * cross-site form is also a browser that sends Origin on it. Rejecting
+ * absent-Origin would break legitimate callers without closing anything.
+ *
+ * The allowed set mirrors the CORS allowlist: this Worker's own origin,
+ * plus env.STATIC_SITE_BASE_URL when set. That second entry is required,
+ * not optional -- on a preview deploy the static site and the Worker are
+ * genuinely different origins, so the honest form POST IS cross-origin
+ * there and would otherwise be rejected.
+ */
+function originAllowed(request: Request, env: Env): boolean {
+  const origin = request.headers.get("Origin");
+  if (!origin) return true;
+  const allowed = new Set<string>();
+  try {
+    allowed.add(new URL(actionBaseUrl(env)).origin);
+  } catch {
+    // a malformed ACTION_BASE_URL must not silently allow everything
+  }
+  try {
+    allowed.add(new URL(request.url).origin);
+  } catch {
+    /* unreachable for a real Request */
+  }
+  if (env.STATIC_SITE_BASE_URL) {
+    try {
+      allowed.add(new URL(env.STATIC_SITE_BASE_URL).origin);
+    } catch {
+      /* ignore a malformed override */
+    }
+  }
+  return allowed.has(origin);
+}
+
+function actionConfirmPage(pathname: string, token: string, env: Env): Response {
   const meta = ACTION_PAGES[pathname];
   if (!meta) return errorPage(404, "Not found.");
   const action = `/api${pathname}`; // the Worker is bound to /api/*
+  const needsCsrf = ACTION_CSRF_REQUIRED_PATHS.has(pathname);
+  const nonce = needsCsrf ? store.newToken() : null;
+  const csrfFieldHtml = nonce
+    ? `<input type="hidden" name="${ACTION_CSRF_FIELD_NAME}" value="${escapeHtml(nonce)}">`
+    : "";
   const body =
     `<h1>${escapeHtml(meta.heading)}</h1>` +
     `<p>${escapeHtml(meta.intro)}</p>` +
     `<form method="post" action="${escapeHtml(action)}" style="margin-top:1.5rem;">` +
     `<input type="hidden" name="token" value="${escapeHtml(token)}">` +
+    csrfFieldHtml +
     `<button type="submit" style="font-size:16px;padding:12px 24px;border:0;border-radius:8px;` +
     `background:#1f5fbf;color:#fff;font-weight:700;cursor:pointer;">${escapeHtml(meta.button)}</button>` +
     `</form>`;
-  return htmlResponse(200, htmlPage(meta.heading, body));
+  const headers: Record<string, string> = { "Content-Type": "text/html; charset=utf-8" };
+  if (nonce) headers["Set-Cookie"] = actionCsrfSetCookieHeader(`${pathname}|${nonce}`, env);
+  // This page carries a live login token in its URL and its markup, and its
+  // button grants a session (2026-07-31 verification pass):
+  //   * DENY framing, so it cannot be overlaid in a clickjacking frame;
+  //   * no-store, so a shared machine's cache/back-button cannot resurrect
+  //     the token;
+  //   * no-referrer, so the token in the URL is not leaked to anything the
+  //     page links to.
+  headers["X-Frame-Options"] = "DENY";
+  headers["Content-Security-Policy"] = "frame-ancestors 'none'";
+  headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private";
+  headers["Referrer-Policy"] = "no-referrer";
+  return new Response(htmlPage(meta.heading, body), { status: 200, headers });
 }
 
 function htmlResponse(status: number, body: string): Response {
@@ -259,6 +415,37 @@ function firmSessionSetCookieHeader(rawSessionToken: string, env: Env): string {
 
 function firmSessionClearCookieHeader(env: Env): string {
   return `${FIRM_SESSION_COOKIE_NAME}=; HttpOnly; Secure; SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=0`;
+}
+
+// ---------------------------------------------------------------------------
+// FREE-TIER individual session cookie (2026-07-31, migration 0012).
+//
+// A DIFFERENT COOKIE NAME from the firm one, on purpose. If both principals
+// shared `dr_firm_session`, a browser signed in as an individual would send
+// a value that every firm-scoped route would then try to resolve -- and the
+// only thing standing between that and a cross-principal bug would be
+// store.verifySession() happening to miss. Separate names mean a firm route
+// never even SEES an individual's token: getCookie() returns undefined and
+// requireFirmSession() 401s before touching the database. It also means a
+// person can be signed in as both at once (a firm admin who also tracks
+// their own licence) without either session evicting the other.
+const SUBSCRIBER_SESSION_COOKIE_NAME = "dr_sub_session";
+// Mirrors store.SUBSCRIBER_SESSION_TTL_DAYS for the same reason the firm
+// constant mirrors SESSION_TTL_DAYS: this is only the browser's copy of the
+// expiry. verifySubscriberSession() re-checks the row's own expires_at on
+// every request, so drift here can only ever expire the cookie EARLIER than
+// the server-side session, never extend access.
+const SUBSCRIBER_SESSION_COOKIE_MAX_AGE_SECONDS = store.SUBSCRIBER_SESSION_TTL_DAYS * 24 * 60 * 60;
+
+function subscriberSessionSetCookieHeader(rawSessionToken: string, env: Env): string {
+  return (
+    `${SUBSCRIBER_SESSION_COOKIE_NAME}=${encodeURIComponent(rawSessionToken)}; HttpOnly; Secure; ` +
+    `SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=${SUBSCRIBER_SESSION_COOKIE_MAX_AGE_SECONDS}`
+  );
+}
+
+function subscriberSessionClearCookieHeader(env: Env): string {
+  return `${SUBSCRIBER_SESSION_COOKIE_NAME}=; HttpOnly; Secure; SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=0`;
 }
 
 /** "north-carolina" -> "North Carolina", "california" -> "California". */
@@ -731,6 +918,28 @@ function firmLoginSentPage(env: Env): string {
 }
 
 /**
+ * The one response POST /subscriber/login ever returns -- real send,
+ * no-such-subscriber, and honeypot alike. See that handler's own comment
+ * for why the branch must be invisible.
+ *
+ * The second paragraph is what stops this being a dead end for someone who
+ * never signed up: it can't ask "did you mean to create an account?"
+ * conditionally without leaking the branch, so it offers the signup path
+ * unconditionally, to everyone, as ordinary copy.
+ */
+function subscriberLoginSentPage(env: Env): string {
+  const homeUrl = env.STATIC_SITE_BASE_URL || "";
+  return htmlPage(
+    "Check your email",
+    "<h1>Check your email</h1><p>If we're tracking any renewal deadlines for that address, we've " +
+      "just sent a sign-in link. It expires in 15 minutes and works once &mdash; if it's expired by " +
+      "the time you click it, just request a new one.</p>" +
+      `<p>Not signed up yet? Nothing will arrive for an address we don't have &mdash; ` +
+      `<a href="${homeUrl}/">pick your state</a> to start getting free renewal reminders.</p>`
+  );
+}
+
+/**
  * Shared by handleFirmSignup() and handleFirmLogin(): issues a login token
  * for `firmId` and, best-effort, emails it. Wrapped so ANY failure (SendGrid
  * down, daily cap hit, build error) never surfaces as an error response --
@@ -1014,6 +1223,308 @@ export async function requireFirmSession(
     return errorPage(401, "Your session has expired or is invalid. Please sign in again.");
   }
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// FREE-TIER individual sign-in (2026-07-31, migration 0012).
+//
+// Individuals have had a working free product since day one -- per-state
+// signup, escalating 60/30/14/7/3/1-day reminders, 55 jurisdictions,
+// bring-your-own dates, and (because dedupe is on `(email, state)`) as many
+// licences as they like. What they have never had is a way to SEE any of
+// it. Everything below adds only that: sign in, look at your own deadlines,
+// sign out. It grants no new capability over the data.
+//
+// Deliberately magic-link only, with NO password and NO SSO. The firm tier
+// has those because a paid work tool with a roster of other people's data
+// warrants them; an individual signing in occasionally to read a list does
+// not, and every credential we don't store is one we can't leak.
+// ---------------------------------------------------------------------------
+
+/**
+ * Issues a sign-in token and best-effort emails it. Mirrors
+ * issueAndSendFirmLoginLink() exactly, including its "no SENDGRID_API_KEY =>
+ * token created, nothing sent, don't crash" convention: the caller's
+ * response must never depend on whether delivery worked.
+ */
+async function issueAndSendSubscriberLoginLink(env: Env, email: string): Promise<void> {
+  // Suppression is checked HERE, not at the caller, so no future caller can
+  // route around it (2026-07-31, security review: every other send path in
+  // this Worker honours suppression -- see scheduler.ts -- and this one
+  // originally did not, which meant a person who had unsubscribed from
+  // everything could still be mailed indefinitely at a stranger's request).
+  if (await store.isPermanentlySuppressed(env.DB, email)) return;
+  const { rawToken } = await store.createSubscriberLoginToken(env.DB, email);
+  if (!env.SENDGRID_API_KEY) return;
+  try {
+    const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+    if (!underCap) return;
+    const loginUrl = `${actionBaseUrl(env)}/subscriber/login/verify?token=${encodeURIComponent(rawToken)}`;
+    const built = buildSubscriberLoginEmail(loginUrl);
+    await sendViaSendGrid(env.SENDGRID_API_KEY, email, built, env.EMAIL_ALLOWLIST);
+  } catch {
+    // Swallow -- same best-effort posture as every other send in this file.
+  }
+}
+
+/**
+ * POST /subscriber/login -- request a sign-in link. Same hardening pipeline
+ * as every other public form here (rate limit -> body cap -> honeypot ->
+ * control chars -> email format -> Turnstile).
+ *
+ * ANTI-ENUMERATION: a link is sent only if that email actually has at least
+ * one live subscription, but the RESPONSE is identical either way. Without
+ * that, this endpoint would be a clean oracle for "is this person tracking
+ * a CPA licence with you" -- and unlike the firm signup path (where an
+ * unknown email legitimately creates an account), there is nothing to create
+ * here, so the branch would be perfectly observable.
+ *
+ * It is also why we don't email non-subscribers "you have no account": that
+ * turns any address into a target for someone else's sign-in attempts, i.e.
+ * a free mail-bombing primitive pointed at strangers.
+ *
+ * The dead-end this creates (a person with no subscriptions clicks Sign In,
+ * gets "check your email", and no email arrives) is handled in the RESPONSE
+ * COPY, which always also offers the signup path -- the same fix applied to
+ * /firm-login/ after Devin walked into its version of this trap. Fixing it
+ * by branching the copy would just reintroduce the oracle.
+ */
+async function handleSubscriberLoginRequest(
+  request: Request,
+  env: Env,
+  ip: string,
+  ctx: ExecutionContext
+): Promise<Response> {
+  const allowed = await checkRateLimit(env.DB, ip, "subscriber_login", RATE_LIMIT_FIRM_LOGIN);
+  if (!allowed) {
+    return errorPage(429, "Too many requests from this address. Please try again later.");
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return errorPage(400, "Request too large or empty.");
+  }
+
+  let form: Record<string, string>;
+  try {
+    form = Object.fromEntries(new URLSearchParams(raw).entries());
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+
+  const honeypotValue = form[HONEYPOT_FIELD_NAME];
+  if (honeypotValue !== undefined && honeypotValue !== "") {
+    return htmlResponse(200, subscriberLoginSentPage(env));
+  }
+
+  for (const value of Object.values(form)) {
+    if (hasControlChars(value)) {
+      return errorPage(400, "Invalid characters in submission.");
+    }
+  }
+
+  const email = (form.email ?? "").trim();
+  if (!isValidEmail(email)) {
+    return errorPage(400, "That doesn't look like a valid email address.");
+  }
+
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
+  if (!turnstileOk) {
+    return errorPage(400, "Verification failed -- please try again.");
+  }
+
+  // PER-RECIPIENT throttle, on top of the per-IP one above (2026-07-31,
+  // security review). Per-IP alone does nothing against a distributed
+  // attack aimed at one person -- the review demonstrated 12 sends to one
+  // victim from 12 IPs. This is the same second bucket
+  // handleFirmPasswordLogin() already keys on the account rather than the
+  // caller, for the same reason.
+  //
+  // It also protects the reminders themselves: the daily send cap is GLOBAL
+  // and shared with them, so an unthrottled mail-bomb here would exhaust the
+  // day's budget and silently stop that day's real renewal reminders.
+  // Only send if there's actually something to sign in to. Note this reads
+  // through the SAME scoping function the dashboard uses, so "we sent a
+  // link" and "you'll see rows" can never disagree.
+  //
+  // CONFIRMED rows only. A `pending_confirmation` row proves nothing -- it
+  // is created by anyone who types an address into the public signup form,
+  // so honouring it would turn this route into a mail primitive pointed at
+  // any stranger (plant a pending row, then request sign-in links forever).
+  // Someone whose rows are all still pending has nothing to look at anyway;
+  // their next step is the confirmation email they were already sent.
+  const existing = await store.listSubscriberLicenses(env.DB, store.normalizeEmail(email));
+  const hasRealAccount = existing.some((r) => r.status !== store.STATUS_PENDING);
+
+  // The per-recipient bucket is consumed ONLY when a send would actually
+  // fire (2026-07-31, verification pass). Charging it earlier turned the
+  // mail-bomb fix into a silent lockout: an attacker spent the victim's
+  // whole hourly allowance from throwaway IPs without a single email being
+  // sent, and the victim -- who has no password and no SSO to fall back on
+  // -- then got "check your email" and nothing in their inbox, with no way
+  // to tell why. Now an attacker aiming at a non-subscriber burns nothing,
+  // and aiming at a real subscriber costs them the same sends it caps.
+  //
+  // Note this check sits AFTER the two reads both branches already perform
+  // and gates only the deferred send, so it adds no observable difference
+  // between a known and an unknown address.
+  const accountAllowed =
+    hasRealAccount &&
+    (await checkRateLimit(
+      env.DB,
+      `account:${store.normalizeEmail(email)}`,
+      "subscriber_login_account",
+      RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT
+    ));
+
+  if (accountAllowed && hasRealAccount) {
+    // ctx.waitUntil, NOT await (2026-07-31, security review): issuing the
+    // token writes to D1 and sends an HTTPS request to SendGrid, work the
+    // no-such-subscriber branch never does. Awaiting it made the two
+    // branches differ by a visible ~100-500ms -- byte-identical bodies over
+    // a plainly different response time, which is exactly the timing oracle
+    // this repo already had to fix once on the firm password login. Off the
+    // response path, both branches return immediately.
+    ctx.waitUntil(issueAndSendSubscriberLoginLink(env, email));
+  }
+
+  return htmlResponse(200, subscriberLoginSentPage(env));
+}
+
+/**
+ * POST /subscriber/login/verify -- consumes the token, creates the session,
+ * sets the cookie. Routed through ACTION_PAGES like every other emailed
+ * link in this Worker, which is what makes it safe against corporate mail
+ * scanners that prefetch URLs: the GET only renders a button, and nothing
+ * is consumed until that button POSTs.
+ */
+async function handleSubscriberLoginVerify(env: Env, token: string | null): Promise<Response> {
+  if (!token) return errorPage(400, "Missing sign-in link.");
+  const result = await store.verifyAndConsumeSubscriberLoginToken(env.DB, token);
+  if (!result) {
+    return errorPage(
+      400,
+      "That sign-in link is invalid, expired, or already used. Please request a new one and try again."
+    );
+  }
+  const { rawSessionToken, sessionId } = await store.createSubscriberSession(env.DB, result.emailNormalized);
+  // Signing in revokes every other session for this email -- see
+  // deleteOtherSubscriberSessions()'s own docstring. This tier has no
+  // account screen, so "request a fresh link" IS the sign-out-everywhere
+  // control, and it only works if it actually revokes.
+  await store.deleteOtherSubscriberSessions(env.DB, result.emailNormalized, sessionId);
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `${env.STATIC_SITE_BASE_URL || ""}/my/`,
+      "Set-Cookie": subscriberSessionSetCookieHeader(rawSessionToken, env),
+    },
+  });
+}
+
+/** POST /subscriber/logout -- deletes the session row (no-op if there wasn't
+ * one) and clears the cookie. Never reports failure; there is no useful
+ * "logout failed" state. */
+async function handleSubscriberLogout(request: Request, env: Env): Promise<Response> {
+  const raw = getCookie(request, SUBSCRIBER_SESSION_COOKIE_NAME);
+  if (raw) {
+    await store.deleteSubscriberSession(env.DB, raw);
+  }
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `${env.STATIC_SITE_BASE_URL || ""}/`,
+      "Set-Cookie": subscriberSessionClearCookieHeader(env),
+    },
+  });
+}
+
+/**
+ * The individual counterpart to requireFirmSession(), with the identical
+ * "either a principal you can trust, or a Response you return immediately"
+ * shape -- a caller that forgets `instanceof Response` fails type-narrowing
+ * on `.emailNormalized`, so skipping the check is a compile error rather
+ * than a silent auth bypass.
+ *
+ * Note what it CANNOT return: a firmId. An individual principal has no firm
+ * and no way to acquire one, because this reads a different table than
+ * verifySession() does.
+ */
+export async function requireSubscriberSession(
+  request: Request,
+  env: Env
+): Promise<{ emailNormalized: string; sessionId: string } | Response> {
+  const raw = getCookie(request, SUBSCRIBER_SESSION_COOKIE_NAME);
+  if (!raw) {
+    return errorPage(401, "You need to sign in to view this.");
+  }
+  const result = await store.verifySubscriberSession(env.DB, raw);
+  if (!result) {
+    return errorPage(401, "Your session has expired or is invalid. Please sign in again.");
+  }
+  return result;
+}
+
+/**
+ * GET /subscriber/licenses -- every deadline tracked for the signed-in
+ * email.
+ *
+ * Scoped ONLY by session.emailNormalized. There is deliberately no way to
+ * ask for someone else's: no id parameter, no email parameter, nothing
+ * client-supplied reaches the query at all.
+ *
+ * `managed_by_firm` is the important field. A staffer added by their firm
+ * genuinely has this licence tracked and already receives its reminder
+ * emails, so hiding those rows would show them an incomplete picture of
+ * their own deadlines -- but the rows belong to the firm's roster, and
+ * letting an individual edit or delete one would silently punch a hole in
+ * that firm's coverage. So they're shown, flagged, and read-only. The one
+ * control they keep is the unsubscribe link already in every reminder
+ * email, which is a legal right rather than ours to withhold.
+ */
+async function handleSubscriberLicensesList(request: Request, env: Env): Promise<Response> {
+  const session = await requireSubscriberSession(request, env);
+  if (session instanceof Response) return session;
+
+  const rows = await store.listSubscriberLicenses(env.DB, session.emailNormalized);
+  const asOf = new Date();
+  const items = rows.map((r) => ({
+    // Reuses the firm dashboard's own derivations rather than
+    // re-implementing them -- one definition of "next deadline" and one of
+    // "status" across both tiers, so the two views can never disagree about
+    // the same row.
+    id: r.id,
+    state_slug: r.state_slug,
+    state_name: stateNameForSlug(r.state_slug),
+    license_type_id: firmLicenseLicenseTypeId(r),
+    status: firmLicenseStatus(r),
+    next_deadline: firmLicenseNextDeadline(r, asOf),
+    deadline_source: r.deadline_source,
+    cycle: r.cycle,
+    created_at: r.created_at,
+    stopped_at: r.stopped_at,
+    stop_reason: r.stop_reason,
+    managed_by_firm: r.firm_id !== null,
+    // Intentionally ABSENT: unsubscribe_token, confirm_token,
+    // renewed_token, cooldown_key, firm_id, staff_label. The tokens are
+    // live bearer credentials and must never reach a page; firm_id and
+    // staff_label are the firm's internal data about this person, and the
+    // boolean above carries everything the UI actually needs from them.
+  }));
+  items.sort((a, b) => {
+    const ad = a.next_deadline;
+    const bd = b.next_deadline;
+    if (ad === null && bd === null) return 0;
+    if (ad === null) return 1;
+    if (bd === null) return -1;
+    return ad < bd ? -1 : ad > bd ? 1 : 0;
+  });
+  return jsonResponse(200, { email: session.emailNormalized, licenses: items });
 }
 
 // ---------------------------------------------------------------------------
@@ -1822,7 +2333,7 @@ function withCorsHeaders(response: Response, env: Env): Response {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
-async function routeRequest(request: Request, env: Env): Promise<Response> {
+async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
 
     // This Worker is bound to the deadline-radar.com/api/* route, so every
@@ -1864,6 +2375,14 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
     // one-time link before the human ever clicks it. The state change happens
     // only on the POST below (the button on this page), which scanners don't do.
     if (request.method === "GET") {
+      if (url.pathname === "/subscriber/licenses") {
+        try {
+          return await handleSubscriberLicensesList(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
       if (url.pathname === "/firm/licenses") {
         try {
           return await handleFirmLicensesList(request, env);
@@ -1911,7 +2430,7 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
         if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
         const token = url.searchParams.get("token");
         if (!token) return errorPage(400, "That link is missing its token.");
-        return actionConfirmPage(url.pathname, token);
+        return actionConfirmPage(url.pathname, token, env);
       }
       return errorPage(404, "Not found.");
     }
@@ -2033,6 +2552,22 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
         }
       }
 
+      if (url.pathname === "/subscriber/login") {
+        try {
+          return await handleSubscriberLoginRequest(request, env, ip, ctx);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
+      if (url.pathname === "/subscriber/logout") {
+        try {
+          return await handleSubscriberLogout(request, env);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
       // PREVIEW/STAGING ONLY -- see RATE_LIMIT_DEBUG_REMINDER_PASS's own
       // comment. Gated on env.EMAIL_ALLOWLIST being SET, which is never true
       // in production (that env var only exists on a preview deployment) --
@@ -2062,14 +2597,33 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
         // Token from the form body (our confirmation-page button) OR the URL
         // query (RFC 8058 List-Unsubscribe one-click POST, whose body is
         // "List-Unsubscribe=One-Click" and carries no token of its own).
-        let token = url.searchParams.get("token");
+        //
+        // The query fallback is NOT allowed for the login routes (2026-07-31,
+        // security review): it exists solely for that one-click unsubscribe
+        // case, and on a route that hands out a session it just makes the
+        // CSRF attack a one-liner -- no body to forge, only a URL. A login
+        // token must arrive in the form body, alongside its nonce.
+        const csrfRequired = ACTION_CSRF_REQUIRED_PATHS.has(url.pathname);
+        let token = csrfRequired ? null : url.searchParams.get("token");
+        let formNonce: string | null = null;
         try {
           const raw = await request.text();
           if (raw.length > 0 && raw.length <= MAX_BODY_BYTES) {
-            token = new URLSearchParams(raw).get("token") ?? token;
+            const parsed = new URLSearchParams(raw);
+            token = parsed.get("token") ?? token;
+            formNonce = parsed.get(ACTION_CSRF_FIELD_NAME);
           }
         } catch {
           // keep whatever the query gave us
+        }
+        if (csrfRequired && !actionCsrfOk(request, url.pathname, formNonce)) {
+          // Deliberately does NOT consume the login token -- a victim hit by
+          // this must still be able to use their own link afterwards.
+          return errorPage(
+            400,
+            "That sign-in couldn't be completed. Please open the sign-in link from your email " +
+              "again and use the button on that page."
+          );
         }
         try {
           switch (url.pathname) {
@@ -2085,6 +2639,8 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
               return await handleRearm(env, token);
             case "/firm/login/verify":
               return await handleFirmLoginVerify(env, token);
+            case "/subscriber/login/verify":
+              return await handleSubscriberLoginVerify(env, token);
           }
         } catch {
           return errorPage(400, "Something went wrong processing that request.");
@@ -2120,6 +2676,16 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
  * cheerfully confirms which accounting firms use the product.
  */
 async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): Promise<Response> {
+  // LOGIN CSRF (2026-07-31, verification pass): this route ends in
+  // Set-Cookie: dr_firm_session, and unlike the magic-link routes it has no
+  // GET render to mint a nonce from -- so an attacker could auto-submit
+  // their OWN credentials cross-site and silently sign the victim in as
+  // themselves. See originAllowed()'s docstring. Checked FIRST, before the
+  // rate limit, so a cross-site attempt cannot burn the victim's bucket.
+  if (!originAllowed(request, env)) {
+    return errorPage(400, "That sign-in couldn't be completed. Please sign in from the DeadlineRadar site.");
+  }
+
   const ipAllowed = await checkRateLimit(env.DB, ip, "firm_password_login", RATE_LIMIT_FIRM_PASSWORD_LOGIN);
   if (!ipAllowed) {
     return errorPage(429, "Too many sign-in attempts from this address. Please try again later.");
@@ -2582,7 +3148,7 @@ async function handleOauthIdentityDelete(request: Request, env: Env, id: string)
 
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     // PREVIEW/STAGING CORS only (see corsHeaders()'s own comment) -- in
     // production env.STATIC_SITE_BASE_URL is unset, so this whole block is
     // skipped and routeRequest() runs exactly as it always has.
@@ -2590,10 +3156,10 @@ export default {
       if (request.method === "OPTIONS") {
         return new Response(null, { status: 204, headers: corsHeaders(env) });
       }
-      const response = await routeRequest(request, env);
+      const response = await routeRequest(request, env, ctx);
       return withCorsHeaders(response, env);
     }
-    return routeRequest(request, env);
+    return routeRequest(request, env, ctx);
   },
 
   /**

@@ -39,6 +39,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -48,8 +49,29 @@ WORKER_DIR = ROOT / "worker"
 MARKER = WORKER_DIR / ".last_deploy_commit"
 
 
+def exe(name: str) -> str:
+    """Resolve a command to a real executable path.
+
+    Needed because this repo is developed on Windows, where `npx` is
+    `npx.cmd` and `git` may be `git.exe`: subprocess.run() without
+    shell=True does NOT consult PATHEXT, so a bare "npx" raises
+    FileNotFoundError. That is exactly how this script failed the first
+    time it was used for real (2026-07-31) -- which would have pushed
+    whoever hit it straight back to running wrangler by hand, i.e. back to
+    the forgotten-marker problem this script exists to remove. A deploy
+    tool that only works on one platform is a deploy tool people route
+    around.
+    """
+    found = shutil.which(name)
+    if found is None:
+        raise SystemExit(f"Could not find '{name}' on PATH. Is Node/git installed?")
+    return found
+
+
 def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8")
+    return subprocess.run(
+        [exe(cmd[0]), *cmd[1:]], cwd=cwd, capture_output=True, text=True, encoding="utf-8"
+    )
 
 
 def worker_tree_dirty() -> bool:
@@ -80,7 +102,7 @@ def main() -> int:
         cmd += ["--config", "wrangler.preview.toml"]
 
     print(f"$ {' '.join(cmd)}  (cwd=worker)")
-    proc = subprocess.run(cmd, cwd=WORKER_DIR)
+    proc = subprocess.run([exe(cmd[0]), *cmd[1:]], cwd=WORKER_DIR)
     if proc.returncode != 0:
         print("\nDeploy FAILED -- marker left unchanged.", file=sys.stderr)
         return proc.returncode

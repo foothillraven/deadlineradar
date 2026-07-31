@@ -1072,6 +1072,38 @@ PAGE_CSS = """
   .dr-account-panel h2 { font-size: 1.05rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
   .dr-account-ok { color: #1f9e5c; font-size: 0.85rem; margin-top: 0.6rem; }
   .dr-account-err { color: #c33737; font-size: 0.85rem; margin-top: 0.6rem; }
+
+  /* ---- Free-tier individual dashboard, /my/ (2026-07-31) ---- */
+  /* Deliberately CARDS, not the firm dashboard's table: an individual has a
+     handful of licenses, not a roster of dozens, and cards reflow on a phone
+     with no horizontal-scroll problem to solve -- the exact problem the firm
+     roster table needed fixing for. */
+  .dr-my-shell { max-width: 46rem; }
+  .dr-my-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .dr-my-head h1 { margin-bottom: 0.3rem; }
+  .dr-my-signout { margin-top: 0.3rem; }
+  .dr-my-signout button { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 7px; padding: 0.4rem 0.85rem; cursor: pointer; font-family: inherit; font-size: 0.85rem; }
+  .dr-my-signout button:hover { background: var(--row-alt); }
+  .dr-my-list { list-style: none; padding: 0; margin: 1.4rem 0 0; }
+  .dr-my-loading { color: var(--muted); font-size: 0.9rem; }
+  .dr-my-card { background: var(--card-bg); border: 1px solid var(--border); border-left: 4px solid var(--border-strong); border-radius: 11px; padding: 1rem 1.2rem; margin-bottom: 0.9rem; }
+  .dr-my-card.is-soon { border-left-color: #d08a1f; }
+  .dr-my-card.is-overdue { border-left-color: #c33737; }
+  .dr-my-card-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+  .dr-my-card-head h3 { margin: 0; font-size: 1.05rem; font-family: var(--font-display); }
+  .dr-my-pill { font-size: 0.72rem; letter-spacing: 0.02em; text-transform: uppercase; background: var(--row-alt); border: 1px solid var(--border); color: var(--muted); border-radius: 999px; padding: 0.15rem 0.55rem; }
+  .dr-my-pill-quiet { color: var(--faint); }
+  .dr-my-date { font-size: 1.15rem; font-variant-numeric: tabular-nums; margin-top: 0.5rem; }
+  .dr-my-count { font-size: 0.85rem; color: var(--muted); margin-top: 0.15rem; }
+  .is-soon .dr-my-count { color: #a86a10; }
+  .is-overdue .dr-my-count { color: #c33737; }
+  .dr-my-note { font-size: 0.82rem; color: var(--muted); margin-top: 0.55rem; }
+  .dr-my-error { border: 1px solid #c33737; border-radius: 11px; padding: 0.9rem 1.1rem; margin-top: 1.2rem; font-size: 0.9rem; }
+  .dr-my-empty { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.2rem; margin-top: 1.2rem; }
+  .dr-my-actions { margin-top: 1.4rem; font-size: 0.9rem; }
+  .dr-my-upsell { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.3rem 1.4rem; margin-top: 2rem; }
+  .dr-my-upsell h2 { font-size: 1.1rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
+  .dr-my-upsell p { font-size: 0.92rem; }
 """
 
 
@@ -1091,7 +1123,13 @@ def site_header(home_href: str, hide_signin: bool = False) -> str:
     # redirects to /firm-login/ on a 401) -- showing a site-wide "Sign In"
     # link next to the sidebar's own "Log out" reads as a real contradiction,
     # caught by adversarial review. Every other page keeps the link.
-    signin_link_html = "" if hide_signin else '<a href="/firm-login/">Sign In</a>\n      '
+    # Retargeted to /signin/ (2026-07-31): the site now has two kinds of
+    # account, and pointing the one nav link at /firm-login/ dropped every
+    # free individual -- the larger group, and the whole funnel -- on a page
+    # asking for a firm name with no way across. /signin/ leads with the
+    # individual form and links straight to /firm-login/, so neither audience
+    # lands at the wrong door. See build_signin_page().
+    signin_link_html = "" if hide_signin else '<a href="/signin/">Sign In</a>\n      '
     return f"""<nav class="mainnav">
   <div class="nav-inner wrap">
     <a href="{esc(home_href)}" style="display:flex; align-items:center; gap:0.5rem; text-decoration:none; padding:0.7rem 0;">
@@ -3292,6 +3330,270 @@ attention soonest.</p>
         body,
         home_href="../",
         canonical_path="/firm-login/",
+    )
+
+
+def build_signin_page() -> str:
+    """The FREE-TIER individual's sign-in page (2026-07-31), and the site's
+    single front door for "Sign In" in the main nav.
+
+    Why one front door rather than pointing the nav at /firm-login/ as it
+    did before: the site now has two kinds of account, and a person who
+    clicks "Sign In" does not think of themselves as "a firm" or "an
+    individual" -- they think they have an account. Sending everyone to the
+    firm page meant the far larger group (free individuals, who ARE the
+    funnel) landed on a page asking for a firm name, with no visible way
+    across. This page leads with the individual form because that is the
+    common case, and links to /firm-login/ prominently rather than burying
+    it, so neither audience is trapped at the wrong door -- the same
+    wrong-door failure Devin walked into on /firm-login/ itself.
+
+    Magic-link only, deliberately: there is no individual password anywhere
+    in this system, so there is no "forgot password" state to design, and no
+    individual credential to store or leak. The form POSTs top-level to the
+    Worker exactly like every other form on this site; the Worker's
+    subscriberLoginSentPage() IS the success page, so there is no
+    client-side success state here.
+    """
+    body = f"""<h1>Sign in</h1>
+<p class="subhead">See every license renewal deadline we're tracking for you, in one place.</p>
+
+<div class="signup-form">
+  <h2>Your reminders</h2>
+  <p class="signup-microcopy">Free, and there's no password &mdash; enter the email address your
+  reminders go to and we'll send you a one-time sign-in link.</p>
+  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/subscriber/login">
+    {_BOT_DEFENSE_FIELDS_HTML}
+    <label for="signin-sub-email">Your email</label>
+    <input type="email" id="signin-sub-email" name="email" required autocomplete="email"
+    placeholder="you@example.com">
+    <button type="submit">Email me a sign-in link</button>
+  </form>
+  <p class="signup-microcopy">Not signed up yet? <a href="/">Pick your state</a> to start getting free
+  renewal reminders &mdash; no account needed.</p>
+</div>
+
+<div class="signup-form">
+  <h2>Firm account?</h2>
+  <p class="signup-microcopy">If you manage renewals for a team, your dashboard is separate from
+  this one.</p>
+  <p><a class="cta-button" href="/firm-login/">Sign in to your firm dashboard &rarr;</a></p>
+</div>
+"""
+
+    return page_shell(
+        f"Sign In — {SITE_NAME}",
+        "Sign in to DeadlineRadar to see every CPA license renewal deadline we're tracking for "
+        "you. Free, no password required.",
+        body,
+        home_href="../",
+        canonical_path="/signin/",
+    )
+
+
+# The /my/ dashboard's client. Same conventions as _FIRM_DASHBOARD_JS_HTML:
+# plain ES5-style functions, no build step, no dependencies, and every fetch
+# carries credentials:'include' so the session cookie rides along (needed
+# because a preview deploy puts the Worker on a different origin than this
+# static site; on production they share deadline-radar.com and it's a no-op).
+#
+# A 401 sends the visitor to /signin/, NOT /firm-login/ -- this page's
+# principal is an individual, and bouncing them to the firm door would be
+# the exact wrong-door trap /signin/ exists to prevent.
+_MY_DASHBOARD_JS_HTML = """<script>
+(function () {
+  var listEl = document.getElementById('dr-my-list');
+  var emailEl = document.getElementById('dr-my-email');
+  var emptyEl = document.getElementById('dr-my-empty');
+  var errorEl = document.getElementById('dr-my-error');
+
+  // `s == null` (loose, deliberate) catches both null and a missing value in
+  // one comparison -- and keeps the literal word out of the shipped HTML,
+  // which preship_gate.py scans for as a sign of a rendering bug leaking
+  // onto a page.
+  function drEsc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // Deadlines are plain YYYY-MM-DD calendar dates with no timezone. Parsing
+  // them with new Date('2027-01-31') would read them as UTC midnight and
+  // then render them in local time, which shows the day BEFORE anywhere west
+  // of UTC -- an off-by-one on the single number this whole product exists
+  // to get right. Splitting the parts and using the local-time constructor
+  // keeps the date the board actually published.
+  function drParseDate(s) {
+    var p = String(s).split('-');
+    return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+  }
+
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+                'August', 'September', 'October', 'November', 'December'];
+
+  function drFormatDate(s) {
+    if (!s) return null;
+    var d = drParseDate(s);
+    return MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+  }
+
+  function drDaysUntil(s) {
+    var d = drParseDate(s);
+    var now = new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.round((d - today) / 86400000);
+  }
+
+  // Mirrors the urgency language of the reminder emails themselves, so the
+  // dashboard and the inbox never describe the same deadline differently.
+  function drUrgency(days) {
+    if (days === null) return '';
+    if (days < 0) return 'is-overdue';
+    if (days <= 30) return 'is-soon';
+    return '';
+  }
+
+  function drCountdown(days) {
+    if (days === null) return '';
+    if (days < 0) return 'Passed ' + Math.abs(days) + ' day' + (Math.abs(days) === 1 ? '' : 's') + ' ago';
+    if (days === 0) return 'Due today';
+    if (days === 1) return 'Due tomorrow';
+    return days + ' days away';
+  }
+
+  function drStatusNote(lic) {
+    if (lic.status === 'pending') {
+      return 'Not confirmed yet -- check your inbox for the confirmation email, or reminders will not send.';
+    }
+    if (lic.status === 'opted_out') {
+      return 'You unsubscribed from these reminders.';
+    }
+    if (lic.status === 'needs-attention' && lic.stop_reason === 'renewed') {
+      return 'Reminders stopped after you renewed. Re-arm them from any past reminder email.';
+    }
+    if (lic.status === 'needs-attention') {
+      return 'Reminders are not currently sending for this one.';
+    }
+    return null;
+  }
+
+  function drRender(data) {
+    if (emailEl) emailEl.textContent = data.email || '';
+    var licenses = data.licenses || [];
+    if (!licenses.length) {
+      if (emptyEl) emptyEl.hidden = false;
+      return;
+    }
+    listEl.innerHTML = licenses.map(function (lic) {
+      var days = lic.next_deadline ? drDaysUntil(lic.next_deadline) : null;
+      var dateText = lic.next_deadline
+        ? drFormatDate(lic.next_deadline)
+        : 'No date on file yet';
+      var note = drStatusNote(lic);
+      // "Tracked by your firm" is shown because these rows are real and the
+      // person really does get their reminders -- hiding them would show an
+      // incomplete picture of their own deadlines. It is a LABEL, not a
+      // control: the row belongs to the firm's roster and this page offers
+      // no way to change it.
+      var firmPill = lic.managed_by_firm
+        ? '<span class="dr-my-pill">Tracked by your firm</span>' : '';
+      var ownDatePill = lic.deadline_source === 'user'
+        ? '<span class="dr-my-pill dr-my-pill-quiet">Your own date</span>' : '';
+      return '<li class="dr-my-card ' + drUrgency(days) + '">' +
+        '<div class="dr-my-card-head">' +
+          '<h3>' + drEsc(lic.state_name) + '</h3>' + firmPill + ownDatePill +
+        '</div>' +
+        '<div class="dr-my-date">' + drEsc(dateText) + '</div>' +
+        (days !== null ? '<div class="dr-my-count">' + drEsc(drCountdown(days)) + '</div>' : '') +
+        (note ? '<div class="dr-my-note">' + drEsc(note) + '</div>' : '') +
+        '</li>';
+    }).join('');
+  }
+
+  fetch('/api/subscriber/licenses', {credentials: 'include'})
+    .then(function (res) {
+      if (res.status === 401) { window.location.href = '/signin/'; return null; }
+      if (!res.ok) throw new Error('load failed');
+      return res.json();
+    })
+    .then(function (data) { if (data) drRender(data); })
+    .catch(function () {
+      // Never leave the page sitting on "Loading..." forever -- a silent
+      // spinner reads as "you have nothing", which for a deadline product is
+      // a genuinely dangerous thing to imply.
+      if (listEl) listEl.innerHTML = '';
+      if (errorEl) errorEl.hidden = false;
+    });
+})();
+</script>"""
+
+_MY_DASHBOARD_JS_HTML = _MY_DASHBOARD_JS_HTML.replace(
+    "'/api/subscriber", f"'{REMINDER_BACKEND_BASE_URL}/subscriber"
+)
+
+
+def build_my_page() -> str:
+    """The free individual's dashboard (2026-07-31).
+
+    Read-only, on purpose. Everything this page shows already existed --
+    the reminders have been sending since day one -- so this adds visibility,
+    not capability, and every mutation (unsubscribe, re-arm, "I renewed")
+    stays where it already works: the tokenised links in the reminder emails
+    themselves. That keeps the entire write surface for individuals at zero
+    new endpoints.
+
+    `noindex` for the same reason /firm-dashboard/ is: a signed-in app view,
+    not indexable content. /signin/ stays indexable.
+    """
+    body = f"""<div class="dr-my-shell">
+  <div class="dr-my-head">
+    <div>
+      <h1>Your renewal deadlines</h1>
+      <p class="subhead" id="dr-my-email-line">Signed in as <span id="dr-my-email">&hellip;</span></p>
+    </div>
+    <form method="post" action="{REMINDER_BACKEND_BASE_URL}/subscriber/logout" class="dr-my-signout">
+      <button type="submit">Sign out</button>
+    </form>
+  </div>
+
+  <div class="dr-my-error" id="dr-my-error" hidden>
+    <p><b>We couldn't load your deadlines just now.</b> Your reminders are unaffected &mdash; they
+    send from our servers, not this page. Please refresh in a moment.</p>
+  </div>
+
+  <ul class="dr-my-list" id="dr-my-list"><li class="dr-my-loading">Loading&hellip;</li></ul>
+
+  <div class="dr-my-empty" id="dr-my-empty" hidden>
+    <p><b>Nothing tracked yet.</b> Pick your state and we'll email you before your license renewal
+    is due &mdash; free, no account required.</p>
+    <p><a class="cta-button" href="/">Choose your state &rarr;</a></p>
+  </div>
+
+  <div class="dr-my-actions">
+    <p><a href="/">+ Track another state</a> &mdash; you can add as many as you hold licenses in.</p>
+    <p class="signup-microcopy">To stop or restart reminders for any one deadline, use the links at
+    the bottom of that deadline's reminder emails.</p>
+  </div>
+
+  <div class="dr-my-upsell">
+    <h2>Tracking renewals for a team?</h2>
+    <p>DeadlineRadar for Firms puts every staff CPA's renewal on one roster, sorted by what needs
+    attention soonest &mdash; plus CPE hour tracking and a calendar view. Free 30-day pilot, no card
+    required.</p>
+    <p><a class="cta-button" href="/for-firms/">See DeadlineRadar for Firms &rarr;</a></p>
+  </div>
+</div>
+{_MY_DASHBOARD_JS_HTML}
+"""
+
+    return page_shell(
+        f"Your deadlines — {SITE_NAME}",
+        "Your DeadlineRadar dashboard.",
+        body,
+        home_href="../",
+        canonical_path="/my/",
+        extra_head='<meta name="robots" content="noindex">',
+        hide_signin=True,
     )
 
 
@@ -5630,6 +5932,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/firm-login/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/signin/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/methodology/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
@@ -5841,6 +6146,16 @@ def main() -> None:
     firm_login_dir.mkdir(parents=True, exist_ok=True)
     (firm_login_dir / "index.html").write_text(build_firm_login_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/firm-login/index.html")
+
+    signin_dir = SITE_DIR / "signin"
+    signin_dir.mkdir(parents=True, exist_ok=True)
+    (signin_dir / "index.html").write_text(build_signin_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/signin/index.html")
+
+    my_dir = SITE_DIR / "my"
+    my_dir.mkdir(parents=True, exist_ok=True)
+    (my_dir / "index.html").write_text(build_my_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/my/index.html")
 
     firm_dashboard_dir = SITE_DIR / "firm-dashboard"
     firm_dashboard_dir.mkdir(parents=True, exist_ok=True)

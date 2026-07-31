@@ -800,6 +800,38 @@
   .dr-account-ok { color: #1f9e5c; font-size: 0.85rem; margin-top: 0.6rem; }
   .dr-account-err { color: #c33737; font-size: 0.85rem; margin-top: 0.6rem; }
 
+  /* ---- Free-tier individual dashboard, /my/ (2026-07-31) ---- */
+  /* Deliberately CARDS, not the firm dashboard's table: an individual has a
+     handful of licenses, not a roster of dozens, and cards reflow on a phone
+     with no horizontal-scroll problem to solve -- the exact problem the firm
+     roster table needed fixing for. */
+  .dr-my-shell { max-width: 46rem; }
+  .dr-my-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .dr-my-head h1 { margin-bottom: 0.3rem; }
+  .dr-my-signout { margin-top: 0.3rem; }
+  .dr-my-signout button { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 7px; padding: 0.4rem 0.85rem; cursor: pointer; font-family: inherit; font-size: 0.85rem; }
+  .dr-my-signout button:hover { background: var(--row-alt); }
+  .dr-my-list { list-style: none; padding: 0; margin: 1.4rem 0 0; }
+  .dr-my-loading { color: var(--muted); font-size: 0.9rem; }
+  .dr-my-card { background: var(--card-bg); border: 1px solid var(--border); border-left: 4px solid var(--border-strong); border-radius: 11px; padding: 1rem 1.2rem; margin-bottom: 0.9rem; }
+  .dr-my-card.is-soon { border-left-color: #d08a1f; }
+  .dr-my-card.is-overdue { border-left-color: #c33737; }
+  .dr-my-card-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+  .dr-my-card-head h3 { margin: 0; font-size: 1.05rem; font-family: var(--font-display); }
+  .dr-my-pill { font-size: 0.72rem; letter-spacing: 0.02em; text-transform: uppercase; background: var(--row-alt); border: 1px solid var(--border); color: var(--muted); border-radius: 999px; padding: 0.15rem 0.55rem; }
+  .dr-my-pill-quiet { color: var(--faint); }
+  .dr-my-date { font-size: 1.15rem; font-variant-numeric: tabular-nums; margin-top: 0.5rem; }
+  .dr-my-count { font-size: 0.85rem; color: var(--muted); margin-top: 0.15rem; }
+  .is-soon .dr-my-count { color: #a86a10; }
+  .is-overdue .dr-my-count { color: #c33737; }
+  .dr-my-note { font-size: 0.82rem; color: var(--muted); margin-top: 0.55rem; }
+  .dr-my-error { border: 1px solid #c33737; border-radius: 11px; padding: 0.9rem 1.1rem; margin-top: 1.2rem; font-size: 0.9rem; }
+  .dr-my-empty { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.2rem; margin-top: 1.2rem; }
+  .dr-my-actions { margin-top: 1.4rem; font-size: 0.9rem; }
+  .dr-my-upsell { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.3rem 1.4rem; margin-top: 2rem; }
+  .dr-my-upsell h2 { font-size: 1.1rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
+  .dr-my-upsell p { font-size: 0.92rem; }
+
 </style>
 </head>
 <body>
@@ -820,7 +852,7 @@
       <a href="/methodology/">How We Verify</a>
       <a href="/for-firms/">For Firms</a>
       <a href="/contact/">Contact</a>
-      <a href="/firm-login/">Sign In</a>
+      <a href="/signin/">Sign In</a>
       <a href="#remind" class="cta">Get reminders</a>
     </div>
   </div>

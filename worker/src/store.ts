@@ -1526,3 +1526,155 @@ export async function deleteOtherSessionsForFirm(
     .run();
   return result.meta.changes ?? 0;
 }
+
+// ---------------------------------------------------------------------------
+// Free-tier individual sign-in (2026-07-31, migration 0012).
+//
+// Deliberately parallel to the firm auth functions above rather than shared
+// with them. An individual principal and a firm principal must never be
+// interchangeable, and the cheapest way to guarantee that is for them to
+// live in different tables read by different functions -- so a bug in one
+// cannot produce a principal of the other kind.
+// ---------------------------------------------------------------------------
+
+/** Same 15-minute contract as the firm login link, for the same reason:
+ * it is a one-shot bearer credential sitting in an inbox. */
+export const SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES = 15;
+
+/** Shorter than the firm's 30 days. A firm dashboard is a work tool; this
+ * is a check-in-occasionally view, so a shorter window costs the user
+ * little and reduces what a stolen cookie is worth. */
+export const SUBSCRIBER_SESSION_TTL_DAYS = 14;
+
+/**
+ * Identity for an individual is their EMAIL, normalised with
+ * `normalizeEmail()` (trim + lowercase) -- NOT `cooldownKey()`.
+ *
+ * That distinction is load-bearing: cooldownKey folds Gmail dots and
+ * +tags together, which is right for abuse throttling and WRONG for
+ * identity. Using it here would let first.last@gmail.com sign in and see
+ * firstlast@gmail.com's licences, which may belong to a different person.
+ */
+export async function createSubscriberLoginToken(
+  db: D1Database,
+  email: string
+): Promise<{ rawToken: string }> {
+  const rawToken = newToken();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES * 60_000).toISOString();
+  await db
+    .prepare(
+      `INSERT INTO subscriber_login_tokens (id, email_normalized, token_hash, created_at, expires_at, used_at)
+       VALUES (?1,?2,?3,?4,?5,NULL)`
+    )
+    .bind(newToken(), normalizeEmail(email), await hashToken(rawToken), now.toISOString(), expiresAt)
+    .run();
+  return { rawToken };
+}
+
+/**
+ * Validates and CONSUMES a sign-in link. Unknown, expired and
+ * already-used are indistinguishable to the caller -- the same no-oracle
+ * posture as verifyAndConsumeLoginToken().
+ *
+ * Redemption is a CONDITIONAL update (`used_at IS NULL`) rather than
+ * check-then-act, so two concurrent clicks on the same emailed link cannot
+ * both succeed. Exactly one gets changes=1.
+ */
+export async function verifyAndConsumeSubscriberLoginToken(
+  db: D1Database,
+  rawToken: string
+): Promise<{ emailNormalized: string } | null> {
+  const tokenHash = await hashToken(rawToken);
+  const row = await db
+    .prepare(`SELECT * FROM subscriber_login_tokens WHERE token_hash = ?1`)
+    .bind(tokenHash)
+    .first<{ id: string; email_normalized: string; expires_at: string; used_at: string | null }>();
+  if (!row) return null;
+  if (row.used_at) return null;
+  if (Date.parse(row.expires_at) <= Date.now()) return null;
+
+  const result = await db
+    .prepare(`UPDATE subscriber_login_tokens SET used_at = ?1 WHERE id = ?2 AND used_at IS NULL`)
+    .bind(nowIso(), row.id)
+    .run();
+  if ((result.meta.changes ?? 0) === 0) return null;
+
+  return { emailNormalized: row.email_normalized };
+}
+
+export async function createSubscriberSession(
+  db: D1Database,
+  emailNormalized: string
+): Promise<{ rawSessionToken: string }> {
+  const rawSessionToken = newToken();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + SUBSCRIBER_SESSION_TTL_DAYS * 86_400_000).toISOString();
+  await db
+    .prepare(
+      `INSERT INTO subscriber_sessions (id, email_normalized, session_token_hash, created_at, expires_at, last_seen_at)
+       VALUES (?1,?2,?3,?4,?5,?6)`
+    )
+    .bind(newToken(), emailNormalized, await hashToken(rawSessionToken), now.toISOString(), expiresAt, now.toISOString())
+    .run();
+  return { rawSessionToken };
+}
+
+export async function verifySubscriberSession(
+  db: D1Database,
+  rawSessionToken: string
+): Promise<{ emailNormalized: string; sessionId: string } | null> {
+  const sessionTokenHash = await hashToken(rawSessionToken);
+  const row = await db
+    .prepare(`SELECT * FROM subscriber_sessions WHERE session_token_hash = ?1`)
+    .bind(sessionTokenHash)
+    .first<{ id: string; email_normalized: string; expires_at: string }>();
+  if (!row) return null;
+  if (Date.parse(row.expires_at) <= Date.now()) return null;
+  await db.prepare(`UPDATE subscriber_sessions SET last_seen_at = ?1 WHERE id = ?2`).bind(nowIso(), row.id).run();
+  return { emailNormalized: row.email_normalized, sessionId: row.id };
+}
+
+export async function deleteSubscriberSession(db: D1Database, rawSessionToken: string): Promise<void> {
+  await db
+    .prepare(`DELETE FROM subscriber_sessions WHERE session_token_hash = ?1`)
+    .bind(await hashToken(rawSessionToken))
+    .run();
+}
+
+/**
+ * Every licence belonging to this email.
+ *
+ * Scoped by `LOWER(TRIM(email))` bound directly in this statement -- the
+ * same defence-in-depth rule the firm CRUD follows: the WHERE clause
+ * enforces ownership, so a future route that forgets to check still cannot
+ * cross between people.
+ *
+ * FIRM-MANAGED ROWS ARE INCLUDED, deliberately, and the caller must render
+ * them read-only. A staffer added by their firm has a real licence being
+ * tracked and already receives those reminder emails, so hiding it would
+ * show them an incomplete and confusing picture of their own deadlines.
+ * But they must not be able to edit or remove it: those rows belong to the
+ * firm's roster, and letting an individual mutate one would silently break
+ * the firm's coverage. `firm_id` is returned so the UI can enforce that
+ * distinction, and the one action they DO retain is the unsubscribe already
+ * present in every email, which is a legal requirement rather than ours to
+ * withhold.
+ *
+ * Removed-by-admin rows are excluded, matching listFirmLicenses().
+ */
+export async function listSubscriberLicenses(
+  db: D1Database,
+  emailNormalized: string
+): Promise<SubscriberRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT * FROM subscribers
+        WHERE LOWER(TRIM(email)) = ?1
+          AND NOT (status = ?2 AND stop_reason = ?3)
+        ORDER BY state_slug ASC`
+    )
+    .bind(emailNormalized, STATUS_STOPPED, STOP_REASON_REMOVED_BY_ADMIN)
+    .all<SubscriberRow>();
+  return results ?? [];
+}

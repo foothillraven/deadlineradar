@@ -92,6 +92,7 @@ import * as store from "./store";
 import {
   buildConfirmationEmail,
   buildFirmLoginEmail,
+  buildSubscriberLoginEmail,
   buildFirmPasswordChangedEmail,
   buildFirmStaffAddedEmail,
   buildStopConfirmationEmail,
@@ -158,6 +159,15 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
   "/firm/login/verify": {
     heading: "Sign in to DeadlineRadar",
     intro: "Click below to finish signing in.",
+    button: "Sign in",
+  },
+  // Free-tier individual sign-in (2026-07-31). Routed through the same
+  // render-then-POST machinery as everything above, for the same reason:
+  // corporate mail scanners prefetch links, and a token consumed by a
+  // scanner leaves the real person permanently stuck on "already used".
+  "/subscriber/login/verify": {
+    heading: "Sign in to DeadlineRadar",
+    intro: "Click below to see the renewal deadlines we're tracking for you.",
     button: "Sign in",
   },
 };
@@ -259,6 +269,37 @@ function firmSessionSetCookieHeader(rawSessionToken: string, env: Env): string {
 
 function firmSessionClearCookieHeader(env: Env): string {
   return `${FIRM_SESSION_COOKIE_NAME}=; HttpOnly; Secure; SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=0`;
+}
+
+// ---------------------------------------------------------------------------
+// FREE-TIER individual session cookie (2026-07-31, migration 0012).
+//
+// A DIFFERENT COOKIE NAME from the firm one, on purpose. If both principals
+// shared `dr_firm_session`, a browser signed in as an individual would send
+// a value that every firm-scoped route would then try to resolve -- and the
+// only thing standing between that and a cross-principal bug would be
+// store.verifySession() happening to miss. Separate names mean a firm route
+// never even SEES an individual's token: getCookie() returns undefined and
+// requireFirmSession() 401s before touching the database. It also means a
+// person can be signed in as both at once (a firm admin who also tracks
+// their own licence) without either session evicting the other.
+const SUBSCRIBER_SESSION_COOKIE_NAME = "dr_sub_session";
+// Mirrors store.SUBSCRIBER_SESSION_TTL_DAYS for the same reason the firm
+// constant mirrors SESSION_TTL_DAYS: this is only the browser's copy of the
+// expiry. verifySubscriberSession() re-checks the row's own expires_at on
+// every request, so drift here can only ever expire the cookie EARLIER than
+// the server-side session, never extend access.
+const SUBSCRIBER_SESSION_COOKIE_MAX_AGE_SECONDS = store.SUBSCRIBER_SESSION_TTL_DAYS * 24 * 60 * 60;
+
+function subscriberSessionSetCookieHeader(rawSessionToken: string, env: Env): string {
+  return (
+    `${SUBSCRIBER_SESSION_COOKIE_NAME}=${encodeURIComponent(rawSessionToken)}; HttpOnly; Secure; ` +
+    `SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=${SUBSCRIBER_SESSION_COOKIE_MAX_AGE_SECONDS}`
+  );
+}
+
+function subscriberSessionClearCookieHeader(env: Env): string {
+  return `${SUBSCRIBER_SESSION_COOKIE_NAME}=; HttpOnly; Secure; SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=0`;
 }
 
 /** "north-carolina" -> "North Carolina", "california" -> "California". */
@@ -731,6 +772,28 @@ function firmLoginSentPage(env: Env): string {
 }
 
 /**
+ * The one response POST /subscriber/login ever returns -- real send,
+ * no-such-subscriber, and honeypot alike. See that handler's own comment
+ * for why the branch must be invisible.
+ *
+ * The second paragraph is what stops this being a dead end for someone who
+ * never signed up: it can't ask "did you mean to create an account?"
+ * conditionally without leaking the branch, so it offers the signup path
+ * unconditionally, to everyone, as ordinary copy.
+ */
+function subscriberLoginSentPage(env: Env): string {
+  const homeUrl = env.STATIC_SITE_BASE_URL || "";
+  return htmlPage(
+    "Check your email",
+    "<h1>Check your email</h1><p>If we're tracking any renewal deadlines for that address, we've " +
+      "just sent a sign-in link. It expires in 15 minutes and works once &mdash; if it's expired by " +
+      "the time you click it, just request a new one.</p>" +
+      `<p>Not signed up yet? Nothing will arrive for an address we don't have &mdash; ` +
+      `<a href="${homeUrl}/">pick your state</a> to start getting free renewal reminders.</p>`
+  );
+}
+
+/**
  * Shared by handleFirmSignup() and handleFirmLogin(): issues a login token
  * for `firmId` and, best-effort, emails it. Wrapped so ANY failure (SendGrid
  * down, daily cap hit, build error) never surfaces as an error response --
@@ -1014,6 +1077,245 @@ export async function requireFirmSession(
     return errorPage(401, "Your session has expired or is invalid. Please sign in again.");
   }
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// FREE-TIER individual sign-in (2026-07-31, migration 0012).
+//
+// Individuals have had a working free product since day one -- per-state
+// signup, escalating 60/30/14/7/3/1-day reminders, 55 jurisdictions,
+// bring-your-own dates, and (because dedupe is on `(email, state)`) as many
+// licences as they like. What they have never had is a way to SEE any of
+// it. Everything below adds only that: sign in, look at your own deadlines,
+// sign out. It grants no new capability over the data.
+//
+// Deliberately magic-link only, with NO password and NO SSO. The firm tier
+// has those because a paid work tool with a roster of other people's data
+// warrants them; an individual signing in occasionally to read a list does
+// not, and every credential we don't store is one we can't leak.
+// ---------------------------------------------------------------------------
+
+/**
+ * Issues a sign-in token and best-effort emails it. Mirrors
+ * issueAndSendFirmLoginLink() exactly, including its "no SENDGRID_API_KEY =>
+ * token created, nothing sent, don't crash" convention: the caller's
+ * response must never depend on whether delivery worked.
+ */
+async function issueAndSendSubscriberLoginLink(env: Env, email: string): Promise<void> {
+  const { rawToken } = await store.createSubscriberLoginToken(env.DB, email);
+  if (!env.SENDGRID_API_KEY) return;
+  try {
+    const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+    if (!underCap) return;
+    const loginUrl = `${actionBaseUrl(env)}/subscriber/login/verify?token=${encodeURIComponent(rawToken)}`;
+    const built = buildSubscriberLoginEmail(loginUrl);
+    await sendViaSendGrid(env.SENDGRID_API_KEY, email, built, env.EMAIL_ALLOWLIST);
+  } catch {
+    // Swallow -- same best-effort posture as every other send in this file.
+  }
+}
+
+/**
+ * POST /subscriber/login -- request a sign-in link. Same hardening pipeline
+ * as every other public form here (rate limit -> body cap -> honeypot ->
+ * control chars -> email format -> Turnstile).
+ *
+ * ANTI-ENUMERATION: a link is sent only if that email actually has at least
+ * one live subscription, but the RESPONSE is identical either way. Without
+ * that, this endpoint would be a clean oracle for "is this person tracking
+ * a CPA licence with you" -- and unlike the firm signup path (where an
+ * unknown email legitimately creates an account), there is nothing to create
+ * here, so the branch would be perfectly observable.
+ *
+ * It is also why we don't email non-subscribers "you have no account": that
+ * turns any address into a target for someone else's sign-in attempts, i.e.
+ * a free mail-bombing primitive pointed at strangers.
+ *
+ * The dead-end this creates (a person with no subscriptions clicks Sign In,
+ * gets "check your email", and no email arrives) is handled in the RESPONSE
+ * COPY, which always also offers the signup path -- the same fix applied to
+ * /firm-login/ after Devin walked into its version of this trap. Fixing it
+ * by branching the copy would just reintroduce the oracle.
+ */
+async function handleSubscriberLoginRequest(request: Request, env: Env, ip: string): Promise<Response> {
+  const allowed = await checkRateLimit(env.DB, ip, "subscriber_login", RATE_LIMIT_FIRM_LOGIN);
+  if (!allowed) {
+    return errorPage(429, "Too many requests from this address. Please try again later.");
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return errorPage(400, "Request too large or empty.");
+  }
+
+  let form: Record<string, string>;
+  try {
+    form = Object.fromEntries(new URLSearchParams(raw).entries());
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+
+  const honeypotValue = form[HONEYPOT_FIELD_NAME];
+  if (honeypotValue !== undefined && honeypotValue !== "") {
+    return htmlResponse(200, subscriberLoginSentPage(env));
+  }
+
+  for (const value of Object.values(form)) {
+    if (hasControlChars(value)) {
+      return errorPage(400, "Invalid characters in submission.");
+    }
+  }
+
+  const email = (form.email ?? "").trim();
+  if (!isValidEmail(email)) {
+    return errorPage(400, "That doesn't look like a valid email address.");
+  }
+
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
+  if (!turnstileOk) {
+    return errorPage(400, "Verification failed -- please try again.");
+  }
+
+  // Only send if there's actually something to sign in to. Note this reads
+  // through the SAME scoping function the dashboard uses, so "we sent a
+  // link" and "you'll see rows" can never disagree.
+  const existing = await store.listSubscriberLicenses(env.DB, store.normalizeEmail(email));
+  if (existing.length > 0) {
+    await issueAndSendSubscriberLoginLink(env, email);
+  }
+
+  return htmlResponse(200, subscriberLoginSentPage(env));
+}
+
+/**
+ * POST /subscriber/login/verify -- consumes the token, creates the session,
+ * sets the cookie. Routed through ACTION_PAGES like every other emailed
+ * link in this Worker, which is what makes it safe against corporate mail
+ * scanners that prefetch URLs: the GET only renders a button, and nothing
+ * is consumed until that button POSTs.
+ */
+async function handleSubscriberLoginVerify(env: Env, token: string | null): Promise<Response> {
+  if (!token) return errorPage(400, "Missing sign-in link.");
+  const result = await store.verifyAndConsumeSubscriberLoginToken(env.DB, token);
+  if (!result) {
+    return errorPage(
+      400,
+      "That sign-in link is invalid, expired, or already used. Please request a new one and try again."
+    );
+  }
+  const { rawSessionToken } = await store.createSubscriberSession(env.DB, result.emailNormalized);
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `${env.STATIC_SITE_BASE_URL || ""}/my/`,
+      "Set-Cookie": subscriberSessionSetCookieHeader(rawSessionToken, env),
+    },
+  });
+}
+
+/** POST /subscriber/logout -- deletes the session row (no-op if there wasn't
+ * one) and clears the cookie. Never reports failure; there is no useful
+ * "logout failed" state. */
+async function handleSubscriberLogout(request: Request, env: Env): Promise<Response> {
+  const raw = getCookie(request, SUBSCRIBER_SESSION_COOKIE_NAME);
+  if (raw) {
+    await store.deleteSubscriberSession(env.DB, raw);
+  }
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `${env.STATIC_SITE_BASE_URL || ""}/`,
+      "Set-Cookie": subscriberSessionClearCookieHeader(env),
+    },
+  });
+}
+
+/**
+ * The individual counterpart to requireFirmSession(), with the identical
+ * "either a principal you can trust, or a Response you return immediately"
+ * shape -- a caller that forgets `instanceof Response` fails type-narrowing
+ * on `.emailNormalized`, so skipping the check is a compile error rather
+ * than a silent auth bypass.
+ *
+ * Note what it CANNOT return: a firmId. An individual principal has no firm
+ * and no way to acquire one, because this reads a different table than
+ * verifySession() does.
+ */
+export async function requireSubscriberSession(
+  request: Request,
+  env: Env
+): Promise<{ emailNormalized: string; sessionId: string } | Response> {
+  const raw = getCookie(request, SUBSCRIBER_SESSION_COOKIE_NAME);
+  if (!raw) {
+    return errorPage(401, "You need to sign in to view this.");
+  }
+  const result = await store.verifySubscriberSession(env.DB, raw);
+  if (!result) {
+    return errorPage(401, "Your session has expired or is invalid. Please sign in again.");
+  }
+  return result;
+}
+
+/**
+ * GET /subscriber/licenses -- every deadline tracked for the signed-in
+ * email.
+ *
+ * Scoped ONLY by session.emailNormalized. There is deliberately no way to
+ * ask for someone else's: no id parameter, no email parameter, nothing
+ * client-supplied reaches the query at all.
+ *
+ * `managed_by_firm` is the important field. A staffer added by their firm
+ * genuinely has this licence tracked and already receives its reminder
+ * emails, so hiding those rows would show them an incomplete picture of
+ * their own deadlines -- but the rows belong to the firm's roster, and
+ * letting an individual edit or delete one would silently punch a hole in
+ * that firm's coverage. So they're shown, flagged, and read-only. The one
+ * control they keep is the unsubscribe link already in every reminder
+ * email, which is a legal right rather than ours to withhold.
+ */
+async function handleSubscriberLicensesList(request: Request, env: Env): Promise<Response> {
+  const session = await requireSubscriberSession(request, env);
+  if (session instanceof Response) return session;
+
+  const rows = await store.listSubscriberLicenses(env.DB, session.emailNormalized);
+  const asOf = new Date();
+  const items = rows.map((r) => ({
+    // Reuses the firm dashboard's own derivations rather than
+    // re-implementing them -- one definition of "next deadline" and one of
+    // "status" across both tiers, so the two views can never disagree about
+    // the same row.
+    id: r.id,
+    state_slug: r.state_slug,
+    state_name: stateNameForSlug(r.state_slug),
+    license_type_id: firmLicenseLicenseTypeId(r),
+    status: firmLicenseStatus(r),
+    next_deadline: firmLicenseNextDeadline(r, asOf),
+    deadline_source: r.deadline_source,
+    cycle: r.cycle,
+    created_at: r.created_at,
+    stopped_at: r.stopped_at,
+    stop_reason: r.stop_reason,
+    managed_by_firm: r.firm_id !== null,
+    // Intentionally ABSENT: unsubscribe_token, confirm_token,
+    // renewed_token, cooldown_key, firm_id, staff_label. The tokens are
+    // live bearer credentials and must never reach a page; firm_id and
+    // staff_label are the firm's internal data about this person, and the
+    // boolean above carries everything the UI actually needs from them.
+  }));
+  items.sort((a, b) => {
+    const ad = a.next_deadline;
+    const bd = b.next_deadline;
+    if (ad === null && bd === null) return 0;
+    if (ad === null) return 1;
+    if (bd === null) return -1;
+    return ad < bd ? -1 : ad > bd ? 1 : 0;
+  });
+  return jsonResponse(200, { email: session.emailNormalized, licenses: items });
 }
 
 // ---------------------------------------------------------------------------
@@ -1864,6 +2166,14 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
     // one-time link before the human ever clicks it. The state change happens
     // only on the POST below (the button on this page), which scanners don't do.
     if (request.method === "GET") {
+      if (url.pathname === "/subscriber/licenses") {
+        try {
+          return await handleSubscriberLicensesList(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
       if (url.pathname === "/firm/licenses") {
         try {
           return await handleFirmLicensesList(request, env);
@@ -2033,6 +2343,22 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
         }
       }
 
+      if (url.pathname === "/subscriber/login") {
+        try {
+          return await handleSubscriberLoginRequest(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
+      if (url.pathname === "/subscriber/logout") {
+        try {
+          return await handleSubscriberLogout(request, env);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
       // PREVIEW/STAGING ONLY -- see RATE_LIMIT_DEBUG_REMINDER_PASS's own
       // comment. Gated on env.EMAIL_ALLOWLIST being SET, which is never true
       // in production (that env var only exists on a preview deployment) --
@@ -2085,6 +2411,8 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
               return await handleRearm(env, token);
             case "/firm/login/verify":
               return await handleFirmLoginVerify(env, token);
+            case "/subscriber/login/verify":
+              return await handleSubscriberLoginVerify(env, token);
           }
         } catch {
           return errorPage(400, "Something went wrong processing that request.");

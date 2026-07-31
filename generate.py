@@ -1073,6 +1073,32 @@ PAGE_CSS = """
   .dr-account-ok { color: #1f9e5c; font-size: 0.85rem; margin-top: 0.6rem; }
   .dr-account-err { color: #c33737; font-size: 0.85rem; margin-top: 0.6rem; }
 
+  /* ---- Conventional sign-in card, /firm-login/ (2026-07-31) ---- */
+  /* One form at a time, centred, narrow. The width cap is the point: a
+     sign-in form stretched to a content column is one of the tells that made
+     the old page read unfinished. */
+  .dr-auth-card { max-width: 26rem; margin: 0 auto; }
+  .dr-auth-card h1 { font-size: 1.5rem; margin-bottom: 0.4rem; }
+  .dr-auth-card .subhead { font-size: 0.92rem; margin-bottom: 1.4rem; }
+  .dr-auth-card form { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.3rem 1.4rem; }
+  .dr-auth-card label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.9rem 0 0.3rem; }
+  .dr-auth-card form > label:first-of-type { margin-top: 0; }
+  .dr-auth-card input[type="email"], .dr-auth-card input[type="text"], .dr-auth-card input[type="password"] {
+    width: 100%; box-sizing: border-box; padding: 0.6rem 0.7rem; border: 1px solid var(--border-strong);
+    border-radius: 7px; font-family: inherit; font-size: 0.95rem; background: var(--bg); color: inherit; }
+  .dr-auth-card button[type="submit"] { width: 100%; margin-top: 1.1rem; padding: 0.7rem 1rem; border: 0;
+    border-radius: 8px; background: #1f5fbf; color: #fff; font-family: inherit; font-size: 0.98rem;
+    font-weight: 700; cursor: pointer; }
+  .dr-auth-card button[type="submit"]:hover { background: #1a4f9e; }
+  .dr-auth-secondary { margin-top: 0.9rem; font-size: 0.86rem; text-align: center; }
+  .dr-auth-alt { margin-top: 1.1rem; font-size: 0.9rem; text-align: center; }
+  .dr-sso-top { margin-bottom: 1.2rem; }
+  /* interaction-only: normally renders nothing at all, so the slot must not
+     reserve space or leave a gap where the old green box used to sit. */
+  .dr-turnstile-slot { display: flex; justify-content: center; }
+  .dr-turnstile-slot:empty { display: none; }
+  .dr-turnstile-slot .cf-turnstile:not(:empty) { margin-top: 1.1rem; }
+
   /* ---- Free-tier individual dashboard, /my/ (2026-07-31) ---- */
   /* Deliberately CARDS, not the firm dashboard's table: an individual has a
      handful of licenses, not a roster of dozens, and cards reflow on a phone
@@ -1305,7 +1331,7 @@ _FIRST_NAME_FIELD_HTML = (
 # submission that arrives without a widget token.
 TURNSTILE_SITE_KEY = "0x4AAAAAADvxskBA78YAubz_"
 
-def _bot_defense_fields_html(id_suffix: str = "") -> str:
+def _bot_defense_fields_html(id_suffix: str = "", shared_widget: bool = False) -> str:
     """Honeypot + Turnstile widget for ONE form.
 
     Parameterised by id suffix because a page can legitimately carry more
@@ -1335,9 +1361,14 @@ def _bot_defense_fields_html(id_suffix: str = "") -> str:
         f'tabindex="-1" autocomplete="off">'
         f'</div>'
     )
-    if TURNSTILE_SITE_KEY:
+    if TURNSTILE_SITE_KEY and not shared_widget:
         widget = f'    <div class="cf-turnstile" data-sitekey="{esc(TURNSTILE_SITE_KEY)}"></div>'
     else:
+        # `shared_widget=True` (2026-07-31): this form does NOT render its own
+        # widget. It carries only the empty hidden input that
+        # _turnstile_shared_widget_html()'s script fills in on submit. Used on
+        # /firm-login/, where three forms share ONE widget -- see that
+        # function's docstring for why.
         widget = (
             f'    <!-- Turnstile reserved: set TURNSTILE_SITE_KEY (+ the Worker secret) to activate. '
             f'Empty/absent is treated as "not configured yet," not as a failed check. -->\n'
@@ -1346,9 +1377,69 @@ def _bot_defense_fields_html(id_suffix: str = "") -> str:
     return honeypot + "\n" + widget
 
 
+def _turnstile_shared_widget_html() -> str:
+    """ONE Turnstile widget serving every form on the page.
+
+    Two problems this solves, both raised by Devin off a screenshot of the
+    live /firm-login/ ("How do normal sign ins work? I don't see them like
+    this"):
+
+    1. **Three widgets on one page, each showing a green "Success!" box.**
+       No real sign-in page looks like that, and on a product asking CPA
+       firms to trust it with staff data it reads amateurish -- a
+       credibility cost, which is a revenue cost.
+    2. `data-appearance="interaction-only"` means the widget renders NOTHING
+       unless Cloudflare actually needs a human interaction. The normal
+       visitor now sees no box at all, passing silently in the background,
+       which is the conventional behaviour.
+
+    Mechanism: the widget lives OUTSIDE every form and captures its token
+    into a JS variable via `data-callback`. Each form carries an empty
+    hidden `cf-turnstile-response` input, filled from that variable at
+    submit time. The Worker verifies the token STRING and does not care
+    which form carried it, so nothing server-side changes -- this is a
+    presentation + bot-protection-config change, not an auth change.
+
+    Degradation is deliberate and safe in both directions:
+      * no JS -> the hidden input stays empty -> the Worker's
+        verifyTurnstile() fails CLOSED once its secret is set. A bot without
+        JS is refused; a human without JS sees the honest "Verification
+        failed" rather than a silent success.
+      * token not yet issued when a very fast user submits -> same path.
+        Turnstile resolves in well under a second and these forms require
+        typing an email and a password first, so this is a narrow window.
+    """
+    if not TURNSTILE_SITE_KEY:
+        return ""
+    return f"""<div class="dr-turnstile-slot">
+  <div class="cf-turnstile" data-sitekey="{esc(TURNSTILE_SITE_KEY)}"
+       data-appearance="interaction-only" data-callback="drTurnstileDone"
+       data-expired-callback="drTurnstileExpired" data-error-callback="drTurnstileExpired"></div>
+</div>
+<script>
+(function () {{
+  var drTurnstileToken = "";
+  window.drTurnstileDone = function (token) {{ drTurnstileToken = token || ""; }};
+  window.drTurnstileExpired = function () {{ drTurnstileToken = ""; }};
+  // Fill whichever form is actually submitted. Listening in the CAPTURE
+  // phase on the document means a form added or swapped later is covered
+  // too, and there is no per-form wiring to forget.
+  document.addEventListener("submit", function (e) {{
+    var f = e.target;
+    if (!f || f.tagName !== "FORM") return;
+    var field = f.querySelector('input[name="cf-turnstile-response"]');
+    if (field && !field.value) field.value = drTurnstileToken;
+  }}, true);
+}})();
+</script>"""
+
+
 _BOT_DEFENSE_FIELDS_HTML = _bot_defense_fields_html()
-_BOT_DEFENSE_FIELDS_HTML_ALT = _bot_defense_fields_html("-alt")
-_BOT_DEFENSE_FIELDS_HTML_SIGNIN = _bot_defense_fields_html("-signin")
+# The three /firm-login/ forms share ONE widget (see
+# _turnstile_shared_widget_html) -- these carry the hidden field only.
+_BOT_DEFENSE_FIELDS_HTML_ALT = _bot_defense_fields_html("-alt", shared_widget=True)
+_BOT_DEFENSE_FIELDS_HTML_SIGNIN = _bot_defense_fields_html("-signin", shared_widget=True)
+_BOT_DEFENSE_FIELDS_HTML_MAGIC = _bot_defense_fields_html("-magic", shared_widget=True)
 
 
 def _turnstile_head_html() -> str:
@@ -3222,45 +3313,50 @@ invoice; a self-serve card-payment option is coming soon. Not ready to create an
 
 
 def build_firm_login_page() -> str:
-    """Firm sign-in + create-account page. Both forms are plain top-level
-    POSTs straight to the Worker's own routes -- same "normal form POST
-    navigation, not a fetch" convention as every public signup form on this
-    site (signup_form_for_state(), _firm_lead form, etc.). The Worker's own
-    response IS the "check your email" page for both
-    (firmLoginSentPage() in worker/src/index.ts, identical for /firm/login
-    and /firm/signup by design -- see that function's own no-enumeration-
-    oracle docstring), so the browser navigating straight there on submit is
-    simplest and correct; there is no client-side success state to build.
+    """Firm sign-in / create-account, rebuilt to the CONVENTIONAL pattern
+    (2026-07-31, Devin off a screenshot: "How do normal sign ins work? I
+    don't see them like this, so why this layout?").
 
-    Judgment call (this build's own instruction: "your call which is more
-    honest/ready to expose publicly"): this exposes a REAL "Create your firm
-    account" form (POST /api/firm/signup), not just a link back to
-    /for-firms/'s early-access lead-capture form. Reasoning: the self-serve
-    signup -> emailed login link -> staff-roster pipeline this build's task
-    describes is fully implemented and covered by this repo's test suite
-    (handleFirmSignup/handleFirmLogin/handleFirmLoginVerify + the
-    /firm/licenses* CRUD in worker/src/index.ts) -- it is not a stub. It
-    touches no billing or capital (a free pilot, no card collected anywhere
-    in this flow, matching /for-firms/'s own "no card required" promise).
-    Nothing built in this pass is deployed -- pointing a real, working sign-up
-    form at a real, working backend, on a page nobody can reach yet, is more
-    honest than shipping a dashboard whose own front door still says "reserve
-    your spot, nothing built yet." The decision of whether this is ready for
-    the PUBLIC internet is the separate, later, plan-first deploy gate --
-    this only decides what the page says once someone reaches it.
+    What was wrong: the page rendered THREE forms stacked and visible at
+    once (create account / password sign-in / emailed link), each with its
+    own Turnstile widget showing a green "Success!" box. Nothing real looks
+    like that, and on a product asking CPA firms to trust it with staff data
+    it reads unfinished -- a credibility cost, so a revenue cost.
 
-    Known follow-up (not this build's scope to fix): /for-firms/
-    (build_firms_page()) still reads "Self-serve signup for the firm
-    dashboard isn't live yet" and points its own CTA at the /firm/lead
-    early-access list. That copy needs to be reconciled with this page
-    before the site is actually deployed, or a visitor bouncing between the
-    two will see a contradiction.
+    What it is now, matching what people expect everywhere else:
+      * ONE form visible at a time; Sign in (email + password) is the
+        default view.
+      * A single switch link at the bottom swaps to Create account, which
+        offers its own way back. No stacking.
+      * The magic link is demoted to a secondary action under the password
+        field ("Email me a sign-in link instead"), not a co-equal third form.
+      * The SSO slot sits at the TOP above an "or" divider, per convention,
+        and stays DARK until the OAuth apps are registered -- the slot is
+        built, no fake buttons.
+      * ONE Turnstile widget, `interaction-only`, so nothing is normally
+        visible. See _turnstile_shared_widget_html().
+
+    PROGRESSIVE ENHANCEMENT, deliberately: the HTML ships with every form
+    VISIBLE and the switch links inert, and the script hides the non-default
+    views on load. So a visitor without JS gets the old stacked page, which
+    is ugly but fully functional, rather than a page whose only two forms
+    are unreachable behind a dead link. The conventional layout is an
+    enhancement, never a prerequisite for signing in.
+
+    NOT CHANGED, and must not be: anti-enumeration (every path returns the
+    same response whether or not an email has an account), the honeypot, the
+    rate limits, and all session/auth behaviour. This is presentation plus a
+    bot-protection config change; no auth logic was touched.
+
+    The dead-end fix is preserved -- a first-time visitor still obviously
+    finds "create an account", now via the switch link and copy rather than
+    by having the form shouted at them. The original bug was the SILENT
+    failure (no visible route to signup at all), not the form's position.
     """
     sso_buttons_html = ""
     if "google" in SSO_PROVIDERS:
         sso_buttons_html = f"""
-  <div class="dr-sso-block">
-    <div class="dr-sso-divider"><span>or</span></div>
+  <div class="dr-sso-block dr-sso-top">
     <a class="dr-sso-button" href="{REMINDER_BACKEND_BASE_URL}/firm/auth/google/start">
       <svg class="dr-sso-mark" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
         <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
@@ -3268,36 +3364,20 @@ def build_firm_login_page() -> str:
         <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/>
         <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/>
       </svg>
-      <span>Sign in with Google</span>
+      <span>Continue with Google</span>
     </a>
-    <p class="signup-microcopy dr-sso-note">Uses your existing Google account &mdash; no extra password to
-    manage. You'll need a DeadlineRadar account first.</p>
+    <div class="dr-sso-divider"><span>or</span></div>
   </div>"""
 
-    body = f"""<h1>Sign in or create your firm account</h1>
-<p class="subhead">One roster for every staff CPA's license renewal &mdash; sorted by what needs
-attention soonest.</p>
+    body = f"""<div class="dr-auth-card">
 
-<div class="signup-form">
-  <h2>New firm? Start here</h2>
-  <p class="signup-microcopy">Most first-time visitors don't have an account yet &mdash; this is
-  the one you want. Free to start &mdash; a 30-day pilot, no card required. We'll email your
-  admin address a one-time link to finish setting up.</p>
-  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/signup">
-    {_BOT_DEFENSE_FIELDS_HTML_ALT}
-    <label for="signup-firm-name">Firm name</label>
-    <input type="text" id="signup-firm-name" name="name" required maxlength="200" placeholder="Example Firm, LLC">
-    <label for="signup-admin-email">Your email</label>
-    <input type="email" id="signup-admin-email" name="admin_email" required placeholder="you@yourfirm.com">
-    <button type="submit">Create firm account</button>
-  </form>
-</div>
-
-<div class="signup-form">
-  <h2>Already set up? Sign in</h2>
+<div class="dr-auth-view" id="dr-view-signin">
+  <h1>Sign in</h1>
+  <p class="subhead">One roster for every staff CPA's license renewal.</p>
+{sso_buttons_html}
   <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/login/password">
     {_BOT_DEFENSE_FIELDS_HTML_SIGNIN}
-    <label for="signin-email">Admin email</label>
+    <label for="signin-email">Email</label>
     <input type="email" id="signin-email" name="admin_email" required autocomplete="username"
     placeholder="you@yourfirm.com">
     <label for="signin-password">Password</label>
@@ -3305,22 +3385,58 @@ attention soonest.</p>
     autocomplete="current-password">
     <button type="submit">Sign in</button>
   </form>
-{sso_buttons_html}
+  <p class="dr-auth-secondary">
+    <a href="#dr-view-magic" class="dr-auth-switch" data-target="dr-view-magic">Forgot your password?
+    Email me a sign-in link instead</a>
+  </p>
+  <p class="dr-auth-alt">New firm?
+    <a href="#dr-view-signup" class="dr-auth-switch" data-target="dr-view-signup">Create an account</a>
+  </p>
 </div>
 
-<div class="signup-form">
-  <h2>No password yet, or forgot it?</h2>
-  <p class="signup-microcopy">We'll email you a one-time link. It signs you straight in, and from your
-  dashboard you can set a password for next time. Works whether or not you've set one before.</p>
+<div class="dr-auth-view" id="dr-view-signup">
+  <h1>Create your firm account</h1>
+  <p class="subhead">Free to start &mdash; a 30-day pilot, no card required.</p>
+  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/signup">
+    {_BOT_DEFENSE_FIELDS_HTML_ALT}
+    <label for="signup-firm-name">Firm name</label>
+    <input type="text" id="signup-firm-name" name="name" required maxlength="200"
+    placeholder="Example Firm, LLC">
+    <label for="signup-admin-email">Your email</label>
+    <input type="email" id="signup-admin-email" name="admin_email" required
+    autocomplete="email" placeholder="you@yourfirm.com">
+    <button type="submit">Create firm account</button>
+  </form>
+  <p class="signup-microcopy">We'll email your admin address a one-time link to finish setting up.</p>
+  <p class="dr-auth-alt">Already have an account?
+    <a href="#dr-view-signin" class="dr-auth-switch" data-target="dr-view-signin">Sign in</a>
+  </p>
+</div>
+
+<div class="dr-auth-view" id="dr-view-magic">
+  <h1>Email me a sign-in link</h1>
+  <p class="subhead">Works whether or not you've set a password. From your dashboard you can set one
+  for next time.</p>
   <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/login">
-    {_BOT_DEFENSE_FIELDS_HTML}
-    <label for="login-email">Admin email</label>
-    <input type="email" id="login-email" name="admin_email" required placeholder="you@yourfirm.com">
+    {_BOT_DEFENSE_FIELDS_HTML_MAGIC}
+    <label for="login-email">Email</label>
+    <input type="email" id="login-email" name="admin_email" required autocomplete="email"
+    placeholder="you@yourfirm.com">
     <button type="submit">Email me a sign-in link</button>
   </form>
+  <p class="dr-auth-alt">
+    <a href="#dr-view-signin" class="dr-auth-switch" data-target="dr-view-signin">&larr; Back to sign in</a>
+  </p>
+</div>
+
+{_turnstile_shared_widget_html()}
 </div>
 
 <p class="how-it-works">Want pricing and details first? <a href="/for-firms/">See the firm overview</a>.</p>
+<p class="how-it-works">Not a firm &mdash; just tracking your own license?
+<a href="/signin/">Sign in here</a>.</p>
+
+{_FIRM_LOGIN_VIEW_JS_HTML}
 """
 
     return page_shell(
@@ -3330,7 +3446,53 @@ attention soonest.</p>
         body,
         home_href="../",
         canonical_path="/firm-login/",
+        hide_signin=True,
     )
+
+
+# View switching for /firm-login/. Deliberately hides the non-default views
+# at RUNTIME rather than shipping them hidden: with JS off, all three forms
+# stay visible and usable (the old layout), instead of leaving two of them
+# stranded behind links that cannot fire.
+_FIRM_LOGIN_VIEW_JS_HTML = """<script>
+(function () {
+  var views = ["dr-view-signin", "dr-view-signup", "dr-view-magic"];
+
+  function show(id) {
+    for (var i = 0; i < views.length; i++) {
+      var el = document.getElementById(views[i]);
+      if (el) el.hidden = views[i] !== id;
+    }
+    // Move focus to the new view's first field, so a keyboard or
+    // screen-reader user is not left where the old form used to be.
+    var target = document.getElementById(id);
+    if (target) {
+      var first = target.querySelector("input:not([type=hidden]):not([tabindex='-1'])");
+      if (first) first.focus();
+    }
+  }
+
+  // Deep links (/firm-login/#dr-view-signup) and the back button both work.
+  function fromHash() {
+    var h = (window.location.hash || "").replace("#", "");
+    return views.indexOf(h) !== -1 ? h : "dr-view-signin";
+  }
+
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest ? e.target.closest(".dr-auth-switch") : null;
+    if (!a) return;
+    e.preventDefault();
+    var target = a.getAttribute("data-target");
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, "", "#" + target);
+    }
+    show(target);
+  });
+
+  window.addEventListener("hashchange", function () { show(fromHash()); });
+  show(fromHash());
+})();
+</script>"""
 
 
 def build_signin_page() -> str:

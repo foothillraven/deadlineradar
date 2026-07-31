@@ -810,6 +810,20 @@ PAGE_CSS = """
   }
   .dr-nav a.is-active { background: rgba(255,255,255,.1); color: #fff; font-weight: 600; }
   .dr-nav a:hover { background: rgba(255,255,255,.06); color: #fff; }
+  /* ---- Practice-privilege checker (2026-07-30, pay-gated) ---- */
+  .dr-mobility-callout { background: var(--row-alt); border-left: 3px solid var(--border-strong); border-radius: 6px; padding: 0.9rem 1.1rem; margin-bottom: 1.4rem; font-size: 0.88rem; line-height: 1.55; }
+  .dr-mob-check { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0.7rem 0; font-size: 0.9rem; font-weight: 400; }
+  .dr-mob-check input { margin-top: 0.2rem; flex: 0 0 auto; }
+  .dr-verdict { border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem 1.2rem; margin-bottom: 1rem; background: var(--card-bg); }
+  .dr-verdict h3 { margin: 0 0 0.5rem; font-size: 1rem; font-family: var(--font-display); }
+  .dr-verdict-badge { display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.2rem 0.5rem; border-radius: 999px; margin-bottom: 0.6rem; }
+  .dr-verdict-clear { background: #e6f4ec; color: #1f6b43; }
+  .dr-verdict-action { background: #fdf0e6; color: #9a5312; }
+  .dr-verdict-unverified { background: var(--row-alt); color: var(--muted); }
+  .dr-verdict-reqs { margin: 0.6rem 0 0; padding-left: 1.1rem; font-size: 0.88rem; }
+  .dr-verdict-reqs li { margin-bottom: 0.3rem; }
+  .dr-verdict-cite { font-size: 0.8rem; color: var(--muted); margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px solid var(--border); }
+  .dr-verdict-disclaimer { font-size: 0.78rem; color: var(--faint); margin-top: 0.6rem; font-style: italic; }
   .dr-nav-soon { color: #6e8296; cursor: default; }
   .dr-soon-badge {
     margin-left: auto; font-size: 0.6rem; letter-spacing: 0.04em; text-transform: uppercase;
@@ -2759,6 +2773,7 @@ def _firm_dashboard_mockup_html(by_slug: dict[str, list[dict]], as_of: date) -> 
         <li><a href="#" class="is-active" tabindex="-1">Roster</a></li>
         <li><span class="dr-nav-soon">Calendar<span class="dr-soon-badge">Soon</span></span></li>
         <li><span class="dr-nav-soon">Map<span class="dr-soon-badge">Soon</span></span></li>
+        <li><a href="/firm-mobility/">Practice privilege</a></li>
         <li><span class="dr-nav-soon">Reports<span class="dr-soon-badge">Soon</span></span></li>
         <li><span class="dr-nav-soon">Documents<span class="dr-soon-badge">Soon</span></span></li>
       </ul>
@@ -3566,6 +3581,201 @@ document.addEventListener('DOMContentLoaded', function() {
 # REMINDER_BACKEND_BASE_URL is unset (default "/api", so this replace is a
 # no-op in production).
 _FIRM_DASHBOARD_JS_HTML = _FIRM_DASHBOARD_JS_HTML.replace("'/api/firm", f"'{REMINDER_BACKEND_BASE_URL}/firm")
+
+
+# ---------------------------------------------------------------------------
+# Practice-privilege (mobility) checker -- PAY-GATED tool page (2026-07-30).
+#
+# Plain (non-f) string with a post-hoc .replace() for the backend base,
+# exactly like _FIRM_DASHBOARD_JS_HTML below. Necessary, not stylistic: JS
+# braces inside an f-string are read as format placeholders and blow up at
+# import time.
+# ---------------------------------------------------------------------------
+_MOBILITY_JS_HTML = """<script>
+(function () {
+  var form = document.getElementById('dr-mobility-form');
+  if (!form) return;
+  var errEl = document.getElementById('dr-mobility-error');
+  var resultEl = document.getElementById('dr-mobility-result');
+
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function badge(verdict) {
+    if (verdict === 'clear') return '<span class="dr-verdict-badge dr-verdict-clear">Clear</span>';
+    if (verdict === 'action_required') return '<span class="dr-verdict-badge dr-verdict-action">Action required</span>';
+    return '<span class="dr-verdict-badge dr-verdict-unverified">Not verified</span>';
+  }
+
+  // Citation and disclaimer are read straight from the API payload rather
+  // than reconstructed here. The server sends them with EVERY determination
+  // precisely so this function cannot render a verdict without them.
+  function findingHtml(title, f) {
+    var reqs = '';
+    if (f.requirements && f.requirements.length) {
+      reqs = '<ul class="dr-verdict-reqs">' +
+        f.requirements.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('') + '</ul>';
+    }
+    var cite;
+    if (f.citation) {
+      cite = f.citationUrl
+        ? '<a href="' + esc(f.citationUrl) + '" rel="noopener noreferrer" target="_blank">' + esc(f.citation) + '</a>'
+        : esc(f.citation);
+      if (f.sourceUrl) {
+        cite += ' &middot; <a href="' + esc(f.sourceUrl) + '" rel="noopener noreferrer" target="_blank">board page</a>';
+      }
+      if (f.verifiedDate) { cite += ' &middot; verified ' + esc(f.verifiedDate); }
+      cite = '<p class="dr-verdict-cite">Source: ' + cite + '</p>';
+    } else {
+      cite = '<p class="dr-verdict-cite">No verified citation on file for this one &mdash; which is exactly why it is not a yes.</p>';
+    }
+    var gap = f.dataGapNote ? '<p class="dr-verdict-cite">' + esc(f.dataGapNote) + '</p>' : '';
+    return '<div class="dr-verdict"><h3>' + esc(title) + '</h3>' + badge(f.verdict) +
+      '<p>' + esc(f.summary) + '</p>' + reqs + cite + gap +
+      '<p class="dr-verdict-disclaimer">' + esc(f.disclaimer) + '</p></div>';
+  }
+
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+    if (resultEl) { resultEl.hidden = true; resultEl.innerHTML = ''; }
+
+    var body = {
+      home_state_slug: document.getElementById('dr-mob-home').value,
+      target_state_slug: document.getElementById('dr-mob-target').value,
+      service_type: document.getElementById('dr-mob-service').value,
+      license_in_good_standing: document.getElementById('dr-mob-standing').checked,
+      substantially_equivalent: document.getElementById('dr-mob-equiv').checked
+    };
+
+    fetch('/api/firm/mobility/check', {
+      method: 'POST', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    }).then(function (res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      return res.json().catch(function () { return null; }).then(function (data) {
+        if (!res.ok) {
+          var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+          if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+          return;
+        }
+        if (!data) return;
+        var html = '<h2>' + esc(data.home_state) + ' &rarr; ' + esc(data.target_state) + '</h2>' +
+          findingHtml('The individual CPA', data.individual) +
+          findingHtml('The firm', data.firm);
+        if (resultEl) { resultEl.innerHTML = html; resultEl.hidden = false; }
+      });
+    }).catch(function () {
+      if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+    });
+  });
+})();
+</script>"""
+
+_MOBILITY_JS_HTML = _MOBILITY_JS_HTML.replace("'/api/firm", f"'{REMINDER_BACKEND_BASE_URL}/firm")
+
+
+def build_firm_mobility_page(by_slug: dict[str, list[dict]]) -> str:
+    """Practice-privilege (mobility) checker -- a PAY-GATED tool page.
+
+    Deliberately a standalone page rather than a dashboard tab, for one
+    product reason and one practical one:
+
+      * A mobility check is a QUERY TOOL: you arrive with a question and
+        leave with a cited answer. That is a different interaction from the
+        dashboard's data views (roster/calendar/map), which show you state
+        you already own.
+      * At the time this was built, FOUR other unmerged branches each added
+        a tab to the dashboard sidebar, and the tab machinery itself
+        (drSwitchView) lived on one of them rather than on main. A fifth tab
+        would have guaranteed a merge conflict and coupled this feature to
+        whichever branch shipped first. A standalone page merges cleanly
+        regardless of branch order.
+
+    Every determination rendered here carries its citation and the
+    not-legal-advice disclaimer -- they arrive in the same API payload
+    precisely so the UI cannot display a verdict without them.
+    """
+    all_slugs = sorted(by_slug)
+    state_options = "\n".join(
+        f'<option value="{esc(slug)}">{esc(by_slug[slug][0]["state"])}</option>' for slug in all_slugs
+    )
+
+    body = f"""<h1>Practice-privilege check</h1>
+<p class="subhead">Can this CPA provide this service in this state &mdash; and what has to happen
+first? Every answer is tied to the rule it came from.</p>
+
+<div class="dr-mobility-callout">
+  <strong>Informational, not legal advice.</strong> Practice-privilege rules change, and they depend on
+  facts we can't see. We show you the rule and where it came from so you can check it yourself &mdash;
+  and where we haven't verified something against a primary source, we say so instead of guessing.
+  Confirm with the state board before you rely on any answer here.
+</div>
+
+<div class="signup-form">
+  <form id="dr-mobility-form">
+    <div class="signup-form-row">
+      <div>
+        <label for="dr-mob-home">Home state (where the license is held)</label>
+        <select id="dr-mob-home" name="home_state_slug" required>
+          <option value="">Select state</option>
+          {state_options}
+        </select>
+      </div>
+      <div>
+        <label for="dr-mob-target">Target state (where the work happens)</label>
+        <select id="dr-mob-target" name="target_state_slug" required>
+          <option value="">Select state</option>
+          {state_options}
+        </select>
+      </div>
+    </div>
+
+    <label for="dr-mob-service">Service type</label>
+    <select id="dr-mob-service" name="service_type" required>
+      <option value="tax">Tax</option>
+      <option value="attest">Attest (audit, review, other attest)</option>
+      <option value="other_non_attest">Other non-attest (consulting, advisory)</option>
+    </select>
+    <p class="field-hint">Attest work frequently triggers a firm-registration requirement where tax work
+    doesn't &mdash; that gap is the most common real-world mobility mistake.</p>
+
+    <label class="dr-mob-check">
+      <input type="checkbox" id="dr-mob-standing" name="license_in_good_standing">
+      The license is active and in good standing in the home state
+    </label>
+    <label class="dr-mob-check">
+      <input type="checkbox" id="dr-mob-equiv" name="substantially_equivalent">
+      The CPA meets substantial equivalence (150 semester hours, one year of experience, Uniform CPA Exam)
+    </label>
+    <p class="field-hint">We can't verify either of these &mdash; they're your inputs to the check, and
+    the answer is only as good as they are.</p>
+
+    <button type="submit">Run check</button>
+  </form>
+  <p id="dr-mobility-error" class="field-hint" style="color:#c33737;" hidden></p>
+</div>
+
+<div id="dr-mobility-result" hidden></div>
+
+<p class="how-it-works"><a href="/firm-dashboard/">&larr; Back to your dashboard</a></p>
+
+{_MOBILITY_JS_HTML}
+"""
+    return page_shell(
+        f"Practice-Privilege Check — {SITE_NAME}",
+        "Check whether a CPA can provide a service in another state, with the rule and citation behind "
+        "every answer.",
+        body,
+        home_href="../",
+        canonical_path="/firm-mobility/",
+        extra_head='<meta name="robots" content="noindex">',
+    )
+
 
 
 def build_firm_dashboard_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
@@ -4863,6 +5073,11 @@ def main() -> None:
     firm_login_dir.mkdir(parents=True, exist_ok=True)
     (firm_login_dir / "index.html").write_text(build_firm_login_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/firm-login/index.html")
+
+    firm_mobility_dir = SITE_DIR / "firm-mobility"
+    firm_mobility_dir.mkdir(parents=True, exist_ok=True)
+    (firm_mobility_dir / "index.html").write_text(build_firm_mobility_page(by_slug), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/firm-mobility/index.html")
 
     firm_dashboard_dir = SITE_DIR / "firm-dashboard"
     firm_dashboard_dir.mkdir(parents=True, exist_ok=True)

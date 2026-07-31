@@ -763,10 +763,18 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
   if (!existing && !isEmailAllowlisted(env.EMAIL_ALLOWLIST, email)) {
     const domainGate = checkSignupDomainGate(email);
     if (domainGate.blocked) {
+      // Distinct copy per reason. A disposable address is a deliverability
+      // problem the user can fix in seconds by using a real one, and saying
+      // so is more useful than a generic refusal -- this product's entire
+      // value is emailing you before a deadline, which a temp-mail address
+      // structurally cannot receive.
       return errorPage(
         400,
-        "Please sign up with your firm's business email address. We don't offer trial accounts on " +
-          "free personal email providers or to other compliance-software vendors."
+        domainGate.reason === "disposable"
+          ? "That looks like a temporary or disposable email address. DeadlineRadar works by emailing " +
+              "you before your renewal is due, so please use an address you'll still be able to read " +
+              "in a year -- a personal address is completely fine."
+          : "We don't offer trial accounts to other compliance-software vendors."
       );
     }
   }

@@ -26,7 +26,7 @@ Both providers are free to register. Neither requires a paid plan or a card.
    - Authorized redirect URIs — add **both**, exactly (trailing slashes matter):
      ```
      https://deadline-radar.com/api/firm/auth/google/callback
-     https://deadlineradar-api-preview.foothillraven.workers.dev/firm/auth/google/callback
+     https://deadlineradar-api-preview.foothillraven.workers.dev/api/firm/auth/google/callback
      ```
 4. Copy the **Client ID** and **Client secret**.
 
@@ -40,7 +40,7 @@ Both providers are free to register. Neither requires a paid plan or a card.
    - Redirect URI: platform **Web**, add **both**:
      ```
      https://deadline-radar.com/api/firm/auth/microsoft/callback
-     https://deadlineradar-api-preview.foothillraven.workers.dev/firm/auth/microsoft/callback
+     https://deadlineradar-api-preview.foothillraven.workers.dev/api/firm/auth/microsoft/callback
      ```
 2. **Certificates & secrets → New client secret.** Copy the **Value** immediately — Azure shows it
    exactly once. Set the longest expiry offered and put the renewal date in a calendar; an expired
@@ -49,6 +49,15 @@ Both providers are free to register. Neither requires a paid plan or a card.
 4. Copy the **Application (client) ID**.
 
 ---
+
+
+> **Note on the `/api` in the preview URI.** Both environments derive the callback from
+> `ACTION_BASE_URL`, and preview's value already ends in `/api` (it is the same base every emailed
+> action link uses). So preview sends `.../workers.dev/api/firm/auth/...`, matching production's
+> `deadline-radar.com/api/firm/auth/...`. The preview Worker strips a leading `/api` before routing,
+> so both the bare and prefixed forms reach the handler -- but the URI **registered with the provider**
+> must be the one we actually send, which is the `/api` form. This was caught by live verification on
+> 2026-07-30 after the bare form was registered first.
 
 ## 3. Where the values go — NOT into this repo
 

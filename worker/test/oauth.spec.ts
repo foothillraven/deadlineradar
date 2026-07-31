@@ -102,10 +102,14 @@ describe("redirect URI construction", () => {
     );
   });
 
-  it("matches the preview URI that must be registered", () => {
-    expect(buildRedirectUri("https://deadlineradar-api-preview.foothillraven.workers.dev", "google")).toBe(
-      "https://deadlineradar-api-preview.foothillraven.workers.dev/firm/auth/google/callback"
-    );
+  it("matches the preview URI that must be registered -- note preview's ACTION_BASE_URL ends in /api", () => {
+    // Preview's configured base is the workers.dev origin PLUS /api (same
+    // base the emailed action links use), so the callback we actually send
+    // is the /api form. Registering the bare form instead produced a real
+    // redirect_uri_mismatch, caught by live verification 2026-07-30.
+    expect(
+      buildRedirectUri("https://deadlineradar-api-preview.foothillraven.workers.dev/api", "google")
+    ).toBe("https://deadlineradar-api-preview.foothillraven.workers.dev/api/firm/auth/google/callback");
   });
 
   it("tolerates a trailing slash on the configured base without producing a double slash", () => {

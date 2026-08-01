@@ -131,35 +131,6 @@
     padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
   }
   .trust-line strong::before { content: "\2713\a0"; color: var(--gold); }
-# ---------------------------------------------------------------------------
-# 2026-07-31 CARD LAYOUT BUGFIX -- rationale kept HERE, in Python, deliberately.
-#
-# An earlier version of this explanation lived in the CSS itself, which is
-# INLINED INTO EVERY RENDERED PAGE -- so it shipped internal language onto 181
-# public URLs and preship_gate.py caught it. Lesson worth keeping: the CSS
-# string in this file is PUBLIC OUTPUT, not source commentary. Explain things
-# here; keep shipped comments terse and neutral.
-#
-# The bug: `.frow` was `grid-template-columns: 1fr auto` with `.cite` set to
-# `white-space: nowrap`. A short statutory citation ("68 Ill. Admin. Code
-# 1420.80(a)") fits, so most cards looked fine -- but a long prose citation
-# ("Confirmed via Illinois IDFPR's public open-data licence register...")
-# cannot wrap, so the `auto` track sized itself to the full 1850px chip inside
-# an 1138px card. That left the `1fr` description track at 112px (measured),
-# wrapping prose to 1-2 words per line for 20+ lines, and pushed the chip past
-# the card edge.
-#
-# The report described the citation as "truncated". It was NOT: scrollWidth ==
-# width and title == text, so the full string was always in the DOM and in the
-# link -- it was overflowing the card and being visually clipped. No citation
-# data was ever lost, which matters because the citation is the credibility
-# asset this product sells.
-#
-# Fix: minmax(0,...) on both tracks (removing the min-content floor that let an
-# un-wrappable chip dictate the layout) + a cap on the side track; `.cite`
-# wraps; and citations over _CITATION_CHIP_MAX_CHARS render as their own
-# full-width row instead of a right-aligned pill.
-
   /* ---- THE CENTERPIECE: citation-first fact sheet, per the approved concept's .sheet/.frow ---- */
   .sheet {
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;

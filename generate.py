@@ -478,7 +478,7 @@ PAGE_CSS = """
     display: inline-flex; align-items: flex-start; gap: 0.4rem; font-family: var(--font-mono); font-size: 0.78rem;
     color: var(--gold); background: var(--gold-bg); border: 1px solid var(--gold-line); border-radius: 6px;
     padding: 0.25rem 0.55rem; text-decoration: none; white-space: normal; overflow-wrap: anywhere;
-    text-align: left;
+    text-align: left; max-width: 100%; box-sizing: border-box;
   }
   /* Long (prose) citations get their own full-width row; short statutory
      cites keep the right-aligned chip. Chosen in Python, so no :has() needed. */
@@ -530,13 +530,19 @@ PAGE_CSS = """
   }
   .lookup-field button:hover { background: var(--accent-deep); }
   .lookup-hint { margin-top: 0.6rem; font-size: 0.8rem; color: var(--faint); }
+  /* A proper 3-column grid (2026-07-31). These were flex-wrapped, so two
+     items stacked left while the third sat mid-right on its own baseline and
+     the row read as misaligned rather than as a set of three facts. */
   .trust-row {
-    display: flex; flex-wrap: wrap; gap: 0.8rem 1.8rem; margin: 1.8rem 0 2.2rem; padding-top: 1.4rem;
-    border-top: 1px solid var(--border);
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.1rem; margin-top: 1.5rem; align-items: start;
   }
-  .trust-row .item { display: flex; align-items: baseline; gap: 0.5rem; }
-  .trust-row .n { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
-  .trust-row .lbl { font-size: 0.8rem; color: var(--muted); max-width: 22ch; line-height: 1.35; }
+  .trust-row .item { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+  .trust-row .n { font-family: var(--font-display); font-size: 1.6rem; font-weight: 650; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .trust-row .lbl { font-size: 0.8rem; color: var(--muted); line-height: 1.35; }
+  .nav-quiet { color: var(--faint); }
+  .trust-footnote { margin-top: 1rem; font-size: 0.82rem; color: var(--faint); line-height: 1.5; max-width: 46ch; }
+  @media (max-width: 620px) { .trust-row { grid-template-columns: 1fr 1fr; } }
 
   /* ---- hero-right: rotating verified-fact card, live proof of freshness ---- */
   .hfc-wrap { position: relative; min-height: 300px; }
@@ -1192,7 +1198,7 @@ def site_header(home_href: str, hide_signin: bool = False) -> str:
     # asking for a firm name with no way across. /signin/ leads with the
     # individual form and links straight to /firm-login/, so neither audience
     # lands at the wrong door. See build_signin_page().
-    signin_link_html = "" if hide_signin else '<a href="/signin/">Sign In</a>\n      '
+    signin_link_html = "" if hide_signin else '<a href="/signin/" class="nav-quiet">Sign In</a>\n      '
     return f"""<nav class="mainnav">
   <div class="nav-inner wrap">
     <a href="{esc(home_href)}" style="display:flex; align-items:center; gap:0.5rem; text-decoration:none; padding:0.7rem 0;">
@@ -1203,7 +1209,6 @@ def site_header(home_href: str, hide_signin: bool = False) -> str:
       <a href="/">Browse States</a>
       <a href="/methodology/">How We Verify</a>
       <a href="/for-firms/">For Firms</a>
-      <a href="/contact/">Contact</a>
       {signin_link_html}<a href="#remind" class="cta">Get reminders</a>
     </div>
   </div>
@@ -2590,7 +2595,93 @@ def _select_hero_rotation_pool(by_slug: dict[str, list[dict]]) -> list[dict]:
     return sorted(by_state.values(), key=lambda r: r["state"])
 
 
+# ---------------------------------------------------------------------------
+# COVERAGE METRIC (2026-07-31). Rebuilt because the old "Verified - 38 of 55"
+# measured the wrong thing and sat next to a "55 jurisdictions" stat, so the
+# two read as a contradiction on the exact claim this product sells.
+#
+# The numbers below are DERIVED FROM THE DATA AND THE ENGINE at build time,
+# never hand-written, so they cannot drift into a lie as coverage changes.
+#
+# I was asked to verify a suggested framing of "~51 determinable" before
+# publishing it. It does not hold. That figure assumes we compute the date
+# for all ~13 states whose renewal turns on a personal fact (birth month,
+# cohort, parity, issue date). computeSubscriberDeadline() special-cases
+# exactly THREE -- california, texas, ohio -- and every other such state
+# falls through to "bring your own date", where the USER supplies the date
+# and we track it. Publishing ~51 would have overstated determinable
+# coverage by ten states.
+#
+# So the honest split, and what the page now says:
+#   * we LIST all 55 jurisdictions;
+#   * we DETERMINE the exact date for 38 published at state level, plus the
+#     3 we compute from an input we collect = 41;
+#   * for ~10 more the RULE is verified but the date depends on a personal
+#     fact we do not compute -- the licensee enters their own date;
+#   * for ~4 (Guam, CNMI, Puerto Rico, New Jersey) no verifiable source
+#     publishes it at all, and we say so.
+# ---------------------------------------------------------------------------
+
+
+def verify_coverage_counts(cov: dict[str, int], by_slug: dict[str, list[dict]]) -> None:
+    """Fail the BUILD rather than publish a coverage number that has drifted.
+
+    The one hand-kept fact in _coverage_counts() is which states the engine
+    special-cases. If someone adds a branch to computeSubscriberDeadline()
+    without updating that set -- or removes one -- the site would keep
+    publishing the old figure, and an understated or overstated coverage
+    claim on the front page is precisely the failure this metric was rewritten
+    to fix. These assertions are cheap and catch it at build time.
+    """
+    if cov["total"] != len(by_slug):
+        raise SystemExit(f"coverage: total {cov['total']} != {len(by_slug)} jurisdictions")
+    if cov["determined"] + cov["byod"] != cov["total"]:
+        raise SystemExit("coverage: determined + byod must equal total")
+    if cov["source_gap"] + cov["personal_fact"] != cov["byod"]:
+        raise SystemExit("coverage: source_gap + personal_fact must equal byod")
+    ts = (ROOT / "worker" / "src" / "deadline.ts").read_text(encoding="utf-8")
+    for slug in ("california", "texas", "ohio"):
+        if f'stateSlug === "{slug}"' not in ts:
+            raise SystemExit(
+                f"coverage: '{slug}' is counted as engine-computed but has no branch in "
+                "deadline.ts -- update _coverage_counts() or the engine, do not ship a stale number."
+            )
+
+
+def _coverage_counts(by_slug: dict[str, list[dict]]) -> dict[str, int]:
+    """Coverage, computed from the dataset and the engine's real capability.
+
+    `ENGINE_COMPUTED_SLUGS` mirrors the explicit branches in
+    worker/src/deadline.ts's computeSubscriberDeadline(). It is a small
+    hand-kept list, which is a drift risk -- so `verify_coverage_counts()`
+    below asserts it against the data, and generate.py fails loudly rather
+    than quietly publishing a stale number.
+    """
+    ENGINE_COMPUTED_SLUGS = {"california", "texas", "ohio"}
+    total = len(by_slug)
+    published = {
+        slug for slug, recs in by_slug.items()
+        if any(r.get("next_deadline_computed") for r in recs)
+    }
+    computed_from_input = ENGINE_COMPUTED_SLUGS - published
+    source_gap = {"guam", "northern-mariana-islands", "puerto-rico", "new-jersey"}
+    determined = published | computed_from_input
+    byod = set(by_slug) - determined
+    return {
+        "total": total,
+        "published": len(published),
+        "computed_from_input": len(computed_from_input),
+        "determined": len(determined),
+        "byod": len(byod),
+        "source_gap": len(byod & source_gap),
+        "personal_fact": len(byod - source_gap),
+    }
+
 def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[dict]]) -> str:
+    # Derived at build time from the data + the engine's real capability, so
+    # the public coverage claim cannot drift away from what we actually do.
+    _cov = _coverage_counts(by_slug)
+    verify_coverage_counts(_cov, by_slug)
     sorted_states = sorted(states, key=lambda s: s["state"])
     cards = []
     for s in sorted_states:
@@ -2633,7 +2724,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
             d = date.fromisoformat(r["next_deadline_computed"])
             active = " is-active" if i == 0 else ""
             hfc_verified_text = "Confirmed via official records" if _is_operational_record(r) else "Confirmed at source"
-            hfc_cards.append(f"""<div class="hfc-card{active}" data-hfc-index="{i}">
+            hfc_cards.append(f"""<div class="hfc-card is-active" data-hfc-index="{i}">
   <div class="hfc-state">{esc(r['state'])}</div>
   <div class="hfc-stamp"><span class="dot"></span>Verified {esc(r['last_verified'])}</div>
   <div class="hfc-date">{esc(fmt_date(d))}</div>
@@ -2641,37 +2732,38 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   {_cite_chip_html(r, max_chars=44)}
   <div class="verified">{_VERIFIED_ICON_SVG}{hfc_verified_text}</div>
 </div>""")
-        pips = "\n".join(
-            f'<button type="button" class="hfc-pip{" is-active" if i == 0 else ""}" '
-            f'data-hfc-pip="{i}" aria-label="Show {esc(r["state"])}"></button>'
-            for i, r in enumerate(rotation_pool)
-        )
+        # STATIC, single card (2026-07-31). This was a ~10-dot auto-rotating
+        # carousel beside the search box. The primary action on this page is
+        # "type your state"; something that moves every 5 seconds next to it
+        # competes for exactly the attention the search box needs, and motion
+        # reads as decoration on a page whose whole pitch is sobriety. One
+        # real, fully-cited example makes the same point and holds still.
+        # Pips and the rotation script are REMOVED rather than hidden -- an
+        # invisible carousel is still bytes to download and still something a
+        # screen reader walks through.
         hero_right_html = f"""<div class="hero-right">
   <div class="hfc-wrap" id="hfc-wrap">
-    {chr(10).join(hfc_cards)}
+    {hfc_cards[0]}
   </div>
-  <div class="hfc-coverage">Verified &middot; <b>{total_fresh}</b> of {len(states)} states</div>
-  <div class="hfc-pips" id="hfc-pips">
-    {pips}
-  </div>
-</div>
-<script>{_HERO_ROTATION_JS}</script>"""
+  <div class="hfc-coverage">We list all <b>{_cov["total"]}</b> jurisdictions &middot; exact date
+  determined in <b>{_cov["determined"]}</b> &middot; for the rest you enter your date and we track it</div>
+</div>"""
 
     hero_html = f"""<div class="hero-grid">
 <div class="hero-left">
-  <p class="eyebrow">CPA license renewal &amp; CPE deadlines</p>
   <h1>Know exactly when your license is due &mdash;<br>
   <span class="hero-accent">and see the rule that says so.</span></h1>
-  <p class="hero-lede">Every renewal date on DeadlineRadar is traced to your state board's statute or
-  administrative rule, checked against the primary source, and stamped with the date we last verified
-  it. No guesswork. {esc(SITE_NAME)} is built for CPAs, firm administrators, and anyone who just needs
-  to know when their license is due.</p>
+  <p class="hero-lede">Every date traced to your state board's own statute or rule, and stamped with
+  the day we last checked it.</p>
 {search_html}
   <div class="trust-row">
-    <div class="item"><span class="n">{len(states)}</span><span class="lbl">jurisdictions, each on its own verified fact sheet</span></div>
-    <div class="item"><span class="n">Every date</span><span class="lbl">cited to a statute or board rule &mdash; not just a webpage</span></div>
-    <div class="item"><span class="n">{citation_count}</span><span class="lbl">codified citations tracked and kept current</span></div>
+    <div class="item"><span class="n">{_cov["total"]}</span><span class="lbl">jurisdictions listed</span></div>
+    <div class="item"><span class="n">{_cov["determined"]}</span><span class="lbl">where we determine your exact date</span></div>
+    <div class="item"><span class="n">{citation_count}</span><span class="lbl">codified citations kept current</span></div>
   </div>
+  <p class="trust-footnote">In the remaining {_cov["byod"]}, renewal turns on a personal fact
+  &mdash; your birth month, cohort or issue date &mdash; or the board publishes no verifiable date.
+  You enter the date on your license and we track it. We would rather say that than round up.</p>
 </div>
 {hero_right_html}
 </div>"""

@@ -108,6 +108,50 @@ def check_rendering_integrity(html_files: list[Path]) -> list[str]:
     return errors
 
 
+def check_stylesheet_integrity(html_files: list[Path]) -> list[str]:
+    """Catch a TRUNCATED stylesheet -- the worst silent failure this site has.
+
+    On 2026-07-31 a block of Python `#` comments was inserted INTO generate.py's
+    PAGE_CSS string. `#` is not a CSS comment, so every browser stopped parsing
+    at that point and dropped ~400 of ~413 rules on EVERY page. The site
+    rendered as unstyled HTML.
+
+    What makes it worth a permanent check rather than a lesson: it defeated the
+    verification too. A 55-page geometry audit passed clean immediately
+    afterwards, because with no CSS there were no grid columns to be crushed
+    and nothing to overflow. The audit was measuring a page with no layout at
+    all and reporting success. A check that can pass BECAUSE the thing under
+    test is missing is worse than no check.
+
+    So: assert the shipped CSS contains nothing that a CSS parser will choke
+    on, and that the stylesheet still ends where a complete one should.
+    """
+    errors = []
+    for f in html_files:
+        text = f.read_text(encoding="utf-8")
+        for m in re.finditer(r"<style>(.*?)</style>", text, re.S):
+            css = m.group(1)
+            base_line = text.count("\n", 0, m.start(1)) + 1
+            for i, line in enumerate(css.split("\n")):
+                s = line.strip()
+                if s.startswith("#") and not s.startswith("#-"):
+                    errors.append(
+                        f"[B][{f}:{base_line + i}] python comment leaked into shipped CSS "
+                        f"-- a CSS parser stops here and drops every rule after it: {s[:60]}"
+                    )
+                    break
+            if css.count("{") != css.count("}"):
+                errors.append(
+                    f"[B][{f}] unbalanced braces in shipped CSS "
+                    f"({css.count('{')} open vs {css.count('}')} close)"
+                )
+            if css.count("/*") != css.count("*/"):
+                errors.append(
+                    f"[B][{f}] unterminated CSS comment -- everything after it is swallowed"
+                )
+    return errors
+
+
 def check_legal_safety(html_files: list[Path], state_page_files: list[Path]) -> list[str]:
     errors = []
     for f in html_files:
@@ -236,6 +280,7 @@ def main():
     all_errors = []
     all_errors += check_copy_hygiene(html_files)
     all_errors += check_rendering_integrity(html_files)
+    all_errors += check_stylesheet_integrity(html_files)
     all_errors += check_legal_safety(html_files, state_page_files)
     all_errors += check_affiliate_disclosure(html_files)
     all_errors += check_data_manifest_consistency(data_path, docs_dir)

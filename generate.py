@@ -284,6 +284,35 @@ FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
 </svg>
 """
 
+# ---------------------------------------------------------------------------
+# 2026-07-31 CARD LAYOUT BUGFIX -- rationale kept HERE, in Python, deliberately.
+#
+# An earlier version of this explanation lived in the CSS itself, which is
+# INLINED INTO EVERY RENDERED PAGE -- so it shipped internal language onto 181
+# public URLs and preship_gate.py caught it. Lesson worth keeping: the CSS
+# string in this file is PUBLIC OUTPUT, not source commentary. Explain things
+# here; keep shipped comments terse and neutral.
+#
+# The bug: `.frow` was `grid-template-columns: 1fr auto` with `.cite` set to
+# `white-space: nowrap`. A short statutory citation ("68 Ill. Admin. Code
+# 1420.80(a)") fits, so most cards looked fine -- but a long prose citation
+# ("Confirmed via Illinois IDFPR's public open-data licence register...")
+# cannot wrap, so the `auto` track sized itself to the full 1850px chip inside
+# an 1138px card. That left the `1fr` description track at 112px (measured),
+# wrapping prose to 1-2 words per line for 20+ lines, and pushed the chip past
+# the card edge.
+#
+# The report described the citation as "truncated". It was NOT: scrollWidth ==
+# width and title == text, so the full string was always in the DOM and in the
+# link -- it was overflowing the card and being visually clipped. No citation
+# data was ever lost, which matters because the citation is the credibility
+# asset this product sells.
+#
+# Fix: minmax(0,...) on both tracks (removing the min-content floor that let an
+# un-wrappable chip dictate the layout) + a cap on the side track; `.cite`
+# wraps; and citations over _CITATION_CHIP_MAX_CHARS render as their own
+# full-width row instead of a right-aligned pill.
+
 PAGE_CSS = """
   @font-face {
     font-family: 'Fraunces';
@@ -404,7 +433,6 @@ PAGE_CSS = """
     padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
   }
   .trust-line strong::before { content: "\\2713\\a0"; color: var(--gold); }
-
   /* ---- THE CENTERPIECE: citation-first fact sheet, per the approved concept's .sheet/.frow ---- */
   .sheet {
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
@@ -427,10 +455,13 @@ PAGE_CSS = """
   .sheethead .stamp--unconfirmed { color: var(--gold); }
   .sheethead .stamp--unconfirmed .dot { background: var(--gold); box-shadow: 0 0 0 3px var(--gold-bg); }
   .rowlist { display: flex; flex-direction: column; }
+  /* Both tracks are minmax(0,...) on purpose: a grid track's automatic minimum
+     is min-content, which lets an un-wrappable child dictate the whole row. */
   .frow {
-    display: grid; grid-template-columns: 1fr auto; gap: 0.35rem 1.4rem;
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 18rem); gap: 0.35rem 1.4rem;
     padding: 1.1rem 1.2rem; border-top: 1px solid var(--border);
   }
+  .frow .v, .frow .side { min-width: 0; }
   .frow:first-child { border-top: 0; }
   .frow .k {
     font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
@@ -442,11 +473,17 @@ PAGE_CSS = """
     font-size: 0.82rem; font-weight: 500; color: var(--muted); display: block; margin-top: 0.25rem; line-height: 1.4;
   }
   .frow .side { grid-column: 2; grid-row: 2; align-self: center; text-align: right; }
+  /* Citations wrap rather than nowrap -- a citation must never be cut. */
   .cite {
-    display: inline-flex; align-items: center; gap: 0.4rem; font-family: var(--font-mono); font-size: 0.78rem;
+    display: inline-flex; align-items: flex-start; gap: 0.4rem; font-family: var(--font-mono); font-size: 0.78rem;
     color: var(--gold); background: var(--gold-bg); border: 1px solid var(--gold-line); border-radius: 6px;
-    padding: 0.25rem 0.55rem; text-decoration: none; white-space: nowrap;
+    padding: 0.25rem 0.55rem; text-decoration: none; white-space: normal; overflow-wrap: anywhere;
+    text-align: left;
   }
+  /* Long (prose) citations get their own full-width row; short statutory
+     cites keep the right-aligned chip. Chosen in Python, so no :has() needed. */
+  .frow .side--stacked { grid-column: 1 / -1; grid-row: auto; text-align: left; margin-top: 0.7rem; }
+  .frow .side--stacked .cite { display: flex; }
   .cite:hover { background: #efe6d0; }
   @media (prefers-color-scheme: dark) { .cite:hover { background: #2e2712; } }
   .verified {
@@ -1790,6 +1827,23 @@ _VERIFIED_ICON_SVG = (
 )
 
 
+# A citation longer than this is a sentence, not a statutory label, and is laid
+# out as its own full-width row instead of a right-aligned chip. Chosen by
+# measuring the real dataset rather than guessed: every genuine statutory cite
+# in cpa_deadlines.json ("68 Ill. Admin. Code 1420.80(a)", "Tex. Occ. Code
+# 901.402") is comfortably under it, while the "Confirmed via ..." provenance
+# sentences that broke the Illinois card are all well over.
+_CITATION_CHIP_MAX_CHARS = 60
+
+
+def _citation_is_long(record: dict) -> bool:
+    return len(record.get("citation") or "") > _CITATION_CHIP_MAX_CHARS
+
+
+def _side_class(record: dict) -> str:
+    return "side side--stacked" if _citation_is_long(record) else "side"
+
+
 def _cite_chip_html(record: dict, max_chars: int | None = None) -> str:
     """The 'seal of authority' -- brass, mono, links to the primary source. Only
     called for a record that already has a real `citation` string; a record with
@@ -1838,7 +1892,7 @@ def render_simple_deadline_records(records: list[dict]) -> str:
     <div class="frow">
       <div class="k">Next renewal date</div>
       <div class="v">{esc(fmt_date(d))}<small>{esc(r['cycle_description'])}</small></div>
-      <div class="side">
+      <div class="{_side_class(r)}">
         {_cite_chip_html(r)}
         {verified_line}
       </div>
@@ -1883,7 +1937,7 @@ def render_data_gap_records(records: list[dict]) -> str:
     <div class="frow">
       <div class="k">Next renewal date</div>
       <div class="v">Not confirmed<small>{esc(r['cycle_description'])}</small></div>
-      <div class="side">
+      <div class="{_side_class(r)}">
         {side_html}
       </div>
     </div>

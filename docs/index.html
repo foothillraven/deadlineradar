@@ -132,34 +132,6 @@
     padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
   }
   .trust-line strong::before { content: "\2713\a0"; color: var(--gold); }
-# ---------------------------------------------------------------------------
-# 2026-07-31 CARD LAYOUT BUGFIX -- rationale kept HERE, in Python, deliberately.
-#
-# An earlier version of this explanation lived in the CSS itself, which is
-# INLINED INTO EVERY RENDERED PAGE -- so it shipped internal language onto 181
-# public URLs and preship_gate.py caught it. Lesson worth keeping: the CSS
-# string in this file is PUBLIC OUTPUT, not source commentary. Explain things
-# here; keep shipped comments terse and neutral.
-#
-# The bug: `.frow` was `grid-template-columns: 1fr auto` with `.cite` set to
-# `white-space: nowrap`. A short statutory citation ("68 Ill. Admin. Code
-# 1420.80(a)") fits, so most cards looked fine -- but a long prose citation
-# ("Confirmed via Illinois IDFPR's public open-data licence register...")
-# cannot wrap, so the `auto` track sized itself to the full 1850px chip inside
-# an 1138px card. That left the `1fr` description track at 112px (measured),
-# wrapping prose to 1-2 words per line for 20+ lines, and pushed the chip past
-# the card edge.
-#
-# The report described the citation as "truncated". It was NOT: scrollWidth ==
-# width and title == text, so the full string was always in the DOM and in the
-# link -- it was overflowing the card and being visually clipped. No citation
-# data was ever lost, which matters because the citation is the credibility
-# asset this product sells.
-#
-# Fix: minmax(0,...) on both tracks (removing the min-content floor that let an
-# un-wrappable chip dictate the layout) + a cap on the side track; `.cite`
-# wraps; and citations over _CITATION_CHIP_MAX_CHARS render as their own
-# full-width row instead of a right-aligned pill.
 
   /* ---- THE CENTERPIECE: citation-first fact sheet, per the approved concept's .sheet/.frow ---- */
   .sheet {
@@ -206,7 +178,7 @@
     display: inline-flex; align-items: flex-start; gap: 0.4rem; font-family: var(--font-mono); font-size: 0.78rem;
     color: var(--gold); background: var(--gold-bg); border: 1px solid var(--gold-line); border-radius: 6px;
     padding: 0.25rem 0.55rem; text-decoration: none; white-space: normal; overflow-wrap: anywhere;
-    text-align: left;
+    text-align: left; max-width: 100%; box-sizing: border-box;
   }
   /* Long (prose) citations get their own full-width row; short statutory
      cites keep the right-aligned chip. Chosen in Python, so no :has() needed. */
@@ -258,13 +230,19 @@
   }
   .lookup-field button:hover { background: var(--accent-deep); }
   .lookup-hint { margin-top: 0.6rem; font-size: 0.8rem; color: var(--faint); }
+  /* A proper 3-column grid (2026-07-31). These were flex-wrapped, so two
+     items stacked left while the third sat mid-right on its own baseline and
+     the row read as misaligned rather than as a set of three facts. */
   .trust-row {
-    display: flex; flex-wrap: wrap; gap: 0.8rem 1.8rem; margin: 1.8rem 0 2.2rem; padding-top: 1.4rem;
-    border-top: 1px solid var(--border);
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.1rem; margin-top: 1.5rem; align-items: start;
   }
-  .trust-row .item { display: flex; align-items: baseline; gap: 0.5rem; }
-  .trust-row .n { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
-  .trust-row .lbl { font-size: 0.8rem; color: var(--muted); max-width: 22ch; line-height: 1.35; }
+  .trust-row .item { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+  .trust-row .n { font-family: var(--font-display); font-size: 1.6rem; font-weight: 650; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .trust-row .lbl { font-size: 0.8rem; color: var(--muted); line-height: 1.35; }
+  .nav-quiet { color: var(--faint); }
+  .trust-footnote { margin-top: 1rem; font-size: 0.82rem; color: var(--faint); line-height: 1.5; max-width: 46ch; }
+  @media (max-width: 620px) { .trust-row { grid-template-columns: 1fr 1fr; } }
 
   /* ---- hero-right: rotating verified-fact card, live proof of freshness ---- */
   .hfc-wrap { position: relative; min-height: 300px; }
@@ -915,8 +893,7 @@
       <a href="/">Browse States</a>
       <a href="/methodology/">How We Verify</a>
       <a href="/for-firms/">For Firms</a>
-      <a href="/contact/">Contact</a>
-      <a href="/signin/">Sign In</a>
+      <a href="/signin/" class="nav-quiet">Sign In</a>
       <a href="#remind" class="cta">Get reminders</a>
     </div>
   </div>
@@ -927,13 +904,10 @@
 </header>
 <div class="hero-grid">
 <div class="hero-left">
-  <p class="eyebrow">CPA license renewal &amp; CPE deadlines</p>
   <h1>Know exactly when your license is due &mdash;<br>
   <span class="hero-accent">and see the rule that says so.</span></h1>
-  <p class="hero-lede">Every renewal date on DeadlineRadar is traced to your state board's statute or
-  administrative rule, checked against the primary source, and stamped with the date we last verified
-  it. No guesswork. DeadlineRadar is built for CPAs, firm administrators, and anyone who just needs
-  to know when their license is due.</p>
+  <p class="hero-lede">Every date traced to your state board's own statute or rule, and stamped with
+  the day we last checked it.</p>
 <div class="state-search">
   <label for="state-search-input">Find your state</label>
   <form id="state-search-form" role="search" onsubmit="return drGoToState(event)" autocomplete="off">
@@ -948,10 +922,13 @@
   <p class="field-hint">Type your state and press Enter or select it to go straight to its page.</p>
 </div>
   <div class="trust-row">
-    <div class="item"><span class="n">55</span><span class="lbl">jurisdictions, each on its own verified fact sheet</span></div>
-    <div class="item"><span class="n">Every date</span><span class="lbl">cited to a statute or board rule &mdash; not just a webpage</span></div>
-    <div class="item"><span class="n">60</span><span class="lbl">codified citations tracked and kept current</span></div>
+    <div class="item"><span class="n">55</span><span class="lbl">jurisdictions listed</span></div>
+    <div class="item"><span class="n">41</span><span class="lbl">where we determine your exact date</span></div>
+    <div class="item"><span class="n">60</span><span class="lbl">codified citations kept current</span></div>
   </div>
+  <p class="trust-footnote">In the remaining 14, renewal turns on a personal fact
+  &mdash; your birth month, cohort or issue date &mdash; or the board publishes no verifiable date.
+  You enter the date on your license and we track it. We would rather say that than round up.</p>
 </div>
 <div class="hero-right">
   <div class="hfc-wrap" id="hfc-wrap">
@@ -963,125 +940,10 @@
   <a class="cite" href="https://admincode.legislature.state.al.us/api/chapter/30-X-3" title="Ala. Admin. Code 30-X-5-.05(1) (Sept 30 permit expiration); 30-X-3-.07(1) (Dec 31 renewal fee + CPE-statement deadline)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Ala. Admin. Code 30-X-5-.05(1) (Sept 30 per…</a>
   <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed at source</div>
 </div>
-<div class="hfc-card" data-hfc-index="1">
-  <div class="hfc-state">Alaska</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-07-30</div>
-  <div class="hfc-date">December 31, 2027</div>
-  <div class="hfc-sub">Individual CPA/public accountant license</div>
-  <a class="cite" href="https://www.commerce.alaska.gov/web/Portals/5/pub/cpa4060.pdf" title="Alaska CPA/PA License Renewal form (cpa4060.pdf, Rev. 10/16/2025): &quot;Licenses are issued for a two-year period and expire on December 31 of odd-numbered years, regardless of the date of issuance&quot; -- current period Jan 1, 2026-Dec 31, 2027."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Alaska CPA/PA License Renewal form (cpa4060…</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed via official records</div>
-</div>
-<div class="hfc-card" data-hfc-index="2">
-  <div class="hfc-state">Arkansas</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-07-30</div>
-  <div class="hfc-date">December 31, 2026</div>
-  <div class="hfc-sub">Individual CPA/PA license</div>
-  <a class="cite" href="https://codes.findlaw.com/ar/title-17-professions-occupations-and-businesses/ar-code-sect-17-12-504/" title="Ark. Code Ann. § 17-12-504(a)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Ark. Code Ann. § 17-12-504(a)</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed at source</div>
-</div>
-<div class="hfc-card" data-hfc-index="3">
-  <div class="hfc-state">Colorado</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-07-30</div>
-  <div class="hfc-date">November 30, 2027</div>
-  <div class="hfc-sub">Certified Public Accountant (Individual Certificate)</div>
-  <a class="cite" href="https://data.colorado.gov/resource/jzq6-fyp7.json?licensestatusdescription=Active" title="Confirmed via Colorado Information Marketplace open-data register (data.colorado.gov, dataset jzq6-fyp7, &quot;CPA All Status&quot;): sampled active individual licenses with issue dates spanning 1977-2026 uniformly show expiration 11/30/2027 -- verified 2026-07-30."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Confirmed via Colorado Information Marketpl…</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed via official records</div>
-</div>
-<div class="hfc-card" data-hfc-index="4">
-  <div class="hfc-state">Connecticut</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-07-30</div>
-  <div class="hfc-date">December 31, 2026</div>
-  <div class="hfc-sub">Individual CPA License</div>
-  <a class="cite" href="https://eregulations.ct.gov/eRegsPortal/Browse/RCSA/Title_20Subtitle_20-280Section_20-280-25/" title="RCSA § 20-280-25(a)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>RCSA § 20-280-25(a)</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed at source</div>
-</div>
-<div class="hfc-card" data-hfc-index="5">
-  <div class="hfc-state">Delaware</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-07-30</div>
-  <div class="hfc-date">June 30, 2027</div>
-  <div class="hfc-sub">Individual CPA/PA permit and firm permit</div>
-  <a class="cite" href="https://delcode.delaware.gov/title24/c001/index.html" title="24 Del. C. § 108(b)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>24 Del. C. § 108(b)</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed at source</div>
-</div>
-<div class="hfc-card" data-hfc-index="6">
-  <div class="hfc-state">District of Columbia</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-07-30</div>
-  <div class="hfc-date">December 31, 2026</div>
-  <div class="hfc-sub">Individual CPA license and firm permit</div>
-  <a class="cite" href="https://dcregs.dc.gov/Common/DCMR/RuleList.aspx?DownloadFile=00FE545F-0000-C61A-9809-9AF28E266CA9" title="17 DCMR § 2547"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>17 DCMR § 2547</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed at source</div>
-</div>
-<div class="hfc-card" data-hfc-index="7">
-  <div class="hfc-state">Florida</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-07-30</div>
-  <div class="hfc-date">December 31, 2027</div>
-  <div class="hfc-sub">Firm license</div>
-  <a class="cite" href="https://www2.myfloridalicense.com/certified-public-accounting/public-records/" title="Confirmed via Florida DBPR public CPA license records (cpalicensedata20260709.xlsx, worksheet &quot;CPA Firms&quot;): 4,932 of 4,933 active firm licenses show expiration 12/31/2027 -- verified 2026-07-30."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Confirmed via Florida DBPR public CPA licen…</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed via official records</div>
-</div>
-<div class="hfc-card" data-hfc-index="8">
-  <div class="hfc-state">Georgia</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-07-30</div>
-  <div class="hfc-date">December 31, 2027</div>
-  <div class="hfc-sub">Individual CPA license</div>
-  <a class="cite" href="https://rules.sos.ga.gov/gac/20-10-.02" title="Ga. Comp. R. &amp; Regs. R. 20-10-.02"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Ga. Comp. R. &amp; Regs. R. 20-10-.02</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed at source</div>
-</div>
-<div class="hfc-card" data-hfc-index="9">
-  <div class="hfc-state">Hawaii</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-07-30</div>
-  <div class="hfc-date">December 31, 2027</div>
-  <div class="hfc-sub">Individual CPA license/permit and firm permit</div>
-  <a class="cite" href="https://www.capitol.hawaii.gov/hrscurrent/Vol10_Ch0436-0474/HRS0466/HRS_0466-0005.htm" title="HRS § 466-5(j)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>HRS § 466-5(j)</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed at source</div>
-</div>
   </div>
-  <div class="hfc-coverage">Verified &middot; <b>38</b> of 55 states</div>
-  <div class="hfc-pips" id="hfc-pips">
-    <button type="button" class="hfc-pip is-active" data-hfc-pip="0" aria-label="Show Alabama"></button>
-<button type="button" class="hfc-pip" data-hfc-pip="1" aria-label="Show Alaska"></button>
-<button type="button" class="hfc-pip" data-hfc-pip="2" aria-label="Show Arkansas"></button>
-<button type="button" class="hfc-pip" data-hfc-pip="3" aria-label="Show Colorado"></button>
-<button type="button" class="hfc-pip" data-hfc-pip="4" aria-label="Show Connecticut"></button>
-<button type="button" class="hfc-pip" data-hfc-pip="5" aria-label="Show Delaware"></button>
-<button type="button" class="hfc-pip" data-hfc-pip="6" aria-label="Show District of Columbia"></button>
-<button type="button" class="hfc-pip" data-hfc-pip="7" aria-label="Show Florida"></button>
-<button type="button" class="hfc-pip" data-hfc-pip="8" aria-label="Show Georgia"></button>
-<button type="button" class="hfc-pip" data-hfc-pip="9" aria-label="Show Hawaii"></button>
-  </div>
+  <div class="hfc-coverage">We list all <b>55</b> jurisdictions &middot; exact date
+  determined in <b>41</b> &middot; for the rest you enter your date and we track it</div>
 </div>
-<script>
-(function() {
-  var wrap = document.getElementById('hfc-wrap');
-  var pipsWrap = document.getElementById('hfc-pips');
-  if (!wrap) return;
-  var cards = wrap.querySelectorAll('.hfc-card');
-  var pips = pipsWrap ? pipsWrap.querySelectorAll('.hfc-pip') : [];
-  if (cards.length < 2) return;
-  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduceMotion) return;
-  var current = 0;
-  var timer = null;
-  function activate(i) {
-    cards[current].classList.remove('is-active');
-    if (pips[current]) pips[current].classList.remove('is-active');
-    current = i;
-    cards[current].classList.add('is-active');
-    if (pips[current]) pips[current].classList.add('is-active');
-  }
-  function next() { activate((current + 1) % cards.length); }
-  function start() { timer = setInterval(next, 5000); }
-  function stop() { if (timer) { clearInterval(timer); timer = null; } }
-  pips.forEach(function(pip, i) {
-    pip.addEventListener('click', function() { activate(i); stop(); start(); });
-  });
-  wrap.addEventListener('mouseenter', stop);
-  wrap.addEventListener('mouseleave', start);
-  wrap.addEventListener('focusin', stop);
-  wrap.addEventListener('focusout', start);
-  start();
-})();
-</script>
 </div>
 <section class="band-section" style="border-top:0; padding-top:0; margin-top:0;">
   <p class="eyebrow">What a lookup actually gives you</p>

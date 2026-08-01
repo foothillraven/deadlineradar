@@ -131,34 +131,6 @@
     padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
   }
   .trust-line strong::before { content: "\2713\a0"; color: var(--gold); }
-# ---------------------------------------------------------------------------
-# 2026-07-31 CARD LAYOUT BUGFIX -- rationale kept HERE, in Python, deliberately.
-#
-# An earlier version of this explanation lived in the CSS itself, which is
-# INLINED INTO EVERY RENDERED PAGE -- so it shipped internal language onto 181
-# public URLs and preship_gate.py caught it. Lesson worth keeping: the CSS
-# string in this file is PUBLIC OUTPUT, not source commentary. Explain things
-# here; keep shipped comments terse and neutral.
-#
-# The bug: `.frow` was `grid-template-columns: 1fr auto` with `.cite` set to
-# `white-space: nowrap`. A short statutory citation ("68 Ill. Admin. Code
-# 1420.80(a)") fits, so most cards looked fine -- but a long prose citation
-# ("Confirmed via Illinois IDFPR's public open-data licence register...")
-# cannot wrap, so the `auto` track sized itself to the full 1850px chip inside
-# an 1138px card. That left the `1fr` description track at 112px (measured),
-# wrapping prose to 1-2 words per line for 20+ lines, and pushed the chip past
-# the card edge.
-#
-# The report described the citation as "truncated". It was NOT: scrollWidth ==
-# width and title == text, so the full string was always in the DOM and in the
-# link -- it was overflowing the card and being visually clipped. No citation
-# data was ever lost, which matters because the citation is the credibility
-# asset this product sells.
-#
-# Fix: minmax(0,...) on both tracks (removing the min-content floor that let an
-# un-wrappable chip dictate the layout) + a cap on the side track; `.cite`
-# wraps; and citations over _CITATION_CHIP_MAX_CHARS render as their own
-# full-width row instead of a right-aligned pill.
 
   /* ---- THE CENTERPIECE: citation-first fact sheet, per the approved concept's .sheet/.frow ---- */
   .sheet {
@@ -205,7 +177,7 @@
     display: inline-flex; align-items: flex-start; gap: 0.4rem; font-family: var(--font-mono); font-size: 0.78rem;
     color: var(--gold); background: var(--gold-bg); border: 1px solid var(--gold-line); border-radius: 6px;
     padding: 0.25rem 0.55rem; text-decoration: none; white-space: normal; overflow-wrap: anywhere;
-    text-align: left;
+    text-align: left; max-width: 100%; box-sizing: border-box;
   }
   /* Long (prose) citations get their own full-width row; short statutory
      cites keep the right-aligned chip. Chosen in Python, so no :has() needed. */
@@ -257,13 +229,19 @@
   }
   .lookup-field button:hover { background: var(--accent-deep); }
   .lookup-hint { margin-top: 0.6rem; font-size: 0.8rem; color: var(--faint); }
+  /* A proper 3-column grid (2026-07-31). These were flex-wrapped, so two
+     items stacked left while the third sat mid-right on its own baseline and
+     the row read as misaligned rather than as a set of three facts. */
   .trust-row {
-    display: flex; flex-wrap: wrap; gap: 0.8rem 1.8rem; margin: 1.8rem 0 2.2rem; padding-top: 1.4rem;
-    border-top: 1px solid var(--border);
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.1rem; margin-top: 1.5rem; align-items: start;
   }
-  .trust-row .item { display: flex; align-items: baseline; gap: 0.5rem; }
-  .trust-row .n { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
-  .trust-row .lbl { font-size: 0.8rem; color: var(--muted); max-width: 22ch; line-height: 1.35; }
+  .trust-row .item { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+  .trust-row .n { font-family: var(--font-display); font-size: 1.6rem; font-weight: 650; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .trust-row .lbl { font-size: 0.8rem; color: var(--muted); line-height: 1.35; }
+  .nav-quiet { color: var(--faint); }
+  .trust-footnote { margin-top: 1rem; font-size: 0.82rem; color: var(--faint); line-height: 1.5; max-width: 46ch; }
+  @media (max-width: 620px) { .trust-row { grid-template-columns: 1fr 1fr; } }
 
   /* ---- hero-right: rotating verified-fact card, live proof of freshness ---- */
   .hfc-wrap { position: relative; min-height: 300px; }
@@ -914,8 +892,7 @@
       <a href="/">Browse States</a>
       <a href="/methodology/">How We Verify</a>
       <a href="/for-firms/">For Firms</a>
-      <a href="/contact/">Contact</a>
-      <a href="/signin/">Sign In</a>
+      <a href="/signin/" class="nav-quiet">Sign In</a>
       <a href="#remind" class="cta">Get reminders</a>
     </div>
   </div>

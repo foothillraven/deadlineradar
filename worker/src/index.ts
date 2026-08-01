@@ -953,14 +953,23 @@ function subscriberLoginSentPage(env: Env): string {
  * sending degrades to "token created in the DB, nothing emailed" rather
  * than an error.
  */
-async function issueAndSendFirmLoginLink(env: Env, firmId: string, adminEmail: string): Promise<void> {
-  const { rawToken } = await store.createLoginToken(env.DB, firmId);
+async function issueAndSendFirmLoginLink(
+  env: Env,
+  firmId: string,
+  adminEmail: string,
+  purpose: store.LoginTokenPurpose = "login"
+): Promise<void> {
+  const { rawToken } = await store.createLoginToken(env.DB, firmId, purpose);
   if (!env.SENDGRID_API_KEY) return;
   try {
     const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
     if (!underCap) return;
     const loginUrl = `${actionBaseUrl(env)}/firm/login/verify?token=${encodeURIComponent(rawToken)}`;
-    const built = buildFirmLoginEmail(loginUrl);
+    // COPY HONESTY (2026-07-31): a link issued from "Forgot password" must
+    // say it leads to setting a password. An email promising a plain sign-in
+    // and then landing on a password screen is the same class of mismatch as
+    // the bug this fixes, just pointed the other way.
+    const built = buildFirmLoginEmail(loginUrl, purpose === "password_reset");
     await sendViaSendGrid(env.SENDGRID_API_KEY, adminEmail, built, env.EMAIL_ALLOWLIST);
   } catch {
     // Swallow -- same reasoning as every other best-effort send in this
@@ -1128,9 +1137,19 @@ async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<
     return errorPage(400, "Verification failed -- please try again.");
   }
 
+  // Which affordance the user came from. Client-supplied, and that is fine:
+  // it only decides what the user is asking FOR, and the answer is then
+  // written onto the server-side token row. An attacker submitting
+  // intent=reset for someone else's address cannot reach the resulting link
+  // -- it goes to that account's own inbox, exactly like any other magic
+  // link. What they must never be able to do is flip the meaning of a token
+  // at REDEMPTION time, which is why the purpose is stored, not passed
+  // through the URL. See migration 0013.
+  const purpose = store.normalizeLoginTokenPurpose(form.intent);
+
   const existing = await store.findFirmByAdminEmail(env.DB, email);
   if (existing) {
-    await issueAndSendFirmLoginLink(env, existing.id, email);
+    await issueAndSendFirmLoginLink(env, existing.id, email, purpose);
   }
   // No firm for this email: fall through to the SAME response, sending
   // nothing -- this is the anti-enumeration branch this handler exists for.
@@ -1162,11 +1181,20 @@ async function handleFirmLoginVerify(env: Env, token: string | null): Promise<Re
       "That sign-in link is invalid, expired, or already used. Please request a new one and try again."
     );
   }
-  const { rawSessionToken } = await store.createSession(env.DB, result.firmId);
+  const { rawSessionToken } = await store.createSession(
+    env.DB,
+    result.firmId,
+    result.purpose === "password_reset"
+  );
+  // The destination comes from the TOKEN's stored purpose, never from the
+  // request. A password-reset link lands directly on "Choose a password"
+  // instead of the dashboard -- the whole point of the fix, since the old
+  // flow signed you in and then silently forgot you had asked to reset.
+  const destination = result.purpose === "password_reset" ? "/set-password/" : "/firm-dashboard/";
   return new Response(null, {
     status: 302,
     headers: {
-      Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/`,
+      Location: `${env.STATIC_SITE_BASE_URL || ""}${destination}`,
       "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken, env),
     },
   });
@@ -1213,7 +1241,7 @@ async function handleFirmLogout(request: Request, env: Env): Promise<Response> {
 export async function requireFirmSession(
   request: Request,
   env: Env
-): Promise<{ firmId: string; sessionId: string } | Response> {
+): Promise<{ firmId: string; sessionId: string; passwordResetAuthorized: boolean } | Response> {
   const raw = getCookie(request, FIRM_SESSION_COOKIE_NAME);
   if (!raw) {
     return errorPage(401, "You need to sign in to view this.");
@@ -2876,7 +2904,15 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
     return jsonResponse(404, { error: "Not found." });
   }
 
-  if (firm.password_hash) {
+  // A session minted by redeeming a password-RESET link is exempt from
+  // proving the old password (migration 0014). It has to be: the person who
+  // clicked "Forgot password" is by definition the person who cannot supply
+  // it, so requiring it would leave the reset flow refusing the only user it
+  // exists for. The exemption is safe because that session proves control of
+  // the account's own inbox -- stronger evidence than the cookie the
+  // prove-the-old-password rule guards against -- and it is spent below, so
+  // one emailed link authorises exactly one password set.
+  if (firm.password_hash && !session.passwordResetAuthorized) {
     const currentOk = await verifyPassword(
       currentPassword,
       {
@@ -2901,6 +2937,19 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
   // they already hold. The caller's own session survives so they aren't
   // logged out of the tab they're sitting in.
   const endedSessions = await store.deleteOtherSessionsForFirm(env.DB, firm.id, session.sessionId);
+
+  // ...and every UNUSED sign-in / reset link (2026-07-31). Same reasoning one
+  // step earlier in the chain: an outstanding emailed link is a live bearer
+  // credential for this account, so finishing a reset while leaving older
+  // links redeemable would make the reset only half-true. Cheap, and it also
+  // tidies up the duplicates people generate by clicking "email me a link"
+  // several times when the first is slow to arrive.
+  await store.invalidateOutstandingLoginTokens(env.DB, firm.id);
+
+  // Spend the one-shot reset authority. Left set, it would sit on a 30-day
+  // session and allow unlimited future password rewrites without the old
+  // password -- exactly what the rule above exists to prevent.
+  await store.clearSessionResetAuthorization(env.DB, session.sessionId);
 
   // Notify the account owner. This is the DETECTION control for the hole
   // the security review found: every firm predating migration 0010 has no

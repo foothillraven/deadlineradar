@@ -3532,8 +3532,11 @@ def build_firm_login_page() -> str:
     <button type="submit">Sign in</button>
   </form>
   <p class="dr-auth-secondary">
-    <a href="#dr-view-magic" class="dr-auth-switch" data-target="dr-view-magic">Forgot your password?
-    Email me a sign-in link instead</a>
+    <a href="#dr-view-magic" class="dr-auth-switch" data-target="dr-view-magic"
+    data-intent="password_reset">Forgot your password?</a>
+    &nbsp;&middot;&nbsp;
+    <a href="#dr-view-magic" class="dr-auth-switch" data-target="dr-view-magic">Email me a sign-in
+    link instead</a>
   </p>
   <p class="dr-auth-alt">New firm?
     <a href="#dr-view-signup" class="dr-auth-switch" data-target="dr-view-signup">Create an account</a>
@@ -3560,15 +3563,19 @@ def build_firm_login_page() -> str:
 </div>
 
 <div class="dr-auth-view" id="dr-view-magic">
-  <h1>Email me a sign-in link</h1>
-  <p class="subhead">Works whether or not you've set a password. From your dashboard you can set one
-  for next time.</p>
+  <h1 id="dr-magic-heading">Email me a sign-in link</h1>
+  <p class="subhead" id="dr-magic-sub">Works whether or not you've set a password.</p>
   <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/login">
     {_BOT_DEFENSE_FIELDS_HTML_MAGIC}
+    <!-- Which affordance the visitor arrived from. The server writes this
+         onto the login-token row, so the emailed link knows where to land.
+         Flipped to "password_reset" by the view switcher when the visitor
+         clicked "Forgot your password?" rather than the plain link option. -->
+    <input type="hidden" id="dr-magic-intent" name="intent" value="login">
     <label for="login-email">Email</label>
     <input type="email" id="login-email" name="admin_email" required autocomplete="email"
     placeholder="you@yourfirm.com">
-    <button type="submit">Email me a sign-in link</button>
+    <button type="submit" id="dr-magic-submit">Email me a sign-in link</button>
   </form>
   <p class="dr-auth-alt">
     <a href="#dr-view-signin" class="dr-auth-switch" data-target="dr-view-signin">&larr; Back to sign in</a>
@@ -3600,6 +3607,17 @@ def build_firm_login_page() -> str:
 # at RUNTIME rather than shipping them hidden: with JS off, all three forms
 # stay visible and usable (the old layout), instead of leaving two of them
 # stranded behind links that cannot fire.
+# NOTE ON COMMENTS IN THE STRINGS BELOW: every _*_JS_HTML / CSS string in this
+# file is INLINED INTO RENDERED PAGES, so any comment inside one is PUBLIC
+# OUTPUT. preship_gate.py has now caught internal language leaking that way
+# twice in one day. Keep shipped comments terse and factual; put reasoning in
+# Python comments like this one.
+#
+# setIntent(): the magic-link view serves two intents -- "sign me in" and "let
+# me set a password" -- and the copy must match the button that opened it.
+# "Forgot your password?" promises a password, so the heading, the submit
+# label and the hidden `intent` field change together. A control that says one
+# thing while the form does another is exactly the bug this change fixes.
 _FIRM_LOGIN_VIEW_JS_HTML = """<script>
 (function () {
   var views = ["dr-view-signin", "dr-view-signup", "dr-view-magic"];
@@ -3624,11 +3642,29 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
     return views.indexOf(h) !== -1 ? h : "dr-view-signin";
   }
 
+  // Heading, button and submitted intent all change together.
+  function setIntent(intent) {
+    var field = document.getElementById("dr-magic-intent");
+    var heading = document.getElementById("dr-magic-heading");
+    var sub = document.getElementById("dr-magic-sub");
+    var submit = document.getElementById("dr-magic-submit");
+    var reset = intent === "password_reset";
+    if (field) field.value = reset ? "password_reset" : "login";
+    if (heading) heading.textContent = reset ? "Set a new password" : "Email me a sign-in link";
+    if (sub) {
+      sub.textContent = reset
+        ? "We'll email you a link. Click it and we'll take you straight to a page where you can choose a new password."
+        : "Works whether or not you've set a password.";
+    }
+    if (submit) submit.textContent = reset ? "Email me a password-reset link" : "Email me a sign-in link";
+  }
+
   document.addEventListener("click", function (e) {
     var a = e.target.closest ? e.target.closest(".dr-auth-switch") : null;
     if (!a) return;
     e.preventDefault();
     var target = a.getAttribute("data-target");
+    if (target === "dr-view-magic") setIntent(a.getAttribute("data-intent") || "login");
     if (window.history && window.history.replaceState) {
       window.history.replaceState(null, "", "#" + target);
     }
@@ -3639,6 +3675,123 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
   show(fromHash());
 })();
 </script>"""
+
+
+_SET_PASSWORD_JS_HTML = """<script>
+(function () {
+  var form = document.getElementById('dr-setpw-form');
+  var err = document.getElementById('dr-setpw-error');
+  var ok = document.getElementById('dr-setpw-ok');
+  if (!form) return;
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (err) { err.hidden = true; err.textContent = ''; }
+    var pw = document.getElementById('dr-setpw-new').value;
+    var confirm = document.getElementById('dr-setpw-confirm').value;
+    if (pw !== confirm) {
+      // Checked here purely so the user gets an instant answer; the server
+      // is still the authority on every other rule (length, reuse, strength).
+      if (err) { err.textContent = 'Those two passwords do not match.'; err.hidden = false; }
+      return;
+    }
+    var body = {new_password: pw};
+    var cur = document.getElementById('dr-setpw-current');
+    if (cur && cur.value) body.current_password = cur.value;
+
+    fetch('/api/firm/password', {
+      method: 'POST', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    }).then(function (res) {
+      // 401 means the session expired between arriving and submitting. Send
+      // them back to the front door rather than showing a bare error.
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok) {
+          if (err) {
+            err.textContent = (data && data.error) || 'Something went wrong, please try again.';
+            err.hidden = false;
+          }
+          return;
+        }
+        form.hidden = true;
+        if (ok) ok.hidden = false;
+      });
+    }).catch(function () {
+      if (err) { err.textContent = 'Something went wrong, please try again.'; err.hidden = false; }
+    });
+  });
+})();
+</script>"""
+
+_SET_PASSWORD_JS_HTML = _SET_PASSWORD_JS_HTML.replace("'/api/firm", f"'{REMINDER_BACKEND_BASE_URL}/firm")
+
+
+def build_set_password_page() -> str:
+    """"Choose a password" -- where a password-reset link now lands.
+
+    THE BUG THIS EXISTS FOR: clicking "Forgot password" emailed a sign-in
+    link, the link signed you in, and dropped you on the dashboard with
+    nothing offering to set a password. The endpoint and the Account-tab form
+    both already existed; the reset INTENT just never survived the round trip
+    through the email, so the button quietly did something other than what it
+    said. A dedicated screen is the version of the fix that cannot be missed.
+
+    Reached only by redirect from a redeemed password-reset token (see
+    handleFirmLoginVerify), but it does NOT rely on that for security: the
+    page is static and enforces nothing. `POST /firm/password` is
+    session-gated server-side and is the only authority; a 401 bounces the
+    visitor back to /firm-login/. Someone who navigates here directly while
+    signed in simply gets a legitimate way to set their password, which is
+    not a capability they lacked -- the Account tab has always offered it.
+
+    `noindex`: a signed-in account screen, not indexable content.
+    """
+    body = f"""<div class="dr-auth-card">
+  <h1>Choose a password</h1>
+  <p class="subhead">You're signed in. Set a password now and you can use it next time instead of
+  waiting for an emailed link.</p>
+
+  <form id="dr-setpw-form">
+    <label for="dr-setpw-current">Current password <span class="field-hint">(leave blank if you
+    have never set one)</span></label>
+    <input type="password" id="dr-setpw-current" name="current_password"
+    autocomplete="current-password">
+
+    <label for="dr-setpw-new">New password</label>
+    <input type="password" id="dr-setpw-new" name="new_password" required
+    autocomplete="new-password">
+    <p class="field-hint">At least 12 characters. Longer beats complicated &mdash; a short phrase
+    you'll remember is stronger than a scramble you won't.</p>
+
+    <label for="dr-setpw-confirm">Confirm new password</label>
+    <input type="password" id="dr-setpw-confirm" required autocomplete="new-password">
+
+    <button type="submit">Save password</button>
+    <p id="dr-setpw-error" class="dr-account-err" hidden></p>
+  </form>
+
+  <div id="dr-setpw-ok" hidden>
+    <p class="dr-account-ok"><strong>Your password is set.</strong> You can now sign in with it.
+    Any other sign-in links we emailed you have been cancelled, and you've been signed out on other
+    devices.</p>
+    <p><a class="cta-button" href="/firm-dashboard/">Go to your dashboard &rarr;</a></p>
+  </div>
+
+  <p class="dr-auth-alt"><a href="/firm-dashboard/">Skip for now &mdash; go to the dashboard</a></p>
+</div>
+{_SET_PASSWORD_JS_HTML}
+"""
+    return page_shell(
+        f"Choose a password — {SITE_NAME}",
+        "Set your DeadlineRadar firm account password.",
+        body,
+        home_href="../",
+        canonical_path="/set-password/",
+        extra_head='<meta name="robots" content="noindex">',
+        hide_signin=True,
+    )
 
 
 def build_signin_page() -> str:
@@ -6466,6 +6619,11 @@ def main() -> None:
     firm_login_dir.mkdir(parents=True, exist_ok=True)
     (firm_login_dir / "index.html").write_text(build_firm_login_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/firm-login/index.html")
+
+    set_password_dir = SITE_DIR / "set-password"
+    set_password_dir.mkdir(parents=True, exist_ok=True)
+    (set_password_dir / "index.html").write_text(build_set_password_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/set-password/index.html")
 
     signin_dir = SITE_DIR / "signin"
     signin_dir.mkdir(parents=True, exist_ok=True)

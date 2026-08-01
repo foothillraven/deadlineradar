@@ -1,0 +1,32 @@
+-- Let a password RESET actually reset a forgotten password (2026-07-31).
+--
+-- Found by a test I initially wrote asserting the WRONG thing was correct:
+-- `handleFirmPasswordSet` requires the current password whenever the firm
+-- already has one. That rule is right for an ordinary signed-in change --
+-- it stops a stolen session cookie minting a permanent credential, which a
+-- security review specifically asked for. But it makes the reset flow
+-- useless for the exact person it exists to serve: someone who HAS a
+-- password and has forgotten it cannot supply it, so "Forgot password"
+-- would have signed them in, walked them to a password screen, and then
+-- refused. A more polite dead end than the one being fixed, but a dead end.
+--
+-- The resolution is that these two situations rest on different evidence:
+--
+--   * an ordinary session proves only "this browser holds a cookie", so
+--     changing a password with it should require the old password;
+--   * a session minted from a redeemed password-reset token additionally
+--     proves control of the account's own email inbox, because that is
+--     where the single-use link was sent. That is STRONGER evidence than
+--     the cookie, and it is the evidence every password-reset flow on the
+--     web is built on.
+--
+-- So the authority is recorded on the SESSION at creation time, derived
+-- from the token's stored purpose (migration 0013) -- never from anything
+-- the client sends. It is cleared as soon as it is used, so a single
+-- emailed link authorises exactly one password set rather than leaving a
+-- 30-day session that can rewrite the password at will.
+--
+-- Defaults to 0: every existing session, and any future caller that forgets
+-- the argument, keeps the stricter prove-the-old-password behaviour.
+
+ALTER TABLE firm_sessions ADD COLUMN password_reset_authorized INTEGER NOT NULL DEFAULT 0;

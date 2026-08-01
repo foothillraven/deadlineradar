@@ -6243,11 +6243,20 @@ def main() -> None:
 
     # Sanity check: no record's computed deadline should be in the past,
     # checked against BOTH the data's own as_of_date AND real wall-clock time.
+    #
+    # STRICTLY `<`, not `<=` (fixed 2026-08-01). The old comparison treated a
+    # deadline falling ON the current date as already stale, so the build
+    # refused on the morning of a real deadline -- South Dakota (annual, due
+    # August 1) and Kentucky both tripped it on 2026-08-01. That is backwards
+    # for a deadline product: a date due TODAY has not passed, and it is the
+    # single most urgent and most useful thing this site can display. The
+    # guard's real job is catching dates that have genuinely elapsed, and it
+    # still does that from the day after.
     stale = [
         r["id"] for r in records
         if r.get("next_deadline_computed") and (
-            date.fromisoformat(r["next_deadline_computed"]) <= as_of
-            or date.fromisoformat(r["next_deadline_computed"]) <= real_today
+            date.fromisoformat(r["next_deadline_computed"]) < as_of
+            or date.fromisoformat(r["next_deadline_computed"]) < real_today
         )
     ]
     if stale:

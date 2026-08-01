@@ -611,9 +611,15 @@ export interface FirmLoginTokenRow {
   created_at: string;
   expires_at: string;
   used_at: string | null;
+  /** migration 0013. Optional on the TYPE because rows written before that
+   * migration predate the column; normalizeLoginTokenPurpose() turns any
+   * absent/unrecognised value into the safe "login" default. */
+  purpose?: string;
 }
 
 export interface FirmSessionRow {
+  /** migration 0014; absent on rows written before it. */
+  password_reset_authorized?: number | null;
   id: string;
   firm_id: string;
   session_token_hash: string;
@@ -708,19 +714,55 @@ export async function findFirmByAdminEmail(db: D1Database, email: string): Promi
  * outside the recipient's inbox; it is never logged, never stored anywhere
  * else. `expires_at` = now + LOGIN_TOKEN_TTL_MINUTES.
  */
-export async function createLoginToken(db: D1Database, firmId: string): Promise<{ rawToken: string }> {
+/**
+ * What a login token is FOR (migration 0013). Set at issue time from which
+ * form the user submitted; read at redemption to decide where they land.
+ *
+ * Deliberately a closed set with a safe default: anything unrecognised
+ * normalises to "login", so a typo or a future caller that forgets the
+ * argument degrades to the ORDINARY sign-in rather than the privileged
+ * password-set branch.
+ */
+export type LoginTokenPurpose = "login" | "password_reset";
+
+export function normalizeLoginTokenPurpose(raw: unknown): LoginTokenPurpose {
+  return raw === "password_reset" ? "password_reset" : "login";
+}
+
+export async function createLoginToken(
+  db: D1Database,
+  firmId: string,
+  purpose: LoginTokenPurpose = "login"
+): Promise<{ rawToken: string }> {
   const rawToken = newToken();
   const tokenHash = await hashToken(rawToken);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + LOGIN_TOKEN_TTL_MINUTES * 60_000).toISOString();
   await db
     .prepare(
-      `INSERT INTO firm_login_tokens (id, firm_id, token_hash, created_at, expires_at, used_at)
-       VALUES (?1,?2,?3,?4,?5,NULL)`
+      `INSERT INTO firm_login_tokens (id, firm_id, token_hash, created_at, expires_at, used_at, purpose)
+       VALUES (?1,?2,?3,?4,?5,NULL,?6)`
     )
-    .bind(newToken(), firmId, tokenHash, now.toISOString(), expiresAt)
+    .bind(newToken(), firmId, tokenHash, now.toISOString(), expiresAt, normalizeLoginTokenPurpose(purpose))
     .run();
   return { rawToken };
+}
+
+/**
+ * Invalidates every UNUSED login token for a firm.
+ *
+ * Called after a password is successfully set: any other reset link sitting
+ * in an inbox (or in a mail archive, or in a forwarded thread) is a live
+ * bearer credential for this account, and the whole point of finishing a
+ * reset is that the previous ones stop mattering. Only unused rows are
+ * touched, so this can never resurrect or alter an already-consumed token.
+ */
+export async function invalidateOutstandingLoginTokens(db: D1Database, firmId: string): Promise<number> {
+  const result = await db
+    .prepare(`UPDATE firm_login_tokens SET used_at = ?1 WHERE firm_id = ?2 AND used_at IS NULL`)
+    .bind(nowIso(), firmId)
+    .run();
+  return result.meta.changes ?? 0;
 }
 
 /**
@@ -734,7 +776,10 @@ export async function createLoginToken(db: D1Database, firmId: string): Promise<
  * email link opened twice, or a forwarded/leaked copy -- can never succeed
  * again.
  */
-export async function verifyAndConsumeLoginToken(db: D1Database, rawToken: string): Promise<{ firmId: string } | null> {
+export async function verifyAndConsumeLoginToken(
+  db: D1Database,
+  rawToken: string
+): Promise<{ firmId: string; purpose: LoginTokenPurpose } | null> {
   const tokenHash = await hashToken(rawToken);
   const row = await db
     .prepare(`SELECT * FROM firm_login_tokens WHERE token_hash = ?1`)
@@ -743,8 +788,17 @@ export async function verifyAndConsumeLoginToken(db: D1Database, rawToken: strin
   if (!row) return null;
   if (row.used_at) return null;
   if (Date.parse(row.expires_at) <= Date.now()) return null;
-  await db.prepare(`UPDATE firm_login_tokens SET used_at = ?1 WHERE id = ?2`).bind(nowIso(), row.id).run();
-  return { firmId: row.firm_id };
+  // Conditional on used_at IS NULL so two concurrent redemptions of one
+  // emailed link cannot both succeed (the same shape as the subscriber
+  // token; this route previously used an unconditional UPDATE).
+  const result = await db
+    .prepare(`UPDATE firm_login_tokens SET used_at = ?1 WHERE id = ?2 AND used_at IS NULL`)
+    .bind(nowIso(), row.id)
+    .run();
+  if ((result.meta.changes ?? 0) === 0) return null;
+  // The purpose is read from the ROW -- never from anything the redeeming
+  // request supplied. See migration 0013.
+  return { firmId: row.firm_id, purpose: normalizeLoginTokenPurpose((row as { purpose?: unknown }).purpose) };
 }
 
 /**
@@ -752,19 +806,46 @@ export async function verifyAndConsumeLoginToken(db: D1Database, rawToken: strin
  * the RAW value for the caller to set as the `dr_firm_session` cookie (see
  * index.ts). `expires_at` = now + SESSION_TTL_DAYS.
  */
-export async function createSession(db: D1Database, firmId: string): Promise<{ rawSessionToken: string }> {
+export async function createSession(
+  db: D1Database,
+  firmId: string,
+  /** migration 0014. TRUE only when this session was minted by redeeming a
+   * password-RESET token, which proves control of the account's email inbox
+   * and is therefore allowed to set a password without knowing the old one.
+   * Derived from the token row, never from anything a client sends. */
+  passwordResetAuthorized = false
+): Promise<{ rawSessionToken: string }> {
   const rawSessionToken = newToken();
   const sessionTokenHash = await hashToken(rawSessionToken);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + SESSION_TTL_DAYS * 86_400_000).toISOString();
   await db
     .prepare(
-      `INSERT INTO firm_sessions (id, firm_id, session_token_hash, created_at, expires_at, last_seen_at)
-       VALUES (?1,?2,?3,?4,?5,?6)`
+      `INSERT INTO firm_sessions (id, firm_id, session_token_hash, created_at, expires_at, last_seen_at, password_reset_authorized)
+       VALUES (?1,?2,?3,?4,?5,?6,?7)`
     )
-    .bind(newToken(), firmId, sessionTokenHash, now.toISOString(), expiresAt, now.toISOString())
+    .bind(
+      newToken(), firmId, sessionTokenHash, now.toISOString(), expiresAt, now.toISOString(),
+      passwordResetAuthorized ? 1 : 0
+    )
     .run();
   return { rawSessionToken };
+}
+
+/**
+ * Spends the one-shot reset authority.
+ *
+ * Called immediately after a successful password set, so one emailed link
+ * authorises exactly ONE password change. Without this the flag would sit on
+ * a 30-day session and let anyone holding that cookie rewrite the password
+ * repeatedly without ever knowing the old one -- which is the very thing the
+ * prove-the-current-password rule exists to prevent.
+ */
+export async function clearSessionResetAuthorization(db: D1Database, sessionId: string): Promise<void> {
+  await db
+    .prepare(`UPDATE firm_sessions SET password_reset_authorized = 0 WHERE id = ?1`)
+    .bind(sessionId)
+    .run();
 }
 
 /**
@@ -780,7 +861,7 @@ export async function createSession(db: D1Database, firmId: string): Promise<{ r
 export async function verifySession(
   db: D1Database,
   rawSessionToken: string
-): Promise<{ firmId: string; sessionId: string } | null> {
+): Promise<{ firmId: string; sessionId: string; passwordResetAuthorized: boolean } | null> {
   const sessionTokenHash = await hashToken(rawSessionToken);
   const row = await db
     .prepare(`SELECT * FROM firm_sessions WHERE session_token_hash = ?1`)
@@ -793,7 +874,14 @@ export async function verifySession(
   // already fetched above -- returning it too (previously discarded) costs
   // nothing extra and lets cpe_entries.entered_by_firm_session_id record
   // WHICH session logged an entry, not just which firm.
-  return { firmId: row.firm_id, sessionId: row.id };
+  return {
+    firmId: row.firm_id,
+    sessionId: row.id,
+    // Strict truthiness on 1 -- a NULL from a pre-0014 row, or anything
+    // unexpected, must read as NOT authorized. The permissive direction is
+    // the dangerous one here.
+    passwordResetAuthorized: (row as { password_reset_authorized?: unknown }).password_reset_authorized === 1,
+  };
 }
 
 /** Logout: hash + delete the matching session row. Idempotent -- deleting a

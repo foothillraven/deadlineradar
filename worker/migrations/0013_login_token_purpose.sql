@@ -1,0 +1,29 @@
+-- Carry RESET INTENT through the magic-link flow (2026-07-31).
+--
+-- The bug this fixes: clicking "Forgot password" emailed a sign-in link,
+-- the link signed you in, and dropped you on the dashboard with nothing
+-- offering to set a password. `handleFirmPasswordSet` and the Account-tab
+-- form both existed; the reset INTENT simply never survived the round trip
+-- through the email, so the flow silently did something other than what the
+-- button promised.
+--
+-- ## Why the intent lives on the TOKEN and not in a URL or a form field
+--
+-- The obvious shortcut is to redirect to /set-password/ based on a query
+-- parameter, or to stash "wants reset" in the session at verify time from
+-- something the client sends. Both are wrong here: either lets a third
+-- party put a victim's browser into a password-set state by handing them a
+-- crafted link. Storing the purpose on the login-token ROW keeps the
+-- authority exactly where it already is -- possession of a single-use token
+-- that was emailed to the account's own address. Nothing a caller supplies
+-- at redemption time can change what the token means.
+--
+-- Set at ISSUE time (which form was submitted), read at REDEEM time, and
+-- never writable in between.
+--
+-- 'login' is the default so every pre-existing row, and any future caller
+-- that forgets the argument, behaves exactly as before -- an unrecognised
+-- or missing purpose must degrade to the ORDINARY sign-in, never to the
+-- privileged branch.
+
+ALTER TABLE firm_login_tokens ADD COLUMN purpose TEXT NOT NULL DEFAULT 'login';

@@ -465,9 +465,19 @@ export function buildStopConfirmationEmail(
  * (CAN-SPAM) via `mailingAddress()` and still identifies the sender, just
  * without the reminder-specific consent/unsubscribe language.
  */
-export function buildFirmLoginEmail(loginUrl: string): BuiltEmail {
+export function buildFirmLoginEmail(loginUrl: string, isPasswordReset = false): BuiltEmail {
   const addr = mailingAddress();
-  const subject = `Your ${SITE_NAME} sign-in link`;
+  // COPY HONESTY (2026-07-31): the same token machinery serves both "sign me
+  // in" and "let me set a password", and the email must say which one the
+  // recipient asked for. A reset link that arrives calling itself a plain
+  // sign-in link is how the original dead end felt from the user's side.
+  const subject = isPasswordReset
+    ? `Set your ${SITE_NAME} password`
+    : `Your ${SITE_NAME} sign-in link`;
+  const lead = isPasswordReset
+    ? "You asked to set a new password. Click below and we'll take you straight to a page where you can choose one."
+    : "Here's your sign-in link. Click below to access your firm dashboard.";
+  const cta = isPasswordReset ? "Set my password" : `Sign in to ${SITE_NAME}`;
 
   const textBody =
     `Here's your ${SITE_NAME} sign-in link:\n\n` +
@@ -479,11 +489,11 @@ export function buildFirmLoginEmail(loginUrl: string): BuiltEmail {
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
-    `Your ${SITE_NAME} sign-in link`,
+    subject,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
-      `Sign in to ${esc(SITE_NAME)}</h1>` +
-      p("Here's your sign-in link. Click below to access your firm dashboard.") +
-      `<p style="margin:0 0 20px;">${button(loginUrl, `Sign in to ${SITE_NAME}`)}</p>` +
+      `${esc(isPasswordReset ? "Set your password" : `Sign in to ${SITE_NAME}`)}</h1>` +
+      p(lead) +
+      `<p style="margin:0 0 20px;">${button(loginUrl, cta)}</p>` +
       p(
         "This link expires in 15 minutes and can only be used once. If it's expired by the time " +
           "you click it, just request a new one from the sign-in page.",

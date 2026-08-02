@@ -27,15 +27,30 @@ prevent.
 So this script derives ONLY what the structured fields support:
 
   * `rule_changes_on` in the FUTURE  -> a dated, signed change not yet in force.
-  * `rule_changes_on` in the PAST    -> a change whose date has passed. The
-    charter forbids asserting it took effect without re-verification after the
-    date, so these carry `needs_reverification` and the feed must render the
-    charter's wording ("effective [date]; we re-verify on/after that date"),
-    never "is now in effect".
+  * `last_changed_on`                -> the most recent CONSUMMATED change.
+    Powers "recently changed". The charter forbids asserting it took effect
+    without re-verification after the date, so these carry
+    `needs_reverification` and the feed must render "effective [date]; we
+    re-verify on/after that date", never "is now in effect".
   * `rule_in_flux` with NO date      -> NOT a rule change. These are the
     source-disagreement records (board page contradicts the statute). The
     directive is explicit that these must not be conflated with rule changes,
     so they get their own kind and never appear in the changes list.
+
+## The 2026-08-02 schema split, and why a past `rule_changes_on` is WITHHELD
+
+ScoutLab found `rule_changes_on` was carrying two meanings at once: 34 of 55
+records held a PAST date while the field is consumed as forward-looking. A past
+date in a forward field makes change-alerts fire on history. The orchestrator
+split it: `rule_changes_on` is now strictly forward-looking (null if nothing
+pending) and `last_changed_on` is new for the most recent consummated change.
+
+Until the corrected dataset lands, a PAST date sitting in `rule_changes_on` is
+explicitly untrustworthy -- it may mean "already happened" or it may be a
+stale forward value. This script therefore WITHHOLDS those records to the work
+queue rather than publishing them as "recently changed", and only treats a past
+date as a real recent change when it arrives in `last_changed_on`. Future dates
+are unambiguous under both schemas and still publish.
 
 Anything else is not emitted. A smaller, correct feed beats a complete one
 with a guessed label.
@@ -94,6 +109,7 @@ def build(today: date) -> tuple[list[dict], list[str]]:
 
     events: list[dict] = []
     rejected: list[str] = []
+    withheld_ambiguous: list[dict] = []
 
     for r in rules:
         slug = SLUG_ALIASES.get(r.get("state_slug"), r.get("state_slug"))
@@ -109,14 +125,38 @@ def build(today: date) -> tuple[list[dict], list[str]]:
             rejected.append(f"{slug}: no citation or no primary-source URL -- charter forbids publishing")
             continue
 
-        changes_on = r.get("rule_changes_on")
-        parsed: date | None = None
-        if changes_on:
+        def _iso(value: object, field: str) -> date | None:
+            if not value:
+                return None
             try:
-                parsed = date.fromisoformat(changes_on)
+                return date.fromisoformat(str(value))
             except (TypeError, ValueError):
-                rejected.append(f"{slug}: unparseable rule_changes_on {changes_on!r}")
-                continue
+                rejected.append(f"{slug}: unparseable {field} {value!r}")
+                return None
+
+        changes_on = r.get("rule_changes_on")
+        last_changed = r.get("last_changed_on")
+        forward = _iso(changes_on, "rule_changes_on")
+        recent = _iso(last_changed, "last_changed_on")
+
+        # Schema-split transition guard. A PAST value in the forward-looking
+        # field is ambiguous until ScoutLab's corrected dataset lands, so it is
+        # queued, never published. See the module docstring.
+        if forward is not None and forward <= today and recent is None:
+            withheld_ambiguous.append({
+                "jurisdiction_slug": slug,
+                "jurisdiction": r.get("state") or slug,
+                "status": "UNDETERMINED",
+                "reason": (f"rule_changes_on={changes_on} is in the past and last_changed_on is "
+                           "absent -- ambiguous under the 2026-08-02 schema split; may be a "
+                           "consummated change or a stale forward value"),
+                "has_citation_url": bool(citation_url),
+                "confidence": r.get("confidence"),
+                "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)",
+            })
+            continue
+
+        parsed = forward if (forward is not None and forward > today) else recent
 
         base = {
             "event_id": f"{slug}-mobility-{changes_on or 'source-conflict'}",
@@ -146,8 +186,12 @@ def build(today: date) -> tuple[list[dict], list[str]]:
         else:
             base.update({
                 "kind": KIND_CHANGE,
-                "effective_date": changes_on,
-                "status": "ENACTED",
+                "effective_date": parsed.isoformat(),
+                # Emitted natively by ScoutLab/DiffLab from 2026-08-02; falls
+                # back to ENACTED only when the record predates that change.
+                "status": r.get("status") or "ENACTED",
+                "status_evidence": r.get("status_evidence"),
+                "status_source_url": _http(r.get("status_source_url")),
                 "upcoming": parsed > today,
                 # The charter forbids asserting a change took effect without
                 # re-verifying after the date passed.
@@ -156,7 +200,7 @@ def build(today: date) -> tuple[list[dict], list[str]]:
         events.append(base)
 
     events.sort(key=lambda e: (e.get("effective_date") or "9999-99-99", e["jurisdiction_slug"]))
-    return events, rejected
+    return events, rejected, withheld_ambiguous
 
 
 def withheld_queue(today: date) -> list[dict]:
@@ -167,7 +211,8 @@ def withheld_queue(today: date) -> list[dict]:
     lands here with the reason, so it gets resolved instead of forgotten.
     """
     rules = json.loads(RULES.read_text(encoding="utf-8"))["records"]
-    published = {e["jurisdiction_slug"] for e in build(today)[0]}
+    events, _, ambiguous = build(today)
+    published = {e["jurisdiction_slug"] for e in events}
     out = []
     for r in rules:
         slug = SLUG_ALIASES.get(r.get("state_slug"), r.get("state_slug"))
@@ -187,12 +232,14 @@ def withheld_queue(today: date) -> list[dict]:
             "confidence": r.get("confidence"),
             "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence",
         })
+    seen = {a["jurisdiction_slug"] for a in ambiguous}
+    out = [o for o in out if o["jurisdiction_slug"] not in seen] + ambiguous
     return sorted(out, key=lambda x: x["jurisdiction_slug"])
 
 
 def main() -> int:
     today = date.today()
-    events, rejected = build(today)
+    events, rejected, _ = build(today)
 
     changes = [e for e in events if e["kind"] == KIND_CHANGE]
     upcoming = [e for e in changes if e.get("upcoming")]

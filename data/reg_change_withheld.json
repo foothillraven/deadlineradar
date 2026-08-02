@@ -1,0 +1,108 @@
+{
+  "_meta": {
+    "purpose": "Jurisdictions NOT published to the changes feed, and why. A WORK QUEUE.",
+    "policy": "Orchestrator 2026-08-02: withhold rather than guess a charter status; 40 well-labelled items beat 55 with some mislabelled. Tracked here so held-back items get resolved rather than silently forgotten.",
+    "as_of": "2026-08-01"
+  },
+  "withheld": [
+    {
+      "jurisdiction_slug": "arkansas",
+      "jurisdiction": "Arkansas",
+      "status": "UNDETERMINED",
+      "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
+      "has_citation_url": true,
+      "confidence": "dual_source",
+      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+    },
+    {
+      "jurisdiction_slug": "florida",
+      "jurisdiction": "Florida",
+      "status": "UNDETERMINED",
+      "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
+      "has_citation_url": true,
+      "confidence": "dual_source",
+      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+    },
+    {
+      "jurisdiction_slug": "hawaii",
+      "jurisdiction": "Hawaii",
+      "status": "UNDETERMINED",
+      "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
+      "has_citation_url": true,
+      "confidence": "dual_source",
+      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+    },
+    {
+      "jurisdiction_slug": "minnesota",
+      "jurisdiction": "Minnesota",
+      "status": "UNDETERMINED",
+      "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
+      "has_citation_url": true,
+      "confidence": "dual_source",
+      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+    },
+    {
+      "jurisdiction_slug": "nevada",
+      "jurisdiction": "Nevada",
+      "status": "UNDETERMINED",
+      "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
+      "has_citation_url": true,
+      "confidence": "dual_source",
+      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+    },
+    {
+      "jurisdiction_slug": "north-carolina",
+      "jurisdiction": "North Carolina",
+      "status": "UNDETERMINED",
+      "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
+      "has_citation_url": true,
+      "confidence": "dual_source",
+      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+    },
+    {
+      "jurisdiction_slug": "north-dakota",
+      "jurisdiction": "North Dakota",
+      "status": "UNDETERMINED",
+      "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
+      "has_citation_url": true,
+      "confidence": "dual_source",
+      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+    },
+    {
+      "jurisdiction_slug": "ohio",
+      "jurisdiction": "Ohio",
+      "status": "UNDETERMINED",
+      "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
+      "has_citation_url": true,
+      "confidence": "dual_source",
+      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+    },
+    {
+      "jurisdiction_slug": "virginia",
+      "jurisdiction": "Virginia",
+      "status": "UNDETERMINED",
+      "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
+      "has_citation_url": true,
+      "confidence": "dual_source",
+      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+    },
+    {
+      "jurisdiction_slug": "wisconsin",
+      "jurisdiction": "Wisconsin",
+      "status": "UNDETERMINED",
+      "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
+      "has_citation_url": true,
+      "confidence": "single_source",
+      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+    },
+    {
+      "jurisdiction_slug": "wyoming",
+      "jurisdiction": "Wyoming",
+      "status": "UNDETERMINED",
+      "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
+      "has_citation_url": true,
+      "confidence": "dual_source",
+      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+    }
+  ]
+}

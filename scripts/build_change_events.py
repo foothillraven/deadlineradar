@@ -57,6 +57,7 @@ from datetime import date
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RULES = ROOT / "worker" / "src" / "mobility_rules.json"
 OUT = ROOT / "data" / "reg_change_events.json"
+QUEUE = ROOT / "data" / "reg_change_withheld.json"
 DEADLINES = ROOT / "data" / "cpa_deadlines.json"
 
 KIND_CHANGE = "rule_change"
@@ -158,6 +159,37 @@ def build(today: date) -> tuple[list[dict], list[str]]:
     return events, rejected
 
 
+def withheld_queue(today: date) -> list[dict]:
+    """Records we are NOT publishing, as a WORK QUEUE rather than a silent drop.
+
+    Orchestrator refinement (2026-08-02): "a withheld item is a work queue, not
+    a decision." Anything held back for want of a defensible charter status
+    lands here with the reason, so it gets resolved instead of forgotten.
+    """
+    rules = json.loads(RULES.read_text(encoding="utf-8"))["records"]
+    published = {e["jurisdiction_slug"] for e in build(today)[0]}
+    out = []
+    for r in rules:
+        slug = SLUG_ALIASES.get(r.get("state_slug"), r.get("state_slug"))
+        if slug in published:
+            continue
+        if r.get("rule_in_flux") is True:
+            reason = "flagged in flux but no citation/primary-source URL"
+        else:
+            reason = ("no rule_changes_on and not flagged in flux -- no evidence of a change; "
+                      "a charter status cannot be derived from structure alone")
+        out.append({
+            "jurisdiction_slug": slug,
+            "jurisdiction": r.get("state") or slug,
+            "status": "UNDETERMINED",
+            "reason": reason,
+            "has_citation_url": bool(_http(r.get("citation_url"))),
+            "confidence": r.get("confidence"),
+            "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence",
+        })
+    return sorted(out, key=lambda x: x["jurisdiction_slug"])
+
+
 def main() -> int:
     today = date.today()
     events, rejected = build(today)
@@ -186,7 +218,20 @@ def main() -> int:
         "events": events,
     }, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
+    held = withheld_queue(today)
+    QUEUE.write_text(json.dumps({
+        "_meta": {
+            "purpose": "Jurisdictions NOT published to the changes feed, and why. A WORK QUEUE.",
+            "policy": "Orchestrator 2026-08-02: withhold rather than guess a charter status; 40 "
+                      "well-labelled items beat 55 with some mislabelled. Tracked here so held-back "
+                      "items get resolved rather than silently forgotten.",
+            "as_of": today.isoformat(),
+        },
+        "withheld": held,
+    }, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
     print(f"wrote {OUT.relative_to(ROOT)}")
+    print(f"wrote {QUEUE.relative_to(ROOT)}  ({len(held)} withheld, tracked not dropped)")
     print(f"  rule changes   : {len(changes)}  ({len(upcoming)} upcoming, {len(recent)} past-dated)")
     print(f"  source conflicts: {len(conflicts)}  (rendered separately -- NOT rule changes)")
     print(f"  past-dated needing re-verification before we may claim they took effect: "

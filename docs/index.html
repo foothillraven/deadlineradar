@@ -815,6 +815,14 @@
   .dr-account-ok { color: #1f9e5c; font-size: 0.85rem; margin-top: 0.6rem; }
   .dr-account-err { color: #c33737; font-size: 0.85rem; margin-top: 0.6rem; }
 
+  /* ---- Sign-in account chooser, /signin/ (2026-08-02) ---- */
+  .signin-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; margin: 1.4rem 0 1.8rem; }
+  .signin-card { display: flex; flex-direction: column; gap: 0.35rem; background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 11px; padding: 1.1rem 1.2rem; text-decoration: none; color: inherit; }
+  .signin-card:hover { border-color: var(--accent); }
+  .signin-kind { font-family: var(--font-display); font-size: 1.05rem; font-weight: 650; }
+  .signin-desc { font-size: 0.85rem; color: var(--muted); line-height: 1.45; }
+  .signin-go { font-size: 0.85rem; color: var(--accent); font-weight: 600; margin-top: 0.3rem; }
+  @media (max-width: 620px) { .signin-choice { grid-template-columns: 1fr; } }
   /* ---- Conventional sign-in card, /firm-login/ (2026-07-31) ---- */
   /* One form at a time, centred, narrow. The width cap is the point: a
      sign-in form stretched to a content column is one of the tells that made

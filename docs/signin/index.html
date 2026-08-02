@@ -814,6 +814,14 @@
   .dr-account-ok { color: #1f9e5c; font-size: 0.85rem; margin-top: 0.6rem; }
   .dr-account-err { color: #c33737; font-size: 0.85rem; margin-top: 0.6rem; }
 
+  /* ---- Sign-in account chooser, /signin/ (2026-08-02) ---- */
+  .signin-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; margin: 1.4rem 0 1.8rem; }
+  .signin-card { display: flex; flex-direction: column; gap: 0.35rem; background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 11px; padding: 1.1rem 1.2rem; text-decoration: none; color: inherit; }
+  .signin-card:hover { border-color: var(--accent); }
+  .signin-kind { font-family: var(--font-display); font-size: 1.05rem; font-weight: 650; }
+  .signin-desc { font-size: 0.85rem; color: var(--muted); line-height: 1.45; }
+  .signin-go { font-size: 0.85rem; color: var(--accent); font-weight: 600; margin-top: 0.3rem; }
+  @media (max-width: 620px) { .signin-choice { grid-template-columns: 1fr; } }
   /* ---- Conventional sign-in card, /firm-login/ (2026-07-31) ---- */
   /* One form at a time, centred, narrow. The width cap is the point: a
      sign-in form stretched to a content column is one of the tells that made
@@ -900,12 +908,26 @@
   <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>
 </header>
 <h1>Sign in</h1>
-<p class="subhead">See every license renewal deadline we're tracking for you, in one place.</p>
+<p class="subhead">Two kinds of account. Pick the one you have.</p>
 
-<div class="signup-form">
-  <h2>Your reminders</h2>
+<div class="signin-choice">
+  <a class="signin-card" href="/firm-login/">
+    <span class="signin-kind">Firm account</span>
+    <span class="signin-desc">You manage renewals for a team. Roster, calendar, CPE tracking.</span>
+    <span class="signin-go">Sign in to your firm dashboard &rarr;</span>
+  </a>
+  <a class="signin-card" href="#signin-individual">
+    <span class="signin-kind">Just my own license</span>
+    <span class="signin-desc">You get reminders for your own renewal dates. Free, no password.</span>
+    <span class="signin-go">Sign in below &darr;</span>
+  </a>
+</div>
+
+<div class="signup-form" id="signin-individual">
+  <h2>Sign in to your own reminders</h2>
   <p class="signup-microcopy">Free, and there's no password &mdash; enter the email address your
-  reminders go to and we'll send you a one-time sign-in link.</p>
+  reminders go to and we'll send you a one-time sign-in link. <strong>Managing a firm? Use the firm
+  dashboard above &mdash; this form cannot sign you into a firm account.</strong></p>
   <form method="post" action="/api/subscriber/login">
     <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
     <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_"></div>
@@ -916,13 +938,6 @@
   </form>
   <p class="signup-microcopy">Not signed up yet? <a href="/">Pick your state</a> to start getting free
   renewal reminders &mdash; no account needed.</p>
-</div>
-
-<div class="signup-form">
-  <h2>Firm account?</h2>
-  <p class="signup-microcopy">If you manage renewals for a team, your dashboard is separate from
-  this one.</p>
-  <p><a class="cta-button" href="/firm-login/">Sign in to your firm dashboard &rarr;</a></p>
 </div>
 
 </div>

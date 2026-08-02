@@ -1,6 +1,6 @@
 {
   "schema_note": "Flat array of renewal records. One state can have multiple records (different license_type, cohort, or renewal group). generate.py groups records by state_slug to build one page per state. next_deadline_computed is the actual next upcoming deadline computed from as_of_date forward -- it is NOT a static fact, it must be recomputed if this file is regenerated on a later date. null means the record's pattern is not resolvable to a single date from state-level facts alone (birth-month rules with no personalization, or a firm-cycle anchor year not present in verified source data) -- in those cases see computation/cohort_groups/data_gap_note for how the page should handle it instead of asserting a fake date.",
-  "as_of_date": "2026-07-30",
+  "as_of_date": "2026-08-02",
   "spike_source": "b3_saas/day0_spike_results.md -- 10-state Day-0/7 spike, 2026-07-03. CPA-only scope; contractor licensing dropped as structurally fragmented (no single state-level license in 6/10 sampled states).",
   "records": [
     {
@@ -810,9 +810,9 @@
       "license_type_label": "CPA Firm License/Permit",
       "renewal_pattern": "other",
       "cycle_description": "Biennial, single fixed schedule for ALL firms (not license-number split): renew online in July of EVEN-numbered years. Standard fee through Aug 1; late fee through Sept 1; expires and requires Board reinstatement thereafter.",
-      "next_deadline_computed": "2026-08-01",
+      "next_deadline_computed": "2028-08-01",
       "source_url": "https://cpa.ky.gov/cpafirms/Pages/InState-Firm-License.aspx",
-      "last_verified": "2026-07-30",
+      "last_verified": "2026-08-02",
       "wave": 5,
       "citation": "Confirmed via two dated Kentucky Board of Accountancy E-Newsletters (Summer 2018 and 2024 Annual), each reporting a real completed firm-permit renewal cycle landing on an even-numbered year, together with the Board's current renewal page (Aug 1 / even-numbered years) -- verified 2026-07-30.",
       "citation_url": "https://cpa.ky.gov/Documents/2024%20KSBOA%20Annual%20Newsletter%20(Final).pdf",
@@ -1378,9 +1378,9 @@
       "license_type_label": "Individual CPA/PA certificate and firm permit",
       "renewal_pattern": "fixed_calendar",
       "cycle_description": "Individual CPA/PA certificates renew annually, due August 1 (postmark, or 11:59pm Central if filing online) -- confirmed by the Board's current renewal-instructions/FAQ pages (dlr.sd.gov) together with the amended administrative rule (ARSD 20:75:03:12). Firm permits are codified to expire July 31 annually (ARSD 20:75:03:08: 'expire annually on July thirty-first'), but the Board's own practical guidance treats the filing deadline for firms the same as for individuals -- August 1 -- so firms effectively get the same runway even though their codified expiration date is one day earlier. ARSD 20:75:03:12 was amended by 51 SDR 141 (effective 2025-07-01) and again by 52 SDR 125 (effective 2026-07-01); ARSD 20:75:03:08 was amended by 51 SDR 141 (effective 2025-07-01). Both amendments left the codified dates and the practical filing deadline unchanged (confirmed against sdlegislature.gov's official rule-history lines for both sections).",
-      "next_deadline_computed": "2026-08-01",
+      "next_deadline_computed": "2027-08-01",
       "source_url": "https://dlr.sd.gov/accountancy/",
-      "last_verified": "2026-07-30",
+      "last_verified": "2026-08-02",
       "wave": 7,
       "citation": "ARSD 20:75:03:12",
       "citation_url": "https://law.cornell.edu/regulations/south-dakota/ARSD-20-75-03-12"

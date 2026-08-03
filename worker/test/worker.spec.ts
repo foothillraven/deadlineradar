@@ -1186,6 +1186,97 @@ describe("requireFirmSession -- the single auth gate every future firm-scoped ro
     expect(result).not.toBeInstanceOf(Response);
     expect((result as { firmId: string }).firmId).toBe(firmId);
   });
+
+  // AuditLab F-1, 2026-08-02: firms.status was previously enforced on only
+  // 2 of 12+ firm routes (the two mobility ones); every other route,
+  // including the roster and CPE data, stayed fully readable/writable
+  // regardless of suspension. This is the fix's central test -- everything
+  // else (the individual routes below, the 3 session-creation entry
+  // points) exists to prove this one property holds everywhere, not just
+  // here in isolation.
+  it("rejects an otherwise-valid session once the firm's status is not 'active'", async () => {
+    const { requireFirmSession } = await import("../src/index");
+    const firmId = (
+      await store.createFirm(env.DB, { name: "Suspended Session Firm", adminEmail: `suspsess-${Date.now()}@example.com` })
+    ).id;
+    const { rawSessionToken } = await store.createSession(env.DB, firmId);
+    await env.DB.prepare("UPDATE firms SET status = 'suspended' WHERE id = ?1").bind(firmId).run();
+
+    const request = new Request("https://deadline-radar.com/firm-dashboard/", {
+      headers: { Cookie: `dr_firm_session=${rawSessionToken}` },
+    });
+    const result = await requireFirmSession(request, env);
+    expect(result).toBeInstanceOf(Response);
+    expect((result as Response).status).toBe(403);
+    const body = await (result as Response).text();
+    expect(body).toContain("sort it out");
+  });
+});
+
+describe("AuditLab F-1 -- firms.status is enforced on real routes, not just requireFirmSession() in isolation", () => {
+  async function suspendedFirmSession(): Promise<{ firmId: string; cookie: string }> {
+    const { firmId, cookie } = await createFirmWithSession(
+      "Suspended Routes Firm",
+      `suspended-routes-${Date.now()}@example.com`
+    );
+    await env.DB.prepare("UPDATE firms SET status = 'suspended' WHERE id = ?1").bind(firmId).run();
+    return { firmId, cookie };
+  }
+
+  it("GET /firm/licenses -- was reachable while suspended (AuditLab evidence), now 403s", async () => {
+    const { cookie } = await suspendedFirmSession();
+    expect((await getFirmLicenses(cookie)).status).toBe(403);
+  });
+
+  it("POST /firm/licenses -- was reachable while suspended (AuditLab evidence), now 403s", async () => {
+    const { cookie } = await suspendedFirmSession();
+    const resp = await postFirmLicense(cookie, {
+      email: `suspended-staff-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    expect(resp.status).toBe(403);
+  });
+
+  it("POST /firm/cpe -- was reachable while suspended (AuditLab evidence), now 403s", async () => {
+    const { cookie } = await suspendedFirmSession();
+    const resp = await postCpeEntry(
+      cookie,
+      { subscriber_id: "does-not-matter", entry_date: "2026-06-01", hours: "1", category: "general" },
+      "203.0.113.220"
+    );
+    expect(resp.status).toBe(403);
+  });
+
+  it("POST /firm/login/password -- a suspended firm cannot mint a NEW session even with the correct password", async () => {
+    const email = `suspended-passwordlogin-${Date.now()}@example.com`;
+    const firm = await firmWithPassword(email, STRONG_PASSWORD);
+    await env.DB.prepare("UPDATE firms SET status = 'suspended' WHERE id = ?1").bind(firm.id).run();
+    const resp = await postPasswordLogin(
+      { admin_email: email, password: STRONG_PASSWORD },
+      "203.0.113.221"
+    );
+    expect(resp.status).toBe(403);
+    expect(resp.headers.get("Set-Cookie")).toBeNull();
+  });
+
+  it("POST /firm/login/verify (magic link) -- a suspended firm's login token is refused, and is still burned (single-use)", async () => {
+    const firmId = (
+      await store.createFirm(env.DB, { name: "Suspended Verify Firm", adminEmail: `suspended-verify-${Date.now()}@example.com` })
+    ).id;
+    await env.DB.prepare("UPDATE firms SET status = 'suspended' WHERE id = ?1").bind(firmId).run();
+    const { rawToken } = await store.createLoginToken(env.DB, firmId);
+
+    const resp = await postFirmLoginVerify(rawToken, "203.0.113.222");
+    expect(resp.status).toBe(403);
+    expect(resp.headers.get("Set-Cookie")).toBeNull();
+
+    // Confirms the token is still single-use (not silently left valid for
+    // reactivation-then-replay) -- the same guarantee every other login
+    // token in this file already carries.
+    const second = await postFirmLoginVerify(rawToken, "203.0.113.223");
+    expect(second.status).toBe(400);
+  });
 });
 
 describe("store.ts hashToken -- login/session token hashing", () => {
@@ -3490,8 +3581,16 @@ describe("POST /firm/mobility/check -- pay gate", () => {
     const { firmId, cookie } = await firmOnTier("firm", new Date().toISOString());
     await env.DB.prepare("UPDATE firms SET status = 'suspended' WHERE id = ?1").bind(firmId).run();
     const resp = await postMobilityCheck(VALID_CHECK, cookie);
+    // requireFirmSession() now blocks a suspended firm before this route's
+    // OWN checkPremiumAccess() call ever runs (AuditLab F-1, 2026-08-02) --
+    // that gate previously only fired here and on the coverage endpoint,
+    // now every firm route enforces it at the one shared auth check. The
+    // 403 HTML page comes from requireFirmSession(), not a JSON body with
+    // a `reason` field anymore; requireFirmSession()'s own test suite
+    // covers that response shape directly.
     expect(resp.status).toBe(403);
-    expect((await resp.json<{ reason: string }>()).reason).toBe("firm_inactive");
+    const body = await resp.text();
+    expect(body).toContain("sort it out");
   });
 
   it("gates the COVERAGE endpoint too -- the premium dataset's shape is not free", async () => {

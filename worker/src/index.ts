@@ -1229,20 +1229,28 @@ async function handleFirmLoginVerify(
       "That sign-in link is invalid, expired, or already used. Please request a new one and try again."
     );
   }
+  // The token is already consumed at this point (verifyAndConsumeLoginToken
+  // is single-use), so a suspended firm's still-unused link is burned by
+  // this check rather than reusable later once/if reactivated -- consistent
+  // with every other "prove you're allowed in, THEN act" gate in this file.
+  // (AuditLab F-1, 2026-08-02: session creation itself, not just an
+  // existing session's continued use, must respect firms.status.)
+  const firm = await store.getFirmById(env.DB, result.firmId);
+  if (!firm || firm.status !== "active") {
+    return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
+  }
   if (
     result.purpose !== "password_reset" &&
     typeof optionalNewPassword === "string" &&
     optionalNewPassword.length > 0 &&
-    validatePasswordStrength(optionalNewPassword).ok
+    validatePasswordStrength(optionalNewPassword).ok &&
+    !firm.password_hash
   ) {
-    const firm = await store.getFirmById(env.DB, result.firmId);
-    if (firm && !firm.password_hash) {
-      try {
-        await store.setFirmPassword(env.DB, firm.id, await hashPassword(optionalNewPassword, env.PASSWORD_PEPPER));
-      } catch {
-        // Never let a failed opportunistic password-set fail the sign-in
-        // itself -- same posture as handleFirmPasswordLogin's rehash step.
-      }
+    try {
+      await store.setFirmPassword(env.DB, firm.id, await hashPassword(optionalNewPassword, env.PASSWORD_PEPPER));
+    } catch {
+      // Never let a failed opportunistic password-set fail the sign-in
+      // itself -- same posture as handleFirmPasswordLogin's rehash step.
     }
   }
   const { rawSessionToken } = await store.createSession(
@@ -1313,6 +1321,16 @@ export async function requireFirmSession(
   const result = await store.verifySession(env.DB, raw);
   if (!result) {
     return errorPage(401, "Your session has expired or is invalid. Please sign in again.");
+  }
+  // A suspended/inactive firm must not keep working just because its
+  // session predates the suspension (AuditLab F-1, 2026-08-02: this was
+  // previously checked on 2 of 12+ firm routes -- the two mobility ones --
+  // leaving every other route, including the roster and CPE data, fully
+  // readable/writable regardless of status). This is the ONE place that
+  // check now needs to live, since it's the one gate every firm route
+  // already calls first.
+  if (result.firmStatus !== "active") {
+    return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
   }
   return result;
 }
@@ -2900,6 +2918,15 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
     return errorPage(400, INVALID_CREDENTIALS_MESSAGE);
   }
 
+  // Checked AFTER password verification, deliberately -- moving this earlier
+  // would let a caller distinguish "wrong password" from "suspended account"
+  // by response, handing an attacker free account-status enumeration on top
+  // of a correct guess. Once they've proven they hold the real password,
+  // revealing suspension is no longer a new leak. (AuditLab F-1, 2026-08-02.)
+  if (firm.status !== "active") {
+    return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
+  }
+
   // Successful login is the only moment the plaintext is legitimately in
   // hand, so it is the only moment an outdated work factor can be upgraded
   // without asking the user to do anything.
@@ -3237,6 +3264,14 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
   // directly, and no email is consulted at all.
   const existingIdentity = await store.findOauthIdentity(env.DB, provider.id, claims.sub);
   if (existingIdentity) {
+    // SSO must respect suspension too -- previously only checked on the
+    // password/magic-link paths (AuditLab F-1, 2026-08-02). A linked
+    // provider account is exactly the kind of access a suspension needs to
+    // actually revoke.
+    const linkedFirm = await store.getFirmById(env.DB, existingIdentity.firm_id);
+    if (!linkedFirm || linkedFirm.status !== "active") {
+      return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
+    }
     await store.touchOauthIdentityLogin(env.DB, existingIdentity.id, existingIdentity.firm_id, claims.email);
     const { rawSessionToken } = await store.createSession(env.DB, existingIdentity.firm_id);
     return new Response(null, {
@@ -3264,6 +3299,14 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
     // SSO callback would route straight around it. SSO connects to an
     // account that already exists; it is not a second signup door.
     return errorPage(400, SSO_NO_ACCOUNT_MESSAGE);
+  }
+  // AuditLab F-1, 2026-08-02: a suspended firm must not be able to LINK a
+  // new provider identity to itself, any more than it can log in any other
+  // way. `firm` here is fresh (fetched moments ago in this same request),
+  // so it covers both branches below (new link, and the concurrent-link
+  // race, which re-validates against this same firm.id).
+  if (firm.status !== "active") {
+    return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
   }
 
   const linked = await store.linkOauthIdentity(env.DB, {

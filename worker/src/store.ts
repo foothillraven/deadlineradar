@@ -861,12 +861,23 @@ export async function clearSessionResetAuthorization(db: D1Database, sessionId: 
 export async function verifySession(
   db: D1Database,
   rawSessionToken: string
-): Promise<{ firmId: string; sessionId: string; passwordResetAuthorized: boolean } | null> {
+): Promise<{ firmId: string; sessionId: string; passwordResetAuthorized: boolean; firmStatus: string } | null> {
   const sessionTokenHash = await hashToken(rawSessionToken);
+  // JOIN firms so the caller learns the firm's CURRENT status in the same
+  // query, not a second round trip -- a suspended firm's session must stop
+  // working the moment status changes, not just at its next re-authenticate.
+  // (AuditLab F-1, 2026-08-02: `firms.status` was previously enforced on 2
+  // of 12+ firm routes; requireFirmSession() is the one gate every one of
+  // them already calls, so fixing it here fixes all of them at once.)
   const row = await db
-    .prepare(`SELECT * FROM firm_sessions WHERE session_token_hash = ?1`)
+    .prepare(
+      `SELECT s.*, f.status AS firm_status
+         FROM firm_sessions s
+         JOIN firms f ON f.id = s.firm_id
+        WHERE s.session_token_hash = ?1`
+    )
     .bind(sessionTokenHash)
-    .first<FirmSessionRow>();
+    .first<FirmSessionRow & { firm_status: string }>();
   if (!row) return null;
   if (Date.parse(row.expires_at) <= Date.now()) return null;
   await db.prepare(`UPDATE firm_sessions SET last_seen_at = ?1 WHERE id = ?2`).bind(nowIso(), row.id).run();
@@ -881,6 +892,7 @@ export async function verifySession(
     // unexpected, must read as NOT authorized. The permissive direction is
     // the dangerous one here.
     passwordResetAuthorized: (row as { password_reset_authorized?: unknown }).password_reset_authorized === 1,
+    firmStatus: row.firm_status,
   };
 }
 

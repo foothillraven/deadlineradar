@@ -9,7 +9,10 @@ import {
 } from "../src/mobility";
 
 /**
- * Data-integrity tests for the mobility ruleset (2026-07-31, ScoutLab batch 1).
+ * Data-integrity tests for the mobility ruleset. Started 2026-07-31 as
+ * ScoutLab batch 1 (5 states); batches 2-7 completed 2026-08-01 and brought
+ * coverage to all 55 jurisdictions (ScoutLab's own gate: 55 distinct, 0
+ * duplicates, 48 dual_source, 7 single_source).
  *
  * These do NOT re-test the engine -- that is mobility.spec.ts's job. They test
  * the DATA, because the data is the part sourced from outside this repo, and
@@ -18,17 +21,27 @@ import {
  * one: absent yields `not_verified`, which is honest, while a half-parsed row
  * could yield a confident answer built on dropped fields.
  *
- * ScoutLab stated the batch was "built to match normalizeRuleRow() exactly".
+ * ScoutLab stated each batch was "built to match normalizeRuleRow() exactly".
  * That claim is the thing under test here, not an assumption.
  */
 
 const records = (rulesData as { records: unknown[] }).records;
-const BATCH1 = ["texas", "illinois", "new-york", "california", "florida"];
+const CANONICAL_55 = [
+  "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut",
+  "delaware", "district-of-columbia", "florida", "georgia", "guam", "hawaii", "idaho",
+  "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana", "maine", "maryland",
+  "massachusetts", "michigan", "minnesota", "mississippi", "missouri", "montana", "nebraska",
+  "nevada", "new-hampshire", "new-jersey", "new-mexico", "new-york", "north-carolina",
+  "north-dakota", "northern-mariana-islands", "ohio", "oklahoma", "oregon", "pennsylvania",
+  "puerto-rico", "rhode-island", "south-carolina", "south-dakota", "tennessee", "texas",
+  "us-virgin-islands", "utah", "vermont", "virginia", "washington", "west-virginia",
+  "wisconsin", "wyoming",
+];
 
 describe("mobility ruleset -- file shape", () => {
-  it("carries the batch-1 states", () => {
+  it("carries all 55 canonical jurisdictions, zero missing, zero extra", () => {
     const slugs = records.map((r) => (r as { state_slug: string }).state_slug).sort();
-    expect(slugs).toEqual([...BATCH1].sort());
+    expect(slugs).toEqual([...CANONICAL_55].sort());
   });
 
   it("has no duplicate states -- a dupe would make the engine's pick order silently matter", () => {
@@ -126,7 +139,7 @@ describe("every record survives normalizeRuleRow() with nothing silently dropped
   }
 });
 
-describe("the engine's answers for batch 1 are conservative where they should be", () => {
+describe("the engine's answers are conservative where they should be", () => {
   const rows = records
     .map((r) => normalizeRuleRow(r))
     .filter((r): r is MobilityRuleRow => r !== null);
@@ -180,7 +193,7 @@ describe("the engine's answers for batch 1 are conservative where they should be
     expect(r.firm.verdict).toBe("not_verified");
   });
 
-  it("`overall` is never greener than either half, for every batch-1 row", () => {
+  it("`overall` is never greener than either half, for every row", () => {
     for (const row of rows) {
       const r = evaluateMobility(bestCaseInput(row), row);
       if (r.individual.verdict !== "clear" || r.firm.verdict !== "clear") {
@@ -190,13 +203,16 @@ describe("the engine's answers for batch 1 are conservative where they should be
     }
   });
 
-  it("an unsourced state is not_verified, not a guess", () => {
-    // Ohio is deliberately absent from batch 1.
-    const missing = rows.find((r) => r.state_slug === "ohio");
+  it("a jurisdiction outside the canonical 55 is unsourced, not a guess", () => {
+    // All 55 canonical jurisdictions are covered as of batch 7 (see the
+    // file-shape test above) -- this checks the invariant against a slug
+    // that can never be a real jurisdiction, rather than depending on any
+    // one state staying absent.
+    const missing = rows.find((r) => r.state_slug === "atlantis");
     expect(missing).toBeUndefined();
   });
 
-  it("every batch-1 row is inside its verification TTL today", () => {
+  it("every row is inside its verification TTL today", () => {
     const cutoff = Date.now() - MOBILITY_VERIFICATION_TTL_DAYS * 86_400_000;
     for (const row of rows) {
       expect(

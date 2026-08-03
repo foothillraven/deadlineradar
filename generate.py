@@ -2933,9 +2933,10 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   whole firm's staff across multiple states, the firm dashboard below is the same sourced-to-codified-
   law data in one roster view &mdash; who's current, who's at risk, and who needs to act.</p>
   {_firm_dashboard_mockup_html(by_slug, as_of)}
-  <p class="how-it-works"><strong>$500/year flat for up to 10 staff</strong>, starting with a free
-  30-day pilot, no card required. <a href="for-firms/" style="font-weight:600;">See firm-tier pricing
-  and details &rarr;</a></p>
+  <p class="how-it-works"><strong>$500/year, flat &mdash; up to 25 staff. No per-person pricing.</strong>
+  Starting with a free 30-day pilot, no card required. More than 25 staff?
+  <a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a>. <a href="for-firms/" style="font-weight:600;">See
+  firm-tier pricing and details &rarr;</a></p>
 </section>"""
 
     body = f"""{hero_html}
@@ -3633,8 +3634,9 @@ independently verified &mdash; we won't blur it with the sourced renewal dates t
 trust this site.</p>
 
 <h2>Pricing</h2>
-<p><strong>$500/year flat for firms with up to 10 staff</strong>, about $50/seat/year above that.
-Start with a <strong>free 30-day pilot &mdash; no card required</strong>.</p>
+<p><strong>$500/year, flat &mdash; up to 25 staff. No per-person pricing.</strong>
+Start with a <strong>free 30-day pilot &mdash; no card required</strong>. More than 25 staff?
+<a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a>.</p>
 
 <div class="remind-panel" id="firm-signup">
   <div>
@@ -3684,7 +3686,7 @@ invoice; a self-serve card-payment option is coming soon. Not ready to create an
 """
     return page_shell(
         f"For Firms — {SITE_NAME}",
-        "CPA firm license tracking: $500/year flat for up to 10 staff, free 30-day pilot. "
+        "CPA firm license tracking: $500/year flat for up to 25 staff, free 30-day pilot. "
         "Sourced to the same codified state law DeadlineRadar verifies for every state.",
         body,
         home_href="../",
@@ -3942,6 +3944,23 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
     return div.textContent || div.innerText || "Something went wrong. Please try again.";
   }
 
+  // A failed submit used to reload the whole page, which re-rendered the
+  // Turnstile widget from scratch (fresh token). Now that e.preventDefault()
+  // keeps the same DOM alive across a retry, a stale already-used token sat
+  // in the hidden field -- the capture-phase listener only fills it when
+  // EMPTY (see above), so a second submit resent the same consumed token and
+  // Turnstile rejected it as "Verification failed", masking whatever the
+  // real error was (e.g. a genuinely wrong password) -- reported directly,
+  // 2026-08-03. Clearing the field + resetting the widget on every failure
+  // guarantees the next submit gets a fresh token.
+  function resetTurnstileFor(form) {
+    var field = form.querySelector('input[name="cf-turnstile-response"]');
+    if (field) field.value = "";
+    if (window.turnstile && typeof window.turnstile.reset === "function") {
+      try { window.turnstile.reset(); } catch (err) {}
+    }
+  }
+
   function ajaxifyForm(formId, errorId, onSuccess) {
     var form = document.getElementById(formId);
     var errEl = errorId ? document.getElementById(errorId) : null;
@@ -3960,10 +3979,12 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
         if (resp.redirected) { onSuccess(true); return; }
         return resp.text().then(function (html) {
           if (resp.ok) { onSuccess(false, html); return; }
+          resetTurnstileFor(form);
           if (errEl) { errEl.textContent = firstParagraphText(html); errEl.hidden = false; }
           if (submitBtn) submitBtn.disabled = false;
         });
       }).catch(function () {
+        resetTurnstileFor(form);
         if (errEl) { errEl.textContent = "Something went wrong. Please try again."; errEl.hidden = false; }
         if (submitBtn) submitBtn.disabled = false;
       });

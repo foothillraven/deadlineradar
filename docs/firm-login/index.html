@@ -1127,6 +1127,23 @@
     return div.textContent || div.innerText || "Something went wrong. Please try again.";
   }
 
+  // A failed submit used to reload the whole page, which re-rendered the
+  // Turnstile widget from scratch (fresh token). Now that e.preventDefault()
+  // keeps the same DOM alive across a retry, a stale already-used token sat
+  // in the hidden field -- the capture-phase listener only fills it when
+  // EMPTY (see above), so a second submit resent the same consumed token and
+  // Turnstile rejected it as "Verification failed", masking whatever the
+  // real error was (e.g. a genuinely wrong password) -- reported directly,
+  // 2026-08-03. Clearing the field + resetting the widget on every failure
+  // guarantees the next submit gets a fresh token.
+  function resetTurnstileFor(form) {
+    var field = form.querySelector('input[name="cf-turnstile-response"]');
+    if (field) field.value = "";
+    if (window.turnstile && typeof window.turnstile.reset === "function") {
+      try { window.turnstile.reset(); } catch (err) {}
+    }
+  }
+
   function ajaxifyForm(formId, errorId, onSuccess) {
     var form = document.getElementById(formId);
     var errEl = errorId ? document.getElementById(errorId) : null;
@@ -1145,10 +1162,12 @@
         if (resp.redirected) { onSuccess(true); return; }
         return resp.text().then(function (html) {
           if (resp.ok) { onSuccess(false, html); return; }
+          resetTurnstileFor(form);
           if (errEl) { errEl.textContent = firstParagraphText(html); errEl.hidden = false; }
           if (submitBtn) submitBtn.disabled = false;
         });
       }).catch(function () {
+        resetTurnstileFor(form);
         if (errEl) { errEl.textContent = "Something went wrong. Please try again."; errEl.hidden = false; }
         if (submitBtn) submitBtn.disabled = false;
       });

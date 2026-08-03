@@ -1112,7 +1112,31 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
     return errorPage(400, "Verification failed -- please try again.");
   }
 
-  const firmId = existing ? existing.id : (await store.createFirm(env.DB, { name: nameRaw, adminEmail: email })).id;
+  // AuditLab F-4, 2026-08-02: `existing` was checked above, but nothing
+  // stopped two concurrent signups for the same email from BOTH seeing
+  // `existing === null` and both reaching createFirm() -- a plain TOCTOU
+  // window, reproduced with two concurrent requests from the same IP (the
+  // rate-limit bucket doesn't serialize them). Migration 0015 added a
+  // UNIQUE index on the normalized admin_email specifically so the LOSING
+  // insert now fails loudly instead of silently creating an unreachable
+  // second row (findFirmByAdminEmail() is LIMIT 1 with no ORDER BY -- only
+  // one of the two would ever be reachable by any auth path, orphaning the
+  // other's roster). Caught here and re-read, same posture as
+  // handleOauthCallback()'s existing linkOauthIdentity() race handling: a
+  // concurrent winner is not an error condition for THIS request, it's the
+  // expected outcome of the exact race this migration exists to survive.
+  let firmId: string;
+  if (existing) {
+    firmId = existing.id;
+  } else {
+    try {
+      firmId = (await store.createFirm(env.DB, { name: nameRaw, adminEmail: email })).id;
+    } catch {
+      const raced = await store.findFirmByAdminEmail(env.DB, email);
+      if (!raced) throw new Error("firm signup: insert failed and no concurrent winner found");
+      firmId = raced.id;
+    }
+  }
 
   await issueAndSendFirmLoginLink(env, firmId, email);
 

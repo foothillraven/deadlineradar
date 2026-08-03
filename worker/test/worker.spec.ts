@@ -604,6 +604,38 @@ describe("POST /firm/signup -- firm account creation + login-link send", () => {
     );
     expect(sixth.status).toBe(429);
   });
+
+  // AuditLab F-4, 2026-08-02 (LOW): `firms.admin_email` had no UNIQUE
+  // constraint. Two rows could hold the same email (reproduced via two
+  // concurrent POST /firm/signup from the same IP -- the rate-limit bucket
+  // doesn't serialize them), and findFirmByAdminEmail() is LIMIT 1 with no
+  // ORDER BY, so exactly one is ever reachable by any auth path -- the
+  // other's roster becomes permanently orphaned.
+  it("migration 0015: a second firms row for the same (normalized) admin_email is REJECTED at the DB layer", async () => {
+    const email = `unique-admin-email-${Date.now()}@example.com`;
+    await store.createFirm(env.DB, { name: "First Firm", adminEmail: email });
+    // Case AND whitespace variants -- the unique index is on
+    // LOWER(TRIM(admin_email)), exactly mirroring findFirmByAdminEmail()'s
+    // own lookup, not the raw column.
+    await expect(
+      store.createFirm(env.DB, { name: "Duplicate Firm", adminEmail: `  ${email.toUpperCase()}  ` })
+    ).rejects.toThrow();
+
+    const rows = await env.DB.prepare("SELECT id FROM firms WHERE LOWER(TRIM(admin_email)) = ?1")
+      .bind(email.toLowerCase())
+      .all();
+    expect(rows.results?.length).toBe(1);
+  });
+
+  // handleFirmSignup()'s recovery from a losing concurrent insert (catch ->
+  // re-read via findFirmByAdminEmail(), same posture as
+  // handleOauthCallback()'s existing race handling) is verified by reading
+  // the code, not exercised here: this test runtime is single-threaded per
+  // request, so the actual TOCTOU window between the pre-check and the
+  // INSERT cannot be forced open from outside. What IS directly proven
+  // above is the thing that makes the race survivable at all -- the losing
+  // insert now fails loudly instead of silently succeeding twice. Same
+  // disclosed-gap posture as F-1's OAuth session-creation path.
 });
 
 // Trial gate. POLICY CHANGED 2026-07-30: free consumer-email providers are

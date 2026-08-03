@@ -1,0 +1,27 @@
+-- AuditLab F-4 (LOW), 2026-08-02: `firms.admin_email` had no UNIQUE
+-- constraint. `findFirmByAdminEmail()` is `LIMIT 1` with no `ORDER BY`, so
+-- if two rows ever hold the same normalized admin_email, exactly one is
+-- ever reachable by any auth path -- the other's roster becomes
+-- permanently orphaned. Reproduced by two concurrent POST /firm/signup
+-- requests from the same IP: the per-IP rate-limit bucket does not
+-- serialize them, so both can race past the findFirmByAdminEmail() ->
+-- createFirm() TOCTOU window in handleFirmSignup() before either commits.
+--
+-- Confirmed zero existing duplicates in production before writing this
+-- (`SELECT admin_email, COUNT(*) FROM firms GROUP BY admin_email HAVING
+-- COUNT(*) > 1` returned no rows) -- this migration would otherwise fail
+-- outright rather than silently leaving the gap open.
+--
+-- Expression index on the NORMALIZED value, exactly mirroring
+-- `findFirmByAdminEmail()`'s own `LOWER(TRIM(admin_email))` lookup (same
+-- pattern as migration 0003 for subscribers.email) -- a plain
+-- `UNIQUE(admin_email)` would still let "Foo@Example.com" and
+-- "foo@example.com " race past each other, since the raw column comparison
+-- and the application's actual notion of "the same account" would disagree.
+--
+-- With this in place, the application-layer TOCTOU race now fails LOUD
+-- (a UNIQUE constraint violation on the losing INSERT) instead of silently
+-- succeeding twice -- handleFirmSignup() catches that failure and re-reads
+-- the winning row rather than erroring, same posture as
+-- handleOauthCallback()'s existing linkOauthIdentity() race handling.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_firms_admin_email_unique ON firms (LOWER(TRIM(admin_email)));

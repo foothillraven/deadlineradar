@@ -316,7 +316,7 @@ function originAllowed(request: Request, env: Env): boolean {
   return allowed.has(origin);
 }
 
-function actionConfirmPage(pathname: string, token: string, env: Env): Response {
+async function actionConfirmPage(pathname: string, token: string, env: Env): Promise<Response> {
   const meta = ACTION_PAGES[pathname];
   if (!meta) return errorPage(404, "Not found.");
   const action = `/api${pathname}`; // the Worker is bound to /api/*
@@ -334,8 +334,18 @@ function actionConfirmPage(pathname: string, token: string, env: Env): Response 
   // dedicated set-password page next) and ignored if the firm already has a
   // password, so this can only ever set a first password, never silently
   // change one.
+  //
+  // That "ignored for a password-reset link" behavior used to be invisible
+  // here: this page rendered the field regardless of the token's purpose,
+  // so a firm resetting their password would fill it in, submit, and land
+  // on /set-password/ anyway with their input silently dropped -- reads as
+  // being asked to set a password twice (reported directly, 2026-08-03).
+  // A non-consuming peek at the token's purpose lets the copy match what
+  // will actually happen, without spending the token's one-time use just to
+  // render a page.
+  const tokenPurpose = pathname === "/firm/login/verify" ? await store.peekLoginTokenPurpose(env.DB, token) : null;
   const passwordFieldHtml =
-    pathname === "/firm/login/verify"
+    pathname === "/firm/login/verify" && tokenPurpose !== "password_reset"
       ? `<div style="margin:1rem 0;text-align:left;">` +
         `<label for="dr-optional-password" style="display:block;font-size:13px;margin-bottom:0.3rem;">` +
         `Optional: set a password now, so you can skip this email next time</label>` +
@@ -345,9 +355,17 @@ function actionConfirmPage(pathname: string, token: string, env: Env): Response 
         `border:1px solid #ccc;border-radius:6px;">` +
         `</div>`
       : "";
+  // Same purpose peek as the password field above: a password-reset link
+  // lands on "Choose a new password" next (handleFirmLoginVerify), so say
+  // so here instead of the generic "finish signing in" copy that reads like
+  // the reset is already done.
+  const intro =
+    pathname === "/firm/login/verify" && tokenPurpose === "password_reset"
+      ? "Click below, then choose a new password on the next screen."
+      : meta.intro;
   const body =
     `<h1>${escapeHtml(meta.heading)}</h1>` +
-    `<p>${escapeHtml(meta.intro)}</p>` +
+    `<p>${escapeHtml(intro)}</p>` +
     `<form method="post" action="${escapeHtml(action)}" style="margin-top:1.5rem;">` +
     `<input type="hidden" name="token" value="${escapeHtml(token)}">` +
     csrfFieldHtml +
@@ -379,8 +397,15 @@ function jsonResponse(status: number, obj: unknown): Response {
   return new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
 }
 
-function errorPage(status: number, message: string): Response {
-  return htmlResponse(status, htmlPage("Error", `<p>${escapeHtml(message)}</p>`));
+// `link` (2026-08-03, AuditLab-adjacent finding): several of these error
+// pages tell the reader to "request a new one" or "try again" with no
+// actual way to do either from that page -- a dead end, reported directly
+// off a screenshot of the reused-login-link case. Optional so every
+// existing call site (most of which have no obvious next step to offer)
+// is unaffected.
+function errorPage(status: number, message: string, link?: { href: string; text: string }): Response {
+  const linkHtml = link ? `<p><a href="${escapeHtml(link.href)}">${escapeHtml(link.text)}</a></p>` : "";
+  return htmlResponse(status, htmlPage("Error", `<p>${escapeHtml(message)}</p>${linkHtml}`));
 }
 
 // Every /subscribe path (real signup, resend, honeypot no-op, cooldown/
@@ -1265,7 +1290,8 @@ async function handleFirmLoginVerify(
   if (!result) {
     return errorPage(
       400,
-      "That sign-in link is invalid, expired, or already used. Please request a new one and try again."
+      "That sign-in link is invalid, expired, or already used. Please request a new one and try again.",
+      { href: `${env.STATIC_SITE_BASE_URL || ""}/firm-login/`, text: "Go to firm sign-in" }
     );
   }
   // The token is already consumed at this point (verifyAndConsumeLoginToken
@@ -1558,7 +1584,8 @@ async function handleSubscriberLoginVerify(env: Env, token: string | null): Prom
   if (!result) {
     return errorPage(
       400,
-      "That sign-in link is invalid, expired, or already used. Please request a new one and try again."
+      "That sign-in link is invalid, expired, or already used. Please request a new one and try again.",
+      { href: `${env.STATIC_SITE_BASE_URL || ""}/signin/`, text: "Go to sign-in" }
     );
   }
   const { rawSessionToken, sessionId } = await store.createSubscriberSession(env.DB, result.emailNormalized);
@@ -2665,7 +2692,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
         const token = url.searchParams.get("token");
         if (!token) return errorPage(400, "That link is missing its token.");
-        return actionConfirmPage(url.pathname, token, env);
+        return await actionConfirmPage(url.pathname, token, env);
       }
       return errorPage(404, "Not found.");
     }

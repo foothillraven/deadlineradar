@@ -1167,6 +1167,79 @@ describe("POST /firm/login/verify -- optional inline password-set", () => {
     const after = await firmByAdminEmail(email);
     expect(after?.password_hash).toBeNull();
   });
+
+  // 2026-08-03, reported directly: the GET confirm page used to show this
+  // field regardless of the token's purpose, so a firm resetting their
+  // password would fill it in, submit, and land on /set-password/ anyway
+  // with their input silently dropped -- looked like being asked to set a
+  // password twice.
+  it("the GET confirm page does NOT show the optional password field for a password-reset token", async () => {
+    const email = `firmverify-resetpw-render-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Reset Password Render Firm", admin_email: email }, "203.0.113.201");
+    const firm = await firmByAdminEmail(email);
+    const { rawToken } = await store.createLoginToken(env.DB, firm!.id, "password_reset");
+
+    const resp = await getFirmLoginVerifyPage(rawToken, "203.0.113.201");
+    expect(resp.status).toBe(200);
+    const body = await resp.text();
+    expect(body).not.toContain("dr-optional-password");
+    expect(body).not.toContain("Optional: set a password now");
+    expect(body).toContain("choose a new password on the next screen");
+  });
+
+  it("the GET confirm page DOES show the optional password field for a normal login token", async () => {
+    const email = `firmverify-login-render-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Login Render Firm", admin_email: email }, "203.0.113.202");
+    const firm = await firmByAdminEmail(email);
+    const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
+
+    const resp = await getFirmLoginVerifyPage(rawToken, "203.0.113.202");
+    expect(resp.status).toBe(200);
+    const body = await resp.text();
+    expect(body).toContain("dr-optional-password");
+    expect(body).toContain("Optional: set a password now");
+  });
+});
+
+// 2026-08-03, reported directly off a screenshot: an already-used or
+// expired sign-in link showed prose telling the reader to "request a new
+// one," with no actual way to do that from the page -- a dead end.
+describe("Reused/expired login-link error pages offer an actual next step", () => {
+  it("firm /firm/login/verify: invalid token error links to /firm-login/", async () => {
+    const resp = await postFirmLoginVerify("this-token-does-not-exist", "203.0.113.203");
+    expect(resp.status).toBe(400);
+    const body = await resp.text();
+    expect(body).toContain('href="/firm-login/"');
+  });
+
+  it("subscriber /subscriber/login/verify: invalid token error links to /signin/", async () => {
+    // CSRF nonce is generated at render time regardless of whether the token
+    // itself turns out to be valid (actionConfirmPage() never looks the
+    // token up) -- a real GET first is still required to get a matching
+    // cookie + nonce pair past the CSRF check, so the POST reaches the
+    // "invalid token" branch this test actually targets.
+    const ip = "203.0.113.204";
+    const getResp = await SELF.fetch(
+      "https://deadline-radar.com/api/subscriber/login/verify?token=this-token-does-not-exist",
+      { headers: { "cf-connecting-ip": ip } }
+    );
+    const getHtml = await getResp.text();
+    const nonce = /name="action_csrf" value="([^"]+)"/.exec(getHtml)?.[1] ?? "";
+    const cookie = (getResp.headers.get("Set-Cookie") ?? "").split(";")[0] ?? "";
+
+    const resp = await SELF.fetch("https://deadline-radar.com/api/subscriber/login/verify", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "cf-connecting-ip": ip,
+        Cookie: cookie,
+      },
+      body: form({ token: "this-token-does-not-exist", action_csrf: nonce }),
+    });
+    expect(resp.status).toBe(400);
+    const body = await resp.text();
+    expect(body).toContain('href="/signin/"');
+  });
 });
 
 describe("POST /firm/logout -- deletes the session and clears the cookie", () => {

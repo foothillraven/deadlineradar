@@ -802,6 +802,30 @@ export async function verifyAndConsumeLoginToken(
 }
 
 /**
+ * Read-only lookup of a login token's purpose, for the GET confirm page
+ * ONLY (index.ts's actionConfirmPage()) -- never marks the token used.
+ * Exists because that page needs to know whether to show the "set a
+ * password now" optional field: it's silently a no-op for a password_reset
+ * token (that flow always lands on /set-password/ next), and showing it
+ * anyway reads as "why did it ask me to set a password twice" (reported
+ * directly, 2026-08-03). Same expired/used-then-treat-as-unknown posture as
+ * verifyAndConsumeLoginToken() -- a dead link gets the generic invalid-link
+ * error on submit either way, so there is nothing to gain from
+ * distinguishing purpose on a token that won't redeem.
+ */
+export async function peekLoginTokenPurpose(db: D1Database, rawToken: string): Promise<LoginTokenPurpose | null> {
+  const tokenHash = await hashToken(rawToken);
+  const row = await db
+    .prepare(`SELECT used_at, expires_at, purpose FROM firm_login_tokens WHERE token_hash = ?1`)
+    .bind(tokenHash)
+    .first<{ used_at: string | null; expires_at: string; purpose: unknown }>();
+  if (!row) return null;
+  if (row.used_at) return null;
+  if (Date.parse(row.expires_at) <= Date.now()) return null;
+  return normalizeLoginTokenPurpose(row.purpose);
+}
+
+/**
  * Generates a raw CSPRNG session token, stores only its hash, and returns
  * the RAW value for the caller to set as the `dr_firm_session` cookie (see
  * index.ts). `expires_at` = now + SESSION_TTL_DAYS.

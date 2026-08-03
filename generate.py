@@ -616,15 +616,8 @@ PAGE_CSS = """
   .hfc-card .verified { margin-top: 0.3rem; }
   .hfc-coverage { font-size: 0.78rem; color: var(--muted); margin-top: 0.85rem; text-align: center; }
   .hfc-coverage b { color: var(--accent); }
-  .hfc-pips { display: flex; gap: 0.4rem; justify-content: center; margin-top: 0.55rem; }
-  .hfc-pip {
-    width: 0.45rem; height: 0.45rem; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
-    background: var(--border-strong);
-  }
-  .hfc-pip.is-active { background: var(--accent); }
   @media (prefers-reduced-motion: reduce) {
     .hfc-card { transition: none; }
-    .hfc-pips { display: none; }
   }
 
   /* ---- "how we verify" 3-card band ---- */
@@ -2553,41 +2546,44 @@ def build_us_map_html(by_slug: dict[str, list[dict]]) -> str:
 <script>{_MAP_TOOLTIP_JS}</script>"""
 
 
-# Hero rotating verified-fact card (2026-07-17, orchestrator/Devin-approved spec): a slow
-# ~5s cross-fade through real fresh-verified states, pausing on hover, and collapsing to a
-# single static card (no interval at all) under prefers-reduced-motion -- checked once at
-# start, not re-evaluated live, since a mid-rotation motion-preference flip is an edge case
-# not worth the complexity.
-_HERO_ROTATION_JS = """
+# Hero card region pick (2026-08-03, Devin-approved option: "static per-visit,
+# best-guess region"). Runs once, synchronously, before paint -- no timer, no
+# interval, nothing to click. Every pool card is already in the HTML with
+# is-active on card 0 as the no-JS/unrecognized-timezone fallback; this just
+# swaps is-active to whichever card's state plausibly matches the visitor's
+# IANA timezone before the browser ever paints, so there is no cross-fade to
+# see. A reload can land on a different card from the same bucket (Math.random
+# among same-region matches) -- that's the point, not a bug.
+_HERO_REGION_JS = """
 (function() {
   var wrap = document.getElementById('hfc-wrap');
-  var pipsWrap = document.getElementById('hfc-pips');
   if (!wrap) return;
   var cards = wrap.querySelectorAll('.hfc-card');
-  var pips = pipsWrap ? pipsWrap.querySelectorAll('.hfc-pip') : [];
   if (cards.length < 2) return;
-  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduceMotion) return;
-  var current = 0;
-  var timer = null;
-  function activate(i) {
-    cards[current].classList.remove('is-active');
-    if (pips[current]) pips[current].classList.remove('is-active');
-    current = i;
-    cards[current].classList.add('is-active');
-    if (pips[current]) pips[current].classList.add('is-active');
-  }
-  function next() { activate((current + 1) % cards.length); }
-  function start() { timer = setInterval(next, 5000); }
-  function stop() { if (timer) { clearInterval(timer); timer = null; } }
-  pips.forEach(function(pip, i) {
-    pip.addEventListener('click', function() { activate(i); stop(); start(); });
-  });
-  wrap.addEventListener('mouseenter', stop);
-  wrap.addEventListener('mouseleave', start);
-  wrap.addEventListener('focusin', stop);
-  wrap.addEventListener('focusout', start);
-  start();
+  var TZ_REGION_STATES = {
+    'America/New_York': ['New York','Florida','Georgia','North Carolina','Ohio','Pennsylvania','Virginia','Massachusetts','New Jersey','Michigan','South Carolina','Tennessee','Maine','Connecticut','Vermont','New Hampshire','Rhode Island','Delaware','Maryland','West Virginia','Kentucky','Indiana'],
+    'America/Detroit': ['Michigan','Ohio','Indiana'],
+    'America/Indiana/Indianapolis': ['Indiana','Ohio','Kentucky'],
+    'America/Kentucky/Louisville': ['Kentucky','Indiana','Ohio'],
+    'America/Chicago': ['Illinois','Texas','Wisconsin','Minnesota','Missouri','Louisiana','Oklahoma','Iowa','Kansas','Alabama','Mississippi','Arkansas','Tennessee','Nebraska','South Dakota','North Dakota'],
+    'America/Denver': ['Colorado','Utah','Montana','Wyoming','New Mexico','Idaho'],
+    'America/Boise': ['Idaho','Montana'],
+    'America/Phoenix': ['Arizona'],
+    'America/Los_Angeles': ['California','Washington','Oregon','Nevada'],
+    'America/Anchorage': ['Alaska'],
+    'Pacific/Honolulu': ['Hawaii']
+  };
+  var tz = '';
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+  var candidates = TZ_REGION_STATES[tz] || null;
+  var pool = Array.prototype.slice.call(cards);
+  var matches = candidates ? pool.filter(function(c) {
+    return candidates.indexOf(c.getAttribute('data-hfc-state')) !== -1;
+  }) : [];
+  var chosenFrom = matches.length ? matches : pool;
+  var chosen = chosenFrom[Math.floor(Math.random() * chosenFrom.length)];
+  pool.forEach(function(c) { c.classList.remove('is-active'); });
+  chosen.classList.add('is-active');
 })();
 """
 
@@ -2914,9 +2910,9 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
         hfc_cards = []
         for i, r in enumerate(rotation_pool):
             d = date.fromisoformat(r["next_deadline_computed"])
-            active = " is-active" if i == 0 else ""
+            active_class = " is-active" if i == 0 else ""
             hfc_verified_text = "Confirmed via official records" if _is_operational_record(r) else "Confirmed at source"
-            hfc_cards.append(f"""<div class="hfc-card is-active" data-hfc-index="{i}">
+            hfc_cards.append(f"""<div class="hfc-card{active_class}" data-hfc-state="{esc(r['state'])}">
   <div class="hfc-state">{esc(r['state'])}</div>
   <div class="hfc-stamp"><span class="dot"></span>Verified {esc(r['last_verified'])}</div>
   <div class="hfc-date">{esc(fmt_date(d))}</div>
@@ -2924,22 +2920,26 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   {_cite_chip_html(r, max_chars=44)}
   <div class="verified">{_VERIFIED_ICON_SVG}{hfc_verified_text}</div>
 </div>""")
-        # STATIC, single card (2026-07-31). This was a ~10-dot auto-rotating
-        # carousel beside the search box. The primary action on this page is
-        # "type your state"; something that moves every 5 seconds next to it
-        # competes for exactly the attention the search box needs, and motion
-        # reads as decoration on a page whose whole pitch is sobriety. One
-        # real, fully-cited example makes the same point and holds still.
-        # Pips and the rotation script are REMOVED rather than hidden -- an
-        # invisible carousel is still bytes to download and still something a
-        # screen reader walks through.
+        # STATIC PER VISIT (2026-08-03, Devin-approved option). This was a ~10-dot
+        # auto-rotating carousel beside the search box; removed 2026-07-31 because
+        # something moving every 5s next to the search box competes for exactly the
+        # attention the search box needs, and motion reads as decoration on a page
+        # whose whole pitch is sobriety. That reasoning still holds -- no timer, no
+        # pips, no animation came back. What's new: instead of always showing the
+        # same first-alphabetical state, a same-frame inline script below picks one
+        # real, fully-cited card whose state plausibly matches the visitor's own
+        # timezone, once, before paint. A reload can land on a different card from
+        # the same region; there is nothing to click and nothing moves on its own.
+        # All pool cards ship in the HTML (progressive enhancement: with JS off,
+        # or on a timezone the map doesn't recognize, the first one is what shows).
         hero_right_html = f"""<div class="hero-right">
   <div class="hfc-wrap" id="hfc-wrap">
-    {hfc_cards[0]}
+    {chr(10).join(hfc_cards)}
   </div>
   <div class="hfc-coverage">We list all <b>{_cov["total"]}</b> jurisdictions &middot; exact date
   determined in <b>{_cov["determined"]}</b> &middot; for the rest you enter your date and we track it</div>
-</div>"""
+</div>
+<script>{_HERO_REGION_JS}</script>"""
 
     hero_html = f"""<div class="hero-grid">
 <div class="hero-left">

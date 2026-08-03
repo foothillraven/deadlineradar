@@ -403,6 +403,7 @@ PAGE_CSS = """
     background: rgba(247,249,251,.92); backdrop-filter: saturate(1.4) blur(8px);
     border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20;
   }
+  nav.mainnav--static { position: static; }
   @media (prefers-color-scheme: dark) {
     nav.mainnav { background: rgba(18,21,26,.92); }
   }
@@ -1284,7 +1285,9 @@ _BRAND_GLYPH_SVG = """<svg class="brand-glyph" viewBox="0 0 32 32" fill="none" a
 </svg>"""
 
 
-def site_header(home_href: str, hide_signin: bool = False, has_remind_anchor: bool = False) -> str:
+def site_header(
+    home_href: str, hide_signin: bool = False, has_remind_anchor: bool = False, sticky_top_nav: bool = True
+) -> str:
     # hide_signin (2026-07-30, UX fix follow-up): the dashboard page
     # (build_firm_dashboard_page()) uses this SAME shared shell, but a
     # visitor there is by definition already signed in (the page's own JS
@@ -1328,7 +1331,20 @@ def site_header(home_href: str, hide_signin: bool = False, has_remind_anchor: bo
     # page has no local anchor, send the click to the homepage's own
     # section instead of a dead in-page jump.
     remind_href = "#remind" if has_remind_anchor else f"{home_href}#remind"
-    return f"""<nav class="mainnav">
+    # sticky_top_nav=False (2026-08-03, AuditLab re-verify): nav.mainnav is
+    # position:sticky, top:0, ~60px tall, semi-translucent -- when a tall
+    # scrollable interactive table (the roster) puts a row's buttons in
+    # that band, the nav sits above them in the stacking order and eats
+    # the click. `scroll-padding-top` (2026-08-03, first attempt) only
+    # covers scrollIntoView()/anchor-jump/focus-navigation scrolling, not a
+    # normal mouse-wheel scroll -- confirmed still reproducing that way,
+    # which is almost certainly how the original report happened. The
+    # dashboard's own sidebar (.dr-sidebar) is ALREADY sticky and is the
+    # nav that actually matters once signed in, so un-sticking this
+    # site-wide top bar here removes the whole class of overlap rather
+    # than chasing every way a user can land a row under it.
+    nav_class = "mainnav" if sticky_top_nav else "mainnav mainnav--static"
+    return f"""<nav class="{nav_class}">
   <div class="nav-inner wrap">
     <a href="{esc(home_href)}" style="display:flex; align-items:center; gap:0.5rem; text-decoration:none; padding:0.7rem 0;">
       {_BRAND_GLYPH_SVG}
@@ -1819,6 +1835,7 @@ def page_shell(
     extra_head: str = "",
     hide_signin: bool = False,
     has_remind_anchor: bool = False,
+    sticky_top_nav: bool = True,
 ) -> str:
     return f"""<!doctype html>
 <html lang="en">
@@ -1837,7 +1854,7 @@ def page_shell(
 </style>
 </head>
 <body>
-{site_header(home_href, hide_signin=hide_signin, has_remind_anchor=has_remind_anchor)}
+{site_header(home_href, hide_signin=hide_signin, has_remind_anchor=has_remind_anchor, sticky_top_nav=sticky_top_nav)}
 {body}
 {site_footer()}
 </body>
@@ -4609,6 +4626,7 @@ def build_my_page() -> str:
         canonical_path="/my/",
         extra_head='<meta name="robots" content="noindex">',
         hide_signin=True,
+        sticky_top_nav=False,
     )
 
 
@@ -5255,6 +5273,18 @@ function drApplyAggregateCoverageOverlay(byState, gen) {
       })
     }).then(function(res) {
       return drReadJsonSafe(res).then(function(data) {
+        // 429 is temporary -- same reasoning as drRenderMapMobility's own
+        // 429 branch, and it has to be, since they share drMobilityCache.
+        // AuditLab, 2026-08-03: this branch was missing here, so a 429
+        // fell into the generic (!res.ok) case below and got WRITTEN to
+        // the cache as a permanent-looking denial with the wrong reason --
+        // once a rate-limited home state landed in the cache, switching to
+        // any person with that home state stayed stuck on the stale
+        // denial even after the window reset and a real answer would have
+        // succeeded, with no way to recover short of a full page reload.
+        if (res.status === 429) {
+          return {denied: 'Too many practice-privilege checks this hour. Try again later.'};
+        }
         if (res.status === 403) {
           var denied = (data && data.error) || 'Practice-privilege coloring is part of the paid firm plan.';
           drMobilityCache[slug] = {denied: denied};
@@ -6616,6 +6646,7 @@ var DR_CPE_REQUIREMENTS = {json.dumps(cpe_requirements_json)};
         canonical_path="/firm-dashboard/",
         extra_head='<meta name="robots" content="noindex">',
         hide_signin=True,
+        sticky_top_nav=False,
     )
 
 

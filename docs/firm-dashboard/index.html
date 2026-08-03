@@ -85,6 +85,7 @@
     background: rgba(247,249,251,.92); backdrop-filter: saturate(1.4) blur(8px);
     border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20;
   }
+  nav.mainnav--static { position: static; }
   @media (prefers-color-scheme: dark) {
     nav.mainnav { background: rgba(18,21,26,.92); }
   }
@@ -958,7 +959,7 @@
 </style>
 </head>
 <body>
-<nav class="mainnav">
+<nav class="mainnav mainnav--static">
   <div class="nav-inner wrap">
     <a href="../" style="display:flex; align-items:center; gap:0.5rem; text-decoration:none; padding:0.7rem 0;">
       <svg class="brand-glyph" viewBox="0 0 32 32" fill="none" aria-hidden="true" width="26" height="26">
@@ -2063,6 +2064,18 @@ function drApplyAggregateCoverageOverlay(byState, gen) {
       })
     }).then(function(res) {
       return drReadJsonSafe(res).then(function(data) {
+        // 429 is temporary -- same reasoning as drRenderMapMobility's own
+        // 429 branch, and it has to be, since they share drMobilityCache.
+        // AuditLab, 2026-08-03: this branch was missing here, so a 429
+        // fell into the generic (!res.ok) case below and got WRITTEN to
+        // the cache as a permanent-looking denial with the wrong reason --
+        // once a rate-limited home state landed in the cache, switching to
+        // any person with that home state stayed stuck on the stale
+        // denial even after the window reset and a real answer would have
+        // succeeded, with no way to recover short of a full page reload.
+        if (res.status === 429) {
+          return {denied: 'Too many practice-privilege checks this hour. Try again later.'};
+        }
         if (res.status === 403) {
           var denied = (data && data.error) || 'Practice-privilege coloring is part of the paid firm plan.';
           drMobilityCache[slug] = {denied: denied};

@@ -2,7 +2,7 @@
   "_meta": {
     "purpose": "Jurisdictions NOT published to the changes feed, and why. A WORK QUEUE.",
     "policy": "Orchestrator 2026-08-02: withhold rather than guess a charter status; 40 well-labelled items beat 55 with some mislabelled. Tracked here so held-back items get resolved rather than silently forgotten.",
-    "as_of": "2026-08-01"
+    "as_of": "2026-08-02"
   },
   "withheld": [
     {
@@ -12,7 +12,7 @@
       "reason": "rule_changes_on=2026-01-01 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "arkansas",
@@ -21,7 +21,7 @@
       "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+      "next_action": "needs an explicit status classification + justifying evidence before it can publish"
     },
     {
       "jurisdiction_slug": "california",
@@ -30,7 +30,7 @@
       "reason": "rule_changes_on=2026-01-01 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "connecticut",
@@ -39,7 +39,7 @@
       "reason": "rule_changes_on=2025-10-01 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "delaware",
@@ -48,7 +48,7 @@
       "reason": "rule_changes_on=2026-07-01 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "florida",
@@ -57,7 +57,7 @@
       "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+      "next_action": "needs an explicit status classification + justifying evidence before it can publish"
     },
     {
       "jurisdiction_slug": "georgia",
@@ -66,7 +66,7 @@
       "reason": "rule_changes_on=2026-01-01 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "hawaii",
@@ -75,7 +75,7 @@
       "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+      "next_action": "needs an explicit status classification + justifying evidence before it can publish"
     },
     {
       "jurisdiction_slug": "idaho",
@@ -84,7 +84,7 @@
       "reason": "rule_changes_on=2026-07-01 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "iowa",
@@ -93,7 +93,7 @@
       "reason": "rule_changes_on=2026-07-01 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "kansas",
@@ -102,7 +102,7 @@
       "reason": "rule_changes_on=2026-04-23 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "kentucky",
@@ -111,16 +111,7 @@
       "reason": "rule_changes_on=2026-07-15 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
-    },
-    {
-      "jurisdiction_slug": "louisiana",
-      "jurisdiction": "Louisiana",
-      "status": "UNDETERMINED",
-      "reason": "rule_changes_on=2026-08-01 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
-      "has_citation_url": true,
-      "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "maine",
@@ -129,7 +120,7 @@
       "reason": "rule_changes_on=2021-10-18 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "maryland",
@@ -138,7 +129,7 @@
       "reason": "rule_changes_on=2025-10-01 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "minnesota",
@@ -147,7 +138,7 @@
       "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+      "next_action": "needs an explicit status classification + justifying evidence before it can publish"
     },
     {
       "jurisdiction_slug": "mississippi",
@@ -156,7 +147,7 @@
       "reason": "rule_changes_on=2026-07-01 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "montana",
@@ -165,7 +156,7 @@
       "reason": "rule_changes_on=2026-03-07 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "nebraska",
@@ -174,7 +165,7 @@
       "reason": "rule_changes_on=2026-07-18 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "nevada",
@@ -183,7 +174,7 @@
       "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+      "next_action": "needs an explicit status classification + justifying evidence before it can publish"
     },
     {
       "jurisdiction_slug": "new-hampshire",
@@ -192,7 +183,7 @@
       "reason": "rule_changes_on=2026-04-22 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "new-jersey",
@@ -201,7 +192,7 @@
       "reason": "rule_changes_on=2026-02-19 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "new-mexico",
@@ -210,7 +201,7 @@
       "reason": "rule_changes_on=2026-01-01 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "north-carolina",
@@ -219,7 +210,7 @@
       "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+      "next_action": "needs an explicit status classification + justifying evidence before it can publish"
     },
     {
       "jurisdiction_slug": "north-dakota",
@@ -228,7 +219,7 @@
       "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+      "next_action": "needs an explicit status classification + justifying evidence before it can publish"
     },
     {
       "jurisdiction_slug": "ohio",
@@ -237,7 +228,7 @@
       "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+      "next_action": "needs an explicit status classification + justifying evidence before it can publish"
     },
     {
       "jurisdiction_slug": "pennsylvania",
@@ -246,7 +237,7 @@
       "reason": "rule_changes_on=2025-06-30 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "single_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "rhode-island",
@@ -255,7 +246,7 @@
       "reason": "rule_changes_on=2026-06-23 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "south-carolina",
@@ -264,7 +255,7 @@
       "reason": "rule_changes_on=2025-06-30 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "south-dakota",
@@ -273,7 +264,7 @@
       "reason": "rule_changes_on=2026-07-01 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "tennessee",
@@ -282,7 +273,7 @@
       "reason": "rule_changes_on=2025-07-01 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "texas",
@@ -291,7 +282,7 @@
       "reason": "rule_changes_on=2025-09-01 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "utah",
@@ -300,7 +291,7 @@
       "reason": "rule_changes_on=2026-07-01 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "vermont",
@@ -309,7 +300,7 @@
       "reason": "rule_changes_on=2026-06-08 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "virginia",
@@ -318,7 +309,7 @@
       "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+      "next_action": "needs an explicit status classification + justifying evidence before it can publish"
     },
     {
       "jurisdiction_slug": "washington",
@@ -327,7 +318,7 @@
       "reason": "rule_changes_on=2025-05-30 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "west-virginia",
@@ -336,7 +327,7 @@
       "reason": "rule_changes_on=2026-05-24 is in the past and last_changed_on is absent -- ambiguous under the 2026-08-02 schema split; may be a consummated change or a stale forward value",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "await ScoutLab's split pass (rule_changes_on forward-only + last_changed_on)"
+      "next_action": "awaiting the corrected forward-only rule_changes_on / last_changed_on split for this record"
     },
     {
       "jurisdiction_slug": "wisconsin",
@@ -345,7 +336,7 @@
       "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
       "has_citation_url": true,
       "confidence": "single_source",
-      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+      "next_action": "needs an explicit status classification + justifying evidence before it can publish"
     },
     {
       "jurisdiction_slug": "wyoming",
@@ -354,7 +345,7 @@
       "reason": "no rule_changes_on and not flagged in flux -- no evidence of a change; a charter status cannot be derived from structure alone",
       "has_citation_url": true,
       "confidence": "dual_source",
-      "next_action": "ScoutLab/DiffLab to emit an explicit charter `status` + justifying evidence"
+      "next_action": "needs an explicit status classification + justifying evidence before it can publish"
     }
   ]
 }

@@ -131,6 +131,25 @@
     padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
   }
   .trust-line strong::before { content: "\2713\a0"; color: var(--gold); }
+  /* ---- Rule-changes feed, /rule-changes/ (2026-08-02) ---- */
+  .rc-section-note { color: var(--muted); font-size: 0.88rem; margin: 0.2rem 0 0.9rem; }
+  .rc-card {
+    background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 10px;
+    padding: 1rem 1.2rem; margin: 0 0 1rem;
+  }
+  .rc-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .rc-jurisdiction { font-family: var(--font-display); font-weight: 650; font-size: 1.02rem; }
+  .rc-badge {
+    font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 999px;
+    background: var(--verified-green-bg); color: var(--verified-green);
+  }
+  .rc-badge-conflict { background: var(--gold-bg); color: var(--gold); }
+  .rc-conflict { border-color: var(--gold); }
+  .rc-date { margin: 0.5rem 0 0.2rem; font-size: 0.9rem; }
+  .rc-detail { margin: 0.4rem 0; font-size: 0.92rem; line-height: 1.5; }
+  .rc-cite { font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem; }
+  .rc-conf { color: var(--muted); }
+  .rc-empty { color: var(--muted); font-style: italic; margin: 0.4rem 0 1.2rem; }
   /* ---- THE CENTERPIECE: citation-first fact sheet, per the approved concept's .sheet/.frow ---- */
   .sheet {
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
@@ -1006,6 +1025,7 @@ way every fact on this site is: a board page plus the codified rule itself, neve
     <div class="foot-links">
       <a href="/">All 55 jurisdictions</a>
       <a href="/methodology/">How We Verify</a>
+      <a href="/rule-changes/">Rule Changes</a>
       <a href="/blog/">Guides</a>
       <a href="/privacy/">Privacy</a>
       <a href="/contact/">Contact</a>

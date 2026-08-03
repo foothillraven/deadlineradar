@@ -43,6 +43,11 @@ CPE_HOURS_DATA_PATH = ROOT / "data" / "cpe_hours.json"
 # fee + penalty/catch-up CPE hours. Distinct from both datasets above, same
 # 2-source verification standard. See data/reinstatement.json's own _meta.
 REINSTATEMENT_DATA_PATH = ROOT / "data" / "reinstatement.json"
+# Separate dataset (2026-08-01/02): publishable rule-CHANGE events, built by
+# scripts/build_change_events.py from the mobility ruleset + DiffLab's live
+# monitoring. Deliberately independent of the mobility determination engine
+# (held from production) -- this feed publishes change facts + citations only.
+REG_CHANGE_EVENTS_PATH = ROOT / "data" / "reg_change_events.json"
 # "docs" (not "site") deliberately -- this is the zero-config GitHub Pages
 # convention (Settings > Pages > Deploy from a branch > /docs), so this
 # directory becomes the deploy target as-is once a repo + Pages source exist.
@@ -433,6 +438,25 @@ PAGE_CSS = """
     padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
   }
   .trust-line strong::before { content: "\\2713\\a0"; color: var(--gold); }
+  /* ---- Rule-changes feed, /rule-changes/ (2026-08-02) ---- */
+  .rc-section-note { color: var(--muted); font-size: 0.88rem; margin: 0.2rem 0 0.9rem; }
+  .rc-card {
+    background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 10px;
+    padding: 1rem 1.2rem; margin: 0 0 1rem;
+  }
+  .rc-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .rc-jurisdiction { font-family: var(--font-display); font-weight: 650; font-size: 1.02rem; }
+  .rc-badge {
+    font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 999px;
+    background: var(--verified-green-bg); color: var(--verified-green);
+  }
+  .rc-badge-conflict { background: var(--gold-bg); color: var(--gold); }
+  .rc-conflict { border-color: var(--gold); }
+  .rc-date { margin: 0.5rem 0 0.2rem; font-size: 0.9rem; }
+  .rc-detail { margin: 0.4rem 0; font-size: 0.92rem; line-height: 1.5; }
+  .rc-cite { font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem; }
+  .rc-conf { color: var(--muted); }
+  .rc-empty { color: var(--muted); font-style: italic; margin: 0.4rem 0 1.2rem; }
   /* ---- THE CENTERPIECE: citation-first fact sheet, per the approved concept's .sheet/.frow ---- */
   .sheet {
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
@@ -1254,6 +1278,7 @@ def site_footer() -> str:
     <div class="foot-links">
       <a href="/">All {JURISDICTION_COUNT} jurisdictions</a>
       <a href="/methodology/">How We Verify</a>
+      <a href="/rule-changes/">Rule Changes</a>
       <a href="/blog/">Guides</a>
       <a href="/privacy/">Privacy</a>
       <a href="/contact/">Contact</a>
@@ -3036,6 +3061,140 @@ every date on this site.</p>
         body,
         home_href="../",
         canonical_path="/methodology/",
+    )
+
+
+def _rule_change_status_label(status: str | None) -> str:
+    return {
+        "ENACTED": "Enacted",
+        "ENACTED_DATE_PENDING": "Enacted, date pending",
+        "ADOPTED_RULE": "Adopted rule",
+        "PROPOSED": "Proposed",
+        "DIED_WITHDRAWN": "Died / withdrawn",
+    }.get(status or "", "Enacted")
+
+
+def _rule_change_card_html(e: dict) -> str:
+    eff = e.get("effective_date")
+    eff_html = ""
+    if eff:
+        eff_date = fmt_date(date.fromisoformat(eff))
+        if e.get("upcoming"):
+            eff_html = f'<p class="rc-date"><strong>Effective {esc(eff_date)}</strong> &mdash; not yet in force.</p>'
+        elif e.get("needs_reverification"):
+            eff_html = (
+                f'<p class="rc-date"><strong>Effective {esc(eff_date)}</strong> &mdash; passed; we '
+                f"re-verify on or after that date before treating it as settled, not asserting it "
+                f"took effect from this record alone.</p>"
+            )
+        else:
+            eff_html = f'<p class="rc-date"><strong>Effective {esc(eff_date)}</strong></p>'
+
+    # summary_public ONLY -- never a raw internal-prose field. See
+    # scripts/build_change_events.py's _public_summary()/rejection-on-missing
+    # docstrings for why: this page nearly shipped a leaked research-note
+    # string ("UPDATE (verifier): ... CiteID ...") caught by preship_gate.
+    detail = e.get("summary_public") or ""
+    source_label = "automated source monitoring" if e.get("source") == "difflab_reg_change_engine" else "dual-source legal research"
+    return f"""<div class="rc-card">
+  <div class="rc-head">
+    <span class="rc-jurisdiction">{esc(e.get("jurisdiction") or e.get("jurisdiction_slug", ""))}</span>
+    <span class="rc-badge">{esc(_rule_change_status_label(e.get("status")))}</span>
+  </div>
+  {eff_html}
+  <p class="rc-detail">{esc(detail)}</p>
+  <p class="rc-cite"><a href="{esc(e.get("citation_url") or "")}">{esc(e.get("citation") or "Primary source")}</a>
+  <span class="rc-conf">&middot; {esc(source_label)}, confidence: {esc(e.get("confidence") or "unverified")}</span></p>
+</div>"""
+
+
+def _rule_conflict_card_html(e: dict) -> str:
+    return f"""<div class="rc-card rc-conflict">
+  <div class="rc-head">
+    <span class="rc-jurisdiction">{esc(e.get("jurisdiction") or e.get("jurisdiction_slug", ""))}</span>
+    <span class="rc-badge rc-badge-conflict">Sources disagree</span>
+  </div>
+  <p class="rc-detail">{esc(e.get("summary_public") or "Our primary sources for this jurisdiction currently disagree with each other. We withhold a determination rather than pick a side.")}</p>
+  <p class="rc-cite"><a href="{esc(e.get("citation_url") or "")}">{esc(e.get("citation") or "Primary source")}</a></p>
+</div>"""
+
+
+def build_rule_changes_page() -> str:
+    """Public CPA mobility/practice-privilege rule-change feed (2026-08-02).
+
+    Two independent inputs, kept honestly distinct in both the data and the
+    copy: dual-source legal research across all 55 jurisdictions (batch-
+    verified, the same standard as every other dataset on this site), and
+    DiffLab's day-to-day automated monitoring of the same jurisdictions'
+    primary sources. Per the orchestrator's Wednesday directive, an empty or
+    fake-looking feed is worse than not shipping -- every count below is
+    derived from the data file at build time, never hardcoded, so this page
+    cannot silently drift out of sync with what it actually contains.
+    """
+    raw = json.loads(REG_CHANGE_EVENTS_PATH.read_text(encoding="utf-8"))
+    meta = raw.get("_meta", {})
+    events = raw.get("events", [])
+    changes = [e for e in events if e.get("kind") == "rule_change"]
+    conflicts = [e for e in events if e.get("kind") == "source_conflict"]
+    upcoming = [e for e in changes if e.get("upcoming")]
+    recent = [e for e in changes if not e.get("upcoming")]
+    monitoring_count = meta.get("live_monitoring_count", 0)
+
+    upcoming_html = (
+        "\n".join(_rule_change_card_html(e) for e in upcoming)
+        if upcoming
+        else '<p class="rc-empty">No upcoming changes detected right now.</p>'
+    )
+    recent_html = (
+        "\n".join(_rule_change_card_html(e) for e in recent)
+        if recent
+        else '<p class="rc-empty">No recent changes pending re-verification right now.</p>'
+    )
+    conflict_html = "\n".join(_rule_conflict_card_html(e) for e in conflicts) if conflicts else ""
+
+    monitoring_note = (
+        f"Our automated monitoring has flagged and promoted {monitoring_count} change"
+        f"{'s' if monitoring_count != 1 else ''} so far."
+        if monitoring_count
+        else "Our automated day-to-day monitoring hasn't flagged and promoted a confirmed change yet "
+        "&mdash; that's expected in the early days of a new monitor watching mostly-static legal text, "
+        "not a sign the feed is broken. Every item below instead comes from our batch legal research."
+    )
+
+    body = f"""<h1>CPA Mobility &amp; Practice-Privilege Rule Changes</h1>
+<p class="intro">A running feed of confirmed and pending changes to interstate CPA mobility rules
+&mdash; practice privileges, notice/fee requirements, and firm registration &mdash; sourced the same
+way as every other date on this site: a citation to the primary statute or rule, never a guess.
+{monitoring_note}</p>
+
+<h2>Upcoming changes ({len(upcoming)})</h2>
+<p class="rc-section-note">A dated, signed change that hasn't taken effect yet.</p>
+{upcoming_html}
+
+<h2>Recently changed, pending re-verification ({len(recent)})</h2>
+<p class="rc-section-note">The effective date has passed. We re-verify against the primary source
+before treating a post-change rule as settled &mdash; we do not assume a law took effect just
+because its start date arrived.</p>
+{recent_html}
+"""
+    if conflicts:
+        body += f"""
+<h2>Sources under active disagreement ({len(conflicts)})</h2>
+<p class="rc-section-note">For these jurisdictions, our two primary sources currently state
+different rules for the same question. We withhold a determination rather than pick a side until
+the conflict resolves &mdash; these are not confirmed rule changes.</p>
+{conflict_html}
+"""
+    body += """
+<p class="backlink"><a href="/methodology/">How we verify every date on this site &rarr;</a></p>
+"""
+    return page_shell(
+        f"CPA Mobility Rule Changes — {SITE_NAME}",
+        "A sourced, continuously-updated feed of interstate CPA mobility and practice-privilege rule "
+        "changes by state, each with a primary-source citation.",
+        body,
+        home_href="../",
+        canonical_path="/rule-changes/",
     )
 
 
@@ -6747,6 +6906,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/methodology/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/rule-changes/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/blog/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>"""]
@@ -6954,6 +7116,11 @@ def main() -> None:
     methodology_dir.mkdir(parents=True, exist_ok=True)
     (methodology_dir / "index.html").write_text(build_methodology_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/methodology/index.html")
+
+    rule_changes_dir = SITE_DIR / "rule-changes"
+    rule_changes_dir.mkdir(parents=True, exist_ok=True)
+    (rule_changes_dir / "index.html").write_text(build_rule_changes_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/rule-changes/index.html")
 
     firms_dir = SITE_DIR / "for-firms"
     firms_dir.mkdir(parents=True, exist_ok=True)

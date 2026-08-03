@@ -320,12 +320,33 @@ function actionConfirmPage(pathname: string, token: string, env: Env): Response 
   const csrfFieldHtml = nonce
     ? `<input type="hidden" name="${ACTION_CSRF_FIELD_NAME}" value="${escapeHtml(nonce)}">`
     : "";
+  // Optional password field, /firm/login/verify only (2026-08-02). Signup
+  // never asks for a password and the dashboard's own account panel to set
+  // one afterward went undiscovered in practice -- this puts the option on
+  // the FIRST screen a firm sees, right where they're already about to
+  // click "Sign in". Handled server-side in handleFirmLoginVerify(): a
+  // value here is ignored for a password-reset link (that flow has its own
+  // dedicated set-password page next) and ignored if the firm already has a
+  // password, so this can only ever set a first password, never silently
+  // change one.
+  const passwordFieldHtml =
+    pathname === "/firm/login/verify"
+      ? `<div style="margin:1rem 0;text-align:left;">` +
+        `<label for="dr-optional-password" style="display:block;font-size:13px;margin-bottom:0.3rem;">` +
+        `Optional: set a password now, so you can skip this email next time</label>` +
+        `<input type="password" id="dr-optional-password" name="new_password" minlength="12" ` +
+        `autocomplete="new-password" placeholder="At least 12 characters" ` +
+        `style="width:100%;box-sizing:border-box;font-size:16px;padding:10px 12px;` +
+        `border:1px solid #ccc;border-radius:6px;">` +
+        `</div>`
+      : "";
   const body =
     `<h1>${escapeHtml(meta.heading)}</h1>` +
     `<p>${escapeHtml(meta.intro)}</p>` +
     `<form method="post" action="${escapeHtml(action)}" style="margin-top:1.5rem;">` +
     `<input type="hidden" name="token" value="${escapeHtml(token)}">` +
     csrfFieldHtml +
+    passwordFieldHtml +
     `<button type="submit" style="font-size:16px;padding:12px 24px;border:0;border-radius:8px;` +
     `background:#1f5fbf;color:#fff;font-weight:700;cursor:pointer;">${escapeHtml(meta.button)}</button>` +
     `</form>`;
@@ -1181,8 +1202,25 @@ async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<
  * single-use token on the scanner's own request and leave the real admin
  * stuck on "invalid or expired" every time. Render-then-POST avoids that
  * failure mode entirely, at the cost of one extra click.
+ *
+ * `optionalNewPassword` (2026-08-02): signup never asked for a password, and
+ * the only way to set one afterward was to find the account panel buried in
+ * the dashboard -- in practice nobody did. actionConfirmPage() now offers an
+ * optional password field on this same landing page, so a firm can set one
+ * as part of the SAME click that signs them in, no extra step. Deliberately
+ * narrow and fails silent-safe: ignored entirely for a password-reset token
+ * (that flow already has its own dedicated /set-password/ page), ignored if
+ * the firm already has a password (changing an EXISTING password must go
+ * through handleFirmPasswordSet's current-password check or the reset flow,
+ * never sneak in here), and a too-weak value is just skipped rather than
+ * blocking sign-in over an optional field -- the firm still gets in, and can
+ * set a password later from the dashboard exactly as before.
  */
-async function handleFirmLoginVerify(env: Env, token: string | null): Promise<Response> {
+async function handleFirmLoginVerify(
+  env: Env,
+  token: string | null,
+  optionalNewPassword: string | null
+): Promise<Response> {
   if (!token) return errorPage(400, "Missing sign-in link.");
   const result = await store.verifyAndConsumeLoginToken(env.DB, token);
   if (!result) {
@@ -1190,6 +1228,22 @@ async function handleFirmLoginVerify(env: Env, token: string | null): Promise<Re
       400,
       "That sign-in link is invalid, expired, or already used. Please request a new one and try again."
     );
+  }
+  if (
+    result.purpose !== "password_reset" &&
+    typeof optionalNewPassword === "string" &&
+    optionalNewPassword.length > 0 &&
+    validatePasswordStrength(optionalNewPassword).ok
+  ) {
+    const firm = await store.getFirmById(env.DB, result.firmId);
+    if (firm && !firm.password_hash) {
+      try {
+        await store.setFirmPassword(env.DB, firm.id, await hashPassword(optionalNewPassword, env.PASSWORD_PEPPER));
+      } catch {
+        // Never let a failed opportunistic password-set fail the sign-in
+        // itself -- same posture as handleFirmPasswordLogin's rehash step.
+      }
+    }
   }
   const { rawSessionToken } = await store.createSession(
     env.DB,
@@ -2659,12 +2713,18 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         const csrfRequired = ACTION_CSRF_REQUIRED_PATHS.has(url.pathname);
         let token = csrfRequired ? null : url.searchParams.get("token");
         let formNonce: string | null = null;
+        // Only meaningful on /firm/login/verify -- see handleFirmLoginVerify()'s
+        // own docstring for why this rides the same one-click form instead of
+        // a separate step (2026-08-02, Devin's own feedback: signup never
+        // surfaced a way to set a password at all).
+        let optionalNewPassword: string | null = null;
         try {
           const raw = await request.text();
           if (raw.length > 0 && raw.length <= MAX_BODY_BYTES) {
             const parsed = new URLSearchParams(raw);
             token = parsed.get("token") ?? token;
             formNonce = parsed.get(ACTION_CSRF_FIELD_NAME);
+            optionalNewPassword = parsed.get("new_password");
           }
         } catch {
           // keep whatever the query gave us
@@ -2691,7 +2751,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
             case "/rearm":
               return await handleRearm(env, token);
             case "/firm/login/verify":
-              return await handleFirmLoginVerify(env, token);
+              return await handleFirmLoginVerify(env, token, optionalNewPassword);
             case "/subscriber/login/verify":
               return await handleSubscriberLoginVerify(env, token);
           }

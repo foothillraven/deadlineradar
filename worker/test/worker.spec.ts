@@ -15,7 +15,7 @@ import {
   strictParseInt,
 } from "../src/validation";
 import * as store from "../src/store";
-import { hashPassword } from "../src/password";
+import { hashPassword, verifyPassword } from "../src/password";
 import type { CpeEntryRow, FirmLeadRow, FirmRow, SubscriberRow } from "../src/store";
 
 // Minimal ExecutionContext for direct worker.fetch() calls (2026-07-31):
@@ -475,7 +475,7 @@ async function getFirmLoginVerifyPage(token: string | null, ip: string): Promise
 // this helper performs the real two-step flow a human does -- render the
 // confirm page, then submit its button. A POST missing either half is
 // exactly the CSRF attack, and has its own tests.
-async function postFirmLoginVerify(token: string | null, ip: string): Promise<Response> {
+async function postFirmLoginVerify(token: string | null, ip: string, newPassword?: string): Promise<Response> {
   let nonce = "";
   let cookie = "";
   if (token !== null) {
@@ -489,10 +489,13 @@ async function postFirmLoginVerify(token: string | null, ip: string): Promise<Re
     "cf-connecting-ip": ip,
   };
   if (cookie) headers["Cookie"] = cookie;
+  const fields: Record<string, string> =
+    token !== null ? { token, action_csrf: nonce } : {};
+  if (newPassword !== undefined) fields.new_password = newPassword;
   return SELF.fetch("https://deadline-radar.com/firm/login/verify", {
     method: "POST",
     headers,
-    body: form(token !== null ? { token, action_csrf: nonce } : {}),
+    body: form(fields),
     redirect: "manual",
   });
 }
@@ -988,6 +991,103 @@ describe("POST /firm/login/verify -- consumes the login token, creates a session
   it("a missing token returns 400", async () => {
     const resp = await postFirmLoginVerify(null, "203.0.113.178");
     expect(resp.status).toBe(400);
+  });
+});
+
+// 2026-08-02: the confirm page's optional "set a password" field, added
+// because signup never asked for one and the dashboard's own account panel
+// to set one afterward went undiscovered in practice.
+describe("POST /firm/login/verify -- optional inline password-set", () => {
+  it("a brand-new firm (no password) can set one as part of the same sign-in click", async () => {
+    const email = `firmverify-setpw-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "New Password Firm", admin_email: email }, "203.0.113.190");
+    const firm = await firmByAdminEmail(email);
+    expect(firm?.password_hash).toBeNull();
+    const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
+
+    const resp = await postFirmLoginVerify(rawToken, "203.0.113.191", "a-genuinely-strong-password");
+    expect(resp.status).toBe(302);
+    expect(resp.headers.get("Location")).toBe("/firm-dashboard/");
+
+    const after = await firmByAdminEmail(email);
+    expect(after?.password_hash).not.toBeNull();
+    const ok = await verifyPassword(
+      "a-genuinely-strong-password",
+      {
+        algo: after?.password_algo ?? undefined,
+        salt: after?.password_salt ?? undefined,
+        iterations: after?.password_iterations ?? undefined,
+        rounds: after?.password_rounds ?? undefined,
+        hash: after!.password_hash as string,
+      }
+    );
+    expect(ok).toBe(true);
+  });
+
+  it("sign-in still succeeds, and no password is set, when the field is left blank", async () => {
+    const email = `firmverify-nopw-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "No Password Firm", admin_email: email }, "203.0.113.192");
+    const firm = await firmByAdminEmail(email);
+    const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
+
+    const resp = await postFirmLoginVerify(rawToken, "203.0.113.193");
+    expect(resp.status).toBe(302);
+
+    const after = await firmByAdminEmail(email);
+    expect(after?.password_hash).toBeNull();
+  });
+
+  it("sign-in still succeeds, and no password is set, when the supplied password is too weak", async () => {
+    const email = `firmverify-weakpw-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Weak Password Firm", admin_email: email }, "203.0.113.194");
+    const firm = await firmByAdminEmail(email);
+    const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
+
+    const resp = await postFirmLoginVerify(rawToken, "203.0.113.195", "short");
+    expect(resp.status).toBe(302);
+
+    const after = await firmByAdminEmail(email);
+    expect(after?.password_hash).toBeNull();
+  });
+
+  it("does NOT overwrite an EXISTING password -- changing one must go through the current-password check or reset flow, never this field", async () => {
+    const email = `firmverify-haspw-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Has Password Firm", admin_email: email }, "203.0.113.196");
+    const firm = await firmByAdminEmail(email);
+    await store.setFirmPassword(env.DB, firm!.id, await hashPassword("the-original-password"));
+
+    const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
+    const resp = await postFirmLoginVerify(rawToken, "203.0.113.197", "an-attempted-replacement-password");
+    expect(resp.status).toBe(302);
+
+    const after = await firmByAdminEmail(email);
+    const stillOriginal = await verifyPassword(
+      "the-original-password",
+      {
+        algo: after?.password_algo ?? undefined,
+        salt: after?.password_salt ?? undefined,
+        iterations: after?.password_iterations ?? undefined,
+        rounds: after?.password_rounds ?? undefined,
+        hash: after!.password_hash as string,
+      }
+    );
+    expect(stillOriginal).toBe(true);
+  });
+
+  it("is ignored on a password-reset token -- that flow keeps its own dedicated /set-password/ page", async () => {
+    const email = `firmverify-resetpw-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Reset Password Firm", admin_email: email }, "203.0.113.198");
+    const firm = await firmByAdminEmail(email);
+    expect(firm?.password_hash).toBeNull();
+    const { rawToken } = await store.createLoginToken(env.DB, firm!.id, "password_reset");
+
+    const resp = await postFirmLoginVerify(rawToken, "203.0.113.199", "should-not-be-set-here");
+    expect(resp.status).toBe(302);
+    // Purpose-based destination is unaffected by the optional field.
+    expect(resp.headers.get("Location")).toBe("/set-password/");
+
+    const after = await firmByAdminEmail(email);
+    expect(after?.password_hash).toBeNull();
   });
 });
 

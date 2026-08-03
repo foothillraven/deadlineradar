@@ -367,6 +367,23 @@ PAGE_CSS = """
     }
   }
   * { box-sizing: border-box; }
+  /* nav.mainnav is sticky at top:0 and ~60px tall -- without this, any
+     browser- or JS-driven scroll (an anchor jump to #remind, a keyboard Tab
+     landing on a roster row's button, scrollIntoView()) can land content
+     flush against the viewport top, tucked UNDER the nav where it is both
+     visually obscured (the nav's translucent background lets it show
+     through, faintly, which is what makes it look clickable) and click-dead
+     (the nav sits above it in the stacking order and receives the click
+     instead). Reported directly, 2026-08-03: "clicked the top one, marked
+     renewed, didn't do anything" on the roster table -- confirmed via
+     elementFromPoint() that a row scrolled flush to the top resolves to the
+     nav, not the button, at that exact coordinate. This fixes every
+     browser-driven scroll-to-element case; it cannot fix a raw mouse-wheel
+     scroll stopping at an arbitrary position, which is a standing
+     limitation of any sticky header -- if this keeps happening, the next
+     step is verifying it reproduces from a normal scroll and not only from
+     scrollIntoView(). */
+  html { scroll-padding-top: 68px; }
   html { background: var(--page-bg); }
   body {
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;

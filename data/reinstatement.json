@@ -411,9 +411,9 @@
       "lapse_trigger": "A license is issued/renewed for a 2-year term expiring the last day of June of the following year. Missing that date lapses the license; 252 CMR 2.16 splits treatment by whether it's lapsed one renewal cycle or less vs. more than one cycle (the latter triggering the enhanced 160-hour CPE requirement above).",
       "citation": "M.G.L. c. 112, Sec87B(a) and (c); 252 CMR 2.16 (Reinstatement of Lapsed/Expired License); 252 CMR 2.14 (Mandatory CPE)",
       "citation_url": "https://www.law.cornell.edu/regulations/massachusetts/252-CMR-2-16",
-      "source_url": "https://www.mass.gov/orgs/board-of-registration-in-public-accountancy",
-      "last_verified": "2026-07-25",
-      "data_gap_note": "The board's own mass.gov page blocks automated access site-wide, so this fact could not be freshly re-confirmed by an automated check at publish time -- corroborated instead by two independent primary-law sources (the codified regulation, 252 CMR 2.14/2.16, and the enabling statute, M.G.L. c. 112 Sec87B, both fetched directly). Recommend a manual check of the board's page if you want to see it firsthand."
+      "source_url": "https://boards.mass.gov/detail/160627/board-of-public-accountancy/",
+      "last_verified": "2026-08-03",
+      "data_gap_note": "The board's own mass.gov page blocks automated access site-wide, so this fact could not be freshly re-confirmed by an automated check at publish time -- corroborated instead by two independent primary-law sources (the codified regulation, 252 CMR 2.14/2.16, and the enabling statute, M.G.L. c. 112 Sec87B, both fetched directly). Recommend a manual check of the board's page if you want to see it firsthand. (source_url updated 2026-08-03: mass.gov/orgs/board-of-registration-in-public-accountancy went dead -- the board's page moved to boards.mass.gov, confirmed live.)"
     },
     {
       "id": "michigan-reinstatement",
@@ -427,9 +427,9 @@
       "lapse_trigger": "A license lapses automatically the day after its biennial July 31 expiration date if not renewed (MCL 339.411(1)) -- no separate notice required. A 60-day grace window allows curing by paying the normal fee plus a $20 late fee; beyond that, relicensure (with the CE catch-up above) is required.",
       "citation": "Mich. Admin. Code R 338.5230 (Relicensure; continuing education); MCL 339.411 (lapse/relicensure trigger); MCL 338.2211 and 338.2206 (fee amounts)",
       "citation_url": "https://www.law.cornell.edu/regulations/michigan/Mich-Admin-Code-R-338-5230",
-      "source_url": "https://www.michigan.gov/lara/bureau-list/bpl/occ/prof/accountants",
-      "last_verified": "2026-07-25",
-      "data_gap_note": "The board's own michigan.gov page blocks automated access site-wide, so this fact could not be freshly re-confirmed by an automated check at publish time -- the codified rule and statute (R 338.5230, MCL 339.411, 338.2206, 338.2211) were fetched directly and state these figures; the $100 fee is inferred with high but not full confidence as the correct line item, since no board document explicitly labeled 'reinstatement fee' could be reached. Recommend a manual check of the board's page if you want it confirmed firsthand."
+      "source_url": "https://www.michigan.gov/lara/bureau-list/bpl/occ/prof/accountancy",
+      "last_verified": "2026-08-03",
+      "data_gap_note": "The board's own michigan.gov page blocks automated access site-wide, so this fact could not be freshly re-confirmed by an automated check at publish time -- the codified rule and statute (R 338.5230, MCL 339.411, 338.2206, 338.2211) were fetched directly and state these figures; the $100 fee is inferred with high but not full confidence as the correct line item, since no board document explicitly labeled 'reinstatement fee' could be reached. Recommend a manual check of the board's page if you want it confirmed firsthand. (source_url updated 2026-08-03: the old .../prof/accountants path 404s; .../prof/accountancy is the correct current LARA Board of Accountancy page, confirmed live in a real browser.)"
     },
     {
       "id": "minnesota-reinstatement",
@@ -539,9 +539,9 @@
       "lapse_trigger": "A certificate expires 2 years from the day it was issued. If not renewed by that date, it becomes 'Lapsed for Non-Renewal.' Reinstatement (Ac 401.08) is available only for licenses lapsed no more than 1 year; beyond that, the holder must reapply as a brand-new initial applicant.",
       "citation": "N.H. Code Admin. R. Ac 401.08 (Reinstatement of a License Lapsed for Non-Renewal); Ac 401.01, 401.03, 403.01; fee at Plc 1002.01, Table 1002.1",
       "citation_url": "https://gc.nh.gov/rules/state_agencies/ac100-500.html",
-      "source_url": "https://www.oplc.nh.gov/accountancy-continuing-professional-education",
-      "last_verified": "2026-07-25",
-      "data_gap_note": "The board's own oplc.nh.gov page blocks automated access, so this fact could not be freshly re-confirmed by an automated check at publish time -- content was instead confirmed directly against New Hampshire's official codified Code of Administrative Rules (gc.nh.gov), reading the actual current rule and fee-table text. Recommend a manual check of the board's page if you want it confirmed firsthand."
+      "source_url": "https://www.oplc.nh.gov/find-board/board-accountancy/accountancy-continuing-education",
+      "last_verified": "2026-08-03",
+      "data_gap_note": "The board's own oplc.nh.gov page blocks automated access, so this fact could not be freshly re-confirmed by an automated check at publish time -- content was instead confirmed directly against New Hampshire's official codified Code of Administrative Rules (gc.nh.gov), reading the actual current rule and fee-table text. Recommend a manual check of the board's page if you want it confirmed firsthand. (source_url updated 2026-08-03: oplc.nh.gov/accountancy-continuing-professional-education went dead; the current path is find-board/board-accountancy/accountancy-continuing-education, confirmed live in a real browser with matching CE-hour figures.)"
     },
     {
       "id": "new-jersey-reinstatement",
@@ -779,9 +779,9 @@
       "lapse_trigger": "Licenses run a 2-year cycle ending December 31 of even-numbered years. A license not renewed before that date automatically expires; continued practice after that is a criminal offense under Utah Code.",
       "citation": "Utah Admin. Code R156-26a-307 (Reinstatement of Licenses); R156-1-308c(5)(c) (automatic expiration); R156-26a-303b(2) (2-year cycle)",
       "citation_url": "https://www.law.cornell.edu/regulations/utah/Utah-Admin-Code-R156-26a-307",
-      "source_url": "https://dopl.utah.gov/cpa/",
-      "last_verified": "2026-07-25",
-      "data_gap_note": "The reinstatement fee dollar amount could not be confirmed: it isn't in the codified rule text, and the Board's own site (dopl.utah.gov) currently blocks automated access, so this fact could not be freshly re-confirmed at publish time. The CPE/ethics-exam requirements above ARE confirmed directly in the codified rule. Recommend a manual check of the board's page if you want the fee confirmed firsthand."
+      "source_url": "https://commerce.utah.gov/dopl/accountancy/",
+      "last_verified": "2026-08-03",
+      "data_gap_note": "The reinstatement fee dollar amount could not be confirmed: it isn't in the codified rule text, and the Board's own site currently blocks automated access, so this fact could not be freshly re-confirmed at publish time. The CPE/ethics-exam requirements above ARE confirmed directly in the codified rule. Recommend a manual check of the board's page if you want the fee confirmed firsthand. (source_url updated 2026-08-03: dopl.utah.gov/cpa/ went dead; commerce.utah.gov/dopl/accountancy/ is the current DOPL Accountancy board page, confirmed live.)"
     },
     {
       "id": "vermont-reinstatement",

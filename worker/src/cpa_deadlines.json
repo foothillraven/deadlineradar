@@ -894,8 +894,8 @@
       "cycle_description": "Biennial. Both the individual CPA license and the CPA firm permit expire December 31 of every even-numbered year -- a single fixed date for the entire licensee/firm population, no cohort split.",
       "next_deadline_computed": "2026-12-31",
       "source_url": "https://dlcp.dc.gov/page/board-accountancy",
-      "secondary_source_url": "http://dcrules.elaws.us/dcmr/17-2547",
-      "last_verified": "2026-07-30",
+      "secondary_source_url": "https://dcregs.dc.gov/Common/DCMR/SectionList.aspx?SectionNumber=17-2547",
+      "last_verified": "2026-08-03",
       "wave": 6,
       "citation": "17 DCMR § 2547",
       "citation_url": "https://dcregs.dc.gov/Common/DCMR/RuleList.aspx?DownloadFile=00FE545F-0000-C61A-9809-9AF28E266CA9"
@@ -1493,14 +1493,14 @@
       "renewal_pattern": "other",
       "cycle_description": "Multiple third-party CPA-exam-prep sites (not the Board itself) describe Guam CPA licenses as renewing on a 3-year cycle expiring June 30, with a $100 renewal fee and 120 CPE hours (incl. 6 ethics, 30 accounting/auditing) required over the rolling period. We could not confirm this cycle against a current, live primary source -- see data_gap_note.",
       "next_deadline_computed": null,
-      "source_url": "https://guamcourts.gov/compileroflaws/GCA/22gca/22gc035.PDF",
+      "source_url": "https://col.guamcourts.gov/sites/default/files/22gc035.pdf",
       "secondary_source_url": "https://col.guamcourts.gov/sites/default/files/25GAR002.pdf",
-      "last_verified": "2026-07-30",
+      "last_verified": "2026-08-03",
       "wave": 4,
       "citation": "22 Guam Code Ann. (GCA) ch. 35 (Guam Accountancy Act of 2003); 25 Guam Admin. R. & Regs. (GAR) ch. 2 (Guam Board of Public Accountancy Regulations)",
-      "citation_url": "https://guamcourts.gov/compileroflaws/GCA/22gca/22gc035.PDF",
+      "citation_url": "https://col.guamcourts.gov/sites/default/files/22gc035.pdf",
       "citation_class": "codified_law",
-      "data_gap_note": "The Guam Board of Accountancy's own web presence (guamboa.org) is the only board-run site we could find, but it has an expired TLS certificate and the only dated document discoverable on it is from November 2011, so we could not treat it as a current, confirmable source of the renewal cycle. Guam's official Compiler of Laws confirms the codified Guam Accountancy Act of 2003 (22 GCA ch. 35) and Board regulations (25 GAR ch. 2) exist and empower the Board to set renewal terms, but those PDFs could not be parsed for the exact renewal-date text. Third-party CPA exam-prep sites (uncorroborated by the Board itself) claim a 3-year cycle expiring June 30. Since we cannot confirm the specific date against a current primary source, we are not publishing a computed date. A visitor should contact the Guam Board of Accountancy directly (per Guam government records: tel. 671-647-0813) rather than rely on a computed date."
+      "data_gap_note": "The Guam Board of Accountancy's own web presence (guamboa.org) is the only board-run site we could find, but it has an expired TLS certificate and the only dated document discoverable on it is from November 2011, so we could not treat it as a current, confirmable source of the renewal cycle. Guam's official Compiler of Laws confirms the codified Guam Accountancy Act of 2003 (22 GCA ch. 35) and Board regulations (25 GAR ch. 2) exist and empower the Board to set renewal terms, but those PDFs could not be parsed for the exact renewal-date text. Third-party CPA exam-prep sites (uncorroborated by the Board itself) claim a 3-year cycle expiring June 30. Since we cannot confirm the specific date against a current primary source, we are not publishing a computed date. A visitor should contact the Guam Board of Accountancy directly (per Guam government records: tel. 671-647-0813) rather than rely on a computed date. (citation_url/source_url updated 2026-08-03: the Judiciary of Guam relaunched its site 2026-05-01, breaking the old guamcourts.gov/compileroflaws/... path; col.guamcourts.gov is the working host, confirmed live and byte-matching the same document per the mobility dataset's own verification.)"
     },
     {
       "id": "northern-mariana-islands-all",

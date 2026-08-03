@@ -969,6 +969,19 @@ const SSO_NO_ACCOUNT_MESSAGE =
 const SSO_EMAIL_REASSIGNED_MESSAGE =
   "This sign-in method was connected under a different admin email, which has since changed. Please sign in with the current admin email (or a password/magic link) and reconnect it from the Account tab.";
 
+// AuditLab SSO-C, 2026-08-03: every SSO error page was a dead end -- the
+// `link` param errorPage() grew in 38baca94 specifically to kill this class
+// of page, but SSO never actually used it. Two destinations cover all of
+// them: back to sign-in (works for anything the reader can just retry or
+// switch method for) and contact (the two suspended-firm cases, where
+// retrying accomplishes nothing).
+function ssoSigninLink(env: Env): { href: string; text: string } {
+  return { href: `${env.STATIC_SITE_BASE_URL || ""}/firm-login/`, text: "Go to firm sign-in" };
+}
+function ssoContactLink(env: Env): { href: string; text: string } {
+  return { href: `${env.STATIC_SITE_BASE_URL || ""}/contact/`, text: "Contact us" };
+}
+
 function firmLoginSentPage(env: Env): string {
   const homeUrl = env.STATIC_SITE_BASE_URL || "";
   return htmlPage(
@@ -3378,7 +3391,7 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
   // was both a cheap amplification target and a way to burn the provider
   // token-endpoint quota.
   const allowed = await checkRateLimit(env.DB, ip, "oauth_callback", RATE_LIMIT_OAUTH_START);
-  if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
+  if (!allowed) return errorPage(429, "Too many requests. Please try again later.", ssoSigninLink(env));
 
   const url = new URL(request.url);
 
@@ -3386,20 +3399,20 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
   // an error to surface verbatim -- provider error text echoes request
   // parameters back and would leak configuration into the browser.
   if (url.searchParams.get("error")) {
-    return errorPage(400, SSO_FAILED_MESSAGE);
+    return errorPage(400, SSO_FAILED_MESSAGE, ssoSigninLink(env));
   }
 
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  if (!code || !state) return errorPage(400, SSO_FAILED_MESSAGE);
+  if (!code || !state) return errorPage(400, SSO_FAILED_MESSAGE, ssoSigninLink(env));
 
   const browserBinding = getCookie(request, OAUTH_HANDSHAKE_COOKIE_NAME);
   const consumed = await store.consumeOauthState(env.DB, state, browserBinding);
-  if (!consumed) return errorPage(400, SSO_FAILED_MESSAGE);
+  if (!consumed) return errorPage(400, SSO_FAILED_MESSAGE, ssoSigninLink(env));
 
   // A handshake opened for one provider must not be redeemable at
   // another's callback.
-  if (consumed.provider !== provider.id) return errorPage(400, SSO_FAILED_MESSAGE);
+  if (consumed.provider !== provider.id) return errorPage(400, SSO_FAILED_MESSAGE, ssoSigninLink(env));
 
   const redirectUri = buildRedirectUri(actionBaseUrl(env), provider.id);
   const tokens = await exchangeCodeForTokens({
@@ -3408,14 +3421,14 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
     redirectUri,
     codeVerifier: consumed.codeVerifier,
   });
-  if (!tokens || !tokens.id_token) return errorPage(400, SSO_FAILED_MESSAGE);
+  if (!tokens || !tokens.id_token) return errorPage(400, SSO_FAILED_MESSAGE, ssoSigninLink(env));
 
   const claims = parseAndValidateIdToken({
     idToken: tokens.id_token,
     provider,
     expectedNonce: consumed.nonce,
   });
-  if (!claims) return errorPage(400, SSO_FAILED_MESSAGE);
+  if (!claims) return errorPage(400, SSO_FAILED_MESSAGE, ssoSigninLink(env));
 
   // Already-linked identity: the stable subject resolves the firm
   // directly, and no email is consulted at all.
@@ -3427,7 +3440,7 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
     // actually revoke.
     const linkedFirm = await store.getFirmById(env.DB, existingIdentity.firm_id);
     if (!linkedFirm || linkedFirm.status !== "active") {
-      return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
+      return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.", ssoContactLink(env));
     }
     // AuditLab SSO-A, 2026-08-03: `sub` alone is a PERMANENT credential --
     // resolving straight to the firm without ever re-checking email meant a
@@ -3443,7 +3456,7 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
       !claims.emailVerified ||
       store.normalizeEmail(claims.email) !== store.normalizeEmail(linkedFirm.admin_email)
     ) {
-      return errorPage(403, SSO_EMAIL_REASSIGNED_MESSAGE);
+      return errorPage(403, SSO_EMAIL_REASSIGNED_MESSAGE, ssoSigninLink(env));
     }
     await store.touchOauthIdentityLogin(env.DB, existingIdentity.id, existingIdentity.firm_id, claims.email);
     const { rawSessionToken } = await store.createSession(env.DB, existingIdentity.firm_id);
@@ -3461,7 +3474,7 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
   // nothing, and honouring it would let anyone who can create an account
   // at a provider with an arbitrary unverified email claim a firm.
   if (!claims.email || !claims.emailVerified) {
-    return errorPage(400, SSO_UNVERIFIED_EMAIL_MESSAGE);
+    return errorPage(400, SSO_UNVERIFIED_EMAIL_MESSAGE, ssoSigninLink(env));
   }
 
   const firm = await store.findFirmByAdminEmail(env.DB, claims.email);
@@ -3471,7 +3484,7 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
     // domains are refused a trial), and minting an account through the
     // SSO callback would route straight around it. SSO connects to an
     // account that already exists; it is not a second signup door.
-    return errorPage(400, SSO_NO_ACCOUNT_MESSAGE);
+    return errorPage(400, SSO_NO_ACCOUNT_MESSAGE, ssoSigninLink(env));
   }
   // AuditLab F-1, 2026-08-02: a suspended firm must not be able to LINK a
   // new provider identity to itself, any more than it can log in any other
@@ -3479,7 +3492,7 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
   // so it covers both branches below (new link, and the concurrent-link
   // race, which re-validates against this same firm.id).
   if (firm.status !== "active") {
-    return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
+    return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.", ssoContactLink(env));
   }
 
   const linked = await store.linkOauthIdentity(env.DB, {
@@ -3493,13 +3506,13 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
     // and this insert -- i.e. a concurrent callback linked it first. Fall
     // through by re-reading rather than treating it as an error.
     const raced = await store.findOauthIdentity(env.DB, provider.id, claims.sub);
-    if (!raced) return errorPage(400, SSO_FAILED_MESSAGE);
+    if (!raced) return errorPage(400, SSO_FAILED_MESSAGE, ssoSigninLink(env));
     // Fail closed if the concurrent winner bound this subject to a
     // DIFFERENT firm than the one we just validated -- reachable only if
     // the provider account's email changed mid-flight, but seating a
     // session on an unvalidated firm is not a thing to reason about at
     // 3am. Review finding 4f.
-    if (raced.firm_id !== firm.id) return errorPage(400, SSO_FAILED_MESSAGE);
+    if (raced.firm_id !== firm.id) return errorPage(400, SSO_FAILED_MESSAGE, ssoSigninLink(env));
     const { rawSessionToken } = await store.createSession(env.DB, raced.firm_id);
     return new Response(null, {
       status: 302,

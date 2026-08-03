@@ -18,7 +18,7 @@
  * in sender.ts when unset.
  *
  * `EMAIL_ALLOWLIST` is an OPTIONAL wrangler var -- a comma-separated list of
- * exact email addresses (e.g. "dlhall86@gmail.com,dlhall86+test@gmail.com").
+ * exact email addresses (e.g. "owner@example.com,owner+test@example.com").
  * This is a PREVIEW/STAGING-ONLY safety gate: when set, sendViaSendGrid()
  * (sender.ts) refuses to send to any recipient not on the list, before making
  * any network call. It MUST be left unset in production -- an unset/empty

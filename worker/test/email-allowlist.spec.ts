@@ -99,7 +99,7 @@ describe("sendViaSendGrid() -- EMAIL_ALLOWLIST gate (unit)", () => {
         "fake-api-key",
         "real-outside-person@somestranger.com",
         fakeEmail(),
-        "dlhall86@gmail.com,dlhall86+test@gmail.com"
+        "owner@example.com,owner+test@example.com"
       );
       expect(result).toBe(false);
       // The load-bearing assertion: not just "returned false", but that the
@@ -185,7 +185,7 @@ describe("EMAIL_ALLOWLIST gate -- wired up end-to-end through a real call site (
       const envWithGate = {
         ...env,
         SENDGRID_API_KEY: "test-key-not-real",
-        EMAIL_ALLOWLIST: "dlhall86@gmail.com,dlhall86+test@gmail.com",
+        EMAIL_ALLOWLIST: "owner@example.com,owner+test@example.com",
       };
       const outsideEmail = `real-outside-person-${Date.now()}@somestranger.com`;
       const body = new URLSearchParams({
@@ -216,11 +216,11 @@ describe("EMAIL_ALLOWLIST gate -- wired up end-to-end through a real call site (
     const worker = (await import("../src/index")).default;
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(okResponse());
     try {
-      const allowlistedEmail = "dlhall86+test@gmail.com";
+      const allowlistedEmail = "owner+test@example.com";
       const envWithGate = {
         ...env,
         SENDGRID_API_KEY: "test-key-not-real",
-        EMAIL_ALLOWLIST: "dlhall86@gmail.com,dlhall86+test@gmail.com",
+        EMAIL_ALLOWLIST: "owner@example.com,owner+test@example.com",
       };
       const body = new URLSearchParams({
         email: allowlistedEmail,
@@ -288,7 +288,7 @@ describe("POST /debug/run-reminder-pass -- preview-only manual cron trigger", ()
       const envWithGate = {
         ...env,
         SENDGRID_API_KEY: "test-key-not-real",
-        EMAIL_ALLOWLIST: "dlhall86@gmail.com,dlhall86+test@gmail.com",
+        EMAIL_ALLOWLIST: "owner@example.com,owner+test@example.com",
       };
       const request = new Request("https://deadline-radar.com/debug/run-reminder-pass", {
         method: "POST",
@@ -309,7 +309,7 @@ describe("POST /debug/run-reminder-pass -- preview-only manual cron trigger", ()
     const envWithGate = {
       ...env,
       SENDGRID_API_KEY: "test-key-not-real",
-      EMAIL_ALLOWLIST: "dlhall86@gmail.com",
+      EMAIL_ALLOWLIST: "owner@example.com",
     };
     const ip = "203.0.113.212";
     for (let i = 0; i < 5; i++) {
@@ -344,13 +344,13 @@ describe("ACTION_BASE_URL override -- preview/staging action links point at the 
       const envPreview = {
         ...env,
         SENDGRID_API_KEY: "test-key-not-real",
-        EMAIL_ALLOWLIST: "dlhall86@gmail.com",
+        EMAIL_ALLOWLIST: "owner@example.com",
         ACTION_BASE_URL: "https://deadlineradar-api-preview.example.workers.dev/api",
       };
       const request = new Request("https://deadline-radar.com/firm/signup", {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.220" },
-        body: new URLSearchParams({ name: "Preview Test Firm", admin_email: "dlhall86@gmail.com", hp_website: "" }).toString(),
+        body: new URLSearchParams({ name: "Preview Test Firm", admin_email: "owner@example.com", hp_website: "" }).toString(),
       });
       const resp = await worker.fetch(request, envPreview, testExecutionContext());
       expect(resp.status).toBe(200);

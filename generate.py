@@ -1116,6 +1116,14 @@ PAGE_CSS = """
   .dr-account-ok { color: #1f9e5c; font-size: 0.85rem; margin-top: 0.6rem; }
   .dr-account-err { color: #c33737; font-size: 0.85rem; margin-top: 0.6rem; }
 
+  /* ---- Sign-in account chooser, /signin/ (2026-08-02) ---- */
+  .signin-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; margin: 1.4rem 0 1.8rem; }
+  .signin-card { display: flex; flex-direction: column; gap: 0.35rem; background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 11px; padding: 1.1rem 1.2rem; text-decoration: none; color: inherit; }
+  .signin-card:hover { border-color: var(--accent); }
+  .signin-kind { font-family: var(--font-display); font-size: 1.05rem; font-weight: 650; }
+  .signin-desc { font-size: 0.85rem; color: var(--muted); line-height: 1.45; }
+  .signin-go { font-size: 0.85rem; color: var(--accent); font-weight: 600; margin-top: 0.3rem; }
+  @media (max-width: 620px) { .signin-choice { grid-template-columns: 1fr; } }
   /* ---- Conventional sign-in card, /firm-login/ (2026-07-31) ---- */
   /* One form at a time, centred, narrow. The width cap is the point: a
      sign-in form stretched to a content column is one of the tells that made
@@ -3804,6 +3812,21 @@ def build_set_password_page() -> str:
     )
 
 
+# SIGN-IN ROUTING (2026-08-02). A firm admin -- a PAYING customer -- clicked the
+# header "Sign In", landed on the free individual page, and had no way to reach
+# his firm dashboard except a link buried at the bottom of a second card. The
+# free path was styled as the page and the paid path as a footnote.
+#
+# Fixed by presentation, deliberately NOT by routing logic. The alternative was
+# one form that accepts either account type and routes after submit; that is
+# cleaner UX but it is an auth change, and an auth change costs the full
+# adversarial gate. This version reaches the same outcome -- the paid path is at
+# least as prominent as the free one, at the TOP, and neither is guessed at --
+# while touching no authentication code and no anti-enumeration property.
+#
+# The individual form also states plainly that it cannot sign anyone into a
+# firm account, so someone who picks wrong learns it before submitting rather
+# than after an email round trip.
 def build_signin_page() -> str:
     """The FREE-TIER individual's sign-in page (2026-07-31), and the site's
     single front door for "Sign In" in the main nav.
@@ -3827,12 +3850,26 @@ def build_signin_page() -> str:
     client-side success state here.
     """
     body = f"""<h1>Sign in</h1>
-<p class="subhead">See every license renewal deadline we're tracking for you, in one place.</p>
+<p class="subhead">Two kinds of account. Pick the one you have.</p>
 
-<div class="signup-form">
-  <h2>Your reminders</h2>
+<div class="signin-choice">
+  <a class="signin-card" href="/firm-login/">
+    <span class="signin-kind">Firm account</span>
+    <span class="signin-desc">You manage renewals for a team. Roster, calendar, CPE tracking.</span>
+    <span class="signin-go">Sign in to your firm dashboard &rarr;</span>
+  </a>
+  <a class="signin-card" href="#signin-individual">
+    <span class="signin-kind">Just my own license</span>
+    <span class="signin-desc">You get reminders for your own renewal dates. Free, no password.</span>
+    <span class="signin-go">Sign in below &darr;</span>
+  </a>
+</div>
+
+<div class="signup-form" id="signin-individual">
+  <h2>Sign in to your own reminders</h2>
   <p class="signup-microcopy">Free, and there's no password &mdash; enter the email address your
-  reminders go to and we'll send you a one-time sign-in link.</p>
+  reminders go to and we'll send you a one-time sign-in link. <strong>Managing a firm? Use the firm
+  dashboard above &mdash; this form cannot sign you into a firm account.</strong></p>
   <form method="post" action="{REMINDER_BACKEND_BASE_URL}/subscriber/login">
     {_BOT_DEFENSE_FIELDS_HTML}
     <label for="signin-sub-email">Your email</label>
@@ -3842,13 +3879,6 @@ def build_signin_page() -> str:
   </form>
   <p class="signup-microcopy">Not signed up yet? <a href="/">Pick your state</a> to start getting free
   renewal reminders &mdash; no account needed.</p>
-</div>
-
-<div class="signup-form">
-  <h2>Firm account?</h2>
-  <p class="signup-microcopy">If you manage renewals for a team, your dashboard is separate from
-  this one.</p>
-  <p><a class="cta-button" href="/firm-login/">Sign in to your firm dashboard &rarr;</a></p>
 </div>
 """
 

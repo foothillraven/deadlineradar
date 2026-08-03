@@ -312,6 +312,62 @@ describe("SAFETY: rules that are in flux, stale, or of an unknown test kind", ()
   });
 });
 
+describe("flux SEVERITY split (2026-08-03): rule_changes_on vs today, not one blanket boolean", () => {
+  it("a flux rule with a PAST rule_changes_on answers for real, with a recent-change caveat appended", () => {
+    const rule = verifiedPermissiveRule({
+      rule_in_flux: true,
+      rule_changes_on: "2026-01-01", // settled well before "now"
+      flux_note: "Some now-irrelevant description of the prior disagreement.",
+    });
+    const res = evaluateMobility(input(), rule);
+    expect(res.individual.verdict).toBe("clear");
+    expect(res.overall).toBe("clear");
+    expect(res.individual.requirements.join(" ")).toMatch(/changed on 2026-01-01/i);
+    // The stale flux_note text must NOT leak into a settled answer.
+    expect(res.individual.requirements.join(" ")).not.toMatch(/now-irrelevant/i);
+  });
+
+  it("a flux rule with a FUTURE rule_changes_on still blocks -- the change hasn't happened yet", () => {
+    const future = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+    const rule = verifiedPermissiveRule({ rule_in_flux: true, rule_changes_on: future });
+    const res = evaluateMobility(input(), rule);
+    expect(res.overall).toBe("not_verified");
+  });
+
+  it("a flux rule due to change TODAY already counts as settled (effective ON its change date, not after)", () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const rule = verifiedPermissiveRule({ rule_in_flux: true, rule_changes_on: today });
+    const res = evaluateMobility(input(), rule);
+    expect(res.overall).toBe("clear");
+  });
+
+  it("a settled flux rule that would ALSO be not_verified for its own reasons never gets the caveat appended", () => {
+    // e.g. equivalence_test still unknown -- the not_verified requirements
+    // already explain the real gap; a second note about a settled date
+    // would read as confused, not careful.
+    const rule = verifiedPermissiveRule({
+      rule_in_flux: true,
+      rule_changes_on: "2026-01-01",
+      equivalence_test: null,
+    });
+    const res = evaluateIndividualMobility(input(), rule);
+    expect(res.verdict).toBe("not_verified");
+    expect(res.requirements.join(" ")).not.toMatch(/changed on/i);
+  });
+
+  it("an undated flux rule (source disagreement, no fixed date) never counts as settled", () => {
+    const rule = verifiedPermissiveRule({ rule_in_flux: true, rule_changes_on: null });
+    expect(evaluateMobility(input(), rule).overall).toBe("not_verified");
+  });
+
+  it("the home-state (not_applicable) branch never gets the caveat -- flux doesn't apply to your own state", () => {
+    const rule = verifiedPermissiveRule({ rule_in_flux: true, rule_changes_on: "2026-01-01" });
+    const res = evaluateIndividualMobility(input({ homeStateSlug: "texas", targetStateSlug: "texas" }), rule);
+    expect(res.verdict).toBe("not_applicable");
+    expect(res.requirements).toHaveLength(0);
+  });
+});
+
 describe("REGRESSION: the critical undefined-is-not-null defect (2026-07-30 review)", () => {
   it("an OMITTED field must NOT produce a permissive verdict -- reproduced over HTTP before the fix", () => {
     // The natural failure: a researcher adds a state with the citation they

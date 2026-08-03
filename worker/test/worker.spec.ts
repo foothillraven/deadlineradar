@@ -4159,20 +4159,39 @@ describe("POST /firm/mobility/check -- pay gate", () => {
 });
 
 describe("POST /firm/mobility/check -- never asserts what it hasn't verified", () => {
-  it("returns not_verified with a disclaimer while the dataset is empty", async () => {
+  // Stale as of the 2026-08-02 mobility merge (55 real jurisdictions landed;
+  // this dataset has not been empty since) and stale again as of the
+  // 2026-08-03 flux-severity fix -- Texas's real record is `rule_in_flux`
+  // with a `rule_changes_on` of 2025-09-01, so it went from not_verified to
+  // a real "clear" the moment that fix shipped. Rewritten to assert the
+  // CURRENT real shape end to end through the actual route, not a stale
+  // "the data doesn't exist yet" placeholder.
+  it("returns a real CLEAR verdict for a settled-flux real state, with the recent-change caveat and a disclaimer", async () => {
     const { cookie } = await firmOnTier("firm", new Date().toISOString());
     const resp = await postMobilityCheck(VALID_CHECK, cookie);
     expect(resp.status).toBe(200);
     const body = await resp.json<{
       overall: string;
       disclaimer: string;
-      individual: { verdict: string; disclaimer: string };
+      individual: { verdict: string; disclaimer: string; requirements: string[] };
       firm: { verdict: string };
     }>();
-    expect(body.overall).toBe("not_verified");
-    expect(body.individual.verdict).toBe("not_verified");
+    expect(body.overall).toBe("clear");
+    expect(body.individual.verdict).toBe("clear");
+    expect(body.individual.requirements.join(" ")).toMatch(/changed on 2025-09-01/i);
     expect(body.disclaimer).toMatch(/not legal advice/i);
     expect(body.individual.disclaimer).toMatch(/not legal advice/i);
+  });
+
+  it("still returns not_verified with a disclaimer for a state genuinely absent from the dataset", async () => {
+    const { cookie } = await firmOnTier("firm", new Date().toISOString());
+    const resp = await postMobilityCheck({ ...VALID_CHECK, target_state_slug: "guam" }, cookie);
+    expect(resp.status).toBe(200);
+    const body = await resp.json<{ overall: string; disclaimer: string; individual: { verdict: string } }>();
+    // Guam has no rule_changes_on and no citation in the shipped dataset --
+    // stays fully unverified regardless of the flux-severity split.
+    expect(body.overall).toBe("not_verified");
+    expect(body.disclaimer).toMatch(/not legal advice/i);
   });
 
   it("rejects an unknown state slug as a 400, NOT as a silent 'not verified' that looks like a data gap", async () => {

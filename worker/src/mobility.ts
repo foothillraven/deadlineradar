@@ -321,13 +321,41 @@ function requireCitationOrDowngrade(finding: MobilityFinding): MobilityFinding {
 }
 
 /**
+ * Severity split for `rule_in_flux` (2026-08-03, orchestrator directive --
+ * the flux-severity recommendation from the 2026-08-02 HANDOFF analysis had
+ * never actually been implemented; `blockingRuleCondition` still blocked
+ * every flux row on the boolean alone regardless of date).
+ *
+ * That analysis found the "44/55 in flux" framing overstated: of the 44,
+ * 28 already had a `rule_changes_on` date in the PAST -- the record
+ * describes the settled new rule, not an open question, so blocking it is
+ * a false "we don't know" on a state we actually do. Only 9 were genuinely
+ * pending and 7 were undated source disagreements -- both of those stay
+ * blocked below, since the outcome there really is unsettled.
+ *
+ * Sample-verification (2026-08-02, all 28 past-date records checked against
+ * `verified_date`) found 27 were verified AFTER their change date (safe to
+ * treat as settled) and one exception (Louisiana, verified one day BEFORE
+ * its effective date) which was corrected in the data at the time --
+ * `rule_changes_on` is the single signal this function trusts, so if a
+ * future record repeats that mistake (verified before its own change date
+ * but with a past `rule_changes_on`), fix the DATA, not this logic.
+ */
+function fluxHasSettled(rule: MobilityRuleRow, now: Date): boolean {
+  if (!rule.rule_changes_on) return false; // undated source disagreement -- never "settled"
+  const changesOn = Date.parse(rule.rule_changes_on);
+  if (Number.isNaN(changesOn)) return false;
+  return changesOn <= now.getTime();
+}
+
+/**
  * Conditions that make a row untrustworthy AS A WHOLE, checked before any
  * of its fields are read. Returns a finding to short-circuit with, or null
  * to proceed. Both evaluators call it, so a state in flux or past its
  * verification TTL cannot produce an answer through either path.
  */
 function blockingRuleCondition(rule: MobilityRuleRow, now: Date): MobilityFinding | null {
-  if (rule.rule_in_flux === true) {
+  if (rule.rule_in_flux === true && !fluxHasSettled(rule, now)) {
     return {
       verdict: "not_verified",
       summary:
@@ -384,6 +412,29 @@ function notVerified(rule: MobilityRuleRow | null, reason: string): MobilityFind
 }
 
 /**
+ * Appends an informational (never blocking) caveat when a settled flux row
+ * produced a real finding -- so "this rule recently changed" stays visible
+ * even though it's no longer forcing not_verified. Skipped for a
+ * not_verified finding: its requirements already explain the situation, and
+ * a second, differently-worded note about the same row reads as confused
+ * rather than careful. Skipped for not_applicable (home state) for the same
+ * reason evaluateIndividualMobility's home-state branch never reads `rule`
+ * at all -- the flux question doesn't apply there either.
+ */
+function applyRecentChangeCaveat(finding: MobilityFinding, rule: MobilityRuleRow | null, now: Date): MobilityFinding {
+  if (!rule || rule.rule_in_flux !== true || !fluxHasSettled(rule, now)) return finding;
+  if (finding.verdict === "not_verified" || finding.verdict === "not_applicable") return finding;
+  return {
+    ...finding,
+    requirements: [
+      ...finding.requirements,
+      `This state's rule changed on ${rule.rule_changes_on} -- if any part of your engagement spans ` +
+        "that date, confirm with the board which rule applied when.",
+    ],
+  };
+}
+
+/**
  * Individual practice privilege in the TARGET state.
  *
  * Note the ordering: the practitioner's own attestations are checked FIRST,
@@ -397,6 +448,14 @@ export function evaluateIndividualMobility(
   input: MobilityInput,
   rule: MobilityRuleRow | null,
   now: Date = new Date()
+): MobilityFinding {
+  return applyRecentChangeCaveat(evaluateIndividualMobilityInner(input, rule, now), rule, now);
+}
+
+function evaluateIndividualMobilityInner(
+  input: MobilityInput,
+  rule: MobilityRuleRow | null,
+  now: Date
 ): MobilityFinding {
   if (input.homeStateSlug === input.targetStateSlug) {
     return {
@@ -529,6 +588,14 @@ export function evaluateFirmRegistration(
   input: MobilityInput,
   rule: MobilityRuleRow | null,
   now: Date = new Date()
+): MobilityFinding {
+  return applyRecentChangeCaveat(evaluateFirmRegistrationInner(input, rule, now), rule, now);
+}
+
+function evaluateFirmRegistrationInner(
+  input: MobilityInput,
+  rule: MobilityRuleRow | null,
+  now: Date
 ): MobilityFinding {
   if (input.homeStateSlug === input.targetStateSlug) {
     return {

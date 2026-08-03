@@ -3689,6 +3689,167 @@ describe("SSO routes", () => {
     );
     expect(resp.status).toBe(400);
   });
+
+  // Everything above stops before a real code exchange -- no test previously
+  // drove a SUCCESSFUL callback (AuditLab's SSO audit, 2026-08-03: "the
+  // product suite has zero coverage of a successful callback or the linking
+  // path"). These stub the token endpoint and exercise the real linking,
+  // session-minting and SSO-A re-check branches end to end.
+  function makeIdToken(payload: Record<string, unknown>): string {
+    const b64url = (o: unknown) => {
+      const bytes = new TextEncoder().encode(JSON.stringify(o));
+      let bin = "";
+      for (const b of bytes) bin += String.fromCharCode(b);
+      return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    };
+    return `${b64url({ alg: "RS256", typ: "JWT" })}.${b64url(payload)}.fake-signature`;
+  }
+
+  function stubTokenEndpoint(idToken: string) {
+    return vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ id_token: idToken }), { status: 200 }));
+  }
+
+  it("a full successful callback links a new identity and starts a real session", async () => {
+    const worker = (await import("../src/index")).default;
+    const email = `sso-happy-${Date.now()}@examplefirm.com`;
+    await store.createFirm(env.DB, { name: "SSO Happy Firm", adminEmail: email });
+    const { rawState, nonce, rawBrowserBinding } = await store.createOauthState(env.DB, "google");
+    const idToken = makeIdToken({
+      iss: "https://accounts.google.com",
+      aud: "test-client-id",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      nonce,
+      sub: `sso-happy-sub-${Date.now()}`,
+      email,
+      email_verified: true,
+    });
+    const fetchSpy = stubTokenEndpoint(idToken);
+    try {
+      const resp = await worker.fetch(
+        new Request(`https://deadline-radar.com/firm/auth/google/callback?code=test-code&state=${rawState}`, {
+          headers: { "cf-connecting-ip": "203.0.113.230", Cookie: `dr_oauth_handshake=${rawBrowserBinding}` },
+        }),
+        { ...env, ...ssoEnv },
+        testExecutionContext()
+      );
+      expect(resp.status).toBe(302);
+      expect(resp.headers.get("Location")).toContain("/firm-dashboard/");
+      expect(resp.headers.get("Set-Cookie")).toContain("dr_firm_session=");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("a repeat login with the SAME admin_email still works (no false positive from the SSO-A re-check)", async () => {
+    const worker = (await import("../src/index")).default;
+    const email = `sso-repeat-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "SSO Repeat Firm", adminEmail: email });
+    const sub = `sso-repeat-sub-${Date.now()}`;
+    await store.linkOauthIdentity(env.DB, { firmId, provider: "google", providerSubject: sub, providerEmail: email });
+
+    const { rawState, nonce, rawBrowserBinding } = await store.createOauthState(env.DB, "google");
+    const idToken = makeIdToken({
+      iss: "https://accounts.google.com",
+      aud: "test-client-id",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      nonce,
+      sub,
+      email,
+      email_verified: true,
+    });
+    const fetchSpy = stubTokenEndpoint(idToken);
+    try {
+      const resp = await worker.fetch(
+        new Request(`https://deadline-radar.com/firm/auth/google/callback?code=test-code&state=${rawState}`, {
+          headers: { "cf-connecting-ip": "203.0.113.232", Cookie: `dr_oauth_handshake=${rawBrowserBinding}` },
+        }),
+        { ...env, ...ssoEnv },
+        testExecutionContext()
+      );
+      expect(resp.status).toBe(302);
+      expect(resp.headers.get("Set-Cookie")).toContain("dr_firm_session=");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("SSO-A (2026-08-03): a linked identity stops authenticating once the firm's admin_email is reassigned", async () => {
+    const worker = (await import("../src/index")).default;
+    const originalEmail = `sso-a-orig-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "SSO-A Firm", adminEmail: originalEmail });
+    const sub = `sso-a-sub-${Date.now()}`;
+    await store.linkOauthIdentity(env.DB, { firmId, provider: "google", providerSubject: sub, providerEmail: originalEmail });
+
+    // The firm reassigns its admin address to a new owner. No product route
+    // does this yet, so simulate it directly, same convention as the
+    // pre-0011-row test above.
+    await env.DB
+      .prepare("UPDATE firms SET admin_email = ?1 WHERE id = ?2")
+      .bind(`sso-a-new-owner-${Date.now()}@examplefirm.com`, firmId)
+      .run();
+
+    const { rawState, nonce, rawBrowserBinding } = await store.createOauthState(env.DB, "google");
+    // The Google account's OWN email never changed -- only the firm's
+    // admin_email did. This is exactly the case `sub`-only resolution missed.
+    const idToken = makeIdToken({
+      iss: "https://accounts.google.com",
+      aud: "test-client-id",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      nonce,
+      sub,
+      email: originalEmail,
+      email_verified: true,
+    });
+    const fetchSpy = stubTokenEndpoint(idToken);
+    try {
+      const resp = await worker.fetch(
+        new Request(`https://deadline-radar.com/firm/auth/google/callback?code=test-code&state=${rawState}`, {
+          headers: { "cf-connecting-ip": "203.0.113.233", Cookie: `dr_oauth_handshake=${rawBrowserBinding}` },
+        }),
+        { ...env, ...ssoEnv },
+        testExecutionContext()
+      );
+      expect(resp.status).toBe(403);
+      expect(resp.headers.get("Set-Cookie")).toBeFalsy();
+      expect(await resp.text()).toContain("different admin email");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("SSO-A: also refused when the SAME account's email comes back unverified (defense in depth, not just a mismatch check)", async () => {
+    const worker = (await import("../src/index")).default;
+    const email = `sso-a-unverified-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "SSO-A Unverified Firm", adminEmail: email });
+    const sub = `sso-a-unverified-sub-${Date.now()}`;
+    await store.linkOauthIdentity(env.DB, { firmId, provider: "google", providerSubject: sub, providerEmail: email });
+
+    const { rawState, nonce, rawBrowserBinding } = await store.createOauthState(env.DB, "google");
+    const idToken = makeIdToken({
+      iss: "https://accounts.google.com",
+      aud: "test-client-id",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      nonce,
+      sub,
+      email,
+      email_verified: false,
+    });
+    const fetchSpy = stubTokenEndpoint(idToken);
+    try {
+      const resp = await worker.fetch(
+        new Request(`https://deadline-radar.com/firm/auth/google/callback?code=test-code&state=${rawState}`, {
+          headers: { "cf-connecting-ip": "203.0.113.234", Cookie: `dr_oauth_handshake=${rawBrowserBinding}` },
+        }),
+        { ...env, ...ssoEnv },
+        testExecutionContext()
+      );
+      expect(resp.status).toBe(403);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });
 
 describe("GET/DELETE /firm/oauth-identities -- connected accounts", () => {

@@ -966,6 +966,9 @@ const SSO_UNVERIFIED_EMAIL_MESSAGE =
 const SSO_NO_ACCOUNT_MESSAGE =
   "We couldn't find a DeadlineRadar firm account for that email address. Please create your firm account first, then connect this sign-in method.";
 
+const SSO_EMAIL_REASSIGNED_MESSAGE =
+  "This sign-in method was connected under a different admin email, which has since changed. Please sign in with the current admin email (or a password/magic link) and reconnect it from the Account tab.";
+
 function firmLoginSentPage(env: Env): string {
   const homeUrl = env.STATIC_SITE_BASE_URL || "";
   return htmlPage(
@@ -3425,6 +3428,22 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
     const linkedFirm = await store.getFirmById(env.DB, existingIdentity.firm_id);
     if (!linkedFirm || linkedFirm.status !== "active") {
       return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
+    }
+    // AuditLab SSO-A, 2026-08-03: `sub` alone is a PERMANENT credential --
+    // resolving straight to the firm without ever re-checking email meant a
+    // Google account that once matched admin_email kept working forever,
+    // even after the firm reassigned that address to someone else (a
+    // departing employee's linked account, or a deliberate admin change).
+    // Re-validate against the firm's CURRENT admin_email on every login,
+    // the same way the first-link path validates it once. This does not
+    // touch the DB row -- a legitimate admin_email change is expected to
+    // require reconnecting SSO, not to silently keep the old link alive.
+    if (
+      !claims.email ||
+      !claims.emailVerified ||
+      store.normalizeEmail(claims.email) !== store.normalizeEmail(linkedFirm.admin_email)
+    ) {
+      return errorPage(403, SSO_EMAIL_REASSIGNED_MESSAGE);
     }
     await store.touchOauthIdentityLogin(env.DB, existingIdentity.id, existingIdentity.firm_id, claims.email);
     const { rawSessionToken } = await store.createSession(env.DB, existingIdentity.firm_id);

@@ -826,9 +826,10 @@
   .dr-map-state { fill: var(--border); stroke: var(--card-bg); stroke-width: 1.2; transition: fill 0.12s ease; }
   .dr-map-state--active { fill: #1f9e5c; }
   .dr-map-state--risk { fill: #c33737; }
-  .dr-map-state--clear { fill: #1f9e5c; }
+  .dr-map-state--home { fill: #1f9e5c; }
+  .dr-map-state--clear { fill: #6b8fd4; }
   .dr-map-state--action { fill: #d98a1f; }
-  .dr-map-state--home { fill: #6b8fd4; }
+  .dr-map-state--coverage { fill: #8a6bd4; }
   .dr-map-link { cursor: default; outline: none; }
   .dr-map-link[data-has-staff="true"] { cursor: pointer; }
   .dr-map-tooltip {
@@ -1428,11 +1429,12 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
     <div class="dr-map-legend" id="dr-map-legend-staff">
       <span><span class="swatch" style="background:#1f9e5c"></span>Staff licensed here, all current</span>
       <span><span class="swatch" style="background:#c33737"></span>Staff licensed here, due soon or unresolved</span>
+      <span id="dr-map-legend-coverage-item" hidden><span class="swatch" style="background:#8a6bd4"></span>No staff licensed here, but practice privilege clear for someone on your team</span>
       <span><span class="swatch" style="background:var(--border)"></span>No staff licensed here</span>
     </div>
     <div class="dr-map-legend" id="dr-map-legend-mobility" hidden>
-      <span><span class="swatch" style="background:#6b8fd4"></span>Home state</span>
-      <span><span class="swatch" style="background:#1f9e5c"></span>Practice privilege clear</span>
+      <span><span class="swatch" style="background:#1f9e5c"></span>Home state</span>
+      <span><span class="swatch" style="background:#6b8fd4"></span>Practice privilege clear</span>
       <span><span class="swatch" style="background:#d98a1f"></span>Action required first</span>
       <span><span class="swatch" style="background:var(--border)"></span>Not verified / not covered</span>
     </div>
@@ -1930,7 +1932,7 @@ function drRenderAgenda() {
 // drRenderMap() only cleared its own two classes, so a state colored
 // dr-map-state--home in mobility mode stayed that way after switching back
 // to "All staff", visually fighting with the class the All view then added).
-var DR_MAP_STATE_CLASSES = ['dr-map-state--active', 'dr-map-state--risk', 'dr-map-state--clear', 'dr-map-state--action', 'dr-map-state--home'];
+var DR_MAP_STATE_CLASSES = ['dr-map-state--active', 'dr-map-state--risk', 'dr-map-state--clear', 'dr-map-state--action', 'dr-map-state--home', 'dr-map-state--coverage'];
 
 function drClearMapStateClasses(path) {
   DR_MAP_STATE_CLASSES.forEach(function(c) { path.classList.remove(c); });
@@ -1972,17 +1974,23 @@ function drRenderMap() {
     link.setAttribute('data-tip', summary);
     link.setAttribute('aria-label', summary);
   });
+  drApplyAggregateCoverageOverlay(byState);
 }
 
 // ---------------------------------------------------------------------------
 // Map tab, reciprocity mode (2026-08-03, requested directly: "hover a
-// state, show which employees can work there"). "All staff" keeps
-// drRenderMap() above
-// exactly as it always worked (home-state licensing) -- rendering 20+
-// people's individually-attested reciprocity onto one map at once would be
-// unreadable, so a specific person must be picked for this view. Reuses
-// POST /firm/mobility/check-batch (evaluateMobility() server-side, the
-// same legally-reviewed engine /firm-mobility/ uses) rather than a second,
+// state, show which employees can work there"). Picking a specific person
+// still shows their own full picture (home/clear/action/not-verified) --
+// rendering 20+ people's individually-attested reciprocity onto one map at
+// once would be unreadable, so per-person detail needs a person selected.
+// "All staff" layers one additional signal on top of the unchanged
+// home-state-licensing view instead: a distinct color for a state nobody
+// is directly licensed in, where at least one staff member's home state
+// gives them practice privilege there ("your team's reach", requested
+// directly 2026-08-03 after seeing the per-person view -- "so the user can
+// see their complete coverage under the all"). Reuses POST
+// /firm/mobility/check-batch (evaluateMobility() server-side, the same
+// legally-reviewed engine /firm-mobility/ uses) rather than a second,
 // client-side rule implementation -- see that endpoint's own docstring.
 //
 // license_in_good_standing/substantially_equivalent are NOT stored per
@@ -1994,7 +2002,85 @@ function drRenderMap() {
 // ---------------------------------------------------------------------------
 
 var DR_MOBILITY_SERVICE_TYPE = 'tax';
-var drMobilityCache = {}; // home_state_slug -> {results: [...]} | {denied: 'message text'}
+var drMobilityCache = {}; // home_state_slug -> {results: [...]} | {denied: true}
+
+// "All staff" coverage overlay -- keyed on DISTINCT home states (not per
+// person), since two staff members in the same state get an identical
+// answer and share drMobilityCache's one entry for that state. Probes only
+// the FIRST distinct home state before doing any more work: if that one
+// call comes back denied (not entitled), the whole overlay is skipped
+// silently -- "All" stays a free view with no paywall interruption, the
+// upsell already lives on the per-person path.
+function drApplyAggregateCoverageOverlay(byState) {
+  var legendItem = document.getElementById('dr-map-legend-coverage-item');
+  var homeStates = {}; // slug -> [staff display names]
+  drLicenses.forEach(function(item) {
+    if (item.status === 'opted_out' || !item.state_slug) return;
+    if (!homeStates[item.state_slug]) homeStates[item.state_slug] = [];
+    homeStates[item.state_slug].push(item.staff_label || item.email);
+  });
+  var slugs = Object.keys(homeStates);
+  if (!slugs.length) {
+    if (legendItem) legendItem.hidden = true;
+    return;
+  }
+
+  function fetchForHome(slug) {
+    var cached = drMobilityCache[slug];
+    if (cached) return Promise.resolve(cached);
+    return fetch('/api/firm/mobility/check-batch', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        home_state_slug: slug,
+        service_type: DR_MOBILITY_SERVICE_TYPE,
+        license_in_good_standing: true,
+        substantially_equivalent: true
+      })
+    }).then(function(res) {
+      if (res.status === 403) { drMobilityCache[slug] = {denied: true}; return drMobilityCache[slug]; }
+      return drReadJsonSafe(res).then(function(data) {
+        drMobilityCache[slug] = (!res.ok || !data) ? {denied: true} : {results: data.results};
+        return drMobilityCache[slug];
+      });
+    }).catch(function() { return {denied: true}; });
+  }
+
+  fetchForHome(slugs[0]).then(function(first) {
+    if (!first || first.denied) {
+      if (legendItem) legendItem.hidden = true;
+      return;
+    }
+    Promise.all(slugs.slice(1).map(fetchForHome)).then(function(rest) {
+      var all = [first].concat(rest);
+      var coverage = {}; // target slug -> [staff names whose home state clears it]
+      all.forEach(function(entry, i) {
+        if (!entry || entry.denied || !entry.results) return;
+        var homeSlug = slugs[i];
+        entry.results.forEach(function(r) {
+          if (r.overall !== 'clear' || byState[r.target_state_slug]) return;
+          if (!coverage[r.target_state_slug]) coverage[r.target_state_slug] = [];
+          homeStates[homeSlug].forEach(function(name) {
+            if (coverage[r.target_state_slug].indexOf(name) === -1) coverage[r.target_state_slug].push(name);
+          });
+        });
+      });
+      var anyCoverage = Object.keys(coverage).length > 0;
+      if (legendItem) legendItem.hidden = !anyCoverage;
+      document.querySelectorAll('.dr-map-link').forEach(function(link) {
+        var names = coverage[link.getAttribute('data-state-slug')];
+        if (!names) return;
+        link.querySelector('path').classList.add('dr-map-state--coverage');
+        var tip = 'No staff licensed here directly, but practice privilege is clear for: ' + names.join(', ') +
+          ' (assumes good standing + substantial equivalence).';
+        link.setAttribute('data-tip', tip);
+        link.setAttribute('aria-label', tip);
+        link.setAttribute('data-has-staff', 'true');
+      });
+    });
+  });
+}
 
 function drPopulateMapStaffSelect() {
   var sel = document.getElementById('dr-map-staff-select');

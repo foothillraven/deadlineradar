@@ -503,6 +503,15 @@ export const RATE_LIMIT_DEBUG_REMINDER_PASS: RateLimit = { max: 5, windowSeconds
  * authenticated FIRM ID rather than IP -- see handleMobilityCheck. */
 export const RATE_LIMIT_MOBILITY_CHECK: RateLimit = { max: 120, windowSeconds: 3600 };
 
+/** POST /firm/mobility/check-batch (2026-08-03, dashboard Map redesign) --
+ * one call does the work of up to ~50 single checks (every covered target
+ * state for one person), so it gets its own, tighter bucket rather than
+ * sharing RATE_LIMIT_MOBILITY_CHECK's 120/hour: unbounded at that rate it
+ * would let one firm run ~6,000 individual determinations/hour through a
+ * side door. Selecting each of a firm's staff once or twice an hour from
+ * the Map tab fits easily inside 20. */
+export const RATE_LIMIT_MOBILITY_CHECK_BATCH: RateLimit = { max: 20, windowSeconds: 3600 };
+
 /** Returns true if this request is ALLOWED, false if it should be blocked. */
 export async function checkRateLimit(
   db: D1Database,

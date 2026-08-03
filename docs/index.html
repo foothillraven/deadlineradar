@@ -874,15 +874,17 @@
   .dr-auth-card h1 { font-size: 1.5rem; margin-bottom: 0.4rem; }
   .dr-auth-card .subhead { font-size: 0.92rem; margin-bottom: 1.4rem; }
   .dr-auth-card form { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.3rem 1.4rem; }
-  .dr-auth-card label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.9rem 0 0.3rem; }
-  .dr-auth-card form > label:first-of-type { margin-top: 0; }
-  .dr-auth-card input[type="email"], .dr-auth-card input[type="text"], .dr-auth-card input[type="password"] {
+  .dr-auth-card label, .dr-account-panel label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.9rem 0 0.3rem; }
+  .dr-auth-card form > label:first-of-type, .dr-account-panel form > label:first-of-type { margin-top: 0; }
+  .dr-auth-card input[type="email"], .dr-auth-card input[type="text"], .dr-auth-card input[type="password"],
+  .dr-account-panel input[type="email"], .dr-account-panel input[type="text"], .dr-account-panel input[type="password"] {
     width: 100%; box-sizing: border-box; padding: 0.6rem 0.7rem; border: 1px solid var(--border-strong);
     border-radius: 7px; font-family: inherit; font-size: 0.95rem; background: var(--bg); color: inherit; }
-  .dr-auth-card button[type="submit"] { width: 100%; margin-top: 1.1rem; padding: 0.7rem 1rem; border: 0;
+  .dr-auth-card button[type="submit"], .dr-account-panel form button[type="submit"] {
+    width: 100%; margin-top: 1.1rem; padding: 0.7rem 1rem; border: 0;
     border-radius: 8px; background: #1f5fbf; color: #fff; font-family: inherit; font-size: 0.98rem;
     font-weight: 700; cursor: pointer; }
-  .dr-auth-card button[type="submit"]:hover { background: #1a4f9e; }
+  .dr-auth-card button[type="submit"]:hover, .dr-account-panel form button[type="submit"]:hover { background: #1a4f9e; }
   .dr-auth-secondary { margin-top: 0.9rem; font-size: 0.86rem; text-align: center; }
   .dr-auth-alt { margin-top: 1.1rem; font-size: 0.9rem; text-align: center; }
   .dr-sso-top { margin-bottom: 1.2rem; }

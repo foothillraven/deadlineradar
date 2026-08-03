@@ -437,6 +437,17 @@ export const RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT: RateLimit = { max: 5, windowSe
 // bounding a runaway script or a compromised session.
 export const RATE_LIMIT_FIRM_LICENSE_CREATE: RateLimit = { max: 50, windowSeconds: 86400 };
 
+// PATCH /firm/licenses/:id (edit a roster row, incl. its email) -- AuditLab
+// F-2, 2026-08-02: this route had NO bucket at all (PoC: 400/400 accepted,
+// no 429), while POST above was correctly capped. Every email CHANGE fires
+// a fresh confirmation email to the new address -- with no per-firm limit,
+// one authenticated session can loop a single row through unlimited
+// addresses, a mail-bomb primitive pointed at any third party. Same
+// per-firm-id keying and same reasoning as RATE_LIMIT_FIRM_LICENSE_CREATE;
+// same 50/day ceiling since a legitimate PATCH burst (bulk-correcting a
+// roster after an import) looks the same shape as a legitimate CREATE burst.
+export const RATE_LIMIT_FIRM_LICENSE_PATCH: RateLimit = { max: 50, windowSeconds: 86400 };
+
 // POST /firm/cpe (log a CPE entry, 2026-07-30) -- same "keyed on the
 // authenticated firm id, not IP" reasoning as RATE_LIMIT_FIRM_LICENSE_CREATE
 // above: the risk this bounds is a compromised/careless admin session

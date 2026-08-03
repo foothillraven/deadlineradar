@@ -1605,6 +1605,79 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
     expect((await deleteFirmLicense(cookie, "does-not-exist")).status).toBe(404);
     expect((await renewFirmLicense(cookie, "does-not-exist")).status).toBe(404);
   });
+
+  // AuditLab F-2, 2026-08-02 (HIGH): PATCH had NO rate limit at all -- PoC
+  // sent 400 PATCHes to one row and got 400 accepted, 0 rejected. Each
+  // email-changing PATCH fires a fresh confirmation email to the new
+  // address, so this was an unbounded mail-bomb primitive from an
+  // authenticated session, and could exhaust the GLOBAL daily send cap
+  // shared with the real reminder cron.
+  it("PATCH /firm/licenses/:id is rate-limited per firm (was completely unbounded)", async () => {
+    const { cookie } = await createFirmWithSession("Patch Rate Firm", `patch-rate-${Date.now()}@example.com`);
+    const created = await postFirmLicense(cookie, {
+      email: `patch-rate-staff-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    const { id } = (await created.json()) as { id: string };
+    let sawA429 = false;
+    for (let i = 0; i < 55; i++) {
+      const resp = await patchFirmLicense(cookie, id, { staff_label: `Label ${i}` });
+      if (resp.status === 429) {
+        sawA429 = true;
+        break;
+      }
+      expect(resp.status).toBe(200);
+    }
+    expect(sawA429, "expected a 429 within the RATE_LIMIT_FIRM_LICENSE_PATCH ceiling (50/day) -- got none in 55 requests").toBe(true);
+  }, 20000);
+
+  // AuditLab F-3, 2026-08-02 (MEDIUM): PATCH skipped the (email, state_slug)
+  // dedupe POST already enforces, so a firm could PATCH a roster row onto
+  // an email+state that already had a live record elsewhere -- including a
+  // free-tier individual's -- producing two live rows for the same person.
+  it("PATCH onto an (email, state_slug) that already has a live record elsewhere is refused 409, same as POST", async () => {
+    const { cookie } = await createFirmWithSession("Patch Dedupe Firm", `patch-dedupe-${Date.now()}@example.com`);
+    const victimEmail = `patch-dedupe-victim-${Date.now()}@example.com`;
+
+    // The pre-existing record: a free-tier signup, confirmed.
+    await postSubscribe({ email: victimEmail, state: "georgia", license_type_id: "ga-individual" }, "203.0.113.230");
+    const victimRow = await env.DB
+      .prepare("SELECT confirm_token FROM subscribers WHERE email = ?1")
+      .bind(victimEmail)
+      .first<{ confirm_token: string }>();
+    await store.confirm(env.DB, victimRow!.confirm_token);
+
+    // This firm's own unrelated roster row -- already in the SAME state as
+    // the collision, so only the email needs to change (keeps this test
+    // about the dedupe check, not state_slug's separate deadline-field
+    // validation requirements).
+    const created = await postFirmLicense(cookie, {
+      email: `patch-dedupe-own-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    const { id } = (await created.json()) as { id: string };
+
+    const patchResp = await patchFirmLicense(cookie, id, { email: victimEmail });
+    expect(patchResp.status).toBe(409);
+
+    // Confirm no duplicate was actually created -- the row was NOT updated.
+    const rows = await env.DB.prepare("SELECT id FROM subscribers WHERE email = ?1 AND state_slug = 'georgia'").bind(victimEmail).all();
+    expect(rows.results?.length).toBe(1);
+  });
+
+  it("re-saving a PATCH with its OWN unchanged (email, state_slug) is NOT rejected as a false self-conflict", async () => {
+    const { cookie } = await createFirmWithSession("Patch Selfsave Firm", `patch-selfsave-${Date.now()}@example.com`);
+    const email = `patch-selfsave-staff-${Date.now()}@example.com`;
+    const created = await postFirmLicense(cookie, { email, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id } = (await created.json()) as { id: string };
+
+    // Same email (state_slug omitted entirely -- unchanged), just a label
+    // change -- must succeed, not 409 against itself.
+    const resp = await patchFirmLicense(cookie, id, { email, staff_label: "Unchanged pair" });
+    expect(resp.status).toBe(200);
+  });
 });
 
 describe("Cross-firm ownership -- the single most important test in this build", () => {

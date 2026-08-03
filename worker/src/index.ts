@@ -62,6 +62,7 @@ import {
   RATE_LIMIT_FIRM_LEAD,
   RATE_LIMIT_MOBILITY_CHECK,
   RATE_LIMIT_FIRM_LICENSE_CREATE,
+  RATE_LIMIT_FIRM_LICENSE_PATCH,
   RATE_LIMIT_DEBUG_REMINDER_PASS,
   RATE_LIMIT_FIRM_LOGIN,
   RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT,
@@ -1971,6 +1972,17 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
   const session = await requireFirmSession(request, env);
   if (session instanceof Response) return session;
 
+  // Per-FIRM daily cap -- AuditLab F-2, 2026-08-02. This route previously
+  // had none at all, unlike POST /firm/licenses (RATE_LIMIT_FIRM_LICENSE_CREATE
+  // above): every email change here fires a confirmation email to the NEW
+  // address, so an unbounded PATCH is a mail-bomb primitive against any
+  // third-party address, from an authenticated session. Checked before any
+  // other work, same placement as the POST handler.
+  const patchAllowed = await checkRateLimit(env.DB, session.firmId, "firm_license_patch", RATE_LIMIT_FIRM_LICENSE_PATCH);
+  if (!patchAllowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
   const existing = await store.getFirmLicense(env.DB, session.firmId, id);
   if (!existing) return jsonResponse(404, { error: "Not found." });
 
@@ -2042,6 +2054,26 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
   }
 
   const emailChanged = store.normalizeEmail(email) !== store.normalizeEmail(existing.email);
+  const stateChanged = stateSlug !== existing.state_slug;
+
+  // Same dedupe POST /firm/licenses already enforces (AuditLab F-3,
+  // 2026-08-02: PATCH skipped it entirely -- a firm could PATCH a roster
+  // row onto an (email, state_slug) that already has a live record,
+  // including a free-tier individual's, producing two live rows for the
+  // same person/state with no way for the affected person to reconcile
+  // them). Only checked when the (email, state_slug) PAIR is actually
+  // changing -- re-saving a row's OWN unchanged pair would otherwise
+  // "conflict" with itself, since it's already active/confirmed. Excluding
+  // this row's own id is extra defensive insurance, not load-bearing today
+  // (unreachable when the pair is unchanged, given the condition above).
+  if (emailChanged || stateChanged) {
+    const conflict = await store.findActiveOrPending(env.DB, email, stateSlug);
+    if (conflict && conflict.id !== existing.id) {
+      return jsonResponse(409, {
+        error: "A subscriber already exists for this email and state (possibly a free-tier signup, or already on a firm's roster).",
+      });
+    }
+  }
 
   const updated = await store.updateFirmLicense(env.DB, session.firmId, id, {
     email,

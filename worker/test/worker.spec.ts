@@ -3742,6 +3742,73 @@ describe("SSO routes", () => {
     }
   });
 
+  it("SSO-B (2026-08-03): linking a new identity emails the firm owner, and a repeat login does NOT re-send", async () => {
+    const worker = (await import("../src/index")).default;
+    const email = `sso-b-${Date.now()}@examplefirm.com`;
+    await store.createFirm(env.DB, { name: "SSO-B Firm", adminEmail: email });
+    const sub = `sso-b-sub-${Date.now()}`;
+
+    const linkState = await store.createOauthState(env.DB, "google");
+    const linkToken = makeIdToken({
+      iss: "https://accounts.google.com",
+      aud: "test-client-id",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      nonce: linkState.nonce,
+      sub,
+      email,
+      email_verified: true,
+    });
+    const fetchSpy = stubTokenEndpoint(linkToken);
+    try {
+      const linkResp = await worker.fetch(
+        new Request(`https://deadline-radar.com/firm/auth/google/callback?code=test-code&state=${linkState.rawState}`, {
+          headers: { "cf-connecting-ip": "203.0.113.236", Cookie: `dr_oauth_handshake=${linkState.rawBrowserBinding}` },
+        }),
+        { ...env, ...ssoEnv, SENDGRID_API_KEY: "test-key-not-real" },
+        testExecutionContext()
+      );
+      expect(linkResp.status).toBe(302);
+      // Call 0 is the token exchange (stubbed); call 1 is the notification.
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      const [sendGridUrl, sendGridInit] = fetchSpy.mock.calls[1] as [string, RequestInit];
+      expect(String(sendGridUrl)).toContain("sendgrid");
+      const sentBody = JSON.parse(String(sendGridInit.body));
+      expect(sentBody.subject).toContain("Google sign-in method was connected");
+      const textContent = sentBody.content.find((c: { type: string }) => c.type === "text/plain").value as string;
+      expect(textContent).toContain(email);
+      expect(textContent).toContain("Connected Sign-In Methods");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+
+    // A REPEAT login with the same already-linked identity must not re-send.
+    const loginState = await store.createOauthState(env.DB, "google");
+    const loginToken = makeIdToken({
+      iss: "https://accounts.google.com",
+      aud: "test-client-id",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      nonce: loginState.nonce,
+      sub,
+      email,
+      email_verified: true,
+    });
+    const fetchSpy2 = stubTokenEndpoint(loginToken);
+    try {
+      const loginResp = await worker.fetch(
+        new Request(`https://deadline-radar.com/firm/auth/google/callback?code=test-code&state=${loginState.rawState}`, {
+          headers: { "cf-connecting-ip": "203.0.113.237", Cookie: `dr_oauth_handshake=${loginState.rawBrowserBinding}` },
+        }),
+        { ...env, ...ssoEnv, SENDGRID_API_KEY: "test-key-not-real" },
+        testExecutionContext()
+      );
+      expect(loginResp.status).toBe(302);
+      // Only the token exchange -- no second send on a repeat login.
+      expect(fetchSpy2).toHaveBeenCalledTimes(1);
+    } finally {
+      fetchSpy2.mockRestore();
+    }
+  });
+
   it("SSO-D (2026-08-03): a successful callback clears the handshake cookie, not just the session it mints", async () => {
     const worker = (await import("../src/index")).default;
     const email = `sso-d-${Date.now()}@examplefirm.com`;

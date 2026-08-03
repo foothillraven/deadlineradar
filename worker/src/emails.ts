@@ -641,6 +641,71 @@ ${addr}`;
   return { subject, textBody, htmlBody, headers: {} };
 }
 
+/**
+ * Sent whenever a new provider identity is linked to a firm via SSO
+ * (2026-08-03, AuditLab SSO-B).
+ *
+ * Same rationale as buildFirmPasswordChangedEmail(): linking is a durable
+ * credential grant (AuditLab SSO-A) with no other detection control. Unlike
+ * a password change, linking does not end any session on its own -- the
+ * remediation here is to remove the identity from the Account tab, so the
+ * copy points there instead of to a sign-in link.
+ */
+export function buildFirmOauthLinkedEmail(
+  firmName: string,
+  providerDisplayName: string,
+  providerEmail: string,
+  whenIso: string
+): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `A ${providerDisplayName} sign-in method was connected to your ${SITE_NAME} account`;
+
+  const textBody =
+    `A ${providerDisplayName} account (${providerEmail}) was just connected as a sign-in method for ` +
+    `${firmName} on ${SITE_NAME} (${whenIso}).
+
+` +
+    `Once connected, signing in with that ${providerDisplayName} account signs straight into this ` +
+    `firm -- no password needed.
+
+` +
+    `If this was you, nothing further is needed.
+
+` +
+    `IF THIS WAS NOT YOU, someone with access to that ${providerDisplayName} account can now sign in ` +
+    `to your firm indefinitely. Sign in and remove it from the Account tab under Connected Sign-In ` +
+    `Methods, then change your password if you haven't already.
+
+` +
+    `---
+${SENDER_LINE}
+${addr}`;
+
+  const htmlBody = htmlShell(
+    `A ${providerDisplayName} sign-in method was connected to your ${SITE_NAME} account`,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `A ${esc(providerDisplayName)} sign-in method was connected</h1>` +
+      p(
+        `A ${esc(providerDisplayName)} account (${esc(providerEmail)}) was just connected as a sign-in ` +
+          `method for ${esc(firmName)} on ${esc(SITE_NAME)} (${esc(whenIso)}). Once connected, signing ` +
+          `in with that ${esc(providerDisplayName)} account signs straight into this firm -- no ` +
+          `password needed.`
+      ) +
+      p("If this was you, nothing further is needed.", 13, LIGHT.muted) +
+      p(
+        `<strong>If this was not you</strong>, someone with access to that ${esc(providerDisplayName)} ` +
+          "account can now sign in to your firm indefinitely. Sign in and remove it from the Account " +
+          "tab under Connected Sign-In Methods, then change your password if you haven't already.",
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
 /** Port of reminders/emails.py `confirmation_email()`. */
 export function buildConfirmationEmail(
   stateName: string,

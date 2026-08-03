@@ -102,6 +102,7 @@ import {
   buildFirmLoginEmail,
   buildSubscriberLoginEmail,
   buildFirmPasswordChangedEmail,
+  buildFirmOauthLinkedEmail,
   buildFirmStaffAddedEmail,
   buildStopConfirmationEmail,
   fmtDate,
@@ -3523,6 +3524,23 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
     if (raced.firm_id !== firm.id) return errorPage(400, SSO_FAILED_MESSAGE, ssoSigninLink(env));
     const { rawSessionToken } = await store.createSession(env.DB, raced.firm_id);
     return oauthSuccessResponse(env, rawSessionToken);
+  }
+
+  // AuditLab SSO-B, 2026-08-03: linking is a durable credential grant
+  // (SSO-A) with no detection control, unlike a password change which
+  // already emails the owner. Same best-effort/never-fail-the-request
+  // pattern as buildFirmPasswordChangedEmail's send above -- a mail outage
+  // must not block a legitimate sign-in.
+  if (env.SENDGRID_API_KEY) {
+    try {
+      const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+      if (underCap) {
+        const built = buildFirmOauthLinkedEmail(firm.name, provider.displayName, claims.email, new Date().toISOString());
+        await sendViaSendGrid(env.SENDGRID_API_KEY, firm.admin_email, built, env.EMAIL_ALLOWLIST);
+      }
+    } catch {
+      // Intentionally swallowed -- see above.
+    }
   }
 
   const { rawSessionToken } = await store.createSession(env.DB, firm.id);

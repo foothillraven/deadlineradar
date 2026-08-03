@@ -1404,7 +1404,17 @@ def _bot_defense_fields_html(id_suffix: str = "", shared_widget: bool = False) -
         f'</div>'
     )
     if TURNSTILE_SITE_KEY and not shared_widget:
-        widget = f'    <div class="cf-turnstile" data-sitekey="{esc(TURNSTILE_SITE_KEY)}"></div>'
+        # data-appearance="interaction-only" (2026-08-01, sitewide sweep): renders
+        # NOTHING unless Cloudflare actually needs a human interaction, so the
+        # green "Success!" box is gone from every public form -- not just the two
+        # login pages that were fixed first. An audit of the generated site found
+        # 159 pages still on the default appearance (every state, CPE and
+        # reinstatement page carries the signup form), which is why this belongs
+        # in the shared helper rather than being patched page by page.
+        widget = (
+            f'    <div class="cf-turnstile" data-sitekey="{esc(TURNSTILE_SITE_KEY)}"'
+            f' data-appearance="interaction-only"></div>'
+        )
     else:
         # `shared_widget=True` (2026-07-31): this form does NOT render its own
         # widget. It carries only the empty hidden input that

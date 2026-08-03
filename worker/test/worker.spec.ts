@@ -3941,3 +3941,93 @@ describe("POST /firm/mobility/check -- never asserts what it hasn't verified", (
     expect(body.individual.verdict).toBe("action_required");
   });
 });
+
+// 2026-08-03, dashboard Map redesign: one person against every covered
+// target state in a single call, for the Map's per-staff reciprocity view.
+async function postMobilityCheckBatch(
+  body: Record<string, unknown>,
+  cookie: string | null,
+  ip = "203.0.113.252"
+): Promise<Response> {
+  const headers: Record<string, string> = { "content-type": "application/json", "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch("https://deadline-radar.com/firm/mobility/check-batch", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+}
+
+const VALID_BATCH_CHECK = {
+  home_state_slug: "california",
+  service_type: "tax",
+  license_in_good_standing: true,
+  substantially_equivalent: true,
+};
+
+describe("POST /firm/mobility/check-batch -- same gate, same engine, no target list required", () => {
+  it("requires a session", async () => {
+    expect((await postMobilityCheckBatch(VALID_BATCH_CHECK, null)).status).toBe(401);
+  });
+
+  it("gates on the same premium entitlement as the single check", async () => {
+    const longAgo = new Date(Date.now() - 90 * 86_400_000).toISOString();
+    const { cookie } = await firmOnTier("pilot", longAgo);
+    const resp = await postMobilityCheckBatch(VALID_BATCH_CHECK, cookie);
+    expect(resp.status).toBe(403);
+    const body = await resp.json<{ reason: string; results?: unknown }>();
+    expect(body.reason).toBe("pilot_expired");
+    expect(body.results).toBeUndefined();
+  });
+
+  it("rejects an unknown home state or invalid service type as a 400", async () => {
+    const { cookie } = await firmOnTier("firm", new Date().toISOString());
+    expect((await postMobilityCheckBatch({ ...VALID_BATCH_CHECK, home_state_slug: "atlantis" }, cookie)).status).toBe(400);
+    expect((await postMobilityCheckBatch({ ...VALID_BATCH_CHECK, service_type: "audit" }, cookie)).status).toBe(400);
+  });
+
+  it("returns one result per covered target state, each carrying its own citation/disclaimer shape", async () => {
+    const { cookie } = await firmOnTier("firm", new Date().toISOString());
+    const resp = await postMobilityCheckBatch(VALID_BATCH_CHECK, cookie);
+    expect(resp.status).toBe(200);
+    const body = await resp.json<{
+      results: Array<{ target_state_slug: string; target_state: string; overall: string }>;
+      disclaimer: string;
+    }>();
+    expect(body.results.length).toBeGreaterThan(0);
+    expect(body.disclaimer).toMatch(/not legal advice/i);
+    const slugs = body.results.map((r) => r.target_state_slug);
+    expect(new Set(slugs).size).toBe(slugs.length); // no duplicate target states
+    expect(slugs).toContain("alabama"); // known-covered state, per worker/src/mobility_rules.json
+  });
+
+  it("agrees EXACTLY with the single-check endpoint for the same (home, target) pair -- no second implementation to drift", async () => {
+    const { cookie } = await firmOnTier("firm", new Date().toISOString());
+    const single = await postMobilityCheck({ ...VALID_CHECK, home_state_slug: "california", target_state_slug: "alabama" }, cookie);
+    const singleBody = await single.json<{ overall: string; individual: { verdict: string; summary: string } }>();
+
+    const batch = await postMobilityCheckBatch({ ...VALID_BATCH_CHECK, home_state_slug: "california" }, cookie, "203.0.113.253");
+    const batchBody = await batch.json<{
+      results: Array<{ target_state_slug: string; overall: string; individual: { verdict: string; summary: string } }>;
+    }>();
+    const alabama = batchBody.results.find((r) => r.target_state_slug === "alabama");
+    expect(alabama).toBeTruthy();
+    expect(alabama!.overall).toBe(singleBody.overall);
+    expect(alabama!.individual.verdict).toBe(singleBody.individual.verdict);
+    expect(alabama!.individual.summary).toBe(singleBody.individual.summary);
+  });
+
+  it("blocks the 21st batch call from the same firm within the hour (tighter bucket than the single check)", async () => {
+    const { cookie } = await firmOnTier("firm", new Date().toISOString());
+    let sawA429 = false;
+    for (let i = 0; i < 25; i++) {
+      const resp = await postMobilityCheckBatch(VALID_BATCH_CHECK, cookie, `203.0.113.${100 + i}`);
+      if (resp.status === 429) {
+        sawA429 = true;
+        break;
+      }
+      expect(resp.status).toBe(200);
+    }
+    expect(sawA429, "expected a 429 within the RATE_LIMIT_MOBILITY_CHECK_BATCH ceiling (20/hour) -- got none in 25 requests").toBe(true);
+  }, 20000);
+});

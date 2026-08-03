@@ -809,6 +809,9 @@
   .dr-map-state { fill: var(--border); stroke: var(--card-bg); stroke-width: 1.2; transition: fill 0.12s ease; }
   .dr-map-state--active { fill: #1f9e5c; }
   .dr-map-state--risk { fill: #c33737; }
+  .dr-map-state--clear { fill: #1f9e5c; }
+  .dr-map-state--action { fill: #d98a1f; }
+  .dr-map-state--home { fill: #6b8fd4; }
   .dr-map-link { cursor: default; outline: none; }
   .dr-map-link[data-has-staff="true"] { cursor: pointer; }
   .dr-map-tooltip {
@@ -817,9 +820,18 @@
     padding: 0.35rem 0.6rem; border-radius: 6px; box-shadow: var(--shadow);
   }
   .dr-map-tooltip[hidden] { display: none; }
+  .dr-map-tooltip--wrap { white-space: normal; max-width: 260px; }
   .dr-map-legend { display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.82rem; color: var(--muted); }
+  .dr-map-legend[hidden] { display: none; }
   .dr-map-legend .swatch { width: 0.75rem; height: 0.75rem; border-radius: 3px; display: inline-block; margin-right: 0.5em; vertical-align: -1px; }
   .dr-map-note { font-size: 0.78rem; color: var(--faint); margin-top: 0.8rem; }
+  .dr-map-controls { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .dr-map-controls label { font-size: 0.85rem; font-weight: 600; margin: 0; }
+  .dr-map-controls select { font-family: inherit; font-size: 0.9rem; padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border-strong); border-radius: 7px; background: var(--bg); color: inherit; }
+  .dr-map-mobility-note { font-size: 0.82rem; color: var(--muted); margin-bottom: 1rem; padding: 0.6rem 0.8rem;
+    background: var(--row-alt); border-radius: 8px; }
+  .dr-map-mobility-note[hidden] { display: none; }
 
   /* ---- CPE Hours tab (2026-07-30, new BUILD v2 phase) ---- */
   .dr-cpe-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.2rem; }

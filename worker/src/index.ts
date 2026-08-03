@@ -61,6 +61,7 @@ import {
   RATE_LIMIT_CPE_ENTRY_CREATE,
   RATE_LIMIT_FIRM_LEAD,
   RATE_LIMIT_MOBILITY_CHECK,
+  RATE_LIMIT_MOBILITY_CHECK_BATCH,
   RATE_LIMIT_FIRM_LICENSE_CREATE,
   RATE_LIMIT_FIRM_LICENSE_PATCH,
   RATE_LIMIT_FIRM_LICENSE_DELETE,
@@ -2814,6 +2815,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
       }
 
+      if (url.pathname === "/firm/mobility/check-batch") {
+        try {
+          return await handleMobilityCheckBatch(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
       if (url.pathname === "/firm/logout") {
         try {
           return await handleFirmLogout(request, env);
@@ -3644,6 +3653,103 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
     disclaimer: MOBILITY_DISCLAIMER,
   });
 }
+
+/**
+ * POST /firm/mobility/check-batch (2026-08-03, dashboard Map redesign) --
+ * one person against EVERY covered target state in a single call, for the
+ * Map tab's per-staff reciprocity view. Reuses evaluateMobility() exactly
+ * as handleMobilityCheck() does -- this is a thin fan-out wrapper, never a
+ * second implementation of the determination logic itself. Duplicating
+ * that logic (even faithfully) in client JS was considered and rejected:
+ * mobility.ts's own docstring is explicit that a wrong answer here is real
+ * legal exposure, and two copies of a legally load-bearing rule engine is
+ * exactly the kind of drift risk this codebase avoids elsewhere (see
+ * _mobility_covered_slugs()'s own comment on the same principle).
+ *
+ * Same pay gate as the single check. `license_in_good_standing` and
+ * `substantially_equivalent` are still self-attestations, not data this
+ * endpoint reads from the roster -- the caller (the Map tab) is expected to
+ * default them to true and disclose that assumption in the UI, since the
+ * roster does not store per-person attestations. This endpoint does not
+ * bake that default in itself, so a future caller with real per-person
+ * attestation data is not stuck with this one's assumption.
+ */
+async function handleMobilityCheckBatch(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  const firm = await store.getFirmById(env.DB, session.firmId);
+  if (!firm) return jsonResponse(404, { error: "Not found." });
+
+  const access = checkPremiumAccess(firm);
+  if (!access.allowed) {
+    return jsonResponse(403, {
+      error: entitlementMessage(access.reason),
+      reason: access.reason,
+      pilot_days_remaining: access.pilotDaysRemaining,
+    });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_check_batch", RATE_LIMIT_MOBILITY_CHECK_BATCH);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many requests. Please try again later." });
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return jsonResponse(400, { error: "Request too large or empty." });
+  }
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  const homeStateSlug = typeof body.home_state_slug === "string" ? body.home_state_slug : "";
+  const serviceTypeRaw = typeof body.service_type === "string" ? body.service_type : "";
+
+  if (!stateNameForSlug(homeStateSlug)) {
+    return jsonResponse(400, { error: "Please choose a home state." });
+  }
+  if (!isValidServiceType(serviceTypeRaw)) {
+    return jsonResponse(400, { error: "Please choose a service type." });
+  }
+
+  const input = {
+    homeStateSlug,
+    serviceType: serviceTypeRaw,
+    licenseInGoodStanding: body.license_in_good_standing === true,
+    substantiallyEquivalent: body.substantially_equivalent === true,
+  };
+
+  const results = Object.values(MOBILITY_RULES_BY_SLUG).map((rule) => {
+    const result = evaluateMobility({ ...input, targetStateSlug: rule.state_slug }, rule);
+    return {
+      target_state_slug: rule.state_slug,
+      target_state: rule.state,
+      overall: result.overall,
+      individual: result.individual,
+      firm: result.firm,
+    };
+  });
+
+  return jsonResponse(200, {
+    home_state: stateNameForSlug(homeStateSlug),
+    service_type: serviceTypeRaw,
+    results,
+    disclaimer: MOBILITY_DISCLAIMER,
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     // PREVIEW/STAGING CORS only (see corsHeaders()'s own comment) -- in

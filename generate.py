@@ -1127,6 +1127,9 @@ PAGE_CSS = """
   .dr-map-state { fill: var(--border); stroke: var(--card-bg); stroke-width: 1.2; transition: fill 0.12s ease; }
   .dr-map-state--active { fill: #1f9e5c; }
   .dr-map-state--risk { fill: #c33737; }
+  .dr-map-state--clear { fill: #1f9e5c; }
+  .dr-map-state--action { fill: #d98a1f; }
+  .dr-map-state--home { fill: #6b8fd4; }
   .dr-map-link { cursor: default; outline: none; }
   .dr-map-link[data-has-staff="true"] { cursor: pointer; }
   .dr-map-tooltip {
@@ -1135,9 +1138,18 @@ PAGE_CSS = """
     padding: 0.35rem 0.6rem; border-radius: 6px; box-shadow: var(--shadow);
   }
   .dr-map-tooltip[hidden] { display: none; }
+  .dr-map-tooltip--wrap { white-space: normal; max-width: 260px; }
   .dr-map-legend { display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.82rem; color: var(--muted); }
+  .dr-map-legend[hidden] { display: none; }
   .dr-map-legend .swatch { width: 0.75rem; height: 0.75rem; border-radius: 3px; display: inline-block; margin-right: 0.5em; vertical-align: -1px; }
   .dr-map-note { font-size: 0.78rem; color: var(--faint); margin-top: 0.8rem; }
+  .dr-map-controls { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .dr-map-controls label { font-size: 0.85rem; font-weight: 600; margin: 0; }
+  .dr-map-controls select { font-family: inherit; font-size: 0.9rem; padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border-strong); border-radius: 7px; background: var(--bg); color: inherit; }
+  .dr-map-mobility-note { font-size: 0.82rem; color: var(--muted); margin-bottom: 1rem; padding: 0.6rem 0.8rem;
+    background: var(--row-alt); border-radius: 8px; }
+  .dr-map-mobility-note[hidden] { display: none; }
 
   /* ---- CPE Hours tab (2026-07-30, new BUILD v2 phase) ---- */
   .dr-cpe-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.2rem; }
@@ -1594,7 +1606,10 @@ def _turnstile_shared_widget_html() -> str:
     }}
     var done = false;
     function finish() {{ if (done) return; done = true; cb(); }}
-    if (drTurnstileToken) {{ finish(); return; }}
+    // Not "if already have a token, finish immediately" -- drTurnstileToken
+    // was just cleared above and reset() doesn't refill it synchronously, so
+    // that check could never be true here (AuditLab, 2026-08-03: dead code,
+    // harmless, cleaned up on this file's next touch).
     drTurnstileWaiters.push(finish);
     setTimeout(finish, 8000);
   }};
@@ -4613,10 +4628,16 @@ def _firm_dashboard_map_svg_html(by_slug: dict[str, list[dict]]) -> str:
     <div class="dr-map-tooltip" id="dr-map-tooltip" hidden aria-hidden="true"></div>
   </div>
   <div>
-    <div class="dr-map-legend">
+    <div class="dr-map-legend" id="dr-map-legend-staff">
       <span><span class="swatch" style="background:#1f9e5c"></span>Staff licensed here, all current</span>
       <span><span class="swatch" style="background:#c33737"></span>Staff licensed here, due soon or unresolved</span>
       <span><span class="swatch" style="background:var(--border)"></span>No staff licensed here</span>
+    </div>
+    <div class="dr-map-legend" id="dr-map-legend-mobility" hidden>
+      <span><span class="swatch" style="background:#6b8fd4"></span>Home state</span>
+      <span><span class="swatch" style="background:#1f9e5c"></span>Practice privilege clear</span>
+      <span><span class="swatch" style="background:#d98a1f"></span>Action required first</span>
+      <span><span class="swatch" style="background:var(--border)"></span>Not verified / not covered</span>
     </div>
     <p class="dr-map-note">Territories (Guam, Puerto Rico, U.S. Virgin Islands, Northern Mariana
     Islands) aren't shown on the map -- see the roster table for your full list.</p>
@@ -5077,6 +5098,19 @@ function drRenderAgenda() {
   }).join('');
 }
 
+// Every color class either map mode can apply to a path -- both
+// drRenderMap() and drApplyMobilityResults() clear this FULL set before
+// applying their own, so switching modes never leaves a stale class from
+// the other mode sitting on a path (2026-08-03: caught in verification --
+// drRenderMap() only cleared its own two classes, so a state colored
+// dr-map-state--home in mobility mode stayed that way after switching back
+// to "All staff", visually fighting with the class the All view then added).
+var DR_MAP_STATE_CLASSES = ['dr-map-state--active', 'dr-map-state--risk', 'dr-map-state--clear', 'dr-map-state--action', 'dr-map-state--home'];
+
+function drClearMapStateClasses(path) {
+  DR_MAP_STATE_CLASSES.forEach(function(c) { path.classList.remove(c); });
+}
+
 function drRenderMap() {
   var links = document.querySelectorAll('.dr-map-link');
   if (!links.length) return;
@@ -5092,10 +5126,10 @@ function drRenderMap() {
     var slug = link.getAttribute('data-state-slug');
     var path = link.querySelector('path');
     var info = byState[slug];
+    drClearMapStateClasses(path);
     if (!info) {
       // Leave the server-rendered "-- no staff licensed here" aria-label as-is
       // (already correct, set at build time) -- nothing to update here.
-      path.classList.remove('dr-map-state--active', 'dr-map-state--risk');
       link.setAttribute('data-has-staff', 'false');
       link.removeAttribute('data-tip');
       return;
@@ -5113,6 +5147,172 @@ function drRenderMap() {
     link.setAttribute('data-tip', summary);
     link.setAttribute('aria-label', summary);
   });
+}
+
+// ---------------------------------------------------------------------------
+// Map tab, reciprocity mode (2026-08-03, requested directly: "hover a
+// state, show which employees can work there"). "All staff" keeps
+// drRenderMap() above
+// exactly as it always worked (home-state licensing) -- rendering 20+
+// people's individually-attested reciprocity onto one map at once would be
+// unreadable, so a specific person must be picked for this view. Reuses
+// POST /firm/mobility/check-batch (evaluateMobility() server-side, the
+// same legally-reviewed engine /firm-mobility/ uses) rather than a second,
+// client-side rule implementation -- see that endpoint's own docstring.
+//
+// license_in_good_standing/substantially_equivalent are NOT stored per
+// staff member anywhere in this product, so this view assumes both true
+// for every person (the common case) and discloses that assumption in
+// dr-map-mobility-note -- it is a quick overview, not a per-person legal
+// determination. For a specific person's own facts, Practice Privilege
+// Check remains the authoritative tool.
+// ---------------------------------------------------------------------------
+
+var DR_MOBILITY_SERVICE_TYPE = 'tax';
+var drMobilityCache = {}; // home_state_slug -> {results: [...]} | {denied: 'message text'}
+
+function drPopulateMapStaffSelect() {
+  var sel = document.getElementById('dr-map-staff-select');
+  if (!sel) return;
+  var prevValue = sel.value;
+  var active = drLicenses.filter(function(item) { return item.status !== 'opted_out'; });
+  var options = ['<option value="">All staff (home-state licensing)</option>'].concat(
+    active.map(function(item) {
+      var label = item.staff_label || item.email;
+      return '<option value="' + drEscapeHtml(item.id) + '">' + drEscapeHtml(label) +
+        (item.state_name ? ' (' + drEscapeHtml(item.state_name) + ')' : '') + '</option>';
+    })
+  );
+  sel.innerHTML = options.join('');
+  // Keep the same person selected across a roster reload if they still
+  // exist; otherwise fall back to "All" rather than silently pointing at a
+  // removed id.
+  var stillExists = active.some(function(item) { return item.id === prevValue; });
+  sel.value = stillExists ? prevValue : '';
+}
+
+function drSetMapTooltipWrap(wrap) {
+  var tip = document.getElementById('dr-map-tooltip');
+  if (tip) tip.classList.toggle('dr-map-tooltip--wrap', wrap);
+  var staffLegend = document.getElementById('dr-map-legend-staff');
+  var mobilityLegend = document.getElementById('dr-map-legend-mobility');
+  if (staffLegend) staffLegend.hidden = wrap;
+  if (mobilityLegend) mobilityLegend.hidden = !wrap;
+}
+
+function drApplyMobilityResults(homeStateSlug, entry) {
+  var noteEl = document.getElementById('dr-map-mobility-note');
+  var links = document.querySelectorAll('.dr-map-link');
+  drSetMapTooltipWrap(true);
+  if (entry.denied) {
+    if (noteEl) {
+      noteEl.textContent = entry.denied;
+      noteEl.hidden = false;
+    }
+    links.forEach(function(link) {
+      var path = link.querySelector('path');
+      drClearMapStateClasses(path);
+      link.removeAttribute('data-tip');
+      link.setAttribute('data-has-staff', 'false');
+    });
+    return;
+  }
+  if (noteEl) {
+    noteEl.textContent = 'Assumes an active license in good standing and substantial equivalence for ' +
+      'every state (service type: ' + DR_MOBILITY_SERVICE_TYPE + '). For this person’s own facts, ' +
+      'use Practice Privilege Check.';
+    noteEl.hidden = false;
+  }
+  var byTarget = {};
+  entry.results.forEach(function(r) { byTarget[r.target_state_slug] = r; });
+  links.forEach(function(link) {
+    var slug = link.getAttribute('data-state-slug');
+    var path = link.querySelector('path');
+    path.classList.remove('dr-map-state--active', 'dr-map-state--risk', 'dr-map-state--clear', 'dr-map-state--action', 'dr-map-state--home');
+    if (slug === homeStateSlug) {
+      path.classList.add('dr-map-state--home');
+      var homeTip = 'Home state -- licensed here directly, not a reciprocity question.';
+      link.setAttribute('data-tip', homeTip);
+      link.setAttribute('aria-label', homeTip);
+      link.setAttribute('data-has-staff', 'true');
+      return;
+    }
+    var r = byTarget[slug];
+    if (!r) {
+      link.removeAttribute('data-tip');
+      link.setAttribute('data-has-staff', 'false');
+      return;
+    }
+    var verdict = r.overall;
+    if (verdict === 'clear') path.classList.add('dr-map-state--clear');
+    else if (verdict === 'action_required') path.classList.add('dr-map-state--action');
+    // not_verified (or anything else): no color class, stays default gray.
+    var tipText = r.individual && r.individual.summary ? r.individual.summary : 'Not verified for this state.';
+    link.setAttribute('data-tip', tipText);
+    link.setAttribute('aria-label', tipText);
+    link.setAttribute('data-has-staff', verdict !== 'not_verified' ? 'true' : 'false');
+  });
+}
+
+function drRenderMapMobility(subscriberId) {
+  var person = drLicenses.filter(function(item) { return item.id === subscriberId; })[0];
+  if (!person || !person.state_slug) {
+    drRenderMap();
+    return;
+  }
+  var homeStateSlug = person.state_slug;
+  var cached = drMobilityCache[homeStateSlug];
+  if (cached) {
+    drApplyMobilityResults(homeStateSlug, cached);
+    return;
+  }
+  var noteEl = document.getElementById('dr-map-mobility-note');
+  if (noteEl) {
+    noteEl.textContent = 'Checking practice privilege for every state…';
+    noteEl.hidden = false;
+  }
+  fetch('/api/firm/mobility/check-batch', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      home_state_slug: homeStateSlug,
+      service_type: DR_MOBILITY_SERVICE_TYPE,
+      license_in_good_standing: true,
+      substantially_equivalent: true
+    })
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (res.status === 403) {
+        var denied = (data && data.error) || 'Practice-privilege coloring is part of the paid firm plan.';
+        drMobilityCache[homeStateSlug] = {denied: denied};
+        drApplyMobilityResults(homeStateSlug, drMobilityCache[homeStateSlug]);
+        return;
+      }
+      if (!res.ok || !data) {
+        if (noteEl) { noteEl.textContent = 'Something went wrong checking practice privilege. Please try again.'; }
+        return;
+      }
+      drMobilityCache[homeStateSlug] = {results: data.results};
+      drApplyMobilityResults(homeStateSlug, drMobilityCache[homeStateSlug]);
+    });
+  }).catch(function() {
+    if (noteEl) { noteEl.textContent = 'Something went wrong checking practice privilege. Please try again.'; }
+  });
+}
+
+function drRenderMapForSelection() {
+  var sel = document.getElementById('dr-map-staff-select');
+  var value = sel ? sel.value : '';
+  var noteEl = document.getElementById('dr-map-mobility-note');
+  if (!value) {
+    if (noteEl) noteEl.hidden = true;
+    drSetMapTooltipWrap(false);
+    drRenderMap();
+    return;
+  }
+  drRenderMapMobility(value);
 }
 
 function drWireMapTooltip() {
@@ -5470,7 +5670,8 @@ function drLoadLicenses() {
       drRenderActivity();
       drRenderCalendar();
       drRenderAgenda();
-      drRenderMap();
+      drPopulateMapStaffSelect();
+      drRenderMapForSelection();
       drLoadCpeEntries();
     })
     .catch(function() {
@@ -5541,6 +5742,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
   drLoadLicenses();
   drWireMapTooltip();
+
+  var mapStaffSelect = document.getElementById('dr-map-staff-select');
+  if (mapStaffSelect) {
+    mapStaffSelect.addEventListener('change', drRenderMapForSelection);
+  }
 
   document.querySelectorAll('.dr-nav a[data-view]').forEach(function(a) {
     a.addEventListener('click', function(ev) {
@@ -6123,6 +6329,13 @@ def build_firm_dashboard_page(
     <div id="dr-view-map" class="dr-view" role="tabpanel" hidden>
       <h1>Map</h1>
       <p class="subhead">Where your firm has staff licensed, and who's at risk.</p>
+      <div class="dr-map-controls">
+        <label for="dr-map-staff-select">Show</label>
+        <select id="dr-map-staff-select">
+          <option value="">All staff (home-state licensing)</option>
+        </select>
+      </div>
+      <p class="dr-map-mobility-note" id="dr-map-mobility-note" hidden></p>
       <div class="dr-map-panel">
         {map_svg_html}
       </div>

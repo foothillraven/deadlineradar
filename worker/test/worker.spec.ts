@@ -6,7 +6,9 @@ import {
   nextAnnualMonthEnd,
   nextBirthMonthParityDate,
   StaleDataError,
+  STALENESS_THRESHOLD_DAYS,
 } from "../src/deadline";
+import cpaDeadlinesData from "../src/cpa_deadlines.json";
 import {
   hasControlChars,
   isValidEmail,
@@ -2364,12 +2366,25 @@ describe("Staleness guard -- real HTTP + cron code paths, not just checkDataFres
   // live signup endpoint and the live cron handler (not just that the pure
   // function throws in isolation, which worker.spec.ts already covered above)
   // requires actually moving the system clock, not passing a parameter.
+  //
+  // STALE_MOCK_DATE is computed from the REAL as_of_date + one day past the
+  // threshold, not a hardcoded calendar date. A fixed date ("2026-09-01")
+  // silently stopped being "stale" the moment as_of_date itself advanced past
+  // (that date minus the threshold) -- exactly what happened here: written
+  // when as_of_date was 2026-07-05 (58 days before the fixed mock date, well
+  // past the 30-day threshold), it went quietly wrong again once as_of_date
+  // reached 2026-08-02 (making the fixed mock date exactly 30 days out --
+  // AT the threshold, not past it, since checkDataFreshness() uses strict
+  // `>`). Deriving it keeps these tests correct forever regardless of how
+  // often the data gets re-verified.
+  const STALE_MOCK_DATE = new Date(
+    Date.parse(`${cpaDeadlinesData.as_of_date}T00:00:00Z`) + (STALENESS_THRESHOLD_DAYS + 1) * 86_400_000
+  );
+
   it("POST /subscribe returns 503 'temporarily paused' once as_of_date is more than 30 days old", async () => {
     vi.useFakeTimers();
     try {
-      // data/cpa_deadlines.json's as_of_date is 2026-07-05 at the time of this
-      // audit; 2026-09-01 is 58 days later, well past the 30-day threshold.
-      vi.setSystemTime(new Date("2026-09-01T00:00:00Z"));
+      vi.setSystemTime(STALE_MOCK_DATE);
       const resp = await postSubscribe(
         { email: `stale-guard-${Date.now()}@example.com`, state: "texas", birth_month: "7" },
         "203.0.113.90"
@@ -2385,7 +2400,7 @@ describe("Staleness guard -- real HTTP + cron code paths, not just checkDataFres
   it("does not persist a subscriber row when the staleness guard refuses the signup", async () => {
     vi.useFakeTimers();
     try {
-      vi.setSystemTime(new Date("2026-09-01T00:00:00Z"));
+      vi.setSystemTime(STALE_MOCK_DATE);
       const email = `stale-guard-nowrite-${Date.now()}@example.com`;
       await postSubscribe({ email, state: "texas", birth_month: "7" }, "203.0.113.91");
       const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first();
@@ -2398,7 +2413,7 @@ describe("Staleness guard -- real HTTP + cron code paths, not just checkDataFres
   it("the reminder cron's runReminderPass() throws StaleDataError (not a silent send) once as_of_date ages out", async () => {
     vi.useFakeTimers();
     try {
-      vi.setSystemTime(new Date("2026-09-01T00:00:00Z"));
+      vi.setSystemTime(STALE_MOCK_DATE);
       const { runReminderPass } = await import("../src/scheduler");
       await expect(runReminderPass(env)).rejects.toThrow(StaleDataError);
     } finally {
@@ -2409,7 +2424,7 @@ describe("Staleness guard -- real HTTP + cron code paths, not just checkDataFres
   it("scheduled() (the actual Worker cron entrypoint) swallows the stale-data pause and does not throw out of the handler", async () => {
     vi.useFakeTimers();
     try {
-      vi.setSystemTime(new Date("2026-09-01T00:00:00Z"));
+      vi.setSystemTime(STALE_MOCK_DATE);
       const worker = (await import("../src/index")).default;
       const logs: string[] = [];
       const logSpy = vi.spyOn(console, "log").mockImplementation((msg: unknown) => {

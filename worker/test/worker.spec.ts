@@ -94,6 +94,18 @@ describe("GET /health", () => {
     expect(resp.status).toBe(200);
     expect(await resp.json()).toEqual({ status: "ok" });
   });
+
+  // AuditLab S-1, 2026-08-03 (MEDIUM): neither origin sent any of these 5
+  // headers. GitHub Pages can't be fixed from this repo (needs a Cloudflare
+  // Transform Rule), but every Worker response should carry them now.
+  it("carries the 5 baseline security headers", async () => {
+    const resp = await getAction("/health");
+    expect(resp.headers.get("Strict-Transport-Security")).toContain("max-age=");
+    expect(resp.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(resp.headers.get("X-Frame-Options")).toBe("DENY");
+    expect(resp.headers.get("Referrer-Policy")).toBeTruthy();
+    expect(resp.headers.get("Content-Security-Policy")).toBeTruthy();
+  });
 });
 
 describe("/api prefix stripping (Workers Route binding)", () => {
@@ -1670,6 +1682,39 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
     expect((await renewFirmLicense(cookie, "does-not-exist")).status).toBe(404);
   });
 
+  // AuditLab S-3, 2026-08-03 (LOW): these two had no bucket at all, unlike
+  // PATCH (F-2) and POST (RATE_LIMIT_FIRM_LICENSE_CREATE). No send path
+  // either way, but the rate-limit check runs before the id lookup, so a
+  // nonexistent id still consumes the bucket -- exactly what makes this test
+  // cheap to write.
+  it("DELETE /firm/licenses/:id is rate-limited per firm (was completely unbounded)", async () => {
+    const { cookie } = await createFirmWithSession("Delete Rate Firm", `delete-rate-${Date.now()}@example.com`);
+    let sawA429 = false;
+    for (let i = 0; i < 55; i++) {
+      const resp = await deleteFirmLicense(cookie, "does-not-exist");
+      if (resp.status === 429) {
+        sawA429 = true;
+        break;
+      }
+      expect(resp.status).toBe(404);
+    }
+    expect(sawA429, "expected a 429 within the RATE_LIMIT_FIRM_LICENSE_DELETE ceiling (50/day) -- got none in 55 requests").toBe(true);
+  }, 20000);
+
+  it("POST /firm/licenses/:id/renew is rate-limited per firm (was completely unbounded)", async () => {
+    const { cookie } = await createFirmWithSession("Renew Rate Firm", `renew-rate-${Date.now()}@example.com`);
+    let sawA429 = false;
+    for (let i = 0; i < 55; i++) {
+      const resp = await renewFirmLicense(cookie, "does-not-exist");
+      if (resp.status === 429) {
+        sawA429 = true;
+        break;
+      }
+      expect(resp.status).toBe(404);
+    }
+    expect(sawA429, "expected a 429 within the RATE_LIMIT_FIRM_LICENSE_RENEW ceiling (50/day) -- got none in 55 requests").toBe(true);
+  }, 20000);
+
   // AuditLab F-2, 2026-08-02 (HIGH): PATCH had NO rate limit at all -- PoC
   // sent 400 PATCHes to one row and got 400 accepted, 0 rejected. Each
   // email-changing PATCH fires a fresh confirmation email to the new
@@ -3046,6 +3091,23 @@ describe("GET/POST/DELETE /firm/cpe -- CPE-hours entry CRUD", () => {
     const overCap = await postCpeEntry(cookie, { subscriber_id: subscriberId, entry_date: "2026-06-01", hours: "1", category: "general" }, "203.0.113.250");
     expect(overCap.status).toBe(429);
   }, 20000);
+
+  // AuditLab S-3, 2026-08-03 (LOW): DELETE had no bucket at all, unlike POST
+  // above. Rate limit runs before the id lookup, so a nonexistent id still
+  // consumes the bucket.
+  it("blocks the 101st CPE-entry DELETE from the same firm within the daily window", async () => {
+    const { cookie } = await createFirmWithSession("CPE Delete Rate Firm", `cpe-delete-rate-${Date.now()}@example.com`);
+    let sawA429 = false;
+    for (let i = 0; i < 105; i++) {
+      const resp = await deleteCpeEntry(cookie, "does-not-exist", `203.0.113.${210 + (i % 40)}`);
+      if (resp.status === 429) {
+        sawA429 = true;
+        break;
+      }
+      expect(resp.status).toBe(404);
+    }
+    expect(sawA429, "expected a 429 within the RATE_LIMIT_CPE_ENTRY_DELETE ceiling (100/day) -- got none in 105 requests").toBe(true);
+  }, 30000);
 });
 
 // ---------------------------------------------------------------------------
@@ -3594,6 +3656,25 @@ describe("GET/DELETE /firm/oauth-identities -- connected accounts", () => {
     expect((await callDelete(linked!.id, cookie)).status).toBe(200);
     expect((await (await callList(cookie)).json<{ identities: unknown[] }>()).identities).toHaveLength(0);
   });
+
+  // AuditLab S-3, 2026-08-03 (LOW): DELETE had no bucket at all. Rate limit
+  // runs before the id lookup, so a nonexistent id still consumes the bucket.
+  it("DELETE /firm/oauth-identities/:id is rate-limited per firm (was completely unbounded)", async () => {
+    const email = `ident-rate-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "Ident Rate Firm", adminEmail: email });
+    const { rawSessionToken } = await store.createSession(env.DB, firmId);
+    const cookie = `dr_firm_session=${rawSessionToken}`;
+    let sawA429 = false;
+    for (let i = 0; i < 25; i++) {
+      const resp = await callDelete("does-not-exist", cookie);
+      if (resp.status === 429) {
+        sawA429 = true;
+        break;
+      }
+      expect(resp.status).toBe(404);
+    }
+    expect(sawA429, "expected a 429 within the RATE_LIMIT_OAUTH_IDENTITY_DELETE ceiling (20/day) -- got none in 25 requests").toBe(true);
+  }, 20000);
 
   it("CROSS-FIRM: cannot see or unlink another firm's identity, and returns a generic 404 not a 403", async () => {
     const victimEmail = `ident-victim-${Date.now()}@examplefirm.com`;

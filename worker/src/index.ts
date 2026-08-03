@@ -63,6 +63,10 @@ import {
   RATE_LIMIT_MOBILITY_CHECK,
   RATE_LIMIT_FIRM_LICENSE_CREATE,
   RATE_LIMIT_FIRM_LICENSE_PATCH,
+  RATE_LIMIT_FIRM_LICENSE_DELETE,
+  RATE_LIMIT_FIRM_LICENSE_RENEW,
+  RATE_LIMIT_CPE_ENTRY_DELETE,
+  RATE_LIMIT_OAUTH_IDENTITY_DELETE,
   RATE_LIMIT_DEBUG_REMINDER_PASS,
   RATE_LIMIT_FIRM_LOGIN,
   RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT,
@@ -2156,6 +2160,15 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
 async function handleFirmLicenseDelete(request: Request, env: Env, id: string): Promise<Response> {
   const session = await requireFirmSession(request, env);
   if (session instanceof Response) return session;
+
+  // Per-FIRM daily cap -- AuditLab S-3, 2026-08-03. No send path here (unlike
+  // F-2/RATE_LIMIT_FIRM_LICENSE_PATCH), but still unbounded D1 write
+  // amplification with nothing bounding it before this.
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_license_delete", RATE_LIMIT_FIRM_LICENSE_DELETE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
   const result = await store.removeFirmLicense(env.DB, session.firmId, id);
   if (!result) return jsonResponse(404, { error: "Not found." });
   return jsonResponse(200, { id: result.id, status: "removed" });
@@ -2174,6 +2187,13 @@ async function handleFirmLicenseDelete(request: Request, env: Env, id: string): 
 async function handleFirmLicenseRenew(request: Request, env: Env, id: string): Promise<Response> {
   const session = await requireFirmSession(request, env);
   if (session instanceof Response) return session;
+
+  // Per-FIRM daily cap -- AuditLab S-3, 2026-08-03. Same reasoning as the
+  // DELETE handler above: no send path, but unbounded D1 write amplification.
+  const renewAllowed = await checkRateLimit(env.DB, session.firmId, "firm_license_renew", RATE_LIMIT_FIRM_LICENSE_RENEW);
+  if (!renewAllowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
 
   // Read the row first (ownership-scoped) so a refusal can be given a
   // specific, honest reason -- store.renewAndRearm() itself only ever
@@ -2328,6 +2348,14 @@ async function handleCpeEntryCreate(request: Request, env: Env): Promise<Respons
 async function handleCpeEntryDelete(request: Request, env: Env, id: string): Promise<Response> {
   const session = await requireFirmSession(request, env);
   if (session instanceof Response) return session;
+
+  // Per-FIRM daily cap -- AuditLab S-3, 2026-08-03. Same reasoning as
+  // RATE_LIMIT_CPE_ENTRY_CREATE's own comment, applied to the delete side.
+  const allowed = await checkRateLimit(env.DB, session.firmId, "cpe_entry_delete", RATE_LIMIT_CPE_ENTRY_DELETE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
   const removed = await store.removeCpeEntry(env.DB, session.firmId, id);
   if (!removed) return jsonResponse(404, { error: "Not found." });
   return jsonResponse(200, { id, status: "removed" });
@@ -2506,6 +2534,30 @@ function corsHeaders(env: Env): Record<string, string> {
 function withCorsHeaders(response: Response, env: Env): Response {
   const headers = new Headers(response.headers);
   for (const [k, v] of Object.entries(corsHeaders(env))) headers.set(k, v);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+// AuditLab S-1, 2026-08-03: neither origin sent any of the 5 standard security
+// response headers. GitHub Pages (the static site) can't be fixed from code --
+// that side needs a Cloudflare Response Header Transform Rule -- but every
+// response from THIS Worker can carry them. Set-if-absent so this never
+// overrides a route's own more specific choice (e.g. the token-bearing action
+// pages already set their own stricter frame-ancestors CSP + no-referrer).
+// The CSP here covers only what this Worker's own HTML actually needs
+// (htmlPage()'s inline <style>, no scripts, no external subresource,
+// same-origin form posts) -- it says nothing about the static site's pages.
+function withSecurityHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  const defaults: Record<string, string> = {
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'",
+  };
+  for (const [k, v] of Object.entries(defaults)) {
+    if (!headers.has(k)) headers.set(k, v);
+  }
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
@@ -3454,6 +3506,15 @@ async function handleOauthIdentitiesList(request: Request, env: Env): Promise<Re
 async function handleOauthIdentityDelete(request: Request, env: Env, id: string): Promise<Response> {
   const session = await requireFirmSession(request, env);
   if (session instanceof Response) return session;
+
+  // Per-FIRM daily cap -- AuditLab S-3, 2026-08-03. Same reasoning as
+  // RATE_LIMIT_OAUTH_START's own comment (bounds table growth from a
+  // compromised/careless session), applied to the unlink side.
+  const allowed = await checkRateLimit(env.DB, session.firmId, "oauth_identity_delete", RATE_LIMIT_OAUTH_IDENTITY_DELETE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
   const removed = await store.unlinkOauthIdentity(env.DB, session.firmId, id);
   if (!removed) return jsonResponse(404, { error: "Not found." });
   return jsonResponse(200, { ok: true });
@@ -3563,12 +3624,12 @@ export default {
     // skipped and routeRequest() runs exactly as it always has.
     if (env.STATIC_SITE_BASE_URL) {
       if (request.method === "OPTIONS") {
-        return new Response(null, { status: 204, headers: corsHeaders(env) });
+        return withSecurityHeaders(new Response(null, { status: 204, headers: corsHeaders(env) }));
       }
       const response = await routeRequest(request, env, ctx);
-      return withCorsHeaders(response, env);
+      return withSecurityHeaders(withCorsHeaders(response, env));
     }
-    return routeRequest(request, env, ctx);
+    return withSecurityHeaders(await routeRequest(request, env, ctx));
   },
 
   /**

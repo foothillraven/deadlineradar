@@ -456,6 +456,18 @@ export const RATE_LIMIT_FIRM_LICENSE_PATCH: RateLimit = { max: 50, windowSeconds
 // conference), tight enough to bound a runaway script.
 export const RATE_LIMIT_CPE_ENTRY_CREATE: RateLimit = { max: 100, windowSeconds: 86400 };
 
+// AuditLab S-3, 2026-08-03: these four authenticated state-changing routes
+// had no bucket at all -- not a mail primitive like F-2/RATE_LIMIT_FIRM_LICENSE_PATCH
+// (none of them sends email), but still unbounded D1 write amplification from
+// an already-authenticated, firm-scoped session. Same per-firm-id keying and
+// same 50-100/day ceilings as their sibling CREATE/PATCH buckets above -- a
+// legitimate bulk operation (deleting/renewing a departing cohort, unlinking
+// stale SSO identities) looks the same shape as those.
+export const RATE_LIMIT_FIRM_LICENSE_DELETE: RateLimit = { max: 50, windowSeconds: 86400 };
+export const RATE_LIMIT_FIRM_LICENSE_RENEW: RateLimit = { max: 50, windowSeconds: 86400 };
+export const RATE_LIMIT_CPE_ENTRY_DELETE: RateLimit = { max: 100, windowSeconds: 86400 };
+export const RATE_LIMIT_OAUTH_IDENTITY_DELETE: RateLimit = { max: 20, windowSeconds: 86400 };
+
 // POST /debug/run-reminder-pass -- PREVIEW/STAGING ONLY, see index.ts's own
 // gate (the route 404s outright unless env.EMAIL_ALLOWLIST is set, which is
 // never true in production). Lets a human tester fire the daily reminder

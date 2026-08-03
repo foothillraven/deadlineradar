@@ -277,6 +277,17 @@ def esc(s: str) -> str:
     return html.escape(str(s), quote=True)
 
 
+def http_href(url: object, fallback: str = "#") -> str:
+    """Only http(s) survives into an href -- esc() does nothing against a
+    javascript: URI, so this (not escaping) is the actual guard. Mirrors
+    scripts/build_change_events.py's _http(), but lives here too so every
+    data-file-sourced link is guarded at render time regardless of which
+    producer wrote the file."""
+    if isinstance(url, str) and url.startswith(("http://", "https://")):
+        return esc(url)
+    return fallback
+
+
 # Minimal calendar glyph, site accent color (#1f5fbf), flat and legible at 16px.
 # Two "binder tabs" + a header band + one highlighted date square -- the smallest
 # set of shapes that still reads as "calendar/deadline" at favicon size.
@@ -1775,7 +1786,7 @@ def trust_line(last_verified: str, source_url: str) -> str:
   statute or administrative rule, not just a board webpage &mdash; if we can't verify a date against
   primary law, we say so instead of guessing (<a href="/methodology/">see how we verify every
   deadline</a>). Always confirm with the
-  <a href="{esc(source_url)}">official state board</a> before relying on this date. License
+  <a href="{http_href(source_url)}">official state board</a> before relying on this date. License
   requirements and deadlines can change.
 </div>"""
 
@@ -1811,7 +1822,7 @@ def _cpe_provider_html(url: str, placeholder: str, name: str, blurb: str, routin
         return ""
     note_html = f" {esc(routing_note)}" if routing_note else ""
     return f"""<div class="cpe-affiliate">
-  <p><strong>Need CPE hours before your deadline?</strong> <a href="{esc(url)}">{esc(name)}</a>
+  <p><strong>Need CPE hours before your deadline?</strong> <a href="{http_href(url)}">{esc(name)}</a>
   {esc(blurb)}.{note_html}</p>
   {_affiliate_disclosure_html()}
 </div>"""
@@ -1904,7 +1915,7 @@ def _source_cite_html(record: dict) -> str:
     return f"""<div class="source-cite">
   <span class="cite-label">{label}</span>
   <span class="cite-stamp">{esc(citation)}</span>
-  <a href="{esc(link_url)}" class="cite-link">{link_text}</a>
+  <a href="{http_href(link_url)}" class="cite-link">{link_text}</a>
 </div>"""
 
 
@@ -1967,7 +1978,7 @@ def _cite_chip_html(record: dict, max_chars: int | None = None) -> str:
     if max_chars and len(citation) > max_chars:
         display = citation[: max_chars - 1].rstrip() + "…"
     return (
-        f'<a class="cite" href="{esc(record["citation_url"])}" title="{esc(citation)}">{_CITE_ICON_SVG}'
+        f'<a class="cite" href="{http_href(record["citation_url"])}" title="{esc(citation)}">{_CITE_ICON_SVG}'
         f'{esc(display)}</a>'
     )
 
@@ -2071,7 +2082,7 @@ def render_ohio(record: dict) -> str:
   </table>
 </div>
 <p>Not sure which group you're in? Your license certificate or the
-<a href="{esc(record['source_url'])}">Accountancy Board of Ohio lookup</a> will show your
+<a href="{http_href(record['source_url'])}">Accountancy Board of Ohio lookup</a> will show your
 assigned group.</p>"""
 
 
@@ -2112,7 +2123,7 @@ def render_cohort_group_record(record: dict) -> str:
         gap_html
         if gap_note else
         f"""<p>Not sure which group applies to you? Your license certificate or the
-<a href="{esc(record['source_url'])}">official source above</a> will show your assigned group.</p>"""
+<a href="{http_href(record['source_url'])}">official source above</a> will show your assigned group.</p>"""
     )
     return f"""<div class="callout">
   <div class="label">{esc(record['license_type_label'])}</div>
@@ -2181,7 +2192,7 @@ def render_new_york(record: dict) -> str:
   {esc(record['computation']['note'])}</p>
   <p>To find your exact triennial registration due date, check your registration
   certificate or look yourself up at
-  <a href="{esc(record['source_url'])}">NYSED Office of the Professions</a>.</p>
+  <a href="{http_href(record['source_url'])}">NYSED Office of the Professions</a>.</p>
 </div>"""
 
 
@@ -3145,7 +3156,7 @@ def _rule_change_card_html(e: dict) -> str:
   </div>
   {eff_html}
   <p class="rc-detail">{esc(detail)}</p>
-  <p class="rc-cite"><a href="{esc(e.get("citation_url") or "")}">{esc(e.get("citation") or "Primary source")}</a>
+  <p class="rc-cite"><a href="{http_href(e.get("citation_url"))}">{esc(e.get("citation") or "Primary source")}</a>
   <span class="rc-conf">&middot; {esc(source_label)}, confidence: {esc(e.get("confidence") or "unverified")}</span></p>
 </div>"""
 
@@ -3157,7 +3168,7 @@ def _rule_conflict_card_html(e: dict) -> str:
     <span class="rc-badge rc-badge-conflict">Sources disagree</span>
   </div>
   <p class="rc-detail">{esc(e.get("summary_public") or "Our primary sources for this jurisdiction currently disagree with each other. We withhold a determination rather than pick a side.")}</p>
-  <p class="rc-cite"><a href="{esc(e.get("citation_url") or "")}">{esc(e.get("citation") or "Primary source")}</a></p>
+  <p class="rc-cite"><a href="{http_href(e.get("citation_url"))}">{esc(e.get("citation") or "Primary source")}</a></p>
 </div>"""
 
 

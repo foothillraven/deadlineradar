@@ -907,6 +907,38 @@ describe("POST /firm/login -- login-link resend for an existing firm", () => {
     expect(after?.c).toBe((before?.c ?? 0) + 1);
   });
 
+  // AuditLab re-verify follow-up, 2026-08-03: a suspended firm's login
+  // TOKEN still correctly 403s on redemption (F-1), but this resend
+  // endpoint issued and emailed a fresh one anyway -- spending a send from
+  // the shared daily cap on an account that's been cut off. Fixed by
+  // adding `existing.status === "active"` to the same condition, not a
+  // separate branch -- response must stay byte-identical either way.
+  it("for a SUSPENDED firm issues NO new token, but the response is still identical to a real send (no new enumeration oracle)", async () => {
+    const email = `firmlogin-suspended-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Suspended Resend Firm", admin_email: email }, "203.0.113.176");
+    const firm = await firmByAdminEmail(email);
+    await env.DB.prepare("UPDATE firms SET status = 'suspended' WHERE id = ?1").bind(firm?.id).run();
+
+    const before = await env.DB
+      .prepare("SELECT COUNT(*) as c FROM firm_login_tokens WHERE firm_id = ?1")
+      .bind(firm?.id)
+      .first<{ c: number }>();
+
+    const suspendedResp = await postFirmLogin({ admin_email: email }, "203.0.113.177");
+    const noneResp = await postFirmLogin(
+      { admin_email: `firmlogin-suspended-none-${Date.now()}@example.com` },
+      "203.0.113.178"
+    );
+    expect(suspendedResp.status).toBe(200);
+    expect(await suspendedResp.text()).toBe(await noneResp.text());
+
+    const after = await env.DB
+      .prepare("SELECT COUNT(*) as c FROM firm_login_tokens WHERE firm_id = ?1")
+      .bind(firm?.id)
+      .first<{ c: number }>();
+    expect(after?.c).toBe(before?.c ?? 0); // unchanged -- no token issued
+  });
+
   it("silently no-ops when the honeypot field is non-empty", async () => {
     const email = `firmlogin-hp-${Date.now()}@example.com`;
     const resp = await SELF.fetch("https://deadline-radar.com/firm/login", {

@@ -1204,11 +1204,21 @@ async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<
   const purpose = store.normalizeLoginTokenPurpose(form.intent);
 
   const existing = await store.findFirmByAdminEmail(env.DB, email);
-  if (existing) {
+  // AuditLab re-verify follow-up, 2026-08-03: a suspended firm's magic link
+  // still redeems to a 403 (requireFirmSession()/handleFirmLoginVerify()
+  // both check status), so this was never an access gap -- but sending the
+  // email at all spends one send from the GLOBAL daily cap shared with the
+  // real reminder cron, and mails an account that's been cut off for a
+  // reason. `existing.status === "active"` added to the SAME condition
+  // (not a separate branch) -- the response stays byte-identical to "no
+  // firm for this email" either way, so this does not introduce a new
+  // enumeration signal.
+  if (existing && existing.status === "active") {
     await issueAndSendFirmLoginLink(env, existing.id, email, purpose);
   }
-  // No firm for this email: fall through to the SAME response, sending
-  // nothing -- this is the anti-enumeration branch this handler exists for.
+  // No firm for this email, or an inactive one: fall through to the SAME
+  // response, sending nothing -- this is the anti-enumeration branch this
+  // handler exists for.
 
   return htmlResponse(200, firmLoginSentPage(env));
 }

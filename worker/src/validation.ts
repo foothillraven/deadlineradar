@@ -475,6 +475,11 @@ export const RATE_LIMIT_OAUTH_START: RateLimit = { max: 20, windowSeconds: 600 }
 
 export const RATE_LIMIT_DEBUG_REMINDER_PASS: RateLimit = { max: 5, windowSeconds: 600 };
 
+/** Mobility checks are the premium feature; this bounds automated
+ * harvesting of the rules dataset by a subscriber. Keyed on the
+ * authenticated FIRM ID rather than IP -- see handleMobilityCheck. */
+export const RATE_LIMIT_MOBILITY_CHECK: RateLimit = { max: 120, windowSeconds: 3600 };
+
 /** Returns true if this request is ALLOWED, false if it should be blocked. */
 export async function checkRateLimit(
   db: D1Database,

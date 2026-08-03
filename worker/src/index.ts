@@ -60,6 +60,7 @@ import {
   RATE_LIMIT_OAUTH_START,
   RATE_LIMIT_CPE_ENTRY_CREATE,
   RATE_LIMIT_FIRM_LEAD,
+  RATE_LIMIT_MOBILITY_CHECK,
   RATE_LIMIT_FIRM_LICENSE_CREATE,
   RATE_LIMIT_DEBUG_REMINDER_PASS,
   RATE_LIMIT_FIRM_LOGIN,
@@ -116,6 +117,15 @@ import {
   exchangeCodeForTokens,
   parseAndValidateIdToken,
 } from "./oauth";
+import mobilityRulesData from "./mobility_rules.json";
+import {
+  MOBILITY_DISCLAIMER,
+  evaluateMobility,
+  isValidServiceType,
+  normalizeRuleRow,
+  type MobilityRuleRow,
+} from "./mobility";
+import { checkPremiumAccess, entitlementMessage } from "./entitlements";
 
 function htmlPage(title: string, bodyHtml: string): string {
   return `<!doctype html>
@@ -2425,6 +2435,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
       }
+      if (url.pathname === "/firm/mobility/coverage") {
+        try {
+          return await handleMobilityCoverage(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
       if (url.pathname === "/firm/cpe") {
         try {
           return await handleCpeEntriesList(request, env);
@@ -2567,6 +2584,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/password") {
         try {
           return await handleFirmPasswordSet(request, env, ip);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/mobility/check") {
+        try {
+          return await handleMobilityCheck(request, env, ip);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -2847,6 +2872,76 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
       Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/`,
       "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken, env),
     },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Mobility / practice-privilege checks (2026-07-30). PAY-GATED -- the first
+// premium-only feature in this Worker.
+//
+// Two properties matter more than anything else here, and both are enforced
+// at this layer rather than trusted to the caller:
+//   * the entitlement check happens BEFORE any determination is computed,
+//     so a non-paying firm never receives a result, not even a cached one;
+//   * every response carries the not-legal-advice disclaimer and, where one
+//     exists, the citation -- the UI cannot render a determination without
+//     them because they arrive in the same payload.
+// ---------------------------------------------------------------------------
+
+/** Rules are looked up by slug. Built once at module load rather than per
+ * request -- the dataset is static and small. */
+const MOBILITY_RULES_BY_SLUG: Record<string, MobilityRuleRow> = Object.create(null);
+for (const raw of (mobilityRulesData.records ?? []) as unknown[]) {
+  // normalizeRuleRow() coerces every field to a strict tri-state and drops
+  // unusable rows. Without it, an OMITTED key in the JSON reads as
+  // `undefined`, passes both the `=== null` and `=== false` guards
+  // downstream, and yields a green "practice privilege exists" verdict for
+  // a row that verified nothing -- reproduced over HTTP in the 2026-07-30
+  // review. TypeScript cannot catch this at the JSON boundary.
+  const row = normalizeRuleRow(raw);
+  if (row) MOBILITY_RULES_BY_SLUG[row.state_slug] = row;
+}
+
+/**
+ * GET /firm/mobility/coverage -- which states we hold verified rules for.
+ *
+ * Exists so the UI can be HONEST about coverage up front rather than
+ * letting a firm run a check and discover we have nothing. Returns the
+ * covered slugs and the dataset's as-of date; deliberately does not return
+ * the rules themselves (that is the paid determination).
+ *
+ * Pay-gated like the check itself: coverage is a product detail, and
+ * leaking the shape of the premium dataset to non-subscribers is free
+ * competitive intelligence for the incumbents this feature competes with.
+ */
+async function handleMobilityCoverage(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  const firm = await store.getFirmById(env.DB, session.firmId);
+  if (!firm) return jsonResponse(404, { error: "Not found." });
+
+  const access = checkPremiumAccess(firm);
+  if (!access.allowed) {
+    return jsonResponse(403, {
+      error: entitlementMessage(access.reason),
+      reason: access.reason,
+      pilot_days_remaining: access.pilotDaysRemaining,
+    });
+  }
+
+  const covered = Object.values(MOBILITY_RULES_BY_SLUG).map((r) => ({
+    state_slug: r.state_slug,
+    state: r.state,
+    confidence: r.confidence,
+    verified_date: r.verified_date,
+  }));
+  return jsonResponse(200, {
+    covered,
+    covered_count: covered.length,
+    as_of: (mobilityRulesData._meta as Record<string, unknown> | undefined)?.as_of_date ?? null,
+    pilot_days_remaining: access.pilotDaysRemaining,
+    disclaimer: MOBILITY_DISCLAIMER,
   });
 }
 
@@ -3196,6 +3291,102 @@ async function handleOauthIdentityDelete(request: Request, env: Env, id: string)
 }
 
 
+/**
+ * POST /firm/mobility/check -- run a determination.
+ *
+ * Body: { home_state_slug, target_state_slug, service_type,
+ *         license_in_good_standing, substantially_equivalent }
+ *
+ * The two booleans are the practitioner's own attestations. We cannot
+ * verify either, and the response wording never implies we did -- see
+ * mobility.ts. They are inputs to the determination, not facts we assert.
+ */
+async function handleMobilityCheck(request: Request, env: Env, ip: string): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  // Keyed on the AUTHENTICATED FIRM, not the caller's IP. The stated threat
+  // is "harvesting by a subscriber", which an IP key does not bound (rotate
+  // IPs and it never binds) while it DOES punish a whole firm behind one
+  // office NAT. Matches RATE_LIMIT_FIRM_LICENSE_CREATE's convention for
+  // authenticated routes. Also moved after the entitlement check so an
+  // unentitled session cannot burn a paying firm's budget.
+  const firm = await store.getFirmById(env.DB, session.firmId);
+  if (!firm) return jsonResponse(404, { error: "Not found." });
+
+  // Entitlement BEFORE any work: a non-paying firm must not receive a
+  // determination under any circumstances.
+  const access = checkPremiumAccess(firm);
+  if (!access.allowed) {
+    return jsonResponse(403, {
+      error: entitlementMessage(access.reason),
+      reason: access.reason,
+      pilot_days_remaining: access.pilotDaysRemaining,
+    });
+  }
+
+  // Rate limit AFTER the gate. Review finding: with it first, an
+  // authenticated-but-unentitled session could exhaust the firm's budget
+  // purely on 403s.
+  const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_check", RATE_LIMIT_MOBILITY_CHECK);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many requests. Please try again later." });
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return jsonResponse(400, { error: "Request too large or empty." });
+  }
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  const homeStateSlug = typeof body.home_state_slug === "string" ? body.home_state_slug : "";
+  const targetStateSlug = typeof body.target_state_slug === "string" ? body.target_state_slug : "";
+  const serviceTypeRaw = typeof body.service_type === "string" ? body.service_type : "";
+
+  // Slugs are validated against the real jurisdiction list, not merely
+  // sanitised -- an unknown slug must be a 400, never a silent lookup miss
+  // that renders as "not verified" and looks like a data gap.
+  if (!stateNameForSlug(homeStateSlug) || !stateNameForSlug(targetStateSlug)) {
+    return jsonResponse(400, { error: "Please choose both a home state and a target state." });
+  }
+  if (!isValidServiceType(serviceTypeRaw)) {
+    return jsonResponse(400, { error: "Please choose a service type." });
+  }
+
+  const result = evaluateMobility(
+    {
+      homeStateSlug,
+      targetStateSlug,
+      serviceType: serviceTypeRaw,
+      licenseInGoodStanding: body.license_in_good_standing === true,
+      substantiallyEquivalent: body.substantially_equivalent === true,
+    },
+    MOBILITY_RULES_BY_SLUG[targetStateSlug] ?? null
+  );
+
+  return jsonResponse(200, {
+    home_state: stateNameForSlug(homeStateSlug),
+    target_state: stateNameForSlug(targetStateSlug),
+    service_type: serviceTypeRaw,
+    overall: result.overall,
+    individual: result.individual,
+    firm: result.firm,
+    disclaimer: MOBILITY_DISCLAIMER,
+  });
+}
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     // PREVIEW/STAGING CORS only (see corsHeaders()'s own comment) -- in

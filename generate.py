@@ -5223,6 +5223,15 @@ function drApplyAggregateCoverageOverlay(byState, gen) {
     return;
   }
 
+  // `denied` is always a display-ready STRING here, never a bare boolean --
+  // reported directly, 2026-08-03: this function used to cache {denied:
+  // true}, and drMobilityCache is the SAME cache drRenderMapMobility()
+  // reads from for the per-person view. When a firm without mobility
+  // access later picked a person whose home state this function had
+  // already probed, drApplyMobilityResults() did
+  // `noteEl.textContent = entry.denied` -- assigning the boolean `true` to
+  // .textContent coerces it to the literal string "true", which is what
+  // rendered. Both call sites now agree on the same shape.
   function fetchForHome(slug) {
     var cached = drMobilityCache[slug];
     if (cached) return Promise.resolve(cached);
@@ -5237,12 +5246,18 @@ function drApplyAggregateCoverageOverlay(byState, gen) {
         substantially_equivalent: true
       })
     }).then(function(res) {
-      if (res.status === 403) { drMobilityCache[slug] = {denied: true}; return drMobilityCache[slug]; }
       return drReadJsonSafe(res).then(function(data) {
-        drMobilityCache[slug] = (!res.ok || !data) ? {denied: true} : {results: data.results};
+        if (res.status === 403) {
+          var denied = (data && data.error) || 'Practice-privilege coloring is part of the paid firm plan.';
+          drMobilityCache[slug] = {denied: denied};
+          return drMobilityCache[slug];
+        }
+        drMobilityCache[slug] = (!res.ok || !data)
+          ? {denied: 'Something went wrong checking practice privilege.'}
+          : {results: data.results};
         return drMobilityCache[slug];
       });
-    }).catch(function() { return {denied: true}; });
+    }).catch(function() { return {denied: 'Something went wrong checking practice privilege.'}; });
   }
 
   fetchForHome(slugs[0]).then(function(first) {
@@ -5402,6 +5417,18 @@ function drRenderMapMobility(subscriberId, gen) {
   }).then(function(res) {
     if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
     return drReadJsonSafe(res).then(function(data) {
+      // 429 is a TEMPORARY, not-entitled-vs-entitled question, so it is
+      // never cached (a later retry -- switching away and back, or a
+      // reload -- should get a fresh answer once the window resets) and
+      // never uses the paywall wording, which would be a real lie to an
+      // actually-entitled firm that simply explored the feature a lot in
+      // one hour (reported directly, 2026-08-03 -- a real, active-pilot
+      // firm, created hours earlier that same day, hit a denial that
+      // should not have been possible on entitlement grounds alone).
+      if (res.status === 429) {
+        drApplyMobilityResults(homeStateSlug, {denied: 'Too many practice-privilege checks this hour. Try again later.'}, gen);
+        return;
+      }
       if (res.status === 403) {
         var denied = (data && data.error) || 'Practice-privilege coloring is part of the paid firm plan.';
         drMobilityCache[homeStateSlug] = {denied: denied};
@@ -5509,14 +5536,25 @@ function drCpeProgressForSubscriber(item) {
     return {hasRequirement: false, dataGapNote: req ? req.data_gap_note : null};
   }
   var win = drCpeCycleWindow(item.next_deadline, req.period_years);
-  var totalLogged = 0, ethicsLogged = 0;
+  var totalLogged = 0, ethicsLogged = 0, excludedCount = 0;
   drCpeEntries.forEach(function(e) {
     if (e.subscriber_id !== item.id) return;
     // No renewal date means we don't know the cycle boundary -- excluding
     // every entry (rather than summing an unbounded lifetime total) keeps
     // "0 logged" as an honest signal instead of a false on-track reading.
-    if (!win) return;
-    if (e.entry_date < win.start || e.entry_date > win.end) return;
+    if (!win) { excludedCount++; return; }
+    // An entry dated before the window can genuinely happen -- e.g. hours
+    // earned in the final weeks of a PRIOR cycle, logged before this one's
+    // window (next_deadline minus one period) has technically started.
+    // There is no record of that prior cycle's own boundary anywhere in
+    // this product, so the entry can't safely be counted toward either
+    // cycle -- but silently
+    // dropping it with no explanation is its own bug (reported directly,
+    // 2026-08-03: "I added 100 hours to test this out, and nothing
+    // happened to it" -- the entry WAS saved and appears in Recently
+    // Logged, it just isn't in this window's sum). excludedCount lets the
+    // UI say so instead of just showing 0.
+    if (e.entry_date < win.start || e.entry_date > win.end) { excludedCount++; return; }
     totalLogged += e.hours;
     if (e.category === 'ethics') ethicsLogged += e.hours;
   });
@@ -5529,6 +5567,8 @@ function drCpeProgressForSubscriber(item) {
     ethicsRequired: req.ethics_hours, ethicsLogged: ethicsLogged,
     behind: behind,
     noCycleDate: !win,
+    excludedCount: excludedCount,
+    cycleWindow: win,
   };
 }
 
@@ -5578,8 +5618,14 @@ function drRenderCpeStaffProgress() {
     }
     var totalBar = p.totalRequired !== null ? drCpeBarHtml('Total', p.totalLogged, p.totalRequired) : '';
     var ethicsBar = p.ethicsRequired !== null ? drCpeBarHtml('Ethics', p.ethicsLogged, p.ethicsRequired) : '';
-    var cycleNote = p.noCycleDate ?
-      '<p class="dr-cpe-gap-note">No renewal date on file &mdash; add one to track progress for this cycle.</p>' : '';
+    var cycleNote = p.noCycleDate
+      ? '<p class="dr-cpe-gap-note">No renewal date on file &mdash; add one to track progress for this cycle.</p>'
+      : (p.excludedCount > 0
+        ? '<p class="dr-cpe-gap-note">' + p.excludedCount + ' logged ' + (p.excludedCount === 1 ? 'entry falls' : 'entries fall') +
+          ' outside the current cycle (' + drEscapeHtml(drFormatDeadline(p.cycleWindow.start)) + '&ndash;' +
+          drEscapeHtml(drFormatDeadline(p.cycleWindow.end)) + ') and ' + (p.excludedCount === 1 ? "isn't" : "aren't") +
+          ' counted above &mdash; not a bug, just outside this renewal period.</p>'
+        : '');
     return '<div class="dr-cpe-staff-card"><div class="dr-cpe-staff-head">' +
       '<span class="dr-cpe-staff-name">' + name + '</span><span class="dr-cpe-staff-state">' + state + '</span></div>' +
       totalBar + ethicsBar + cycleNote + '</div>';

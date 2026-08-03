@@ -4779,7 +4779,15 @@ function drReadJsonSafe(res) {
 }
 function drPrettyLicenseType(id) {
   if (!id) return '\\u2014';
-  return String(id).replace(/[_-]+/g, ' ').replace(/\\b\\w/g, function(c) { return c.toUpperCase(); });
+  // The leading segment is a 2-letter state/territory postal code (ga,
+  // il, dc, us in "us-virgin-islands", ...) and reads as a typo in title
+  // case ("La Individual" for Louisiana) -- reported directly, 2026-08-03.
+  // Every other segment is a plain word ("individual", "firm", "virgin"),
+  // fine to title-case normally.
+  return String(id).split(/[_-]+/).map(function(part, i) {
+    if (i === 0 && part.length === 2) return part.toUpperCase();
+    return part.charAt(0).toUpperCase() + part.slice(1);
+  }).join(' ');
 }
 function drFormatDeadline(iso) {
   if (!iso) return '\\u2014';

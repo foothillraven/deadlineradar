@@ -208,11 +208,13 @@ lower price.
 
 ### Firm/team
 
-**Recommend keeping the already-published $500/year flat (up to 10 staff, ~$50/seat
+**Recommend keeping the already-published $500/year flat (up to 25 staff, Contact-us
 above that)** from `/for-firms` rather than inventing a new number without cause — it's
 already live, already been shown to real visitors as a 30-day-pilot offer, and independently
-tests B2B appetite. It also benchmarks correctly against real per-seat practice-management
-pricing:
+tests B2B appetite. (Devin locked the 25-staff/flat/Contact-us framing 2026-07-30, replacing
+this doc's original ≤10-staff/~$50-seat-above draft — that decision is what's live today,
+not what's written above.) It also benchmarks correctly against real per-seat
+practice-management pricing:
 
 | Product | What it is | Price | Source |
 |---|---|---|---|
@@ -220,16 +222,56 @@ pricing:
 | **TaxDome** | Full practice-management suite | **$800–$1,200/user/year** | [assembly.com/blog/taxdome-pricing](https://assembly.com/blog/taxdome-pricing) |
 | **Canopy** | Full practice-management suite, modular | **$74–$149/user/month** (~$888–$1,788/user/year) | [getcanopy.com/pricing](https://www.getcanopy.com/pricing/) |
 
-At $50/seat/year, DeadlineRadar's firm tier is roughly **14–35× cheaper per seat** than any
-of these — which is *correct* positioning, not underpricing to worry about: those products
-are full practice-management suites (billing, client portal, document management, CRM);
-DeadlineRadar Pro for firms is deliberately a single-purpose compliance-deadline tracker.
-Trying to price toward Karbon/TaxDome territory would be pricing a feature as if it were a
-platform. **One flag for whoever revisits this post-MVP:** the $500/yr number was set
-before CPE-hour tracking existed as the anchor differentiator — worth a fresh look (not
-necessarily a change) once the firm tier actually includes per-staff hour tracking, not
-just a shared deadline list. Not a reason to touch the live page now; firm accounts are
-explicitly deferred past MVP.
+At $20/seat/year (500 ÷ 25), DeadlineRadar's firm tier is roughly **35–90× cheaper per
+seat** than any of these — which is *correct* positioning, not underpricing to worry about:
+those products are full practice-management suites (billing, client portal, document
+management, CRM); DeadlineRadar Pro for firms is deliberately a single-purpose
+compliance-deadline tracker. Trying to price toward Karbon/TaxDome territory would be
+pricing a feature as if it were a platform. **One flag for whoever revisits this
+post-MVP:** the $500/yr number was set before CPE-hour tracking existed as the anchor
+differentiator — worth a fresh look (not necessarily a change) once the firm tier actually
+includes per-staff hour tracking, not just a shared deadline list. Not a reason to touch
+the live page now; firm accounts are explicitly deferred past MVP.
+
+#### PROPOSED, not locked (2026-08-03): fix the small-firm cliff with base + per-seat
+
+Devin caught a real math problem while live-testing: at $500/yr flat against Individual
+Pro's proposed $39/yr, a **2-person firm pays $250/seat** — over 6× the individual price —
+so a tiny firm is strictly better off buying individual accounts than the firm tier. A flat
+fee that doesn't scale down for small teams gives them a rational reason to route around
+the product entirely. This is a proposal to fix that gap, **not a change to what's live**;
+nothing here ships without a separate explicit go, same as every other pricing number in
+this doc.
+
+**Comp research (live search, 2026-08-03) — nobody in this niche solves this:**
+- **CE Broker** and **Becker** (the two direct individual-tier comps above): neither
+  publishes ANY firm/team pricing at all — both are "contact us" for organizations.
+  [cebroker.com/plans](https://cebroker.com/plans),
+  [propelus.com/covered-professionals](https://propelus.com/covered-professionals)
+  (explicitly confirmed no published employer-tier pricing).
+- **Financial Cents** (accounting practice management, cited above as a Karbon/TaxDome
+  alternative): pure per-seat, no base fee, no small-team discount — Team $49/user/mo,
+  Scale $69/user/mo (annual billing). Same shape as Karbon/TaxDome/Canopy: a 2-person team
+  pays the same per-seat rate as a 20-person team. [financial-cents.com/pricing](https://financial-cents.com/pricing)
+
+**The actual comp for this problem comes from outside the CPE/practice-management
+niche** — it's a standard B2B SaaS pattern, not something anyone in our category has
+needed because they don't have a $39 individual product undercutting their firm tier:
+- **Gusto** (payroll/HR): base fee + per-employee fee, e.g. Simple = **$49/mo + $6/employee**.
+  A base fee buys the admin-dashboard value (one person manages everyone's status); the
+  small per-seat charge scales smoothly instead of needing hand-picked breakpoints to keep
+  synced everywhere pricing copy appears. [gusto.com/product/pricing](https://gusto.com/product/pricing)
+
+**Illustrative formula (numbers are a starting point for discussion, not a
+recommendation to lock):** $55/yr base + $18/staff/year lands a 2-person firm at ~$91/yr
+(a real but modest premium over $78 for 2 individual accounts — the price of centralized
+admin control) and a 25-person firm at ~$505/yr — almost exactly the existing $500 anchor,
+so the top of the range doesn't move. Contact-us above 25 staff stays as-is.
+
+**Before this locks:** same guardrail as the rest of this doc — Devin's explicit sign-off,
+then update `generate.py`'s 3 pricing-copy sites in one commit (the 07-30 lock was lost
+once already, in a git-merge collision on 2026-08-02 — whatever ships here should be
+copied verbatim from wherever it's finalized, not retyped a second time from memory).
 
 ---
 

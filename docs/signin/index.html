@@ -968,11 +968,11 @@
 </div>
 
 <div class="signup-form" id="signin-individual">
-  <h2>Sign in to your own reminders</h2>
-  <p class="signup-microcopy">Free, and there's no password &mdash; enter the email address your
-  reminders go to and we'll send you a one-time sign-in link. <strong>Managing a firm? Use the firm
-  dashboard above &mdash; this form cannot sign you into a firm account.</strong></p>
-  <form method="post" action="/api/subscriber/login">
+  <h2 id="dr-signin-sub-heading">Sign in to your own reminders</h2>
+  <p class="signup-microcopy" id="dr-signin-sub-intro">Free, and there's no password &mdash; enter the
+  email address your reminders go to and we'll send you a one-time sign-in link. <strong>Managing a
+  firm? Use the firm dashboard above &mdash; this form cannot sign you into a firm account.</strong></p>
+  <form method="post" action="/api/subscriber/login" id="dr-signin-sub-form">
     <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
     <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_" data-appearance="interaction-only"></div>
     <label for="signin-sub-email">Your email</label>
@@ -980,9 +980,102 @@
     placeholder="you@example.com">
     <button type="submit">Email me a sign-in link</button>
   </form>
-  <p class="signup-microcopy">Not signed up yet? <a href="/">Pick your state</a> to start getting free
-  renewal reminders &mdash; no account needed.</p>
+  <p id="dr-signin-sub-error" class="field-hint" style="color:#c33737;" hidden></p>
+  <p class="dr-auth-alt" id="dr-signin-sub-ok" hidden>Check your email for the link. It expires in 15
+  minutes and works once.</p>
+  <p class="signup-microcopy" id="dr-signin-sub-footer">Not signed up yet? <a href="/">Pick your
+  state</a> to start getting free renewal reminders &mdash; no account needed.</p>
 </div>
+<script>
+(function () {
+  var form = document.getElementById('dr-signin-sub-form');
+  if (!form) return;
+  var errEl = document.getElementById('dr-signin-sub-error');
+  var okEl = document.getElementById('dr-signin-sub-ok');
+  var heading = document.getElementById('dr-signin-sub-heading');
+  var intro = document.getElementById('dr-signin-sub-intro');
+  var footer = document.getElementById('dr-signin-sub-footer');
+
+  function firstParagraphText(html) {
+    var match = /<p>([\s\S]*?)<\/p>/.exec(html);
+    if (!match) return "Something went wrong. Please try again.";
+    var div = document.createElement("div");
+    div.innerHTML = match[1];
+    return div.textContent || div.innerText || "Something went wrong. Please try again.";
+  }
+
+  function turnstileField() {
+    return form.querySelector('input[name="cf-turnstile-response"]');
+  }
+
+  // Same discipline as _turnstile_shared_widget_html(), scoped to this one
+  // widget: a Turnstile token is single-use, so a failed submit must get rid
+  // of it and wait for Cloudflare to actually issue a new one before another
+  // attempt can possibly succeed -- re-enabling immediately just resubmits
+  // the same dead (or still-empty) token and fails again (AuditLab L-1/L-2).
+  // This widget has no data-callback (it's the plain non-shared render --
+  // see _bot_defense_fields_html()), so there is no event to hook; polling
+  // the hidden field Cloudflare itself manages is the only signal available,
+  // and it's cheap enough at 150ms to feel instant once the token lands.
+  function recoverThenReenable(submitBtn) {
+    var field = turnstileField();
+    if (field) field.value = "";
+    if (window.turnstile && typeof window.turnstile.reset === "function") {
+      try { window.turnstile.reset(); } catch (err) {}
+    }
+    var done = false;
+    function finish() { if (done) return; done = true; if (submitBtn) submitBtn.disabled = false; }
+    var elapsed = 0;
+    var poll = setInterval(function () {
+      elapsed += 150;
+      var f = turnstileField();
+      if ((f && f.value) || elapsed >= 8000) {
+        clearInterval(poll);
+        finish();
+      }
+    }, 150);
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (errEl) { errEl.hidden = true; errEl.textContent = ""; }
+    var submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+    var field = turnstileField();
+    if (field && !field.value) {
+      if (errEl) {
+        errEl.textContent = "Security check hasn't finished loading -- give it a moment and try "
+          + "again, or disable your ad blocker for this page.";
+        errEl.hidden = false;
+      }
+      recoverThenReenable(submitBtn);
+      return;
+    }
+    fetch(form.getAttribute("action"), {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(new FormData(form)).toString(),
+    }).then(function (resp) {
+      return resp.text().then(function (html) {
+        if (resp.ok) {
+          form.hidden = true;
+          if (heading) heading.hidden = true;
+          if (intro) intro.hidden = true;
+          if (footer) footer.hidden = true;
+          if (okEl) okEl.hidden = false;
+          return;
+        }
+        if (errEl) { errEl.textContent = firstParagraphText(html); errEl.hidden = false; }
+        recoverThenReenable(submitBtn);
+      });
+    }).catch(function () {
+      if (errEl) { errEl.textContent = "Something went wrong. Please try again."; errEl.hidden = false; }
+      recoverThenReenable(submitBtn);
+    });
+  });
+})();
+</script>
 
 </div>
 <footer class="site-footer">

@@ -1570,16 +1570,46 @@ def _turnstile_shared_widget_html() -> str:
 <script>
 (function () {{
   var drTurnstileToken = "";
-  window.drTurnstileDone = function (token) {{ drTurnstileToken = token || ""; }};
+  var drTurnstileWaiters = [];
+  window.drTurnstileDone = function (token) {{
+    drTurnstileToken = token || "";
+    if (drTurnstileToken) {{
+      var waiters = drTurnstileWaiters;
+      drTurnstileWaiters = [];
+      waiters.forEach(function (fn) {{ fn(); }});
+    }}
+  }};
   window.drTurnstileExpired = function () {{ drTurnstileToken = ""; }};
+  // Called after a failed submit -- that token is now server-side consumed
+  // (Turnstile tokens are single-use), so forget it and ask Cloudflare for a
+  // fresh one. `cb` fires once a NEW token has actually arrived (or after a
+  // safety timeout, so a Cloudflare hiccup can never leave a caller stuck
+  // waiting forever).
+  window.drTurnstileRecover = function (cb) {{
+    drTurnstileToken = "";
+    if (window.turnstile && typeof window.turnstile.reset === "function") {{
+      try {{ window.turnstile.reset(); }} catch (err) {{}}
+    }}
+    var done = false;
+    function finish() {{ if (done) return; done = true; cb(); }}
+    if (drTurnstileToken) {{ finish(); return; }}
+    drTurnstileWaiters.push(finish);
+    setTimeout(finish, 8000);
+  }};
   // Fill whichever form is actually submitted. Listening in the CAPTURE
   // phase on the document means a form added or swapped later is covered
-  // too, and there is no per-form wiring to forget.
+  // too, and there is no per-form wiring to forget. Unconditional overwrite
+  // (not "only if empty"): a form's hidden field can otherwise carry a
+  // stale, already-consumed token in from a previous failed attempt (2026-
+  // 08-03, reported directly, still visible after an earlier fix attempt
+  // that cleared the field but not this variable) -- always writing
+  // whatever the CURRENT token is at the moment of actual submission is
+  // simpler than trying to keep two places in sync.
   document.addEventListener("submit", function (e) {{
     var f = e.target;
     if (!f || f.tagName !== "FORM") return;
     var field = f.querySelector('input[name="cf-turnstile-response"]');
-    if (field && !field.value) field.value = drTurnstileToken;
+    if (field) field.value = drTurnstileToken;
   }}, true);
 }})();
 </script>"""
@@ -3947,18 +3977,36 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
   // A failed submit used to reload the whole page, which re-rendered the
   // Turnstile widget from scratch (fresh token). Now that e.preventDefault()
   // keeps the same DOM alive across a retry, a stale already-used token sat
-  // in the hidden field -- the capture-phase listener only fills it when
-  // EMPTY (see above), so a second submit resent the same consumed token and
-  // Turnstile rejected it as "Verification failed", masking whatever the
-  // real error was (e.g. a genuinely wrong password) -- reported directly,
-  // 2026-08-03. Clearing the field + resetting the widget on every failure
-  // guarantees the next submit gets a fresh token.
-  function resetTurnstileFor(form) {
-    var field = form.querySelector('input[name="cf-turnstile-response"]');
-    if (field) field.value = "";
-    if (window.turnstile && typeof window.turnstile.reset === "function") {
-      try { window.turnstile.reset(); } catch (err) {}
+  // around and got resubmitted, so Turnstile rejected it as "Verification
+  // failed", masking whatever the real error was (e.g. a genuinely wrong
+  // password) -- reported directly, 2026-08-03. A first attempt at this
+  // fix only cleared the FORM's hidden field and re-enabled the submit
+  // button immediately, without waiting for Cloudflare to actually finish
+  // issuing a new token (that variable lives in a different script's
+  // closure, invisible from here) -- the exact same failure kept recurring
+  // on retry, sometimes now with an EMPTY token instead of a stale one,
+  // which is the same bug with a different symptom. Re-enabling the
+  // button only after drTurnstileRecover's callback fires (a genuinely new
+  // token has arrived, or the 8s safety timeout elapsed) closes that gap.
+  function recoverThenReenable(submitBtn) {
+    if (window.drTurnstileRecover) {
+      window.drTurnstileRecover(function () {
+        if (submitBtn) submitBtn.disabled = false;
+      });
+    } else if (submitBtn) {
+      submitBtn.disabled = false;
     }
+  }
+
+  // AuditLab L-2, 2026-08-03: nothing stopped a submit while the shared
+  // token was still "" (interaction-only hasn't resolved yet, or the
+  // browser/network blocks challenges.cloudflare.com entirely -- ad
+  // blockers and corporate proxies routinely do). That POST always fails,
+  // and retrying it can never work, so catching it before the network
+  // round trip and saying the real reason beats one more generic failure.
+  function turnstileFieldValue(form) {
+    var field = form.querySelector('input[name="cf-turnstile-response"]');
+    return field ? field.value : "";
   }
 
   function ajaxifyForm(formId, errorId, onSuccess) {
@@ -3970,6 +4018,15 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
       if (errEl) { errEl.hidden = true; errEl.textContent = ""; }
       var submitBtn = form.querySelector('button[type="submit"]');
       if (submitBtn) submitBtn.disabled = true;
+      if (!turnstileFieldValue(form)) {
+        if (errEl) {
+          errEl.textContent = "Security check hasn't finished loading -- give it a moment and try "
+            + "again, or disable your ad blocker for this page.";
+          errEl.hidden = false;
+        }
+        recoverThenReenable(submitBtn);
+        return;
+      }
       fetch(form.getAttribute("action"), {
         method: "POST",
         credentials: "include",
@@ -3979,14 +4036,12 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
         if (resp.redirected) { onSuccess(true); return; }
         return resp.text().then(function (html) {
           if (resp.ok) { onSuccess(false, html); return; }
-          resetTurnstileFor(form);
           if (errEl) { errEl.textContent = firstParagraphText(html); errEl.hidden = false; }
-          if (submitBtn) submitBtn.disabled = false;
+          recoverThenReenable(submitBtn);
         });
       }).catch(function () {
-        resetTurnstileFor(form);
         if (errEl) { errEl.textContent = "Something went wrong. Please try again."; errEl.hidden = false; }
-        if (submitBtn) submitBtn.disabled = false;
+        recoverThenReenable(submitBtn);
       });
     });
   }
@@ -4183,20 +4238,24 @@ def build_signin_page() -> str:
 </div>
 
 <div class="signup-form" id="signin-individual">
-  <h2>Sign in to your own reminders</h2>
-  <p class="signup-microcopy">Free, and there's no password &mdash; enter the email address your
-  reminders go to and we'll send you a one-time sign-in link. <strong>Managing a firm? Use the firm
-  dashboard above &mdash; this form cannot sign you into a firm account.</strong></p>
-  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/subscriber/login">
+  <h2 id="dr-signin-sub-heading">Sign in to your own reminders</h2>
+  <p class="signup-microcopy" id="dr-signin-sub-intro">Free, and there's no password &mdash; enter the
+  email address your reminders go to and we'll send you a one-time sign-in link. <strong>Managing a
+  firm? Use the firm dashboard above &mdash; this form cannot sign you into a firm account.</strong></p>
+  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/subscriber/login" id="dr-signin-sub-form">
     {_BOT_DEFENSE_FIELDS_HTML}
     <label for="signin-sub-email">Your email</label>
     <input type="email" id="signin-sub-email" name="email" required autocomplete="email"
     placeholder="you@example.com">
     <button type="submit">Email me a sign-in link</button>
   </form>
-  <p class="signup-microcopy">Not signed up yet? <a href="/">Pick your state</a> to start getting free
-  renewal reminders &mdash; no account needed.</p>
+  <p id="dr-signin-sub-error" class="field-hint" style="color:#c33737;" hidden></p>
+  <p class="dr-auth-alt" id="dr-signin-sub-ok" hidden>Check your email for the link. It expires in 15
+  minutes and works once.</p>
+  <p class="signup-microcopy" id="dr-signin-sub-footer">Not signed up yet? <a href="/">Pick your
+  state</a> to start getting free renewal reminders &mdash; no account needed.</p>
 </div>
+{_SIGNIN_SUB_FORM_JS_HTML}
 """
 
     return page_shell(
@@ -4210,6 +4269,106 @@ def build_signin_page() -> str:
         # on is noise at best and a confusing no-op at worst.
         hide_signin=True,
     )
+
+
+# AuditLab L-3, 2026-08-03: c3bda560 AJAX-ified the 3 /firm-login/ forms but
+# missed this one -- a wrong/expired magic link attempt here still navigated
+# the whole browser to raw API text, on the page the sitewide "Sign In" nav
+# link actually points to. Self-contained rather than sharing code with
+# _FIRM_LOGIN_VIEW_JS_HTML: this page has exactly one form and one
+# (non-shared) Turnstile widget, so it doesn't need that page's 3-form
+# token-juggling -- just the same "wait for a real token before letting a
+# retry through" discipline, scoped to a single widget.
+_SIGNIN_SUB_FORM_JS_HTML = """<script>
+(function () {
+  var form = document.getElementById('dr-signin-sub-form');
+  if (!form) return;
+  var errEl = document.getElementById('dr-signin-sub-error');
+  var okEl = document.getElementById('dr-signin-sub-ok');
+  var heading = document.getElementById('dr-signin-sub-heading');
+  var intro = document.getElementById('dr-signin-sub-intro');
+  var footer = document.getElementById('dr-signin-sub-footer');
+
+  function firstParagraphText(html) {
+    var match = /<p>([\\s\\S]*?)<\\/p>/.exec(html);
+    if (!match) return "Something went wrong. Please try again.";
+    var div = document.createElement("div");
+    div.innerHTML = match[1];
+    return div.textContent || div.innerText || "Something went wrong. Please try again.";
+  }
+
+  function turnstileField() {
+    return form.querySelector('input[name="cf-turnstile-response"]');
+  }
+
+  // Same discipline as _turnstile_shared_widget_html(), scoped to this one
+  // widget: a Turnstile token is single-use, so a failed submit must get rid
+  // of it and wait for Cloudflare to actually issue a new one before another
+  // attempt can possibly succeed -- re-enabling immediately just resubmits
+  // the same dead (or still-empty) token and fails again (AuditLab L-1/L-2).
+  // This widget has no data-callback (it's the plain non-shared render --
+  // see _bot_defense_fields_html()), so there is no event to hook; polling
+  // the hidden field Cloudflare itself manages is the only signal available,
+  // and it's cheap enough at 150ms to feel instant once the token lands.
+  function recoverThenReenable(submitBtn) {
+    var field = turnstileField();
+    if (field) field.value = "";
+    if (window.turnstile && typeof window.turnstile.reset === "function") {
+      try { window.turnstile.reset(); } catch (err) {}
+    }
+    var done = false;
+    function finish() { if (done) return; done = true; if (submitBtn) submitBtn.disabled = false; }
+    var elapsed = 0;
+    var poll = setInterval(function () {
+      elapsed += 150;
+      var f = turnstileField();
+      if ((f && f.value) || elapsed >= 8000) {
+        clearInterval(poll);
+        finish();
+      }
+    }, 150);
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (errEl) { errEl.hidden = true; errEl.textContent = ""; }
+    var submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+    var field = turnstileField();
+    if (field && !field.value) {
+      if (errEl) {
+        errEl.textContent = "Security check hasn't finished loading -- give it a moment and try "
+          + "again, or disable your ad blocker for this page.";
+        errEl.hidden = false;
+      }
+      recoverThenReenable(submitBtn);
+      return;
+    }
+    fetch(form.getAttribute("action"), {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(new FormData(form)).toString(),
+    }).then(function (resp) {
+      return resp.text().then(function (html) {
+        if (resp.ok) {
+          form.hidden = true;
+          if (heading) heading.hidden = true;
+          if (intro) intro.hidden = true;
+          if (footer) footer.hidden = true;
+          if (okEl) okEl.hidden = false;
+          return;
+        }
+        if (errEl) { errEl.textContent = firstParagraphText(html); errEl.hidden = false; }
+        recoverThenReenable(submitBtn);
+      });
+    }).catch(function () {
+      if (errEl) { errEl.textContent = "Something went wrong. Please try again."; errEl.hidden = false; }
+      recoverThenReenable(submitBtn);
+    });
+  });
+})();
+</script>"""
 
 
 # The /my/ dashboard's client. Same conventions as _FIRM_DASHBOARD_JS_HTML:

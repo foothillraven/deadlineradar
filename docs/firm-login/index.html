@@ -1037,16 +1037,46 @@
 <script>
 (function () {
   var drTurnstileToken = "";
-  window.drTurnstileDone = function (token) { drTurnstileToken = token || ""; };
+  var drTurnstileWaiters = [];
+  window.drTurnstileDone = function (token) {
+    drTurnstileToken = token || "";
+    if (drTurnstileToken) {
+      var waiters = drTurnstileWaiters;
+      drTurnstileWaiters = [];
+      waiters.forEach(function (fn) { fn(); });
+    }
+  };
   window.drTurnstileExpired = function () { drTurnstileToken = ""; };
+  // Called after a failed submit -- that token is now server-side consumed
+  // (Turnstile tokens are single-use), so forget it and ask Cloudflare for a
+  // fresh one. `cb` fires once a NEW token has actually arrived (or after a
+  // safety timeout, so a Cloudflare hiccup can never leave a caller stuck
+  // waiting forever).
+  window.drTurnstileRecover = function (cb) {
+    drTurnstileToken = "";
+    if (window.turnstile && typeof window.turnstile.reset === "function") {
+      try { window.turnstile.reset(); } catch (err) {}
+    }
+    var done = false;
+    function finish() { if (done) return; done = true; cb(); }
+    if (drTurnstileToken) { finish(); return; }
+    drTurnstileWaiters.push(finish);
+    setTimeout(finish, 8000);
+  };
   // Fill whichever form is actually submitted. Listening in the CAPTURE
   // phase on the document means a form added or swapped later is covered
-  // too, and there is no per-form wiring to forget.
+  // too, and there is no per-form wiring to forget. Unconditional overwrite
+  // (not "only if empty"): a form's hidden field can otherwise carry a
+  // stale, already-consumed token in from a previous failed attempt (2026-
+  // 08-03, reported directly, still visible after an earlier fix attempt
+  // that cleared the field but not this variable) -- always writing
+  // whatever the CURRENT token is at the moment of actual submission is
+  // simpler than trying to keep two places in sync.
   document.addEventListener("submit", function (e) {
     var f = e.target;
     if (!f || f.tagName !== "FORM") return;
     var field = f.querySelector('input[name="cf-turnstile-response"]');
-    if (field && !field.value) field.value = drTurnstileToken;
+    if (field) field.value = drTurnstileToken;
   }, true);
 })();
 </script>
@@ -1130,18 +1160,36 @@
   // A failed submit used to reload the whole page, which re-rendered the
   // Turnstile widget from scratch (fresh token). Now that e.preventDefault()
   // keeps the same DOM alive across a retry, a stale already-used token sat
-  // in the hidden field -- the capture-phase listener only fills it when
-  // EMPTY (see above), so a second submit resent the same consumed token and
-  // Turnstile rejected it as "Verification failed", masking whatever the
-  // real error was (e.g. a genuinely wrong password) -- reported directly,
-  // 2026-08-03. Clearing the field + resetting the widget on every failure
-  // guarantees the next submit gets a fresh token.
-  function resetTurnstileFor(form) {
-    var field = form.querySelector('input[name="cf-turnstile-response"]');
-    if (field) field.value = "";
-    if (window.turnstile && typeof window.turnstile.reset === "function") {
-      try { window.turnstile.reset(); } catch (err) {}
+  // around and got resubmitted, so Turnstile rejected it as "Verification
+  // failed", masking whatever the real error was (e.g. a genuinely wrong
+  // password) -- reported directly, 2026-08-03. A first attempt at this
+  // fix only cleared the FORM's hidden field and re-enabled the submit
+  // button immediately, without waiting for Cloudflare to actually finish
+  // issuing a new token (that variable lives in a different script's
+  // closure, invisible from here) -- the exact same failure kept recurring
+  // on retry, sometimes now with an EMPTY token instead of a stale one,
+  // which is the same bug with a different symptom. Re-enabling the
+  // button only after drTurnstileRecover's callback fires (a genuinely new
+  // token has arrived, or the 8s safety timeout elapsed) closes that gap.
+  function recoverThenReenable(submitBtn) {
+    if (window.drTurnstileRecover) {
+      window.drTurnstileRecover(function () {
+        if (submitBtn) submitBtn.disabled = false;
+      });
+    } else if (submitBtn) {
+      submitBtn.disabled = false;
     }
+  }
+
+  // AuditLab L-2, 2026-08-03: nothing stopped a submit while the shared
+  // token was still "" (interaction-only hasn't resolved yet, or the
+  // browser/network blocks challenges.cloudflare.com entirely -- ad
+  // blockers and corporate proxies routinely do). That POST always fails,
+  // and retrying it can never work, so catching it before the network
+  // round trip and saying the real reason beats one more generic failure.
+  function turnstileFieldValue(form) {
+    var field = form.querySelector('input[name="cf-turnstile-response"]');
+    return field ? field.value : "";
   }
 
   function ajaxifyForm(formId, errorId, onSuccess) {
@@ -1153,6 +1201,15 @@
       if (errEl) { errEl.hidden = true; errEl.textContent = ""; }
       var submitBtn = form.querySelector('button[type="submit"]');
       if (submitBtn) submitBtn.disabled = true;
+      if (!turnstileFieldValue(form)) {
+        if (errEl) {
+          errEl.textContent = "Security check hasn't finished loading -- give it a moment and try "
+            + "again, or disable your ad blocker for this page.";
+          errEl.hidden = false;
+        }
+        recoverThenReenable(submitBtn);
+        return;
+      }
       fetch(form.getAttribute("action"), {
         method: "POST",
         credentials: "include",
@@ -1162,14 +1219,12 @@
         if (resp.redirected) { onSuccess(true); return; }
         return resp.text().then(function (html) {
           if (resp.ok) { onSuccess(false, html); return; }
-          resetTurnstileFor(form);
           if (errEl) { errEl.textContent = firstParagraphText(html); errEl.hidden = false; }
-          if (submitBtn) submitBtn.disabled = false;
+          recoverThenReenable(submitBtn);
         });
       }).catch(function () {
-        resetTurnstileFor(form);
         if (errEl) { errEl.textContent = "Something went wrong. Please try again."; errEl.hidden = false; }
-        if (submitBtn) submitBtn.disabled = false;
+        recoverThenReenable(submitBtn);
       });
     });
   }

@@ -998,11 +998,20 @@ PAGE_CSS = """
   .dr-roster-panel th.dr-actions-head,
   .dr-roster-panel td.dr-actions {
     position: sticky; right: 0; z-index: 2;
-    background: var(--card-bg);
     box-shadow: -6px 0 6px -6px rgba(0,0,0,0.18);
   }
+  /* Body cells match their row's own background -- card-bg / row-alt. */
+  .dr-roster-panel td.dr-actions { background: var(--card-bg); }
   .dr-roster-panel tbody tr:nth-child(even) td.dr-actions { background: var(--row-alt); }
-  .dr-roster-panel th.dr-actions-head { z-index: 3; }
+  /* The header row is NOT a body row -- it's dark accent with light text
+     (the general `th` rule, line ~433), not card-bg. Reusing card-bg here
+     (2026-08-03 bug, reported as "Actions header looks greyed out/
+     unreadable"): the background flipped to near-white while `color`
+     stayed inherited as the header's light `#eaf1f7`, so the sticky
+     Actions header rendered near-white text on a near-white background --
+     readable nowhere, not just "greyed." Match the header's own colors
+     explicitly instead of assuming one shared background serves both. */
+  .dr-roster-panel th.dr-actions-head { background: var(--accent); color: #eaf1f7; z-index: 3; }
 
   /* Tighter action buttons so the sticky column costs less width. */
   .dr-roster-panel td.dr-actions button { padding: 0.22rem 0.5rem; font-size: 0.76rem; white-space: nowrap; }
@@ -1232,7 +1241,7 @@ _BRAND_GLYPH_SVG = """<svg class="brand-glyph" viewBox="0 0 32 32" fill="none" a
 </svg>"""
 
 
-def site_header(home_href: str, hide_signin: bool = False) -> str:
+def site_header(home_href: str, hide_signin: bool = False, has_remind_anchor: bool = False) -> str:
     # hide_signin (2026-07-30, UX fix follow-up): the dashboard page
     # (build_firm_dashboard_page()) uses this SAME shared shell, but a
     # visitor there is by definition already signed in (the page's own JS
@@ -1245,7 +1254,37 @@ def site_header(home_href: str, hide_signin: bool = False) -> str:
     # asking for a firm name with no way across. /signin/ leads with the
     # individual form and links straight to /firm-login/, so neither audience
     # lands at the wrong door. See build_signin_page().
-    signin_link_html = "" if hide_signin else '<a href="/signin/" class="nav-quiet">Sign In</a>\n      '
+    signin_link_html = "" if hide_signin else '<a href="/signin/" class="nav-quiet" id="dr-nav-signin">Sign In</a>\n      '
+    # A signed-in firm clicking any OTHER page on the site saw "Sign In"
+    # again and had no way back to the dashboard without re-authenticating
+    # (2026-08-03, direct report). The session cookie is HttpOnly by design
+    # (worker/src/index.ts's firmSessionSetCookieHeader -- an XSS payload
+    # must not be able to read/exfiltrate it), so page JS cannot simply
+    # check for its presence; the only honest way to know is to ask the API.
+    # A lightweight authenticated GET (reusing the roster endpoint, not a
+    # new one) -- 200 swaps the link to Dashboard, anything else (401, a
+    # network hiccup) leaves "Sign In" as the safe default. Skipped when
+    # hide_signin is set -- that's already the dashboard itself, which
+    # knows its own auth state from its own page load.
+    signin_swap_js_html = "" if hide_signin else f"""<script>
+(function() {{
+  var link = document.getElementById('dr-nav-signin');
+  if (!link) return;
+  fetch('{REMINDER_BACKEND_BASE_URL}/firm/licenses', {{credentials: 'include'}}).then(function(r) {{
+    if (r.ok) {{ link.textContent = 'Dashboard'; link.href = '/firm-dashboard/'; }}
+  }}).catch(function() {{}});
+}})();
+</script>"""
+    # `#remind` is a same-page anchor -- it only does anything on a page that
+    # actually has an element with id="remind" (the homepage, per-state
+    # pages, CPE-hours pages, reinstatement pages). Every OTHER page (the
+    # dashboard, account pages, legal/methodology pages, mobility checker,
+    # blog, 404...) rendered this exact link anyway, so clicking "Get
+    # reminders" there silently did nothing -- caught 2026-08-03 from a
+    # direct report ("nothing happened" on the firm dashboard). When this
+    # page has no local anchor, send the click to the homepage's own
+    # section instead of a dead in-page jump.
+    remind_href = "#remind" if has_remind_anchor else f"{home_href}#remind"
     return f"""<nav class="mainnav">
   <div class="nav-inner wrap">
     <a href="{esc(home_href)}" style="display:flex; align-items:center; gap:0.5rem; text-decoration:none; padding:0.7rem 0;">
@@ -1256,10 +1295,11 @@ def site_header(home_href: str, hide_signin: bool = False) -> str:
       <a href="/">Browse States</a>
       <a href="/methodology/">How We Verify</a>
       <a href="/for-firms/">For Firms</a>
-      {signin_link_html}<a href="#remind" class="cta">Get reminders</a>
+      {signin_link_html}<a href="{esc(remind_href)}" class="cta">Get reminders</a>
     </div>
   </div>
 </nav>
+{signin_swap_js_html}
 <div class="wrap">
 <header class="site-header">
   <div class="tagline">{esc(SITE_TAGLINE)}</div>
@@ -1702,6 +1742,7 @@ def page_shell(
     json_ld: list[dict] | None = None,
     extra_head: str = "",
     hide_signin: bool = False,
+    has_remind_anchor: bool = False,
 ) -> str:
     return f"""<!doctype html>
 <html lang="en">
@@ -1720,7 +1761,7 @@ def page_shell(
 </style>
 </head>
 <body>
-{site_header(home_href, hide_signin=hide_signin)}
+{site_header(home_href, hide_signin=hide_signin, has_remind_anchor=has_remind_anchor)}
 {body}
 {site_footer()}
 </body>
@@ -2293,7 +2334,7 @@ def build_state_page(
     json_ld = [_breadcrumb_schema(state_name, state_slug)]
     return title, page_shell(
         title, meta_description, body, home_href="../", canonical_path=f"/{state_slug}/",
-        json_ld=json_ld,
+        json_ld=json_ld, has_remind_anchor=True,
     )
 
 
@@ -2912,6 +2953,7 @@ var DR_STATES = {json.dumps(state_options)};
         home_href="./",
         canonical_path="/",
         json_ld=[_organization_schema(), _website_schema()],
+        has_remind_anchor=True,
     )
 
 
@@ -3423,9 +3465,11 @@ def _firm_dashboard_mockup_html(by_slug: dict[str, list[dict]], as_of: date) -> 
       <div class="dr-firm-name">Example Firm, LLC</div>
       <ul class="dr-nav">
         <li><a href="#" class="is-active" tabindex="-1">Roster</a></li>
-        <li><span class="dr-nav-soon">Calendar<span class="dr-soon-badge">Soon</span></span></li>
-        <li><span class="dr-nav-soon">Map<span class="dr-soon-badge">Soon</span></span></li>
-        <li><a href="/firm-mobility/">Practice privilege</a></li>
+        <li><a href="#" tabindex="-1">Calendar</a></li>
+        <li><a href="#" tabindex="-1">Map</a></li>
+        <li><a href="#" tabindex="-1">CPE Hours</a></li>
+        <li><a href="/firm-mobility/">Practice Privilege Check</a></li>
+        <li><a href="#" tabindex="-1">Account</a></li>
         <li><span class="dr-nav-soon">Reports<span class="dr-soon-badge">Soon</span></span></li>
         <li><span class="dr-nav-soon">Documents<span class="dr-soon-badge">Soon</span></span></li>
       </ul>
@@ -3714,7 +3758,7 @@ def build_firm_login_page() -> str:
   <h1>Sign in</h1>
   <p class="subhead">One roster for every staff CPA's license renewal.</p>
 {sso_buttons_html}
-  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/login/password">
+  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/login/password" id="dr-firmlogin-signin-form">
     {_BOT_DEFENSE_FIELDS_HTML_SIGNIN}
     <label for="signin-email">Email</label>
     <input type="email" id="signin-email" name="admin_email" required autocomplete="username"
@@ -3722,6 +3766,7 @@ def build_firm_login_page() -> str:
     <label for="signin-password">Password</label>
     <input type="password" id="signin-password" name="password" required
     autocomplete="current-password">
+    <p id="dr-firmlogin-signin-error" class="field-hint" style="color:#c33737;" hidden></p>
     <button type="submit">Sign in</button>
   </form>
   <p class="dr-auth-secondary">
@@ -3739,7 +3784,7 @@ def build_firm_login_page() -> str:
 <div class="dr-auth-view" id="dr-view-signup">
   <h1>Create your firm account</h1>
   <p class="subhead">Free to start &mdash; a 30-day pilot, no card required.</p>
-  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/signup">
+  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/signup" id="dr-firmlogin-signup-form">
     {_BOT_DEFENSE_FIELDS_HTML_ALT}
     <label for="signup-firm-name">Firm name</label>
     <input type="text" id="signup-firm-name" name="name" required maxlength="200"
@@ -3747,9 +3792,11 @@ def build_firm_login_page() -> str:
     <label for="signup-admin-email">Your email</label>
     <input type="email" id="signup-admin-email" name="admin_email" required
     autocomplete="email" placeholder="you@yourfirm.com">
+    <p id="dr-firmlogin-signup-error" class="field-hint" style="color:#c33737;" hidden></p>
     <button type="submit">Create firm account</button>
   </form>
-  <p class="signup-microcopy">We'll email your admin address a one-time link to finish setting up.</p>
+  <p class="signup-microcopy" id="dr-firmlogin-signup-ok" hidden>Check your email for a one-time link to finish setting up.</p>
+  <p class="signup-microcopy" id="dr-firmlogin-signup-hint">We'll email your admin address a one-time link to finish setting up.</p>
   <p class="dr-auth-alt">Already have an account?
     <a href="#dr-view-signin" class="dr-auth-switch" data-target="dr-view-signin">Sign in</a>
   </p>
@@ -3758,7 +3805,7 @@ def build_firm_login_page() -> str:
 <div class="dr-auth-view" id="dr-view-magic">
   <h1 id="dr-magic-heading">Email me a sign-in link</h1>
   <p class="subhead" id="dr-magic-sub">Works whether or not you've set a password.</p>
-  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/login">
+  <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/login" id="dr-magic-form">
     {_BOT_DEFENSE_FIELDS_HTML_MAGIC}
     <!-- Which affordance the visitor arrived from. The server writes this
          onto the login-token row, so the emailed link knows where to land.
@@ -3768,8 +3815,10 @@ def build_firm_login_page() -> str:
     <label for="login-email">Email</label>
     <input type="email" id="login-email" name="admin_email" required autocomplete="email"
     placeholder="you@yourfirm.com">
+    <p id="dr-magic-error" class="field-hint" style="color:#c33737;" hidden></p>
     <button type="submit" id="dr-magic-submit">Email me a sign-in link</button>
   </form>
+  <p class="dr-auth-alt" id="dr-magic-ok" hidden>Check your email for the link.</p>
   <p class="dr-auth-alt">
     <a href="#dr-view-signin" class="dr-auth-switch" data-target="dr-view-signin">&larr; Back to sign in</a>
   </p>
@@ -3866,6 +3915,67 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
 
   window.addEventListener("hashchange", function () { show(fromHash()); });
   show(fromHash());
+
+  // These three forms POST straight to the Worker with no JS at all, so any
+  // error (wrong password, a blocked domain, a rate limit) navigated the
+  // whole browser to the raw API response instead of showing an error on
+  // this page -- reported directly, 2026-08-03. The API still returns plain
+  // HTML (not JSON) for these routes, always as a single <p>message</p> in
+  // an otherwise-empty page, so that is what gets pulled out and shown
+  // inline; nothing about the routes themselves changes.
+  function firstParagraphText(html) {
+    var match = /<p>([\s\S]*?)<\/p>/.exec(html);
+    if (!match) return "Something went wrong. Please try again.";
+    var div = document.createElement("div");
+    div.innerHTML = match[1];
+    return div.textContent || div.innerText || "Something went wrong. Please try again.";
+  }
+
+  function ajaxifyForm(formId, errorId, onSuccess) {
+    var form = document.getElementById(formId);
+    var errEl = errorId ? document.getElementById(errorId) : null;
+    if (!form) return;
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (errEl) { errEl.hidden = true; errEl.textContent = ""; }
+      var submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+      fetch(form.getAttribute("action"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(new FormData(form)).toString(),
+      }).then(function (resp) {
+        if (resp.redirected) { onSuccess(true); return; }
+        return resp.text().then(function (html) {
+          if (resp.ok) { onSuccess(false, html); return; }
+          if (errEl) { errEl.textContent = firstParagraphText(html); errEl.hidden = false; }
+          if (submitBtn) submitBtn.disabled = false;
+        });
+      }).catch(function () {
+        if (errEl) { errEl.textContent = "Something went wrong. Please try again."; errEl.hidden = false; }
+        if (submitBtn) submitBtn.disabled = false;
+      });
+    });
+  }
+
+  ajaxifyForm("dr-firmlogin-signin-form", "dr-firmlogin-signin-error", function () {
+    window.location.href = "/firm-dashboard/";
+  });
+  ajaxifyForm("dr-firmlogin-signup-form", "dr-firmlogin-signup-error", function () {
+    var form = document.getElementById("dr-firmlogin-signup-form");
+    var hint = document.getElementById("dr-firmlogin-signup-hint");
+    var ok = document.getElementById("dr-firmlogin-signup-ok");
+    if (form) form.hidden = true;
+    if (hint) hint.hidden = true;
+    if (ok) ok.hidden = false;
+  });
+  ajaxifyForm("dr-magic-form", "dr-magic-error", function () {
+    var form = document.getElementById("dr-magic-form");
+    var ok = document.getElementById("dr-magic-ok");
+    if (form) form.hidden = true;
+    if (ok) ok.hidden = false;
+  });
 })();
 </script>"""
 
@@ -5747,6 +5857,7 @@ def build_firm_dashboard_page(
       <li><a href="#" data-view="calendar" role="tab" aria-selected="false">Calendar</a></li>
       <li><a href="#" data-view="map" role="tab" aria-selected="false">Map</a></li>
       <li><a href="#" data-view="cpe" role="tab" aria-selected="false">CPE Hours</a></li>
+      <li><a href="/firm-mobility/">Practice Privilege Check</a></li>
       <li><a href="#" data-view="account" role="tab" aria-selected="false">Account</a></li>
       {sidebar_nav_soon_items}
     </ul>
@@ -6256,7 +6367,7 @@ itself, never a guess.</p>
     }]
     html = page_shell(
         f"{title} — {SITE_NAME}", meta_description, body, home_href="../",
-        canonical_path=f"/{slug}/", json_ld=json_ld,
+        canonical_path=f"/{slug}/", json_ld=json_ld, has_remind_anchor=True,
     )
     return slug, title, html
 
@@ -6427,7 +6538,7 @@ way every fact on this site is: a board page plus the codified rule itself, neve
     }]
     html = page_shell(
         f"{title} — {SITE_NAME}", meta_description, body, home_href="../",
-        canonical_path=f"/{slug}/", json_ld=json_ld,
+        canonical_path=f"/{slug}/", json_ld=json_ld, has_remind_anchor=True,
     )
     return slug, title, html
 

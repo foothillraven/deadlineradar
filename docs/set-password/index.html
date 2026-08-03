@@ -691,11 +691,20 @@
   .dr-roster-panel th.dr-actions-head,
   .dr-roster-panel td.dr-actions {
     position: sticky; right: 0; z-index: 2;
-    background: var(--card-bg);
     box-shadow: -6px 0 6px -6px rgba(0,0,0,0.18);
   }
+  /* Body cells match their row's own background -- card-bg / row-alt. */
+  .dr-roster-panel td.dr-actions { background: var(--card-bg); }
   .dr-roster-panel tbody tr:nth-child(even) td.dr-actions { background: var(--row-alt); }
-  .dr-roster-panel th.dr-actions-head { z-index: 3; }
+  /* The header row is NOT a body row -- it's dark accent with light text
+     (the general `th` rule, line ~433), not card-bg. Reusing card-bg here
+     (2026-08-03 bug, reported as "Actions header looks greyed out/
+     unreadable"): the background flipped to near-white while `color`
+     stayed inherited as the header's light `#eaf1f7`, so the sticky
+     Actions header rendered near-white text on a near-white background --
+     readable nowhere, not just "greyed." Match the header's own colors
+     explicitly instead of assuming one shared background serves both. */
+  .dr-roster-panel th.dr-actions-head { background: var(--accent); color: #eaf1f7; z-index: 3; }
 
   /* Tighter action buttons so the sticky column costs less width. */
   .dr-roster-panel td.dr-actions button { padding: 0.22rem 0.5rem; font-size: 0.76rem; white-space: nowrap; }
@@ -933,10 +942,11 @@
       <a href="/">Browse States</a>
       <a href="/methodology/">How We Verify</a>
       <a href="/for-firms/">For Firms</a>
-      <a href="#remind" class="cta">Get reminders</a>
+      <a href="../#remind" class="cta">Get reminders</a>
     </div>
   </div>
 </nav>
+
 <div class="wrap">
 <header class="site-header">
   <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>

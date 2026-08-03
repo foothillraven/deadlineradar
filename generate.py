@@ -48,6 +48,12 @@ REINSTATEMENT_DATA_PATH = ROOT / "data" / "reinstatement.json"
 # monitoring. Deliberately independent of the mobility determination engine
 # (held from production) -- this feed publishes change facts + citations only.
 REG_CHANGE_EVENTS_PATH = ROOT / "data" / "reg_change_events.json"
+# DiffLab's own monitoring-coverage numbers (2026-08-03), copied in from
+# Orchestrator/reg_change_events/coverage_stats.json each capture cycle so
+# the "0 real events yet" case on /rule-changes/ can show real proof of
+# active work instead of reading as broken/abandoned -- same
+# never-hardcode-a-published-number rule as everything else on this site.
+RULE_CHANGE_COVERAGE_STATS_PATH = ROOT / "data" / "rule_change_coverage_stats.json"
 # "docs" (not "site") deliberately -- this is the zero-config GitHub Pages
 # convention (Settings > Pages > Deploy from a branch > /docs), so this
 # directory becomes the deploy target as-is once a repo + Pages source exist.
@@ -2554,6 +2560,14 @@ def build_us_map_html(by_slug: dict[str, list[dict]]) -> str:
 # IANA timezone before the browser ever paints, so there is no cross-fade to
 # see. A reload can land on a different card from the same bucket (Math.random
 # among same-region matches) -- that's the point, not a bug.
+#
+# AuditLab, 2026-08-03: the no-flash property is LOAD-BEARING on this script
+# running as a synchronous inline IIFE during HTML parse -- .hfc-card still
+# carries `transition: opacity 0.8s ease` (only killed under
+# prefers-reduced-motion), so deferring this script, moving it to
+# DOMContentLoaded, or wrapping it in requestAnimationFrame would silently
+# reintroduce a visible cross-fade for every normal-motion visitor. Keep it
+# inline and synchronous, right after the cards it selects among.
 _HERO_REGION_JS = """
 (function() {
   var wrap = document.getElementById('hfc-wrap');
@@ -2561,7 +2575,7 @@ _HERO_REGION_JS = """
   var cards = wrap.querySelectorAll('.hfc-card');
   if (cards.length < 2) return;
   var TZ_REGION_STATES = {
-    'America/New_York': ['New York','Florida','Georgia','North Carolina','Ohio','Pennsylvania','Virginia','Massachusetts','New Jersey','Michigan','South Carolina','Tennessee','Maine','Connecticut','Vermont','New Hampshire','Rhode Island','Delaware','Maryland','West Virginia','Kentucky','Indiana'],
+    'America/New_York': ['New York','Florida','Georgia','North Carolina','Ohio','Pennsylvania','Virginia','Massachusetts','New Jersey','Michigan','South Carolina','Tennessee','Maine','Connecticut','Vermont','New Hampshire','Rhode Island','Delaware','Maryland','West Virginia','Kentucky','Indiana','District of Columbia'],
     'America/Detroit': ['Michigan','Ohio','Indiana'],
     'America/Indiana/Indianapolis': ['Indiana','Ohio','Kentucky'],
     'America/Kentucky/Louisville': ['Kentucky','Indiana','Ohio'],
@@ -3288,14 +3302,30 @@ def build_rule_changes_page() -> str:
     )
     conflict_html = "\n".join(_rule_conflict_card_html(e) for e in conflicts) if conflicts else ""
 
-    monitoring_note = (
-        f"Our automated monitoring has flagged and promoted {monitoring_count} change"
-        f"{'s' if monitoring_count != 1 else ''} so far."
-        if monitoring_count
-        else "Our automated day-to-day monitoring hasn't flagged and promoted a confirmed change yet "
-        "&mdash; that's expected in the early days of a new monitor watching mostly-static legal text, "
-        "not a sign the feed is broken. Every item below instead comes from our batch legal research."
-    )
+    if monitoring_count:
+        monitoring_note = (
+            f"Our automated monitoring has flagged and promoted {monitoring_count} change"
+            f"{'s' if monitoring_count != 1 else ''} so far."
+        )
+    else:
+        # DiffLab's own coverage numbers (2026-08-03), build-time-derived so this
+        # can't drift into an overclaim -- "0 events" reads as broken/abandoned on
+        # its own, so show the real monitoring activity behind that zero instead.
+        # Deliberately NOT surfacing current_source_live_rate_pct here (DiffLab's
+        # own caveat): it measures page fetchability, not catch rate, and would
+        # misread as a data-quality score.
+        cov = json.loads(RULE_CHANGE_COVERAGE_STATS_PATH.read_text(encoding="utf-8"))
+        monitoring_started = fmt_date(date.fromisoformat(cov["monitoring_started"]))
+        last_checked = fmt_date(date.fromisoformat(cov["last_checked_at"][:10]))
+        monitoring_note = (
+            f"Our automated day-to-day monitoring hasn't flagged and promoted a confirmed change yet "
+            f"&mdash; that's expected in the early days of a new monitor watching mostly-static legal "
+            f"text, not a sign the feed is broken. It's been watching {cov['sources_monitored']} "
+            f"primary sources across all {cov['jurisdictions_monitored']} U.S. jurisdictions daily "
+            f"since {monitoring_started}, and has run {cov['diffs_reviewed_total']} detected changes "
+            f"through review so far &mdash; none of them a real CPA-relevant rule change yet. Last "
+            f"checked {last_checked}. Every item below instead comes from our batch legal research."
+        )
 
     body = f"""<h1>CPA Mobility &amp; Practice-Privilege Rule Changes</h1>
 <p class="intro">A running feed of confirmed and pending changes to interstate CPA mobility rules

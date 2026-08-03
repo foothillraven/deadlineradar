@@ -947,10 +947,24 @@ function oauthHandshakeSetCookieHeader(rawBinding: string): string {
   );
 }
 
-/** Cleared as soon as the handshake is consumed, so a completed sign-in
- * leaves nothing reusable behind. */
+/** Clears the short-lived handshake cookie. AuditLab SSO-D, 2026-08-03: this
+ * existed with a docstring claiming exactly this, but no callback response
+ * ever actually sent it -- harmless (the state row behind it is already
+ * single-use and the cookie self-expires at 600s regardless), but a comment
+ * claiming a control that isn't wired in is worse than no comment. Now
+ * called from every successful-callback response via oauthSuccessResponse(). */
 function oauthHandshakeClearCookieHeader(): string {
   return `${OAUTH_HANDSHAKE_COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`;
+}
+
+/** The 302-with-session-cookie response every successful SSO callback
+ * branch (existing identity, race-fallback, fresh link) returns. Also clears
+ * the handshake cookie -- see oauthHandshakeClearCookieHeader(). */
+function oauthSuccessResponse(env: Env, rawSessionToken: string): Response {
+  const headers = new Headers({ Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/` });
+  headers.append("Set-Cookie", firmSessionSetCookieHeader(rawSessionToken, env));
+  headers.append("Set-Cookie", oauthHandshakeClearCookieHeader());
+  return new Response(null, { status: 302, headers });
 }
 
 /** One message for every credential failure -- no such firm, no password
@@ -3460,13 +3474,7 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
     }
     await store.touchOauthIdentityLogin(env.DB, existingIdentity.id, existingIdentity.firm_id, claims.email);
     const { rawSessionToken } = await store.createSession(env.DB, existingIdentity.firm_id);
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/`,
-        "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken, env),
-      },
-    });
+    return oauthSuccessResponse(env, rawSessionToken);
   }
 
   // First time this provider account has been seen. Linking it to an
@@ -3514,23 +3522,11 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
     // 3am. Review finding 4f.
     if (raced.firm_id !== firm.id) return errorPage(400, SSO_FAILED_MESSAGE, ssoSigninLink(env));
     const { rawSessionToken } = await store.createSession(env.DB, raced.firm_id);
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/`,
-        "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken, env),
-      },
-    });
+    return oauthSuccessResponse(env, rawSessionToken);
   }
 
   const { rawSessionToken } = await store.createSession(env.DB, firm.id);
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/`,
-      "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken, env),
-    },
-  });
+  return oauthSuccessResponse(env, rawSessionToken);
 }
 
 

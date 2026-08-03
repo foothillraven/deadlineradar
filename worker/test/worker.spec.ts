@@ -3742,6 +3742,42 @@ describe("SSO routes", () => {
     }
   });
 
+  it("SSO-D (2026-08-03): a successful callback clears the handshake cookie, not just the session it mints", async () => {
+    const worker = (await import("../src/index")).default;
+    const email = `sso-d-${Date.now()}@examplefirm.com`;
+    await store.createFirm(env.DB, { name: "SSO-D Firm", adminEmail: email });
+    const { rawState, nonce, rawBrowserBinding } = await store.createOauthState(env.DB, "google");
+    const idToken = makeIdToken({
+      iss: "https://accounts.google.com",
+      aud: "test-client-id",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      nonce,
+      sub: `sso-d-sub-${Date.now()}`,
+      email,
+      email_verified: true,
+    });
+    const fetchSpy = stubTokenEndpoint(idToken);
+    try {
+      const resp = await worker.fetch(
+        new Request(`https://deadline-radar.com/firm/auth/google/callback?code=test-code&state=${rawState}`, {
+          headers: { "cf-connecting-ip": "203.0.113.235", Cookie: `dr_oauth_handshake=${rawBrowserBinding}` },
+        }),
+        { ...env, ...ssoEnv },
+        testExecutionContext()
+      );
+      expect(resp.status).toBe(302);
+      // Two distinct Set-Cookie headers get joined by Headers#get -- split
+      // them back apart on a comma that precedes the next cookie's "name=".
+      const setCookies: string[] = (resp.headers.get("Set-Cookie") ?? "").split(/,\s*(?=[^;]+=[^;]*;)/);
+      expect(setCookies.some((c: string) => c.includes("dr_firm_session="))).toBe(true);
+      const handshakeCookie = setCookies.find((c: string) => c.startsWith("dr_oauth_handshake="));
+      expect(handshakeCookie).toBeTruthy();
+      expect(handshakeCookie).toContain("Max-Age=0");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("a repeat login with the SAME admin_email still works (no false positive from the SSO-A re-check)", async () => {
     const worker = (await import("../src/index")).default;
     const email = `sso-repeat-${Date.now()}@examplefirm.com`;

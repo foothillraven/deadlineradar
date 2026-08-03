@@ -1587,7 +1587,7 @@ def signup_form_homepage(by_slug: dict[str, list[dict]], as_of: date) -> str:
     option (previously filtered to `_state_signup_supported()`-true states
     only) -- an uncomputable state just gets the date-input extra field
     instead of a computed one, same as its own page."""
-    all_slugs = sorted(by_slug)
+    all_slugs = sorted(by_slug, key=lambda slug: by_slug[slug][0]["state"])
     state_options = "\n".join(
         f'<option value="{esc(slug)}">{esc(by_slug[slug][0]["state"])}</option>' for slug in all_slugs
     )
@@ -4342,7 +4342,7 @@ def _firm_dashboard_add_staff_form_html(by_slug: dict[str, list[dict]], as_of: d
     name, so only one `license_type_id` is ever actually submitted. The
     duplicate id is an HTML-validity nit inherited from the homepage, not a
     functional bug."""
-    all_slugs = sorted(by_slug)
+    all_slugs = sorted(by_slug, key=lambda slug: by_slug[slug][0]["state"])
     state_options = "\n".join(
         f'<option value="{esc(slug)}">{esc(by_slug[slug][0]["state"])}</option>' for slug in all_slugs
     )
@@ -5517,8 +5517,17 @@ def _mobility_covered_slugs() -> set[str]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return set()
+    # Same alias as scripts/build_change_events.py's SLUG_ALIASES: the
+    # upstream mobility-research vocabulary has emitted "district-of-columbia"
+    # before, while every deadline record/URL/page on this site uses "dc".
+    # Caught here as a defensive translation (not just a one-time data fix)
+    # because 2026-08-02 found the mismatch had silently force-disabled DC
+    # in this exact dropdown, and forced not_verified in the Worker's own
+    # lookup table -- a slug drift here is invisible until someone notices
+    # a state wrongly greyed out.
+    slug_aliases = {"district-of-columbia": "dc"}
     return {
-        r["state_slug"]
+        slug_aliases.get(r["state_slug"], r["state_slug"])
         for r in data.get("records", [])
         if isinstance(r, dict) and isinstance(r.get("state_slug"), str)
     }
@@ -5545,7 +5554,7 @@ def build_firm_mobility_page(by_slug: dict[str, list[dict]]) -> str:
     not-legal-advice disclaimer -- they arrive in the same API payload
     precisely so the UI cannot display a verdict without them.
     """
-    all_slugs = sorted(by_slug)
+    all_slugs = sorted(by_slug, key=lambda slug: by_slug[slug][0]["state"])
 
     # HOME state: every jurisdiction, always. The determination is made
     # against the TARGET state's rules -- index.ts looks up

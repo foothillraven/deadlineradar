@@ -241,7 +241,7 @@
     },
     {
       "state": "District of Columbia",
-      "state_slug": "district-of-columbia",
+      "state_slug": "dc",
       "individual_practice_privilege": true,
       "notice_required": false,
       "fee_required": false,

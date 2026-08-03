@@ -28,7 +28,7 @@ import {
 const records = (rulesData as { records: unknown[] }).records;
 const CANONICAL_55 = [
   "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut",
-  "delaware", "district-of-columbia", "florida", "georgia", "guam", "hawaii", "idaho",
+  "delaware", "dc", "florida", "georgia", "guam", "hawaii", "idaho",
   "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana", "maine", "maryland",
   "massachusetts", "michigan", "minnesota", "mississippi", "missouri", "montana", "nebraska",
   "nevada", "new-hampshire", "new-jersey", "new-mexico", "new-york", "north-carolina",

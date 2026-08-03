@@ -5130,7 +5130,7 @@ function drClearMapStateClasses(path) {
   DR_MAP_STATE_CLASSES.forEach(function(c) { path.classList.remove(c); });
 }
 
-function drRenderMap() {
+function drRenderMap(gen) {
   var links = document.querySelectorAll('.dr-map-link');
   if (!links.length) return;
   var byState = {};
@@ -5166,7 +5166,7 @@ function drRenderMap() {
     link.setAttribute('data-tip', summary);
     link.setAttribute('aria-label', summary);
   });
-  drApplyAggregateCoverageOverlay(byState);
+  drApplyAggregateCoverageOverlay(byState, gen);
 }
 
 // ---------------------------------------------------------------------------
@@ -5195,6 +5195,12 @@ function drRenderMap() {
 
 var DR_MOBILITY_SERVICE_TYPE = 'tax';
 var drMobilityCache = {}; // home_state_slug -> {results: [...]} | {denied: true}
+// Incremented on every drRenderMapForSelection() call (every dropdown
+// change, and the initial load). Async work below captures the value at
+// the moment it started and checks it hasn't moved on before touching the
+// DOM, so a slow fetch from a view the user has since left can never paint
+// over whatever view is showing now.
+var drMapSelectionGen = 0;
 
 // "All staff" coverage overlay -- keyed on DISTINCT home states (not per
 // person), since two staff members in the same state get an identical
@@ -5203,7 +5209,7 @@ var drMobilityCache = {}; // home_state_slug -> {results: [...]} | {denied: true
 // call comes back denied (not entitled), the whole overlay is skipped
 // silently -- "All" stays a free view with no paywall interruption, the
 // upsell already lives on the per-person path.
-function drApplyAggregateCoverageOverlay(byState) {
+function drApplyAggregateCoverageOverlay(byState, gen) {
   var legendItem = document.getElementById('dr-map-legend-coverage-item');
   var homeStates = {}; // slug -> [staff display names]
   drLicenses.forEach(function(item) {
@@ -5240,11 +5246,19 @@ function drApplyAggregateCoverageOverlay(byState) {
   }
 
   fetchForHome(slugs[0]).then(function(first) {
+    // Bail if the user has since picked a different view (or reloaded the
+    // roster) while this fetch was in flight -- reported directly,
+    // 2026-08-03: a slow "All" fetch resolving AFTER the dropdown had moved
+    // to a specific person painted stale purple coverage states over that
+    // person's own home/clear/action picture, with no legend entry for it
+    // since it belongs to a different mode entirely.
+    if (gen !== drMapSelectionGen) return;
     if (!first || first.denied) {
       if (legendItem) legendItem.hidden = true;
       return;
     }
     Promise.all(slugs.slice(1).map(fetchForHome)).then(function(rest) {
+      if (gen !== drMapSelectionGen) return;
       var all = [first].concat(rest);
       var coverage = {}; // target slug -> [staff names whose home state clears it]
       all.forEach(function(entry, i) {
@@ -5303,7 +5317,8 @@ function drSetMapTooltipWrap(wrap) {
   if (mobilityLegend) mobilityLegend.hidden = !wrap;
 }
 
-function drApplyMobilityResults(homeStateSlug, entry) {
+function drApplyMobilityResults(homeStateSlug, entry, gen) {
+  if (gen !== drMapSelectionGen) return;
   var noteEl = document.getElementById('dr-map-mobility-note');
   var links = document.querySelectorAll('.dr-map-link');
   drSetMapTooltipWrap(true);
@@ -5331,7 +5346,7 @@ function drApplyMobilityResults(homeStateSlug, entry) {
   links.forEach(function(link) {
     var slug = link.getAttribute('data-state-slug');
     var path = link.querySelector('path');
-    path.classList.remove('dr-map-state--active', 'dr-map-state--risk', 'dr-map-state--clear', 'dr-map-state--action', 'dr-map-state--home');
+    drClearMapStateClasses(path);
     if (slug === homeStateSlug) {
       path.classList.add('dr-map-state--home');
       var homeTip = 'Home state -- licensed here directly, not a reciprocity question.';
@@ -5357,16 +5372,16 @@ function drApplyMobilityResults(homeStateSlug, entry) {
   });
 }
 
-function drRenderMapMobility(subscriberId) {
+function drRenderMapMobility(subscriberId, gen) {
   var person = drLicenses.filter(function(item) { return item.id === subscriberId; })[0];
   if (!person || !person.state_slug) {
-    drRenderMap();
+    drRenderMap(gen);
     return;
   }
   var homeStateSlug = person.state_slug;
   var cached = drMobilityCache[homeStateSlug];
   if (cached) {
-    drApplyMobilityResults(homeStateSlug, cached);
+    drApplyMobilityResults(homeStateSlug, cached, gen);
     return;
   }
   var noteEl = document.getElementById('dr-map-mobility-note');
@@ -5390,32 +5405,34 @@ function drRenderMapMobility(subscriberId) {
       if (res.status === 403) {
         var denied = (data && data.error) || 'Practice-privilege coloring is part of the paid firm plan.';
         drMobilityCache[homeStateSlug] = {denied: denied};
-        drApplyMobilityResults(homeStateSlug, drMobilityCache[homeStateSlug]);
+        drApplyMobilityResults(homeStateSlug, drMobilityCache[homeStateSlug], gen);
         return;
       }
       if (!res.ok || !data) {
-        if (noteEl) { noteEl.textContent = 'Something went wrong checking practice privilege. Please try again.'; }
+        if (gen === drMapSelectionGen && noteEl) { noteEl.textContent = 'Something went wrong checking practice privilege. Please try again.'; }
         return;
       }
       drMobilityCache[homeStateSlug] = {results: data.results};
-      drApplyMobilityResults(homeStateSlug, drMobilityCache[homeStateSlug]);
+      drApplyMobilityResults(homeStateSlug, drMobilityCache[homeStateSlug], gen);
     });
   }).catch(function() {
-    if (noteEl) { noteEl.textContent = 'Something went wrong checking practice privilege. Please try again.'; }
+    if (gen === drMapSelectionGen && noteEl) { noteEl.textContent = 'Something went wrong checking practice privilege. Please try again.'; }
   });
 }
 
 function drRenderMapForSelection() {
+  drMapSelectionGen++;
+  var gen = drMapSelectionGen;
   var sel = document.getElementById('dr-map-staff-select');
   var value = sel ? sel.value : '';
   var noteEl = document.getElementById('dr-map-mobility-note');
   if (!value) {
     if (noteEl) noteEl.hidden = true;
     drSetMapTooltipWrap(false);
-    drRenderMap();
+    drRenderMap(gen);
     return;
   }
-  drRenderMapMobility(value);
+  drRenderMapMobility(value, gen);
 }
 
 function drWireMapTooltip() {

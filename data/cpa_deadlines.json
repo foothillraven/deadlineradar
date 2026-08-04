@@ -890,14 +890,15 @@
       "license_type": "all",
       "license_type_label": "Individual CPA license and firm permit",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Biennial. Both the individual CPA license and the CPA firm permit expire December 31 of every even-numbered year -- a single fixed date for the entire licensee/firm population, no cohort split.",
+      "cycle_description": "Biennial. Both the individual CPA license and the CPA firm permit expire December 31 of every even-numbered year, per the DC Board's own page -- a single fixed date for the entire licensee/firm population, no cohort split. The citation below (17 DCMR § 2547) confirms this for the firm permit specifically; we have not independently confirmed a matching codified provision for the individual license.",
       "next_deadline_computed": "2026-12-31",
       "source_url": "https://dlcp.dc.gov/page/board-accountancy",
       "secondary_source_url": "https://dcregs.dc.gov/Common/DCMR/SectionList.aspx?SectionNumber=17-2547",
       "last_verified": "2026-08-03",
       "wave": 6,
       "citation": "17 DCMR \u00a7 2547",
-      "citation_url": "https://dcregs.dc.gov/Common/DCMR/RuleList.aspx?DownloadFile=00FE545F-0000-C61A-9809-9AF28E266CA9"
+      "citation_url": "https://dcregs.dc.gov/Common/DCMR/RuleList.aspx?DownloadFile=00FE545F-0000-C61A-9809-9AF28E266CA9",
+      "citation_covers_full_claim": false
     },
     {
       "id": "ut-all",

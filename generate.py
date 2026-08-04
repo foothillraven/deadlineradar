@@ -1881,6 +1881,18 @@ def page_shell(
 """
 
 
+def _record_fully_cited(record: dict) -> bool:
+    """AuditLab DATA-3 (MEDIUM, 2026-08-04): DATA-1's gate was "does this record
+    have a citation" -- true for `dc-all`, whose citation (17 DCMR SS 2547) covers
+    only the firm-permit half of a "individual CPA license and firm permit" claim,
+    not the individual-license half. A citation existing is not the same as a
+    citation covering everything the record claims. `citation_covers_full_claim`
+    is an explicit opt-out (defaults True -- only `dc-all` sets it False today) for
+    exactly that gap, so trust_line()'s confident sentence can't contradict a
+    cycle_description that's already caveating the same record."""
+    return bool(record.get("citation")) and record.get("citation_covers_full_claim", True)
+
+
 def trust_line(last_verified: str, source_url: str, has_citation: bool) -> str:
     """AuditLab DATA-1 (HIGH, 2026-08-04): this unconditionally asserted "checked
     against the state's codified statute or administrative rule, not just a board
@@ -2112,7 +2124,7 @@ def render_simple_deadline_records(records: list[dict]) -> str:
     parts = []
     for r in records:
         d = date.fromisoformat(r["next_deadline_computed"])
-        has_citation = bool(r.get("citation"))
+        has_citation = _record_fully_cited(r)
         stamp_class = "stamp" if has_citation else "stamp stamp--unconfirmed"
         stamp_text = f"Last verified {esc(r['last_verified'])}" if r.get("last_verified") else "Not independently verified"
         verified_text = "Confirmed via official records" if _is_operational_record(r) else "Confirmed at source"
@@ -2455,7 +2467,7 @@ def build_state_page(
     body = f"""<h1>{esc(title)}</h1>
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
 {deadline_html}
-{trust_line(last_verified, source_url, all(r.get("citation") for r in records))}
+{trust_line(last_verified, source_url, all(_record_fully_cited(r) for r in records))}
 {signup_form_for_state(state_slug, state_name, records, as_of)}
 {_cpe_affiliate_html()}
 {related_html}
@@ -2824,7 +2836,7 @@ def _select_hero_rotation_pool(by_slug: dict[str, list[dict]]) -> list[dict]:
     by_state: dict[str, dict] = {}
     for slug, recs in by_slug.items():
         for r in recs:
-            if not (r.get("citation") and r.get("citation_url") and r.get("next_deadline_computed")):
+            if not (_record_fully_cited(r) and r.get("citation_url") and r.get("next_deadline_computed")):
                 continue
             lv = r.get("last_verified")
             if not lv or date.fromisoformat(lv) < window_start:
@@ -6839,7 +6851,7 @@ renewal. Here's exactly when {esc(state_name)}'s firm-level filing is due.</p>
   <p class="rule">{esc(record['cycle_description'])}</p>
   {_source_cite_html(record)}
 </div>
-{trust_line(record['last_verified'], record['source_url'], bool(record.get('citation')))}
+{trust_line(record['last_verified'], record['source_url'], _record_fully_cited(record))}
 
 <div class="firm-cta">
 <h2>Tracking this for more than one firm, or want someone else watching it?</h2>
@@ -7211,7 +7223,7 @@ way every fact on this site is: a board page plus the codified rule itself, neve
 
 <p><strong>What triggers lapsed status:</strong> {esc(record['lapse_trigger'])}</p>
 
-{trust_line(record["last_verified"], record["source_url"], bool(record.get("citation")))}
+{trust_line(record["last_verified"], record["source_url"], _record_fully_cited(record))}
 
 {_reinstatement_signup_html(record["state_slug"], state_name, renewal_records, as_of)}
 

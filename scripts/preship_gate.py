@@ -312,6 +312,30 @@ def print_worker_deploy_staleness_advisory(repo_root: Path) -> None:
         pass
 
 
+def print_dual_credential_citation_advisory(repo_root: Path) -> None:
+    """AuditLab DATA-3 (MEDIUM, 2026-08-04): dc-all's citation covered the firm-permit
+    half of an "individual CPA license and firm permit" claim, not the individual half
+    -- a citation existing is not the same as a citation covering everything a record
+    claims. That can't be checked automatically (it requires reading the cited legal
+    text, which is AuditLab's job, not this gate's), so this only surfaces the
+    candidate list: every record whose license_type_label names more than one
+    credential type, and whether it currently opts out of the full-claim assumption
+    via citation_covers_full_claim. Advisory only -- a name change here doesn't mean a
+    problem, it means "read this one against its citation if nobody has yet."""
+    data_path = repo_root / "data" / "cpa_deadlines.json"
+    if not data_path.exists():
+        print("  (skipping dual-credential-citation advisory -- data/cpa_deadlines.json not present in this checkout)")
+        return
+    data = json.loads(data_path.read_text(encoding="utf-8"))
+    dual = [r for r in data["records"] if " and " in (r.get("license_type_label") or "").lower()]
+    print(f"\n--- dual-credential-citation advisory (does not affect gate exit code) ---")
+    print(f"{len(dual)} record(s) whose license_type_label names more than one credential type:")
+    for r in dual:
+        scoped = r.get("citation_covers_full_claim", True)
+        flag = "full-claim citation assumed" if scoped else "EXPLICITLY SCOPED (partial citation, see cycle_description)"
+        print(f"  [{r['id']}] {r['state']} -- \"{r['license_type_label']}\" -- {flag}")
+
+
 def print_cpe_hours_staleness_advisory(repo_root: Path) -> None:
     """Surfaces cpe_hours_staleness_check.py (AuditLab ST-2, 2026-08-04) as
     part of the normal pre-ship run, same treatment as the worker-deploy
@@ -361,10 +385,12 @@ def main():
             print(" ", e)
         print_worker_deploy_staleness_advisory(repo_root)
         print_cpe_hours_staleness_advisory(repo_root)
+        print_dual_credential_citation_advisory(repo_root)
         sys.exit(1)
     print("\nPASS -- no violations found.")
     print_worker_deploy_staleness_advisory(repo_root)
     print_cpe_hours_staleness_advisory(repo_root)
+    print_dual_credential_citation_advisory(repo_root)
     sys.exit(0)
 
 

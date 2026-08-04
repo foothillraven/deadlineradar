@@ -2452,27 +2452,43 @@ function drCpeProgressForSubscriber(item) {
     return {hasRequirement: false, dataGapNote: req ? req.data_gap_note : null};
   }
   var win = drCpeCycleWindow(item.next_deadline, req.period_years);
+  // AuditLab CPE-1 (HIGH, 2026-08-04): ethics has its own period_years in 6
+  // states (e.g. Texas: 120h/3y total, but ethics is 4h/2y -- an ANNUAL-ish
+  // obligation nested inside the longer total-hours cycle). Judging ethics
+  // against the total window silently accepted stale ethics credit and
+  // showed "on track" for firms that were actually behind. Falls back to
+  // the total window when ethics_period_years is null (44 states where the
+  // two match, plus LA/SD whose rules set no ethics hour count at all).
+  var winEthics = drCpeCycleWindow(item.next_deadline, req.ethics_period_years || req.period_years);
   var totalLogged = 0, ethicsLogged = 0, excludedCount = 0;
   drCpeEntries.forEach(function(e) {
     if (e.subscriber_id !== item.id) return;
-    // No renewal date means we don't know the cycle boundary -- excluding
+    // No renewal date means we don't know either cycle boundary -- excluding
     // every entry (rather than summing an unbounded lifetime total) keeps
     // "0 logged" as an honest signal instead of a false on-track reading.
     if (!win) { excludedCount++; return; }
-    // An entry dated before the window can genuinely happen -- e.g. hours
+    // An entry dated before a window can genuinely happen -- e.g. hours
     // earned in the final weeks of a PRIOR cycle, logged before this one's
     // window (next_deadline minus one period) has technically started.
     // There is no record of that prior cycle's own boundary anywhere in
     // this product, so the entry can't safely be counted toward either
-    // cycle -- but silently
-    // dropping it with no explanation is its own bug (reported directly,
-    // 2026-08-03: "I added 100 hours to test this out, and nothing
-    // happened to it" -- the entry WAS saved and appears in Recently
-    // Logged, it just isn't in this window's sum). excludedCount lets the
-    // UI say so instead of just showing 0.
-    if (e.entry_date < win.start || e.entry_date > win.end) { excludedCount++; return; }
-    totalLogged += e.hours;
-    if (e.category === 'ethics') ethicsLogged += e.hours;
+    // cycle -- but silently dropping it with no explanation is its own bug
+    // (reported directly, 2026-08-03: "I added 100 hours to test this out,
+    // and nothing happened to it" -- the entry WAS saved and appears in
+    // Recently Logged, it just isn't in this window's sum). excludedCount
+    // lets the UI say so instead of just showing 0.
+    //
+    // The total and ethics windows can now differ (Texas: 3y total, 2y
+    // ethics), so an ethics entry can legitimately fall outside the total
+    // window but inside its own shorter ethics window -- only exclude an
+    // entry when it lands outside BOTH of the windows it's actually
+    // relevant to, or a correctly-counted ethics entry would be reported
+    // as ignored.
+    var inTotalWindow = e.entry_date >= win.start && e.entry_date <= win.end;
+    var inEthicsWindow = winEthics && e.entry_date >= winEthics.start && e.entry_date <= winEthics.end;
+    if (!inTotalWindow && !(e.category === 'ethics' && inEthicsWindow)) { excludedCount++; return; }
+    if (inTotalWindow) totalLogged += e.hours;
+    if (e.category === 'ethics' && inEthicsWindow) ethicsLogged += e.hours;
   });
   var behind =
     (req.total_hours !== null && totalLogged < req.total_hours) ||

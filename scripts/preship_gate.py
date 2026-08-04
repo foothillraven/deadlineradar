@@ -9,6 +9,7 @@ data/manifest drift, missing legal copy), not wording quality.
 
 Usage: python scripts/preship_gate.py [repo_root]
 """
+import html
 import json
 import re
 import sys
@@ -288,6 +289,39 @@ def check_json_copies_identical(repo_root: Path) -> list[str]:
     return []
 
 
+TITLE_RE = re.compile(r"<title>(.*?)</title>", re.DOTALL)
+META_DESCRIPTION_RE = re.compile(r'<meta name="description" content="(.*?)">', re.DOTALL)
+SEO_TITLE_MAX = 60
+SEO_DESCRIPTION_MAX = 160
+
+
+def print_seo_length_drift_advisory(html_files: list[Path]) -> None:
+    """AuditLab SEO-4 (LOW, 2026-08-04): 115 titles / 22 descriptions already
+    exceeded Google's ~60/~160-char SERP display limits when first filed --
+    fixing all of them wasn't worth the effort at LOW severity, but nothing
+    enforced a budget, so the count DRIFTED UPWARD (22 -> 28 descriptions)
+    just from ordinary copy edits during other fixes this same session. This
+    doesn't re-fix the existing 143 (that's still a deliberate LOW-priority
+    call) -- it only stops the drift by surfacing the current count every
+    build, the same "advisory, never gates" treatment as every other
+    detector here. If this number climbs on a future page you're actively
+    writing, that's the signal to trim ITS title/description, not to chase
+    the whole backlog."""
+    over_title = 0
+    over_description = 0
+    for f in html_files:
+        text = f.read_text(encoding="utf-8")
+        m = TITLE_RE.search(text)
+        if m and len(html.unescape(m.group(1))) > SEO_TITLE_MAX:
+            over_title += 1
+        m = META_DESCRIPTION_RE.search(text)
+        if m and len(html.unescape(m.group(1))) > SEO_DESCRIPTION_MAX:
+            over_description += 1
+    print(f"\n--- SEO title/description length advisory (does not affect gate exit code) ---")
+    print(f"titles > {SEO_TITLE_MAX} chars       : {over_title} / {len(html_files)}")
+    print(f"descriptions > {SEO_DESCRIPTION_MAX} chars : {over_description} / {len(html_files)}")
+
+
 def print_worker_deploy_staleness_advisory(repo_root: Path) -> None:
     """Surfaces the existing worker_deploy_staleness_check.py advisory as part
     of the normal pre-ship run, instead of relying on someone remembering to
@@ -386,11 +420,13 @@ def main():
         print_worker_deploy_staleness_advisory(repo_root)
         print_cpe_hours_staleness_advisory(repo_root)
         print_dual_credential_citation_advisory(repo_root)
+        print_seo_length_drift_advisory(html_files)
         sys.exit(1)
     print("\nPASS -- no violations found.")
     print_worker_deploy_staleness_advisory(repo_root)
     print_cpe_hours_staleness_advisory(repo_root)
     print_dual_credential_citation_advisory(repo_root)
+    print_seo_length_drift_advisory(html_files)
     sys.exit(0)
 
 

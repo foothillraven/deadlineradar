@@ -2031,9 +2031,13 @@ def page_shell(
 <meta property="og:url" content="{esc(canonical_url)}">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="{esc(SITE_NAME)}">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="https://deadline-radar.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{esc(title)}">
 <meta name="twitter:description" content="{esc(meta_description)}">
+<meta name="twitter:image" content="https://deadline-radar.com/og-image.png">
 {_turnstile_head_html()}
 {_json_ld_html(json_ld)}
 {extra_head}
@@ -5264,15 +5268,16 @@ function drRenderAtRisk() {
   // this panel never warned about. Now included under the same day-window
   // test as everyone else; the "no reminder will be sent" chip below is
   // what makes their row different, not exclusion.
-  var items = drLicenses.filter(function(item) {
+  var allAtRisk = drLicenses.filter(function(item) {
     var days = drDaysUntil(item.next_deadline);
     return days === null || days <= 30;
-  }).slice(0, 6);
+  });
+  var items = allAtRisk.slice(0, 6);
   if (items.length === 0) {
     el.innerHTML = '<li class="dr-panel-empty">Nobody at risk right now.</li>';
     return;
   }
-  el.innerHTML = items.map(function(item) {
+  var html = items.map(function(item) {
     var days = drDaysUntil(item.next_deadline);
     var daysLabel = days === null ? 'Unresolved' : days < 0 ? 'Overdue' : days === 0 ? 'Due today' : 'in ' + days + 'd';
     var soon = days !== null && days <= 7;
@@ -5284,6 +5289,17 @@ function drRenderAtRisk() {
       '</span>' +
       '<span class="dr-at-risk-days' + (soon ? ' dr-at-risk-days--soon' : '') + '">' + daysLabel + '</span></li>';
   }).join('');
+  // AuditLab VIS-2 (LOW, 2026-08-04): this list has always silently
+  // truncated at 6 -- mitigated by the adjacent "Due soon" tile showing the
+  // true count from the identical filter, but a firm with more than 6
+  // people actually at risk saw no indication there were more. The tile
+  // count is already computed the same way in drRenderStats(), so this
+  // reuses that same 30-day-or-unresolved definition rather than
+  // introducing a second one that could drift from it.
+  if (allAtRisk.length > items.length) {
+    html += '<li class="dr-panel-empty">+' + (allAtRisk.length - items.length) + ' more &mdash; see Roster for the full list.</li>';
+  }
+  el.innerHTML = html;
 }
 
 var DR_ACTIVITY_LABELS = {added: 'added to the roster', confirmed: 'went active', optout: 'opted out of reminders'};
@@ -8302,6 +8318,13 @@ def main() -> None:
     font_src = FONT_ASSETS_DIR / "fraunces-variable.woff2"
     (fonts_dir / "fraunces-variable.woff2").write_bytes(font_src.read_bytes())
     print(f"wrote {SITE_DIR.name}/fonts/fraunces-variable.woff2")
+
+    # AuditLab SEO-3r (LOW, 2026-08-04): completes SEO-3 -- every og:/twitter:
+    # tag except og:image was already correct; this was the one static asset
+    # still missing. Copied verbatim, same pattern as the font above.
+    og_image_src = ROOT / "assets" / "og-image.png"
+    (SITE_DIR / "og-image.png").write_bytes(og_image_src.read_bytes())
+    print(f"wrote {SITE_DIR.name}/og-image.png")
 
     built = []
     for slug, recs in by_slug.items():

@@ -469,33 +469,15 @@ function firmSessionCookieSameSite(env: Env): string {
   return env.STATIC_SITE_BASE_URL ? "None" : "Lax";
 }
 
-// CHIPS (2026-08-04, experiment for task #31): only meaningful alongside
-// SameSite=None, i.e. only on preview's cross-origin split. Partitions the
-// cookie by the TOP-LEVEL site the browser is on (pages.dev) rather than
-// treating it as an unpartitioned third-party cookie -- which is exactly
-// the shape Chrome's third-party-cookie blocking targets, and exactly the
-// shape this isn't: the API is fetched FROM the dashboard the user is
-// actually on, not embedded/tracked across unrelated sites. Harmless no-op
-// on browsers that don't understand the attribute (still SameSite=None;
-// Secure). Cheap, reversible, preview-only -- verify live before trusting
-// it; if it doesn't clear the cross-origin 401, revert this attribute.
-function firmSessionCookiePartitionedAttr(env: Env): string {
-  return env.STATIC_SITE_BASE_URL ? "; Partitioned" : "";
-}
-
 function firmSessionSetCookieHeader(rawSessionToken: string, env: Env): string {
   return (
     `${FIRM_SESSION_COOKIE_NAME}=${encodeURIComponent(rawSessionToken)}; HttpOnly; Secure; ` +
-    `SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=${FIRM_SESSION_COOKIE_MAX_AGE_SECONDS}` +
-    firmSessionCookiePartitionedAttr(env)
+    `SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=${FIRM_SESSION_COOKIE_MAX_AGE_SECONDS}`
   );
 }
 
 function firmSessionClearCookieHeader(env: Env): string {
-  return (
-    `${FIRM_SESSION_COOKIE_NAME}=; HttpOnly; Secure; SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=0` +
-    firmSessionCookiePartitionedAttr(env)
-  );
+  return `${FIRM_SESSION_COOKIE_NAME}=; HttpOnly; Secure; SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=0`;
 }
 
 // ---------------------------------------------------------------------------

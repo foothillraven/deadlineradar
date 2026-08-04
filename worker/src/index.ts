@@ -2057,6 +2057,19 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
     skipConfirmation: true,
   });
 
+  // AuditLab LC-1 (LOW, 2026-08-04): if this same person was previously
+  // removed from this exact state on this firm's roster, their real
+  // CPE history is stranded on that now-inert row -- move it here so it
+  // counts toward the requirement again, same person and same state.
+  // Best-effort: a failure here must not roll back the staff-add itself,
+  // same posture as the transparency email below.
+  try {
+    await store.reattachOrphanedCpeEntries(env.DB, session.firmId, email, stateSlug, record.id);
+  } catch {
+    // Non-fatal -- worst case, history stays where it was, exactly the
+    // pre-existing (LOW-severity, safe-direction) behavior this improves on.
+  }
+
   if (env.SENDGRID_API_KEY) {
     try {
       const underCap = await checkAndCountSend(env.DB, dailySendCap(env));

@@ -339,6 +339,55 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
 }
 
 /**
+ * AuditLab LC-1 (LOW, 2026-08-04): remove-then-re-add is a legitimate,
+ * common admin action (undoing a mistaken removal, or a genuine rehire) and
+ * addPending() correctly creates a fresh row for it rather than colliding
+ * with the removed one (findActiveOrPending() only matches pending/confirmed
+ * status, never stopped) -- but that fresh row starts with no CPE history,
+ * and the person's real, previously-logged hours are left permanently
+ * attached to the now-inert removed row, attributed to "Removed staff
+ * member" and counting toward nobody's requirement.
+ *
+ * Deliberately reattaches cpe_entries rather than resurrecting the OLD
+ * subscriber row itself (the alternative AuditLab also named) -- reusing
+ * the old row would mean silently reusing its tokens/consent timestamps/
+ * reminder-send history for what the admin experiences as a brand new add,
+ * a much larger and more consent-sensitive change for a LOW-severity, safe-
+ * direction (understates compliance, never overclaims) finding. Only
+ * migrates entries from a PRIOR row for the exact same (firm, email, state)
+ * -- CPE entries are state-scoped through their subscriber_id, so hours
+ * logged against a different state's removed row must not follow here.
+ */
+export async function reattachOrphanedCpeEntries(
+  db: D1Database,
+  firmId: string,
+  email: string,
+  stateSlug: string,
+  newSubscriberId: string
+): Promise<number> {
+  const key = cooldownKey(email);
+  const { results: removedRows } = await db
+    .prepare(
+      `SELECT id FROM subscribers
+       WHERE firm_id = ?1 AND cooldown_key = ?2 AND state_slug = ?3
+         AND status = ?4 AND stop_reason = ?5 AND id != ?6`
+    )
+    .bind(firmId, key, stateSlug, STATUS_STOPPED, STOP_REASON_REMOVED_BY_ADMIN, newSubscriberId)
+    .all<{ id: string }>();
+  if (removedRows.length === 0) return 0;
+
+  let migrated = 0;
+  for (const row of removedRows) {
+    const result = await db
+      .prepare(`UPDATE cpe_entries SET subscriber_id = ?1 WHERE subscriber_id = ?2 AND firm_id = ?3`)
+      .bind(newSubscriberId, row.id, firmId)
+      .run();
+    migrated += result.meta.changes ?? 0;
+  }
+  return migrated;
+}
+
+/**
  * Pure (no I/O) so it's trivially unit-testable: true only if this record is
  * both under RESEND_MAX_ATTEMPTS total AND (never resent, or its last resend
  * is older than RESEND_COOLDOWN_MINUTES). Both checks matter -- the count cap

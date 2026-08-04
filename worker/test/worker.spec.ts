@@ -2116,6 +2116,71 @@ describe("DELETE /firm/licenses/:id -- removes from roster and stops further rem
     expect(stillRemoved?.status).toBe(store.STATUS_STOPPED);
     expect(stillRemoved?.stop_reason).toBe(store.STOP_REASON_REMOVED_BY_ADMIN);
   });
+
+  // AuditLab LC-1 (LOW, 2026-08-04): remove-then-re-add used to strand a
+  // person's real CPE history on the now-inert removed row -- their new
+  // roster entry (a fresh id, since findActiveOrPending() only matches
+  // pending/confirmed status) started with no history, and the old hours
+  // sat attributed to "Removed staff member," counting toward nobody.
+  it("re-adding a removed staffer reattaches their orphaned CPE entries to the new roster row", async () => {
+    const { cookie, firmId } = await createFirmWithSession("Rehire Firm", `rehire-${Date.now()}@example.com`);
+    const email = `rehire-staff-${Date.now()}@example.com`;
+
+    const created = await postFirmLicense(cookie, { email, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: originalId } = (await created.json()) as { id: string };
+
+    const cpeResp = await postCpeEntry(cookie, { subscriber_id: originalId, entry_date: "2026-06-01", hours: "8", category: "ethics" });
+    expect(cpeResp.status).toBe(201);
+
+    expect((await deleteFirmLicense(cookie, originalId)).status).toBe(200);
+
+    // Re-add the SAME person to the SAME state -- the realistic "removed
+    // the wrong person, immediately fixed it" path, not a months-later
+    // rehire.
+    const readded = await postFirmLicense(cookie, { email, state_slug: "georgia", license_type_id: "ga-individual" });
+    expect(readded.status).toBe(201);
+    const { id: newId } = (await readded.json()) as { id: string };
+    expect(newId).not.toBe(originalId);
+
+    const entries = await env.DB
+      .prepare("SELECT id, subscriber_id FROM cpe_entries WHERE firm_id = ?1")
+      .bind(firmId)
+      .all<{ id: string; subscriber_id: string }>();
+    expect(entries.results.length).toBe(1);
+    expect(entries.results[0]!.subscriber_id).toBe(newId);
+
+    // Confirms via the real read path a firm admin actually uses, not just
+    // a raw SQL check -- GET /firm/cpe should show the hours under the NEW
+    // (active) row, not the removed one.
+    const list = await getCpeEntries(cookie);
+    const listBody = (await list.json()) as { entries: Array<{ subscriber_id: string; hours: number }> };
+    expect(listBody.entries.length).toBe(1);
+    expect(listBody.entries[0]!.subscriber_id).toBe(newId);
+    expect(listBody.entries[0]!.hours).toBe(8);
+  });
+
+  it("re-adding to a DIFFERENT state does NOT reattach CPE entries from the removed state", async () => {
+    const { cookie, firmId } = await createFirmWithSession("Cross State Rehire Firm", `crossstate-${Date.now()}@example.com`);
+    const email = `crossstate-staff-${Date.now()}@example.com`;
+
+    const created = await postFirmLicense(cookie, { email, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: originalId } = (await created.json()) as { id: string };
+    await postCpeEntry(cookie, { subscriber_id: originalId, entry_date: "2026-06-01", hours: "8", category: "ethics" });
+    await deleteFirmLicense(cookie, originalId);
+
+    // Different state this time -- entries logged against Georgia must not
+    // silently attach to an Illinois row.
+    const readded = await postFirmLicense(cookie, { email, state_slug: "illinois", license_type_id: "il-individual" });
+    expect(readded.status).toBe(201);
+    const { id: newId } = (await readded.json()) as { id: string };
+
+    const entries = await env.DB
+      .prepare("SELECT subscriber_id FROM cpe_entries WHERE firm_id = ?1")
+      .bind(firmId)
+      .all<{ subscriber_id: string }>();
+    expect(entries.results.length).toBe(1);
+    expect(entries.results[0]!.subscriber_id).toBe(originalId); // unchanged, NOT migrated to newId
+  });
 });
 
 describe("POST /firm/licenses/:id/renew -- atomic renew-and-rearm (Part A #5)", () => {

@@ -1456,7 +1456,7 @@
       "license_type": "all",
       "license_type_label": "Individual CPA & Firm",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "All USVI CPA individual permits and CPA firm permits/licenses are issued and renewed annually, running July 1 through June 30. The Board's own renewal-requirements page states permits are issued 'on an annual basis from July I to June 30' each year. The online renewal window opens May 1; permits expire June 30; a late-fee grace period runs July 1 - August 31 ($25/month individual, $100/month firm) before delinquency status. Renewal requires 120 CPE hours (including a minimum of 4 ethics hours) completed during the 3-year period preceding renewal, with a minimum of 40 CPE hours per calendar year effective January 1, 2022.",
+      "cycle_description": "All USVI CPA individual permits and CPA firm permits/licenses are issued and renewed annually, running July 1 through June 30. The Board's own renewal-requirements page states permits are issued 'on an annual basis from July I to June 30' each year. The online renewal window opens May 1; permits expire June 30; a late-fee grace period runs July 1 - August 31 ($25/month individual, $100/month firm) before delinquency status. Renewal requires 120 CPE hours (including a minimum of 4 ethics hours) completed during the 3-year period preceding renewal, with a minimum of 40 CPE hours per calendar year effective January 1, 2022. The citation below names the statute that governs certificate issuance and renewal, but the linked text is a chapter index with no renewal date in it -- this date is sourced to the Board's own page, not independently confirmed against codified text.",
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://dlca.vi.gov/boardcertifications/steps/cparequirements/",
       "secondary_source_url": "https://dlca.vi.gov/aboutcpa/",
@@ -1464,7 +1464,8 @@
       "wave": 4,
       "citation": "V.I. Code Ann. tit. 27, ch. 5A, \u00a7 250c (Issuance and renewal of certificates, and maintenance of competency); Public Accountancy Act of 2014, Act No. 7596 (Bill No. 30-0279), 30th Legislature of the Virgin Islands",
       "citation_url": "https://law.justia.com/codes/virgin-islands/2019/title-27/chapter-5a/",
-      "citation_class": "codified_law"
+      "citation_class": "codified_law",
+      "citation_covers_full_claim": false
     },
     {
       "id": "puerto-rico-individual",

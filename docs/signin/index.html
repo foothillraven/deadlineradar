@@ -133,6 +133,11 @@
     margin: 0.15rem 0 0.55rem;
   }
   .callout .rule { margin: 0; }
+  
+  .dr-visually-hidden {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
   .table-wrap {
     overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
     -webkit-overflow-scrolling: touch;
@@ -965,7 +970,7 @@
     placeholder="you@example.com">
     <button type="submit">Email me a sign-in link</button>
   </form>
-  <p id="dr-signin-sub-error" class="field-hint" style="color:#c33737;" hidden></p>
+  <p id="dr-signin-sub-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
   <p class="dr-auth-alt" id="dr-signin-sub-ok" hidden>Check your email for the link. It expires in 15
   minutes and works once.</p>
   <p class="signup-microcopy" id="dr-signin-sub-footer">Not signed up yet? <a href="/">Pick your

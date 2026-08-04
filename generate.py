@@ -498,6 +498,15 @@ PAGE_CSS = """
     margin: 0.15rem 0 0.55rem;
   }
   .callout .rule { margin: 0; }
+  /* AuditLab A11Y-4 (LOW, 2026-08-04): standard visually-hidden pattern --
+     present for screen readers (a <table> caption, in this case), removed
+     from visual/document flow for sighted users who already have the
+     adjacent <h2> as a heading. Clip-based, not display:none/visibility:
+     hidden, which some screen readers skip entirely. */
+  .dr-visually-hidden {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
   .table-wrap {
     overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
     -webkit-overflow-scrolling: touch;
@@ -4104,7 +4113,7 @@ def build_firm_login_page() -> str:
     <label for="signin-password">Password</label>
     <input type="password" id="signin-password" name="password" required
     autocomplete="current-password">
-    <p id="dr-firmlogin-signin-error" class="field-hint" style="color:#c33737;" hidden></p>
+    <p id="dr-firmlogin-signin-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
     <button type="submit">Sign in</button>
   </form>
   <p class="dr-auth-secondary">
@@ -4130,7 +4139,7 @@ def build_firm_login_page() -> str:
     <label for="signup-admin-email">Your email</label>
     <input type="email" id="signup-admin-email" name="admin_email" required
     autocomplete="email" placeholder="you@yourfirm.com">
-    <p id="dr-firmlogin-signup-error" class="field-hint" style="color:#c33737;" hidden></p>
+    <p id="dr-firmlogin-signup-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
     <button type="submit">Create firm account</button>
   </form>
   <p class="signup-microcopy" id="dr-firmlogin-signup-ok" hidden>Check your email for a one-time link to finish setting up.</p>
@@ -4153,7 +4162,7 @@ def build_firm_login_page() -> str:
     <label for="login-email">Email</label>
     <input type="email" id="login-email" name="admin_email" required autocomplete="email"
     placeholder="you@yourfirm.com">
-    <p id="dr-magic-error" class="field-hint" style="color:#c33737;" hidden></p>
+    <p id="dr-magic-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
     <button type="submit" id="dr-magic-submit">Email me a sign-in link</button>
   </form>
   <p class="dr-auth-alt" id="dr-magic-ok" hidden>Check your email for the link.</p>
@@ -4454,7 +4463,7 @@ def build_set_password_page() -> str:
     <input type="password" id="dr-setpw-confirm" required autocomplete="new-password">
 
     <button type="submit">Save password</button>
-    <p id="dr-setpw-error" class="dr-account-err" hidden></p>
+    <p id="dr-setpw-error" role="alert" class="dr-account-err" hidden></p>
   </form>
 
   <div id="dr-setpw-ok" hidden>
@@ -4544,7 +4553,7 @@ def build_signin_page() -> str:
     placeholder="you@example.com">
     <button type="submit">Email me a sign-in link</button>
   </form>
-  <p id="dr-signin-sub-error" class="field-hint" style="color:#c33737;" hidden></p>
+  <p id="dr-signin-sub-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
   <p class="dr-auth-alt" id="dr-signin-sub-ok" hidden>Check your email for the link. It expires in 15
   minutes and works once.</p>
   <p class="signup-microcopy" id="dr-signin-sub-footer">Not signed up yet? <a href="/">Pick your
@@ -4831,7 +4840,7 @@ def build_my_page() -> str:
     </form>
   </div>
 
-  <div class="dr-my-error" id="dr-my-error" hidden>
+  <div class="dr-my-error" id="dr-my-error" role="alert" hidden>
     <p><b>We couldn't load your deadlines just now.</b> Your reminders are unaffected &mdash; they
     send from our servers, not this page. Please refresh in a moment.</p>
   </div>
@@ -4975,7 +4984,7 @@ def _firm_dashboard_add_staff_form_html(by_slug: dict[str, list[dict]], as_of: d
     {field_groups}
     <button type="submit">Add staff</button>
   </form>
-  <p id="dr-add-error" class="field-hint" style="color:#c33737;" hidden></p>
+  <p id="dr-add-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
 </div>"""
 
 
@@ -5067,20 +5076,29 @@ function drRenderRow(item) {
   var statusClass = DR_STATUS_CLASSES[item.status] || 'mock-status--risk';
   var statusLabel = DR_STATUS_LABELS[item.status] || item.status;
   var idAttr = drEscapeHtml(item.id);
+  // AuditLab A11Y-3 (LOW, 2026-08-04): every button already has visible text
+  // (no unnamed-button failures), but at roster scale a screen-reader user
+  // tabbing through hears "Edit, Mark renewed, Remove" repeated once per
+  // row with nothing distinguishing whose row they're on -- "Remove" is
+  // destructive and identical-sounding to the next row's "Remove". Naming
+  // each button with the row's own staff name/email (same fallback pattern
+  // used everywhere else on this page) fixes that without changing the
+  // visible label.
+  var whoAttr = drEscapeHtml(item.staff_label || item.email);
   var staffCell, emailCell, actionsCell;
   if (drEditingId === item.id) {
     staffCell = '<input type="text" class="dr-edit-label" maxlength="120" value="' + drEscapeHtml(item.staff_label || '') + '">';
     emailCell = '<input type="email" class="dr-edit-email" value="' + drEscapeHtml(item.email) + '">';
     actionsCell =
-      '<button type="button" class="dr-btn-save" data-id="' + idAttr + '">Save</button> ' +
-      '<button type="button" class="dr-btn-cancel" data-id="' + idAttr + '">Cancel</button>';
+      '<button type="button" class="dr-btn-save" data-id="' + idAttr + '" aria-label="Save ' + whoAttr + '">Save</button> ' +
+      '<button type="button" class="dr-btn-cancel" data-id="' + idAttr + '" aria-label="Cancel editing ' + whoAttr + '">Cancel</button>';
   } else {
     staffCell = item.staff_label ? drEscapeHtml(item.staff_label) : '<span style="color:var(--muted)">\\u2014</span>';
     emailCell = drEscapeHtml(item.email);
     actionsCell =
-      '<button type="button" class="dr-btn-edit" data-id="' + idAttr + '">Edit</button> ' +
-      '<button type="button" class="dr-btn-renew" data-id="' + idAttr + '">Mark renewed</button> ' +
-      '<button type="button" class="dr-btn-remove" data-id="' + idAttr + '">Remove</button>';
+      '<button type="button" class="dr-btn-edit" data-id="' + idAttr + '" aria-label="Edit ' + whoAttr + '">Edit</button> ' +
+      '<button type="button" class="dr-btn-renew" data-id="' + idAttr + '" aria-label="Mark ' + whoAttr + ' renewed">Mark renewed</button> ' +
+      '<button type="button" class="dr-btn-remove" data-id="' + idAttr + '" aria-label="Remove ' + whoAttr + '">Remove</button>';
   }
   // data-label drives the stacked card layout under 860px (CSS renders it
   // via ::before), so the header row can be hidden without losing meaning.
@@ -5330,7 +5348,19 @@ function drRenderStalenessBanner(dataAsOf, dataStale) {
 
 function drSwitchView(view) {
   document.querySelectorAll('.dr-view').forEach(function(el) {
-    el.hidden = (el.id !== 'dr-view-' + view);
+    var isTarget = (el.id === 'dr-view-' + view);
+    el.hidden = !isTarget;
+    // AuditLab A11Y-2 (MEDIUM, 2026-08-04): the panel swapped silently -- a
+    // keyboard/screen-reader user activating a tab stayed parked on the tab
+    // strip with no indication the view changed. tabindex="-1" makes the
+    // panel programmatically focusable without adding it to the normal Tab
+    // order (it's not meant to be tabbed TO directly, only focused by this
+    // handler), and .focus() moves the user's actual position to the new
+    // content the way a real tab-panel switch should.
+    if (isTarget) {
+      el.setAttribute('tabindex', '-1');
+      el.focus();
+    }
   });
   document.querySelectorAll('.dr-nav a[data-view]').forEach(function(a) {
     var isActive = (a.getAttribute('data-view') === view);
@@ -6680,7 +6710,11 @@ def _dashboard_sidebar_html(active: str, tabs_live_here: bool) -> str:
             return f'<li><a href="/firm-mobility/"{cls}>{esc(label)}</a></li>'
         if tabs_live_here:
             aria = "true" if is_current else "false"
-            return f'<li><a href="#"{cls} data-view="{view}" role="tab" aria-selected="{aria}">{esc(label)}</a></li>'
+            # AuditLab A11Y-2 (MEDIUM, 2026-08-04): aria-controls links this tab
+            # to the panel it opens -- the ARIA scaffolding (role=tab/tabpanel,
+            # aria-selected) was otherwise already correct, this was the one
+            # missing piece.
+            return f'<li><a href="#"{cls} data-view="{view}" role="tab" aria-selected="{aria}" aria-controls="dr-view-{view}">{esc(label)}</a></li>'
         return f'<li><a href="/firm-dashboard/"{cls}>{esc(label)}</a></li>'
 
     nav_items = "\n      ".join(
@@ -6854,7 +6888,7 @@ first? Every answer is tied to the rule it came from.</p>
 
     <button type="submit">Run check</button>
   </form>
-  <p id="dr-mobility-error" class="field-hint" style="color:#c33737;" hidden></p>
+  <p id="dr-mobility-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
 </div>
 
 <div id="dr-mobility-result" hidden></div>
@@ -6968,7 +7002,7 @@ def build_firm_dashboard_page(
   {sidebar_html}
 
   <div class="dr-main">
-    <div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" hidden></div>
+    <div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" role="alert" hidden></div>
     <div id="dr-staleness-banner" class="callout" style="border-left-color:#b8860b;" hidden></div>
 
     <div id="dr-view-roster" class="dr-view" role="tabpanel">
@@ -6980,7 +7014,7 @@ def build_firm_dashboard_page(
     <div class="dr-panel-row">
       <div class="dr-panel">
         <h2>Staff at risk</h2>
-        <ul class="dr-at-risk-list" id="dr-at-risk-list"><li class="dr-panel-empty">Loading&hellip;</li></ul>
+        <ul class="dr-at-risk-list" id="dr-at-risk-list" role="status" aria-live="polite"><li class="dr-panel-empty">Loading&hellip;</li></ul>
       </div>
       <div class="dr-panel">
         <h2>Recent activity</h2>
@@ -6990,11 +7024,12 @@ def build_firm_dashboard_page(
 
     <div class="dr-roster-panel">
       <h2>Full roster</h2>
-      <div class="table-wrap">
+      <div class="table-wrap" role="status" aria-live="polite">
       <table>
+        <caption class="dr-visually-hidden">Your firm's tracked CPA staff and their license renewal status</caption>
         <thead>
           <tr>
-            <th>Staff</th><th>Email</th><th>State</th><th>License type</th><th>Status</th><th>Next deadline</th><th class="dr-actions-head">Actions</th>
+            <th scope="col">Staff</th><th scope="col">Email</th><th scope="col">State</th><th scope="col">License type</th><th scope="col">Status</th><th scope="col">Next deadline</th><th scope="col" class="dr-actions-head">Actions</th>
           </tr>
         </thead>
         <tbody id="dr-roster-body">
@@ -7082,7 +7117,7 @@ def build_firm_dashboard_page(
           <input type="text" id="dr-cpe-description" name="description" maxlength="200" placeholder="e.g. AICPA ethics update">
           <button type="submit">Log hours</button>
         </form>
-        <p id="dr-cpe-log-error" class="field-hint" style="color:#c33737;" hidden></p>
+        <p id="dr-cpe-log-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
       </div>
 
       <div class="dr-cpe-log-panel">
@@ -7114,7 +7149,7 @@ def build_firm_dashboard_page(
           <button type="submit">Save password</button>
         </form>
         <p id="dr-password-ok" class="dr-account-ok" hidden></p>
-        <p id="dr-password-error" class="dr-account-err" hidden></p>
+        <p id="dr-password-error" role="alert" class="dr-account-err" hidden></p>
       </div>
 
       <div class="dr-account-panel">
@@ -7122,7 +7157,7 @@ def build_firm_dashboard_page(
         <p class="signup-microcopy">Accounts you can sign in with directly. Removing one doesn't lock
         you out &mdash; you can always request an emailed sign-in link.</p>
         <div id="dr-identities-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
-        <p id="dr-identity-error" class="dr-account-err" hidden></p>
+        <p id="dr-identity-error" role="alert" class="dr-account-err" hidden></p>
       </div>
     </div>
   </div>

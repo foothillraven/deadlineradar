@@ -133,6 +133,11 @@
     margin: 0.15rem 0 0.55rem;
   }
   .callout .rule { margin: 0; }
+  
+  .dr-visually-hidden {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
   .table-wrap {
     overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
     -webkit-overflow-scrolling: touch;
@@ -952,7 +957,7 @@
     <label for="signin-password">Password</label>
     <input type="password" id="signin-password" name="password" required
     autocomplete="current-password">
-    <p id="dr-firmlogin-signin-error" class="field-hint" style="color:#c33737;" hidden></p>
+    <p id="dr-firmlogin-signin-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
     <button type="submit">Sign in</button>
   </form>
   <p class="dr-auth-secondary">
@@ -980,7 +985,7 @@
     <label for="signup-admin-email">Your email</label>
     <input type="email" id="signup-admin-email" name="admin_email" required
     autocomplete="email" placeholder="you@yourfirm.com">
-    <p id="dr-firmlogin-signup-error" class="field-hint" style="color:#c33737;" hidden></p>
+    <p id="dr-firmlogin-signup-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
     <button type="submit">Create firm account</button>
   </form>
   <p class="signup-microcopy" id="dr-firmlogin-signup-ok" hidden>Check your email for a one-time link to finish setting up.</p>
@@ -1005,7 +1010,7 @@
     <label for="login-email">Email</label>
     <input type="email" id="login-email" name="admin_email" required autocomplete="email"
     placeholder="you@yourfirm.com">
-    <p id="dr-magic-error" class="field-hint" style="color:#c33737;" hidden></p>
+    <p id="dr-magic-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
     <button type="submit" id="dr-magic-submit">Email me a sign-in link</button>
   </form>
   <p class="dr-auth-alt" id="dr-magic-ok" hidden>Check your email for the link.</p>

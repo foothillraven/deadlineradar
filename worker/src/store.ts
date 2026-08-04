@@ -1020,6 +1020,23 @@ export async function listFirmLicenses(db: D1Database, firmId: string): Promise<
 }
 
 /**
+ * Same "on the roster" definition as listFirmLicenses() (excludes only
+ * admin-removed rows), but a COUNT instead of hydrating every row -- for the
+ * BILL-1 seat-cap check, which runs on every staff-create request and only
+ * needs the number.
+ */
+export async function countFirmLicenses(db: D1Database, firmId: string): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM subscribers
+       WHERE firm_id = ?1 AND NOT (status = ?2 AND stop_reason = ?3)`
+    )
+    .bind(firmId, STATUS_STOPPED, STOP_REASON_REMOVED_BY_ADMIN)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+/**
  * The ownership-scoped single-record lookup every PATCH/DELETE/renew route
  * uses to decide 404-vs-proceed BEFORE doing anything else -- returns null
  * for a nonexistent id AND for an id that belongs to a different firm,

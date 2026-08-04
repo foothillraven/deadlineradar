@@ -1692,7 +1692,12 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
   });
 
   it("blocks the 51st staff-add for the SAME firm within the window (own per-firm bucket, distinct from per-IP buckets)", async () => {
-    const { cookie } = await createFirmWithSession("Rate Limited Firm", `ratelimit-${Date.now()}@example.com`);
+    const { firmId, cookie } = await createFirmWithSession("Rate Limited Firm", `ratelimit-${Date.now()}@example.com`);
+    // Delete each one straight after creating it (directly via store.ts, not
+    // the HTTP route -- this test isn't about DELETE, only about keeping the
+    // LIVE roster at 1 seat throughout so the BILL-1 seat cap (25) never
+    // confounds it) -- the daily CREATE rate-limit bucket this test targets
+    // counts create attempts regardless of later removal.
     for (let i = 0; i < RATE_LIMIT_FIRM_LICENSE_CREATE.max; i++) {
       const resp = await postFirmLicense(cookie, {
         email: `ratelimit-staff-${i}-${Date.now()}@example.com`,
@@ -1700,6 +1705,8 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
         license_type_id: "ga-individual",
       });
       expect(resp.status).toBe(201);
+      const { id } = (await resp.json()) as { id: string };
+      await store.removeFirmLicense(env.DB, firmId, id);
     }
     const overCap = await postFirmLicense(cookie, {
       email: `ratelimit-staff-over-${Date.now()}@example.com`,
@@ -1870,6 +1877,96 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
     // change -- must succeed, not 409 against itself.
     const resp = await patchFirmLicense(cookie, id, { email, staff_label: "Unchanged pair" });
     expect(resp.status).toBe(200);
+  });
+});
+
+describe("POST /firm/licenses -- BILL-1 seat cap (25 staff, matches the advertised self-serve plan)", () => {
+  // Fills a firm's roster directly via store.ts (bypassing the HTTP layer,
+  // and the CREATE rate limit + email-send path with it) -- these tests are
+  // about the seat-cap boundary condition, not about re-proving 25 ordinary
+  // HTTP creates succeed (already covered by the other CRUD tests above).
+  // Real fetch() calls are reserved for the actual assertion under test.
+  async function fillRoster(firmId: string, n: number, labelPrefix: string): Promise<string[]> {
+    const ids: string[] = [];
+    for (let i = 0; i < n; i++) {
+      const row = await store.addPending(env.DB, {
+        email: `${labelPrefix}-${i}-${Date.now()}@example.com`,
+        stateSlug: "georgia",
+        deadlineFields: { license_type_id: "ga-individual" },
+        firstName: null,
+        deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+        userDeadline: null,
+        firmId,
+        staffLabel: null,
+        skipConfirmation: true,
+      });
+      ids.push(row.id);
+    }
+    return ids;
+  }
+
+  it("the 26th staff member is refused once 25 are already on the roster", async () => {
+    const { firmId, cookie } = await createFirmWithSession("Seat Cap Firm", `seatcap-${Date.now()}@example.com`);
+    await fillRoster(firmId, 25, "seatcap-fill");
+    expect(await store.countFirmLicenses(env.DB, firmId)).toBe(25);
+
+    const blocked = await postFirmLicense(cookie, {
+      email: `seatcap-26th-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    expect(blocked.status).toBe(402);
+    const body = (await blocked.json()) as { error: string };
+    expect(body.error).toContain("25");
+    expect(body.error.toLowerCase()).toContain("contact us");
+  });
+
+  it("a firm already over 25 (grandfathered) keeps its existing roster untouched but still can't add more", async () => {
+    const { firmId, cookie } = await createFirmWithSession("Grandfathered Firm", `grandfather-${Date.now()}@example.com`);
+    await fillRoster(firmId, 30, "grandfather-preexisting");
+
+    const beforeCount = await store.countFirmLicenses(env.DB, firmId);
+    expect(beforeCount).toBe(30);
+
+    const blocked = await postFirmLicense(cookie, {
+      email: `grandfather-newattempt-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    expect(blocked.status).toBe(402);
+
+    // Nothing about the pre-existing 30 was touched -- no forced removal,
+    // no status change, count identical to before the blocked attempt.
+    const afterCount = await store.countFirmLicenses(env.DB, firmId);
+    expect(afterCount).toBe(30);
+  });
+
+  it("removing a staff member frees a seat -- the cap is a live count, not a lifetime total", async () => {
+    const { firmId, cookie } = await createFirmWithSession("Seat Reuse Firm", `seatreuse-${Date.now()}@example.com`);
+    const ids = await fillRoster(firmId, 25, "seatreuse-fill");
+
+    const stillBlocked = await postFirmLicense(cookie, {
+      email: `seatreuse-blocked-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    expect(stillBlocked.status).toBe(402);
+
+    // The one real DELETE call in this test -- exercising the actual HTTP
+    // route matters here, since the property under test IS "the real delete
+    // endpoint frees a real seat."
+    const del = await SELF.fetch(`https://deadline-radar.com/firm/licenses/${ids[0]}`, {
+      method: "DELETE",
+      headers: { Cookie: cookie, "cf-connecting-ip": "203.0.113.200" },
+    });
+    expect(del.status).toBe(200);
+
+    const nowAllowed = await postFirmLicense(cookie, {
+      email: `seatreuse-allowed-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    expect(nowAllowed.status).toBe(201);
   });
 });
 

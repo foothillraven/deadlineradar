@@ -40,6 +40,14 @@ export const MAX_STAFF_COUNT_HINT_LEN = 20;
 // cosmetic-only free text" category as the two constants above.
 export const MAX_STAFF_LABEL_LEN = 120;
 
+// BILL-1 (2026-08-04, Devin's decision): the advertised self-serve plan is
+// "$500/year flat, up to 25 staff -- more than 25? Contact us"
+// (generate.py's /for-firms/ and homepage pricing copy). Must match that
+// number exactly -- it's the one place both the sales page and the
+// enforcement mechanism read from, so a copy change and a limit change can
+// never drift apart silently.
+export const SELF_SERVE_SEAT_CAP = 25;
+
 // CPE-hours tracker (migration 0009, 2026-07-30) -- same "short, optional,
 // cosmetic-only free text" category as MAX_STAFF_LABEL_LEN above, this time
 // for a CPE entry's provider/course description.

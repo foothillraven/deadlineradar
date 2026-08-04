@@ -75,6 +75,7 @@ import {
   RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT,
   RATE_LIMIT_FIRM_SIGNUP,
   RATE_LIMIT_SUBSCRIBE,
+  SELF_SERVE_SEAT_CAP,
   checkRateLimit,
   checkSignupDomainGate,
   escapeHtml,
@@ -1957,6 +1958,22 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_license_create", RATE_LIMIT_FIRM_LICENSE_CREATE);
   if (!allowed) {
     return jsonResponse(429, { error: "Too many staff added today for this firm. Please try again tomorrow." });
+  }
+
+  // BILL-1 (2026-08-04, Devin's decision): enforce the advertised 25-staff
+  // self-serve cap. Frozen-at-current-count grandfathering, not a retroactive
+  // lockout: a firm already AT or OVER the cap (e.g. from before this check
+  // existed) is never touched here -- existing roster rows keep working
+  // exactly as before, nothing is deactivated -- this only blocks adding
+  // MORE staff once the count is at or past SELF_SERVE_SEAT_CAP. That
+  // freezes any already-over-cap firm at whatever it already had, which
+  // was the explicit instruction rather than either force-removing rows
+  // down to 25 or silently exempting them from the cap going forward.
+  const currentSeatCount = await store.countFirmLicenses(env.DB, session.firmId);
+  if (currentSeatCount >= SELF_SERVE_SEAT_CAP) {
+    return jsonResponse(402, {
+      error: `Your plan covers up to ${SELF_SERVE_SEAT_CAP} staff. Contact us to add more.`,
+    });
   }
 
   const parsed = await readFirmLicenseJsonBody(request);

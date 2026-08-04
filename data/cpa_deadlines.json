@@ -1149,7 +1149,7 @@
       "license_type": "firm",
       "license_type_label": "Firm registration",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Annual, unaffected by the individual-license transition described above. Firm registration must be renewed no later than September 30 each year (IDAPA 24.30.01 \u00a7 211.01).",
+      "cycle_description": "Annual, unaffected by the individual-license transition described above. Firms performing peer-reviewable services file an annual firm registration no later than September 30 (IDAPA 24.30.01 \u00a7 211.01); firms that don't perform those services are exempt from this filing (\u00a7 208.02).",
       "next_deadline_computed": "2026-09-30",
       "source_url": "https://dopl.idaho.gov/boa/",
       "secondary_source_url": "https://adminrules.idaho.gov/rules/current/24/243001.pdf",

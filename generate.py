@@ -6118,6 +6118,19 @@ function drLoadMobilityCompletions() {
 }
 
 function drSubmitCpeEntry(form) {
+  // AuditLab IDEM-1 (MEDIUM, 2026-08-04): two concurrent submits of this
+  // form (a double-click, or a slow network making a first click look like
+  // nothing happened) created two identical CPE entries -- no dedupe on
+  // (date, hours, category) either client or server side, so one 8-hour
+  // double-click became 16 hours toward the requirement. This is the exact
+  // CPE-1 harm direction (a staffer reads "on track" on hours not actually
+  // completed) reached through a different route. A hard dedupe would risk
+  // silently dropping a real second entry that genuinely matches (rare but
+  // not impossible), so the fix is an in-flight guard, not a server-side
+  // reject.
+  var submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn && submitBtn.disabled) return;
+  if (submitBtn) submitBtn.disabled = true;
   var errEl = document.getElementById('dr-cpe-log-error');
   if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
   var fd = new FormData(form);
@@ -6133,16 +6146,19 @@ function drSubmitCpeEntry(form) {
       if (!res.ok) {
         var msg = data && data.error ? data.error : 'Something went wrong, please try again.';
         if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        if (submitBtn) submitBtn.disabled = false;
         return;
       }
       var keepStaffId = body.subscriber_id;
       form.reset();
       var staffSel = document.getElementById('dr-cpe-staff-select');
       if (staffSel) staffSel.value = keepStaffId;
+      if (submitBtn) submitBtn.disabled = false;
       drLoadCpeEntries();
     });
   }).catch(function() {
     if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+    if (submitBtn) submitBtn.disabled = false;
   });
 }
 
@@ -6284,7 +6300,18 @@ function drLoadLicenses() {
     });
 }
 
-function drRenewLicense(id) {
+function drRenewLicense(id, btn) {
+  // AuditLab IDEM-2 (LOW, 2026-08-04): a double-clicked "Mark renewed"
+  // reached the server twice, advancing `cycle` twice and burning both
+  // unsubscribe/renewed tokens the first response minted before anything
+  // could use them. Guard is on the BUTTON, not just a debounce timer --
+  // if btn is already disabled, this is a second dispatch of the same
+  // click (or a fast double-click) and must be dropped before it ever
+  // reaches fetch(). Re-enabling only happens in the error paths: on
+  // success drLoadLicenses() re-renders the whole table, which replaces
+  // this button (and its disabled state) along with everything else.
+  if (btn && btn.disabled) return;
+  if (btn) btn.disabled = true;
   drClearError();
   fetch('/api/firm/licenses/' + encodeURIComponent(id) + '/renew', {method: 'POST', credentials: 'include'})
     .then(function(res) {
@@ -6292,12 +6319,16 @@ function drRenewLicense(id) {
       return drReadJsonSafe(res).then(function(data) {
         if (!res.ok) {
           drShowError(data && data.error ? data.error : 'Something went wrong, please try again.');
+          if (btn) btn.disabled = false;
           return;
         }
         drLoadLicenses();
       });
     })
-    .catch(function() { drShowError('Something went wrong, please try again.'); });
+    .catch(function() {
+      drShowError('Something went wrong, please try again.');
+      if (btn) btn.disabled = false;
+    });
 }
 
 function drRemoveLicense(id, label) {
@@ -6437,7 +6468,7 @@ document.addEventListener('DOMContentLoaded', function() {
       } else if (btn.classList.contains('dr-btn-save')) {
         drSaveEdit(id, btn.closest('tr'));
       } else if (btn.classList.contains('dr-btn-renew')) {
-        drRenewLicense(id);
+        drRenewLicense(id, btn);
       } else if (btn.classList.contains('dr-btn-remove')) {
         var item = null;
         for (var i = 0; i < drLicenses.length; i++) {

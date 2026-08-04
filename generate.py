@@ -1904,6 +1904,7 @@ def page_shell(
     has_remind_anchor: bool = False,
     sticky_top_nav: bool = True,
 ) -> str:
+    canonical_url = "https://deadline-radar.com" + canonical_path
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -1911,8 +1912,16 @@ def page_shell(
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{esc(title)}</title>
 <meta name="description" content="{esc(meta_description)}">
-<link rel="canonical" href="{esc('https://deadline-radar.com' + canonical_path)}">
+<link rel="canonical" href="{esc(canonical_url)}">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta property="og:title" content="{esc(title)}">
+<meta property="og:description" content="{esc(meta_description)}">
+<meta property="og:url" content="{esc(canonical_url)}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="{esc(SITE_NAME)}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{esc(title)}">
+<meta name="twitter:description" content="{esc(meta_description)}">
 {_turnstile_head_html()}
 {_json_ld_html(json_ld)}
 {extra_head}
@@ -3824,10 +3833,10 @@ one inbox at a time.</p>
 risk for the firm never sees any of this &mdash; only the individual licensee's own inbox gets the
 reminder. If that person doesn't forward it, changes their email, or leaves the firm, the firm has zero
 visibility until a renewal is already missed.</p>
-<p><strong>Filing vs. hours.</strong> CPE-hour tracking tools (MYCPE, Illumeo, and similar) track whether
-staff completed their continuing-education hours. That's a different event from whether the actual
-renewal <em>filing</em> with the state board happened. Finishing every CPE hour and still missing the
-filing deadline is a real, common failure mode &mdash; this product is about the filing, not the hours.</p>
+<p><strong>Filing vs. hours.</strong> CPE-hour tracking tools track whether staff completed their
+continuing-education hours. That's a different event from whether the actual renewal <em>filing</em>
+with the state board happened. Finishing every CPE hour and still missing the filing deadline is a
+real, common failure mode &mdash; this product is about the filing, not the hours.</p>
 
 <h2>What you get</h2>
 <p>A firm-wide view that answers what a spreadsheet can't: who's current, who's at risk, and who needs

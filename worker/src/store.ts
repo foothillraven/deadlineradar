@@ -1559,22 +1559,6 @@ export async function setFirmPassword(
     .run();
 }
 
-/** Clears a firm's password entirely (e.g. an admin who wants to go
- * SSO-only). Leaves the account reachable via SSO and the emailed reset
- * link -- it does NOT lock anyone out, because those paths never consult
- * these columns. */
-export async function clearFirmPassword(db: D1Database, firmId: string): Promise<void> {
-  await db
-    .prepare(
-      `UPDATE firms
-          SET password_hash = NULL, password_salt = NULL, password_algo = NULL,
-              password_iterations = NULL, password_rounds = NULL, password_updated_at = ?1
-        WHERE id = ?2`
-    )
-    .bind(nowIso(), firmId)
-    .run();
-}
-
 export interface FirmOauthIdentityRow {
   id: string;
   firm_id: string;

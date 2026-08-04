@@ -1024,6 +1024,27 @@
 <header class="site-header">
   <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>
 </header>
+<div class="dr-dash-shell">
+  <aside class="dr-sidebar">
+    <div class="dr-firm-name" id="dr-firm-name-static">Dashboard</div>
+    <ul class="dr-nav" role="tablist" aria-label="Dashboard views">
+      <li><a href="/firm-dashboard/">Roster</a></li>
+      <li><a href="/firm-dashboard/">Calendar</a></li>
+      <li><a href="/firm-dashboard/">Map</a></li>
+      <li><a href="/firm-dashboard/">CPE Hours</a></li>
+      <li><a href="/firm-mobility/" class="is-active">Practice Privilege Check</a></li>
+      <li><a href="/firm-dashboard/">Account</a></li>
+      <li><span class="dr-nav-soon">Reports<span class="dr-soon-badge">Soon</span></span></li>
+    <li><span class="dr-nav-soon">Documents<span class="dr-soon-badge">Soon</span></span></li>
+    </ul>
+    <div class="dr-sidebar-foot">
+      <form method="post" action="/api/firm/logout">
+        <button type="submit">Log out</button>
+      </form>
+    </div>
+  </aside>
+
+  <div class="dr-main">
 <h1>Practice-privilege check</h1>
 <p class="subhead">Can this CPA provide this service in this state &mdash; and what has to happen
 first? Every answer is tied to the rule it came from.</p>
@@ -1192,6 +1213,20 @@ first? Every answer is tied to the rule it came from.</p>
 <div id="dr-mobility-result" hidden></div>
 
 <p class="how-it-works"><a href="/firm-dashboard/">&larr; Back to your dashboard</a></p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var el = document.getElementById('dr-firm-name-static');
+  if (!el) return;
+  fetch('/api/firm/licenses', {credentials: 'include'}).then(function (r) {
+    return r.ok ? r.json() : null;
+  }).then(function (data) {
+    if (data && data.firm_name) el.textContent = data.firm_name;
+  }).catch(function () {});
+})();
+</script>
 
 <script>
 (function () {

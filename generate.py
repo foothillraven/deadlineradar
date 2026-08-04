@@ -6375,6 +6375,72 @@ def _mobility_covered_slugs() -> set[str]:
     }
 
 
+def _dashboard_sidebar_html(active: str, tabs_live_here: bool) -> str:
+    """Shared sidebar markup for the firm dashboard's own page
+    (build_firm_dashboard_page, tabs_live_here=True -- Roster/Calendar/Map/
+    CPE Hours/Account are real in-page JS tabs there) and for
+    /firm-mobility/ (build_firm_mobility_page, tabs_live_here=False).
+
+    2026-08-04, Devin reported live: navigating to Practice Privilege Check
+    from the dashboard sidebar dropped the sidebar entirely -- the page
+    became a generic content page with only the site's top nav, no way back
+    into the dashboard's other views without a full "back" click. That was a
+    deliberate original design choice (see build_firm_mobility_page's own
+    docstring: standalone page, not a tab, both for a product reason and a
+    since-resolved merge-conflict-avoidance reason) but the loses-your-place
+    feeling it produces is a real regression regardless of the original
+    reasoning. Fix: render the SAME sidebar on both pages rather than
+    converting mobility into a true in-page tab (a bigger, riskier rewrite of
+    its pay-gated fetch/session logic into drSwitchView's tab machinery for a
+    problem that's purely "the sidebar disappeared", not "the interaction
+    model is wrong"). On /firm-mobility/ the Roster/Calendar/Map/CPE Hours/
+    Account items link back to /firm-dashboard/ (there is no tab-switch JS on
+    this page to answer a click on those) and Practice Privilege Check itself
+    is a plain highlighted link, not a tab."""
+    def item(view: str, label: str) -> str:
+        is_current = active == view
+        cls = ' class="is-active"' if is_current else ""
+        if view == "mobility":
+            return f'<li><a href="/firm-mobility/"{cls}>{esc(label)}</a></li>'
+        if tabs_live_here:
+            aria = "true" if is_current else "false"
+            return f'<li><a href="#"{cls} data-view="{view}" role="tab" aria-selected="{aria}">{esc(label)}</a></li>'
+        return f'<li><a href="/firm-dashboard/"{cls}>{esc(label)}</a></li>'
+
+    nav_items = "\n      ".join(
+        item(view, label)
+        for view, label in (
+            ("roster", "Roster"),
+            ("calendar", "Calendar"),
+            ("map", "Map"),
+            ("cpe", "CPE Hours"),
+            ("mobility", "Practice Privilege Check"),
+            ("account", "Account"),
+        )
+    )
+    sidebar_nav_soon_items = "\n    ".join(
+        f'<li><span class="dr-nav-soon">{esc(label)}<span class="dr-soon-badge">Soon</span></span></li>'
+        for label in ("Reports", "Documents")
+    )
+    firm_name_html = (
+        '<div class="dr-firm-name" id="dr-firm-name">Dashboard</div>'
+        if tabs_live_here
+        else '<div class="dr-firm-name" id="dr-firm-name-static">Dashboard</div>'
+    )
+    return f"""<aside class="dr-sidebar">
+    {firm_name_html}
+    <ul class="dr-nav" role="tablist" aria-label="Dashboard views">
+      {nav_items}
+      {sidebar_nav_soon_items}
+    </ul>
+    <div class="dr-sidebar-foot">
+      <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/logout">
+        <button type="submit">Log out</button>
+      </form>
+    </div>
+  </aside>"""
+
+
 def build_firm_mobility_page(by_slug: dict[str, list[dict]]) -> str:
     """Practice-privilege (mobility) checker -- a PAY-GATED tool page.
 
@@ -6446,7 +6512,12 @@ def build_firm_mobility_page(by_slug: dict[str, list[dict]]) -> str:
         "list grows slowly on purpose."
     )
 
-    body = f"""<h1>Practice-privilege check</h1>
+    sidebar_html = _dashboard_sidebar_html("mobility", tabs_live_here=False)
+    body = f"""<div class="dr-dash-shell">
+  {sidebar_html}
+
+  <div class="dr-main">
+<h1>Practice-privilege check</h1>
 <p class="subhead">Can this CPA provide this service in this state &mdash; and what has to happen
 first? Every answer is tied to the rule it came from.</p>
 
@@ -6506,6 +6577,20 @@ first? Every answer is tied to the rule it came from.</p>
 <div id="dr-mobility-result" hidden></div>
 
 <p class="how-it-works"><a href="/firm-dashboard/">&larr; Back to your dashboard</a></p>
+  </div>
+</div>
+
+<script>
+(function () {{
+  var el = document.getElementById('dr-firm-name-static');
+  if (!el) return;
+  fetch('{REMINDER_BACKEND_BASE_URL}/firm/licenses', {{credentials: 'include'}}).then(function (r) {{
+    return r.ok ? r.json() : null;
+  }}).then(function (data) {{
+    if (data && data.firm_name) el.textContent = data.firm_name;
+  }}).catch(function () {{}});
+}})();
+</script>
 
 {_MOBILITY_JS_HTML}
 """
@@ -6576,29 +6661,12 @@ def build_firm_dashboard_page(
     # phases F/G, not built yet -- shown as disabled "Soon" items (the intended
     # IA, honestly labeled) rather than either omitted (misrepresenting scope
     # as smaller than planned) or linked (a link to nothing would be a real
-    # defect).
-    sidebar_nav_soon_items = "\n    ".join(
-        f'<li><span class="dr-nav-soon">{esc(label)}<span class="dr-soon-badge">Soon</span></span></li>'
-        for label in ("Reports", "Documents")
-    )
+    # defect). Markup itself lives in _dashboard_sidebar_html() -- shared with
+    # /firm-mobility/ (build_firm_mobility_page) so that page no longer loses
+    # the sidebar entirely, see that helper's own docstring.
+    sidebar_html = _dashboard_sidebar_html("roster", tabs_live_here=True)
     body = f"""<div class="dr-dash-shell">
-  <aside class="dr-sidebar">
-    <div class="dr-firm-name" id="dr-firm-name">Dashboard</div>
-    <ul class="dr-nav" role="tablist" aria-label="Dashboard views">
-      <li><a href="#" class="is-active" data-view="roster" role="tab" aria-selected="true">Roster</a></li>
-      <li><a href="#" data-view="calendar" role="tab" aria-selected="false">Calendar</a></li>
-      <li><a href="#" data-view="map" role="tab" aria-selected="false">Map</a></li>
-      <li><a href="#" data-view="cpe" role="tab" aria-selected="false">CPE Hours</a></li>
-      <li><a href="/firm-mobility/">Practice Privilege Check</a></li>
-      <li><a href="#" data-view="account" role="tab" aria-selected="false">Account</a></li>
-      {sidebar_nav_soon_items}
-    </ul>
-    <div class="dr-sidebar-foot">
-      <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/logout">
-        <button type="submit">Log out</button>
-      </form>
-    </div>
-  </aside>
+  {sidebar_html}
 
   <div class="dr-main">
     <div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" hidden></div>

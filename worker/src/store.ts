@@ -1398,6 +1398,135 @@ export async function removeCpeEntry(db: D1Database, firmId: string, id: string)
 }
 
 // ---------------------------------------------------------------------------
+// Practice-privilege completion tracking (2026-08-04, migration 0016). See
+// that migration's own comment for the full rationale -- this records ONLY
+// that a firm marked a person/state/service-type combination complete and
+// against what rule version, never a claim that the underlying legal work
+// was actually done correctly. The Map/Practice-Privilege-Check UI is what
+// decides how to render that (a visually distinct "self-reported" state,
+// deliberately never painted the same as the engine's own independently-
+// verified "Clear" -- Devin's own call, asked directly).
+// ---------------------------------------------------------------------------
+
+export interface MobilityCompletionRow {
+  id: string;
+  firm_id: string;
+  subscriber_id: string;
+  target_state_slug: string;
+  service_type: string;
+  rule_verified_date: string | null;
+  completed_at: string;
+  completed_by_firm_session_id: string | null;
+  deleted_at: string | null;
+}
+
+export interface AddMobilityCompletionInput {
+  firmId: string;
+  subscriberId: string;
+  targetStateSlug: string;
+  serviceType: string;
+  ruleVerifiedDate: string | null;
+  completedByFirmSessionId: string | null;
+}
+
+/**
+ * Marks (subscriber, target state, service type) complete. Upserts against
+ * whatever non-deleted row already exists for that exact key rather than
+ * inserting a duplicate -- re-marking something (e.g. after the underlying
+ * rule changed and rule_verified_date moved) refreshes the same record
+ * instead of accumulating stale ones. Same "confirm subscriber_id actually
+ * belongs to firmId before writing" discipline addCpeEntry() uses, so a
+ * crafted subscriber_id belonging to a different firm can never get a
+ * completion attached to it.
+ */
+export async function addMobilityCompletion(
+  db: D1Database,
+  input: AddMobilityCompletionInput
+): Promise<MobilityCompletionRow | null> {
+  const owns = await db
+    .prepare(`SELECT id FROM subscribers WHERE id = ?1 AND firm_id = ?2`)
+    .bind(input.subscriberId, input.firmId)
+    .first<{ id: string }>();
+  if (!owns) return null;
+
+  const existing = await db
+    .prepare(
+      `SELECT id FROM mobility_completions
+       WHERE firm_id = ?1 AND subscriber_id = ?2 AND target_state_slug = ?3 AND service_type = ?4
+         AND deleted_at IS NULL`
+    )
+    .bind(input.firmId, input.subscriberId, input.targetStateSlug, input.serviceType)
+    .first<{ id: string }>();
+
+  const completedAt = nowIso();
+  const id = existing?.id ?? newToken();
+
+  if (existing) {
+    await db
+      .prepare(
+        `UPDATE mobility_completions
+         SET rule_verified_date = ?1, completed_at = ?2, completed_by_firm_session_id = ?3
+         WHERE id = ?4 AND firm_id = ?5`
+      )
+      .bind(input.ruleVerifiedDate, completedAt, input.completedByFirmSessionId, id, input.firmId)
+      .run();
+  } else {
+    await db
+      .prepare(
+        `INSERT INTO mobility_completions
+         (id, firm_id, subscriber_id, target_state_slug, service_type, rule_verified_date,
+          completed_at, completed_by_firm_session_id)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8)`
+      )
+      .bind(
+        id,
+        input.firmId,
+        input.subscriberId,
+        input.targetStateSlug,
+        input.serviceType,
+        input.ruleVerifiedDate,
+        completedAt,
+        input.completedByFirmSessionId
+      )
+      .run();
+  }
+
+  return {
+    id,
+    firm_id: input.firmId,
+    subscriber_id: input.subscriberId,
+    target_state_slug: input.targetStateSlug,
+    service_type: input.serviceType,
+    rule_verified_date: input.ruleVerifiedDate,
+    completed_at: completedAt,
+    completed_by_firm_session_id: input.completedByFirmSessionId,
+    deleted_at: null,
+  };
+}
+
+/** Every non-deleted completion across the whole firm's roster -- the Map
+ * view cross-references this list against each live mobility verdict,
+ * same "fetch the whole firm's rows once, filter/join client-side" pattern
+ * listCpeEntriesForFirm()/listFirmLicenses() already established. */
+export async function listMobilityCompletionsForFirm(db: D1Database, firmId: string): Promise<MobilityCompletionRow[]> {
+  const { results } = await db
+    .prepare(`SELECT * FROM mobility_completions WHERE firm_id = ?1 AND deleted_at IS NULL ORDER BY completed_at DESC`)
+    .bind(firmId)
+    .all<MobilityCompletionRow>();
+  return results;
+}
+
+/** Soft-delete only, firm_id-bound in the UPDATE's own WHERE clause -- same
+ * reasoning and same defense-in-depth as removeCpeEntry(). */
+export async function removeMobilityCompletion(db: D1Database, firmId: string, id: string): Promise<boolean> {
+  const result = await db
+    .prepare(`UPDATE mobility_completions SET deleted_at = ?1 WHERE id = ?2 AND firm_id = ?3 AND deleted_at IS NULL`)
+    .bind(nowIso(), id, firmId)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+// ---------------------------------------------------------------------------
 // Auth suite (2026-07-30, migration 0010) -- password storage + OAuth/SSO
 // identity linking and handshake state.
 //

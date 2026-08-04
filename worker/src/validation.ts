@@ -468,6 +468,13 @@ export const RATE_LIMIT_FIRM_LICENSE_RENEW: RateLimit = { max: 50, windowSeconds
 export const RATE_LIMIT_CPE_ENTRY_DELETE: RateLimit = { max: 100, windowSeconds: 86400 };
 export const RATE_LIMIT_OAUTH_IDENTITY_DELETE: RateLimit = { max: 20, windowSeconds: 86400 };
 
+// POST/DELETE /firm/mobility/completions (2026-08-04) -- same reasoning and
+// same 100/day ceiling as RATE_LIMIT_CPE_ENTRY_CREATE/DELETE: an
+// already-authenticated, firm-scoped mutation, bounded against a
+// compromised/careless session rather than an anonymous caller.
+export const RATE_LIMIT_MOBILITY_COMPLETION_CREATE: RateLimit = { max: 100, windowSeconds: 86400 };
+export const RATE_LIMIT_MOBILITY_COMPLETION_DELETE: RateLimit = { max: 100, windowSeconds: 86400 };
+
 // POST /debug/run-reminder-pass -- PREVIEW/STAGING ONLY, see index.ts's own
 // gate (the route 404s outright unless env.EMAIL_ALLOWLIST is set, which is
 // never true in production). Lets a human tester fire the daily reminder

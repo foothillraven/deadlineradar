@@ -68,6 +68,8 @@ import {
   RATE_LIMIT_FIRM_LICENSE_RENEW,
   RATE_LIMIT_CPE_ENTRY_DELETE,
   RATE_LIMIT_OAUTH_IDENTITY_DELETE,
+  RATE_LIMIT_MOBILITY_COMPLETION_CREATE,
+  RATE_LIMIT_MOBILITY_COMPLETION_DELETE,
   RATE_LIMIT_DEBUG_REMINDER_PASS,
   RATE_LIMIT_FIRM_LOGIN,
   RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT,
@@ -2669,6 +2671,10 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
     // /firm/oauth-identities/:id -- same up-front parsing pattern.
     const oauthIdentityIdMatch = /^\/firm\/oauth-identities\/([^/]+)$/.exec(url.pathname);
 
+    // /firm/mobility/completions/:id -- same up-front parsing pattern.
+    // 2026-08-04, practice-privilege completion tracking (migration 0016).
+    const mobilityCompletionIdMatch = /^\/firm\/mobility\/completions\/([^/]+)$/.exec(url.pathname);
+
     // GET on an action path renders a confirmation PAGE only -- it never
     // changes state. Email providers (Gmail, corporate filters) automatically
     // GET the links in a message to scan them; if the action fired on GET, a
@@ -2708,6 +2714,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/cpe") {
         try {
           return await handleCpeEntriesList(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/mobility/completions") {
+        try {
+          return await handleMobilityCompletionsList(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -2776,6 +2789,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
       }
+      if (mobilityCompletionIdMatch) {
+        try {
+          return await handleMobilityCompletionDelete(request, env, mobilityCompletionIdMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
       return errorPage(404, "Not found.");
     }
 
@@ -2799,6 +2819,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/cpe") {
         try {
           return await handleCpeEntryCreate(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/mobility/completions") {
+        try {
+          return await handleMobilityCompletionCreate(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -3808,6 +3836,105 @@ async function handleMobilityCheckBatch(request: Request, env: Env): Promise<Res
     results,
     disclaimer: MOBILITY_DISCLAIMER,
   });
+}
+
+function toMobilityCompletionJson(row: store.MobilityCompletionRow): Record<string, unknown> {
+  return {
+    id: row.id,
+    subscriber_id: row.subscriber_id,
+    target_state_slug: row.target_state_slug,
+    service_type: row.service_type,
+    rule_verified_date: row.rule_verified_date,
+    completed_at: row.completed_at,
+  };
+}
+
+/** GET /firm/mobility/completions -- every non-deleted completion across the
+ * firm's whole roster. The Map/Practice-Privilege-Check UI cross-references
+ * this against each LIVE verdict client-side, same "fetch the firm's rows
+ * once, join client-side" pattern GET /firm/cpe already established. */
+async function handleMobilityCompletionsList(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+  const rows = await store.listMobilityCompletionsForFirm(env.DB, session.firmId);
+  return jsonResponse(200, { completions: rows.map(toMobilityCompletionJson) });
+}
+
+/**
+ * POST /firm/mobility/completions -- body: `subscriber_id`,
+ * `target_state_slug`, `service_type`. Records ONLY that this firm marked
+ * the combination complete and against what rule version -- see migration
+ * 0016's own comment for why this is a deliberately separate signal from
+ * evaluateMobility()'s own verdict, never an override of it. No entitlement
+ * gate: recording a completion isn't itself a mobility determination (that
+ * already happened, live, via the gated /check or /check-batch endpoints
+ * this button only ever appears next to), and gating it too would let a
+ * firm's pay status silently desync its roster's own completion records
+ * from what the UI shows.
+ */
+async function handleMobilityCompletionCreate(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_completion_create", RATE_LIMIT_MOBILITY_COMPLETION_CREATE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many requests. Please try again later." });
+  }
+
+  const parsed = await readFirmLicenseJsonBody(request); // generic despite the name -- see that function's own signature
+  if (parsed instanceof Response) return parsed;
+  const form = stringFieldsOf(parsed);
+
+  for (const value of Object.values(form)) {
+    if (hasControlChars(value)) {
+      return jsonResponse(400, { error: "Invalid characters in submission." });
+    }
+  }
+
+  const subscriberId = (form.subscriber_id ?? "").trim();
+  if (!subscriberId) {
+    return jsonResponse(400, { error: "Missing subscriber_id." });
+  }
+
+  const targetStateSlug = (form.target_state_slug ?? "").trim();
+  if (!stateNameForSlug(targetStateSlug)) {
+    return jsonResponse(400, { error: "Please choose a target state." });
+  }
+
+  const serviceTypeRaw = (form.service_type ?? "").trim();
+  if (!isValidServiceType(serviceTypeRaw)) {
+    return jsonResponse(400, { error: "Please choose a service type." });
+  }
+
+  const rule = MOBILITY_RULES_BY_SLUG[targetStateSlug] ?? null;
+  const created = await store.addMobilityCompletion(env.DB, {
+    firmId: session.firmId,
+    subscriberId,
+    targetStateSlug,
+    serviceType: serviceTypeRaw,
+    ruleVerifiedDate: rule?.verified_date ?? null,
+    completedByFirmSessionId: session.sessionId,
+  });
+  if (!created) return jsonResponse(404, { error: "Not found." });
+
+  return jsonResponse(201, toMobilityCompletionJson(created));
+}
+
+/** DELETE /firm/mobility/completions/:id -- soft-delete (see migration
+ * 0016's comment for why it's not a real DELETE), firm-scoped. Lets a firm
+ * un-mark something they completed by mistake. */
+async function handleMobilityCompletionDelete(request: Request, env: Env, id: string): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_completion_delete", RATE_LIMIT_MOBILITY_COMPLETION_DELETE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many requests. Please try again later." });
+  }
+
+  const removed = await store.removeMobilityCompletion(env.DB, session.firmId, id);
+  if (!removed) return jsonResponse(404, { error: "Not found." });
+  return jsonResponse(200, { id, status: "removed" });
 }
 
 export default {

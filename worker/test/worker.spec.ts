@@ -3311,6 +3311,178 @@ describe("GET/POST/DELETE /firm/cpe -- CPE-hours entry CRUD", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Practice-privilege completion tracking (2026-08-04, migration 0016).
+// ---------------------------------------------------------------------------
+
+async function getMobilityCompletions(cookie: string | null, ip = "203.0.113.230"): Promise<Response> {
+  const headers: Record<string, string> = { "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch("https://deadline-radar.com/firm/mobility/completions", { headers });
+}
+
+async function postMobilityCompletion(
+  cookie: string | null,
+  body: Record<string, string>,
+  ip = "203.0.113.230"
+): Promise<Response> {
+  const headers: Record<string, string> = { "content-type": "application/json", "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch("https://deadline-radar.com/firm/mobility/completions", { method: "POST", headers, body: JSON.stringify(body) });
+}
+
+async function deleteMobilityCompletion(cookie: string | null, id: string, ip = "203.0.113.230"): Promise<Response> {
+  const headers: Record<string, string> = { "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch(`https://deadline-radar.com/firm/mobility/completions/${encodeURIComponent(id)}`, { method: "DELETE", headers });
+}
+
+describe("GET/POST/DELETE /firm/mobility/completions -- practice-privilege completion tracking", () => {
+  it("every route 401s without a session cookie", async () => {
+    expect((await getMobilityCompletions(null)).status).toBe(401);
+    expect((await postMobilityCompletion(null, { subscriber_id: "x", target_state_slug: "texas", service_type: "tax" })).status).toBe(401);
+    expect((await deleteMobilityCompletion(null, "nonexistent")).status).toBe(401);
+  });
+
+  it("no entitlement gate -- an unpaid/pilot firm can still record a completion (recording isn't itself a determination)", async () => {
+    const { cookie } = await createFirmWithSession("Mobility Completion Firm", `mob-comp-${Date.now()}@example.com`);
+    const created = await postFirmLicense(cookie, { email: `mob-comp-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberId } = (await created.json()) as { id: string };
+
+    const resp = await postMobilityCompletion(cookie, { subscriber_id: subscriberId, target_state_slug: "texas", service_type: "tax" });
+    expect(resp.status).toBe(201);
+    const body = (await resp.json()) as Record<string, unknown>;
+    expect(body.subscriber_id).toBe(subscriberId);
+    expect(body.target_state_slug).toBe("texas");
+    expect(body.service_type).toBe("tax");
+    expect(body).toHaveProperty("rule_verified_date"); // present even if null -- schema-stable for the client
+    expect(body).not.toHaveProperty("firm_id"); // internal, never echoed to the client
+
+    const list = await getMobilityCompletions(cookie);
+    const listBody = (await list.json()) as { completions: Array<{ id: string }> };
+    expect(listBody.completions.some((c) => c.id === body.id)).toBe(true);
+  });
+
+  it("re-marking the SAME (subscriber, target state, service type) upserts rather than duplicating", async () => {
+    const { cookie } = await createFirmWithSession("Mobility Upsert Firm", `mob-upsert-${Date.now()}@example.com`);
+    const created = await postFirmLicense(cookie, { email: `mob-upsert-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberId } = (await created.json()) as { id: string };
+
+    const first = await postMobilityCompletion(cookie, { subscriber_id: subscriberId, target_state_slug: "texas", service_type: "tax" });
+    const { id: firstId } = (await first.json()) as { id: string };
+    const second = await postMobilityCompletion(cookie, { subscriber_id: subscriberId, target_state_slug: "texas", service_type: "tax" });
+    const { id: secondId } = (await second.json()) as { id: string };
+    expect(secondId).toBe(firstId); // same row, refreshed -- not a duplicate
+
+    const count = await env.DB.prepare(
+      "SELECT COUNT(*) as c FROM mobility_completions WHERE subscriber_id = ?1 AND deleted_at IS NULL"
+    ).bind(subscriberId).first<{ c: number }>();
+    expect(count?.c).toBe(1);
+  });
+
+  it("a different service_type for the SAME person+state is a separate completion, not an upsert collision", async () => {
+    const { cookie } = await createFirmWithSession("Mobility Service Type Firm", `mob-svc-${Date.now()}@example.com`);
+    const created = await postFirmLicense(cookie, { email: `mob-svc-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberId } = (await created.json()) as { id: string };
+
+    await postMobilityCompletion(cookie, { subscriber_id: subscriberId, target_state_slug: "texas", service_type: "tax" });
+    await postMobilityCompletion(cookie, { subscriber_id: subscriberId, target_state_slug: "texas", service_type: "attest" });
+
+    const count = await env.DB.prepare(
+      "SELECT COUNT(*) as c FROM mobility_completions WHERE subscriber_id = ?1 AND deleted_at IS NULL"
+    ).bind(subscriberId).first<{ c: number }>();
+    expect(count?.c).toBe(2);
+  });
+
+  it("cross-firm isolation: cannot mark a completion against ANOTHER firm's staff record (404, not 403 -- anti-enumeration)", async () => {
+    const firmA = await createFirmWithSession("Mobility Firm A", `mob-a-${Date.now()}@example.com`);
+    const firmB = await createFirmWithSession("Mobility Firm B", `mob-b-${Date.now()}@example.com`);
+    const created = await postFirmLicense(firmA.cookie, { email: `mob-cross-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberIdInFirmA } = (await created.json()) as { id: string };
+
+    const resp = await postMobilityCompletion(firmB.cookie, { subscriber_id: subscriberIdInFirmA, target_state_slug: "texas", service_type: "tax" });
+    expect(resp.status).toBe(404);
+
+    const count = await env.DB.prepare("SELECT COUNT(*) as c FROM mobility_completions WHERE subscriber_id = ?1").bind(subscriberIdInFirmA).first<{ c: number }>();
+    expect(count?.c).toBe(0);
+  });
+
+  it("cross-firm isolation: GET never returns another firm's completions", async () => {
+    const firmA = await createFirmWithSession("Mobility List Firm A", `mob-list-a-${Date.now()}@example.com`);
+    const firmB = await createFirmWithSession("Mobility List Firm B", `mob-list-b-${Date.now()}@example.com`);
+    const createdA = await postFirmLicense(firmA.cookie, { email: `mob-list-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subA } = (await createdA.json()) as { id: string };
+    const compA = await postMobilityCompletion(firmA.cookie, { subscriber_id: subA, target_state_slug: "texas", service_type: "tax" });
+    const { id: compAId } = (await compA.json()) as { id: string };
+
+    const listB = await getMobilityCompletions(firmB.cookie);
+    const listBBody = (await listB.json()) as { completions: Array<{ id: string }> };
+    expect(listBBody.completions.some((c) => c.id === compAId)).toBe(false);
+  });
+
+  it("rejects an unknown target_state_slug and an invalid service_type", async () => {
+    const { cookie } = await createFirmWithSession("Mobility Validation Firm", `mob-valid-${Date.now()}@example.com`);
+    const created = await postFirmLicense(cookie, { email: `mob-valid-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberId } = (await created.json()) as { id: string };
+
+    expect((await postMobilityCompletion(cookie, { subscriber_id: subscriberId, target_state_slug: "atlantis", service_type: "tax" })).status).toBe(400);
+    expect((await postMobilityCompletion(cookie, { subscriber_id: subscriberId, target_state_slug: "texas", service_type: "bogus" })).status).toBe(400);
+  });
+
+  it("records the rule's verified_date at completion time (staleness snapshot)", async () => {
+    const { cookie } = await createFirmWithSession("Mobility Verified Date Firm", `mob-vd-${Date.now()}@example.com`);
+    const created = await postFirmLicense(cookie, { email: `mob-vd-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberId } = (await created.json()) as { id: string };
+
+    const resp = await postMobilityCompletion(cookie, { subscriber_id: subscriberId, target_state_slug: "texas", service_type: "tax" });
+    const body = (await resp.json()) as { rule_verified_date: string | null };
+    expect(body.rule_verified_date).toBeTruthy(); // texas is a real covered/cited mobility_rules.json record
+  });
+
+  it("DELETE soft-deletes (deleted_at set, row still exists) and it disappears from GET, firm-scoped", async () => {
+    const firmA = await createFirmWithSession("Mobility Delete Firm A", `mob-del-a-${Date.now()}@example.com`);
+    const firmB = await createFirmWithSession("Mobility Delete Firm B", `mob-del-b-${Date.now()}@example.com`);
+    const created = await postFirmLicense(firmA.cookie, { email: `mob-del-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberId } = (await created.json()) as { id: string };
+    const comp = await postMobilityCompletion(firmA.cookie, { subscriber_id: subscriberId, target_state_slug: "texas", service_type: "tax" });
+    const { id: compId } = (await comp.json()) as { id: string };
+
+    // Another firm cannot delete it.
+    expect((await deleteMobilityCompletion(firmB.cookie, compId)).status).toBe(404);
+    const stillThere = await env.DB.prepare("SELECT deleted_at FROM mobility_completions WHERE id = ?1").bind(compId).first<{ deleted_at: string | null }>();
+    expect(stillThere?.deleted_at).toBeNull();
+
+    const del = await deleteMobilityCompletion(firmA.cookie, compId);
+    expect(del.status).toBe(200);
+    const afterDelete = await env.DB.prepare("SELECT deleted_at FROM mobility_completions WHERE id = ?1").bind(compId).first<{ deleted_at: string | null }>();
+    expect(afterDelete?.deleted_at).toBeTruthy(); // row still exists, soft-deleted
+
+    const list = await getMobilityCompletions(firmA.cookie);
+    const listBody = (await list.json()) as { completions: Array<{ id: string }> };
+    expect(listBody.completions.some((c) => c.id === compId)).toBe(false);
+  });
+
+  it("blocks the 101st completion POST from the same firm within the daily window", async () => {
+    const { cookie } = await createFirmWithSession("Mobility Rate Firm", `mob-rate-${Date.now()}@example.com`);
+    const created = await postFirmLicense(cookie, { email: `mob-rate-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: subscriberId } = (await created.json()) as { id: string };
+    let sawA429 = false;
+    for (let i = 0; i < 105; i++) {
+      const resp = await postMobilityCompletion(
+        cookie,
+        { subscriber_id: subscriberId, target_state_slug: "texas", service_type: "tax" },
+        `203.0.113.${230 + (i % 20)}`
+      );
+      if (resp.status === 429) {
+        sawA429 = true;
+        break;
+      }
+      expect(resp.status).toBe(201); // same key upserts every time, so every call under the cap succeeds
+    }
+    expect(sawA429, "expected a 429 within the RATE_LIMIT_MOBILITY_COMPLETION_CREATE ceiling (100/day) -- got none in 105 requests").toBe(true);
+  }, 60000); // each POST here does 2-3 D1 round trips (ownership check, existing-row lookup, insert/update) vs the CPE-delete rate-limit test's single UPDATE, so 30s wasn't enough headroom under full-suite contention
+});
+
+// ---------------------------------------------------------------------------
 // Auth suite routes (2026-07-30): password login, password set/change, SSO.
 // ---------------------------------------------------------------------------
 

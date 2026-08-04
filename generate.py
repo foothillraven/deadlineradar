@@ -1881,12 +1881,32 @@ def page_shell(
 """
 
 
-def trust_line(last_verified: str, source_url: str) -> str:
+def trust_line(last_verified: str, source_url: str, has_citation: bool) -> str:
+    """AuditLab DATA-1 (HIGH, 2026-08-04): this unconditionally asserted "checked
+    against the state's codified statute or administrative rule, not just a board
+    webpage" on every page, including 11 records across 9 states that have ONLY a
+    board webpage on record -- no citation, no citation_url. That is an
+    affirmatively false provenance claim, the exact thing the methodology page's
+    two-source rule promises never happens ("if we can't find or confirm the
+    second source, the date is not published as a confirmed fact... the page says
+    so plainly"). `has_citation` now gates which sentence renders -- same signal
+    _source_cite_html()/_verified_badge_html() already use (record.get("citation")),
+    so a record can never show the "Verified" badge or a Source-of-record block
+    while this text still claims primary-law verification, or vice versa."""
+    if has_citation:
+        sourcing_claim = (
+            "checked against the state's codified statute or administrative rule, not just a board "
+            "webpage &mdash; if we can't verify a date against primary law, we say so instead of "
+            'guessing (<a href="/methodology/">see how we verify every deadline</a>)'
+        )
+    else:
+        sourcing_claim = (
+            "sourced from the state board's own page; we could not independently confirm it against "
+            "codified statute or administrative rule text, so we are not calling it primary-law-verified "
+            '(<a href="/methodology/">see how we verify every deadline</a>)'
+        )
     return f"""<div class="trust-line">
-  <strong>Last verified: {esc(last_verified)}</strong> &middot; checked against the state's codified
-  statute or administrative rule, not just a board webpage &mdash; if we can't verify a date against
-  primary law, we say so instead of guessing (<a href="/methodology/">see how we verify every
-  deadline</a>). Always confirm with the
+  <strong>Last verified: {esc(last_verified)}</strong> &middot; {sourcing_claim}. Always confirm with the
   <a href="{http_href(source_url)}">official state board</a> before relying on this date. License
   requirements and deadlines can change.
 </div>"""
@@ -2435,7 +2455,7 @@ def build_state_page(
     body = f"""<h1>{esc(title)}</h1>
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
 {deadline_html}
-{trust_line(last_verified, source_url)}
+{trust_line(last_verified, source_url, all(r.get("citation") for r in records))}
 {signup_form_for_state(state_slug, state_name, records, as_of)}
 {_cpe_affiliate_html()}
 {related_html}
@@ -6819,7 +6839,7 @@ renewal. Here's exactly when {esc(state_name)}'s firm-level filing is due.</p>
   <p class="rule">{esc(record['cycle_description'])}</p>
   {_source_cite_html(record)}
 </div>
-{trust_line(record['last_verified'], record['source_url'])}
+{trust_line(record['last_verified'], record['source_url'], bool(record.get('citation')))}
 
 <div class="firm-cta">
 <h2>Tracking this for more than one firm, or want someone else watching it?</h2>
@@ -7191,7 +7211,7 @@ way every fact on this site is: a board page plus the codified rule itself, neve
 
 <p><strong>What triggers lapsed status:</strong> {esc(record['lapse_trigger'])}</p>
 
-{trust_line(record["last_verified"], record["source_url"])}
+{trust_line(record["last_verified"], record["source_url"], bool(record.get("citation")))}
 
 {_reinstatement_signup_html(record["state_slug"], state_name, renewal_records, as_of)}
 

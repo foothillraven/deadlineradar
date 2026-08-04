@@ -1032,12 +1032,32 @@ PAGE_CSS = """
           reason the table overflowed at all.
        3. Below 860px the table becomes stacked cards, because no amount of
           column trimming makes 7 columns work on a phone. */
-  .dr-roster-panel table { width: 100%; }
+  /* 2026-08-04: Actions was reported overlapping Status/Next-deadline --
+     e.g. the header text read "Sta" cut off mid-word right next to
+     "Actions". Root cause, confirmed by measuring computed layout in a
+     browser rather than guessing: with no explicit column widths, the
+     browser's auto table-layout algorithm and the sticky Actions column
+     (position: sticky; right: 0, below) fight over the same space
+     differently depending on viewport width -- sometimes it scrolls clean,
+     sometimes a neighboring column's cell gets partially painted over
+     mid-character. table-layout: fixed with an explicit width per column
+     (nth-child, matching real column order) makes every column's boundary
+     deterministic regardless of viewport width, so the sticky Actions
+     column always either fully covers or fully reveals its neighbor --
+     never a half-visible "Sta". */
+  .dr-roster-panel table { width: 100%; table-layout: fixed; }
   .dr-roster-panel td, .dr-roster-panel th { white-space: nowrap; }
+  .dr-roster-panel th:nth-child(1), .dr-roster-panel td:nth-child(1) { width: 9rem; }  /* Staff */
+  .dr-roster-panel th:nth-child(2), .dr-roster-panel td:nth-child(2) { width: 14rem; } /* Email */
+  .dr-roster-panel th:nth-child(3), .dr-roster-panel td:nth-child(3) { width: 7rem; }  /* State */
+  .dr-roster-panel th:nth-child(4), .dr-roster-panel td:nth-child(4) { width: 8rem; }  /* License type */
+  .dr-roster-panel th:nth-child(5), .dr-roster-panel td:nth-child(5) { width: 6rem; }  /* Status */
+  .dr-roster-panel th:nth-child(6), .dr-roster-panel td:nth-child(6) { width: 8rem; }  /* Next deadline */
+  .dr-roster-panel th:nth-child(7), .dr-roster-panel td:nth-child(7) { width: 15rem; } /* Actions -- matches the 3-button group's measured natural width (~237px) */
 
   /* Email: the width hog. Truncate, full value on hover/focus via title. */
   .dr-roster-panel td.dr-cell-email {
-    max-width: 15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
   /* Sticky Actions. The background is opaque and matches the row so the
@@ -1077,6 +1097,17 @@ PAGE_CSS = """
     .dr-roster-panel table, .dr-roster-panel thead, .dr-roster-panel tbody,
     .dr-roster-panel tr, .dr-roster-panel td {
       display: block; width: 100%; min-width: 0; max-width: 100%;
+    }
+    /* The desktop per-column nth-child widths (added 2026-08-04) have HIGHER
+       specificity (class + nth-child + type) than the block above (class +
+       type), so without this explicit reset they would win the cascade here
+       too and reintroduce fixed-width columns inside the stacked cards --
+       the same "reset it explicitly or it silently wins" trap the min-width
+       comment above already documents for a different property. */
+    .dr-roster-panel td:nth-child(1), .dr-roster-panel td:nth-child(2), .dr-roster-panel td:nth-child(3),
+    .dr-roster-panel td:nth-child(4), .dr-roster-panel td:nth-child(5), .dr-roster-panel td:nth-child(6),
+    .dr-roster-panel td:nth-child(7) {
+      width: 100%;
     }
     .dr-roster-panel thead { position: absolute; left: -9999px; }
     .dr-roster-panel tbody tr {

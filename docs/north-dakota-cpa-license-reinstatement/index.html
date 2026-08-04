@@ -708,7 +708,19 @@
      deterministic regardless of viewport width, so the sticky Actions
      column always either fully covers or fully reveals its neighbor --
      never a half-visible "Sta". */
-  .dr-roster-panel table { width: 100%; table-layout: fixed; }
+  /* 2026-08-04 correction: `width: 100%` + `table-layout: fixed` with no
+     min-width does NOT make the table overflow when the declared column
+     widths don't fit -- it makes the browser treat those widths as
+     PROPORTIONAL WEIGHTS within a table forcibly locked to exactly 100% of
+     the container, squeezing every column (Status/Next-deadline included)
+     down to fit, down to near-zero visible width for the narrower ones.
+     Caught live: Status and Next-deadline had gone from "overlapping" to
+     "invisible", not fixed. min-width equal to the column
+     budget (9+14+7+8+6+8+15=67rem, border-box so padding is already
+     included) restores the actual intent -- the table can grow past 100%
+     and .table-wrap's existing overflow-x:auto scrolls to it, while still
+     shrinking to fit when the container genuinely has 67rem to spare. */
+  .dr-roster-panel table { width: 100%; min-width: 67rem; table-layout: fixed; }
   .dr-roster-panel td, .dr-roster-panel th { white-space: nowrap; }
   .dr-roster-panel th:nth-child(1), .dr-roster-panel td:nth-child(1) { width: 9rem; }  /* Staff */
   .dr-roster-panel th:nth-child(2), .dr-roster-panel td:nth-child(2) { width: 14rem; } /* Email */

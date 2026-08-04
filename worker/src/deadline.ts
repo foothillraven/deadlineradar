@@ -115,13 +115,16 @@ export function checkDataFreshness(realToday: Date): void {
   }
 }
 
-/** AuditLab ST-1: the write guard above pauses signups/roster-adds/renews
- * once data is stale, but every READ path (GET /firm/licenses, the roster
- * list) kept serving dates derived from that same data with no disclosure --
- * a customer could be refused a new staff member while the dashboard
- * confidently showed 40 existing ones. Exposes the same age/threshold
- * computation as a non-throwing read so API responses can carry a
- * `data_as_of`/`data_stale` signal instead of staying silent. */
+/** AuditLab ST-1: the write guard above pauses signups and roster-adds once
+ * data is stale (checkDataFreshness()'s three call sites -- POST /subscribe,
+ * POST /firm/licenses, PATCH /firm/licenses/:id -- NOT the renew route,
+ * which stays unguarded on purpose since it doesn't persist a computed
+ * deadline), but every READ path (GET /firm/licenses, the roster list) kept
+ * serving dates derived from that same data with no disclosure -- a customer
+ * could be refused a new staff member while the dashboard confidently showed
+ * 40 existing ones. Exposes the same age/threshold computation as a
+ * non-throwing read so API responses can carry a `data_as_of`/`data_stale`
+ * signal instead of staying silent. */
 export function dataFreshnessInfo(realToday: Date): { as_of_date: string; age_days: number; stale: boolean } {
   const ageDays = ageDaysFromAsOf(realToday);
   const unparseable = Number.isNaN(ageDays);

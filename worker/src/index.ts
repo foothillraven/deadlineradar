@@ -1916,8 +1916,10 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
   // AuditLab ST-1: every date above is derived from the same reference data
   // the write guards (checkDataFreshness()) can refuse to trust -- surface
   // its freshness here too instead of rendering it silently, since the
-  // dashboard has no other signal that "Mark renewed" or a new staff add
-  // could be refused right now.
+  // dashboard has no other signal that adding a new staff member could be
+  // refused right now. (Not "Mark renewed" -- that route stays unguarded on
+  // purpose, see deadline.ts's dataFreshnessInfo() docstring; the dashboard
+  // banner still discloses staleness while renew keeps working.)
   const freshness = dataFreshnessInfo(asOf);
   return jsonResponse(200, {
     licenses: items,

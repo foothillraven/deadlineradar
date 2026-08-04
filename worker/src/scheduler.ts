@@ -17,6 +17,19 @@
  *   - one bad subscriber record never aborts the whole run.
  *   - every send counts against the same daily circuit breaker the
  *     confirmation email uses (shared total-sends-per-day cap).
+ *   - a threshold is claimed atomically BEFORE send() is called (optimistic
+ *     concurrency on reminders_sent), so two overlapping passes -- a cron
+ *     retry, a redeploy mid-run, a manual /debug/run-reminder-pass racing the
+ *     cron -- can't both send the same tier. The loser's claim fails and it
+ *     skips. See store.claimReminderThreshold()/unclaimReminderThreshold().
+ *   - a lost claim is reverted (unclaimed) on any handled failure -- send()
+ *     returning false, the daily cap being hit, or any thrown error from the
+ *     per-subscriber body -- so a transient failure re-tries that tier on the
+ *     next pass rather than silently losing it. Delivery is at-least-once for
+ *     every failure this code can observe and react to; the only remaining
+ *     miss window is the Worker being killed outright between the claim
+ *     write and send() returning, which no non-transactional external-side-
+ *     effect system can fully close.
  */
 
 import type { Env } from "./env";
@@ -172,54 +185,79 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
       if (threshold === null) continue;
     }
 
-    // Defense-in-depth: allConfirmedActive() already filters to confirmed, but
-    // a permanently-unsubscribed address must never be sent to even if a status
-    // bug elsewhere left it confirmed. Re-check right before the send.
-    if (await store.isPermanentlySuppressed(env.DB, sub.email)) {
-      summary.errors.push({
-        subscriber_id: sub.id,
-        error: "BLOCKED: email is permanently suppressed (unsubscribed) -- refusing despite status=confirmed.",
-      });
-      continue;
-    }
-
-    // Both action links use the SAME renewed_token -- store.renewAndRearmByToken()
-    // and store.stop() both accept either renewed_token or unsubscribe_token, so
-    // this is not a new token type, just a new URL path over an existing one.
-    const renewedNextCycleUrl = `${actionBaseUrl(env)}/renewed-next-cycle?token=${encodeURIComponent(sub.renewed_token)}`;
-    const renewedUrl = `${actionBaseUrl(env)}/renewed?token=${encodeURIComponent(sub.renewed_token)}`;
-    const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(sub.unsubscribe_token)}`;
-    let built: BuiltEmail;
+    // SCHED-B: every D1/network call below can throw (client hiccup, D1
+    // blip). One bad subscriber must not abort the whole pass -- the module
+    // docstring promises that but previously only JSON.parse/computeSubscriberDeadline
+    // and buildReminderEmail were actually guarded. This try wraps the rest of
+    // the per-subscriber body so any unhandled throw is recorded and the loop
+    // moves on to the next subscriber instead of aborting the pass.
+    let claimedThreshold = false;
     try {
-      built = buildReminderEmail(
-        stateName,
-        fmtDate(deadline),
-        threshold,
-        daysRemaining,
-        renewedNextCycleUrl,
-        renewedUrl,
-        unsubscribeUrl,
-        sub.first_name
-      );
+      // Defense-in-depth: allConfirmedActive() already filters to confirmed, but
+      // a permanently-unsubscribed address must never be sent to even if a status
+      // bug elsewhere left it confirmed. Re-check right before the send.
+      if (await store.isPermanentlySuppressed(env.DB, sub.email)) {
+        summary.errors.push({
+          subscriber_id: sub.id,
+          error: "BLOCKED: email is permanently suppressed (unsubscribed) -- refusing despite status=confirmed.",
+        });
+        continue;
+      }
+
+      // Both action links use the SAME renewed_token -- store.renewAndRearmByToken()
+      // and store.stop() both accept either renewed_token or unsubscribe_token, so
+      // this is not a new token type, just a new URL path over an existing one.
+      const renewedNextCycleUrl = `${actionBaseUrl(env)}/renewed-next-cycle?token=${encodeURIComponent(sub.renewed_token)}`;
+      const renewedUrl = `${actionBaseUrl(env)}/renewed?token=${encodeURIComponent(sub.renewed_token)}`;
+      const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(sub.unsubscribe_token)}`;
+      let built: BuiltEmail;
+      try {
+        built = buildReminderEmail(
+          stateName,
+          fmtDate(deadline),
+          threshold,
+          daysRemaining,
+          renewedNextCycleUrl,
+          renewedUrl,
+          unsubscribeUrl,
+          sub.first_name
+        );
+      } catch (err) {
+        summary.errors.push({ subscriber_id: sub.id, error: `email build failed: ${String(err)}` });
+        continue;
+      }
+
+      // SCHED-A: claim this threshold atomically BEFORE calling send(). If
+      // another overlapping pass already claimed it (or already sent it),
+      // this loses the race and skips -- the tier is not ours to send.
+      const claimed = await store.claimReminderThreshold(env.DB, sub.id, sub.reminders_sent || "[]", threshold);
+      if (!claimed) continue;
+      claimedThreshold = true;
+
+      // Circuit breaker last, right before the send, so a build/suppression skip
+      // above never consumes a day's send budget.
+      const underCap = await checkAndCountSend(env.DB, cap);
+      if (!underCap) {
+        await store.unclaimReminderThreshold(env.DB, sub.id, threshold);
+        summary.errors.push({ subscriber_id: sub.id, error: "daily send cap reached -- halting further sends today." });
+        // SCHED-C: actually halt (matches the message above) instead of
+        // `continue`-ing through the rest of the cohort, which used to churn
+        // one wasted D1 write plus an errors[] entry per remaining subscriber.
+        break;
+      }
+
+      const ok = await send(sub.email, built);
+      if (ok) {
+        summary.sent += 1;
+      } else {
+        await store.unclaimReminderThreshold(env.DB, sub.id, threshold);
+        summary.errors.push({ subscriber_id: sub.id, error: "send returned false" });
+      }
     } catch (err) {
-      summary.errors.push({ subscriber_id: sub.id, error: `email build failed: ${String(err)}` });
-      continue;
-    }
-
-    // Circuit breaker last, right before the send, so a build/suppression skip
-    // above never consumes a day's send budget.
-    const underCap = await checkAndCountSend(env.DB, cap);
-    if (!underCap) {
-      summary.errors.push({ subscriber_id: sub.id, error: "daily send cap reached -- halting further sends today." });
-      continue;
-    }
-
-    const ok = await send(sub.email, built);
-    if (ok) {
-      await store.markReminderSent(env.DB, sub.id, threshold);
-      summary.sent += 1;
-    } else {
-      summary.errors.push({ subscriber_id: sub.id, error: "send returned false" });
+      if (claimedThreshold) {
+        await store.unclaimReminderThreshold(env.DB, sub.id, threshold).catch(() => {});
+      }
+      summary.errors.push({ subscriber_id: sub.id, error: `unexpected error: ${String(err)}` });
     }
   }
 

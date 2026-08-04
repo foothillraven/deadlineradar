@@ -2702,6 +2702,111 @@ describe("scheduler.ts runReminderPass -- one pass", () => {
     const row = await env.DB.prepare("SELECT reminders_sent FROM subscribers WHERE id = ?1").bind(rec.id).first<{ reminders_sent: string }>();
     expect(JSON.parse(row?.reminders_sent ?? "[]")).toContain(7);
   });
+
+  it("SCHED-A: two overlapping passes for the same tier send exactly once, not twice", async () => {
+    const { runReminderPass } = await import("../src/scheduler");
+    const email = `sched-race-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, {
+      email,
+      stateSlug: "texas",
+      deadlineFields: { birth_month: "7" },
+      firstName: "Tester",
+    });
+    await store.confirm(env.DB, rec.confirm_token);
+
+    const sends: string[] = [];
+    const asOf = new Date(Date.UTC(2026, 6, 24)); // 7 days out -> tier 7
+    // Both "passes" read subscribers (and therefore reminders_sent=[]) before
+    // either sends -- exactly the SCHED-A race -- by starting them together
+    // rather than awaiting one before starting the other.
+    const [a, b] = await Promise.all([
+      runReminderPass(env, { asOf, send: async (to) => { sends.push(to); return true; } }),
+      runReminderPass(env, { asOf, send: async (to) => { sends.push(to); return true; } }),
+    ]);
+
+    expect(sends.filter((s) => s === email)).toHaveLength(1);
+    expect(a.errors.length + b.errors.length).toBe(0);
+
+    const row = await env.DB.prepare("SELECT reminders_sent FROM subscribers WHERE id = ?1").bind(rec.id).first<{ reminders_sent: string }>();
+    expect(JSON.parse(row?.reminders_sent ?? "[]")).toEqual([7]);
+  });
+
+  it("SCHED-A: a failed send unclaims the threshold so the next pass retries it (no permanent miss)", async () => {
+    const { runReminderPass } = await import("../src/scheduler");
+    const email = `sched-unclaim-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, {
+      email,
+      stateSlug: "texas",
+      deadlineFields: { birth_month: "7" },
+      firstName: "Tester",
+    });
+    await store.confirm(env.DB, rec.confirm_token);
+
+    const asOf = new Date(Date.UTC(2026, 6, 24)); // 7 days out -> tier 7
+    const failed = await runReminderPass(env, { asOf, send: async () => false });
+    expect(failed.errors.some((e) => e.subscriber_id === rec.id && e.error === "send returned false")).toBe(true);
+
+    const midRow = await env.DB.prepare("SELECT reminders_sent FROM subscribers WHERE id = ?1").bind(rec.id).first<{ reminders_sent: string }>();
+    expect(JSON.parse(midRow?.reminders_sent ?? "[]")).toEqual([]); // claim reverted, not stuck
+
+    const sends: string[] = [];
+    await runReminderPass(env, { asOf, send: async (to) => { sends.push(to); return true; } });
+    expect(sends).toContain(email); // retried and succeeded next pass
+  });
+
+  it("SCHED-B: a throw from one subscriber's send does not abort the rest of the pass", async () => {
+    const { runReminderPass } = await import("../src/scheduler");
+    const emailBad = `sched-throw-${Date.now()}@example.com`;
+    const emailGood = `sched-ok-${Date.now()}@example.com`;
+    const bad = await store.addPending(env.DB, { email: emailBad, stateSlug: "texas", deadlineFields: { birth_month: "7" }, firstName: "Bad" });
+    await store.confirm(env.DB, bad.confirm_token);
+    const good = await store.addPending(env.DB, { email: emailGood, stateSlug: "texas", deadlineFields: { birth_month: "7" }, firstName: "Good" });
+    await store.confirm(env.DB, good.confirm_token);
+
+    const sends: string[] = [];
+    const summary = await runReminderPass(env, {
+      asOf: new Date(Date.UTC(2026, 6, 24)), // 7 days out -> tier 7 for both
+      send: async (to) => {
+        if (to === emailBad) throw new Error("simulated SendGrid client throw");
+        sends.push(to);
+        return true;
+      },
+    });
+
+    expect(sends).toContain(emailGood); // survivor still got its reminder
+    expect(summary.errors.some((e) => e.subscriber_id === bad.id && e.error.includes("simulated SendGrid client throw"))).toBe(true);
+
+    const badRow = await env.DB.prepare("SELECT reminders_sent FROM subscribers WHERE id = ?1").bind(bad.id).first<{ reminders_sent: string }>();
+    expect(JSON.parse(badRow?.reminders_sent ?? "[]")).toEqual([]); // claim reverted on throw, not stuck
+  });
+
+  it("SCHED-C: hitting the daily cap halts the pass instead of one error per remaining subscriber", async () => {
+    const { runReminderPass } = await import("../src/scheduler");
+    for (let i = 0; i < 3; i++) {
+      const e = `sched-cap-${Date.now()}-${i}@example.com`;
+      const rec = await store.addPending(env.DB, { email: e, stateSlug: "texas", deadlineFields: { birth_month: "7" }, firstName: "Tester" });
+      await store.confirm(env.DB, rec.confirm_token);
+    }
+
+    // send_counters' "today" row is real-wall-clock keyed and persists across
+    // tests in this file (D1 storage isn't reset per-`it`), so read whatever
+    // count is already there and cap exactly one more send above it, rather
+    // than assuming an empty counter.
+    const today = new Date().toISOString().slice(0, 10);
+    const before = await env.DB.prepare("SELECT count FROM send_counters WHERE day = ?1").bind(today).first<{ count: number }>();
+    const cap = (before?.count ?? 0) + 1;
+
+    const cappedEnv = { ...env, REMINDERS_DAILY_SEND_CAP: String(cap) } as typeof env;
+    const sends: string[] = [];
+    const capped = await runReminderPass(cappedEnv, {
+      asOf: new Date(Date.UTC(2026, 6, 24)), // 7 days out -> tier 7 for all 3
+      send: async (to) => { sends.push(to); return true; },
+    });
+    expect(sends).toHaveLength(1); // only one send got through before the cap hit
+    // exactly one "halting" error was recorded, not one per remaining subscriber
+    const capErrors = capped.errors.filter((e) => e.error.includes("daily send cap reached"));
+    expect(capErrors).toHaveLength(1);
+  });
 });
 
 describe("Staleness guard -- real HTTP + cron code paths, not just checkDataFreshness() in isolation", () => {

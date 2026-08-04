@@ -508,6 +508,61 @@ export async function markReminderSent(db: D1Database, subscriberId: string, thr
 }
 
 /**
+ * Atomically claims a reminder threshold for a subscriber BEFORE sending --
+ * closes AuditLab SCHED-A (two overlapping runReminderPass() calls, e.g. a
+ * cron retry or a redeploy mid-run, both reading reminders_sent=[] and both
+ * sending the same tier). Optimistic concurrency: the UPDATE only applies if
+ * reminders_sent still equals the exact JSON string the caller read earlier
+ * in its own pass, so whichever call reaches this UPDATE first wins and the
+ * loser's WHERE clause matches zero rows.
+ *
+ * Returns true if this call won the claim (caller should proceed to send);
+ * false if the threshold was already present or another pass claimed it
+ * first (caller should skip -- not its tier to send).
+ */
+export async function claimReminderThreshold(
+  db: D1Database,
+  subscriberId: string,
+  previousRemindersSentJson: string,
+  thresholdDays: number
+): Promise<boolean> {
+  const sent: number[] = JSON.parse(previousRemindersSentJson || "[]");
+  if (sent.includes(thresholdDays)) return false;
+  const next = JSON.stringify([...sent, thresholdDays]);
+  const result = await db
+    .prepare("UPDATE subscribers SET reminders_sent = ?1 WHERE id = ?2 AND reminders_sent = ?3")
+    .bind(next, subscriberId, previousRemindersSentJson)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+/**
+ * Reverts a claimReminderThreshold() claim after a failed send (cap reached
+ * or send() returned false), so the threshold is retried on the next pass
+ * instead of being silently lost -- preserves the deliberate at-least-once
+ * delivery semantics (a duplicate reminder beats a missed one) on failure,
+ * while still preventing the double-send race claimReminderThreshold() closes
+ * on success. Best-effort against whatever reminders_sent holds NOW rather
+ * than the claim-time snapshot, since another tier may have been claimed for
+ * the same subscriber in the interim.
+ */
+export async function unclaimReminderThreshold(db: D1Database, subscriberId: string, thresholdDays: number): Promise<void> {
+  const row = await db
+    .prepare("SELECT reminders_sent FROM subscribers WHERE id = ?1")
+    .bind(subscriberId)
+    .first<{ reminders_sent: string }>();
+  if (!row) return;
+  const sent: number[] = JSON.parse(row.reminders_sent);
+  const next = sent.filter((t) => t !== thresholdDays);
+  if (next.length !== sent.length) {
+    await db
+      .prepare("UPDATE subscribers SET reminders_sent = ?1 WHERE id = ?2")
+      .bind(JSON.stringify(next), subscriberId)
+      .run();
+  }
+}
+
+/**
  * store.py:339 `all_confirmed_active()` -- subscribers eligible for
  * reminder scheduling: confirmed, not stopped. Not called from any Phase-1
  * route (no scheduler exists yet) -- ported for the same Phase-2

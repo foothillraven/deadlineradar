@@ -677,6 +677,14 @@
   .dr-at-risk-days { font-family: var(--font-display); font-weight: 650; white-space: nowrap; }
   .dr-at-risk-days--soon { color: #c33737; }
   @media (prefers-color-scheme: dark) { .dr-at-risk-days--soon { color: #ff8080; } }
+  /* AuditLab VIS-1 (MEDIUM, 2026-08-04, per product decision): opted-out staff
+     get NO automated reminder at all, so the firm's own at-risk view is the
+     only remaining warning channel for them -- this chip makes that gap
+     explicit rather than letting the row look like any other at-risk entry.
+     Muted/gray, matching the roster table's own "Opted out" status color
+     (#8595a3), deliberately NOT the urgency red of dr-at-risk-days--soon --
+     this is a channel-gap notice, not an urgency escalation. */
+  .dr-at-risk-optedout { display: block; font-size: 0.72rem; color: #8595a3; margin-top: 0.15rem; }
   .dr-activity-item { display: flex; gap: 0.6rem; font-size: 0.85rem; align-items: flex-start; }
   .dr-activity-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; margin-top: 0.4rem; flex: none; background: var(--accent); }
   .dr-activity-dot--confirm { background: var(--verified-green); }

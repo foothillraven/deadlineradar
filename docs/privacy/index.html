@@ -683,7 +683,15 @@
   .dr-roster-panel td.dr-cell-email,
   .dr-roster-panel td:nth-child(1),
   .dr-roster-panel td:nth-child(3) {
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    white-space: normal; overflow-wrap: anywhere;
+  }
+
+  
+  .dr-roster-panel .dr-edit-label,
+  .dr-roster-panel .dr-edit-email {
+    width: 100%; box-sizing: border-box; padding: 0.3rem 0.4rem;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: var(--bg); color: var(--fg); font-size: inherit; font-family: inherit;
   }
 
   
@@ -842,6 +850,18 @@
   .dr-cpe-gap-note { font-size: 0.8rem; color: var(--faint); margin-top: 0.4rem; }
   .dr-cpe-log-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
   .dr-cpe-log-panel h2 { font-size: 1.05rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
+  
+  .dr-cpe-log-panel form label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.75rem 0 0.3rem; }
+  .dr-cpe-log-panel form label:first-of-type { margin-top: 0; }
+  .dr-cpe-log-panel form input, .dr-cpe-log-panel form select {
+    width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: 0.95rem; font-family: inherit;
+  }
+  .dr-cpe-log-panel form button {
+    margin-top: 1rem; padding: 0.6rem 1.1rem; border: none; border-radius: 6px;
+    background: var(--accent); color: var(--on-accent); font-size: 0.95rem; font-weight: 700; cursor: pointer;
+  }
+  .dr-cpe-log-panel form button:hover { opacity: 0.92; }
   .dr-cpe-recent-item { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; font-size: 0.85rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
   .dr-cpe-recent-item:last-child { border-bottom: none; }
   .dr-cpe-recent-remove { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 6px; padding: 0.2rem 0.55rem; cursor: pointer; font-family: inherit; font-size: 0.78rem; }

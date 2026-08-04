@@ -1107,11 +1107,11 @@ PAGE_CSS = """
      is "Dec 31, 2026" (short month, drFormatDeadline's actual
      toLocaleDateString option), not the "December 31, 2026" a guess might
      assume -- only 6.83rem needed, half again what 8rem allocated. Staff
-     and State now get the SAME ellipsis-truncate-with-title-tooltip
-     treatment Email already had (State's one long outlier, "District of
-     Columbia" at 9.66rem, would otherwise force every other row's State
-     column needlessly wide for one jurisdiction's sake -- truncated, its
-     full name is still one hover away). New sum: 6+6+5.5+7+7+7+15 = 53.5rem,
+     and State now get the same wrap-instead-of-truncate treatment Email
+     gets (see that rule below) so one long outlier ("District of Columbia"
+     at 9.66rem) doesn't force every row's column needlessly wide for one
+     jurisdiction's sake -- it wraps to a second line instead. New sum:
+     6+6+5.5+7+7+7+15 = 53.5rem,
      not 67rem -- min-width follows it exactly, same reasoning as the
      original fix (table-layout: fixed's proportional-squeeze behavior below
      100% width is still real, this just needs a smaller floor to squeeze
@@ -1132,16 +1132,36 @@ PAGE_CSS = """
   .dr-roster-panel th:nth-child(6), .dr-roster-panel td:nth-child(6) { width: 7rem; }  /* Next deadline -- was 8rem, oversized for its actual short-month format */
   .dr-roster-panel th:nth-child(7), .dr-roster-panel td:nth-child(7) { width: 15rem; } /* Actions -- UNCHANGED, matches the 3-button group's measured natural width (~237px); shrinking this specifically is what caused the original overlap bug */
 
-  /* Truncate with an ellipsis, full value on hover/focus via title --
-     Email always had this; Staff and State get it now too (2026-08-04),
-     since all three can run longer than their allotted column width and
-     the alternative (generous fixed widths for rare long values) is what
-     pushed the table's total width past what any normal viewport has to
-     give it in the first place. */
+  /* WRAP, don't truncate -- reported directly ("full email is also not
+     available", 2026-08-04): this used to be overflow:hidden +
+     text-overflow:ellipsis, so a long email/name/state only had its full
+     value reachable by hovering for the title tooltip, which is not
+     discoverable and doesn't work at all on a touch device. Letting the
+     cell grow taller instead of clipping its content means the ACTUAL
+     value is always fully visible with no hover dependency -- table-layout:
+     fixed still holds every column's WIDTH steady, so a row with a long
+     email just becomes a taller row, never a wider table. title= is kept
+     for a fast glance without needing to read a wrapped multi-line email,
+     but is no longer the only way to see the full value. */
   .dr-roster-panel td.dr-cell-email,
   .dr-roster-panel td:nth-child(1),
   .dr-roster-panel td:nth-child(3) {
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    white-space: normal; overflow-wrap: anywhere;
+  }
+
+  /* Reported directly ("this is overlapped when editing", 2026-08-04): the
+     edit-mode Name/Email <input> elements had no width rule at all, so they
+     rendered at the browser's own default input size (natively wider than
+     this table's now-narrower Staff/Email columns) and overflowed their
+     cell instead of respecting table-layout: fixed's column width the way
+     plain text already does. box-sizing: border-box matters here as much as
+     width: 100% -- without it the input's own padding/border would add on
+     top of 100% and overflow by that amount anyway. */
+  .dr-roster-panel .dr-edit-label,
+  .dr-roster-panel .dr-edit-email {
+    width: 100%; box-sizing: border-box; padding: 0.3rem 0.4rem;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: var(--bg); color: var(--fg); font-size: inherit; font-family: inherit;
   }
 
   /* Sticky Actions. The background is opaque and matches the row so the
@@ -1331,6 +1351,29 @@ PAGE_CSS = """
   .dr-cpe-gap-note { font-size: 0.8rem; color: var(--faint); margin-top: 0.4rem; }
   .dr-cpe-log-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
   .dr-cpe-log-panel h2 { font-size: 1.05rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
+  /* 2026-08-04, reported directly ("this is still weird" -- Staff member/
+     Category/Course/Log-hours all ran together on one line): this form was
+     never wired up to the label/input/select block-stacking rules every
+     other form on the page gets via .signup-form (confirmed: dr-add-staff-
+     form and dr-mobility-form both use that class correctly; this panel's
+     form never did). label/select/input are inline-level by default, so
+     with nothing forcing a line break they just flowed left-to-right and
+     wrapped wherever they ran out of room -- exactly the reported layout.
+     Same rules .signup-form already uses, scoped to this form specifically
+     rather than adding the .signup-form class wholesale, since that class
+     also sets its own border/padding/background and .dr-cpe-log-panel
+     already has its own (adding both would double the box chrome). */
+  .dr-cpe-log-panel form label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.75rem 0 0.3rem; }
+  .dr-cpe-log-panel form label:first-of-type { margin-top: 0; }
+  .dr-cpe-log-panel form input, .dr-cpe-log-panel form select {
+    width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: 0.95rem; font-family: inherit;
+  }
+  .dr-cpe-log-panel form button {
+    margin-top: 1rem; padding: 0.6rem 1.1rem; border: none; border-radius: 6px;
+    background: var(--accent); color: var(--on-accent); font-size: 0.95rem; font-weight: 700; cursor: pointer;
+  }
+  .dr-cpe-log-panel form button:hover { opacity: 0.92; }
   .dr-cpe-recent-item { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; font-size: 0.85rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
   .dr-cpe-recent-item:last-child { border-bottom: none; }
   .dr-cpe-recent-remove { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 6px; padding: 0.2rem 0.55rem; cursor: pointer; font-family: inherit; font-size: 0.78rem; }
@@ -5155,11 +5198,17 @@ function drRenderRow(item) {
   var emailTitle = drEditingId === item.id ? '' : ' title="' + drEscapeHtml(item.email) + '"';
   var staffTitle = (drEditingId !== item.id && item.staff_label) ? ' title="' + drEscapeHtml(item.staff_label) + '"' : '';
   var stateTitle = item.state_name ? ' title="' + drEscapeHtml(item.state_name) + '"' : '';
+  // Reported directly ("wouldn't everyone have a license type?"): fall back
+  // to the state's own single-record default (see DR_DEFAULT_LICENSE_TYPE_ID's
+  // own comment on the Python side for exactly which states qualify and
+  // why) -- display-only, never sent back to the server, never overrides a
+  // real stored license_type_id.
+  var licenseTypeIdForDisplay = item.license_type_id || DR_DEFAULT_LICENSE_TYPE_ID[item.state_slug];
   return '<tr data-id="' + idAttr + '">' +
     '<td data-label="Staff"' + staffTitle + '>' + staffCell + '</td>' +
     '<td data-label="Email" class="dr-cell-email"' + emailTitle + '>' + emailCell + '</td>' +
     '<td data-label="State"' + stateTitle + '>' + drEscapeHtml(item.state_name || '') + '</td>' +
-    '<td data-label="License type">' + drEscapeHtml(drPrettyLicenseType(item.license_type_id)) + '</td>' +
+    '<td data-label="License type">' + drEscapeHtml(drPrettyLicenseType(licenseTypeIdForDisplay)) + '</td>' +
     '<td data-label="Status"><span class="mock-status ' + statusClass + '">' + drEscapeHtml(statusLabel) + '</span></td>' +
     '<td data-label="Next deadline">' + drEscapeHtml(drFormatDeadline(item.next_deadline)) + '</td>' +
     '<td data-label="Actions" class="dr-actions">' + actionsCell + '</td>' +
@@ -7081,6 +7130,29 @@ def build_firm_dashboard_page(
         }
         for slug, rec in cpe_hours_by_slug.items()
     }
+    # AuditLab-adjacent finding, reported directly ("wouldn't everyone have a
+    # license type?" -- 2026-08-04): the roster's License type column showed
+    # "-" for most rows, not because the license type was unknown but because
+    # license_type_id is only ever COLLECTED for states with real ambiguity
+    # (the 18-state "Which license?" dropdown, computeSubscriberDeadline's
+    # own `computed.length > 1` branch) -- every other state has exactly one
+    # real answer that was simply never asked for or stored. For a
+    # single-record state that one answer is unambiguous by construction, so
+    # it's safe to fill in as a display-only default -- this does NOT touch
+    # what's stored on the subscriber row, only what the roster shows when
+    # license_type_id is empty. Matches computeSubscriberDeadline's own
+    # criterion exactly (worker/src/deadline.ts): a state contributes a
+    # default only when it has exactly one record, full stop -- California/
+    # Texas/Ohio's single record and every one-record "bring your own date"
+    # state (no next_deadline_computed at all) are included on the same
+    # basis; the 18 real two-record states are deliberately excluded even
+    # when a subscriber there also never picked one, because THAT case is a
+    # genuine unresolved ambiguity, not a settled fact -- "-" stays honest
+    # for those, matching this site's own no-guessing standard everywhere
+    # else.
+    default_license_type_id_json = {
+        slug: recs[0]["id"] for slug, recs in by_slug.items() if len(recs) == 1
+    }
     # Sidebar nav: Roster/Calendar/Map are real in-page tabs (2026-07-30, BUILD
     # v2 Phase D -- all three render from the SAME already-fetched drLicenses,
     # no separate page load/re-auth). Reports/Documents are still BUILD v2
@@ -7258,6 +7330,7 @@ def build_firm_dashboard_page(
 
 <script>
 var DR_CPE_REQUIREMENTS = {json.dumps(cpe_requirements_json)};
+var DR_DEFAULT_LICENSE_TYPE_ID = {json.dumps(default_license_type_id_json)};
 </script>
 
 {_FIRM_DASHBOARD_JS_HTML}

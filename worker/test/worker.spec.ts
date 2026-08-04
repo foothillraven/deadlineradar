@@ -1554,11 +1554,11 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
     expect(typeof item?.confirmed_at).toBe("string"); // HYBRID model: confirmed immediately
     expect(item?.stopped_at).toBeNull();
     expect(item?.stop_reason).toBeNull();
-    // No fabricated "renewed_at" -- this schema has no such fact yet (see
-    // toFirmLicenseJson()'s own comment), so the field must not exist at all
-    // rather than exist as an invented/null placeholder that could later be
-    // mistaken for real data.
-    expect(item).not.toHaveProperty("renewed_at");
+    // renewed_at/last_edited_at (migration 0017, 2026-08-04): real facts now,
+    // not fabricated -- null until the first PATCH or .../renew actually
+    // touches this row, which a fresh admin-added record never has.
+    expect(item?.renewed_at).toBeNull();
+    expect(item?.last_edited_at).toBeNull();
 
     // Firm B's roster must never see firm A's staff or their timestamps.
     const listB = (await (await getFirmLicenses(cookieB)).json()) as { licenses: Array<Record<string, unknown>> };
@@ -1747,11 +1747,17 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
     await store.confirm(env.DB, originalRow!.confirm_token);
 
     // Label-only edit: does not touch state/email/confirmation status.
+    expect(originalRow?.last_edited_at).toBeNull();
     const labelPatch = await patchFirmLicense(cookie, createdBody.id, { staff_label: "New Label" });
     expect(labelPatch.status).toBe(200);
     const afterLabel = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(createdBody.id).first<SubscriberRow>();
     expect(afterLabel?.staff_label).toBe("New Label");
     expect(afterLabel?.status).toBe(store.STATUS_CONFIRMED); // unchanged -- no email edit here
+    // last_edited_at (migration 0017): a rename must be a real, distinct fact
+    // in the audit trail, not silently indistinguishable from the original
+    // "added to the roster" activity entry (reported directly, 2026-08-04).
+    expect(afterLabel?.last_edited_at).toBeTruthy();
+    expect(afterLabel?.created_at).toBe(originalRow?.created_at); // an edit must never touch created_at
 
     // Email edit: must force back through pending_confirmation (see
     // UpdateFirmLicenseInput.resetConfirmation's own doc for why) -- editing
@@ -2214,6 +2220,12 @@ describe("POST /firm/licenses/:id/renew -- atomic renew-and-rearm (Part A #5)", 
     // remain valid.
     expect(after?.unsubscribe_token).not.toBe(beforeRenew?.unsubscribe_token);
     expect(after?.renewed_token).not.toBe(beforeRenew?.renewed_token);
+    // renewed_at (migration 0017) -- the real "when was this last renewed"
+    // fact the dashboard's activity feed was missing (reported directly,
+    // 2026-08-04: "Mark renewed" gave zero visible feedback).
+    expect(beforeRenew?.renewed_at).toBeNull();
+    expect(after?.renewed_at).toBeTruthy();
+    expect(body).toHaveProperty("renewed_at");
   });
 
   it("refuses a record that never confirmed (nothing to renew) -- defense-in-depth: since the HYBRID consent model (2026-07-28), the real POST /firm/licenses route always creates an ACTIVE record (skipConfirmation), so a firm-scoped pending row is no longer reachable through the normal add-staff path. Constructs one directly at the store layer to prove renewAndRearm's own guard still holds regardless of how such a row exists (a legacy record, or a future call site that forgets to skip confirmation).", async () => {

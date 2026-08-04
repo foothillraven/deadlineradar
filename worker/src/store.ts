@@ -92,6 +92,13 @@ export interface SubscriberRow {
   // D. -- Audit team"), deliberately separate from first_name (see that
   // migration's own comment). NULL for every free-tier row.
   staff_label: string | null;
+  // migration 0017. NULL until the first PATCH /firm/licenses/:id (an admin
+  // edit) or POST .../renew (a marked-renewed) respectively -- these are the
+  // real facts toFirmLicenseJson()'s old comment said didn't exist yet. Both
+  // feed the dashboard's Recent Activity panel as their own distinct event
+  // types, separate from 'added' (see generate.py's drRenderActivity()).
+  last_edited_at: string | null;
+  renewed_at: string | null;
 }
 
 function nowIso(): string {
@@ -300,6 +307,8 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     // validation, same defense-in-depth rationale as sanitizeFirstName()
     // above.
     staff_label: sanitizeFreeText(input.staffLabel, MAX_STAFF_LABEL_LEN),
+    last_edited_at: null,
+    renewed_at: null,
   };
   await db
     .prepare(
@@ -1161,13 +1170,15 @@ export async function updateFirmLicense(
     remindersSent = "[]";
   }
 
+  const lastEditedAt = nowIso();
+
   await db
     .prepare(
       `UPDATE subscribers
        SET email = ?1, cooldown_key = ?2, staff_label = ?3, state_slug = ?4, deadline_fields = ?5,
            deadline_source = ?6, user_deadline = ?7, status = ?8, confirmed_at = ?9, confirm_token = ?10,
-           stopped_at = ?11, stop_reason = ?12, reminders_sent = ?13
-       WHERE id = ?14 AND firm_id = ?15`
+           stopped_at = ?11, stop_reason = ?12, reminders_sent = ?13, last_edited_at = ?14
+       WHERE id = ?15 AND firm_id = ?16`
     )
     .bind(
       input.email,
@@ -1183,6 +1194,7 @@ export async function updateFirmLicense(
       stoppedAt,
       stopReason,
       remindersSent,
+      lastEditedAt,
       id,
       firmId
     )
@@ -1203,6 +1215,7 @@ export async function updateFirmLicense(
     stopped_at: stoppedAt,
     stop_reason: stopReason,
     reminders_sent: remindersSent,
+    last_edited_at: lastEditedAt,
   };
 }
 
@@ -1256,14 +1269,15 @@ export async function removeFirmLicense(db: D1Database, firmId: string, id: stri
 async function applyRenewAndRearm(db: D1Database, row: SubscriberRow): Promise<SubscriberRow> {
   const newUnsubscribeToken = newToken();
   const newRenewedToken = newToken();
+  const renewedAt = nowIso();
   await db
     .prepare(
       `UPDATE subscribers
        SET status = ?1, stopped_at = NULL, stop_reason = NULL, reminders_sent = '[]',
-           cycle = cycle + 1, unsubscribe_token = ?2, renewed_token = ?3
-       WHERE id = ?4`
+           cycle = cycle + 1, unsubscribe_token = ?2, renewed_token = ?3, renewed_at = ?4
+       WHERE id = ?5`
     )
-    .bind(STATUS_CONFIRMED, newUnsubscribeToken, newRenewedToken, row.id)
+    .bind(STATUS_CONFIRMED, newUnsubscribeToken, newRenewedToken, renewedAt, row.id)
     .run();
   return {
     ...row,
@@ -1274,6 +1288,7 @@ async function applyRenewAndRearm(db: D1Database, row: SubscriberRow): Promise<S
     cycle: (row.cycle ?? 1) + 1,
     unsubscribe_token: newUnsubscribeToken,
     renewed_token: newRenewedToken,
+    renewed_at: renewedAt,
   };
 }
 

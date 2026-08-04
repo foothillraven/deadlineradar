@@ -138,13 +138,69 @@ import {
 } from "./mobility";
 import { checkPremiumAccess, entitlementMessage } from "./entitlements";
 
-function htmlPage(title: string, bodyHtml: string): string {
+const SITE_NAME_FOR_WORKER = "DeadlineRadar";
+
+// Brand glyph, kept in sync by eye with generate.py's _BRAND_GLYPH_SVG --
+// this worker has no build-time dependency on the static site's Python, so
+// the two copies must be updated together if the mark ever changes.
+const _WORKER_BRAND_GLYPH_SVG = `<svg viewBox="0 0 32 32" fill="none" aria-hidden="true" width="24" height="24">
+  <circle cx="16" cy="16" r="13.5" stroke="#1f3d54" stroke-width="1.6"/>
+  <circle cx="16" cy="16" r="8" stroke="#c8d2db" stroke-width="1.2"/>
+  <circle cx="16" cy="16" r="2.3" fill="#8a6a33"/>
+  <path d="M16 16 L26 9" stroke="#8a6a33" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M16 3.5 L16 6" stroke="#1f3d54" stroke-width="1.6" stroke-linecap="round"/>
+</svg>`;
+
+// Reported directly, 2026-08-04: every one of these transactional pages
+// (subscribe/confirm/unsubscribe/renew/rearm/login-verify -- the entire
+// first-time consumer conversion funnel, landing right after a styled
+// email) rendered as plain white/default-serif with no branding, "looks
+// broken/abandoned mid-flow." This worker deliberately does NOT import
+// generate.py's full page shell (52KB of inlined CSS per AuditLab's PERF-1)
+// -- these are single-purpose action pages, not the marketing site, so a
+// small purpose-built shell matching the SAME color tokens generate.py uses
+// (light/dark via prefers-color-scheme, same hex values) is the right size
+// for the job. homeUrl defaults to "" (a relative "/") because
+// STATIC_SITE_BASE_URL is only ever set in preview/staging (see this file's
+// other env.STATIC_SITE_BASE_URL call sites) -- production always resolves
+// "/" correctly on the same origin.
+function htmlPage(title: string, bodyHtml: string, homeUrl = ""): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
-<style>body{font-family:-apple-system,sans-serif;max-width:520px;margin:3rem auto;padding:0 1.25rem;line-height:1.5;}</style>
-</head><body>${bodyHtml}</body></html>`;
+<style>
+:root{color-scheme:light dark}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{min-height:100vh;display:flex;flex-direction:column;background:#f7f9fb;color:#17212b;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.55}
+@media (prefers-color-scheme:dark){body{background:#12151a;color:#e7ebf0}}
+.dr-hdr{padding:1rem 1.25rem;border-bottom:1px solid #e0e6ec}
+@media (prefers-color-scheme:dark){.dr-hdr{border-bottom-color:#2a323c}}
+.dr-hdr a{display:inline-flex;align-items:center;gap:.5rem;color:inherit;text-decoration:none;font-weight:700;font-size:1.05rem}
+.dr-main{flex:1;display:flex;align-items:center;justify-content:center;padding:2.5rem 1.25rem}
+.dr-card{max-width:440px;width:100%;background:#fff;border:1px solid #e0e6ec;border-radius:12px;padding:2rem}
+@media (prefers-color-scheme:dark){.dr-card{background:#1a1f26;border-color:#2a323c}}
+.dr-card h1{margin:0 0 .6rem;font-size:1.3rem;line-height:1.3}
+.dr-card p{margin:0 0 1rem;color:#5a6b7a}
+@media (prefers-color-scheme:dark){.dr-card p{color:#9aa5b1}}
+.dr-card p:last-child{margin-bottom:0}
+.dr-card a{color:#1f3d54}
+@media (prefers-color-scheme:dark){.dr-card a{color:#7fa8d9}}
+.dr-card button{font:inherit;font-size:1rem;font-weight:700;padding:.75rem 1.5rem;border:0;border-radius:8px;background:#1f3d54;color:#fff;cursor:pointer;width:100%}
+@media (prefers-color-scheme:dark){.dr-card button{background:#7fa8d9;color:#0d1824}}
+.dr-card button:hover{opacity:.92}
+.dr-card input[type=password]{width:100%;font-size:16px;padding:.6rem .7rem;border:1px solid #e0e6ec;border-radius:6px;background:#fff;color:inherit;font-family:inherit}
+@media (prefers-color-scheme:dark){.dr-card input[type=password]{background:#12151a;border-color:#2a323c}}
+.dr-card label{display:block;font-size:.8rem;margin-bottom:.3rem}
+.dr-ftr{padding:1.25rem;text-align:center;font-size:.78rem;color:#5a6b7a}
+@media (prefers-color-scheme:dark){.dr-ftr{color:#9aa5b1}}
+</style>
+</head><body>
+<div class="dr-hdr"><a href="${escapeHtml(homeUrl)}/">${_WORKER_BRAND_GLYPH_SVG}<span>${escapeHtml(SITE_NAME_FOR_WORKER)}</span></a></div>
+<div class="dr-main"><div class="dr-card">${bodyHtml}</div></div>
+<div class="dr-ftr">${escapeHtml(SITE_NAME_FOR_WORKER)} is an independent reminder service. Not affiliated with any state board of accountancy.</div>
+</body></html>`;
 }
 
 // Copy for the GET confirmation pages -- the landing page an action link opens.
@@ -352,13 +408,11 @@ async function actionConfirmPage(pathname: string, token: string, env: Env): Pro
   const tokenPurpose = pathname === "/firm/login/verify" ? await store.peekLoginTokenPurpose(env.DB, token) : null;
   const passwordFieldHtml =
     pathname === "/firm/login/verify" && tokenPurpose !== "password_reset"
-      ? `<div style="margin:1rem 0;text-align:left;">` +
-        `<label for="dr-optional-password" style="display:block;font-size:13px;margin-bottom:0.3rem;">` +
+      ? `<div style="margin:0 0 1rem;">` +
+        `<label for="dr-optional-password">` +
         `Optional: set a password now, so you can skip this email next time</label>` +
         `<input type="password" id="dr-optional-password" name="new_password" minlength="12" ` +
-        `autocomplete="new-password" placeholder="At least 12 characters" ` +
-        `style="width:100%;box-sizing:border-box;font-size:16px;padding:10px 12px;` +
-        `border:1px solid #ccc;border-radius:6px;">` +
+        `autocomplete="new-password" placeholder="At least 12 characters">` +
         `</div>`
       : "";
   // Same purpose peek as the password field above: a password-reset link
@@ -372,12 +426,11 @@ async function actionConfirmPage(pathname: string, token: string, env: Env): Pro
   const body =
     `<h1>${escapeHtml(meta.heading)}</h1>` +
     `<p>${escapeHtml(intro)}</p>` +
-    `<form method="post" action="${escapeHtml(action)}" style="margin-top:1.5rem;">` +
+    `<form method="post" action="${escapeHtml(action)}">` +
     `<input type="hidden" name="token" value="${escapeHtml(token)}">` +
     csrfFieldHtml +
     passwordFieldHtml +
-    `<button type="submit" style="font-size:16px;padding:12px 24px;border:0;border-radius:8px;` +
-    `background:#1f5fbf;color:#fff;font-weight:700;cursor:pointer;">${escapeHtml(meta.button)}</button>` +
+    `<button type="submit">${escapeHtml(meta.button)}</button>` +
     `</form>`;
   const headers: Record<string, string> = { "Content-Type": "text/html; charset=utf-8" };
   if (nonce) headers["Set-Cookie"] = actionCsrfSetCookieHeader(`${pathname}|${nonce}`, env);
@@ -1877,14 +1930,16 @@ function toFirmLicenseJson(row: store.SubscriberRow, asOf: Date): Record<string,
     // 2026-07-30 (BUILD v2 Phase B) -- surfaces columns this table has always
     // had (created_at since migration 0001, confirmed_at/stopped_at/
     // stop_reason since the HYBRID consent model) for the dashboard's
-    // "recent activity" panel. Deliberately does NOT add a "renewed_at":
-    // renewAndRearm() (this file, POST /firm/licenses/:id/renew) only bumps
-    // `cycle`, never a timestamp -- there is no real "when was this last
-    // renewed" fact in this schema yet, so the dashboard doesn't claim one.
+    // "recent activity" panel. last_edited_at/renewed_at (migration 0017,
+    // 2026-08-04) closed the gap this comment used to describe -- PATCH and
+    // POST .../renew now stamp real timestamps for those facts instead of
+    // the dashboard having nothing to show for an edit or a renewal.
     created_at: row.created_at,
     confirmed_at: row.confirmed_at,
     stopped_at: row.stopped_at,
     stop_reason: row.stop_reason,
+    last_edited_at: row.last_edited_at,
+    renewed_at: row.renewed_at,
   };
 }
 

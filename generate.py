@@ -5178,6 +5178,7 @@ var drLicenses = [];
 var drEditingId = null;
 
 function drShowError(msg) {
+  drClearSuccess();
   var el = document.getElementById('dr-dash-error');
   if (!el) return;
   el.textContent = msg;
@@ -5185,6 +5186,22 @@ function drShowError(msg) {
 }
 function drClearError() {
   var el = document.getElementById('dr-dash-error');
+  if (!el) return;
+  el.hidden = true;
+  el.textContent = '';
+}
+// Mirrors drShowError/drClearError -- same single-banner pattern, separate
+// element so a success message never collides with role="alert" (an
+// assistive-tech alert role is for problems, not confirmations).
+function drShowSuccess(msg) {
+  drClearError();
+  var el = document.getElementById('dr-dash-success');
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = false;
+}
+function drClearSuccess() {
+  var el = document.getElementById('dr-dash-success');
   if (!el) return;
   el.hidden = true;
   el.textContent = '';
@@ -5287,10 +5304,12 @@ function drRenderTable() {
 // gauge, status donut, staff-at-risk list, recent-activity feed. All computed
 // client-side from the SAME drLicenses array the roster table already uses --
 // no new endpoint, no new data beyond the created_at/confirmed_at/stopped_at/
-// stop_reason/firm_name fields the API now also returns (index.ts's
-// toFirmLicenseJson()/handleFirmLicensesList()). Deliberately no fabricated
-// "renewed" activity type -- see toFirmLicenseJson()'s own comment for why
-// that fact doesn't exist yet in this schema.
+// stop_reason/last_edited_at/renewed_at/firm_name fields the API returns
+// (index.ts's toFirmLicenseJson()/handleFirmLicensesList()). 'edited' and
+// 'renewed' events (added 2026-08-04, migration 0017) read last_edited_at/
+// renewed_at -- real server timestamps, not fabricated from a client-side
+// guess -- so an admin action is never silently indistinguishable from the
+// original "added to the roster" event in the audit trail.
 // ---------------------------------------------------------------------------
 
 // Whole-day difference between an ISO date (YYYY-MM-DD, UTC-anchored, same
@@ -5454,8 +5473,14 @@ function drRenderAtRisk() {
   el.innerHTML = html;
 }
 
-var DR_ACTIVITY_LABELS = {added: 'added to the roster', confirmed: 'went active', optout: 'opted out of reminders'};
-var DR_ACTIVITY_DOT_CLASS = {added: '', confirmed: 'dr-activity-dot--confirm', optout: 'dr-activity-dot--optout'};
+var DR_ACTIVITY_LABELS = {
+  added: 'added to the roster', confirmed: 'went active', optout: 'opted out of reminders',
+  edited: 'record updated', renewed: 'marked renewed'
+};
+var DR_ACTIVITY_DOT_CLASS = {
+  added: '', confirmed: 'dr-activity-dot--confirm', optout: 'dr-activity-dot--optout',
+  edited: '', renewed: 'dr-activity-dot--confirm'
+};
 
 function drRenderActivity() {
   var el = document.getElementById('dr-activity-list');
@@ -5474,6 +5499,10 @@ function drRenderActivity() {
       events.push({type: 'confirmed', at: item.confirmed_at, name: name});
     }
     if (item.status === 'opted_out' && item.stopped_at) events.push({type: 'optout', at: item.stopped_at, name: name});
+    // 'edited'/'renewed' -- migration 0017. Both null until the first PATCH
+    // / .../renew ever hits this row, so most records never contribute one.
+    if (item.last_edited_at) events.push({type: 'edited', at: item.last_edited_at, name: name});
+    if (item.renewed_at) events.push({type: 'renewed', at: item.renewed_at, name: name});
   });
   events.sort(function(a, b) { return new Date(b.at).getTime() - new Date(a.at).getTime(); });
   events = events.slice(0, 6);
@@ -6452,7 +6481,7 @@ function drLoadLicenses() {
     });
 }
 
-function drRenewLicense(id, btn) {
+function drRenewLicense(id, btn, label) {
   // AuditLab IDEM-2 (LOW, 2026-08-04): a double-clicked "Mark renewed"
   // reached the server twice, advancing `cycle` twice and burning both
   // unsubscribe/renewed tokens the first response minted before anything
@@ -6474,6 +6503,13 @@ function drRenewLicense(id, btn) {
           if (btn) btn.disabled = false;
           return;
         }
+        // Reported directly, 2026-08-04: clicking this gave no toast, no
+        // error, no visible change -- indistinguishable from doing nothing.
+        // The write DID succeed (renewed_at is now a real column, migration
+        // 0017); a fixed-calendar state's computed next deadline correctly
+        // does not move just because someone renewed early, so this
+        // confirmation is the only signal a CPA has that the click landed.
+        drShowSuccess((label || 'Staff member') + ' marked renewed.');
         drLoadLicenses();
       });
     })
@@ -6494,6 +6530,7 @@ function drRemoveLicense(id, label) {
           drShowError(data && data.error ? data.error : 'Something went wrong, please try again.');
           return;
         }
+        drShowSuccess((label || 'Staff member') + ' removed from the roster.');
         drLoadLicenses();
       });
     })
@@ -6519,6 +6556,7 @@ function drSaveEdit(id, tr) {
         return;
       }
       drEditingId = null;
+      drShowSuccess((body.staff_label || body.email) + ' updated.');
       drLoadLicenses();
     });
   }).catch(function() { drShowError('Something went wrong, please try again.'); });
@@ -6620,7 +6658,11 @@ document.addEventListener('DOMContentLoaded', function() {
       } else if (btn.classList.contains('dr-btn-save')) {
         drSaveEdit(id, btn.closest('tr'));
       } else if (btn.classList.contains('dr-btn-renew')) {
-        drRenewLicense(id, btn);
+        var renewItem = null;
+        for (var j = 0; j < drLicenses.length; j++) {
+          if (drLicenses[j].id === id) { renewItem = drLicenses[j]; break; }
+        }
+        drRenewLicense(id, btn, renewItem ? (renewItem.staff_label || renewItem.email) : null);
       } else if (btn.classList.contains('dr-btn-remove')) {
         var item = null;
         for (var i = 0; i < drLicenses.length; i++) {
@@ -7225,6 +7267,7 @@ def build_firm_dashboard_page(
 
   <div class="dr-main">
     <div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" role="alert" hidden></div>
+    <div id="dr-dash-success" class="callout" style="border-left-color:var(--verified-green);" role="status" hidden></div>
     <div id="dr-staleness-banner" class="callout" style="border-left-color:#b8860b;" hidden></div>
 
     <div id="dr-view-roster" class="dr-view" role="tabpanel">

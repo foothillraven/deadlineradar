@@ -1093,18 +1093,54 @@ PAGE_CSS = """
      included) restores the actual intent -- the table can grow past 100%
      and .table-wrap's existing overflow-x:auto scrolls to it, while still
      shrinking to fit when the container genuinely has 67rem to spare. */
-  .dr-roster-panel table { width: 100%; min-width: 67rem; table-layout: fixed; }
+  /* 2026-08-04, reported directly ("no Status or expiration column" --
+     a real defect the automated audit never caught: the columns
+     were never missing, they were scrolled off-screen behind the sticky
+     Actions column, on EVERY normal desktop viewport, not just narrow ones
+     -- the 67rem budget above assumed generous per-column widths that
+     nothing here actually needed. Re-measured every column's real worst-
+     realistic-case text width in a live browser (this exact area has
+     already regressed twice from guessing instead of measuring -- the "Sta"
+     cut-off bug, then the "squeezed to near-zero" bug): Status's worst case
+     ("Needs attention") measured 6.55rem -- the OLD 6rem budget was already
+     slightly undersized for its own worst case. Next-deadline's real format
+     is "Dec 31, 2026" (short month, drFormatDeadline's actual
+     toLocaleDateString option), not the "December 31, 2026" a guess might
+     assume -- only 6.83rem needed, half again what 8rem allocated. Staff
+     and State now get the SAME ellipsis-truncate-with-title-tooltip
+     treatment Email already had (State's one long outlier, "District of
+     Columbia" at 9.66rem, would otherwise force every other row's State
+     column needlessly wide for one jurisdiction's sake -- truncated, its
+     full name is still one hover away). New sum: 6+6+5.5+7+7+7+15 = 53.5rem,
+     not 67rem -- min-width follows it exactly, same reasoning as the
+     original fix (table-layout: fixed's proportional-squeeze behavior below
+     100% width is still real, this just needs a smaller floor to squeeze
+     from). Verified against the ACTUAL rendered table.scrollWidth in a
+     browser, not just added up on paper -- the per-column width sum and
+     min-width must match exactly or the columns silently render wider than
+     this comment claims, which is exactly the mistake caught here before
+     it shipped (first pass declared min-width: 42rem while the real
+     per-column sum was 54.5rem -- a 12rem gap between what the CSS said
+     and what it actually rendered). */
+  .dr-roster-panel table { width: 100%; min-width: 53.5rem; table-layout: fixed; }
   .dr-roster-panel td, .dr-roster-panel th { white-space: nowrap; }
-  .dr-roster-panel th:nth-child(1), .dr-roster-panel td:nth-child(1) { width: 9rem; }  /* Staff */
-  .dr-roster-panel th:nth-child(2), .dr-roster-panel td:nth-child(2) { width: 14rem; } /* Email */
-  .dr-roster-panel th:nth-child(3), .dr-roster-panel td:nth-child(3) { width: 7rem; }  /* State */
-  .dr-roster-panel th:nth-child(4), .dr-roster-panel td:nth-child(4) { width: 8rem; }  /* License type */
-  .dr-roster-panel th:nth-child(5), .dr-roster-panel td:nth-child(5) { width: 6rem; }  /* Status */
-  .dr-roster-panel th:nth-child(6), .dr-roster-panel td:nth-child(6) { width: 8rem; }  /* Next deadline */
-  .dr-roster-panel th:nth-child(7), .dr-roster-panel td:nth-child(7) { width: 15rem; } /* Actions -- matches the 3-button group's measured natural width (~237px) */
+  .dr-roster-panel th:nth-child(1), .dr-roster-panel td:nth-child(1) { width: 7rem; }  /* Staff -- weighted a bit heavier than Email/State: it's the primary "who is this row" identifier, measured ~7.6rem for a typical two-word name */
+  .dr-roster-panel th:nth-child(2), .dr-roster-panel td:nth-child(2) { width: 5rem; }  /* Email -- already the established "expected to truncate, full value on hover" column before this fix */
+  .dr-roster-panel th:nth-child(3), .dr-roster-panel td:nth-child(3) { width: 5.5rem; } /* State */
+  .dr-roster-panel th:nth-child(4), .dr-roster-panel td:nth-child(4) { width: 7rem; }  /* License type */
+  .dr-roster-panel th:nth-child(5), .dr-roster-panel td:nth-child(5) { width: 7rem; }  /* Status -- was 6rem, undersized for its own worst case */
+  .dr-roster-panel th:nth-child(6), .dr-roster-panel td:nth-child(6) { width: 7rem; }  /* Next deadline -- was 8rem, oversized for its actual short-month format */
+  .dr-roster-panel th:nth-child(7), .dr-roster-panel td:nth-child(7) { width: 15rem; } /* Actions -- UNCHANGED, matches the 3-button group's measured natural width (~237px); shrinking this specifically is what caused the original overlap bug */
 
-  /* Email: the width hog. Truncate, full value on hover/focus via title. */
-  .dr-roster-panel td.dr-cell-email {
+  /* Truncate with an ellipsis, full value on hover/focus via title --
+     Email always had this; Staff and State get it now too (2026-08-04),
+     since all three can run longer than their allotted column width and
+     the alternative (generous fixed widths for rare long values) is what
+     pushed the table's total width past what any normal viewport has to
+     give it in the first place. */
+  .dr-roster-panel td.dr-cell-email,
+  .dr-roster-panel td:nth-child(1),
+  .dr-roster-panel td:nth-child(3) {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
@@ -1173,8 +1209,12 @@ PAGE_CSS = """
     /* Must also undo the desktop nowrap/ellipsis, not just max-width: a long
        address kept forcing the card wider than the viewport and reintroduced
        horizontal scrolling on phones -- the exact problem this fix is for.
-       Caught by measuring scrollWidth at 390px, not by eye. */
-    .dr-roster-panel td.dr-cell-email {
+       Caught by measuring scrollWidth at 390px, not by eye. Staff (nth-child
+       1) and State (nth-child 3) get the identical reset now that they
+       truncate on desktop too (2026-08-04) -- same trap, same fix. */
+    .dr-roster-panel td.dr-cell-email,
+    .dr-roster-panel td:nth-child(1),
+    .dr-roster-panel td:nth-child(3) {
       max-width: none; text-align: right;
       white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere;
     }
@@ -5110,11 +5150,15 @@ function drRenderRow(item) {
   // via ::before), so the header row can be hidden without losing meaning.
   // The email cell also carries title= so truncation never destroys the
   // actual address -- it stays available on hover and to screen readers.
+  // Staff and State get the same treatment now (2026-08-04) now that their
+  // columns truncate too -- see the CSS comment on why they truncate at all.
   var emailTitle = drEditingId === item.id ? '' : ' title="' + drEscapeHtml(item.email) + '"';
+  var staffTitle = (drEditingId !== item.id && item.staff_label) ? ' title="' + drEscapeHtml(item.staff_label) + '"' : '';
+  var stateTitle = item.state_name ? ' title="' + drEscapeHtml(item.state_name) + '"' : '';
   return '<tr data-id="' + idAttr + '">' +
-    '<td data-label="Staff">' + staffCell + '</td>' +
+    '<td data-label="Staff"' + staffTitle + '>' + staffCell + '</td>' +
     '<td data-label="Email" class="dr-cell-email"' + emailTitle + '>' + emailCell + '</td>' +
-    '<td data-label="State">' + drEscapeHtml(item.state_name || '') + '</td>' +
+    '<td data-label="State"' + stateTitle + '>' + drEscapeHtml(item.state_name || '') + '</td>' +
     '<td data-label="License type">' + drEscapeHtml(drPrettyLicenseType(item.license_type_id)) + '</td>' +
     '<td data-label="Status"><span class="mock-status ' + statusClass + '">' + drEscapeHtml(statusLabel) + '</span></td>' +
     '<td data-label="Next deadline">' + drEscapeHtml(drFormatDeadline(item.next_deadline)) + '</td>' +

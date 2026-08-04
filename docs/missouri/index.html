@@ -668,18 +668,21 @@
   
   
   
-  .dr-roster-panel table { width: 100%; min-width: 67rem; table-layout: fixed; }
+  
+  .dr-roster-panel table { width: 100%; min-width: 53.5rem; table-layout: fixed; }
   .dr-roster-panel td, .dr-roster-panel th { white-space: nowrap; }
-  .dr-roster-panel th:nth-child(1), .dr-roster-panel td:nth-child(1) { width: 9rem; }  
-  .dr-roster-panel th:nth-child(2), .dr-roster-panel td:nth-child(2) { width: 14rem; } 
-  .dr-roster-panel th:nth-child(3), .dr-roster-panel td:nth-child(3) { width: 7rem; }  
-  .dr-roster-panel th:nth-child(4), .dr-roster-panel td:nth-child(4) { width: 8rem; }  
-  .dr-roster-panel th:nth-child(5), .dr-roster-panel td:nth-child(5) { width: 6rem; }  
-  .dr-roster-panel th:nth-child(6), .dr-roster-panel td:nth-child(6) { width: 8rem; }  
+  .dr-roster-panel th:nth-child(1), .dr-roster-panel td:nth-child(1) { width: 7rem; }  
+  .dr-roster-panel th:nth-child(2), .dr-roster-panel td:nth-child(2) { width: 5rem; }  
+  .dr-roster-panel th:nth-child(3), .dr-roster-panel td:nth-child(3) { width: 5.5rem; } 
+  .dr-roster-panel th:nth-child(4), .dr-roster-panel td:nth-child(4) { width: 7rem; }  
+  .dr-roster-panel th:nth-child(5), .dr-roster-panel td:nth-child(5) { width: 7rem; }  
+  .dr-roster-panel th:nth-child(6), .dr-roster-panel td:nth-child(6) { width: 7rem; }  
   .dr-roster-panel th:nth-child(7), .dr-roster-panel td:nth-child(7) { width: 15rem; } 
 
   
-  .dr-roster-panel td.dr-cell-email {
+  .dr-roster-panel td.dr-cell-email,
+  .dr-roster-panel td:nth-child(1),
+  .dr-roster-panel td:nth-child(3) {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
@@ -725,7 +728,9 @@
       font-size: 0.78rem; flex: 0 0 auto;
     }
     
-    .dr-roster-panel td.dr-cell-email {
+    .dr-roster-panel td.dr-cell-email,
+    .dr-roster-panel td:nth-child(1),
+    .dr-roster-panel td:nth-child(3) {
       max-width: none; text-align: right;
       white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere;
     }

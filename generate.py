@@ -359,7 +359,9 @@ PAGE_CSS = """
   :root {
     color-scheme: light dark;
     /* Tokens match the approved design concept exactly. */
-    --bg: #f7f9fb; --page-bg: #f7f9fb; --fg: #17212b; --muted: #5a6b7a; --faint: #8595a3;
+    --bg: #f7f9fb; --page-bg: #f7f9fb; --fg: #17212b; --muted: #5a6b7a;
+    /* AuditLab UX-3: the original light-mode value (#8595a3) was 3.08:1 against card-bg / 2.92:1 against page-bg on 12 small-text rules including disclaimer/trust copy (needs 4.5, and light mode is the default for most visitors). This one clears both (5.17 / 4.90) while staying lighter than --muted. */
+    --faint: #5e6f80;
     --border: #e0e6ec; --border-strong: #c8d2db;
     --accent: #1f3d54; --accent-deep: #152c3e; --accent-bg: #eaeef1; --card-bg: #ffffff;
     --on-accent: #fff;

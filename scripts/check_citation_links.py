@@ -16,10 +16,11 @@ don't implement HEAD). Reports non-2xx results.
 This is a REPORT-ONLY, MANUALLY-RUN advisory -- like
 worker_deploy_staleness_check.py, it does not fail preship_gate.py and
 never edits data. A non-200 here is a strong signal to go verify in an
-actual browser before touching the citation (some state sites 403
-automated requests on pages that are perfectly live -- see the 2026-08-03
-fix commit for two real examples of that in both directions), not proof by
-itself that a citation is dead.
+actual browser before touching the citation, not proof by itself that a
+citation is dead -- some state/legislature sites 403 OR 404 automated
+requests on pages that are perfectly live (e.g. legislature.mi.gov, caught
+2026-08-03: 404 to this script, loads fine in a real browser). See the
+2026-08-03 fix commits for confirmed real examples in both directions.
 
 Usage: python scripts/check_citation_links.py [repo_root]
 """

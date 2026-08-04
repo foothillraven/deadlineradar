@@ -8,8 +8,24 @@ Reads data/cpa_deadlines.json (hand-verified, sourced 2026-07-03) and renders:
   - docs/sitemap.xml               XML sitemap (placeholder domain, no network calls)
   - docs/robots.txt                allow-all, points at the sitemap
 
-Python stdlib only. No network calls. No real domain. No payment/Stripe code.
-This script proves the ingest -> normalize -> generate pipeline; it is not a server.
+Python stdlib only for the actual site logic. No network calls. No real domain.
+No payment/Stripe code. This script proves the ingest -> normalize -> generate
+pipeline; it is not a server.
+
+Two BUILD-TIME-ONLY exceptions (2026-08-04, AuditLab LEAK-1): every shipped
+<style>/<script> block gets its comments stripped before being written to
+disk (see _strip_shipped_comments()) -- generate.py's own comments are
+genuinely useful engineering documentation, but they were shipping verbatim
+to every browser (746 internal name/finding-ID mentions across 183 public
+pages). This needs `tinycss2` (pip, pure Python, already a plain dependency)
+for CSS, and a real JS parser for JS -- a hand-rolled comment stripper is NOT
+safe here, since this codebase's own escapeHtml() uses regex literals like
+/[&<>"']/g, and correctly telling a comment apart from a regex literal or a
+string containing '//' is exactly what a naive stripper gets wrong. Run via
+`node scripts/js_tools/node_modules/terser/bin/terser` (pinned in
+scripts/js_tools/package.json, `npm install` there once). Neither dependency
+ships anywhere -- both only ever touch the generator's own output before it
+is written to docs/.
 
 Design pass (2026-07-03): presentation layer only -- header/wordmark, styled
 callouts, zebra tables, dark mode, mobile-responsive grid, prominent trust
@@ -27,6 +43,9 @@ import html
 import json
 import os
 import pathlib
+import re
+import subprocess
+import tempfile
 from datetime import date, timedelta
 
 # ---------------------------------------------------------------------------
@@ -1887,6 +1906,82 @@ def _breadcrumb_schema(state_name: str, state_slug: str) -> dict:
     }
 
 
+_JS_TOOLS_DIR = pathlib.Path(__file__).resolve().parent / "scripts" / "js_tools"
+_TERSER_CLI = _JS_TOOLS_DIR / "node_modules" / "terser" / "bin" / "terser"
+
+_STRIPPED_JS_CACHE: dict[str, str] = {}
+_STRIPPED_CSS_CACHE: dict[str, str] = {}
+
+
+def _strip_js_comments(js: str) -> str:
+    """AuditLab LEAK-1 (MEDIUM, 2026-08-04): runs shipped JS through terser
+    (build-time only, see the module docstring for why a hand-rolled stripper
+    isn't safe) to remove comments while leaving behavior byte-for-byte
+    equivalent. Cached by exact content -- the same script block repeats
+    verbatim across many of the 184 pages, no need to re-invoke node per page."""
+    if js in _STRIPPED_JS_CACHE:
+        return _STRIPPED_JS_CACHE[js]
+    if not _TERSER_CLI.exists():
+        raise RuntimeError(
+            f"terser not found at {_TERSER_CLI} -- run `npm install` in "
+            f"{_JS_TOOLS_DIR} before building. Refusing to silently ship "
+            f"un-stripped JS (AuditLab LEAK-1) instead of failing loudly."
+        )
+    fd, temp_path = tempfile.mkstemp(suffix=".js")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(js)
+        result = subprocess.run(
+            ["node", str(_TERSER_CLI), temp_path],
+            capture_output=True, text=True, encoding="utf-8", check=False,
+        )
+    finally:
+        os.unlink(temp_path)
+    if result.returncode != 0 or not result.stdout.strip():
+        raise RuntimeError(f"terser failed on a shipped <script> block:\n{result.stderr}")
+    stripped = result.stdout.strip()
+    _STRIPPED_JS_CACHE[js] = stripped
+    return stripped
+
+
+def _strip_css_comments(css: str) -> str:
+    """Same LEAK-1 fix, CSS side. tinycss2 is a real CSS tokenizer (pure
+    Python, no subprocess) -- safe here because CSS has none of JS's
+    regex-literal ambiguity; only genuine /* */ comments are removed, and a
+    string value that happens to contain '/*' text (none exist in PAGE_CSS
+    today, but the parser handles it correctly regardless) is left alone."""
+    if css in _STRIPPED_CSS_CACHE:
+        return _STRIPPED_CSS_CACHE[css]
+    import tinycss2
+    rules = tinycss2.parse_stylesheet(css, skip_comments=True, skip_whitespace=False)
+    stripped = tinycss2.serialize(rules)
+    _STRIPPED_CSS_CACHE[css] = stripped
+    return stripped
+
+
+_STYLE_BLOCK_RE = re.compile(r"<style>\n?(.*?)\n?</style>", re.DOTALL)
+_SCRIPT_BLOCK_RE = re.compile(r"<script>(.*?)</script>", re.DOTALL)
+
+
+def _strip_shipped_comments(page_html: str) -> str:
+    """Applied once, in page_shell(), the single choke point all ~20
+    build_*_page() functions already route through -- covers every current
+    and future page without needing to touch each call site. Deliberately
+    matches ONLY the exact-attribute-free <style> and <script> tags this
+    codebase actually emits -- never <script type="application/ld+json">
+    (structured data, not JS -- running it through a JS parser would be both
+    wrong and pointless, json.dumps() output never has comments to strip)
+    and never <script src="..."> (external, empty body -- e.g. the Turnstile
+    widget loader)."""
+    page_html = _STYLE_BLOCK_RE.sub(
+        lambda m: "<style>\n" + _strip_css_comments(m.group(1)) + "\n</style>", page_html, count=1
+    )
+    page_html = _SCRIPT_BLOCK_RE.sub(
+        lambda m: "<script>" + _strip_js_comments(m.group(1)) + "</script>", page_html
+    )
+    return page_html
+
+
 def _json_ld_html(schemas: list[dict] | None) -> str:
     """Renders each schema dict as its own <script type="application/ld+json"> block.
     None/empty input renders nothing -- callers that have no non-null data to describe
@@ -1913,7 +2008,7 @@ def page_shell(
     sticky_top_nav: bool = True,
 ) -> str:
     canonical_url = "https://deadline-radar.com" + canonical_path
-    return f"""<!doctype html>
+    page_html = f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -1944,6 +2039,7 @@ def page_shell(
 </body>
 </html>
 """
+    return _strip_shipped_comments(page_html)
 
 
 def _record_fully_cited(record: dict) -> bool:

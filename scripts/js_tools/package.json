@@ -1,0 +1,8 @@
+{
+  "name": "deadlineradar-js-tools",
+  "private": true,
+  "description": "Build-time-only tooling for generate.py (comment stripping from shipped JS -- AuditLab LEAK-1). Not deployed anywhere; never imported by the worker or the browser.",
+  "devDependencies": {
+    "terser": "5.49.1"
+  }
+}

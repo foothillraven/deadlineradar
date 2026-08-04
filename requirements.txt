@@ -1,0 +1,5 @@
+# generate.py is otherwise stdlib-only -- this is the one real Python
+# dependency, added 2026-08-04 for AuditLab LEAK-1 (stripping generate.py's
+# own comments out of shipped <style>/<script> blocks before they reach a
+# browser). See generate.py's module docstring for the full rationale.
+tinycss2==1.5.1

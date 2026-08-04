@@ -22,28 +22,28 @@
 <style>
 
   @font-face {
-    font-family: 'Fraunces';
+    font-family: "Fraunces";
     font-style: normal;
     font-weight: 300 900;
     font-display: swap;
-    src: url('/fonts/fraunces-variable.woff2') format('woff2');
+    src: url("/fonts/fraunces-variable.woff2") format("woff2");
   }
   :root {
     color-scheme: light dark;
-    /* Tokens match the approved design concept exactly. */
+    
     --bg: #f7f9fb; --page-bg: #f7f9fb; --fg: #17212b; --muted: #5a6b7a;
-    /* AuditLab UX-3: the original light-mode value (#8595a3) was 3.08:1 against card-bg / 2.92:1 against page-bg on 12 small-text rules including disclaimer/trust copy (needs 4.5, and light mode is the default for most visitors). This one clears both (5.17 / 4.90) while staying lighter than --muted. */
+    
     --faint: #5e6f80;
     --border: #e0e6ec; --border-strong: #c8d2db;
     --accent: #1f3d54; --accent-deep: #152c3e; --accent-bg: #eaeef1; --card-bg: #ffffff;
     --on-accent: #fff;
-    /* AuditLab UX-1: foreground for text painted on an --accent/--accent-deep background (buttons, table headers) -- pairs per-theme instead of a hardcoded color, which broke once dark mode inverted --accent from dark-navy to light-blue (was 2.47:1, WCAG AA needs 4.5). Dark-mode value is 7.25:1 against dark --accent and 9.5:1 against --accent-deep, verified with a standalone relative-luminance calc. */
+    
     --panel-dark: #152c3e; --panel-dark-fg: #eaf1f7;
     --gold: #8a6a33; --gold-line: #d8c9a6; --gold-bg: #f4eede;
     --verified-green: #256a4b; --verified-green-bg: #e8f1ec;
     --trust-bg: #f4eede; --trust-border: #d8c9a6; --row-alt: #f6f8f9;
     --shadow: 0 1px 2px rgba(23,33,43,.05), 0 6px 22px rgba(23,33,43,.06);
-    --font-display: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+    --font-display: Georgia, "Iowan Old Style", "Times New Roman", serif;
     --font-mono: "SFMono-Regular", ui-monospace, "Cascadia Code", Consolas, "Liberation Mono", monospace;
     --map-fixed: #bcd4f5; --map-fixed-hover: #1f3d54;
     --map-variable: #e4e8ec; --map-variable-hover: #8a95a3;
@@ -51,7 +51,7 @@
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #12151a; --page-bg: #12151a; --fg: #e7ebf0; --muted: #9aa5b1;
-      /* AuditLab UX-2: the previous value was 3.79:1 against card-bg / 4.18:1 against page-bg for small supporting text (needs 4.5). This one clears both (4.91 / 5.42) while staying visibly dimmer than --muted. */
+      
       --faint: #828d99;
       --border: #2a323c; --border-strong: #3a4552;
       --accent: #7fa8d9; --accent-deep: #9cc0ea; --accent-bg: #1b2836; --card-bg: #1a1f26;
@@ -65,22 +65,7 @@
     }
   }
   * { box-sizing: border-box; }
-  /* nav.mainnav is sticky at top:0 and ~60px tall -- without this, any
-     browser- or JS-driven scroll (an anchor jump to #remind, a keyboard Tab
-     landing on a roster row's button, scrollIntoView()) can land content
-     flush against the viewport top, tucked UNDER the nav where it is both
-     visually obscured (the nav's translucent background lets it show
-     through, faintly, which is what makes it look clickable) and click-dead
-     (the nav sits above it in the stacking order and receives the click
-     instead). Reported directly, 2026-08-03: "clicked the top one, marked
-     renewed, didn't do anything" on the roster table -- confirmed via
-     elementFromPoint() that a row scrolled flush to the top resolves to the
-     nav, not the button, at that exact coordinate. This fixes every
-     browser-driven scroll-to-element case; it cannot fix a raw mouse-wheel
-     scroll stopping at an arbitrary position, which is a standing
-     limitation of any sticky header -- if this keeps happening, the next
-     step is verifying it reproduces from a normal scroll and not only from
-     scrollIntoView(). */
+  
   html { scroll-padding-top: 68px; }
   html { background: var(--page-bg); }
   body {
@@ -88,9 +73,7 @@
     margin: 0; padding: 0 0 3rem;
     line-height: 1.55; color: var(--fg); background: var(--page-bg);
   }
-  /* Chrome (nav, topbar, footer border) spans the FULL browser width; only the reading
-     content itself is centered in a max-width column -- .wrap is that single column,
-     reused everywhere so nav/header/body/footer all align to the same edges. */
+  
   .wrap { max-width: 1180px; margin: 0 auto; padding: 0 1.25rem; }
   a { color: var(--accent); }
   .topbar {
@@ -164,8 +147,8 @@
     border: 1px solid var(--trust-border); background: var(--trust-bg); border-radius: 8px;
     padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
   }
-  .trust-line strong::before { content: "\2713\a0"; color: var(--gold); }
-  /* ---- Rule-changes feed, /rule-changes/ (2026-08-02) ---- */
+  .trust-line strong::before { content: "✓ "; color: var(--gold); }
+  
   .rc-section-note { color: var(--muted); font-size: 0.88rem; margin: 0.2rem 0 0.9rem; }
   .rc-card {
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 10px;
@@ -184,7 +167,7 @@
   .rc-cite { font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem; }
   .rc-conf { color: var(--muted); }
   .rc-empty { color: var(--muted); font-style: italic; margin: 0.4rem 0 1.2rem; }
-  /* ---- THE CENTERPIECE: citation-first fact sheet, per the approved concept's .sheet/.frow ---- */
+  
   .sheet {
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
     box-shadow: var(--shadow); overflow: hidden; margin: 1.4rem 0;
@@ -206,8 +189,7 @@
   .sheethead .stamp--unconfirmed { color: var(--gold); }
   .sheethead .stamp--unconfirmed .dot { background: var(--gold); box-shadow: 0 0 0 3px var(--gold-bg); }
   .rowlist { display: flex; flex-direction: column; }
-  /* Both tracks are minmax(0,...) on purpose: a grid track's automatic minimum
-     is min-content, which lets an un-wrappable child dictate the whole row. */
+  
   .frow {
     display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 18rem); gap: 0.35rem 1.4rem;
     padding: 1.1rem 1.2rem; border-top: 1px solid var(--border);
@@ -224,15 +206,14 @@
     font-size: 0.82rem; font-weight: 500; color: var(--muted); display: block; margin-top: 0.25rem; line-height: 1.4;
   }
   .frow .side { grid-column: 2; grid-row: 2; align-self: center; text-align: right; }
-  /* Citations wrap rather than nowrap -- a citation must never be cut. */
+  
   .cite {
     display: inline-flex; align-items: flex-start; gap: 0.4rem; font-family: var(--font-mono); font-size: 0.78rem;
     color: var(--gold); background: var(--gold-bg); border: 1px solid var(--gold-line); border-radius: 6px;
     padding: 0.25rem 0.55rem; text-decoration: none; white-space: normal; overflow-wrap: anywhere;
     text-align: left; max-width: 100%; box-sizing: border-box;
   }
-  /* Long (prose) citations get their own full-width row; short statutory
-     cites keep the right-aligned chip. Chosen in Python, so no :has() needed. */
+  
   .frow .side--stacked { grid-column: 1 / -1; grid-row: auto; text-align: left; margin-top: 0.7rem; }
   .frow .side--stacked .cite { display: flex; }
   .cite:hover { background: #efe6d0; }
@@ -254,7 +235,7 @@
   @media (prefers-color-scheme: dark) { .sheetfoot { background: #171c22; } }
   .factsheet-note { font-size: 0.85rem; color: var(--muted); padding: 0 1.2rem 1rem; }
 
-  /* ---- homepage hero, per the approved concept ---- */
+  
   .eyebrow {
     font-size: 0.72rem; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase;
     color: var(--gold); margin: 0 0 0.7rem;
@@ -281,9 +262,7 @@
   }
   .lookup-field button:hover { background: var(--accent-deep); }
   .lookup-hint { margin-top: 0.6rem; font-size: 0.8rem; color: var(--faint); }
-  /* A proper 3-column grid (2026-07-31). These were flex-wrapped, so two
-     items stacked left while the third sat mid-right on its own baseline and
-     the row read as misaligned rather than as a set of three facts. */
+  
   .trust-row {
     display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 1.1rem; margin-top: 1.5rem; align-items: start;
@@ -295,7 +274,7 @@
   .trust-footnote { margin-top: 1rem; font-size: 0.82rem; color: var(--faint); line-height: 1.5; max-width: 46ch; }
   @media (max-width: 620px) { .trust-row { grid-template-columns: 1fr 1fr; } }
 
-  /* ---- hero-right: rotating verified-fact card, live proof of freshness ---- */
+  
   .hfc-wrap { position: relative; min-height: 300px; }
   .hfc-card {
     position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: 1;
@@ -318,7 +297,7 @@
     .hfc-card { transition: none; }
   }
 
-  /* ---- "how we verify" 3-card band ---- */
+  
   .band-section { margin: 2.4rem 0 2rem; padding-top: 1.8rem; border-top: 1px solid var(--border); }
   .band-section h2 { font-size: 1.5rem; }
   .method-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; margin: 1.6rem 0 1.8rem; }
@@ -328,7 +307,7 @@
   .mcard h3 { font-size: 1.05rem; margin: 0.6rem 0 0.4rem; font-family: var(--font-display); }
   .mcard p { margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.55; }
 
-  /* ---- reminder panel: two-column dark treatment ---- */
+  
   .remind-panel {
     background: var(--panel-dark); color: var(--panel-dark-fg); border-radius: 12px; padding: 1.8rem;
     display: grid; grid-template-columns: 1.1fr 1fr; gap: 1.6rem; align-items: center; margin: 1.75rem 0;
@@ -404,13 +383,7 @@
   .mock-firm-count { font-weight: 400; color: var(--muted); font-size: 0.88rem; }
   .mock-dashboard .table-wrap { margin: 0; }
   .mock-dashboard table { font-size: 0.86rem; }
-  /* The mockup embeds the REAL dashboard shell (.dr-*) so the marketing
-     preview is pixel-consistent with the real product (2026-07-30, BUILD v2
-     Phase C) -- these two overrides only fix things that don't make sense
-     inside a small decorative preview box: a sticky sidebar would try to
-     stick to PAGE scroll instead of staying inside the mock frame, and the
-     nested .table-wrap already gets .mock-dashboard's own margin/font-size
-     rules above. */
+  
   .mock-dashboard .dr-sidebar { position: static; }
   .mock-dashboard .dr-dash-shell { margin: 0; }
   .mock-dashboard .dr-nav a { pointer-events: none; }
@@ -437,7 +410,7 @@
   }
   .faq-item summary::-webkit-details-marker { display: none; }
   .faq-item summary::after { content: "+"; color: var(--accent); font-size: 1.2rem; font-weight: 400; }
-  .faq-item[open] summary::after { content: "\2212"; }
+  .faq-item[open] summary::after { content: "−"; }
   .faq-item p { margin: 0.7rem 0 0; color: var(--fg); }
   .backlink { display: inline-block; margin-top: 0.5rem; font-size: 0.92rem; }
   .how-it-works { color: var(--muted); font-size: 0.92rem; margin: 1.25rem 0 1.75rem; }
@@ -585,13 +558,7 @@
     .signup-form--compact .signup-form-row { gap: 0.5rem; }
   }
 
-  /* ---- Firm dashboard app shell (2026-07-30, BUILD v2 Phase B redesign) ----
-     Own visual identity, not a copy of any incumbent's layout: reuses this
-     site's existing tokens (--panel-dark is the same dark navy the homepage's
-     .remind-panel already uses; --gold/--verified-green are the same citation/
-     freshness accents everywhere else) inside a standard, generic dashboard
-     idiom (dark sidebar nav + light content cards) -- gauge/donut/sidebar are
-     universal dashboard components, not anyone's protected expression. */
+  
   .dr-dash-shell { display: grid; grid-template-columns: 216px 1fr; gap: 1.5rem; margin: 1.5rem 0 2rem; align-items: start; }
   @media (max-width: 860px) { .dr-dash-shell { grid-template-columns: 1fr; } }
 
@@ -608,7 +575,7 @@
   }
   .dr-nav a.is-active { background: rgba(255,255,255,.1); color: #fff; font-weight: 600; }
   .dr-nav a:hover { background: rgba(255,255,255,.06); color: #fff; }
-  /* ---- Practice-privilege checker (2026-07-30, pay-gated) ---- */
+  
   .dr-mobility-callout { background: var(--row-alt); border-left: 3px solid var(--border-strong); border-radius: 6px; padding: 0.9rem 1.1rem; margin-bottom: 1.4rem; font-size: 0.88rem; line-height: 1.55; }
   .dr-mob-check { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0.7rem 0; font-size: 0.9rem; font-weight: 400; }
   .dr-mob-check input { margin-top: 0.2rem; flex: 0 0 auto; }
@@ -678,13 +645,7 @@
   .dr-at-risk-days { font-family: var(--font-display); font-weight: 650; white-space: nowrap; }
   .dr-at-risk-days--soon { color: #c33737; }
   @media (prefers-color-scheme: dark) { .dr-at-risk-days--soon { color: #ff8080; } }
-  /* AuditLab VIS-1 (MEDIUM, 2026-08-04, per product decision): opted-out staff
-     get NO automated reminder at all, so the firm's own at-risk view is the
-     only remaining warning channel for them -- this chip makes that gap
-     explicit rather than letting the row look like any other at-risk entry.
-     Muted/gray, matching the roster table's own "Opted out" status color
-     (#8595a3), deliberately NOT the urgency red of dr-at-risk-days--soon --
-     this is a channel-gap notice, not an urgency escalation. */
+  
   .dr-at-risk-optedout { display: block; font-size: 0.72rem; color: #8595a3; margin-top: 0.15rem; }
   .dr-activity-item { display: flex; gap: 0.6rem; font-size: 0.85rem; align-items: flex-start; }
   .dr-activity-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; margin-top: 0.4rem; flex: none; background: var(--accent); }
@@ -696,106 +657,47 @@
   .dr-roster-panel h2 { font-size: 0.98rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
   .dr-roster-panel .table-wrap { margin-top: 0; }
 
-  /* ---- Full-roster table: keep Actions reachable (2026-07-31) ----------
-     The problem reported (with screenshots): 7 columns overflowed to the
-     right, and the Actions column -- Edit / Mark renewed / Remove -- fell
-     off the end. .table-wrap already scrolled, but a control you have to
-     go hunting for is effectively missing, and horizontal scrolling to
-     reach the primary controls for every row is miserable.
-
-     Three changes, in the order they matter:
-       1. Actions is STICKY to the right edge, so it is on screen at every
-          scroll position rather than merely reachable. This is the actual
-          fix; the rest is about not needing to scroll in the first place.
-       2. Email truncates with an ellipsis and keeps the full value in a
-          title tooltip. Email was the widest low-value column and the main
-          reason the table overflowed at all.
-       3. Below 860px the table becomes stacked cards, because no amount of
-          column trimming makes 7 columns work on a phone. */
-  /* 2026-08-04: Actions was reported overlapping Status/Next-deadline --
-     e.g. the header text read "Sta" cut off mid-word right next to
-     "Actions". Root cause, confirmed by measuring computed layout in a
-     browser rather than guessing: with no explicit column widths, the
-     browser's auto table-layout algorithm and the sticky Actions column
-     (position: sticky; right: 0, below) fight over the same space
-     differently depending on viewport width -- sometimes it scrolls clean,
-     sometimes a neighboring column's cell gets partially painted over
-     mid-character. table-layout: fixed with an explicit width per column
-     (nth-child, matching real column order) makes every column's boundary
-     deterministic regardless of viewport width, so the sticky Actions
-     column always either fully covers or fully reveals its neighbor --
-     never a half-visible "Sta". */
-  /* 2026-08-04 correction: `width: 100%` + `table-layout: fixed` with no
-     min-width does NOT make the table overflow when the declared column
-     widths don't fit -- it makes the browser treat those widths as
-     PROPORTIONAL WEIGHTS within a table forcibly locked to exactly 100% of
-     the container, squeezing every column (Status/Next-deadline included)
-     down to fit, down to near-zero visible width for the narrower ones.
-     Caught live: Status and Next-deadline had gone from "overlapping" to
-     "invisible", not fixed. min-width equal to the column
-     budget (9+14+7+8+6+8+15=67rem, border-box so padding is already
-     included) restores the actual intent -- the table can grow past 100%
-     and .table-wrap's existing overflow-x:auto scrolls to it, while still
-     shrinking to fit when the container genuinely has 67rem to spare. */
+  
+  
+  
   .dr-roster-panel table { width: 100%; min-width: 67rem; table-layout: fixed; }
   .dr-roster-panel td, .dr-roster-panel th { white-space: nowrap; }
-  .dr-roster-panel th:nth-child(1), .dr-roster-panel td:nth-child(1) { width: 9rem; }  /* Staff */
-  .dr-roster-panel th:nth-child(2), .dr-roster-panel td:nth-child(2) { width: 14rem; } /* Email */
-  .dr-roster-panel th:nth-child(3), .dr-roster-panel td:nth-child(3) { width: 7rem; }  /* State */
-  .dr-roster-panel th:nth-child(4), .dr-roster-panel td:nth-child(4) { width: 8rem; }  /* License type */
-  .dr-roster-panel th:nth-child(5), .dr-roster-panel td:nth-child(5) { width: 6rem; }  /* Status */
-  .dr-roster-panel th:nth-child(6), .dr-roster-panel td:nth-child(6) { width: 8rem; }  /* Next deadline */
-  .dr-roster-panel th:nth-child(7), .dr-roster-panel td:nth-child(7) { width: 15rem; } /* Actions -- matches the 3-button group's measured natural width (~237px) */
+  .dr-roster-panel th:nth-child(1), .dr-roster-panel td:nth-child(1) { width: 9rem; }  
+  .dr-roster-panel th:nth-child(2), .dr-roster-panel td:nth-child(2) { width: 14rem; } 
+  .dr-roster-panel th:nth-child(3), .dr-roster-panel td:nth-child(3) { width: 7rem; }  
+  .dr-roster-panel th:nth-child(4), .dr-roster-panel td:nth-child(4) { width: 8rem; }  
+  .dr-roster-panel th:nth-child(5), .dr-roster-panel td:nth-child(5) { width: 6rem; }  
+  .dr-roster-panel th:nth-child(6), .dr-roster-panel td:nth-child(6) { width: 8rem; }  
+  .dr-roster-panel th:nth-child(7), .dr-roster-panel td:nth-child(7) { width: 15rem; } 
 
-  /* Email: the width hog. Truncate, full value on hover/focus via title. */
+  
   .dr-roster-panel td.dr-cell-email {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
-  /* Sticky Actions. The background is opaque and matches the row so the
-     scrolled-under content does not bleed through, and the left shadow
-     signals there is more table behind it. */
+  
   .dr-roster-panel th.dr-actions-head,
   .dr-roster-panel td.dr-actions {
     position: sticky; right: 0; z-index: 2;
     box-shadow: -6px 0 6px -6px rgba(0,0,0,0.18);
   }
-  /* Body cells match their row's own background -- card-bg / row-alt. */
+  
   .dr-roster-panel td.dr-actions { background: var(--card-bg); }
   .dr-roster-panel tbody tr:nth-child(even) td.dr-actions { background: var(--row-alt); }
-  /* The header row is NOT a body row -- it's dark accent with light text
-     (the general `th` rule, line ~433), not card-bg. Reusing card-bg here
-     (2026-08-03 bug, reported as "Actions header looks greyed out/
-     unreadable"): the background flipped to near-white while `color`
-     stayed inherited as the header's light `#eaf1f7`, so the sticky
-     Actions header rendered near-white text on a near-white background --
-     readable nowhere, not just "greyed." Match the header's own colors
-     explicitly instead of assuming one shared background serves both. */
+  
   .dr-roster-panel th.dr-actions-head { background: var(--accent); color: var(--on-accent); z-index: 3; }
 
-  /* Tighter action buttons so the sticky column costs less width. */
+  
   .dr-roster-panel td.dr-actions button { padding: 0.22rem 0.5rem; font-size: 0.76rem; white-space: nowrap; }
 
   @media (max-width: 860px) {
-    /* Stacked cards. Each cell carries its own label via data-label, so the
-       header row can be hidden without losing what each value means. */
-    /* min-width MUST be reset here. The global `table { min-width: 420px }`
-       (line ~397, there to stop wide tables collapsing) outranks width:100%
-       and kept the stacked cards 420px wide inside a ~308px container --
-       which the overflow-x:hidden below then CLIPPED, silently cutting off
-       the right edge of every card. That is the same defect this change
-       exists to fix, so it would have shipped the bug wearing a different
-       hat. Caught by measuring computed min-width at 390px. */
+    
+    
     .dr-roster-panel table, .dr-roster-panel thead, .dr-roster-panel tbody,
     .dr-roster-panel tr, .dr-roster-panel td {
       display: block; width: 100%; min-width: 0; max-width: 100%;
     }
-    /* The desktop per-column nth-child widths (added 2026-08-04) have HIGHER
-       specificity (class + nth-child + type) than the block above (class +
-       type), so without this explicit reset they would win the cascade here
-       too and reintroduce fixed-width columns inside the stacked cards --
-       the same "reset it explicitly or it silently wins" trap the min-width
-       comment above already documents for a different property. */
+    
     .dr-roster-panel td:nth-child(1), .dr-roster-panel td:nth-child(2), .dr-roster-panel td:nth-child(3),
     .dr-roster-panel td:nth-child(4), .dr-roster-panel td:nth-child(5), .dr-roster-panel td:nth-child(6),
     .dr-roster-panel td:nth-child(7) {
@@ -814,19 +716,15 @@
       content: attr(data-label); font-weight: 600; color: var(--muted);
       font-size: 0.78rem; flex: 0 0 auto;
     }
-    /* Must also undo the desktop nowrap/ellipsis, not just max-width: a long
-       address kept forcing the card wider than the viewport and reintroduced
-       horizontal scrolling on phones -- the exact problem this fix is for.
-       Caught by measuring scrollWidth at 390px, not by eye. */
+    
     .dr-roster-panel td.dr-cell-email {
       max-width: none; text-align: right;
       white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere;
     }
-    /* Same reason: the global nowrap would otherwise keep cards wide. */
+    
     .dr-roster-panel td, .dr-roster-panel th { white-space: normal; }
     .dr-roster-panel .table-wrap { overflow-x: hidden; }
-    /* Sticky is meaningless once stacked -- unset it or the buttons pin
-       oddly mid-card. */
+    
     .dr-roster-panel td.dr-actions {
       position: static; box-shadow: none; background: none;
       display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-start;
@@ -836,8 +734,7 @@
     .dr-roster-panel tbody tr:nth-child(even) td.dr-actions { background: none; }
   }
 
-  /* ---- Calendar + Map views (2026-07-30, BUILD v2 Phase D) -- in-page tabs,
-     same fetched drLicenses data the roster view already has, no new endpoint. ---- */
+  
   .dr-view[hidden] { display: none; }
 
   .dr-cal-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
@@ -869,7 +766,7 @@
     .dr-cal-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
     .dr-cal-day { min-height: 3rem; font-size: 0.68rem; }
     .dr-cal-item { display: none; }
-    .dr-cal-day--has-item::after { content: "\2022"; color: var(--accent); font-size: 1.1rem; line-height: 1; }
+    .dr-cal-day--has-item::after { content: "•"; color: var(--accent); font-size: 1.1rem; line-height: 1; }
   }
   .dr-agenda-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
   .dr-agenda-panel h2 { font-size: 1.05rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
@@ -890,10 +787,7 @@
   .dr-map-state--home { fill: #1f9e5c; }
   .dr-map-state--clear { fill: #6b8fd4; }
   .dr-map-state--action { fill: #d98a1f; }
-  /* 2026-08-04: self-reported "we handled it" -- deliberately a distinct
-     teal, never the same blue as --clear (an independently rule-verified
-     determination). See migration 0016's docstring for why these must
-     never look identical. */
+  
   .dr-map-state--complete { fill: #1f9e8e; }
   .dr-map-state--coverage { fill: #8a6bd4; }
   .dr-map-link { cursor: default; outline: none; }
@@ -917,7 +811,7 @@
     background: var(--row-alt); border-radius: 8px; }
   .dr-map-mobility-note[hidden] { display: none; }
 
-  /* ---- CPE Hours tab (2026-07-30, new BUILD v2 phase) ---- */
+  
   .dr-cpe-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.2rem; }
   .dr-cpe-staff-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
   .dr-cpe-staff-panel h2 { font-size: 1.05rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
@@ -940,7 +834,7 @@
   .dr-cpe-recent-remove { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 6px; padding: 0.2rem 0.55rem; cursor: pointer; font-family: inherit; font-size: 0.78rem; }
   .dr-cpe-recent-remove:hover { background: var(--row-alt); color: #c33737; }
 
-  /* ---- SSO sign-in button + account settings (2026-07-30, auth suite) ---- */
+  
   .dr-sso-block { margin-top: 1rem; }
   .dr-sso-divider { display: flex; align-items: center; gap: 0.75rem; color: var(--faint); font-size: 0.8rem; margin: 0.9rem 0; }
   .dr-sso-divider::before, .dr-sso-divider::after { content: ""; flex: 1 1 auto; height: 1px; background: var(--border); }
@@ -953,7 +847,7 @@
   .dr-account-ok { color: #1f9e5c; font-size: 0.85rem; margin-top: 0.6rem; }
   .dr-account-err { color: #c33737; font-size: 0.85rem; margin-top: 0.6rem; }
 
-  /* ---- Sign-in account chooser, /signin/ (2026-08-02) ---- */
+  
   .signin-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; margin: 1.4rem 0 1.8rem; }
   .signin-card { display: flex; flex-direction: column; gap: 0.35rem; background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 11px; padding: 1.1rem 1.2rem; text-decoration: none; color: inherit; }
   .signin-card:hover { border-color: var(--accent); }
@@ -961,10 +855,8 @@
   .signin-desc { font-size: 0.85rem; color: var(--muted); line-height: 1.45; }
   .signin-go { font-size: 0.85rem; color: var(--accent); font-weight: 600; margin-top: 0.3rem; }
   @media (max-width: 620px) { .signin-choice { grid-template-columns: 1fr; } }
-  /* ---- Conventional sign-in card, /firm-login/ (2026-07-31) ---- */
-  /* One form at a time, centred, narrow. The width cap is the point: a
-     sign-in form stretched to a content column is one of the tells that made
-     the old page read unfinished. */
+  
+  
   .dr-auth-card { max-width: 26rem; margin: 0 auto; }
   .dr-auth-card h1 { font-size: 1.5rem; margin-bottom: 0.4rem; }
   .dr-auth-card .subhead { font-size: 0.92rem; margin-bottom: 1.4rem; }
@@ -983,17 +875,13 @@
   .dr-auth-secondary { margin-top: 0.9rem; font-size: 0.86rem; text-align: center; }
   .dr-auth-alt { margin-top: 1.1rem; font-size: 0.9rem; text-align: center; }
   .dr-sso-top { margin-bottom: 1.2rem; }
-  /* interaction-only: normally renders nothing at all, so the slot must not
-     reserve space or leave a gap where the old green box used to sit. */
+  
   .dr-turnstile-slot { display: flex; justify-content: center; }
   .dr-turnstile-slot:empty { display: none; }
   .dr-turnstile-slot .cf-turnstile:not(:empty) { margin-top: 1.1rem; }
 
-  /* ---- Free-tier individual dashboard, /my/ (2026-07-31) ---- */
-  /* Deliberately CARDS, not the firm dashboard's table: an individual has a
-     handful of licenses, not a roster of dozens, and cards reflow on a phone
-     with no horizontal-scroll problem to solve -- the exact problem the firm
-     roster table needed fixing for. */
+  
+  
   .dr-my-shell { max-width: 46rem; }
   .dr-my-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
   .dr-my-head h1 { margin-bottom: 0.3rem; }
@@ -1045,15 +933,7 @@
     </div>
   </div>
 </nav>
-<script>
-(function() {
-  var link = document.getElementById('dr-nav-signin');
-  if (!link) return;
-  fetch('/api/firm/licenses', {credentials: 'include'}).then(function(r) {
-    if (r.ok) { link.textContent = 'Dashboard'; link.href = '/firm-dashboard/'; }
-  }).catch(function() {});
-})();
-</script>
+<script>(function(){var link=document.getElementById("dr-nav-signin");if(!link)return;fetch("/api/firm/licenses",{credentials:"include"}).then(function(r){if(r.ok){link.textContent="Dashboard";link.href="/firm-dashboard/"}}).catch(function(){})})();</script>
 <div class="wrap">
 <header class="site-header">
   <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>
@@ -1172,38 +1052,7 @@
   <div class="hfc-coverage">We list all <b>55</b> jurisdictions &middot; exact date
   determined in <b>41</b> &middot; for the rest you enter your date and we track it</div>
 </div>
-<script>
-(function() {
-  var wrap = document.getElementById('hfc-wrap');
-  if (!wrap) return;
-  var cards = wrap.querySelectorAll('.hfc-card');
-  if (cards.length < 2) return;
-  var TZ_REGION_STATES = {
-    'America/New_York': ['New York','Florida','Georgia','North Carolina','Ohio','Pennsylvania','Virginia','Massachusetts','New Jersey','Michigan','South Carolina','Tennessee','Maine','Connecticut','Vermont','New Hampshire','Rhode Island','Delaware','Maryland','West Virginia','Kentucky','Indiana','District of Columbia'],
-    'America/Detroit': ['Michigan','Ohio','Indiana'],
-    'America/Indiana/Indianapolis': ['Indiana','Ohio','Kentucky'],
-    'America/Kentucky/Louisville': ['Kentucky','Indiana','Ohio'],
-    'America/Chicago': ['Illinois','Texas','Wisconsin','Minnesota','Missouri','Louisiana','Oklahoma','Iowa','Kansas','Alabama','Mississippi','Arkansas','Tennessee','Nebraska','South Dakota','North Dakota'],
-    'America/Denver': ['Colorado','Utah','Montana','Wyoming','New Mexico','Idaho'],
-    'America/Boise': ['Idaho','Montana'],
-    'America/Phoenix': ['Arizona'],
-    'America/Los_Angeles': ['California','Washington','Oregon','Nevada'],
-    'America/Anchorage': ['Alaska'],
-    'Pacific/Honolulu': ['Hawaii']
-  };
-  var tz = '';
-  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
-  var candidates = TZ_REGION_STATES[tz] || null;
-  var pool = Array.prototype.slice.call(cards);
-  var matches = candidates ? pool.filter(function(c) {
-    return candidates.indexOf(c.getAttribute('data-hfc-state')) !== -1;
-  }) : [];
-  var chosenFrom = matches.length ? matches : pool;
-  var chosen = chosenFrom[Math.floor(Math.random() * chosenFrom.length)];
-  pool.forEach(function(c) { c.classList.remove('is-active'); });
-  chosen.classList.add('is-active');
-})();
-</script>
+<script>(function(){var wrap=document.getElementById("hfc-wrap");if(!wrap)return;var cards=wrap.querySelectorAll(".hfc-card");if(cards.length<2)return;var TZ_REGION_STATES={"America/New_York":["New York","Florida","Georgia","North Carolina","Ohio","Pennsylvania","Virginia","Massachusetts","New Jersey","Michigan","South Carolina","Tennessee","Maine","Connecticut","Vermont","New Hampshire","Rhode Island","Delaware","Maryland","West Virginia","Kentucky","Indiana","District of Columbia"],"America/Detroit":["Michigan","Ohio","Indiana"],"America/Indiana/Indianapolis":["Indiana","Ohio","Kentucky"],"America/Kentucky/Louisville":["Kentucky","Indiana","Ohio"],"America/Chicago":["Illinois","Texas","Wisconsin","Minnesota","Missouri","Louisiana","Oklahoma","Iowa","Kansas","Alabama","Mississippi","Arkansas","Tennessee","Nebraska","South Dakota","North Dakota"],"America/Denver":["Colorado","Utah","Montana","Wyoming","New Mexico","Idaho"],"America/Boise":["Idaho","Montana"],"America/Phoenix":["Arizona"],"America/Los_Angeles":["California","Washington","Oregon","Nevada"],"America/Anchorage":["Alaska"],"Pacific/Honolulu":["Hawaii"]};var tz="";try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||""}catch(e){}var candidates=TZ_REGION_STATES[tz]||null;var pool=Array.prototype.slice.call(cards);var matches=candidates?pool.filter(function(c){return candidates.indexOf(c.getAttribute("data-hfc-state"))!==-1}):[];var chosenFrom=matches.length?matches:pool;var chosen=chosenFrom[Math.floor(Math.random()*chosenFrom.length)];pool.forEach(function(c){c.classList.remove("is-active")});chosen.classList.add("is-active")})();</script>
 </div>
 <section class="band-section" style="border-top:0; padding-top:0; margin-top:0;">
   <p class="eyebrow">What a lookup actually gives you</p>
@@ -1306,41 +1155,7 @@
     </div>
   </div>
 </div>
-<script>
-(function() {
-  var tip = document.getElementById('map-tooltip');
-  var figure = tip ? tip.closest('.map-figure') : null;
-  if (!tip || !figure) return;
-  var links = figure.querySelectorAll('.map-link');
-  function show(el, evt) {
-    tip.textContent = el.getAttribute('data-tip') || '';
-    tip.hidden = false;
-    move(evt);
-  }
-  function move(evt) {
-    var rect = figure.getBoundingClientRect();
-    var x = (evt.clientX - rect.left) + 14;
-    var y = (evt.clientY - rect.top) + 14;
-    tip.style.left = x + 'px';
-    tip.style.top = y + 'px';
-  }
-  function hide() { tip.hidden = true; }
-  links.forEach(function(el) {
-    el.addEventListener('mouseenter', function(evt) { show(el, evt); });
-    el.addEventListener('mousemove', move);
-    el.addEventListener('mouseleave', hide);
-    el.addEventListener('focus', function(evt) {
-      tip.textContent = el.getAttribute('data-tip') || '';
-      tip.hidden = false;
-      var rect2 = el.getBoundingClientRect();
-      var frect = figure.getBoundingClientRect();
-      tip.style.left = (rect2.left - frect.left) + 'px';
-      tip.style.top = (rect2.top - frect.top - 28) + 'px';
-    });
-    el.addEventListener('blur', hide);
-  });
-})();
-</script>
+<script>(function(){var tip=document.getElementById("map-tooltip");var figure=tip?tip.closest(".map-figure"):null;if(!tip||!figure)return;var links=figure.querySelectorAll(".map-link");function show(el,evt){tip.textContent=el.getAttribute("data-tip")||"";tip.hidden=false;move(evt)}function move(evt){var rect=figure.getBoundingClientRect();var x=evt.clientX-rect.left+14;var y=evt.clientY-rect.top+14;tip.style.left=x+"px";tip.style.top=y+"px"}function hide(){tip.hidden=true}links.forEach(function(el){el.addEventListener("mouseenter",function(evt){show(el,evt)});el.addEventListener("mousemove",move);el.addEventListener("mouseleave",hide);el.addEventListener("focus",function(evt){tip.textContent=el.getAttribute("data-tip")||"";tip.hidden=false;var rect2=el.getBoundingClientRect();var frect=figure.getBoundingClientRect();tip.style.left=rect2.left-frect.left+"px";tip.style.top=rect2.top-frect.top-28+"px"});el.addEventListener("blur",hide)})})();</script>
 <div class="state-grid state-grid--mobile-fallback">
 <a class="state-card" href="alabama/" data-state-name="Alabama"><div class="state-name">Alabama</div><div class="state-hint">December 31, 2026</div></a>
 <a class="state-card" href="alaska/" data-state-name="Alaska"><div class="state-name">Alaska</div><div class="state-hint">December 31, 2027</div></a>
@@ -1846,155 +1661,8 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
     <button type="submit">Remind me</button>
   </form>
 </div>
-<script>
-function drUpdateFields(slug) {
-  document.querySelectorAll('.signup-extra-fields').forEach(function(el) {
-    var show = (el.getAttribute('data-for-state') === slug);
-    el.hidden = !show;
-    // Also enable/disable the controls inside each group. Toggling `hidden`
-    // alone is NOT enough: a `required` control inside a hidden group still
-    // fails HTML5 form validation on submit, and the browser cannot show a
-    // validation bubble on a non-focusable (hidden) field, so it silently
-    // refuses to submit -- the "click Remind me, nothing happens" bug. A
-    // `disabled` control is skipped by validation AND excluded from the POST,
-    // so only the visible state's extra fields are ever validated or sent.
-    el.querySelectorAll('input, select, textarea').forEach(function(field) {
-      field.disabled = !show;
-    });
-  });
-}
-// Initialize on load so a browser-restored/autofilled state selection starts
-// in a consistent enabled/disabled state even if `onchange` never fires.
-document.addEventListener('DOMContentLoaded', function() {
-  var sel = document.getElementById('home-state');
-  drUpdateFields(sel ? sel.value : '');
-});
-</script>
-<script>
-var DR_STATES = [{"name": "Alabama", "slug": "alabama"}, {"name": "Alaska", "slug": "alaska"}, {"name": "Arizona", "slug": "arizona"}, {"name": "Arkansas", "slug": "arkansas"}, {"name": "California", "slug": "california"}, {"name": "Colorado", "slug": "colorado"}, {"name": "Connecticut", "slug": "connecticut"}, {"name": "Delaware", "slug": "delaware"}, {"name": "District of Columbia", "slug": "dc"}, {"name": "Florida", "slug": "florida"}, {"name": "Georgia", "slug": "georgia"}, {"name": "Guam", "slug": "guam"}, {"name": "Hawaii", "slug": "hawaii"}, {"name": "Idaho", "slug": "idaho"}, {"name": "Illinois", "slug": "illinois"}, {"name": "Indiana", "slug": "indiana"}, {"name": "Iowa", "slug": "iowa"}, {"name": "Kansas", "slug": "kansas"}, {"name": "Kentucky", "slug": "kentucky"}, {"name": "Louisiana", "slug": "louisiana"}, {"name": "Maine", "slug": "maine"}, {"name": "Maryland", "slug": "maryland"}, {"name": "Massachusetts", "slug": "massachusetts"}, {"name": "Michigan", "slug": "michigan"}, {"name": "Minnesota", "slug": "minnesota"}, {"name": "Mississippi", "slug": "mississippi"}, {"name": "Missouri", "slug": "missouri"}, {"name": "Montana", "slug": "montana"}, {"name": "Nebraska", "slug": "nebraska"}, {"name": "Nevada", "slug": "nevada"}, {"name": "New Hampshire", "slug": "new-hampshire"}, {"name": "New Jersey", "slug": "new-jersey"}, {"name": "New Mexico", "slug": "new-mexico"}, {"name": "New York", "slug": "new-york"}, {"name": "North Carolina", "slug": "north-carolina"}, {"name": "North Dakota", "slug": "north-dakota"}, {"name": "Northern Mariana Islands", "slug": "northern-mariana-islands"}, {"name": "Ohio", "slug": "ohio"}, {"name": "Oklahoma", "slug": "oklahoma"}, {"name": "Oregon", "slug": "oregon"}, {"name": "Pennsylvania", "slug": "pennsylvania"}, {"name": "Puerto Rico", "slug": "puerto-rico"}, {"name": "Rhode Island", "slug": "rhode-island"}, {"name": "South Carolina", "slug": "south-carolina"}, {"name": "South Dakota", "slug": "south-dakota"}, {"name": "Tennessee", "slug": "tennessee"}, {"name": "Texas", "slug": "texas"}, {"name": "U.S. Virgin Islands", "slug": "us-virgin-islands"}, {"name": "Utah", "slug": "utah"}, {"name": "Vermont", "slug": "vermont"}, {"name": "Virginia", "slug": "virginia"}, {"name": "Washington", "slug": "washington"}, {"name": "West Virginia", "slug": "west-virginia"}, {"name": "Wisconsin", "slug": "wisconsin"}, {"name": "Wyoming", "slug": "wyoming"}];
-
-function drNormalize(s) { return s.trim().toLowerCase(); }
-
-function drMatches(typed) {
-  var norm = drNormalize(typed);
-  if (!norm) return [];
-  var starts = [], contains = [];
-  DR_STATES.forEach(function(s) {
-    var n = drNormalize(s.name);
-    if (n.indexOf(norm) === 0) starts.push(s);
-    else if (n.indexOf(norm) !== -1) contains.push(s);
-  });
-  return starts.concat(contains);
-}
-
-function drExactOrSingleMatch(typed) {
-  var norm = drNormalize(typed);
-  if (!norm) return null;
-  var exact = null;
-  DR_STATES.forEach(function(s) { if (drNormalize(s.name) === norm) exact = s; });
-  if (exact) return exact.slug;
-  var matches = drMatches(typed);
-  return matches.length === 1 ? matches[0].slug : null;
-}
-
-function drGoToState(event) {
-  if (event) event.preventDefault();
-  var input = document.getElementById('state-search-input');
-  var slug = drExactOrSingleMatch(input.value);
-  if (slug) { window.location.href = '/' + slug + '/'; }
-  return false;
-}
-
-function drFilterGrid() {
-  var typed = drNormalize(document.getElementById('state-search-input').value);
-  document.querySelectorAll('.state-card').forEach(function(card) {
-    var name = drNormalize(card.getAttribute('data-state-name'));
-    var match = !typed || name.indexOf(typed) !== -1;
-    card.classList.toggle('state-card--dimmed', !match);
-  });
-}
-
-var drActiveIndex = -1;
-
-function drCloseDropdown() {
-  var dropdown = document.getElementById('state-search-dropdown');
-  var input = document.getElementById('state-search-input');
-  dropdown.innerHTML = '';
-  dropdown.classList.remove('is-open');
-  input.setAttribute('aria-expanded', 'false');
-  drActiveIndex = -1;
-}
-
-function drRenderDropdown() {
-  var input = document.getElementById('state-search-input');
-  var dropdown = document.getElementById('state-search-dropdown');
-  var typed = input.value;
-  if (!typed.trim()) { drCloseDropdown(); return; }
-  var matches = drMatches(typed);
-  drActiveIndex = -1;
-  if (matches.length === 0) {
-    dropdown.innerHTML = '<div class="state-search-empty">No matching state</div>';
-    dropdown.classList.add('is-open');
-    input.setAttribute('aria-expanded', 'true');
-    return;
-  }
-  dropdown.innerHTML = matches.map(function(s, i) {
-    return '<button type="button" class="state-search-option" data-slug="' + s.slug +
-      '" data-index="' + i + '" role="option">' + s.name + '</button>';
-  }).join('');
-  dropdown.classList.add('is-open');
-  input.setAttribute('aria-expanded', 'true');
-}
-
-function drSetActive(index) {
-  var options = document.querySelectorAll('.state-search-option');
-  options.forEach(function(opt) { opt.classList.remove('is-active'); });
-  if (index >= 0 && index < options.length) {
-    options[index].classList.add('is-active');
-    options[index].scrollIntoView({ block: 'nearest' });
-  }
-  drActiveIndex = index;
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-  var input = document.getElementById('state-search-input');
-  var dropdown = document.getElementById('state-search-dropdown');
-  if (!input || !dropdown) return;
-
-  input.addEventListener('input', function() {
-    drRenderDropdown();
-    drFilterGrid();
-  });
-
-  input.addEventListener('keydown', function(event) {
-    var options = document.querySelectorAll('.state-search-option');
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      if (options.length) drSetActive((drActiveIndex + 1) % options.length);
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (options.length) drSetActive((drActiveIndex - 1 + options.length) % options.length);
-    } else if (event.key === 'Enter') {
-      if (drActiveIndex >= 0 && options[drActiveIndex]) {
-        event.preventDefault();
-        window.location.href = '/' + options[drActiveIndex].getAttribute('data-slug') + '/';
-      }
-    } else if (event.key === 'Escape') {
-      drCloseDropdown();
-    }
-  });
-
-  dropdown.addEventListener('click', function(event) {
-    var opt = event.target.closest('.state-search-option');
-    if (opt) { window.location.href = '/' + opt.getAttribute('data-slug') + '/'; }
-  });
-
-  document.addEventListener('click', function(event) {
-    if (event.target !== input && !dropdown.contains(event.target)) drCloseDropdown();
-  });
-});
-
-</script>
+<script>function drUpdateFields(slug){document.querySelectorAll(".signup-extra-fields").forEach(function(el){var show=el.getAttribute("data-for-state")===slug;el.hidden=!show;el.querySelectorAll("input, select, textarea").forEach(function(field){field.disabled=!show})})}document.addEventListener("DOMContentLoaded",function(){var sel=document.getElementById("home-state");drUpdateFields(sel?sel.value:"")});</script>
+<script>var DR_STATES=[{name:"Alabama",slug:"alabama"},{name:"Alaska",slug:"alaska"},{name:"Arizona",slug:"arizona"},{name:"Arkansas",slug:"arkansas"},{name:"California",slug:"california"},{name:"Colorado",slug:"colorado"},{name:"Connecticut",slug:"connecticut"},{name:"Delaware",slug:"delaware"},{name:"District of Columbia",slug:"dc"},{name:"Florida",slug:"florida"},{name:"Georgia",slug:"georgia"},{name:"Guam",slug:"guam"},{name:"Hawaii",slug:"hawaii"},{name:"Idaho",slug:"idaho"},{name:"Illinois",slug:"illinois"},{name:"Indiana",slug:"indiana"},{name:"Iowa",slug:"iowa"},{name:"Kansas",slug:"kansas"},{name:"Kentucky",slug:"kentucky"},{name:"Louisiana",slug:"louisiana"},{name:"Maine",slug:"maine"},{name:"Maryland",slug:"maryland"},{name:"Massachusetts",slug:"massachusetts"},{name:"Michigan",slug:"michigan"},{name:"Minnesota",slug:"minnesota"},{name:"Mississippi",slug:"mississippi"},{name:"Missouri",slug:"missouri"},{name:"Montana",slug:"montana"},{name:"Nebraska",slug:"nebraska"},{name:"Nevada",slug:"nevada"},{name:"New Hampshire",slug:"new-hampshire"},{name:"New Jersey",slug:"new-jersey"},{name:"New Mexico",slug:"new-mexico"},{name:"New York",slug:"new-york"},{name:"North Carolina",slug:"north-carolina"},{name:"North Dakota",slug:"north-dakota"},{name:"Northern Mariana Islands",slug:"northern-mariana-islands"},{name:"Ohio",slug:"ohio"},{name:"Oklahoma",slug:"oklahoma"},{name:"Oregon",slug:"oregon"},{name:"Pennsylvania",slug:"pennsylvania"},{name:"Puerto Rico",slug:"puerto-rico"},{name:"Rhode Island",slug:"rhode-island"},{name:"South Carolina",slug:"south-carolina"},{name:"South Dakota",slug:"south-dakota"},{name:"Tennessee",slug:"tennessee"},{name:"Texas",slug:"texas"},{name:"U.S. Virgin Islands",slug:"us-virgin-islands"},{name:"Utah",slug:"utah"},{name:"Vermont",slug:"vermont"},{name:"Virginia",slug:"virginia"},{name:"Washington",slug:"washington"},{name:"West Virginia",slug:"west-virginia"},{name:"Wisconsin",slug:"wisconsin"},{name:"Wyoming",slug:"wyoming"}];function drNormalize(s){return s.trim().toLowerCase()}function drMatches(typed){var norm=drNormalize(typed);if(!norm)return[];var starts=[],contains=[];DR_STATES.forEach(function(s){var n=drNormalize(s.name);if(n.indexOf(norm)===0)starts.push(s);else if(n.indexOf(norm)!==-1)contains.push(s)});return starts.concat(contains)}function drExactOrSingleMatch(typed){var norm=drNormalize(typed);if(!norm)return null;var exact=null;DR_STATES.forEach(function(s){if(drNormalize(s.name)===norm)exact=s});if(exact)return exact.slug;var matches=drMatches(typed);return matches.length===1?matches[0].slug:null}function drGoToState(event){if(event)event.preventDefault();var input=document.getElementById("state-search-input");var slug=drExactOrSingleMatch(input.value);if(slug){window.location.href="/"+slug+"/"}return false}function drFilterGrid(){var typed=drNormalize(document.getElementById("state-search-input").value);document.querySelectorAll(".state-card").forEach(function(card){var name=drNormalize(card.getAttribute("data-state-name"));var match=!typed||name.indexOf(typed)!==-1;card.classList.toggle("state-card--dimmed",!match)})}var drActiveIndex=-1;function drCloseDropdown(){var dropdown=document.getElementById("state-search-dropdown");var input=document.getElementById("state-search-input");dropdown.innerHTML="";dropdown.classList.remove("is-open");input.setAttribute("aria-expanded","false");drActiveIndex=-1}function drRenderDropdown(){var input=document.getElementById("state-search-input");var dropdown=document.getElementById("state-search-dropdown");var typed=input.value;if(!typed.trim()){drCloseDropdown();return}var matches=drMatches(typed);drActiveIndex=-1;if(matches.length===0){dropdown.innerHTML='<div class="state-search-empty">No matching state</div>';dropdown.classList.add("is-open");input.setAttribute("aria-expanded","true");return}dropdown.innerHTML=matches.map(function(s,i){return'<button type="button" class="state-search-option" data-slug="'+s.slug+'" data-index="'+i+'" role="option">'+s.name+"</button>"}).join("");dropdown.classList.add("is-open");input.setAttribute("aria-expanded","true")}function drSetActive(index){var options=document.querySelectorAll(".state-search-option");options.forEach(function(opt){opt.classList.remove("is-active")});if(index>=0&&index<options.length){options[index].classList.add("is-active");options[index].scrollIntoView({block:"nearest"})}drActiveIndex=index}document.addEventListener("DOMContentLoaded",function(){var input=document.getElementById("state-search-input");var dropdown=document.getElementById("state-search-dropdown");if(!input||!dropdown)return;input.addEventListener("input",function(){drRenderDropdown();drFilterGrid()});input.addEventListener("keydown",function(event){var options=document.querySelectorAll(".state-search-option");if(event.key==="ArrowDown"){event.preventDefault();if(options.length)drSetActive((drActiveIndex+1)%options.length)}else if(event.key==="ArrowUp"){event.preventDefault();if(options.length)drSetActive((drActiveIndex-1+options.length)%options.length)}else if(event.key==="Enter"){if(drActiveIndex>=0&&options[drActiveIndex]){event.preventDefault();window.location.href="/"+options[drActiveIndex].getAttribute("data-slug")+"/"}}else if(event.key==="Escape"){drCloseDropdown()}});dropdown.addEventListener("click",function(event){var opt=event.target.closest(".state-search-option");if(opt){window.location.href="/"+opt.getAttribute("data-slug")+"/"}});document.addEventListener("click",function(event){if(event.target!==input&&!dropdown.contains(event.target))drCloseDropdown()})});</script>
 
 </div>
 <footer class="site-footer">

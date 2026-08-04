@@ -21,28 +21,28 @@
 <style>
 
   @font-face {
-    font-family: 'Fraunces';
+    font-family: "Fraunces";
     font-style: normal;
     font-weight: 300 900;
     font-display: swap;
-    src: url('/fonts/fraunces-variable.woff2') format('woff2');
+    src: url("/fonts/fraunces-variable.woff2") format("woff2");
   }
   :root {
     color-scheme: light dark;
-    /* Tokens match the approved design concept exactly. */
+    
     --bg: #f7f9fb; --page-bg: #f7f9fb; --fg: #17212b; --muted: #5a6b7a;
-    /* AuditLab UX-3: the original light-mode value (#8595a3) was 3.08:1 against card-bg / 2.92:1 against page-bg on 12 small-text rules including disclaimer/trust copy (needs 4.5, and light mode is the default for most visitors). This one clears both (5.17 / 4.90) while staying lighter than --muted. */
+    
     --faint: #5e6f80;
     --border: #e0e6ec; --border-strong: #c8d2db;
     --accent: #1f3d54; --accent-deep: #152c3e; --accent-bg: #eaeef1; --card-bg: #ffffff;
     --on-accent: #fff;
-    /* AuditLab UX-1: foreground for text painted on an --accent/--accent-deep background (buttons, table headers) -- pairs per-theme instead of a hardcoded color, which broke once dark mode inverted --accent from dark-navy to light-blue (was 2.47:1, WCAG AA needs 4.5). Dark-mode value is 7.25:1 against dark --accent and 9.5:1 against --accent-deep, verified with a standalone relative-luminance calc. */
+    
     --panel-dark: #152c3e; --panel-dark-fg: #eaf1f7;
     --gold: #8a6a33; --gold-line: #d8c9a6; --gold-bg: #f4eede;
     --verified-green: #256a4b; --verified-green-bg: #e8f1ec;
     --trust-bg: #f4eede; --trust-border: #d8c9a6; --row-alt: #f6f8f9;
     --shadow: 0 1px 2px rgba(23,33,43,.05), 0 6px 22px rgba(23,33,43,.06);
-    --font-display: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+    --font-display: Georgia, "Iowan Old Style", "Times New Roman", serif;
     --font-mono: "SFMono-Regular", ui-monospace, "Cascadia Code", Consolas, "Liberation Mono", monospace;
     --map-fixed: #bcd4f5; --map-fixed-hover: #1f3d54;
     --map-variable: #e4e8ec; --map-variable-hover: #8a95a3;
@@ -50,7 +50,7 @@
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #12151a; --page-bg: #12151a; --fg: #e7ebf0; --muted: #9aa5b1;
-      /* AuditLab UX-2: the previous value was 3.79:1 against card-bg / 4.18:1 against page-bg for small supporting text (needs 4.5). This one clears both (4.91 / 5.42) while staying visibly dimmer than --muted. */
+      
       --faint: #828d99;
       --border: #2a323c; --border-strong: #3a4552;
       --accent: #7fa8d9; --accent-deep: #9cc0ea; --accent-bg: #1b2836; --card-bg: #1a1f26;
@@ -64,22 +64,7 @@
     }
   }
   * { box-sizing: border-box; }
-  /* nav.mainnav is sticky at top:0 and ~60px tall -- without this, any
-     browser- or JS-driven scroll (an anchor jump to #remind, a keyboard Tab
-     landing on a roster row's button, scrollIntoView()) can land content
-     flush against the viewport top, tucked UNDER the nav where it is both
-     visually obscured (the nav's translucent background lets it show
-     through, faintly, which is what makes it look clickable) and click-dead
-     (the nav sits above it in the stacking order and receives the click
-     instead). Reported directly, 2026-08-03: "clicked the top one, marked
-     renewed, didn't do anything" on the roster table -- confirmed via
-     elementFromPoint() that a row scrolled flush to the top resolves to the
-     nav, not the button, at that exact coordinate. This fixes every
-     browser-driven scroll-to-element case; it cannot fix a raw mouse-wheel
-     scroll stopping at an arbitrary position, which is a standing
-     limitation of any sticky header -- if this keeps happening, the next
-     step is verifying it reproduces from a normal scroll and not only from
-     scrollIntoView(). */
+  
   html { scroll-padding-top: 68px; }
   html { background: var(--page-bg); }
   body {
@@ -87,9 +72,7 @@
     margin: 0; padding: 0 0 3rem;
     line-height: 1.55; color: var(--fg); background: var(--page-bg);
   }
-  /* Chrome (nav, topbar, footer border) spans the FULL browser width; only the reading
-     content itself is centered in a max-width column -- .wrap is that single column,
-     reused everywhere so nav/header/body/footer all align to the same edges. */
+  
   .wrap { max-width: 1180px; margin: 0 auto; padding: 0 1.25rem; }
   a { color: var(--accent); }
   .topbar {
@@ -163,8 +146,8 @@
     border: 1px solid var(--trust-border); background: var(--trust-bg); border-radius: 8px;
     padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
   }
-  .trust-line strong::before { content: "\2713\a0"; color: var(--gold); }
-  /* ---- Rule-changes feed, /rule-changes/ (2026-08-02) ---- */
+  .trust-line strong::before { content: "✓ "; color: var(--gold); }
+  
   .rc-section-note { color: var(--muted); font-size: 0.88rem; margin: 0.2rem 0 0.9rem; }
   .rc-card {
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 10px;
@@ -183,7 +166,7 @@
   .rc-cite { font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem; }
   .rc-conf { color: var(--muted); }
   .rc-empty { color: var(--muted); font-style: italic; margin: 0.4rem 0 1.2rem; }
-  /* ---- THE CENTERPIECE: citation-first fact sheet, per the approved concept's .sheet/.frow ---- */
+  
   .sheet {
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
     box-shadow: var(--shadow); overflow: hidden; margin: 1.4rem 0;
@@ -205,8 +188,7 @@
   .sheethead .stamp--unconfirmed { color: var(--gold); }
   .sheethead .stamp--unconfirmed .dot { background: var(--gold); box-shadow: 0 0 0 3px var(--gold-bg); }
   .rowlist { display: flex; flex-direction: column; }
-  /* Both tracks are minmax(0,...) on purpose: a grid track's automatic minimum
-     is min-content, which lets an un-wrappable child dictate the whole row. */
+  
   .frow {
     display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 18rem); gap: 0.35rem 1.4rem;
     padding: 1.1rem 1.2rem; border-top: 1px solid var(--border);
@@ -223,15 +205,14 @@
     font-size: 0.82rem; font-weight: 500; color: var(--muted); display: block; margin-top: 0.25rem; line-height: 1.4;
   }
   .frow .side { grid-column: 2; grid-row: 2; align-self: center; text-align: right; }
-  /* Citations wrap rather than nowrap -- a citation must never be cut. */
+  
   .cite {
     display: inline-flex; align-items: flex-start; gap: 0.4rem; font-family: var(--font-mono); font-size: 0.78rem;
     color: var(--gold); background: var(--gold-bg); border: 1px solid var(--gold-line); border-radius: 6px;
     padding: 0.25rem 0.55rem; text-decoration: none; white-space: normal; overflow-wrap: anywhere;
     text-align: left; max-width: 100%; box-sizing: border-box;
   }
-  /* Long (prose) citations get their own full-width row; short statutory
-     cites keep the right-aligned chip. Chosen in Python, so no :has() needed. */
+  
   .frow .side--stacked { grid-column: 1 / -1; grid-row: auto; text-align: left; margin-top: 0.7rem; }
   .frow .side--stacked .cite { display: flex; }
   .cite:hover { background: #efe6d0; }
@@ -253,7 +234,7 @@
   @media (prefers-color-scheme: dark) { .sheetfoot { background: #171c22; } }
   .factsheet-note { font-size: 0.85rem; color: var(--muted); padding: 0 1.2rem 1rem; }
 
-  /* ---- homepage hero, per the approved concept ---- */
+  
   .eyebrow {
     font-size: 0.72rem; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase;
     color: var(--gold); margin: 0 0 0.7rem;
@@ -280,9 +261,7 @@
   }
   .lookup-field button:hover { background: var(--accent-deep); }
   .lookup-hint { margin-top: 0.6rem; font-size: 0.8rem; color: var(--faint); }
-  /* A proper 3-column grid (2026-07-31). These were flex-wrapped, so two
-     items stacked left while the third sat mid-right on its own baseline and
-     the row read as misaligned rather than as a set of three facts. */
+  
   .trust-row {
     display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 1.1rem; margin-top: 1.5rem; align-items: start;
@@ -294,7 +273,7 @@
   .trust-footnote { margin-top: 1rem; font-size: 0.82rem; color: var(--faint); line-height: 1.5; max-width: 46ch; }
   @media (max-width: 620px) { .trust-row { grid-template-columns: 1fr 1fr; } }
 
-  /* ---- hero-right: rotating verified-fact card, live proof of freshness ---- */
+  
   .hfc-wrap { position: relative; min-height: 300px; }
   .hfc-card {
     position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: 1;
@@ -317,7 +296,7 @@
     .hfc-card { transition: none; }
   }
 
-  /* ---- "how we verify" 3-card band ---- */
+  
   .band-section { margin: 2.4rem 0 2rem; padding-top: 1.8rem; border-top: 1px solid var(--border); }
   .band-section h2 { font-size: 1.5rem; }
   .method-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; margin: 1.6rem 0 1.8rem; }
@@ -327,7 +306,7 @@
   .mcard h3 { font-size: 1.05rem; margin: 0.6rem 0 0.4rem; font-family: var(--font-display); }
   .mcard p { margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.55; }
 
-  /* ---- reminder panel: two-column dark treatment ---- */
+  
   .remind-panel {
     background: var(--panel-dark); color: var(--panel-dark-fg); border-radius: 12px; padding: 1.8rem;
     display: grid; grid-template-columns: 1.1fr 1fr; gap: 1.6rem; align-items: center; margin: 1.75rem 0;
@@ -403,13 +382,7 @@
   .mock-firm-count { font-weight: 400; color: var(--muted); font-size: 0.88rem; }
   .mock-dashboard .table-wrap { margin: 0; }
   .mock-dashboard table { font-size: 0.86rem; }
-  /* The mockup embeds the REAL dashboard shell (.dr-*) so the marketing
-     preview is pixel-consistent with the real product (2026-07-30, BUILD v2
-     Phase C) -- these two overrides only fix things that don't make sense
-     inside a small decorative preview box: a sticky sidebar would try to
-     stick to PAGE scroll instead of staying inside the mock frame, and the
-     nested .table-wrap already gets .mock-dashboard's own margin/font-size
-     rules above. */
+  
   .mock-dashboard .dr-sidebar { position: static; }
   .mock-dashboard .dr-dash-shell { margin: 0; }
   .mock-dashboard .dr-nav a { pointer-events: none; }
@@ -436,7 +409,7 @@
   }
   .faq-item summary::-webkit-details-marker { display: none; }
   .faq-item summary::after { content: "+"; color: var(--accent); font-size: 1.2rem; font-weight: 400; }
-  .faq-item[open] summary::after { content: "\2212"; }
+  .faq-item[open] summary::after { content: "−"; }
   .faq-item p { margin: 0.7rem 0 0; color: var(--fg); }
   .backlink { display: inline-block; margin-top: 0.5rem; font-size: 0.92rem; }
   .how-it-works { color: var(--muted); font-size: 0.92rem; margin: 1.25rem 0 1.75rem; }
@@ -584,13 +557,7 @@
     .signup-form--compact .signup-form-row { gap: 0.5rem; }
   }
 
-  /* ---- Firm dashboard app shell (2026-07-30, BUILD v2 Phase B redesign) ----
-     Own visual identity, not a copy of any incumbent's layout: reuses this
-     site's existing tokens (--panel-dark is the same dark navy the homepage's
-     .remind-panel already uses; --gold/--verified-green are the same citation/
-     freshness accents everywhere else) inside a standard, generic dashboard
-     idiom (dark sidebar nav + light content cards) -- gauge/donut/sidebar are
-     universal dashboard components, not anyone's protected expression. */
+  
   .dr-dash-shell { display: grid; grid-template-columns: 216px 1fr; gap: 1.5rem; margin: 1.5rem 0 2rem; align-items: start; }
   @media (max-width: 860px) { .dr-dash-shell { grid-template-columns: 1fr; } }
 
@@ -607,7 +574,7 @@
   }
   .dr-nav a.is-active { background: rgba(255,255,255,.1); color: #fff; font-weight: 600; }
   .dr-nav a:hover { background: rgba(255,255,255,.06); color: #fff; }
-  /* ---- Practice-privilege checker (2026-07-30, pay-gated) ---- */
+  
   .dr-mobility-callout { background: var(--row-alt); border-left: 3px solid var(--border-strong); border-radius: 6px; padding: 0.9rem 1.1rem; margin-bottom: 1.4rem; font-size: 0.88rem; line-height: 1.55; }
   .dr-mob-check { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0.7rem 0; font-size: 0.9rem; font-weight: 400; }
   .dr-mob-check input { margin-top: 0.2rem; flex: 0 0 auto; }
@@ -677,13 +644,7 @@
   .dr-at-risk-days { font-family: var(--font-display); font-weight: 650; white-space: nowrap; }
   .dr-at-risk-days--soon { color: #c33737; }
   @media (prefers-color-scheme: dark) { .dr-at-risk-days--soon { color: #ff8080; } }
-  /* AuditLab VIS-1 (MEDIUM, 2026-08-04, per product decision): opted-out staff
-     get NO automated reminder at all, so the firm's own at-risk view is the
-     only remaining warning channel for them -- this chip makes that gap
-     explicit rather than letting the row look like any other at-risk entry.
-     Muted/gray, matching the roster table's own "Opted out" status color
-     (#8595a3), deliberately NOT the urgency red of dr-at-risk-days--soon --
-     this is a channel-gap notice, not an urgency escalation. */
+  
   .dr-at-risk-optedout { display: block; font-size: 0.72rem; color: #8595a3; margin-top: 0.15rem; }
   .dr-activity-item { display: flex; gap: 0.6rem; font-size: 0.85rem; align-items: flex-start; }
   .dr-activity-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; margin-top: 0.4rem; flex: none; background: var(--accent); }
@@ -695,106 +656,47 @@
   .dr-roster-panel h2 { font-size: 0.98rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
   .dr-roster-panel .table-wrap { margin-top: 0; }
 
-  /* ---- Full-roster table: keep Actions reachable (2026-07-31) ----------
-     The problem reported (with screenshots): 7 columns overflowed to the
-     right, and the Actions column -- Edit / Mark renewed / Remove -- fell
-     off the end. .table-wrap already scrolled, but a control you have to
-     go hunting for is effectively missing, and horizontal scrolling to
-     reach the primary controls for every row is miserable.
-
-     Three changes, in the order they matter:
-       1. Actions is STICKY to the right edge, so it is on screen at every
-          scroll position rather than merely reachable. This is the actual
-          fix; the rest is about not needing to scroll in the first place.
-       2. Email truncates with an ellipsis and keeps the full value in a
-          title tooltip. Email was the widest low-value column and the main
-          reason the table overflowed at all.
-       3. Below 860px the table becomes stacked cards, because no amount of
-          column trimming makes 7 columns work on a phone. */
-  /* 2026-08-04: Actions was reported overlapping Status/Next-deadline --
-     e.g. the header text read "Sta" cut off mid-word right next to
-     "Actions". Root cause, confirmed by measuring computed layout in a
-     browser rather than guessing: with no explicit column widths, the
-     browser's auto table-layout algorithm and the sticky Actions column
-     (position: sticky; right: 0, below) fight over the same space
-     differently depending on viewport width -- sometimes it scrolls clean,
-     sometimes a neighboring column's cell gets partially painted over
-     mid-character. table-layout: fixed with an explicit width per column
-     (nth-child, matching real column order) makes every column's boundary
-     deterministic regardless of viewport width, so the sticky Actions
-     column always either fully covers or fully reveals its neighbor --
-     never a half-visible "Sta". */
-  /* 2026-08-04 correction: `width: 100%` + `table-layout: fixed` with no
-     min-width does NOT make the table overflow when the declared column
-     widths don't fit -- it makes the browser treat those widths as
-     PROPORTIONAL WEIGHTS within a table forcibly locked to exactly 100% of
-     the container, squeezing every column (Status/Next-deadline included)
-     down to fit, down to near-zero visible width for the narrower ones.
-     Caught live: Status and Next-deadline had gone from "overlapping" to
-     "invisible", not fixed. min-width equal to the column
-     budget (9+14+7+8+6+8+15=67rem, border-box so padding is already
-     included) restores the actual intent -- the table can grow past 100%
-     and .table-wrap's existing overflow-x:auto scrolls to it, while still
-     shrinking to fit when the container genuinely has 67rem to spare. */
+  
+  
+  
   .dr-roster-panel table { width: 100%; min-width: 67rem; table-layout: fixed; }
   .dr-roster-panel td, .dr-roster-panel th { white-space: nowrap; }
-  .dr-roster-panel th:nth-child(1), .dr-roster-panel td:nth-child(1) { width: 9rem; }  /* Staff */
-  .dr-roster-panel th:nth-child(2), .dr-roster-panel td:nth-child(2) { width: 14rem; } /* Email */
-  .dr-roster-panel th:nth-child(3), .dr-roster-panel td:nth-child(3) { width: 7rem; }  /* State */
-  .dr-roster-panel th:nth-child(4), .dr-roster-panel td:nth-child(4) { width: 8rem; }  /* License type */
-  .dr-roster-panel th:nth-child(5), .dr-roster-panel td:nth-child(5) { width: 6rem; }  /* Status */
-  .dr-roster-panel th:nth-child(6), .dr-roster-panel td:nth-child(6) { width: 8rem; }  /* Next deadline */
-  .dr-roster-panel th:nth-child(7), .dr-roster-panel td:nth-child(7) { width: 15rem; } /* Actions -- matches the 3-button group's measured natural width (~237px) */
+  .dr-roster-panel th:nth-child(1), .dr-roster-panel td:nth-child(1) { width: 9rem; }  
+  .dr-roster-panel th:nth-child(2), .dr-roster-panel td:nth-child(2) { width: 14rem; } 
+  .dr-roster-panel th:nth-child(3), .dr-roster-panel td:nth-child(3) { width: 7rem; }  
+  .dr-roster-panel th:nth-child(4), .dr-roster-panel td:nth-child(4) { width: 8rem; }  
+  .dr-roster-panel th:nth-child(5), .dr-roster-panel td:nth-child(5) { width: 6rem; }  
+  .dr-roster-panel th:nth-child(6), .dr-roster-panel td:nth-child(6) { width: 8rem; }  
+  .dr-roster-panel th:nth-child(7), .dr-roster-panel td:nth-child(7) { width: 15rem; } 
 
-  /* Email: the width hog. Truncate, full value on hover/focus via title. */
+  
   .dr-roster-panel td.dr-cell-email {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
-  /* Sticky Actions. The background is opaque and matches the row so the
-     scrolled-under content does not bleed through, and the left shadow
-     signals there is more table behind it. */
+  
   .dr-roster-panel th.dr-actions-head,
   .dr-roster-panel td.dr-actions {
     position: sticky; right: 0; z-index: 2;
     box-shadow: -6px 0 6px -6px rgba(0,0,0,0.18);
   }
-  /* Body cells match their row's own background -- card-bg / row-alt. */
+  
   .dr-roster-panel td.dr-actions { background: var(--card-bg); }
   .dr-roster-panel tbody tr:nth-child(even) td.dr-actions { background: var(--row-alt); }
-  /* The header row is NOT a body row -- it's dark accent with light text
-     (the general `th` rule, line ~433), not card-bg. Reusing card-bg here
-     (2026-08-03 bug, reported as "Actions header looks greyed out/
-     unreadable"): the background flipped to near-white while `color`
-     stayed inherited as the header's light `#eaf1f7`, so the sticky
-     Actions header rendered near-white text on a near-white background --
-     readable nowhere, not just "greyed." Match the header's own colors
-     explicitly instead of assuming one shared background serves both. */
+  
   .dr-roster-panel th.dr-actions-head { background: var(--accent); color: var(--on-accent); z-index: 3; }
 
-  /* Tighter action buttons so the sticky column costs less width. */
+  
   .dr-roster-panel td.dr-actions button { padding: 0.22rem 0.5rem; font-size: 0.76rem; white-space: nowrap; }
 
   @media (max-width: 860px) {
-    /* Stacked cards. Each cell carries its own label via data-label, so the
-       header row can be hidden without losing what each value means. */
-    /* min-width MUST be reset here. The global `table { min-width: 420px }`
-       (line ~397, there to stop wide tables collapsing) outranks width:100%
-       and kept the stacked cards 420px wide inside a ~308px container --
-       which the overflow-x:hidden below then CLIPPED, silently cutting off
-       the right edge of every card. That is the same defect this change
-       exists to fix, so it would have shipped the bug wearing a different
-       hat. Caught by measuring computed min-width at 390px. */
+    
+    
     .dr-roster-panel table, .dr-roster-panel thead, .dr-roster-panel tbody,
     .dr-roster-panel tr, .dr-roster-panel td {
       display: block; width: 100%; min-width: 0; max-width: 100%;
     }
-    /* The desktop per-column nth-child widths (added 2026-08-04) have HIGHER
-       specificity (class + nth-child + type) than the block above (class +
-       type), so without this explicit reset they would win the cascade here
-       too and reintroduce fixed-width columns inside the stacked cards --
-       the same "reset it explicitly or it silently wins" trap the min-width
-       comment above already documents for a different property. */
+    
     .dr-roster-panel td:nth-child(1), .dr-roster-panel td:nth-child(2), .dr-roster-panel td:nth-child(3),
     .dr-roster-panel td:nth-child(4), .dr-roster-panel td:nth-child(5), .dr-roster-panel td:nth-child(6),
     .dr-roster-panel td:nth-child(7) {
@@ -813,19 +715,15 @@
       content: attr(data-label); font-weight: 600; color: var(--muted);
       font-size: 0.78rem; flex: 0 0 auto;
     }
-    /* Must also undo the desktop nowrap/ellipsis, not just max-width: a long
-       address kept forcing the card wider than the viewport and reintroduced
-       horizontal scrolling on phones -- the exact problem this fix is for.
-       Caught by measuring scrollWidth at 390px, not by eye. */
+    
     .dr-roster-panel td.dr-cell-email {
       max-width: none; text-align: right;
       white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere;
     }
-    /* Same reason: the global nowrap would otherwise keep cards wide. */
+    
     .dr-roster-panel td, .dr-roster-panel th { white-space: normal; }
     .dr-roster-panel .table-wrap { overflow-x: hidden; }
-    /* Sticky is meaningless once stacked -- unset it or the buttons pin
-       oddly mid-card. */
+    
     .dr-roster-panel td.dr-actions {
       position: static; box-shadow: none; background: none;
       display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-start;
@@ -835,8 +733,7 @@
     .dr-roster-panel tbody tr:nth-child(even) td.dr-actions { background: none; }
   }
 
-  /* ---- Calendar + Map views (2026-07-30, BUILD v2 Phase D) -- in-page tabs,
-     same fetched drLicenses data the roster view already has, no new endpoint. ---- */
+  
   .dr-view[hidden] { display: none; }
 
   .dr-cal-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
@@ -868,7 +765,7 @@
     .dr-cal-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
     .dr-cal-day { min-height: 3rem; font-size: 0.68rem; }
     .dr-cal-item { display: none; }
-    .dr-cal-day--has-item::after { content: "\2022"; color: var(--accent); font-size: 1.1rem; line-height: 1; }
+    .dr-cal-day--has-item::after { content: "•"; color: var(--accent); font-size: 1.1rem; line-height: 1; }
   }
   .dr-agenda-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
   .dr-agenda-panel h2 { font-size: 1.05rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
@@ -889,10 +786,7 @@
   .dr-map-state--home { fill: #1f9e5c; }
   .dr-map-state--clear { fill: #6b8fd4; }
   .dr-map-state--action { fill: #d98a1f; }
-  /* 2026-08-04: self-reported "we handled it" -- deliberately a distinct
-     teal, never the same blue as --clear (an independently rule-verified
-     determination). See migration 0016's docstring for why these must
-     never look identical. */
+  
   .dr-map-state--complete { fill: #1f9e8e; }
   .dr-map-state--coverage { fill: #8a6bd4; }
   .dr-map-link { cursor: default; outline: none; }
@@ -916,7 +810,7 @@
     background: var(--row-alt); border-radius: 8px; }
   .dr-map-mobility-note[hidden] { display: none; }
 
-  /* ---- CPE Hours tab (2026-07-30, new BUILD v2 phase) ---- */
+  
   .dr-cpe-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.2rem; }
   .dr-cpe-staff-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
   .dr-cpe-staff-panel h2 { font-size: 1.05rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
@@ -939,7 +833,7 @@
   .dr-cpe-recent-remove { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 6px; padding: 0.2rem 0.55rem; cursor: pointer; font-family: inherit; font-size: 0.78rem; }
   .dr-cpe-recent-remove:hover { background: var(--row-alt); color: #c33737; }
 
-  /* ---- SSO sign-in button + account settings (2026-07-30, auth suite) ---- */
+  
   .dr-sso-block { margin-top: 1rem; }
   .dr-sso-divider { display: flex; align-items: center; gap: 0.75rem; color: var(--faint); font-size: 0.8rem; margin: 0.9rem 0; }
   .dr-sso-divider::before, .dr-sso-divider::after { content: ""; flex: 1 1 auto; height: 1px; background: var(--border); }
@@ -952,7 +846,7 @@
   .dr-account-ok { color: #1f9e5c; font-size: 0.85rem; margin-top: 0.6rem; }
   .dr-account-err { color: #c33737; font-size: 0.85rem; margin-top: 0.6rem; }
 
-  /* ---- Sign-in account chooser, /signin/ (2026-08-02) ---- */
+  
   .signin-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; margin: 1.4rem 0 1.8rem; }
   .signin-card { display: flex; flex-direction: column; gap: 0.35rem; background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 11px; padding: 1.1rem 1.2rem; text-decoration: none; color: inherit; }
   .signin-card:hover { border-color: var(--accent); }
@@ -960,10 +854,8 @@
   .signin-desc { font-size: 0.85rem; color: var(--muted); line-height: 1.45; }
   .signin-go { font-size: 0.85rem; color: var(--accent); font-weight: 600; margin-top: 0.3rem; }
   @media (max-width: 620px) { .signin-choice { grid-template-columns: 1fr; } }
-  /* ---- Conventional sign-in card, /firm-login/ (2026-07-31) ---- */
-  /* One form at a time, centred, narrow. The width cap is the point: a
-     sign-in form stretched to a content column is one of the tells that made
-     the old page read unfinished. */
+  
+  
   .dr-auth-card { max-width: 26rem; margin: 0 auto; }
   .dr-auth-card h1 { font-size: 1.5rem; margin-bottom: 0.4rem; }
   .dr-auth-card .subhead { font-size: 0.92rem; margin-bottom: 1.4rem; }
@@ -982,17 +874,13 @@
   .dr-auth-secondary { margin-top: 0.9rem; font-size: 0.86rem; text-align: center; }
   .dr-auth-alt { margin-top: 1.1rem; font-size: 0.9rem; text-align: center; }
   .dr-sso-top { margin-bottom: 1.2rem; }
-  /* interaction-only: normally renders nothing at all, so the slot must not
-     reserve space or leave a gap where the old green box used to sit. */
+  
   .dr-turnstile-slot { display: flex; justify-content: center; }
   .dr-turnstile-slot:empty { display: none; }
   .dr-turnstile-slot .cf-turnstile:not(:empty) { margin-top: 1.1rem; }
 
-  /* ---- Free-tier individual dashboard, /my/ (2026-07-31) ---- */
-  /* Deliberately CARDS, not the firm dashboard's table: an individual has a
-     handful of licenses, not a roster of dozens, and cards reflow on a phone
-     with no horizontal-scroll problem to solve -- the exact problem the firm
-     roster table needed fixing for. */
+  
+  
   .dr-my-shell { max-width: 46rem; }
   .dr-my-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
   .dr-my-head h1 { margin-bottom: 0.3rem; }
@@ -1598,1456 +1486,9 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
   </div>
 </div>
 
-<script>
-var DR_CPE_REQUIREMENTS = {"alabama": {"total_hours": 40, "period_years": 1, "ethics_hours": 2, "ethics_period_years": 1, "data_gap_note": null}, "alaska": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "arizona": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "arkansas": {"total_hours": 120, "period_years": 3, "ethics_hours": 4, "ethics_period_years": 3, "data_gap_note": null}, "california": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "colorado": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "connecticut": {"total_hours": 40, "period_years": 1, "ethics_hours": 4, "ethics_period_years": 3, "data_gap_note": null}, "dc": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "delaware": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "florida": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "georgia": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "hawaii": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "idaho": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "illinois": {"total_hours": 120, "period_years": 3, "ethics_hours": 4, "ethics_period_years": 3, "data_gap_note": null}, "indiana": {"total_hours": 120, "period_years": 3, "ethics_hours": 4, "ethics_period_years": 3, "data_gap_note": null}, "iowa": {"total_hours": 120, "period_years": 3, "ethics_hours": 4, "ethics_period_years": 3, "data_gap_note": null}, "kansas": {"total_hours": 80, "period_years": 2, "ethics_hours": 2, "ethics_period_years": 2, "data_gap_note": null}, "kentucky": {"total_hours": 80, "period_years": 2, "ethics_hours": 2, "ethics_period_years": 2, "data_gap_note": null}, "louisiana": {"total_hours": 80, "period_years": 2, "ethics_hours": null, "ethics_period_years": null, "data_gap_note": null}, "maine": {"total_hours": 40, "period_years": 1, "ethics_hours": 4, "ethics_period_years": 3, "data_gap_note": null}, "maryland": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "massachusetts": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "michigan": {"total_hours": 40, "period_years": 1, "ethics_hours": 2, "ethics_period_years": 1, "data_gap_note": null}, "minnesota": {"total_hours": 120, "period_years": 3, "ethics_hours": 8, "ethics_period_years": 3, "data_gap_note": null}, "mississippi": {"total_hours": 40, "period_years": 1, "ethics_hours": 4, "ethics_period_years": 3, "data_gap_note": null}, "missouri": {"total_hours": 40, "period_years": 1, "ethics_hours": 2, "ethics_period_years": 1, "data_gap_note": null}, "montana": {"total_hours": 120, "period_years": 3, "ethics_hours": 2, "ethics_period_years": 3, "data_gap_note": null}, "nevada": {"total_hours": 40, "period_years": 1, "ethics_hours": 2, "ethics_period_years": 1, "data_gap_note": null}, "new-hampshire": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": "The board's own accountancy CPE page and the rulemaking docket's adopted-text PDF state these figures, but oplc.nh.gov currently blocks automated access, so this specific fact could not be freshly re-confirmed by an automated check at publish time -- only by matching an archived copy of the same page and the same docket's earlier final-proposal text. Recommend a manual check of the board's page if you want to see it firsthand."}, "new-jersey": {"total_hours": 120, "period_years": 3, "ethics_hours": 4, "ethics_period_years": 3, "data_gap_note": null}, "new-mexico": {"total_hours": 120, "period_years": 3, "ethics_hours": 4, "ethics_period_years": 3, "data_gap_note": null}, "new-york": {"total_hours": 40, "period_years": 1, "ethics_hours": 4, "ethics_period_years": 3, "data_gap_note": null}, "north-carolina": {"total_hours": 40, "period_years": 1, "ethics_hours": 1, "ethics_period_years": 1, "data_gap_note": null}, "north-dakota": {"total_hours": 120, "period_years": 3, "ethics_hours": 6, "ethics_period_years": 3, "data_gap_note": null}, "ohio": {"total_hours": 120, "period_years": 3, "ethics_hours": 3, "ethics_period_years": 3, "data_gap_note": null}, "oklahoma": {"total_hours": 120, "period_years": 3, "ethics_hours": 4, "ethics_period_years": 3, "data_gap_note": null}, "oregon": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "pennsylvania": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "rhode-island": {"total_hours": 120, "period_years": 3, "ethics_hours": 6, "ethics_period_years": 3, "data_gap_note": null}, "south-carolina": {"total_hours": 40, "period_years": 1, "ethics_hours": 2, "ethics_period_years": 1, "data_gap_note": null}, "south-dakota": {"total_hours": 120, "period_years": 3, "ethics_hours": null, "ethics_period_years": null, "data_gap_note": "total_hours/period_years are fully 2-sourced: SDCL 36-20B-27's primary text (fetched directly) states '120 hours of continuing education in each three-year renewal period,' matching the board's FAQ. The 20-hour annual_minimum_hours figure is confirmed only on the board's own FAQ page, not independently in the statute text or in the administrative rule chapter (whose only annual-minimum language governs the initial-certificate phase-in population specifically, not general renewal) -- single-sourced, disclosed rather than silently treated as codified."}, "tennessee": {"total_hours": 80, "period_years": 2, "ethics_hours": 2, "ethics_period_years": 2, "data_gap_note": null}, "texas": {"total_hours": 120, "period_years": 3, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "utah": {"total_hours": 80, "period_years": 2, "ethics_hours": 3, "ethics_period_years": 2, "data_gap_note": "The board's own CPA CPE FAQ (Utah DOPL, rev. 2025-07-10) states these figures, but its web domain currently blocks automated access, so this specific fact could not be freshly re-confirmed by an automated check at publish time -- only by matching search-engine copies of the same page. The codified rule text itself (linked above) was fetched and confirmed directly and states the same figures. Recommend a manual check of the board's page if you want to see it firsthand."}, "vermont": {"total_hours": 80, "period_years": 2, "ethics_hours": 4, "ethics_period_years": 2, "data_gap_note": null}, "virginia": {"total_hours": 120, "period_years": 3, "ethics_hours": 2, "ethics_period_years": 1, "data_gap_note": null}, "washington": {"total_hours": 120, "period_years": 3, "ethics_hours": 4, "ethics_period_years": 3, "data_gap_note": null}, "west-virginia": {"total_hours": 120, "period_years": 3, "ethics_hours": 4, "ethics_period_years": 3, "data_gap_note": null}, "wisconsin": {"total_hours": 80, "period_years": 2, "ethics_hours": 3, "ethics_period_years": 2, "data_gap_note": null}, "wyoming": {"total_hours": 120, "period_years": 3, "ethics_hours": 4, "ethics_period_years": 3, "data_gap_note": null}};
-</script>
+<script>var DR_CPE_REQUIREMENTS={alabama:{total_hours:40,period_years:1,ethics_hours:2,ethics_period_years:1,data_gap_note:null},alaska:{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:null},arizona:{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:null},arkansas:{total_hours:120,period_years:3,ethics_hours:4,ethics_period_years:3,data_gap_note:null},california:{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:null},colorado:{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:null},connecticut:{total_hours:40,period_years:1,ethics_hours:4,ethics_period_years:3,data_gap_note:null},dc:{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:null},delaware:{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:null},florida:{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:null},georgia:{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:null},hawaii:{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:null},idaho:{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:null},illinois:{total_hours:120,period_years:3,ethics_hours:4,ethics_period_years:3,data_gap_note:null},indiana:{total_hours:120,period_years:3,ethics_hours:4,ethics_period_years:3,data_gap_note:null},iowa:{total_hours:120,period_years:3,ethics_hours:4,ethics_period_years:3,data_gap_note:null},kansas:{total_hours:80,period_years:2,ethics_hours:2,ethics_period_years:2,data_gap_note:null},kentucky:{total_hours:80,period_years:2,ethics_hours:2,ethics_period_years:2,data_gap_note:null},louisiana:{total_hours:80,period_years:2,ethics_hours:null,ethics_period_years:null,data_gap_note:null},maine:{total_hours:40,period_years:1,ethics_hours:4,ethics_period_years:3,data_gap_note:null},maryland:{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:null},massachusetts:{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:null},michigan:{total_hours:40,period_years:1,ethics_hours:2,ethics_period_years:1,data_gap_note:null},minnesota:{total_hours:120,period_years:3,ethics_hours:8,ethics_period_years:3,data_gap_note:null},mississippi:{total_hours:40,period_years:1,ethics_hours:4,ethics_period_years:3,data_gap_note:null},missouri:{total_hours:40,period_years:1,ethics_hours:2,ethics_period_years:1,data_gap_note:null},montana:{total_hours:120,period_years:3,ethics_hours:2,ethics_period_years:3,data_gap_note:null},nevada:{total_hours:40,period_years:1,ethics_hours:2,ethics_period_years:1,data_gap_note:null},"new-hampshire":{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:"The board's own accountancy CPE page and the rulemaking docket's adopted-text PDF state these figures, but oplc.nh.gov currently blocks automated access, so this specific fact could not be freshly re-confirmed by an automated check at publish time -- only by matching an archived copy of the same page and the same docket's earlier final-proposal text. Recommend a manual check of the board's page if you want to see it firsthand."},"new-jersey":{total_hours:120,period_years:3,ethics_hours:4,ethics_period_years:3,data_gap_note:null},"new-mexico":{total_hours:120,period_years:3,ethics_hours:4,ethics_period_years:3,data_gap_note:null},"new-york":{total_hours:40,period_years:1,ethics_hours:4,ethics_period_years:3,data_gap_note:null},"north-carolina":{total_hours:40,period_years:1,ethics_hours:1,ethics_period_years:1,data_gap_note:null},"north-dakota":{total_hours:120,period_years:3,ethics_hours:6,ethics_period_years:3,data_gap_note:null},ohio:{total_hours:120,period_years:3,ethics_hours:3,ethics_period_years:3,data_gap_note:null},oklahoma:{total_hours:120,period_years:3,ethics_hours:4,ethics_period_years:3,data_gap_note:null},oregon:{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:null},pennsylvania:{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:null},"rhode-island":{total_hours:120,period_years:3,ethics_hours:6,ethics_period_years:3,data_gap_note:null},"south-carolina":{total_hours:40,period_years:1,ethics_hours:2,ethics_period_years:1,data_gap_note:null},"south-dakota":{total_hours:120,period_years:3,ethics_hours:null,ethics_period_years:null,data_gap_note:"total_hours/period_years are fully 2-sourced: SDCL 36-20B-27's primary text (fetched directly) states '120 hours of continuing education in each three-year renewal period,' matching the board's FAQ. The 20-hour annual_minimum_hours figure is confirmed only on the board's own FAQ page, not independently in the statute text or in the administrative rule chapter (whose only annual-minimum language governs the initial-certificate phase-in population specifically, not general renewal) -- single-sourced, disclosed rather than silently treated as codified."},tennessee:{total_hours:80,period_years:2,ethics_hours:2,ethics_period_years:2,data_gap_note:null},texas:{total_hours:120,period_years:3,ethics_hours:4,ethics_period_years:2,data_gap_note:null},utah:{total_hours:80,period_years:2,ethics_hours:3,ethics_period_years:2,data_gap_note:"The board's own CPA CPE FAQ (Utah DOPL, rev. 2025-07-10) states these figures, but its web domain currently blocks automated access, so this specific fact could not be freshly re-confirmed by an automated check at publish time -- only by matching search-engine copies of the same page. The codified rule text itself (linked above) was fetched and confirmed directly and states the same figures. Recommend a manual check of the board's page if you want to see it firsthand."},vermont:{total_hours:80,period_years:2,ethics_hours:4,ethics_period_years:2,data_gap_note:null},virginia:{total_hours:120,period_years:3,ethics_hours:2,ethics_period_years:1,data_gap_note:null},washington:{total_hours:120,period_years:3,ethics_hours:4,ethics_period_years:3,data_gap_note:null},"west-virginia":{total_hours:120,period_years:3,ethics_hours:4,ethics_period_years:3,data_gap_note:null},wisconsin:{total_hours:80,period_years:2,ethics_hours:3,ethics_period_years:2,data_gap_note:null},wyoming:{total_hours:120,period_years:3,ethics_hours:4,ethics_period_years:3,data_gap_note:null}};</script>
 
-<script>
-function drUpdateFields(slug) {
-  document.querySelectorAll('.signup-extra-fields').forEach(function(el) {
-    var show = (el.getAttribute('data-for-state') === slug);
-    el.hidden = !show;
-    el.querySelectorAll('input, select, textarea').forEach(function(field) {
-      field.disabled = !show;
-    });
-  });
-}
-
-function drEscapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, function(c) {
-    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
-  });
-}
-
-// HYBRID consent model (2026-07-28): a firm-added staffer is active
-// immediately (no more "pending" state going forward on this path -- see
-// worker/src/index.ts's firmLicenseStatus()). 'pending' is kept here only so
-// an old/legacy row doesn't render as an unrecognized blank status; 'opted_out'
-// is the new one, shown when a staffer used the one-click opt-out this
-// consent model depends on for staying CAN-SPAM-clean.
-var DR_STATUS_LABELS = {
-  active: 'Active', confirmed: 'Active', pending: 'Pending',
-  opted_out: 'Opted out', 'needs-attention': 'Needs attention'
-};
-var DR_STATUS_CLASSES = {
-  active: 'mock-status--ok', confirmed: 'mock-status--ok', pending: 'mock-status--pending',
-  opted_out: 'mock-status--pending', 'needs-attention': 'mock-status--risk'
-};
-
-var drLicenses = [];
-var drEditingId = null;
-
-function drShowError(msg) {
-  var el = document.getElementById('dr-dash-error');
-  if (!el) return;
-  el.textContent = msg;
-  el.hidden = false;
-}
-function drClearError() {
-  var el = document.getElementById('dr-dash-error');
-  if (!el) return;
-  el.hidden = true;
-  el.textContent = '';
-}
-function drReadJsonSafe(res) {
-  return res.json().catch(function() { return null; });
-}
-function drPrettyLicenseType(id) {
-  if (!id) return '\u2014';
-  // The leading segment is a 2-letter state/territory postal code (ga,
-  // il, dc, us in "us-virgin-islands", ...) and reads as a typo in title
-  // case ("La Individual" for Louisiana) -- reported directly, 2026-08-03.
-  // Every other segment is a plain word ("individual", "firm", "virgin"),
-  // fine to title-case normally.
-  return String(id).split(/[_-]+/).map(function(part, i) {
-    if (i === 0 && part.length === 2) return part.toUpperCase();
-    return part.charAt(0).toUpperCase() + part.slice(1);
-  }).join(' ');
-}
-function drFormatDeadline(iso) {
-  if (!iso) return '\u2014';
-  try {
-    var d = new Date(iso + 'T00:00:00Z');
-    if (isNaN(d.getTime())) return iso;
-    var browserLocale;
-    return d.toLocaleDateString(browserLocale, {year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC'});
-  } catch (e) {
-    return iso;
-  }
-}
-
-function drRenderRow(item) {
-  var statusClass = DR_STATUS_CLASSES[item.status] || 'mock-status--risk';
-  var statusLabel = DR_STATUS_LABELS[item.status] || item.status;
-  var idAttr = drEscapeHtml(item.id);
-  var staffCell, emailCell, actionsCell;
-  if (drEditingId === item.id) {
-    staffCell = '<input type="text" class="dr-edit-label" maxlength="120" value="' + drEscapeHtml(item.staff_label || '') + '">';
-    emailCell = '<input type="email" class="dr-edit-email" value="' + drEscapeHtml(item.email) + '">';
-    actionsCell =
-      '<button type="button" class="dr-btn-save" data-id="' + idAttr + '">Save</button> ' +
-      '<button type="button" class="dr-btn-cancel" data-id="' + idAttr + '">Cancel</button>';
-  } else {
-    staffCell = item.staff_label ? drEscapeHtml(item.staff_label) : '<span style="color:var(--muted)">\u2014</span>';
-    emailCell = drEscapeHtml(item.email);
-    actionsCell =
-      '<button type="button" class="dr-btn-edit" data-id="' + idAttr + '">Edit</button> ' +
-      '<button type="button" class="dr-btn-renew" data-id="' + idAttr + '">Mark renewed</button> ' +
-      '<button type="button" class="dr-btn-remove" data-id="' + idAttr + '">Remove</button>';
-  }
-  // data-label drives the stacked card layout under 860px (CSS renders it
-  // via ::before), so the header row can be hidden without losing meaning.
-  // The email cell also carries title= so truncation never destroys the
-  // actual address -- it stays available on hover and to screen readers.
-  var emailTitle = drEditingId === item.id ? '' : ' title="' + drEscapeHtml(item.email) + '"';
-  return '<tr data-id="' + idAttr + '">' +
-    '<td data-label="Staff">' + staffCell + '</td>' +
-    '<td data-label="Email" class="dr-cell-email"' + emailTitle + '>' + emailCell + '</td>' +
-    '<td data-label="State">' + drEscapeHtml(item.state_name || '') + '</td>' +
-    '<td data-label="License type">' + drEscapeHtml(drPrettyLicenseType(item.license_type_id)) + '</td>' +
-    '<td data-label="Status"><span class="mock-status ' + statusClass + '">' + drEscapeHtml(statusLabel) + '</span></td>' +
-    '<td data-label="Next deadline">' + drEscapeHtml(drFormatDeadline(item.next_deadline)) + '</td>' +
-    '<td data-label="Actions" class="dr-actions">' + actionsCell + '</td>' +
-  '</tr>';
-}
-
-function drRenderTable() {
-  var tbody = document.getElementById('dr-roster-body');
-  if (!tbody) return;
-  if (drLicenses.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7">No staff on your roster yet -- add your first one below.</td></tr>';
-    return;
-  }
-  tbody.innerHTML = drLicenses.map(drRenderRow).join('');
-}
-
-// ---------------------------------------------------------------------------
-// Dashboard overview panels (2026-07-30, BUILD v2 Phase B redesign): coverage
-// gauge, status donut, staff-at-risk list, recent-activity feed. All computed
-// client-side from the SAME drLicenses array the roster table already uses --
-// no new endpoint, no new data beyond the created_at/confirmed_at/stopped_at/
-// stop_reason/firm_name fields the API now also returns (index.ts's
-// toFirmLicenseJson()/handleFirmLicensesList()). Deliberately no fabricated
-// "renewed" activity type -- see toFirmLicenseJson()'s own comment for why
-// that fact doesn't exist yet in this schema.
-// ---------------------------------------------------------------------------
-
-// Whole-day difference between an ISO date (YYYY-MM-DD, UTC-anchored, same
-// convention drFormatDeadline() already uses) and today, in UTC calendar
-// days -- not a raw ms/86400000 divide, which would drift by a day near a
-// DST boundary if this ever ran against local time instead of UTC.
-function drDaysUntil(iso) {
-  if (!iso) return null;
-  var target = new Date(iso + 'T00:00:00Z').getTime();
-  if (isNaN(target)) return null;
-  // AuditLab TZ-1 (MEDIUM, 2026-08-04): the deadline itself stays a UTC
-  // calendar date (right -- drFormatDeadline() renders it with
-  // timeZone: 'UTC' on purpose, so the same statutory date reads identically
-  // for every viewer). But "today" was ALSO anchored to UTC, and this is a
-  // US-only product -- every customer is west of UTC, so UTC rolls to
-  // tomorrow hours before their own working day ends. On the deadline day
-  // itself this told an Eastern CPA "OVERDUE" at 8pm with 4 real hours left,
-  // and a Hawaii CPA from 4pm. Anchoring "today" to the viewer's own local
-  // calendar (matches _MY_DASHBOARD_JS_HTML's drDaysUntil(), which already
-  // did this correctly) fixes it while keeping the deadline side UTC-pinned
-  // and the whole comparison DST-safe (both sides are UTC-midnight keys).
-  var now = new Date();
-  var todayLocal = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.round((target - todayLocal) / 86400000);
-}
-
-function drDaysAgo(isoTimestamp) {
-  if (!isoTimestamp) return null;
-  var then = new Date(isoTimestamp).getTime();
-  if (isNaN(then)) return null;
-  var days = Math.floor((Date.now() - then) / 86400000);
-  if (days <= 0) return 'today';
-  if (days === 1) return '1 day ago';
-  if (days < 30) return days + ' days ago';
-  var months = Math.floor(days / 30);
-  return months === 1 ? '1 month ago' : months + ' months ago';
-}
-
-function drRingSvg(pct, isRisk) {
-  var r = 24, c = 2 * Math.PI * r;
-  var clamped = Math.max(0, Math.min(100, pct));
-  var dash = (clamped / 100) * c;
-  return '<div class="dr-ring-wrap' + (isRisk ? ' is-risk' : '') + '">' +
-    '<svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">' +
-    '<circle class="dr-ring-track" cx="29" cy="29" r="' + r + '"></circle>' +
-    '<circle class="dr-ring-value" cx="29" cy="29" r="' + r + '" stroke-dasharray="' + dash.toFixed(1) + ' ' + c.toFixed(1) + '"></circle>' +
-    '</svg><div class="dr-ring-pct">' + clamped + '%</div></div>';
-}
-
-var DR_DONUT_ORDER = ['active', 'pending', 'needs-attention', 'opted_out'];
-var DR_DONUT_COLORS = {active: '#1f9e5c', pending: '#9c7a12', 'needs-attention': '#c33737', opted_out: '#8595a3'};
-var DR_DONUT_LABELS = {active: 'Active', pending: 'Pending', 'needs-attention': 'Needs attention', opted_out: 'Opted out'};
-
-// Plain CSS conic-gradient, not an SVG pie -- no path-arc trigonometry needed
-// for a simple ring, and it's one element instead of N <path>s.
-function drDonutSvg(counts, total) {
-  if (!total) return '<div class="dr-donut-wrap"><div class="dr-panel-empty">No staff yet</div></div>';
-  var acc = 0;
-  var segments = [];
-  DR_DONUT_ORDER.forEach(function(key) {
-    var n = counts[key] || 0;
-    if (!n) return;
-    var start = (acc / total) * 360;
-    acc += n;
-    var end = (acc / total) * 360;
-    segments.push(DR_DONUT_COLORS[key] + ' ' + start.toFixed(1) + 'deg ' + end.toFixed(1) + 'deg');
-  });
-  var legend = DR_DONUT_ORDER.filter(function(k) { return counts[k]; }).map(function(k) {
-    return '<li><span class="swatch" style="background:' + DR_DONUT_COLORS[k] + '"></span>' +
-      drEscapeHtml(DR_DONUT_LABELS[k]) + ' (' + counts[k] + ')</li>';
-  }).join('');
-  return '<div class="dr-donut-wrap">' +
-    '<div style="width:58px;height:58px;border-radius:50%;flex:none;display:flex;align-items:center;' +
-    'justify-content:center;background:conic-gradient(' + segments.join(', ') + ');" aria-hidden="true">' +
-    '<div style="width:30px;height:30px;border-radius:50%;background:var(--card-bg);"></div></div>' +
-    '<ul class="dr-donut-legend">' + legend + '</ul></div>';
-}
-
-function drRenderStats() {
-  var row = document.getElementById('dr-stat-row');
-  if (!row) return;
-  var total = drLicenses.length;
-  var counts = {active: 0, pending: 0, 'needs-attention': 0, opted_out: 0};
-  var atRisk = 0;
-  drLicenses.forEach(function(item) {
-    var s = item.status || 'needs-attention';
-    counts[s] = (counts[s] || 0) + 1;
-    // AuditLab VIS-1 (MEDIUM, 2026-08-04, per product decision): opted-out staff
-    // used to be excluded here entirely, so a firm's ONLY warning channel
-    // for someone who unsubscribed (no reminder email will ever fire for
-    // them) was this tile going silent about them too. Now counted under
-    // the SAME within-30-days-or-unresolved test as everyone else -- not
-    // unconditionally, so this tile doesn't permanently inflate for an
-    // opted-out person whose deadline is a year out and genuinely isn't
-    // time-sensitive yet.
-    var days = drDaysUntil(item.next_deadline);
-    if (days === null || days <= 30) atRisk++;
-  });
-  var coveragePct = total ? Math.round((counts.active / total) * 100) : 0;
-  var riskPct = total ? Math.round((atRisk / total) * 100) : 0;
-
-  row.innerHTML =
-    '<div class="dr-stat-card">' + drRingSvg(coveragePct, false) +
-      '<div><div class="dr-stat-label">Coverage</div><div class="dr-stat-value">' + coveragePct + '%</div>' +
-      '<div class="dr-stat-sub">' + counts.active + ' of ' + total + ' active</div></div></div>' +
-    '<div class="dr-stat-card">' + drDonutSvg(counts, total) +
-      '<div><div class="dr-stat-label">Roster status</div><div class="dr-stat-value">' + total + '</div>' +
-      '<div class="dr-stat-sub">staff tracked</div></div></div>' +
-    '<div class="dr-stat-card">' + drRingSvg(riskPct, atRisk > 0) +
-      // Deliberately labeled "Due soon", not "Needs attention" -- that exact
-      // phrase is already the donut/roster-table's label for the DIFFERENT,
-      // narrower "needs-attention" status enum (a stuck/anomalous record).
-      // This tile counts something broader (due within 30 days OR
-      // unresolved, regardless of status, including healthy "active" rows),
-      // so the two would routinely show different numbers under an
-      // identical label on the same screen -- kept deliberately distinct.
-      '<div><div class="dr-stat-label">Due soon</div><div class="dr-stat-value">' + atRisk + '</div>' +
-      '<div class="dr-stat-sub">due within 30 days or unresolved</div></div></div>';
-}
-
-function drRenderAtRisk() {
-  var el = document.getElementById('dr-at-risk-list');
-  if (!el) return;
-  // AuditLab VIS-1 (MEDIUM, 2026-08-04, per product decision): opted-out staff
-  // used to be filtered out of this list entirely -- the one person the
-  // firm's automated reminders will NEVER reach was also the one person
-  // this panel never warned about. Now included under the same day-window
-  // test as everyone else; the "no reminder will be sent" chip below is
-  // what makes their row different, not exclusion.
-  var items = drLicenses.filter(function(item) {
-    var days = drDaysUntil(item.next_deadline);
-    return days === null || days <= 30;
-  }).slice(0, 6);
-  if (items.length === 0) {
-    el.innerHTML = '<li class="dr-panel-empty">Nobody at risk right now.</li>';
-    return;
-  }
-  el.innerHTML = items.map(function(item) {
-    var days = drDaysUntil(item.next_deadline);
-    var daysLabel = days === null ? 'Unresolved' : days < 0 ? 'Overdue' : days === 0 ? 'Due today' : 'in ' + days + 'd';
-    var soon = days !== null && days <= 7;
-    var optedOut = item.status === 'opted_out';
-    return '<li class="dr-at-risk-item"><span><span class="dr-at-risk-name">' +
-      drEscapeHtml(item.staff_label || item.email) + '</span>' +
-      '<span class="dr-at-risk-sub">' + drEscapeHtml(item.state_name || '') + '</span>' +
-      (optedOut ? '<span class="dr-at-risk-optedout">Opted out &mdash; no reminder will be sent</span>' : '') +
-      '</span>' +
-      '<span class="dr-at-risk-days' + (soon ? ' dr-at-risk-days--soon' : '') + '">' + daysLabel + '</span></li>';
-  }).join('');
-}
-
-var DR_ACTIVITY_LABELS = {added: 'added to the roster', confirmed: 'went active', optout: 'opted out of reminders'};
-var DR_ACTIVITY_DOT_CLASS = {added: '', confirmed: 'dr-activity-dot--confirm', optout: 'dr-activity-dot--optout'};
-
-function drRenderActivity() {
-  var el = document.getElementById('dr-activity-list');
-  if (!el) return;
-  var events = [];
-  drLicenses.forEach(function(item) {
-    var name = item.staff_label || item.email;
-    if (item.created_at) events.push({type: 'added', at: item.created_at, name: name});
-    // Skip a 'confirmed' event that landed at the exact same instant as
-    // 'added' -- under the HYBRID consent model (the only path that creates
-    // a firm-scoped roster entry today) every admin-added staffer is
-    // confirmed immediately, so created_at === confirmed_at always. Without
-    // this check one atomic "add staff" click would render as two separate
-    // feed entries.
-    if (item.confirmed_at && item.confirmed_at !== item.created_at) {
-      events.push({type: 'confirmed', at: item.confirmed_at, name: name});
-    }
-    if (item.status === 'opted_out' && item.stopped_at) events.push({type: 'optout', at: item.stopped_at, name: name});
-  });
-  events.sort(function(a, b) { return new Date(b.at).getTime() - new Date(a.at).getTime(); });
-  events = events.slice(0, 6);
-  if (events.length === 0) {
-    el.innerHTML = '<li class="dr-panel-empty">No activity yet.</li>';
-    return;
-  }
-  el.innerHTML = events.map(function(ev) {
-    return '<li class="dr-activity-item"><span class="dr-activity-dot ' + DR_ACTIVITY_DOT_CLASS[ev.type] + '"></span>' +
-      '<span class="dr-activity-text"><b>' + drEscapeHtml(ev.name) + '</b> ' + DR_ACTIVITY_LABELS[ev.type] +
-      '<span class="dr-activity-when">' + drDaysAgo(ev.at) + '</span></span></li>';
-  }).join('');
-}
-
-function drRenderFirmName(name) {
-  var el = document.getElementById('dr-firm-name');
-  if (el && name) el.textContent = name;
-}
-
-// AuditLab ST-1: the API refuses new signups/staff-adds once its reference
-// data is past the freshness threshold, but the dashboard used to show every
-// date on this page -- including the one "Mark renewed" just computed -- with
-// no hint that guard might be active. GET /api/firm/licenses now carries
-// data_as_of/data_stale; surface it rather than stay silent.
-function drRenderStalenessBanner(dataAsOf, dataStale) {
-  var el = document.getElementById('dr-staleness-banner');
-  if (!el) return;
-  if (!dataStale) { el.hidden = true; el.textContent = ''; return; }
-  el.textContent = 'Heads up: our reference data was last verified ' + dataAsOf +
-    ' and is due for re-verification. Dates below may be out of date, and adding new staff or ' +
-    'editing a license state/deadline is temporarily paused until we re-verify.';
-  el.hidden = false;
-}
-
-// ---------------------------------------------------------------------------
-// Calendar + Map views (2026-07-30, BUILD v2 Phase D) -- both render from the
-// SAME drLicenses array the roster view already fetched; no new endpoint,
-// no separate page load. Switching tabs never re-fetches.
-// ---------------------------------------------------------------------------
-
-function drSwitchView(view) {
-  document.querySelectorAll('.dr-view').forEach(function(el) {
-    el.hidden = (el.id !== 'dr-view-' + view);
-  });
-  document.querySelectorAll('.dr-nav a[data-view]').forEach(function(a) {
-    var isActive = (a.getAttribute('data-view') === view);
-    a.classList.toggle('is-active', isActive);
-    a.setAttribute('aria-selected', isActive ? 'true' : 'false');
-  });
-}
-
-var DR_MONTH_NAMES = ['January','February','March','April','May','June','July',
-  'August','September','October','November','December'];
-var DR_DOW_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-
-// null until drRenderCalendar()'s first call, then holds the UTC first-of-
-// month currently shown -- prev/next/today buttons mutate this and re-render.
-var drCalendarRefDate = null;
-
-function drLicensesByDate() {
-  var map = {};
-  drLicenses.forEach(function(item) {
-    if (item.status === 'opted_out' || !item.next_deadline) return;
-    if (!map[item.next_deadline]) map[item.next_deadline] = [];
-    map[item.next_deadline].push(item);
-  });
-  return map;
-}
-
-function drRenderCalendar() {
-  var grid = document.getElementById('dr-cal-grid');
-  var label = document.getElementById('dr-cal-month-label');
-  if (!grid || !label) return;
-  if (!drCalendarRefDate) {
-    var now = new Date();
-    drCalendarRefDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  }
-  var ref = drCalendarRefDate;
-  label.textContent = DR_MONTH_NAMES[ref.getUTCMonth()] + ' ' + ref.getUTCFullYear();
-
-  var byDate = drLicensesByDate();
-  var firstDow = ref.getUTCDay();
-  var numDays = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() + 1, 0)).getUTCDate();
-  // AuditLab TZ-1 (MEDIUM, 2026-08-04), same class as drDaysUntil() above:
-  // toISOString() is always UTC, so this lit up "today" a day early every
-  // evening for every US timezone. The day cells themselves are keyed by
-  // calendar date (built from ref's UTC getters just above, which is fine --
-  // ref is a fixed month reference, not "now"); this needs to match the
-  // viewer's own local calendar date instead.
-  var todayNow = new Date();
-  var todayIso = todayNow.getFullYear() + '-' + String(todayNow.getMonth() + 1).padStart(2, '0') +
-    '-' + String(todayNow.getDate()).padStart(2, '0');
-
-  var html = DR_DOW_NAMES.map(function(d) { return '<div class="dr-cal-dow">' + d + '</div>'; }).join('');
-  for (var lead = 0; lead < firstDow; lead++) {
-    html += '<div class="dr-cal-day dr-cal-day--empty"></div>';
-  }
-  for (var day = 1; day <= numDays; day++) {
-    var iso = ref.getUTCFullYear() + '-' + String(ref.getUTCMonth() + 1).padStart(2, '0') +
-      '-' + String(day).padStart(2, '0');
-    var items = byDate[iso] || [];
-    var cellItems = items.slice(0, 3).map(function(item) {
-      var days = drDaysUntil(item.next_deadline);
-      var soon = days !== null && days <= 7;
-      return '<div class="dr-cal-item' + (soon ? ' dr-cal-item--soon' : '') + '">' +
-        drEscapeHtml(item.staff_label || item.email) + '</div>';
-    }).join('');
-    if (items.length > 3) {
-      cellItems += '<div class="dr-cal-item">+' + (items.length - 3) + ' more</div>';
-    }
-    html += '<div class="dr-cal-day' + (iso === todayIso ? ' dr-cal-day--today' : '') +
-      (items.length ? ' dr-cal-day--has-item' : '') + '">' +
-      '<span class="dr-cal-daynum">' + day + '</span>' + cellItems + '</div>';
-  }
-  grid.innerHTML = html;
-}
-
-function drRenderAgenda() {
-  var el = document.getElementById('dr-agenda-body');
-  if (!el) return;
-  var items = drLicenses.filter(function(item) {
-    if (item.status === 'opted_out' || !item.next_deadline) return false;
-    var days = drDaysUntil(item.next_deadline);
-    return days !== null && days >= 0 && days <= 90;
-  });
-  if (items.length === 0) {
-    el.innerHTML = '<p class="dr-panel-empty">Nothing due in the next 90 days.</p>';
-    return;
-  }
-  var groups = {};
-  var order = [];
-  items.forEach(function(item) {
-    var key = item.next_deadline.slice(0, 7); // 'YYYY-MM', next_deadline is already YYYY-MM-DD
-    if (!groups[key]) { groups[key] = []; order.push(key); }
-    groups[key].push(item);
-  });
-  el.innerHTML = order.map(function(key) {
-    var parts = key.split('-');
-    var monthLabel = DR_MONTH_NAMES[parseInt(parts[1], 10) - 1] + ' ' + parts[0];
-    var rows = groups[key].map(function(item) {
-      return '<div class="dr-agenda-item"><span>' + drEscapeHtml(item.staff_label || item.email) +
-        ' &mdash; ' + drEscapeHtml(item.state_name || '') + '</span>' +
-        '<span class="dr-agenda-date">' + drEscapeHtml(drFormatDeadline(item.next_deadline)) + '</span></div>';
-    }).join('');
-    return '<div class="dr-agenda-group"><div class="dr-agenda-month">' + monthLabel + '</div>' + rows + '</div>';
-  }).join('');
-}
-
-// Every color class either map mode can apply to a path -- both
-// drRenderMap() and drApplyMobilityResults() clear this FULL set before
-// applying their own, so switching modes never leaves a stale class from
-// the other mode sitting on a path (2026-08-03: caught in verification --
-// drRenderMap() only cleared its own two classes, so a state colored
-// dr-map-state--home in mobility mode stayed that way after switching back
-// to "All staff", visually fighting with the class the All view then added).
-var DR_MAP_STATE_CLASSES = ['dr-map-state--active', 'dr-map-state--risk', 'dr-map-state--clear', 'dr-map-state--action', 'dr-map-state--complete', 'dr-map-state--home', 'dr-map-state--coverage'];
-
-function drClearMapStateClasses(path) {
-  DR_MAP_STATE_CLASSES.forEach(function(c) { path.classList.remove(c); });
-}
-
-function drRenderMap(gen) {
-  var links = document.querySelectorAll('.dr-map-link');
-  if (!links.length) return;
-  var byState = {};
-  drLicenses.forEach(function(item) {
-    if (item.status === 'opted_out' || !item.state_slug) return;
-    if (!byState[item.state_slug]) byState[item.state_slug] = {items: [], risk: false};
-    byState[item.state_slug].items.push(item);
-    var days = drDaysUntil(item.next_deadline);
-    if (days === null || days <= 30) byState[item.state_slug].risk = true;
-  });
-  links.forEach(function(link) {
-    var slug = link.getAttribute('data-state-slug');
-    var path = link.querySelector('path');
-    var info = byState[slug];
-    drClearMapStateClasses(path);
-    if (!info) {
-      // Leave the server-rendered "-- no staff licensed here" aria-label as-is
-      // (already correct, set at build time) -- nothing to update here.
-      link.setAttribute('data-has-staff', 'false');
-      link.removeAttribute('data-tip');
-      return;
-    }
-    link.setAttribute('data-has-staff', 'true');
-    path.classList.toggle('dr-map-state--risk', info.risk);
-    path.classList.toggle('dr-map-state--active', !info.risk);
-    var names = info.items.map(function(i) { return i.staff_label || i.email; }).join(', ');
-    var summary = names + ' (' + info.items.length + (info.items.length === 1 ? ' person' : ' people') +
-      (info.risk ? ', due soon or unresolved' : ', all current') + ')';
-    // setAttribute escapes automatically (DOM API, not innerHTML) -- consistent
-    // with data-tip below, both safe from the same admin-controlled staff_label/
-    // email text the roster table already renders via drEscapeHtml() for the
-    // innerHTML case.
-    link.setAttribute('data-tip', summary);
-    link.setAttribute('aria-label', summary);
-  });
-  drApplyAggregateCoverageOverlay(byState, gen);
-}
-
-// ---------------------------------------------------------------------------
-// Map tab, reciprocity mode (2026-08-03, requested directly: "hover a
-// state, show which employees can work there"). Picking a specific person
-// still shows their own full picture (home/clear/action/not-verified) --
-// rendering 20+ people's individually-attested reciprocity onto one map at
-// once would be unreadable, so per-person detail needs a person selected.
-// "All staff" layers one additional signal on top of the unchanged
-// home-state-licensing view instead: a distinct color for a state nobody
-// is directly licensed in, where at least one staff member's home state
-// gives them practice privilege there ("your team's reach", requested
-// directly 2026-08-03 after seeing the per-person view -- "so the user can
-// see their complete coverage under the all"). Reuses POST
-// /firm/mobility/check-batch (evaluateMobility() server-side, the same
-// legally-reviewed engine /firm-mobility/ uses) rather than a second,
-// client-side rule implementation -- see that endpoint's own docstring.
-//
-// license_in_good_standing/substantially_equivalent are NOT stored per
-// staff member anywhere in this product, so this view assumes both true
-// for every person (the common case) and discloses that assumption in
-// dr-map-mobility-note -- it is a quick overview, not a per-person legal
-// determination. For a specific person's own facts, Practice Privilege
-// Check remains the authoritative tool.
-// ---------------------------------------------------------------------------
-
-var DR_MOBILITY_SERVICE_TYPE = 'tax';
-var drMobilityCache = {}; // home_state_slug -> {results: [...]} | {denied: true}
-// Incremented on every drRenderMapForSelection() call (every dropdown
-// change, and the initial load). Async work below captures the value at
-// the moment it started and checks it hasn't moved on before touching the
-// DOM, so a slow fetch from a view the user has since left can never paint
-// over whatever view is showing now.
-var drMapSelectionGen = 0;
-
-// "All staff" coverage overlay -- keyed on DISTINCT home states (not per
-// person), since two staff members in the same state get an identical
-// answer and share drMobilityCache's one entry for that state. Probes only
-// the FIRST distinct home state before doing any more work: if that one
-// call comes back denied (not entitled), the whole overlay is skipped
-// silently -- "All" stays a free view with no paywall interruption, the
-// upsell already lives on the per-person path.
-function drApplyAggregateCoverageOverlay(byState, gen) {
-  var legendItem = document.getElementById('dr-map-legend-coverage-item');
-  var homeStates = {}; // slug -> [staff display names]
-  drLicenses.forEach(function(item) {
-    if (item.status === 'opted_out' || !item.state_slug) return;
-    if (!homeStates[item.state_slug]) homeStates[item.state_slug] = [];
-    homeStates[item.state_slug].push(item.staff_label || item.email);
-  });
-  var slugs = Object.keys(homeStates);
-  if (!slugs.length) {
-    if (legendItem) legendItem.hidden = true;
-    return;
-  }
-
-  // `denied` is always a display-ready STRING here, never a bare boolean --
-  // reported directly, 2026-08-03: this function used to cache {denied:
-  // true}, and drMobilityCache is the SAME cache drRenderMapMobility()
-  // reads from for the per-person view. When a firm without mobility
-  // access later picked a person whose home state this function had
-  // already probed, drApplyMobilityResults() did
-  // `noteEl.textContent = entry.denied` -- assigning the boolean `true` to
-  // .textContent coerces it to the literal string "true", which is what
-  // rendered. Both call sites now agree on the same shape.
-  function fetchForHome(slug) {
-    var cached = drMobilityCache[slug];
-    if (cached) return Promise.resolve(cached);
-    return fetch('/api/firm/mobility/check-batch', {
-      method: 'POST',
-      credentials: 'include',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        home_state_slug: slug,
-        service_type: DR_MOBILITY_SERVICE_TYPE,
-        license_in_good_standing: true,
-        substantially_equivalent: true
-      })
-    }).then(function(res) {
-      return drReadJsonSafe(res).then(function(data) {
-        // 429 is temporary -- same reasoning as drRenderMapMobility's own
-        // 429 branch, and it has to be, since they share drMobilityCache.
-        // AuditLab, 2026-08-03: this branch was missing here, so a 429
-        // fell into the generic (!res.ok) case below and got WRITTEN to
-        // the cache as a permanent-looking denial with the wrong reason --
-        // once a rate-limited home state landed in the cache, switching to
-        // any person with that home state stayed stuck on the stale
-        // denial even after the window reset and a real answer would have
-        // succeeded, with no way to recover short of a full page reload.
-        if (res.status === 429) {
-          return {denied: 'Too many practice-privilege checks this hour. Try again later.'};
-        }
-        if (res.status === 403) {
-          var denied = (data && data.error) || 'Practice-privilege coloring is part of the paid firm plan.';
-          drMobilityCache[slug] = {denied: denied};
-          return drMobilityCache[slug];
-        }
-        drMobilityCache[slug] = (!res.ok || !data)
-          ? {denied: 'Something went wrong checking practice privilege.'}
-          : {results: data.results};
-        return drMobilityCache[slug];
-      });
-    }).catch(function() { return {denied: 'Something went wrong checking practice privilege.'}; });
-  }
-
-  fetchForHome(slugs[0]).then(function(first) {
-    // Bail if the user has since picked a different view (or reloaded the
-    // roster) while this fetch was in flight -- reported directly,
-    // 2026-08-03: a slow "All" fetch resolving AFTER the dropdown had moved
-    // to a specific person painted stale purple coverage states over that
-    // person's own home/clear/action picture, with no legend entry for it
-    // since it belongs to a different mode entirely.
-    if (gen !== drMapSelectionGen) return;
-    if (!first || first.denied) {
-      if (legendItem) legendItem.hidden = true;
-      return;
-    }
-    Promise.all(slugs.slice(1).map(fetchForHome)).then(function(rest) {
-      if (gen !== drMapSelectionGen) return;
-      var all = [first].concat(rest);
-      var coverage = {}; // target slug -> [staff names whose home state clears it]
-      all.forEach(function(entry, i) {
-        if (!entry || entry.denied || !entry.results) return;
-        var homeSlug = slugs[i];
-        entry.results.forEach(function(r) {
-          if (r.overall !== 'clear' || byState[r.target_state_slug]) return;
-          if (!coverage[r.target_state_slug]) coverage[r.target_state_slug] = [];
-          homeStates[homeSlug].forEach(function(name) {
-            if (coverage[r.target_state_slug].indexOf(name) === -1) coverage[r.target_state_slug].push(name);
-          });
-        });
-      });
-      var anyCoverage = Object.keys(coverage).length > 0;
-      if (legendItem) legendItem.hidden = !anyCoverage;
-      document.querySelectorAll('.dr-map-link').forEach(function(link) {
-        var names = coverage[link.getAttribute('data-state-slug')];
-        if (!names) return;
-        link.querySelector('path').classList.add('dr-map-state--coverage');
-        var tip = 'No staff licensed here directly, but practice privilege is clear for: ' + names.join(', ') +
-          ' (assumes good standing + substantial equivalence).';
-        link.setAttribute('data-tip', tip);
-        link.setAttribute('aria-label', tip);
-        link.setAttribute('data-has-staff', 'true');
-      });
-    });
-  });
-}
-
-function drPopulateMapStaffSelect() {
-  var sel = document.getElementById('dr-map-staff-select');
-  if (!sel) return;
-  var prevValue = sel.value;
-  var active = drLicenses.filter(function(item) { return item.status !== 'opted_out'; });
-  var options = ['<option value="">All staff (home-state licensing)</option>'].concat(
-    active.map(function(item) {
-      var label = item.staff_label || item.email;
-      return '<option value="' + drEscapeHtml(item.id) + '">' + drEscapeHtml(label) +
-        (item.state_name ? ' (' + drEscapeHtml(item.state_name) + ')' : '') + '</option>';
-    })
-  );
-  sel.innerHTML = options.join('');
-  // Keep the same person selected across a roster reload if they still
-  // exist; otherwise fall back to "All" rather than silently pointing at a
-  // removed id.
-  var stillExists = active.some(function(item) { return item.id === prevValue; });
-  sel.value = stillExists ? prevValue : '';
-}
-
-function drSetMapTooltipWrap(wrap) {
-  var tip = document.getElementById('dr-map-tooltip');
-  if (tip) tip.classList.toggle('dr-map-tooltip--wrap', wrap);
-  var staffLegend = document.getElementById('dr-map-legend-staff');
-  var mobilityLegend = document.getElementById('dr-map-legend-mobility');
-  if (staffLegend) staffLegend.hidden = wrap;
-  if (mobilityLegend) mobilityLegend.hidden = !wrap;
-}
-
-function drApplyMobilityResults(homeStateSlug, entry, gen, subscriberId) {
-  if (gen !== drMapSelectionGen) return;
-  var noteEl = document.getElementById('dr-map-mobility-note');
-  var links = document.querySelectorAll('.dr-map-link');
-  drSetMapTooltipWrap(true);
-  if (entry.denied) {
-    if (noteEl) {
-      noteEl.textContent = entry.denied;
-      noteEl.hidden = false;
-    }
-    links.forEach(function(link) {
-      var path = link.querySelector('path');
-      drClearMapStateClasses(path);
-      link.removeAttribute('data-tip');
-      link.setAttribute('data-has-staff', 'false');
-    });
-    return;
-  }
-  if (noteEl) {
-    noteEl.textContent = 'Assumes an active license in good standing and substantial equivalence for ' +
-      'every state (service type: ' + DR_MOBILITY_SERVICE_TYPE + '). For this person’s own facts, ' +
-      'use Practice Privilege Check.';
-    noteEl.hidden = false;
-  }
-  var byTarget = {};
-  entry.results.forEach(function(r) { byTarget[r.target_state_slug] = r; });
-  links.forEach(function(link) {
-    var slug = link.getAttribute('data-state-slug');
-    var path = link.querySelector('path');
-    drClearMapStateClasses(path);
-    if (slug === homeStateSlug) {
-      path.classList.add('dr-map-state--home');
-      var homeTip = 'Home state -- licensed here directly, not a reciprocity question.';
-      link.setAttribute('data-tip', homeTip);
-      link.setAttribute('aria-label', homeTip);
-      link.setAttribute('data-has-staff', 'true');
-      return;
-    }
-    var r = byTarget[slug];
-    if (!r) {
-      link.removeAttribute('data-tip');
-      link.setAttribute('data-has-staff', 'false');
-      return;
-    }
-    var verdict = r.overall;
-    // Self-reported completion overrides action_required's COLOR only, never
-    // the underlying verdict data or the tooltip's requirements text -- a
-    // firm saying "we did this" is a different, less certain kind of true
-    // than the engine's own "clear", and must never be visually
-    // indistinguishable from it (see migration 0016's docstring for the
-    // full reasoning). Deliberately does NOT check staleness
-    // yet (r.rule_verified_date vs. the completion's own snapshot) -- v1
-    // shows "complete" for any non-deleted completion regardless of
-    // whether the rule has since changed; that comparison is a named
-    // follow-up, not silently skipped forever.
-    var completionKey = subscriberId ? drMobilityCompletionKey(subscriberId, slug, DR_MOBILITY_SERVICE_TYPE) : null;
-    var completed = verdict === 'action_required' && completionKey && drMobilityCompletions[completionKey];
-    if (verdict === 'clear') path.classList.add('dr-map-state--clear');
-    else if (completed) path.classList.add('dr-map-state--complete');
-    else if (verdict === 'action_required') path.classList.add('dr-map-state--action');
-    // not_verified (or anything else): no color class, stays default gray.
-    var tipText = r.individual && r.individual.summary ? r.individual.summary : 'Not verified for this state.';
-    if (completed) tipText += ' Marked complete by your firm.';
-    link.setAttribute('data-tip', tipText);
-    link.setAttribute('aria-label', tipText);
-    link.setAttribute('data-has-staff', verdict !== 'not_verified' ? 'true' : 'false');
-  });
-}
-
-function drRenderMapMobility(subscriberId, gen) {
-  var person = drLicenses.filter(function(item) { return item.id === subscriberId; })[0];
-  if (!person || !person.state_slug) {
-    drRenderMap(gen);
-    return;
-  }
-  var homeStateSlug = person.state_slug;
-  var cached = drMobilityCache[homeStateSlug];
-  if (cached) {
-    drApplyMobilityResults(homeStateSlug, cached, gen, subscriberId);
-    return;
-  }
-  var noteEl = document.getElementById('dr-map-mobility-note');
-  if (noteEl) {
-    noteEl.textContent = 'Checking practice privilege for every state…';
-    noteEl.hidden = false;
-  }
-  fetch('/api/firm/mobility/check-batch', {
-    method: 'POST',
-    credentials: 'include',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      home_state_slug: homeStateSlug,
-      service_type: DR_MOBILITY_SERVICE_TYPE,
-      license_in_good_standing: true,
-      substantially_equivalent: true
-    })
-  }).then(function(res) {
-    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
-    return drReadJsonSafe(res).then(function(data) {
-      // 429 is a TEMPORARY, not-entitled-vs-entitled question, so it is
-      // never cached (a later retry -- switching away and back, or a
-      // reload -- should get a fresh answer once the window resets) and
-      // never uses the paywall wording, which would be a real lie to an
-      // actually-entitled firm that simply explored the feature a lot in
-      // one hour (reported directly, 2026-08-03 -- a real, active-pilot
-      // firm, created hours earlier that same day, hit a denial that
-      // should not have been possible on entitlement grounds alone).
-      if (res.status === 429) {
-        drApplyMobilityResults(homeStateSlug, {denied: 'Too many practice-privilege checks this hour. Try again later.'}, gen, subscriberId);
-        return;
-      }
-      if (res.status === 403) {
-        var denied = (data && data.error) || 'Practice-privilege coloring is part of the paid firm plan.';
-        drMobilityCache[homeStateSlug] = {denied: denied};
-        drApplyMobilityResults(homeStateSlug, drMobilityCache[homeStateSlug], gen, subscriberId);
-        return;
-      }
-      if (!res.ok || !data) {
-        if (gen === drMapSelectionGen && noteEl) { noteEl.textContent = 'Something went wrong checking practice privilege. Please try again.'; }
-        return;
-      }
-      drMobilityCache[homeStateSlug] = {results: data.results};
-      drApplyMobilityResults(homeStateSlug, drMobilityCache[homeStateSlug], gen, subscriberId);
-    });
-  }).catch(function() {
-    if (gen === drMapSelectionGen && noteEl) { noteEl.textContent = 'Something went wrong checking practice privilege. Please try again.'; }
-  });
-}
-
-function drRenderMapForSelection() {
-  drMapSelectionGen++;
-  var gen = drMapSelectionGen;
-  var sel = document.getElementById('dr-map-staff-select');
-  var value = sel ? sel.value : '';
-  var noteEl = document.getElementById('dr-map-mobility-note');
-  if (!value) {
-    if (noteEl) noteEl.hidden = true;
-    drSetMapTooltipWrap(false);
-    drRenderMap(gen);
-    return;
-  }
-  drRenderMapMobility(value, gen);
-}
-
-function drWireMapTooltip() {
-  var tip = document.getElementById('dr-map-tooltip');
-  var figure = tip ? tip.closest('.dr-map-figure') : null;
-  if (!tip || !figure) return;
-  function move(evt) {
-    var rect = figure.getBoundingClientRect();
-    tip.style.left = (evt.clientX - rect.left + 14) + 'px';
-    tip.style.top = (evt.clientY - rect.top + 14) + 'px';
-  }
-  function hide() { tip.hidden = true; }
-  function showAtElement(el) {
-    var t = el.getAttribute('data-tip');
-    if (!t) return;
-    tip.textContent = t;
-    tip.hidden = false;
-    var rect = el.getBoundingClientRect();
-    var frect = figure.getBoundingClientRect();
-    tip.style.left = (rect.left - frect.left) + 'px';
-    tip.style.top = (rect.top - frect.top - 28) + 'px';
-  }
-  figure.querySelectorAll('.dr-map-link').forEach(function(el) {
-    // Keyboard/screen-reader parity with mouse hover -- matches the homepage
-    // map's own focus/blur wiring (_MAP_TOOLTIP_JS) so a keyboard-only user
-    // gets the same tooltip a mouse user does, not just the color.
-    el.addEventListener('focus', function() { showAtElement(el); });
-    el.addEventListener('blur', hide);
-    el.addEventListener('mouseenter', function(evt) {
-      var t = el.getAttribute('data-tip');
-      if (!t) return;
-      tip.textContent = t;
-      tip.hidden = false;
-      move(evt);
-    });
-    el.addEventListener('mousemove', move);
-    el.addEventListener('mouseleave', hide);
-  });
-}
-
-// ---------------------------------------------------------------------------
-// CPE Hours tab (2026-07-30, new BUILD v2 phase). DR_CPE_REQUIREMENTS is
-// inlined static reference data (generate.py, from data/cpe_hours.json) --
-// the worker knows nothing about requirements, only entry CRUD. Requirement
-// matching happens entirely here: sum this staffer's logged hours within
-// their current cycle window (approximated as their own renewal date minus
-// the state's period_years -- see the Python-side comment on
-// cpe_requirements_json for why this is a deliberate simplification, not an
-// authoritative legal cycle-boundary calculation) against the state's own
-// published total/ethics requirement. A state with no requirement entry at
-// all, or a null total_hours (codified law never states a figure, e.g.
-// Nebraska), shows an honest gap note instead of a fabricated number --
-// same standard as every public page on this site.
-// ---------------------------------------------------------------------------
-
-var drCpeEntries = [];
-
-function drCpeCycleWindow(nextDeadlineIso, periodYears) {
-  if (!nextDeadlineIso || !periodYears) return null;
-  var end = new Date(nextDeadlineIso + 'T00:00:00Z');
-  if (isNaN(end.getTime())) return null;
-  var start = new Date(Date.UTC(end.getUTCFullYear() - periodYears, end.getUTCMonth(), end.getUTCDate()));
-  return {start: start.toISOString().slice(0, 10), end: nextDeadlineIso};
-}
-
-// Ethics hours are treated as a SUBSET of the total (not additional) --
-// matches how every state's own requirement is actually structured
-// (e.g. Alabama: "40 hours... at least 2 hours must be a qualifying ethics
-// course"), so totalLogged sums every category and ethicsLogged separately
-// sums only 'ethics' entries within the same window.
-function drCpeProgressForSubscriber(item) {
-  var req = DR_CPE_REQUIREMENTS[item.state_slug];
-  if (!req || (req.total_hours === null && req.ethics_hours === null)) {
-    return {hasRequirement: false, dataGapNote: req ? req.data_gap_note : null};
-  }
-  var win = drCpeCycleWindow(item.next_deadline, req.period_years);
-  // AuditLab CPE-1 (HIGH, 2026-08-04): ethics has its own period_years in 6
-  // states (e.g. Texas: 120h/3y total, but ethics is 4h/2y -- an ANNUAL-ish
-  // obligation nested inside the longer total-hours cycle). Judging ethics
-  // against the total window silently accepted stale ethics credit and
-  // showed "on track" for firms that were actually behind. Falls back to
-  // the total window when ethics_period_years is null (44 states where the
-  // two match, plus LA/SD whose rules set no ethics hour count at all).
-  var winEthics = drCpeCycleWindow(item.next_deadline, req.ethics_period_years || req.period_years);
-  var totalLogged = 0, ethicsLogged = 0, excludedCount = 0;
-  drCpeEntries.forEach(function(e) {
-    if (e.subscriber_id !== item.id) return;
-    // No renewal date means we don't know either cycle boundary -- excluding
-    // every entry (rather than summing an unbounded lifetime total) keeps
-    // "0 logged" as an honest signal instead of a false on-track reading.
-    if (!win) { excludedCount++; return; }
-    // An entry dated before a window can genuinely happen -- e.g. hours
-    // earned in the final weeks of a PRIOR cycle, logged before this one's
-    // window (next_deadline minus one period) has technically started.
-    // There is no record of that prior cycle's own boundary anywhere in
-    // this product, so the entry can't safely be counted toward either
-    // cycle -- but silently dropping it with no explanation is its own bug
-    // (reported directly, 2026-08-03: "I added 100 hours to test this out,
-    // and nothing happened to it" -- the entry WAS saved and appears in
-    // Recently Logged, it just isn't in this window's sum). excludedCount
-    // lets the UI say so instead of just showing 0.
-    //
-    // The total and ethics windows can now differ (Texas: 3y total, 2y
-    // ethics), so an ethics entry can legitimately fall outside the total
-    // window but inside its own shorter ethics window -- only exclude an
-    // entry when it lands outside BOTH of the windows it's actually
-    // relevant to, or a correctly-counted ethics entry would be reported
-    // as ignored.
-    var inTotalWindow = e.entry_date >= win.start && e.entry_date <= win.end;
-    var inEthicsWindow = winEthics && e.entry_date >= winEthics.start && e.entry_date <= winEthics.end;
-    if (!inTotalWindow && !(e.category === 'ethics' && inEthicsWindow)) { excludedCount++; return; }
-    if (inTotalWindow) totalLogged += e.hours;
-    if (e.category === 'ethics' && inEthicsWindow) ethicsLogged += e.hours;
-  });
-  var behind =
-    (req.total_hours !== null && totalLogged < req.total_hours) ||
-    (req.ethics_hours !== null && ethicsLogged < req.ethics_hours);
-  return {
-    hasRequirement: true,
-    totalRequired: req.total_hours, totalLogged: totalLogged,
-    ethicsRequired: req.ethics_hours, ethicsLogged: ethicsLogged,
-    behind: behind,
-    noCycleDate: !win,
-    excludedCount: excludedCount,
-    cycleWindow: win,
-  };
-}
-
-function drCpeBarHtml(label, logged, required) {
-  var pct = required ? Math.min(100, Math.round((logged / required) * 100)) : 0;
-  var behind = required !== null && logged < required;
-  return '<div class="dr-cpe-bar-row"><span class="dr-cpe-bar-label">' + drEscapeHtml(label) + '</span>' +
-    '<span class="dr-cpe-bar-track"><span class="dr-cpe-bar-fill' + (behind ? ' dr-cpe-bar-fill--behind' : '') +
-    '" style="width:' + pct + '%"></span></span>' +
-    '<span class="dr-cpe-bar-value">' + logged + ' / ' + required + 'h</span></div>';
-}
-
-function drRenderCpeSummary() {
-  var el = document.getElementById('dr-cpe-summary');
-  if (!el) return;
-  var behindCount = 0, trackedCount = 0;
-  drLicenses.forEach(function(item) {
-    if (item.status === 'opted_out') return;
-    var p = drCpeProgressForSubscriber(item);
-    if (!p.hasRequirement) return;
-    trackedCount++;
-    if (p.behind) behindCount++;
-  });
-  el.innerHTML =
-    '<div class="dr-stat-card">' + drRingSvg(trackedCount ? Math.round((behindCount / trackedCount) * 100) : 0, behindCount > 0) +
-    '<div><div class="dr-stat-label">Behind on hours</div><div class="dr-stat-value">' + behindCount + '</div>' +
-    '<div class="dr-stat-sub">of ' + trackedCount + ' staff with a known requirement</div></div></div>';
-}
-
-function drRenderCpeStaffProgress() {
-  var el = document.getElementById('dr-cpe-staff-body');
-  if (!el) return;
-  var active = drLicenses.filter(function(item) { return item.status !== 'opted_out'; });
-  if (active.length === 0) {
-    el.innerHTML = '<p class="dr-panel-empty">No staff on your roster yet.</p>';
-    return;
-  }
-  el.innerHTML = active.map(function(item) {
-    var p = drCpeProgressForSubscriber(item);
-    var name = drEscapeHtml(item.staff_label || item.email);
-    var state = drEscapeHtml(item.state_name || '');
-    if (!p.hasRequirement) {
-      var gapText = p.dataGapNote ? drEscapeHtml(p.dataGapNote) : 'Requirement not codified for this state &mdash; track manually.';
-      return '<div class="dr-cpe-staff-card"><div class="dr-cpe-staff-head">' +
-        '<span class="dr-cpe-staff-name">' + name + '</span><span class="dr-cpe-staff-state">' + state + '</span></div>' +
-        '<p class="dr-cpe-gap-note">' + gapText + '</p></div>';
-    }
-    var totalBar = p.totalRequired !== null ? drCpeBarHtml('Total', p.totalLogged, p.totalRequired) : '';
-    var ethicsBar = p.ethicsRequired !== null ? drCpeBarHtml('Ethics', p.ethicsLogged, p.ethicsRequired) : '';
-    var cycleNote = p.noCycleDate
-      ? '<p class="dr-cpe-gap-note">No renewal date on file &mdash; add one to track progress for this cycle.</p>'
-      : (p.excludedCount > 0
-        ? '<p class="dr-cpe-gap-note">' + p.excludedCount + ' logged ' + (p.excludedCount === 1 ? 'entry falls' : 'entries fall') +
-          ' outside the current cycle (' + drEscapeHtml(drFormatDeadline(p.cycleWindow.start)) + '&ndash;' +
-          drEscapeHtml(drFormatDeadline(p.cycleWindow.end)) + ') and ' + (p.excludedCount === 1 ? "isn't" : "aren't") +
-          ' counted above &mdash; not a bug, just outside this renewal period.</p>'
-        : '');
-    return '<div class="dr-cpe-staff-card"><div class="dr-cpe-staff-head">' +
-      '<span class="dr-cpe-staff-name">' + name + '</span><span class="dr-cpe-staff-state">' + state + '</span></div>' +
-      totalBar + ethicsBar + cycleNote + '</div>';
-  }).join('');
-}
-
-function drRenderCpeStaffSelect() {
-  var sel = document.getElementById('dr-cpe-staff-select');
-  if (!sel) return;
-  var current = sel.value;
-  var active = drLicenses.filter(function(item) { return item.status !== 'opted_out'; });
-  sel.innerHTML = '<option value="">Select staff member</option>' + active.map(function(item) {
-    return '<option value="' + drEscapeHtml(item.id) + '">' + drEscapeHtml(item.staff_label || item.email) + '</option>';
-  }).join('');
-  sel.value = current;
-}
-
-function drRenderCpeRecent() {
-  var el = document.getElementById('dr-cpe-recent-body');
-  if (!el) return;
-  if (drCpeEntries.length === 0) {
-    el.innerHTML = '<p class="dr-panel-empty">Nothing logged yet.</p>';
-    return;
-  }
-  var byId = {};
-  drLicenses.forEach(function(item) { byId[item.id] = item; });
-  var sorted = drCpeEntries.slice().sort(function(a, b) {
-    return a.entry_date < b.entry_date ? 1 : a.entry_date > b.entry_date ? -1 : 0;
-  });
-  el.innerHTML = sorted.slice(0, 15).map(function(e) {
-    var staffer = byId[e.subscriber_id];
-    var name = staffer ? drEscapeHtml(staffer.staff_label || staffer.email) : 'Removed staff member';
-    var desc = e.description ? ' &mdash; ' + drEscapeHtml(e.description) : '';
-    return '<div class="dr-cpe-recent-item"><span><b>' + name + '</b> logged ' + drEscapeHtml(String(e.hours)) +
-      'h (' + drEscapeHtml(e.category) + ')' + desc +
-      '<span class="dr-agenda-date" style="display:block;">' + drEscapeHtml(drFormatDeadline(e.entry_date)) + '</span></span>' +
-      '<button type="button" class="dr-cpe-recent-remove" data-id="' + drEscapeHtml(e.id) + '" data-label="' +
-      drEscapeHtml(String(e.hours) + 'h for ' + name) + '">Remove</button></div>';
-  }).join('');
-}
-
-function drLoadCpeEntries() {
-  return fetch('/api/firm/cpe', {credentials: 'include'})
-    .then(function(res) {
-      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
-      if (!res.ok) return null;
-      return res.json();
-    })
-    .then(function(data) {
-      drCpeEntries = (data && data.entries) || [];
-      drRenderCpeStaffSelect();
-      drRenderCpeSummary();
-      drRenderCpeStaffProgress();
-      drRenderCpeRecent();
-    })
-    .catch(function() {});
-}
-
-// Practice-privilege completion tracking (2026-08-04, migration 0016).
-// Fetched once alongside the roster/CPE data, not re-fetched per Map
-// dropdown change -- same "fetch the firm's rows once, filter client-side"
-// pattern drCpeEntries already uses. Keyed as "subscriberId|targetSlug|
-// serviceType" for O(1) lookup from drApplyMobilityResults() below.
-var drMobilityCompletions = {}; // key -> {rule_verified_date}
-function drMobilityCompletionKey(subscriberId, targetStateSlug, serviceType) {
-  return subscriberId + '|' + targetStateSlug + '|' + serviceType;
-}
-function drLoadMobilityCompletions() {
-  return fetch('/api/firm/mobility/completions', {credentials: 'include'})
-    .then(function(res) {
-      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
-      if (!res.ok) return null;
-      return res.json();
-    })
-    .then(function(data) {
-      drMobilityCompletions = {};
-      ((data && data.completions) || []).forEach(function(c) {
-        drMobilityCompletions[drMobilityCompletionKey(c.subscriber_id, c.target_state_slug, c.service_type)] =
-          {rule_verified_date: c.rule_verified_date};
-      });
-    })
-    .catch(function() {});
-}
-
-function drSubmitCpeEntry(form) {
-  var errEl = document.getElementById('dr-cpe-log-error');
-  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
-  var fd = new FormData(form);
-  var body = {};
-  fd.forEach(function(v, k) { body[k] = v; });
-  fetch('/api/firm/cpe', {
-    method: 'POST', credentials: 'include',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body)
-  }).then(function(res) {
-    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
-    return drReadJsonSafe(res).then(function(data) {
-      if (!res.ok) {
-        var msg = data && data.error ? data.error : 'Something went wrong, please try again.';
-        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
-        return;
-      }
-      var keepStaffId = body.subscriber_id;
-      form.reset();
-      var staffSel = document.getElementById('dr-cpe-staff-select');
-      if (staffSel) staffSel.value = keepStaffId;
-      drLoadCpeEntries();
-    });
-  }).catch(function() {
-    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
-  });
-}
-
-function drRemoveCpeEntry(id, label) {
-  if (!window.confirm('Remove this CPE entry' + (label ? ' (' + label + ')' : '') + '? This cannot be undone from the dashboard.')) return;
-  fetch('/api/firm/cpe/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
-    .then(function(res) {
-      if (res.status === 401) { window.location.href = '/firm-login/'; return; }
-      if (res.ok) { drLoadCpeEntries(); return; }
-      drReadJsonSafe(res).then(function(data) {
-        window.alert((data && data.error) || 'Something went wrong removing that entry. Please try again.');
-      });
-    })
-    .catch(function() {
-      window.alert('Something went wrong removing that entry. Please try again.');
-    });
-}
-
-function drRenderIdentities(items) {
-  var el = document.getElementById('dr-identities-body');
-  if (!el) return;
-  if (!items || items.length === 0) {
-    el.innerHTML = '<p class="dr-panel-empty">None connected. You sign in with a password or an emailed link.</p>';
-    return;
-  }
-  el.innerHTML = items.map(function(it) {
-    var label = it.provider === 'google' ? 'Google' : it.provider;
-    var who = it.provider_email ? ' (' + drEscapeHtml(it.provider_email) + ')' : '';
-    var last = it.last_login_at ? 'Last used ' + drEscapeHtml(drFormatDeadline(String(it.last_login_at).slice(0, 10))) : 'Never used';
-    return '<div class="dr-cpe-recent-item"><span><b>' + drEscapeHtml(label) + '</b>' + who +
-      '<span class="dr-agenda-date" style="display:block;">' + last + '</span></span>' +
-      '<button type="button" class="dr-cpe-recent-remove" data-identity-id="' + drEscapeHtml(it.id) +
-      '" data-identity-label="' + drEscapeHtml(label) + '">Remove</button></div>';
-  }).join('');
-}
-
-function drLoadIdentities() {
-  return fetch('/api/firm/oauth-identities', {credentials: 'include'})
-    .then(function(res) {
-      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
-      if (!res.ok) return null;
-      return res.json();
-    })
-    .then(function(data) { drRenderIdentities(data && data.identities); })
-    .catch(function() {});
-}
-
-function drRemoveIdentity(id, label) {
-  if (!window.confirm('Remove the ' + label + ' sign-in from this account? You can still sign in with a password or an emailed link.')) return;
-  var errEl = document.getElementById('dr-identity-error');
-  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
-  fetch('/api/firm/oauth-identities/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
-    .then(function(res) {
-      if (res.status === 401) { window.location.href = '/firm-login/'; return; }
-      if (res.ok) { drLoadIdentities(); return; }
-      if (errEl) { errEl.textContent = 'Could not remove that sign-in method. Please try again.'; errEl.hidden = false; }
-    })
-    .catch(function() {
-      if (errEl) { errEl.textContent = 'Could not remove that sign-in method. Please try again.'; errEl.hidden = false; }
-    });
-}
-
-function drSubmitPassword(form) {
-  var okEl = document.getElementById('dr-password-ok');
-  var errEl = document.getElementById('dr-password-error');
-  if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
-  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
-
-  var fd = new FormData(form);
-  var body = {new_password: fd.get('new_password') || ''};
-  // Only sent when non-empty: a firm setting its FIRST password has no
-  // current one to prove, and sending an empty string would look like a
-  // failed check rather than an absent one.
-  var current = fd.get('current_password');
-  if (current) body.current_password = current;
-
-  fetch('/api/firm/password', {
-    method: 'POST', credentials: 'include',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body)
-  }).then(function(res) {
-    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
-    return drReadJsonSafe(res).then(function(data) {
-      if (!res.ok) {
-        var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
-        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
-        return;
-      }
-      form.reset();
-      if (okEl) {
-        var ended = (data && data.other_sessions_ended) || 0;
-        okEl.textContent = ended > 0
-          ? 'Password saved. You were signed out on ' + ended + ' other device' + (ended === 1 ? '' : 's') + '.'
-          : 'Password saved.';
-        okEl.hidden = false;
-      }
-    });
-  }).catch(function() {
-    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
-  });
-}
-
-function drLoadLicenses() {
-  drClearError();
-  fetch('/api/firm/licenses', {credentials: 'include'})
-    .then(function(res) {
-      if (res.status === 401) {
-        window.location.href = '/firm-login/';
-        return null;
-      }
-      if (!res.ok) {
-        drShowError('Something went wrong loading your roster. Please try again.');
-        return null;
-      }
-      return res.json();
-    })
-    .then(function(data) {
-      if (!data) return;
-      drLicenses = data.licenses || [];
-      drRenderFirmName(data.firm_name);
-      drRenderStalenessBanner(data.data_as_of, data.data_stale);
-      drRenderTable();
-      drRenderStats();
-      drRenderAtRisk();
-      drRenderActivity();
-      drRenderCalendar();
-      drRenderAgenda();
-      drPopulateMapStaffSelect();
-      // Completions loaded BEFORE the first map paint so
-      // drApplyMobilityResults() never renders a stale (pre-completion)
-      // color for the initial view -- a later reload from drMarkMobility-
-      // Complete() doesn't need this ordering since drMobilityCompletions
-      // is already populated by then.
-      drLoadMobilityCompletions().then(drRenderMapForSelection);
-      drLoadCpeEntries();
-    })
-    .catch(function() {
-      drShowError('Something went wrong loading your roster. Please try again.');
-    });
-}
-
-function drRenewLicense(id) {
-  drClearError();
-  fetch('/api/firm/licenses/' + encodeURIComponent(id) + '/renew', {method: 'POST', credentials: 'include'})
-    .then(function(res) {
-      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
-      return drReadJsonSafe(res).then(function(data) {
-        if (!res.ok) {
-          drShowError(data && data.error ? data.error : 'Something went wrong, please try again.');
-          return;
-        }
-        drLoadLicenses();
-      });
-    })
-    .catch(function() { drShowError('Something went wrong, please try again.'); });
-}
-
-function drRemoveLicense(id, label) {
-  if (!window.confirm('Remove ' + (label || 'this person') + ' from the roster? They will stop receiving reminders.')) return;
-  drClearError();
-  fetch('/api/firm/licenses/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
-    .then(function(res) {
-      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
-      return drReadJsonSafe(res).then(function(data) {
-        if (!res.ok) {
-          drShowError(data && data.error ? data.error : 'Something went wrong, please try again.');
-          return;
-        }
-        drLoadLicenses();
-      });
-    })
-    .catch(function() { drShowError('Something went wrong, please try again.'); });
-}
-
-function drSaveEdit(id, tr) {
-  drClearError();
-  var labelInput = tr.querySelector('.dr-edit-label');
-  var emailInput = tr.querySelector('.dr-edit-email');
-  var email = emailInput ? emailInput.value.trim() : '';
-  if (!email) { drShowError('Email is required.'); return; }
-  var body = {staff_label: labelInput ? labelInput.value.trim() : '', email: email};
-  fetch('/api/firm/licenses/' + encodeURIComponent(id), {
-    method: 'PATCH', credentials: 'include',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body)
-  }).then(function(res) {
-    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
-    return drReadJsonSafe(res).then(function(data) {
-      if (!res.ok) {
-        drShowError(data && data.error ? data.error : 'Something went wrong, please try again.');
-        return;
-      }
-      drEditingId = null;
-      drLoadLicenses();
-    });
-  }).catch(function() { drShowError('Something went wrong, please try again.'); });
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-  var stateSel = document.getElementById('dr-add-state');
-  drUpdateFields(stateSel ? stateSel.value : '');
-
-  drLoadLicenses();
-  drWireMapTooltip();
-
-  var mapStaffSelect = document.getElementById('dr-map-staff-select');
-  if (mapStaffSelect) {
-    mapStaffSelect.addEventListener('change', drRenderMapForSelection);
-  }
-
-  document.querySelectorAll('.dr-nav a[data-view]').forEach(function(a) {
-    a.addEventListener('click', function(ev) {
-      ev.preventDefault();
-      drSwitchView(a.getAttribute('data-view'));
-    });
-  });
-
-  var calPrev = document.getElementById('dr-cal-prev');
-  var calNext = document.getElementById('dr-cal-next');
-  var calToday = document.getElementById('dr-cal-today');
-  if (calPrev) {
-    calPrev.addEventListener('click', function() {
-      // drCalendarRefDate is only set once drLoadLicenses()'s async fetch
-      // resolves and drRenderCalendar() runs for the first time -- guard
-      // against a click landing in that brief window before it's set.
-      if (!drCalendarRefDate) return;
-      drCalendarRefDate = new Date(Date.UTC(drCalendarRefDate.getUTCFullYear(), drCalendarRefDate.getUTCMonth() - 1, 1));
-      drRenderCalendar();
-    });
-  }
-  if (calNext) {
-    calNext.addEventListener('click', function() {
-      if (!drCalendarRefDate) return;
-      drCalendarRefDate = new Date(Date.UTC(drCalendarRefDate.getUTCFullYear(), drCalendarRefDate.getUTCMonth() + 1, 1));
-      drRenderCalendar();
-    });
-  }
-  if (calToday) {
-    calToday.addEventListener('click', function() {
-      drCalendarRefDate = null;
-      drRenderCalendar();
-    });
-  }
-
-  var identitiesBody = document.getElementById('dr-identities-body');
-  if (identitiesBody) {
-    drLoadIdentities();
-    identitiesBody.addEventListener('click', function(ev) {
-      var btn = ev.target.closest ? ev.target.closest('[data-identity-id]') : null;
-      if (!btn) return;
-      drRemoveIdentity(btn.getAttribute('data-identity-id'), btn.getAttribute('data-identity-label'));
-    });
-  }
-
-  var passwordForm = document.getElementById('dr-password-form');
-  if (passwordForm) {
-    passwordForm.addEventListener('submit', function(ev) {
-      ev.preventDefault();
-      drSubmitPassword(passwordForm);
-    });
-  }
-
-  var cpeLogForm = document.getElementById('dr-cpe-log-form');
-  if (cpeLogForm) {
-    cpeLogForm.addEventListener('submit', function(ev) {
-      ev.preventDefault();
-      drSubmitCpeEntry(cpeLogForm);
-    });
-  }
-  var cpeRecentBody = document.getElementById('dr-cpe-recent-body');
-  if (cpeRecentBody) {
-    cpeRecentBody.addEventListener('click', function(ev) {
-      var btn = ev.target.closest ? ev.target.closest('.dr-cpe-recent-remove') : null;
-      if (!btn) return;
-      var id = btn.getAttribute('data-id');
-      if (id) drRemoveCpeEntry(id, btn.getAttribute('data-label'));
-    });
-  }
-
-  var tbody = document.getElementById('dr-roster-body');
-  if (tbody) {
-    tbody.addEventListener('click', function(ev) {
-      var btn = ev.target.closest ? ev.target.closest('button') : null;
-      if (!btn) return;
-      var id = btn.getAttribute('data-id');
-      if (btn.classList.contains('dr-btn-edit')) {
-        drEditingId = id;
-        drRenderTable();
-      } else if (btn.classList.contains('dr-btn-cancel')) {
-        drEditingId = null;
-        drRenderTable();
-      } else if (btn.classList.contains('dr-btn-save')) {
-        drSaveEdit(id, btn.closest('tr'));
-      } else if (btn.classList.contains('dr-btn-renew')) {
-        drRenewLicense(id);
-      } else if (btn.classList.contains('dr-btn-remove')) {
-        var item = null;
-        for (var i = 0; i < drLicenses.length; i++) {
-          if (drLicenses[i].id === id) { item = drLicenses[i]; break; }
-        }
-        drRemoveLicense(id, item ? (item.staff_label || item.email) : null);
-      }
-    });
-  }
-
-  var addForm = document.getElementById('dr-add-staff-form');
-  if (addForm) {
-    addForm.addEventListener('submit', function(ev) {
-      ev.preventDefault();
-      var errEl = document.getElementById('dr-add-error');
-      if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
-      var fd = new FormData(addForm);
-      var body = {};
-      fd.forEach(function(v, k) { body[k] = v; });
-      fetch('/api/firm/licenses', {
-        method: 'POST', credentials: 'include',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(body)
-      }).then(function(res) {
-        if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
-        return drReadJsonSafe(res).then(function(data) {
-          if (!res.ok) {
-            var msg = data && data.error ? data.error : 'Something went wrong, please try again.';
-            if (errEl) { errEl.textContent = msg; errEl.hidden = false; } else { drShowError(msg); }
-            return;
-          }
-          addForm.reset();
-          drUpdateFields('');
-          drLoadLicenses();
-        });
-      }).catch(function() {
-        var msg = 'Something went wrong, please try again.';
-        if (errEl) { errEl.textContent = msg; errEl.hidden = false; } else { drShowError(msg); }
-      });
-    });
-  }
-});
-</script>
+<script>function drUpdateFields(slug){document.querySelectorAll(".signup-extra-fields").forEach(function(el){var show=el.getAttribute("data-for-state")===slug;el.hidden=!show;el.querySelectorAll("input, select, textarea").forEach(function(field){field.disabled=!show})})}function drEscapeHtml(s){return String(s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}var DR_STATUS_LABELS={active:"Active",confirmed:"Active",pending:"Pending",opted_out:"Opted out","needs-attention":"Needs attention"};var DR_STATUS_CLASSES={active:"mock-status--ok",confirmed:"mock-status--ok",pending:"mock-status--pending",opted_out:"mock-status--pending","needs-attention":"mock-status--risk"};var drLicenses=[];var drEditingId=null;function drShowError(msg){var el=document.getElementById("dr-dash-error");if(!el)return;el.textContent=msg;el.hidden=false}function drClearError(){var el=document.getElementById("dr-dash-error");if(!el)return;el.hidden=true;el.textContent=""}function drReadJsonSafe(res){return res.json().catch(function(){return null})}function drPrettyLicenseType(id){if(!id)return"—";return String(id).split(/[_-]+/).map(function(part,i){if(i===0&&part.length===2)return part.toUpperCase();return part.charAt(0).toUpperCase()+part.slice(1)}).join(" ")}function drFormatDeadline(iso){if(!iso)return"—";try{var d=new Date(iso+"T00:00:00Z");if(isNaN(d.getTime()))return iso;var browserLocale;return d.toLocaleDateString(browserLocale,{year:"numeric",month:"short",day:"numeric",timeZone:"UTC"})}catch(e){return iso}}function drRenderRow(item){var statusClass=DR_STATUS_CLASSES[item.status]||"mock-status--risk";var statusLabel=DR_STATUS_LABELS[item.status]||item.status;var idAttr=drEscapeHtml(item.id);var staffCell,emailCell,actionsCell;if(drEditingId===item.id){staffCell='<input type="text" class="dr-edit-label" maxlength="120" value="'+drEscapeHtml(item.staff_label||"")+'">';emailCell='<input type="email" class="dr-edit-email" value="'+drEscapeHtml(item.email)+'">';actionsCell='<button type="button" class="dr-btn-save" data-id="'+idAttr+'">Save</button> '+'<button type="button" class="dr-btn-cancel" data-id="'+idAttr+'">Cancel</button>'}else{staffCell=item.staff_label?drEscapeHtml(item.staff_label):'<span style="color:var(--muted)">—</span>';emailCell=drEscapeHtml(item.email);actionsCell='<button type="button" class="dr-btn-edit" data-id="'+idAttr+'">Edit</button> '+'<button type="button" class="dr-btn-renew" data-id="'+idAttr+'">Mark renewed</button> '+'<button type="button" class="dr-btn-remove" data-id="'+idAttr+'">Remove</button>'}var emailTitle=drEditingId===item.id?"":' title="'+drEscapeHtml(item.email)+'"';return'<tr data-id="'+idAttr+'">'+'<td data-label="Staff">'+staffCell+"</td>"+'<td data-label="Email" class="dr-cell-email"'+emailTitle+">"+emailCell+"</td>"+'<td data-label="State">'+drEscapeHtml(item.state_name||"")+"</td>"+'<td data-label="License type">'+drEscapeHtml(drPrettyLicenseType(item.license_type_id))+"</td>"+'<td data-label="Status"><span class="mock-status '+statusClass+'">'+drEscapeHtml(statusLabel)+"</span></td>"+'<td data-label="Next deadline">'+drEscapeHtml(drFormatDeadline(item.next_deadline))+"</td>"+'<td data-label="Actions" class="dr-actions">'+actionsCell+"</td>"+"</tr>"}function drRenderTable(){var tbody=document.getElementById("dr-roster-body");if(!tbody)return;if(drLicenses.length===0){tbody.innerHTML='<tr><td colspan="7">No staff on your roster yet -- add your first one below.</td></tr>';return}tbody.innerHTML=drLicenses.map(drRenderRow).join("")}function drDaysUntil(iso){if(!iso)return null;var target=new Date(iso+"T00:00:00Z").getTime();if(isNaN(target))return null;var now=new Date;var todayLocal=Date.UTC(now.getFullYear(),now.getMonth(),now.getDate());return Math.round((target-todayLocal)/864e5)}function drDaysAgo(isoTimestamp){if(!isoTimestamp)return null;var then=new Date(isoTimestamp).getTime();if(isNaN(then))return null;var days=Math.floor((Date.now()-then)/864e5);if(days<=0)return"today";if(days===1)return"1 day ago";if(days<30)return days+" days ago";var months=Math.floor(days/30);return months===1?"1 month ago":months+" months ago"}function drRingSvg(pct,isRisk){var r=24,c=2*Math.PI*r;var clamped=Math.max(0,Math.min(100,pct));var dash=clamped/100*c;return'<div class="dr-ring-wrap'+(isRisk?" is-risk":"")+'">'+'<svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">'+'<circle class="dr-ring-track" cx="29" cy="29" r="'+r+'"></circle>'+'<circle class="dr-ring-value" cx="29" cy="29" r="'+r+'" stroke-dasharray="'+dash.toFixed(1)+" "+c.toFixed(1)+'"></circle>'+'</svg><div class="dr-ring-pct">'+clamped+"%</div></div>"}var DR_DONUT_ORDER=["active","pending","needs-attention","opted_out"];var DR_DONUT_COLORS={active:"#1f9e5c",pending:"#9c7a12","needs-attention":"#c33737",opted_out:"#8595a3"};var DR_DONUT_LABELS={active:"Active",pending:"Pending","needs-attention":"Needs attention",opted_out:"Opted out"};function drDonutSvg(counts,total){if(!total)return'<div class="dr-donut-wrap"><div class="dr-panel-empty">No staff yet</div></div>';var acc=0;var segments=[];DR_DONUT_ORDER.forEach(function(key){var n=counts[key]||0;if(!n)return;var start=acc/total*360;acc+=n;var end=acc/total*360;segments.push(DR_DONUT_COLORS[key]+" "+start.toFixed(1)+"deg "+end.toFixed(1)+"deg")});var legend=DR_DONUT_ORDER.filter(function(k){return counts[k]}).map(function(k){return'<li><span class="swatch" style="background:'+DR_DONUT_COLORS[k]+'"></span>'+drEscapeHtml(DR_DONUT_LABELS[k])+" ("+counts[k]+")</li>"}).join("");return'<div class="dr-donut-wrap">'+'<div style="width:58px;height:58px;border-radius:50%;flex:none;display:flex;align-items:center;'+"justify-content:center;background:conic-gradient("+segments.join(", ")+');" aria-hidden="true">'+'<div style="width:30px;height:30px;border-radius:50%;background:var(--card-bg);"></div></div>'+'<ul class="dr-donut-legend">'+legend+"</ul></div>"}function drRenderStats(){var row=document.getElementById("dr-stat-row");if(!row)return;var total=drLicenses.length;var counts={active:0,pending:0,"needs-attention":0,opted_out:0};var atRisk=0;drLicenses.forEach(function(item){var s=item.status||"needs-attention";counts[s]=(counts[s]||0)+1;var days=drDaysUntil(item.next_deadline);if(days===null||days<=30)atRisk++});var coveragePct=total?Math.round(counts.active/total*100):0;var riskPct=total?Math.round(atRisk/total*100):0;row.innerHTML='<div class="dr-stat-card">'+drRingSvg(coveragePct,false)+'<div><div class="dr-stat-label">Coverage</div><div class="dr-stat-value">'+coveragePct+"%</div>"+'<div class="dr-stat-sub">'+counts.active+" of "+total+" active</div></div></div>"+'<div class="dr-stat-card">'+drDonutSvg(counts,total)+'<div><div class="dr-stat-label">Roster status</div><div class="dr-stat-value">'+total+"</div>"+'<div class="dr-stat-sub">staff tracked</div></div></div>'+'<div class="dr-stat-card">'+drRingSvg(riskPct,atRisk>0)+'<div><div class="dr-stat-label">Due soon</div><div class="dr-stat-value">'+atRisk+"</div>"+'<div class="dr-stat-sub">due within 30 days or unresolved</div></div></div>'}function drRenderAtRisk(){var el=document.getElementById("dr-at-risk-list");if(!el)return;var items=drLicenses.filter(function(item){var days=drDaysUntil(item.next_deadline);return days===null||days<=30}).slice(0,6);if(items.length===0){el.innerHTML='<li class="dr-panel-empty">Nobody at risk right now.</li>';return}el.innerHTML=items.map(function(item){var days=drDaysUntil(item.next_deadline);var daysLabel=days===null?"Unresolved":days<0?"Overdue":days===0?"Due today":"in "+days+"d";var soon=days!==null&&days<=7;var optedOut=item.status==="opted_out";return'<li class="dr-at-risk-item"><span><span class="dr-at-risk-name">'+drEscapeHtml(item.staff_label||item.email)+"</span>"+'<span class="dr-at-risk-sub">'+drEscapeHtml(item.state_name||"")+"</span>"+(optedOut?'<span class="dr-at-risk-optedout">Opted out &mdash; no reminder will be sent</span>':"")+"</span>"+'<span class="dr-at-risk-days'+(soon?" dr-at-risk-days--soon":"")+'">'+daysLabel+"</span></li>"}).join("")}var DR_ACTIVITY_LABELS={added:"added to the roster",confirmed:"went active",optout:"opted out of reminders"};var DR_ACTIVITY_DOT_CLASS={added:"",confirmed:"dr-activity-dot--confirm",optout:"dr-activity-dot--optout"};function drRenderActivity(){var el=document.getElementById("dr-activity-list");if(!el)return;var events=[];drLicenses.forEach(function(item){var name=item.staff_label||item.email;if(item.created_at)events.push({type:"added",at:item.created_at,name:name});if(item.confirmed_at&&item.confirmed_at!==item.created_at){events.push({type:"confirmed",at:item.confirmed_at,name:name})}if(item.status==="opted_out"&&item.stopped_at)events.push({type:"optout",at:item.stopped_at,name:name})});events.sort(function(a,b){return new Date(b.at).getTime()-new Date(a.at).getTime()});events=events.slice(0,6);if(events.length===0){el.innerHTML='<li class="dr-panel-empty">No activity yet.</li>';return}el.innerHTML=events.map(function(ev){return'<li class="dr-activity-item"><span class="dr-activity-dot '+DR_ACTIVITY_DOT_CLASS[ev.type]+'"></span>'+'<span class="dr-activity-text"><b>'+drEscapeHtml(ev.name)+"</b> "+DR_ACTIVITY_LABELS[ev.type]+'<span class="dr-activity-when">'+drDaysAgo(ev.at)+"</span></span></li>"}).join("")}function drRenderFirmName(name){var el=document.getElementById("dr-firm-name");if(el&&name)el.textContent=name}function drRenderStalenessBanner(dataAsOf,dataStale){var el=document.getElementById("dr-staleness-banner");if(!el)return;if(!dataStale){el.hidden=true;el.textContent="";return}el.textContent="Heads up: our reference data was last verified "+dataAsOf+" and is due for re-verification. Dates below may be out of date, and adding new staff or "+"editing a license state/deadline is temporarily paused until we re-verify.";el.hidden=false}function drSwitchView(view){document.querySelectorAll(".dr-view").forEach(function(el){el.hidden=el.id!=="dr-view-"+view});document.querySelectorAll(".dr-nav a[data-view]").forEach(function(a){var isActive=a.getAttribute("data-view")===view;a.classList.toggle("is-active",isActive);a.setAttribute("aria-selected",isActive?"true":"false")})}var DR_MONTH_NAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];var DR_DOW_NAMES=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];var drCalendarRefDate=null;function drLicensesByDate(){var map={};drLicenses.forEach(function(item){if(item.status==="opted_out"||!item.next_deadline)return;if(!map[item.next_deadline])map[item.next_deadline]=[];map[item.next_deadline].push(item)});return map}function drRenderCalendar(){var grid=document.getElementById("dr-cal-grid");var label=document.getElementById("dr-cal-month-label");if(!grid||!label)return;if(!drCalendarRefDate){var now=new Date;drCalendarRefDate=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),1))}var ref=drCalendarRefDate;label.textContent=DR_MONTH_NAMES[ref.getUTCMonth()]+" "+ref.getUTCFullYear();var byDate=drLicensesByDate();var firstDow=ref.getUTCDay();var numDays=new Date(Date.UTC(ref.getUTCFullYear(),ref.getUTCMonth()+1,0)).getUTCDate();var todayNow=new Date;var todayIso=todayNow.getFullYear()+"-"+String(todayNow.getMonth()+1).padStart(2,"0")+"-"+String(todayNow.getDate()).padStart(2,"0");var html=DR_DOW_NAMES.map(function(d){return'<div class="dr-cal-dow">'+d+"</div>"}).join("");for(var lead=0;lead<firstDow;lead++){html+='<div class="dr-cal-day dr-cal-day--empty"></div>'}for(var day=1;day<=numDays;day++){var iso=ref.getUTCFullYear()+"-"+String(ref.getUTCMonth()+1).padStart(2,"0")+"-"+String(day).padStart(2,"0");var items=byDate[iso]||[];var cellItems=items.slice(0,3).map(function(item){var days=drDaysUntil(item.next_deadline);var soon=days!==null&&days<=7;return'<div class="dr-cal-item'+(soon?" dr-cal-item--soon":"")+'">'+drEscapeHtml(item.staff_label||item.email)+"</div>"}).join("");if(items.length>3){cellItems+='<div class="dr-cal-item">+'+(items.length-3)+" more</div>"}html+='<div class="dr-cal-day'+(iso===todayIso?" dr-cal-day--today":"")+(items.length?" dr-cal-day--has-item":"")+'">'+'<span class="dr-cal-daynum">'+day+"</span>"+cellItems+"</div>"}grid.innerHTML=html}function drRenderAgenda(){var el=document.getElementById("dr-agenda-body");if(!el)return;var items=drLicenses.filter(function(item){if(item.status==="opted_out"||!item.next_deadline)return false;var days=drDaysUntil(item.next_deadline);return days!==null&&days>=0&&days<=90});if(items.length===0){el.innerHTML='<p class="dr-panel-empty">Nothing due in the next 90 days.</p>';return}var groups={};var order=[];items.forEach(function(item){var key=item.next_deadline.slice(0,7);if(!groups[key]){groups[key]=[];order.push(key)}groups[key].push(item)});el.innerHTML=order.map(function(key){var parts=key.split("-");var monthLabel=DR_MONTH_NAMES[parseInt(parts[1],10)-1]+" "+parts[0];var rows=groups[key].map(function(item){return'<div class="dr-agenda-item"><span>'+drEscapeHtml(item.staff_label||item.email)+" &mdash; "+drEscapeHtml(item.state_name||"")+"</span>"+'<span class="dr-agenda-date">'+drEscapeHtml(drFormatDeadline(item.next_deadline))+"</span></div>"}).join("");return'<div class="dr-agenda-group"><div class="dr-agenda-month">'+monthLabel+"</div>"+rows+"</div>"}).join("")}var DR_MAP_STATE_CLASSES=["dr-map-state--active","dr-map-state--risk","dr-map-state--clear","dr-map-state--action","dr-map-state--complete","dr-map-state--home","dr-map-state--coverage"];function drClearMapStateClasses(path){DR_MAP_STATE_CLASSES.forEach(function(c){path.classList.remove(c)})}function drRenderMap(gen){var links=document.querySelectorAll(".dr-map-link");if(!links.length)return;var byState={};drLicenses.forEach(function(item){if(item.status==="opted_out"||!item.state_slug)return;if(!byState[item.state_slug])byState[item.state_slug]={items:[],risk:false};byState[item.state_slug].items.push(item);var days=drDaysUntil(item.next_deadline);if(days===null||days<=30)byState[item.state_slug].risk=true});links.forEach(function(link){var slug=link.getAttribute("data-state-slug");var path=link.querySelector("path");var info=byState[slug];drClearMapStateClasses(path);if(!info){link.setAttribute("data-has-staff","false");link.removeAttribute("data-tip");return}link.setAttribute("data-has-staff","true");path.classList.toggle("dr-map-state--risk",info.risk);path.classList.toggle("dr-map-state--active",!info.risk);var names=info.items.map(function(i){return i.staff_label||i.email}).join(", ");var summary=names+" ("+info.items.length+(info.items.length===1?" person":" people")+(info.risk?", due soon or unresolved":", all current")+")";link.setAttribute("data-tip",summary);link.setAttribute("aria-label",summary)});drApplyAggregateCoverageOverlay(byState,gen)}var DR_MOBILITY_SERVICE_TYPE="tax";var drMobilityCache={};var drMapSelectionGen=0;function drApplyAggregateCoverageOverlay(byState,gen){var legendItem=document.getElementById("dr-map-legend-coverage-item");var homeStates={};drLicenses.forEach(function(item){if(item.status==="opted_out"||!item.state_slug)return;if(!homeStates[item.state_slug])homeStates[item.state_slug]=[];homeStates[item.state_slug].push(item.staff_label||item.email)});var slugs=Object.keys(homeStates);if(!slugs.length){if(legendItem)legendItem.hidden=true;return}function fetchForHome(slug){var cached=drMobilityCache[slug];if(cached)return Promise.resolve(cached);return fetch("/api/firm/mobility/check-batch",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({home_state_slug:slug,service_type:DR_MOBILITY_SERVICE_TYPE,license_in_good_standing:true,substantially_equivalent:true})}).then(function(res){return drReadJsonSafe(res).then(function(data){if(res.status===429){return{denied:"Too many practice-privilege checks this hour. Try again later."}}if(res.status===403){var denied=data&&data.error||"Practice-privilege coloring is part of the paid firm plan.";drMobilityCache[slug]={denied:denied};return drMobilityCache[slug]}drMobilityCache[slug]=!res.ok||!data?{denied:"Something went wrong checking practice privilege."}:{results:data.results};return drMobilityCache[slug]})}).catch(function(){return{denied:"Something went wrong checking practice privilege."}})}fetchForHome(slugs[0]).then(function(first){if(gen!==drMapSelectionGen)return;if(!first||first.denied){if(legendItem)legendItem.hidden=true;return}Promise.all(slugs.slice(1).map(fetchForHome)).then(function(rest){if(gen!==drMapSelectionGen)return;var all=[first].concat(rest);var coverage={};all.forEach(function(entry,i){if(!entry||entry.denied||!entry.results)return;var homeSlug=slugs[i];entry.results.forEach(function(r){if(r.overall!=="clear"||byState[r.target_state_slug])return;if(!coverage[r.target_state_slug])coverage[r.target_state_slug]=[];homeStates[homeSlug].forEach(function(name){if(coverage[r.target_state_slug].indexOf(name)===-1)coverage[r.target_state_slug].push(name)})})});var anyCoverage=Object.keys(coverage).length>0;if(legendItem)legendItem.hidden=!anyCoverage;document.querySelectorAll(".dr-map-link").forEach(function(link){var names=coverage[link.getAttribute("data-state-slug")];if(!names)return;link.querySelector("path").classList.add("dr-map-state--coverage");var tip="No staff licensed here directly, but practice privilege is clear for: "+names.join(", ")+" (assumes good standing + substantial equivalence).";link.setAttribute("data-tip",tip);link.setAttribute("aria-label",tip);link.setAttribute("data-has-staff","true")})})})}function drPopulateMapStaffSelect(){var sel=document.getElementById("dr-map-staff-select");if(!sel)return;var prevValue=sel.value;var active=drLicenses.filter(function(item){return item.status!=="opted_out"});var options=['<option value="">All staff (home-state licensing)</option>'].concat(active.map(function(item){var label=item.staff_label||item.email;return'<option value="'+drEscapeHtml(item.id)+'">'+drEscapeHtml(label)+(item.state_name?" ("+drEscapeHtml(item.state_name)+")":"")+"</option>"}));sel.innerHTML=options.join("");var stillExists=active.some(function(item){return item.id===prevValue});sel.value=stillExists?prevValue:""}function drSetMapTooltipWrap(wrap){var tip=document.getElementById("dr-map-tooltip");if(tip)tip.classList.toggle("dr-map-tooltip--wrap",wrap);var staffLegend=document.getElementById("dr-map-legend-staff");var mobilityLegend=document.getElementById("dr-map-legend-mobility");if(staffLegend)staffLegend.hidden=wrap;if(mobilityLegend)mobilityLegend.hidden=!wrap}function drApplyMobilityResults(homeStateSlug,entry,gen,subscriberId){if(gen!==drMapSelectionGen)return;var noteEl=document.getElementById("dr-map-mobility-note");var links=document.querySelectorAll(".dr-map-link");drSetMapTooltipWrap(true);if(entry.denied){if(noteEl){noteEl.textContent=entry.denied;noteEl.hidden=false}links.forEach(function(link){var path=link.querySelector("path");drClearMapStateClasses(path);link.removeAttribute("data-tip");link.setAttribute("data-has-staff","false")});return}if(noteEl){noteEl.textContent="Assumes an active license in good standing and substantial equivalence for "+"every state (service type: "+DR_MOBILITY_SERVICE_TYPE+"). For this person’s own facts, "+"use Practice Privilege Check.";noteEl.hidden=false}var byTarget={};entry.results.forEach(function(r){byTarget[r.target_state_slug]=r});links.forEach(function(link){var slug=link.getAttribute("data-state-slug");var path=link.querySelector("path");drClearMapStateClasses(path);if(slug===homeStateSlug){path.classList.add("dr-map-state--home");var homeTip="Home state -- licensed here directly, not a reciprocity question.";link.setAttribute("data-tip",homeTip);link.setAttribute("aria-label",homeTip);link.setAttribute("data-has-staff","true");return}var r=byTarget[slug];if(!r){link.removeAttribute("data-tip");link.setAttribute("data-has-staff","false");return}var verdict=r.overall;var completionKey=subscriberId?drMobilityCompletionKey(subscriberId,slug,DR_MOBILITY_SERVICE_TYPE):null;var completed=verdict==="action_required"&&completionKey&&drMobilityCompletions[completionKey];if(verdict==="clear")path.classList.add("dr-map-state--clear");else if(completed)path.classList.add("dr-map-state--complete");else if(verdict==="action_required")path.classList.add("dr-map-state--action");var tipText=r.individual&&r.individual.summary?r.individual.summary:"Not verified for this state.";if(completed)tipText+=" Marked complete by your firm.";link.setAttribute("data-tip",tipText);link.setAttribute("aria-label",tipText);link.setAttribute("data-has-staff",verdict!=="not_verified"?"true":"false")})}function drRenderMapMobility(subscriberId,gen){var person=drLicenses.filter(function(item){return item.id===subscriberId})[0];if(!person||!person.state_slug){drRenderMap(gen);return}var homeStateSlug=person.state_slug;var cached=drMobilityCache[homeStateSlug];if(cached){drApplyMobilityResults(homeStateSlug,cached,gen,subscriberId);return}var noteEl=document.getElementById("dr-map-mobility-note");if(noteEl){noteEl.textContent="Checking practice privilege for every state…";noteEl.hidden=false}fetch("/api/firm/mobility/check-batch",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({home_state_slug:homeStateSlug,service_type:DR_MOBILITY_SERVICE_TYPE,license_in_good_standing:true,substantially_equivalent:true})}).then(function(res){if(res.status===401){window.location.href="/firm-login/";return null}return drReadJsonSafe(res).then(function(data){if(res.status===429){drApplyMobilityResults(homeStateSlug,{denied:"Too many practice-privilege checks this hour. Try again later."},gen,subscriberId);return}if(res.status===403){var denied=data&&data.error||"Practice-privilege coloring is part of the paid firm plan.";drMobilityCache[homeStateSlug]={denied:denied};drApplyMobilityResults(homeStateSlug,drMobilityCache[homeStateSlug],gen,subscriberId);return}if(!res.ok||!data){if(gen===drMapSelectionGen&&noteEl){noteEl.textContent="Something went wrong checking practice privilege. Please try again."}return}drMobilityCache[homeStateSlug]={results:data.results};drApplyMobilityResults(homeStateSlug,drMobilityCache[homeStateSlug],gen,subscriberId)})}).catch(function(){if(gen===drMapSelectionGen&&noteEl){noteEl.textContent="Something went wrong checking practice privilege. Please try again."}})}function drRenderMapForSelection(){drMapSelectionGen++;var gen=drMapSelectionGen;var sel=document.getElementById("dr-map-staff-select");var value=sel?sel.value:"";var noteEl=document.getElementById("dr-map-mobility-note");if(!value){if(noteEl)noteEl.hidden=true;drSetMapTooltipWrap(false);drRenderMap(gen);return}drRenderMapMobility(value,gen)}function drWireMapTooltip(){var tip=document.getElementById("dr-map-tooltip");var figure=tip?tip.closest(".dr-map-figure"):null;if(!tip||!figure)return;function move(evt){var rect=figure.getBoundingClientRect();tip.style.left=evt.clientX-rect.left+14+"px";tip.style.top=evt.clientY-rect.top+14+"px"}function hide(){tip.hidden=true}function showAtElement(el){var t=el.getAttribute("data-tip");if(!t)return;tip.textContent=t;tip.hidden=false;var rect=el.getBoundingClientRect();var frect=figure.getBoundingClientRect();tip.style.left=rect.left-frect.left+"px";tip.style.top=rect.top-frect.top-28+"px"}figure.querySelectorAll(".dr-map-link").forEach(function(el){el.addEventListener("focus",function(){showAtElement(el)});el.addEventListener("blur",hide);el.addEventListener("mouseenter",function(evt){var t=el.getAttribute("data-tip");if(!t)return;tip.textContent=t;tip.hidden=false;move(evt)});el.addEventListener("mousemove",move);el.addEventListener("mouseleave",hide)})}var drCpeEntries=[];function drCpeCycleWindow(nextDeadlineIso,periodYears){if(!nextDeadlineIso||!periodYears)return null;var end=new Date(nextDeadlineIso+"T00:00:00Z");if(isNaN(end.getTime()))return null;var start=new Date(Date.UTC(end.getUTCFullYear()-periodYears,end.getUTCMonth(),end.getUTCDate()));return{start:start.toISOString().slice(0,10),end:nextDeadlineIso}}function drCpeProgressForSubscriber(item){var req=DR_CPE_REQUIREMENTS[item.state_slug];if(!req||req.total_hours===null&&req.ethics_hours===null){return{hasRequirement:false,dataGapNote:req?req.data_gap_note:null}}var win=drCpeCycleWindow(item.next_deadline,req.period_years);var winEthics=drCpeCycleWindow(item.next_deadline,req.ethics_period_years||req.period_years);var totalLogged=0,ethicsLogged=0,excludedCount=0;drCpeEntries.forEach(function(e){if(e.subscriber_id!==item.id)return;if(!win){excludedCount++;return}var inTotalWindow=e.entry_date>=win.start&&e.entry_date<=win.end;var inEthicsWindow=winEthics&&e.entry_date>=winEthics.start&&e.entry_date<=winEthics.end;if(!inTotalWindow&&!(e.category==="ethics"&&inEthicsWindow)){excludedCount++;return}if(inTotalWindow)totalLogged+=e.hours;if(e.category==="ethics"&&inEthicsWindow)ethicsLogged+=e.hours});var behind=req.total_hours!==null&&totalLogged<req.total_hours||req.ethics_hours!==null&&ethicsLogged<req.ethics_hours;return{hasRequirement:true,totalRequired:req.total_hours,totalLogged:totalLogged,ethicsRequired:req.ethics_hours,ethicsLogged:ethicsLogged,behind:behind,noCycleDate:!win,excludedCount:excludedCount,cycleWindow:win}}function drCpeBarHtml(label,logged,required){var pct=required?Math.min(100,Math.round(logged/required*100)):0;var behind=required!==null&&logged<required;return'<div class="dr-cpe-bar-row"><span class="dr-cpe-bar-label">'+drEscapeHtml(label)+"</span>"+'<span class="dr-cpe-bar-track"><span class="dr-cpe-bar-fill'+(behind?" dr-cpe-bar-fill--behind":"")+'" style="width:'+pct+'%"></span></span>'+'<span class="dr-cpe-bar-value">'+logged+" / "+required+"h</span></div>"}function drRenderCpeSummary(){var el=document.getElementById("dr-cpe-summary");if(!el)return;var behindCount=0,trackedCount=0;drLicenses.forEach(function(item){if(item.status==="opted_out")return;var p=drCpeProgressForSubscriber(item);if(!p.hasRequirement)return;trackedCount++;if(p.behind)behindCount++});el.innerHTML='<div class="dr-stat-card">'+drRingSvg(trackedCount?Math.round(behindCount/trackedCount*100):0,behindCount>0)+'<div><div class="dr-stat-label">Behind on hours</div><div class="dr-stat-value">'+behindCount+"</div>"+'<div class="dr-stat-sub">of '+trackedCount+" staff with a known requirement</div></div></div>"}function drRenderCpeStaffProgress(){var el=document.getElementById("dr-cpe-staff-body");if(!el)return;var active=drLicenses.filter(function(item){return item.status!=="opted_out"});if(active.length===0){el.innerHTML='<p class="dr-panel-empty">No staff on your roster yet.</p>';return}el.innerHTML=active.map(function(item){var p=drCpeProgressForSubscriber(item);var name=drEscapeHtml(item.staff_label||item.email);var state=drEscapeHtml(item.state_name||"");if(!p.hasRequirement){var gapText=p.dataGapNote?drEscapeHtml(p.dataGapNote):"Requirement not codified for this state &mdash; track manually.";return'<div class="dr-cpe-staff-card"><div class="dr-cpe-staff-head">'+'<span class="dr-cpe-staff-name">'+name+'</span><span class="dr-cpe-staff-state">'+state+"</span></div>"+'<p class="dr-cpe-gap-note">'+gapText+"</p></div>"}var totalBar=p.totalRequired!==null?drCpeBarHtml("Total",p.totalLogged,p.totalRequired):"";var ethicsBar=p.ethicsRequired!==null?drCpeBarHtml("Ethics",p.ethicsLogged,p.ethicsRequired):"";var cycleNote=p.noCycleDate?'<p class="dr-cpe-gap-note">No renewal date on file &mdash; add one to track progress for this cycle.</p>':p.excludedCount>0?'<p class="dr-cpe-gap-note">'+p.excludedCount+" logged "+(p.excludedCount===1?"entry falls":"entries fall")+" outside the current cycle ("+drEscapeHtml(drFormatDeadline(p.cycleWindow.start))+"&ndash;"+drEscapeHtml(drFormatDeadline(p.cycleWindow.end))+") and "+(p.excludedCount===1?"isn't":"aren't")+" counted above &mdash; not a bug, just outside this renewal period.</p>":"";return'<div class="dr-cpe-staff-card"><div class="dr-cpe-staff-head">'+'<span class="dr-cpe-staff-name">'+name+'</span><span class="dr-cpe-staff-state">'+state+"</span></div>"+totalBar+ethicsBar+cycleNote+"</div>"}).join("")}function drRenderCpeStaffSelect(){var sel=document.getElementById("dr-cpe-staff-select");if(!sel)return;var current=sel.value;var active=drLicenses.filter(function(item){return item.status!=="opted_out"});sel.innerHTML='<option value="">Select staff member</option>'+active.map(function(item){return'<option value="'+drEscapeHtml(item.id)+'">'+drEscapeHtml(item.staff_label||item.email)+"</option>"}).join("");sel.value=current}function drRenderCpeRecent(){var el=document.getElementById("dr-cpe-recent-body");if(!el)return;if(drCpeEntries.length===0){el.innerHTML='<p class="dr-panel-empty">Nothing logged yet.</p>';return}var byId={};drLicenses.forEach(function(item){byId[item.id]=item});var sorted=drCpeEntries.slice().sort(function(a,b){return a.entry_date<b.entry_date?1:a.entry_date>b.entry_date?-1:0});el.innerHTML=sorted.slice(0,15).map(function(e){var staffer=byId[e.subscriber_id];var name=staffer?drEscapeHtml(staffer.staff_label||staffer.email):"Removed staff member";var desc=e.description?" &mdash; "+drEscapeHtml(e.description):"";return'<div class="dr-cpe-recent-item"><span><b>'+name+"</b> logged "+drEscapeHtml(String(e.hours))+"h ("+drEscapeHtml(e.category)+")"+desc+'<span class="dr-agenda-date" style="display:block;">'+drEscapeHtml(drFormatDeadline(e.entry_date))+"</span></span>"+'<button type="button" class="dr-cpe-recent-remove" data-id="'+drEscapeHtml(e.id)+'" data-label="'+drEscapeHtml(String(e.hours)+"h for "+name)+'">Remove</button></div>'}).join("")}function drLoadCpeEntries(){return fetch("/api/firm/cpe",{credentials:"include"}).then(function(res){if(res.status===401){window.location.href="/firm-login/";return null}if(!res.ok)return null;return res.json()}).then(function(data){drCpeEntries=data&&data.entries||[];drRenderCpeStaffSelect();drRenderCpeSummary();drRenderCpeStaffProgress();drRenderCpeRecent()}).catch(function(){})}var drMobilityCompletions={};function drMobilityCompletionKey(subscriberId,targetStateSlug,serviceType){return subscriberId+"|"+targetStateSlug+"|"+serviceType}function drLoadMobilityCompletions(){return fetch("/api/firm/mobility/completions",{credentials:"include"}).then(function(res){if(res.status===401){window.location.href="/firm-login/";return null}if(!res.ok)return null;return res.json()}).then(function(data){drMobilityCompletions={};(data&&data.completions||[]).forEach(function(c){drMobilityCompletions[drMobilityCompletionKey(c.subscriber_id,c.target_state_slug,c.service_type)]={rule_verified_date:c.rule_verified_date}})}).catch(function(){})}function drSubmitCpeEntry(form){var errEl=document.getElementById("dr-cpe-log-error");if(errEl){errEl.hidden=true;errEl.textContent=""}var fd=new FormData(form);var body={};fd.forEach(function(v,k){body[k]=v});fetch("/api/firm/cpe",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(function(res){if(res.status===401){window.location.href="/firm-login/";return null}return drReadJsonSafe(res).then(function(data){if(!res.ok){var msg=data&&data.error?data.error:"Something went wrong, please try again.";if(errEl){errEl.textContent=msg;errEl.hidden=false}return}var keepStaffId=body.subscriber_id;form.reset();var staffSel=document.getElementById("dr-cpe-staff-select");if(staffSel)staffSel.value=keepStaffId;drLoadCpeEntries()})}).catch(function(){if(errEl){errEl.textContent="Something went wrong, please try again.";errEl.hidden=false}})}function drRemoveCpeEntry(id,label){if(!window.confirm("Remove this CPE entry"+(label?" ("+label+")":"")+"? This cannot be undone from the dashboard."))return;fetch("/api/firm/cpe/"+encodeURIComponent(id),{method:"DELETE",credentials:"include"}).then(function(res){if(res.status===401){window.location.href="/firm-login/";return}if(res.ok){drLoadCpeEntries();return}drReadJsonSafe(res).then(function(data){window.alert(data&&data.error||"Something went wrong removing that entry. Please try again.")})}).catch(function(){window.alert("Something went wrong removing that entry. Please try again.")})}function drRenderIdentities(items){var el=document.getElementById("dr-identities-body");if(!el)return;if(!items||items.length===0){el.innerHTML='<p class="dr-panel-empty">None connected. You sign in with a password or an emailed link.</p>';return}el.innerHTML=items.map(function(it){var label=it.provider==="google"?"Google":it.provider;var who=it.provider_email?" ("+drEscapeHtml(it.provider_email)+")":"";var last=it.last_login_at?"Last used "+drEscapeHtml(drFormatDeadline(String(it.last_login_at).slice(0,10))):"Never used";return'<div class="dr-cpe-recent-item"><span><b>'+drEscapeHtml(label)+"</b>"+who+'<span class="dr-agenda-date" style="display:block;">'+last+"</span></span>"+'<button type="button" class="dr-cpe-recent-remove" data-identity-id="'+drEscapeHtml(it.id)+'" data-identity-label="'+drEscapeHtml(label)+'">Remove</button></div>'}).join("")}function drLoadIdentities(){return fetch("/api/firm/oauth-identities",{credentials:"include"}).then(function(res){if(res.status===401){window.location.href="/firm-login/";return null}if(!res.ok)return null;return res.json()}).then(function(data){drRenderIdentities(data&&data.identities)}).catch(function(){})}function drRemoveIdentity(id,label){if(!window.confirm("Remove the "+label+" sign-in from this account? You can still sign in with a password or an emailed link."))return;var errEl=document.getElementById("dr-identity-error");if(errEl){errEl.hidden=true;errEl.textContent=""}fetch("/api/firm/oauth-identities/"+encodeURIComponent(id),{method:"DELETE",credentials:"include"}).then(function(res){if(res.status===401){window.location.href="/firm-login/";return}if(res.ok){drLoadIdentities();return}if(errEl){errEl.textContent="Could not remove that sign-in method. Please try again.";errEl.hidden=false}}).catch(function(){if(errEl){errEl.textContent="Could not remove that sign-in method. Please try again.";errEl.hidden=false}})}function drSubmitPassword(form){var okEl=document.getElementById("dr-password-ok");var errEl=document.getElementById("dr-password-error");if(okEl){okEl.hidden=true;okEl.textContent=""}if(errEl){errEl.hidden=true;errEl.textContent=""}var fd=new FormData(form);var body={new_password:fd.get("new_password")||""};var current=fd.get("current_password");if(current)body.current_password=current;fetch("/api/firm/password",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(function(res){if(res.status===401){window.location.href="/firm-login/";return null}return drReadJsonSafe(res).then(function(data){if(!res.ok){var msg=data&&data.error?data.error:"Something went wrong, please try again.";if(errEl){errEl.textContent=msg;errEl.hidden=false}return}form.reset();if(okEl){var ended=data&&data.other_sessions_ended||0;okEl.textContent=ended>0?"Password saved. You were signed out on "+ended+" other device"+(ended===1?"":"s")+".":"Password saved.";okEl.hidden=false}})}).catch(function(){if(errEl){errEl.textContent="Something went wrong, please try again.";errEl.hidden=false}})}function drLoadLicenses(){drClearError();fetch("/api/firm/licenses",{credentials:"include"}).then(function(res){if(res.status===401){window.location.href="/firm-login/";return null}if(!res.ok){drShowError("Something went wrong loading your roster. Please try again.");return null}return res.json()}).then(function(data){if(!data)return;drLicenses=data.licenses||[];drRenderFirmName(data.firm_name);drRenderStalenessBanner(data.data_as_of,data.data_stale);drRenderTable();drRenderStats();drRenderAtRisk();drRenderActivity();drRenderCalendar();drRenderAgenda();drPopulateMapStaffSelect();drLoadMobilityCompletions().then(drRenderMapForSelection);drLoadCpeEntries()}).catch(function(){drShowError("Something went wrong loading your roster. Please try again.")})}function drRenewLicense(id){drClearError();fetch("/api/firm/licenses/"+encodeURIComponent(id)+"/renew",{method:"POST",credentials:"include"}).then(function(res){if(res.status===401){window.location.href="/firm-login/";return null}return drReadJsonSafe(res).then(function(data){if(!res.ok){drShowError(data&&data.error?data.error:"Something went wrong, please try again.");return}drLoadLicenses()})}).catch(function(){drShowError("Something went wrong, please try again.")})}function drRemoveLicense(id,label){if(!window.confirm("Remove "+(label||"this person")+" from the roster? They will stop receiving reminders."))return;drClearError();fetch("/api/firm/licenses/"+encodeURIComponent(id),{method:"DELETE",credentials:"include"}).then(function(res){if(res.status===401){window.location.href="/firm-login/";return null}return drReadJsonSafe(res).then(function(data){if(!res.ok){drShowError(data&&data.error?data.error:"Something went wrong, please try again.");return}drLoadLicenses()})}).catch(function(){drShowError("Something went wrong, please try again.")})}function drSaveEdit(id,tr){drClearError();var labelInput=tr.querySelector(".dr-edit-label");var emailInput=tr.querySelector(".dr-edit-email");var email=emailInput?emailInput.value.trim():"";if(!email){drShowError("Email is required.");return}var body={staff_label:labelInput?labelInput.value.trim():"",email:email};fetch("/api/firm/licenses/"+encodeURIComponent(id),{method:"PATCH",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(function(res){if(res.status===401){window.location.href="/firm-login/";return null}return drReadJsonSafe(res).then(function(data){if(!res.ok){drShowError(data&&data.error?data.error:"Something went wrong, please try again.");return}drEditingId=null;drLoadLicenses()})}).catch(function(){drShowError("Something went wrong, please try again.")})}document.addEventListener("DOMContentLoaded",function(){var stateSel=document.getElementById("dr-add-state");drUpdateFields(stateSel?stateSel.value:"");drLoadLicenses();drWireMapTooltip();var mapStaffSelect=document.getElementById("dr-map-staff-select");if(mapStaffSelect){mapStaffSelect.addEventListener("change",drRenderMapForSelection)}document.querySelectorAll(".dr-nav a[data-view]").forEach(function(a){a.addEventListener("click",function(ev){ev.preventDefault();drSwitchView(a.getAttribute("data-view"))})});var calPrev=document.getElementById("dr-cal-prev");var calNext=document.getElementById("dr-cal-next");var calToday=document.getElementById("dr-cal-today");if(calPrev){calPrev.addEventListener("click",function(){if(!drCalendarRefDate)return;drCalendarRefDate=new Date(Date.UTC(drCalendarRefDate.getUTCFullYear(),drCalendarRefDate.getUTCMonth()-1,1));drRenderCalendar()})}if(calNext){calNext.addEventListener("click",function(){if(!drCalendarRefDate)return;drCalendarRefDate=new Date(Date.UTC(drCalendarRefDate.getUTCFullYear(),drCalendarRefDate.getUTCMonth()+1,1));drRenderCalendar()})}if(calToday){calToday.addEventListener("click",function(){drCalendarRefDate=null;drRenderCalendar()})}var identitiesBody=document.getElementById("dr-identities-body");if(identitiesBody){drLoadIdentities();identitiesBody.addEventListener("click",function(ev){var btn=ev.target.closest?ev.target.closest("[data-identity-id]"):null;if(!btn)return;drRemoveIdentity(btn.getAttribute("data-identity-id"),btn.getAttribute("data-identity-label"))})}var passwordForm=document.getElementById("dr-password-form");if(passwordForm){passwordForm.addEventListener("submit",function(ev){ev.preventDefault();drSubmitPassword(passwordForm)})}var cpeLogForm=document.getElementById("dr-cpe-log-form");if(cpeLogForm){cpeLogForm.addEventListener("submit",function(ev){ev.preventDefault();drSubmitCpeEntry(cpeLogForm)})}var cpeRecentBody=document.getElementById("dr-cpe-recent-body");if(cpeRecentBody){cpeRecentBody.addEventListener("click",function(ev){var btn=ev.target.closest?ev.target.closest(".dr-cpe-recent-remove"):null;if(!btn)return;var id=btn.getAttribute("data-id");if(id)drRemoveCpeEntry(id,btn.getAttribute("data-label"))})}var tbody=document.getElementById("dr-roster-body");if(tbody){tbody.addEventListener("click",function(ev){var btn=ev.target.closest?ev.target.closest("button"):null;if(!btn)return;var id=btn.getAttribute("data-id");if(btn.classList.contains("dr-btn-edit")){drEditingId=id;drRenderTable()}else if(btn.classList.contains("dr-btn-cancel")){drEditingId=null;drRenderTable()}else if(btn.classList.contains("dr-btn-save")){drSaveEdit(id,btn.closest("tr"))}else if(btn.classList.contains("dr-btn-renew")){drRenewLicense(id)}else if(btn.classList.contains("dr-btn-remove")){var item=null;for(var i=0;i<drLicenses.length;i++){if(drLicenses[i].id===id){item=drLicenses[i];break}}drRemoveLicense(id,item?item.staff_label||item.email:null)}})}var addForm=document.getElementById("dr-add-staff-form");if(addForm){addForm.addEventListener("submit",function(ev){ev.preventDefault();var errEl=document.getElementById("dr-add-error");if(errEl){errEl.hidden=true;errEl.textContent=""}var fd=new FormData(addForm);var body={};fd.forEach(function(v,k){body[k]=v});fetch("/api/firm/licenses",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(function(res){if(res.status===401){window.location.href="/firm-login/";return null}return drReadJsonSafe(res).then(function(data){if(!res.ok){var msg=data&&data.error?data.error:"Something went wrong, please try again.";if(errEl){errEl.textContent=msg;errEl.hidden=false}else{drShowError(msg)}return}addForm.reset();drUpdateFields("");drLoadLicenses()})}).catch(function(){var msg="Something went wrong, please try again.";if(errEl){errEl.textContent=msg;errEl.hidden=false}else{drShowError(msg)}})})}});</script>
 
 </div>
 <footer class="site-footer">

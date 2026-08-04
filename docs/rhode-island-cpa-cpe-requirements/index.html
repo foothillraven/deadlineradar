@@ -906,6 +906,15 @@
     border-radius: 8px; background: #1f5fbf; color: #fff; font-family: inherit; font-size: 0.98rem;
     font-weight: 700; cursor: pointer; }
   .dr-auth-card button[type="submit"]:hover, .dr-account-panel form button[type="submit"]:hover { background: #1a4f9e; }
+  
+  .dr-pw-wrap { position: relative; display: block; }
+  .dr-pw-wrap input { padding-right: 3.4rem !important; }
+  .dr-pw-toggle {
+    position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; color: var(--muted);
+    font-family: inherit; font-size: 0.78rem; font-weight: 600; padding: 0.2rem 0.35rem;
+  }
+  .dr-pw-toggle:hover { color: var(--fg); }
   .dr-auth-secondary { margin-top: 0.9rem; font-size: 0.86rem; text-align: center; }
   .dr-auth-alt { margin-top: 1.1rem; font-size: 0.9rem; text-align: center; }
   .dr-sso-top { margin-bottom: 1.2rem; }
@@ -1055,5 +1064,6 @@ up automatically, so we'll remind you based on the date you give us.</p>
   state board or on your license.</p>
   </div>
 </footer>
+<script>(function(){document.querySelectorAll('input[type="password"]').forEach(function(input){var wrap=document.createElement("span");wrap.className="dr-pw-wrap";input.parentNode.insertBefore(wrap,input);wrap.appendChild(input);var btn=document.createElement("button");btn.type="button";btn.className="dr-pw-toggle";btn.textContent="Show";btn.setAttribute("aria-label","Show password");btn.addEventListener("click",function(){var revealed=input.type==="text";input.type=revealed?"password":"text";btn.textContent=revealed?"Show":"Hide";btn.setAttribute("aria-label",revealed?"Show password":"Hide password")});wrap.appendChild(btn)})})();</script>
 </body>
 </html>

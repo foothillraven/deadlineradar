@@ -907,6 +907,15 @@
     border-radius: 8px; background: #1f5fbf; color: #fff; font-family: inherit; font-size: 0.98rem;
     font-weight: 700; cursor: pointer; }
   .dr-auth-card button[type="submit"]:hover, .dr-account-panel form button[type="submit"]:hover { background: #1a4f9e; }
+  
+  .dr-pw-wrap { position: relative; display: block; }
+  .dr-pw-wrap input { padding-right: 3.4rem !important; }
+  .dr-pw-toggle {
+    position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; color: var(--muted);
+    font-family: inherit; font-size: 0.78rem; font-weight: 600; padding: 0.2rem 0.35rem;
+  }
+  .dr-pw-toggle:hover { color: var(--fg); }
   .dr-auth-secondary { margin-top: 0.9rem; font-size: 0.86rem; text-align: center; }
   .dr-auth-alt { margin-top: 1.1rem; font-size: 0.9rem; text-align: center; }
   .dr-sso-top { margin-bottom: 1.2rem; }
@@ -1008,7 +1017,7 @@
   <div class="hfc-stamp"><span class="dot"></span>Verified 2026-07-30</div>
   <div class="hfc-date">December 31, 2026</div>
   <div class="hfc-sub">Individual CPA/PA/non-licensee owner and firm permit</div>
-  <a class="cite" href="https://admincode.legislature.state.al.us/api/chapter/30-X-3" title="Ala. Admin. Code 30-X-5-.05(1) (Sept 30 permit expiration); 30-X-3-.07(1) (Dec 31 renewal fee + CPE-statement deadline)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Ala. Admin. Code 30-X-5-.05(1) (Sept 30 per…</a>
+  <a class="cite" href="https://admincode.legislature.state.al.us/api/chapter/30-X-3" title="Ala. Admin. Code 30-X-5-.05(1) (Sept 30 permit expiration); 30-X-3-.07(1) (Dec 31 renewal fee + CPE-statement deadline)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Ala. Admin. Code 30-X-5-.05(1) (Sept 30…</a>
   <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed at source</div>
 </div>
 <div class="hfc-card" data-hfc-state="Alaska">
@@ -1016,7 +1025,7 @@
   <div class="hfc-stamp"><span class="dot"></span>Verified 2026-07-30</div>
   <div class="hfc-date">December 31, 2027</div>
   <div class="hfc-sub">Individual CPA/public accountant license</div>
-  <a class="cite" href="https://www.commerce.alaska.gov/web/Portals/5/pub/cpa4060.pdf" title="Alaska CPA/PA License Renewal form (cpa4060.pdf, Rev. 10/16/2025): &quot;Licenses are issued for a two-year period and expire on December 31 of odd-numbered years, regardless of the date of issuance&quot; -- current period Jan 1, 2026-Dec 31, 2027."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Alaska CPA/PA License Renewal form (cpa4060…</a>
+  <a class="cite" href="https://www.commerce.alaska.gov/web/Portals/5/pub/cpa4060.pdf" title="Alaska CPA/PA License Renewal form (cpa4060.pdf, Rev. 10/16/2025): &quot;Licenses are issued for a two-year period and expire on December 31 of odd-numbered years, regardless of the date of issuance&quot; -- current period Jan 1, 2026-Dec 31, 2027."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Alaska CPA/PA License Renewal form…</a>
   <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed via official records</div>
 </div>
 <div class="hfc-card" data-hfc-state="Arkansas">
@@ -1032,7 +1041,7 @@
   <div class="hfc-stamp"><span class="dot"></span>Verified 2026-07-30</div>
   <div class="hfc-date">November 30, 2027</div>
   <div class="hfc-sub">Certified Public Accountant (Individual Certificate)</div>
-  <a class="cite" href="https://data.colorado.gov/resource/jzq6-fyp7.json?licensestatusdescription=Active" title="Confirmed via Colorado Information Marketplace open-data register (data.colorado.gov, dataset jzq6-fyp7, &quot;CPA All Status&quot;): sampled active individual licenses with issue dates spanning 1977-2026 uniformly show expiration 11/30/2027 -- verified 2026-07-30."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Confirmed via Colorado Information Marketpl…</a>
+  <a class="cite" href="https://data.colorado.gov/resource/jzq6-fyp7.json?licensestatusdescription=Active" title="Confirmed via Colorado Information Marketplace open-data register (data.colorado.gov, dataset jzq6-fyp7, &quot;CPA All Status&quot;): sampled active individual licenses with issue dates spanning 1977-2026 uniformly show expiration 11/30/2027 -- verified 2026-07-30."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Confirmed via Colorado Information…</a>
   <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed via official records</div>
 </div>
 <div class="hfc-card" data-hfc-state="Connecticut">
@@ -1056,7 +1065,7 @@
   <div class="hfc-stamp"><span class="dot"></span>Verified 2026-07-30</div>
   <div class="hfc-date">December 31, 2027</div>
   <div class="hfc-sub">Firm license</div>
-  <a class="cite" href="https://www2.myfloridalicense.com/certified-public-accounting/public-records/" title="Confirmed via Florida DBPR public CPA license records (cpalicensedata20260709.xlsx, worksheet &quot;CPA Firms&quot;): 4,932 of 4,933 active firm licenses show expiration 12/31/2027 -- verified 2026-07-30."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Confirmed via Florida DBPR public CPA licen…</a>
+  <a class="cite" href="https://www2.myfloridalicense.com/certified-public-accounting/public-records/" title="Confirmed via Florida DBPR public CPA license records (cpalicensedata20260709.xlsx, worksheet &quot;CPA Firms&quot;): 4,932 of 4,933 active firm licenses show expiration 12/31/2027 -- verified 2026-07-30."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Confirmed via Florida DBPR public CPA…</a>
   <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed via official records</div>
 </div>
 <div class="hfc-card" data-hfc-state="Georgia">
@@ -1730,5 +1739,6 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
   state board or on your license.</p>
   </div>
 </footer>
+<script>(function(){document.querySelectorAll('input[type="password"]').forEach(function(input){var wrap=document.createElement("span");wrap.className="dr-pw-wrap";input.parentNode.insertBefore(wrap,input);wrap.appendChild(input);var btn=document.createElement("button");btn.type="button";btn.className="dr-pw-toggle";btn.textContent="Show";btn.setAttribute("aria-label","Show password");btn.addEventListener("click",function(){var revealed=input.type==="text";input.type=revealed?"password":"text";btn.textContent=revealed?"Show":"Hide";btn.setAttribute("aria-label",revealed?"Show password":"Hide password")});wrap.appendChild(btn)})})();</script>
 </body>
 </html>

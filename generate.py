@@ -1409,6 +1409,22 @@ PAGE_CSS = """
     border-radius: 8px; background: #1f5fbf; color: #fff; font-family: inherit; font-size: 0.98rem;
     font-weight: 700; cursor: pointer; }
   .dr-auth-card button[type="submit"]:hover, .dr-account-panel form button[type="submit"]:hover { background: #1a4f9e; }
+  /* Show/hide-password toggle (2026-08-04, reported directly) -- generic,
+     not scoped to any one form: _SHOW_PASSWORD_TOGGLE_HTML wraps every
+     input[type=password] on every page in this span, wherever it lives.
+     display:block on the span (a <span> is inline by default) keeps it
+     filling the same width the input already did before being wrapped;
+     the input's own width:100% then fills the span exactly like it filled
+     its old parent. padding-right on the input makes room so the button
+     never sits on top of typed characters. */
+  .dr-pw-wrap { position: relative; display: block; }
+  .dr-pw-wrap input { padding-right: 3.4rem !important; }
+  .dr-pw-toggle {
+    position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; color: var(--muted);
+    font-family: inherit; font-size: 0.78rem; font-weight: 600; padding: 0.2rem 0.35rem;
+  }
+  .dr-pw-toggle:hover { color: var(--fg); }
   .dr-auth-secondary { margin-top: 0.9rem; font-size: 0.86rem; text-align: center; }
   .dr-auth-alt { margin-top: 1.1rem; font-size: 0.9rem; text-align: center; }
   .dr-sso-top { margin-bottom: 1.2rem; }
@@ -2077,6 +2093,42 @@ def _json_ld_html(schemas: list[dict] | None) -> str:
     )
 
 
+# Reported directly ("add the ability for user to see the password they
+# typed", 2026-08-04): every password field on the site was type="password"
+# with no reveal option -- ordinary, but this product's own passwords are
+# long, un-memorized CSPRNG-adjacent strings a password manager fills in
+# (per the site's own copy: "a short phrase you'll remember"), exactly the
+# case where a typo is both likely and invisible without a reveal toggle.
+# One shared script, added once in page_shell() (the choke point every page
+# already routes through) rather than duplicated per form -- wraps every
+# input[type=password] found anywhere on the page in a small relative
+# wrapper with a Show/Hide button that flips the input's type attribute.
+# Never touches the input's id/name/value/other attributes or any existing
+# JS that references it by id, so nothing else on any page needs to change.
+_SHOW_PASSWORD_TOGGLE_HTML = """<script>
+(function () {
+  document.querySelectorAll('input[type="password"]').forEach(function (input) {
+    var wrap = document.createElement('span');
+    wrap.className = 'dr-pw-wrap';
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'dr-pw-toggle';
+    btn.textContent = 'Show';
+    btn.setAttribute('aria-label', 'Show password');
+    btn.addEventListener('click', function () {
+      var revealed = input.type === 'text';
+      input.type = revealed ? 'password' : 'text';
+      btn.textContent = revealed ? 'Show' : 'Hide';
+      btn.setAttribute('aria-label', revealed ? 'Show password' : 'Hide password');
+    });
+    wrap.appendChild(btn);
+  });
+})();
+</script>"""
+
+
 def page_shell(
     title: str,
     meta_description: str,
@@ -2122,6 +2174,7 @@ def page_shell(
 {site_header(home_href, hide_signin=hide_signin, has_remind_anchor=has_remind_anchor, sticky_top_nav=sticky_top_nav)}
 {body}
 {site_footer()}
+{_SHOW_PASSWORD_TOGGLE_HTML}
 </body>
 </html>
 """
@@ -2348,15 +2401,26 @@ def _cite_chip_html(record: dict, max_chars: int | None = None) -> str:
     contexts (the hero's compact rotating card) -- some records (e.g. Alabama's
     combined individual+firm entry) have a long compound citation that would
     overflow a small card. This never hides the citation itself: the link still
-    points to the real citation_url and the full untruncated string is always
-    shown on the record's actual state page one click away -- truncation here is
-    a display-space concession for a teaser card, not withholding information."""
+    points to the real citation_url, the full untruncated string is always in
+    title= (a real hover tooltip, present on every chip -- reported as absent
+    2026-08-04, but it was there; the actual gap was the hard character cut
+    below), and the full string is also shown on the record's actual state page
+    one click away -- truncation here is a display-space concession for a
+    teaser card, not withholding information.
+
+    Breaks at the last word boundary before max_chars rather than a hard
+    character cut, so "...Marketplace" doesn't become "...Marketpl" -- cosmetic
+    only, the tooltip and the real citation were never affected by this."""
     if not record.get("citation"):
         return ""
     citation = record["citation"]
     display = citation
     if max_chars and len(citation) > max_chars:
-        display = citation[: max_chars - 1].rstrip() + "…"
+        truncated = citation[: max_chars - 1]
+        last_space = truncated.rfind(" ")
+        if last_space > max_chars * 0.6:  # don't chop a short first word down to nothing
+            truncated = truncated[:last_space]
+        display = truncated.rstrip() + "…"
     return (
         f'<a class="cite" href="{http_href(record["citation_url"])}" title="{esc(citation)}">{_CITE_ICON_SVG}'
         f'{esc(display)}</a>'

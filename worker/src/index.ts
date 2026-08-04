@@ -3780,7 +3780,7 @@ async function handleMobilityCheckBatch(request: Request, env: Env): Promise<Res
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_check_batch", RATE_LIMIT_MOBILITY_CHECK_BATCH);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many requests. Please try again later." });
+    return jsonResponse(429, { error: "Too many mobility checks this hour. Please try again within the hour." });
   }
 
   let raw: string;

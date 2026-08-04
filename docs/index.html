@@ -26,6 +26,8 @@
     --bg: #f7f9fb; --page-bg: #f7f9fb; --fg: #17212b; --muted: #5a6b7a; --faint: #8595a3;
     --border: #e0e6ec; --border-strong: #c8d2db;
     --accent: #1f3d54; --accent-deep: #152c3e; --accent-bg: #eaeef1; --card-bg: #ffffff;
+    --on-accent: #fff;
+    /* AuditLab UX-1: foreground for text painted on an --accent/--accent-deep background (buttons, table headers) -- pairs per-theme instead of a hardcoded color, which broke once dark mode inverted --accent from dark-navy to light-blue (was 2.47:1, WCAG AA needs 4.5). Dark-mode value is 7.25:1 against dark --accent and 9.5:1 against --accent-deep, verified with a standalone relative-luminance calc. */
     --panel-dark: #152c3e; --panel-dark-fg: #eaf1f7;
     --gold: #8a6a33; --gold-line: #d8c9a6; --gold-bg: #f4eede;
     --verified-green: #256a4b; --verified-green-bg: #e8f1ec;
@@ -38,9 +40,12 @@
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #12151a; --page-bg: #12151a; --fg: #e7ebf0; --muted: #9aa5b1; --faint: #6f7a86;
+      --bg: #12151a; --page-bg: #12151a; --fg: #e7ebf0; --muted: #9aa5b1;
+      /* AuditLab UX-2: the previous value was 3.79:1 against card-bg / 4.18:1 against page-bg for small supporting text (needs 4.5). This one clears both (4.91 / 5.42) while staying visibly dimmer than --muted. */
+      --faint: #828d99;
       --border: #2a323c; --border-strong: #3a4552;
       --accent: #7fa8d9; --accent-deep: #9cc0ea; --accent-bg: #1b2836; --card-bg: #1a1f26;
+      --on-accent: #0d1824;
       --panel-dark: #0d1824; --panel-dark-fg: #dbe6ef;
       --gold: #d6b45a; --gold-line: #8a6d1f; --gold-bg: #26210f;
       --verified-green: #4fd685; --verified-green-bg: rgba(52,199,120,0.12);
@@ -142,7 +147,7 @@
   }
   table { border-collapse: collapse; width: 100%; font-size: 0.92rem; min-width: 420px; }
   th, td { padding: 0.6rem 0.8rem; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
-  th { background: var(--accent); color: #eaf1f7; font-weight: 700; }
+  th { background: var(--accent); color: var(--on-accent); font-weight: 700; }
   tbody tr:nth-child(even) { background: var(--row-alt); }
   tbody tr:last-child td { border-bottom: none; }
   .trust-line {
@@ -261,7 +266,7 @@
   .lookup-field input:focus { outline: none; }
   .lookup-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(31,61,84,.14), var(--shadow); }
   .lookup-field button {
-    border: 0; background: var(--accent); color: #fff; font-weight: 600; font-size: 0.92rem;
+    border: 0; background: var(--accent); color: var(--on-accent); font-weight: 600; font-size: 0.92rem;
     padding: 0 1.3rem; cursor: pointer; font-family: inherit;
   }
   .lookup-field button:hover { background: var(--accent-deep); }
@@ -504,7 +509,7 @@
   .state-search-field input:focus { outline: none; }
   .state-search-submit {
     padding: 0 1.3rem; border: none; background: var(--accent);
-    color: #fff; font-size: 0.92rem; font-weight: 600; cursor: pointer; flex: 0 0 auto;
+    color: var(--on-accent); font-size: 0.92rem; font-weight: 600; cursor: pointer; flex: 0 0 auto;
   }
   .state-search-submit:hover { background: var(--accent-deep); }
   .state-search .field-hint { font-size: 0.8rem; color: var(--faint); margin: 0.6rem 0 0; }
@@ -518,7 +523,7 @@
     display: block; width: 100%; text-align: left; padding: 0.55rem 0.8rem; border: none;
     background: none; color: var(--fg); font-size: 0.95rem; font-family: inherit; cursor: pointer;
   }
-  .state-search-option:hover, .state-search-option.is-active { background: var(--accent); color: #fff; }
+  .state-search-option:hover, .state-search-option.is-active { background: var(--accent); color: var(--on-accent); }
   .state-search-empty { padding: 0.55rem 0.8rem; font-size: 0.85rem; color: var(--muted); }
   .site-footer {
     margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
@@ -553,7 +558,7 @@
   .signup-form-row > div { flex: 1; }
   .signup-form button {
     margin-top: 1rem; padding: 0.6rem 1.1rem; border: none; border-radius: 6px;
-    background: var(--accent); color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+    background: var(--accent); color: var(--on-accent); font-size: 0.95rem; font-weight: 700; cursor: pointer;
   }
   .signup-form button:hover { opacity: 0.92; }
   .signup-form .field-hint { font-size: 0.78rem; color: var(--muted); margin: 0.25rem 0 0; }
@@ -716,7 +721,7 @@
      Actions header rendered near-white text on a near-white background --
      readable nowhere, not just "greyed." Match the header's own colors
      explicitly instead of assuming one shared background serves both. */
-  .dr-roster-panel th.dr-actions-head { background: var(--accent); color: #eaf1f7; z-index: 3; }
+  .dr-roster-panel th.dr-actions-head { background: var(--accent); color: var(--on-accent); z-index: 3; }
 
   /* Tighter action buttons so the sticky column costs less width. */
   .dr-roster-panel td.dr-actions button { padding: 0.22rem 0.5rem; font-size: 0.76rem; white-space: nowrap; }

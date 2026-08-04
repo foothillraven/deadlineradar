@@ -670,22 +670,23 @@
   
   
   
-  .dr-roster-panel table { width: 100%; min-width: 53.5rem; table-layout: fixed; }
+  .dr-roster-panel table { width: 100%; min-width: 53rem; table-layout: fixed; }
   .dr-roster-panel td, .dr-roster-panel th { white-space: nowrap; }
-  .dr-roster-panel th:nth-child(1), .dr-roster-panel td:nth-child(1) { width: 7rem; }  
-  .dr-roster-panel th:nth-child(2), .dr-roster-panel td:nth-child(2) { width: 5rem; }  
-  .dr-roster-panel th:nth-child(3), .dr-roster-panel td:nth-child(3) { width: 5.5rem; } 
+  .dr-roster-panel th:nth-child(1), .dr-roster-panel td:nth-child(1) { width: 11rem; } 
+  .dr-roster-panel th:nth-child(2), .dr-roster-panel td:nth-child(2) { width: 6rem; }  
+  .dr-roster-panel th:nth-child(3), .dr-roster-panel td:nth-child(3) { width: 7rem; }  
   .dr-roster-panel th:nth-child(4), .dr-roster-panel td:nth-child(4) { width: 7rem; }  
   .dr-roster-panel th:nth-child(5), .dr-roster-panel td:nth-child(5) { width: 7rem; }  
-  .dr-roster-panel th:nth-child(6), .dr-roster-panel td:nth-child(6) { width: 7rem; }  
-  .dr-roster-panel th:nth-child(7), .dr-roster-panel td:nth-child(7) { width: 15rem; } 
+  .dr-roster-panel th:nth-child(6), .dr-roster-panel td:nth-child(6) { width: 15rem; } 
 
   
-  .dr-roster-panel td.dr-cell-email,
-  .dr-roster-panel td:nth-child(1),
-  .dr-roster-panel td:nth-child(3) {
-    white-space: normal; overflow-wrap: anywhere;
+  .dr-roster-panel .dr-roster-name,
+  .dr-roster-panel .dr-roster-email,
+  .dr-roster-panel td:nth-child(2) {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;
   }
+  .dr-roster-panel .dr-roster-name { font-weight: 600; }
+  .dr-roster-panel .dr-roster-email { color: var(--muted); font-size: 0.82rem; margin-top: 0.1rem; }
 
   
   .dr-roster-panel .dr-edit-label,
@@ -694,6 +695,7 @@
     border: 1px solid var(--border); border-radius: 4px;
     background: var(--bg); color: var(--fg); font-size: inherit; font-family: inherit;
   }
+  .dr-roster-panel .dr-edit-email { margin-top: 0.3rem; }
 
   
   .dr-roster-panel th.dr-actions-head,
@@ -719,8 +721,7 @@
     }
     
     .dr-roster-panel td:nth-child(1), .dr-roster-panel td:nth-child(2), .dr-roster-panel td:nth-child(3),
-    .dr-roster-panel td:nth-child(4), .dr-roster-panel td:nth-child(5), .dr-roster-panel td:nth-child(6),
-    .dr-roster-panel td:nth-child(7) {
+    .dr-roster-panel td:nth-child(4), .dr-roster-panel td:nth-child(5), .dr-roster-panel td:nth-child(6) {
       width: 100%;
     }
     .dr-roster-panel thead { position: absolute; left: -9999px; }
@@ -737,9 +738,9 @@
       font-size: 0.78rem; flex: 0 0 auto;
     }
     
-    .dr-roster-panel td.dr-cell-email,
-    .dr-roster-panel td:nth-child(1),
-    .dr-roster-panel td:nth-child(3) {
+    .dr-roster-panel .dr-roster-name,
+    .dr-roster-panel .dr-roster-email,
+    .dr-roster-panel td:nth-child(2) {
       max-width: none; text-align: right;
       white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere;
     }

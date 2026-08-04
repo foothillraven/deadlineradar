@@ -90,6 +90,7 @@ import {
   StaleDataError,
   checkDataFreshness,
   computeSubscriberDeadline,
+  dataFreshnessInfo,
   isStateComputable,
   stateNameForSlug,
   SUPPORTED_STATE_SLUGS,
@@ -1912,7 +1913,18 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
   // unguarded D1 call in this handler; not a new resilience gap this
   // endpoint introduces, just not one it fixes either).
   const firm = await store.getFirmById(env.DB, session.firmId);
-  return jsonResponse(200, { licenses: items, firm_name: firm?.name ?? null });
+  // AuditLab ST-1: every date above is derived from the same reference data
+  // the write guards (checkDataFreshness()) can refuse to trust -- surface
+  // its freshness here too instead of rendering it silently, since the
+  // dashboard has no other signal that "Mark renewed" or a new staff add
+  // could be refused right now.
+  const freshness = dataFreshnessInfo(asOf);
+  return jsonResponse(200, {
+    licenses: items,
+    firm_name: firm?.name ?? null,
+    data_as_of: freshness.as_of_date,
+    data_stale: freshness.stale,
+  });
 }
 
 /**

@@ -999,6 +999,7 @@
 
   <div class="dr-main">
     <div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" hidden></div>
+    <div id="dr-staleness-banner" class="callout" style="border-left-color:#b8860b;" hidden></div>
 
     <div id="dr-view-roster" class="dr-view" role="tabpanel">
     <h1>Coverage overview</h1>
@@ -1819,6 +1820,21 @@ function drRenderActivity() {
 function drRenderFirmName(name) {
   var el = document.getElementById('dr-firm-name');
   if (el && name) el.textContent = name;
+}
+
+// AuditLab ST-1: the API refuses new signups/staff-adds once its reference
+// data is past the freshness threshold, but the dashboard used to show every
+// date on this page -- including the one "Mark renewed" just computed -- with
+// no hint that guard might be active. GET /api/firm/licenses now carries
+// data_as_of/data_stale; surface it rather than stay silent.
+function drRenderStalenessBanner(dataAsOf, dataStale) {
+  var el = document.getElementById('dr-staleness-banner');
+  if (!el) return;
+  if (!dataStale) { el.hidden = true; el.textContent = ''; return; }
+  el.textContent = 'Heads up: our reference data was last verified ' + dataAsOf +
+    ' and is due for re-verification. Dates below may be out of date, and adding new staff or ' +
+    'editing a license state/deadline is temporarily paused until we re-verify.';
+  el.hidden = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -2652,6 +2668,7 @@ function drLoadLicenses() {
       if (!data) return;
       drLicenses = data.licenses || [];
       drRenderFirmName(data.firm_name);
+      drRenderStalenessBanner(data.data_as_of, data.data_stale);
       drRenderTable();
       drRenderStats();
       drRenderAtRisk();

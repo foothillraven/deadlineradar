@@ -86,16 +86,50 @@ export function nextAnnualMonthEnd(asOf: Date, month: number): Date {
 
 export class StaleDataError extends Error {}
 
-/** scheduler.py:68 `check_data_freshness()`. */
-export function checkDataFreshness(realToday: Date): void {
+function ageDaysFromAsOf(realToday: Date): number {
   const asOf = new Date(`${DATA.as_of_date}T00:00:00Z`);
-  const ageDays = Math.round((realToday.getTime() - asOf.getTime()) / 86_400_000);
+  return Math.round((realToday.getTime() - asOf.getTime()) / 86_400_000);
+}
+
+/** scheduler.py:68 `check_data_freshness()`. AuditLab ST-3: an unparseable
+ * `as_of_date` used to produce `NaN` age, and `NaN > threshold` is `false` --
+ * failing OPEN (signups allowed off data of unknown freshness) instead of
+ * closed. Reachability is low (generate.py's `date.fromisoformat()` plus
+ * preship_gate.py's two-copy check both reject malformed input before it
+ * reaches the bundled JSON), but this is the one runtime control a
+ * data-integrity product has for this, so it must fail toward refusing, not
+ * toward silently trusting unknown data. */
+export function checkDataFreshness(realToday: Date): void {
+  const ageDays = ageDaysFromAsOf(realToday);
+  if (Number.isNaN(ageDays)) {
+    throw new StaleDataError(
+      `REFUSING: reference data's as_of_date ("${DATA.as_of_date}") is unparseable -- treating as ` +
+        `stale rather than allowing signups off data of unknown freshness.`
+    );
+  }
   if (ageDays > STALENESS_THRESHOLD_DAYS) {
     throw new StaleDataError(
       `REFUSING: reference data's as_of_date is ${ageDays} days old, past the ` +
         `${STALENESS_THRESHOLD_DAYS}-day freshness threshold. Re-verify the data before allowing signups.`
     );
   }
+}
+
+/** AuditLab ST-1: the write guard above pauses signups/roster-adds/renews
+ * once data is stale, but every READ path (GET /firm/licenses, the roster
+ * list) kept serving dates derived from that same data with no disclosure --
+ * a customer could be refused a new staff member while the dashboard
+ * confidently showed 40 existing ones. Exposes the same age/threshold
+ * computation as a non-throwing read so API responses can carry a
+ * `data_as_of`/`data_stale` signal instead of staying silent. */
+export function dataFreshnessInfo(realToday: Date): { as_of_date: string; age_days: number; stale: boolean } {
+  const ageDays = ageDaysFromAsOf(realToday);
+  const unparseable = Number.isNaN(ageDays);
+  return {
+    as_of_date: DATA.as_of_date,
+    age_days: unparseable ? -1 : ageDays,
+    stale: unparseable || ageDays > STALENESS_THRESHOLD_DAYS,
+  };
 }
 
 /** The canonical display name for a state slug ("north-carolina" -> "North

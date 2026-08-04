@@ -165,6 +165,54 @@ def check_legal_safety(html_files: list[Path], state_page_files: list[Path]) -> 
     return errors
 
 
+# AuditLab CR-1 (2026-08-04): the Nevada CPE page's own notes field named
+# three CPE-vendor competitors (Surgent, NinjaCPE, Encoursa) and asserted
+# their published info was wrong -- factually defensible, but an evidence-
+# free, unexpiring, named-party disparagement claim is the single most
+# expensive sentence a site like this can ship (cease-and-desist bait
+# regardless of whether the underlying fact holds up). Fixed by dropping the
+# names while keeping the correction; this check exists so the NEXT record
+# authored with a "vendor X gets this wrong" aside gets caught before it
+# ships, not after an audit finds it.
+#
+# Proximity-based (name + a disparagement term within a short window), not a
+# bare name scan -- generate.py's own sanctioned affiliate copy legitimately
+# names several of these same vendors positively ("Becker offers CPE courses
+# and exam-prep for CPAs"), and a bare name match would flag every one of
+# those as a false positive.
+DISPARAGEMENT_VENDOR_NAMES = [
+    "Surgent", "NinjaCPE", "Encoursa", "Becker", "Gleim", "Wiley",
+    "CE Broker", "MyCPE", "MYCPE ONE", "Canopy", "TaxDome", "Karbon",
+    "Illumeo", "WebCE",
+]
+DISPARAGEMENT_TERMS_RE = re.compile(
+    r"\b(wrongly|incorrectly|mistaken|misleads?|misleading|inaccurate(?:ly)?|"
+    r"gets? (?:it|this) wrong|is wrong|not accurate)\b",
+    re.IGNORECASE,
+)
+_DISPARAGEMENT_WINDOW_CHARS = 200
+
+
+def check_named_vendor_disparagement(html_files: list[Path]) -> list[str]:
+    errors = []
+    vendor_re = re.compile("|".join(re.escape(n) for n in DISPARAGEMENT_VENDOR_NAMES))
+    for f in html_files:
+        text = f.read_text(encoding="utf-8")
+        for m in vendor_re.finditer(text):
+            window_start = max(0, m.start() - _DISPARAGEMENT_WINDOW_CHARS)
+            window_end = min(len(text), m.end() + _DISPARAGEMENT_WINDOW_CHARS)
+            window = text[window_start:window_end]
+            term = DISPARAGEMENT_TERMS_RE.search(window)
+            if term:
+                line_no = text.count("\n", 0, m.start()) + 1
+                errors.append(
+                    f"[H][{f}:{line_no}] named vendor '{m.group(0)}' appears within "
+                    f"{_DISPARAGEMENT_WINDOW_CHARS} chars of disparagement term '{term.group(0)}' -- "
+                    f"drop the name, keep the correction (see AuditLab CR-1)"
+                )
+    return errors
+
+
 CPE_AFFILIATE_BLOCK_RE = re.compile(r'<div class="cpe-affiliate">.*?</div>', re.IGNORECASE | re.DOTALL)
 AFFILIATE_DISCLOSURE_PHRASE = "paid affiliate link"
 
@@ -264,6 +312,25 @@ def print_worker_deploy_staleness_advisory(repo_root: Path) -> None:
         pass
 
 
+def print_cpe_hours_staleness_advisory(repo_root: Path) -> None:
+    """Surfaces cpe_hours_staleness_check.py (AuditLab ST-2, 2026-08-04) as
+    part of the normal pre-ship run, same treatment as the worker-deploy
+    advisory above -- printed, never affects exit code. cpe_hours.json has no
+    runtime guard of its own (it's inlined into static pages at build time),
+    so this is the only place staleness gets surfaced at all."""
+    sys.path.insert(0, str(repo_root / "scripts"))
+    try:
+        import cpe_hours_staleness_check as chsc
+    except ImportError:
+        print("  (skipping cpe-hours-staleness advisory -- cpe_hours_staleness_check.py not importable)")
+        return
+    print("\n--- cpe-hours-staleness advisory (does not affect gate exit code) ---")
+    try:
+        chsc.main()
+    except SystemExit:
+        pass
+
+
 def main():
     repo_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent
     docs_dir = repo_root / "docs"
@@ -283,6 +350,7 @@ def main():
     all_errors += check_stylesheet_integrity(html_files)
     all_errors += check_legal_safety(html_files, state_page_files)
     all_errors += check_affiliate_disclosure(html_files)
+    all_errors += check_named_vendor_disparagement(html_files)
     all_errors += check_data_manifest_consistency(data_path, docs_dir)
     all_errors += check_json_copies_identical(repo_root)
 
@@ -292,9 +360,11 @@ def main():
         for e in all_errors:
             print(" ", e)
         print_worker_deploy_staleness_advisory(repo_root)
+        print_cpe_hours_staleness_advisory(repo_root)
         sys.exit(1)
     print("\nPASS -- no violations found.")
     print_worker_deploy_staleness_advisory(repo_root)
+    print_cpe_hours_staleness_advisory(repo_root)
     sys.exit(0)
 
 

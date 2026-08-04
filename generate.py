@@ -283,6 +283,19 @@ def esc(s: str) -> str:
     return html.escape(str(s), quote=True)
 
 
+# AuditLab ST-4: "a Alabama CPA" / "a Ohio CPA" read as a grammar slip in the
+# first sentence under the H1 on 12 CPE pages. Letter-based (not
+# pronunciation-based) so state names with a vowel-sound consonant start
+# ("Utah") are hardcoded exceptions rather than silently getting "an Utah".
+_A_AN_CONSONANT_SOUND_EXCEPTIONS = {"utah"}
+
+
+def indefinite_article(name: str) -> str:
+    if name.strip().lower() in _A_AN_CONSONANT_SOUND_EXCEPTIONS:
+        return "a"
+    return "an" if name[:1].upper() in "AEIOU" else "a"
+
+
 def http_href(url: object, fallback: str = "#") -> str:
     """Only http(s) survives into an href -- esc() does nothing against a
     javascript: URI, so this (not escaping) is the actual guard. Mirrors
@@ -5067,6 +5080,21 @@ function drRenderFirmName(name) {
   if (el && name) el.textContent = name;
 }
 
+// AuditLab ST-1: the API refuses new signups/staff-adds once its reference
+// data is past the freshness threshold, but the dashboard used to show every
+// date on this page -- including the one "Mark renewed" just computed -- with
+// no hint that guard might be active. GET /api/firm/licenses now carries
+// data_as_of/data_stale; surface it rather than stay silent.
+function drRenderStalenessBanner(dataAsOf, dataStale) {
+  var el = document.getElementById('dr-staleness-banner');
+  if (!el) return;
+  if (!dataStale) { el.hidden = true; el.textContent = ''; return; }
+  el.textContent = 'Heads up: our reference data was last verified ' + dataAsOf +
+    ' and is due for re-verification. Dates below may be out of date, and adding new staff or ' +
+    'editing a license state/deadline is temporarily paused until we re-verify.';
+  el.hidden = false;
+}
+
 // ---------------------------------------------------------------------------
 // Calendar + Map views (2026-07-30, BUILD v2 Phase D) -- both render from the
 // SAME drLicenses array the roster view already fetched; no new endpoint,
@@ -5898,6 +5926,7 @@ function drLoadLicenses() {
       if (!data) return;
       drLicenses = data.licenses || [];
       drRenderFirmName(data.firm_name);
+      drRenderStalenessBanner(data.data_as_of, data.data_stale);
       drRenderTable();
       drRenderStats();
       drRenderAtRisk();
@@ -6503,6 +6532,7 @@ def build_firm_dashboard_page(
 
   <div class="dr-main">
     <div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" hidden></div>
+    <div id="dr-staleness-banner" class="callout" style="border-left-color:#b8860b;" hidden></div>
 
     <div id="dr-view-roster" class="dr-view" role="tabpanel">
     <h1>Coverage overview</h1>
@@ -6965,7 +6995,7 @@ def build_cpe_hours_page(
     )
 
     body = f"""<h1>{esc(title)}</h1>
-<p class="intro">How much continuing professional education a {esc(state_name)} CPA actually
+<p class="intro">How much continuing professional education {indefinite_article(state_name)} {esc(state_name)} CPA actually
 needs &mdash; sourced the same way every fact on this site is: a board page plus the codified rule
 itself, never a guess.</p>
 

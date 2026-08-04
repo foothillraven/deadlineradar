@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   checkDataFreshness,
   computeSubscriberDeadline,
+  dataFreshnessInfo,
   nextAnnualMonthEnd,
   nextBirthMonthParityDate,
   StaleDataError,
@@ -1608,6 +1609,16 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
     expect(bodyB.firm_name).toBe("Sidebar Firm B");
   });
 
+  it("AuditLab ST-1: GET /firm/licenses discloses data_as_of/data_stale instead of silently rendering dates off reference data the write guards can refuse", async () => {
+    const { cookie } = await createFirmWithSession("Freshness Firm", `freshness-${Date.now()}@example.com`);
+    const body = (await (await getFirmLicenses(cookie)).json()) as { data_as_of: string; data_stale: boolean };
+    expect(body.data_as_of).toBe(cpaDeadlinesData.as_of_date);
+    // Real wall-clock date in this test run is not stale relative to the
+    // bundled reference data -- if this ever flips true, the underlying
+    // dataset itself needs re-verification, not this test.
+    expect(body.data_stale).toBe(false);
+  });
+
   it("HYBRID consent model: the transparent first-contact email fires (not the confirm email), names the firm, and its link is the unsubscribe token (not the confirm token)", async () => {
     const worker = (await import("../src/index")).default;
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 202 }));
@@ -2453,6 +2464,17 @@ describe("deadlines.ts", () => {
     const farFuture = new Date("2030-01-01T00:00:00Z");
     expect(() => checkDataFreshness(farFuture)).toThrow(StaleDataError);
     expect(() => checkDataFreshness(new Date("2026-07-05T00:00:00Z"))).not.toThrow();
+  });
+
+  it("AuditLab ST-1: dataFreshnessInfo() reports the same as_of_date/staleness checkDataFreshness() gates on", () => {
+    const fresh = dataFreshnessInfo(new Date("2026-07-05T00:00:00Z"));
+    expect(fresh.as_of_date).toBe(cpaDeadlinesData.as_of_date);
+    expect(fresh.stale).toBe(false);
+    expect(Number.isFinite(fresh.age_days)).toBe(true);
+
+    const stale = dataFreshnessInfo(new Date("2030-01-01T00:00:00Z"));
+    expect(stale.stale).toBe(true);
+    expect(() => checkDataFreshness(new Date("2030-01-01T00:00:00Z"))).toThrow(StaleDataError);
   });
 });
 

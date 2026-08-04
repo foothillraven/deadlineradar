@@ -874,6 +874,11 @@
   .dr-map-state--home { fill: #1f9e5c; }
   .dr-map-state--clear { fill: #6b8fd4; }
   .dr-map-state--action { fill: #d98a1f; }
+  /* 2026-08-04: self-reported "we handled it" -- deliberately a distinct
+     teal, never the same blue as --clear (an independently rule-verified
+     determination). See migration 0016's docstring for why these must
+     never look identical. */
+  .dr-map-state--complete { fill: #1f9e8e; }
   .dr-map-state--coverage { fill: #8a6bd4; }
   .dr-map-link { cursor: default; outline: none; }
   .dr-map-link[data-has-staff="true"] { cursor: pointer; }

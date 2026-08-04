@@ -1210,6 +1210,11 @@ PAGE_CSS = """
   .dr-map-state--home { fill: #1f9e5c; }
   .dr-map-state--clear { fill: #6b8fd4; }
   .dr-map-state--action { fill: #d98a1f; }
+  /* 2026-08-04: self-reported "we handled it" -- deliberately a distinct
+     teal, never the same blue as --clear (an independently rule-verified
+     determination). See migration 0016's docstring for why these must
+     never look identical. */
+  .dr-map-state--complete { fill: #1f9e8e; }
   .dr-map-state--coverage { fill: #8a6bd4; }
   .dr-map-link { cursor: default; outline: none; }
   .dr-map-link[data-has-staff="true"] { cursor: pointer; }
@@ -4798,6 +4803,7 @@ def _firm_dashboard_map_svg_html(by_slug: dict[str, list[dict]]) -> str:
     <div class="dr-map-legend" id="dr-map-legend-mobility" hidden>
       <span><span class="swatch" style="background:#1f9e5c"></span>Home state</span>
       <span><span class="swatch" style="background:#6b8fd4"></span>Practice privilege clear</span>
+      <span><span class="swatch" style="background:#1f9e8e"></span>Requirements marked complete (your firm's own record)</span>
       <span><span class="swatch" style="background:#d98a1f"></span>Action required first</span>
       <span><span class="swatch" style="background:var(--border)"></span>Not verified / not covered</span>
     </div>
@@ -5290,7 +5296,7 @@ function drRenderAgenda() {
 // drRenderMap() only cleared its own two classes, so a state colored
 // dr-map-state--home in mobility mode stayed that way after switching back
 // to "All staff", visually fighting with the class the All view then added).
-var DR_MAP_STATE_CLASSES = ['dr-map-state--active', 'dr-map-state--risk', 'dr-map-state--clear', 'dr-map-state--action', 'dr-map-state--home', 'dr-map-state--coverage'];
+var DR_MAP_STATE_CLASSES = ['dr-map-state--active', 'dr-map-state--risk', 'dr-map-state--clear', 'dr-map-state--action', 'dr-map-state--complete', 'dr-map-state--home', 'dr-map-state--coverage'];
 
 function drClearMapStateClasses(path) {
   DR_MAP_STATE_CLASSES.forEach(function(c) { path.classList.remove(c); });
@@ -5510,7 +5516,7 @@ function drSetMapTooltipWrap(wrap) {
   if (mobilityLegend) mobilityLegend.hidden = !wrap;
 }
 
-function drApplyMobilityResults(homeStateSlug, entry, gen) {
+function drApplyMobilityResults(homeStateSlug, entry, gen, subscriberId) {
   if (gen !== drMapSelectionGen) return;
   var noteEl = document.getElementById('dr-map-mobility-note');
   var links = document.querySelectorAll('.dr-map-link');
@@ -5555,10 +5561,24 @@ function drApplyMobilityResults(homeStateSlug, entry, gen) {
       return;
     }
     var verdict = r.overall;
+    // Self-reported completion overrides action_required's COLOR only, never
+    // the underlying verdict data or the tooltip's requirements text -- a
+    // firm saying "we did this" is a different, less certain kind of true
+    // than the engine's own "clear", and must never be visually
+    // indistinguishable from it (see migration 0016's docstring for the
+    // full reasoning). Deliberately does NOT check staleness
+    // yet (r.rule_verified_date vs. the completion's own snapshot) -- v1
+    // shows "complete" for any non-deleted completion regardless of
+    // whether the rule has since changed; that comparison is a named
+    // follow-up, not silently skipped forever.
+    var completionKey = subscriberId ? drMobilityCompletionKey(subscriberId, slug, DR_MOBILITY_SERVICE_TYPE) : null;
+    var completed = verdict === 'action_required' && completionKey && drMobilityCompletions[completionKey];
     if (verdict === 'clear') path.classList.add('dr-map-state--clear');
+    else if (completed) path.classList.add('dr-map-state--complete');
     else if (verdict === 'action_required') path.classList.add('dr-map-state--action');
     // not_verified (or anything else): no color class, stays default gray.
     var tipText = r.individual && r.individual.summary ? r.individual.summary : 'Not verified for this state.';
+    if (completed) tipText += ' Marked complete by your firm.';
     link.setAttribute('data-tip', tipText);
     link.setAttribute('aria-label', tipText);
     link.setAttribute('data-has-staff', verdict !== 'not_verified' ? 'true' : 'false');
@@ -5574,7 +5594,7 @@ function drRenderMapMobility(subscriberId, gen) {
   var homeStateSlug = person.state_slug;
   var cached = drMobilityCache[homeStateSlug];
   if (cached) {
-    drApplyMobilityResults(homeStateSlug, cached, gen);
+    drApplyMobilityResults(homeStateSlug, cached, gen, subscriberId);
     return;
   }
   var noteEl = document.getElementById('dr-map-mobility-note');
@@ -5604,13 +5624,13 @@ function drRenderMapMobility(subscriberId, gen) {
       // firm, created hours earlier that same day, hit a denial that
       // should not have been possible on entitlement grounds alone).
       if (res.status === 429) {
-        drApplyMobilityResults(homeStateSlug, {denied: 'Too many practice-privilege checks this hour. Try again later.'}, gen);
+        drApplyMobilityResults(homeStateSlug, {denied: 'Too many practice-privilege checks this hour. Try again later.'}, gen, subscriberId);
         return;
       }
       if (res.status === 403) {
         var denied = (data && data.error) || 'Practice-privilege coloring is part of the paid firm plan.';
         drMobilityCache[homeStateSlug] = {denied: denied};
-        drApplyMobilityResults(homeStateSlug, drMobilityCache[homeStateSlug], gen);
+        drApplyMobilityResults(homeStateSlug, drMobilityCache[homeStateSlug], gen, subscriberId);
         return;
       }
       if (!res.ok || !data) {
@@ -5618,7 +5638,7 @@ function drRenderMapMobility(subscriberId, gen) {
         return;
       }
       drMobilityCache[homeStateSlug] = {results: data.results};
-      drApplyMobilityResults(homeStateSlug, drMobilityCache[homeStateSlug], gen);
+      drApplyMobilityResults(homeStateSlug, drMobilityCache[homeStateSlug], gen, subscriberId);
     });
   }).catch(function() {
     if (gen === drMapSelectionGen && noteEl) { noteEl.textContent = 'Something went wrong checking practice privilege. Please try again.'; }
@@ -5862,6 +5882,32 @@ function drLoadCpeEntries() {
     .catch(function() {});
 }
 
+// Practice-privilege completion tracking (2026-08-04, migration 0016).
+// Fetched once alongside the roster/CPE data, not re-fetched per Map
+// dropdown change -- same "fetch the firm's rows once, filter client-side"
+// pattern drCpeEntries already uses. Keyed as "subscriberId|targetSlug|
+// serviceType" for O(1) lookup from drApplyMobilityResults() below.
+var drMobilityCompletions = {}; // key -> {rule_verified_date}
+function drMobilityCompletionKey(subscriberId, targetStateSlug, serviceType) {
+  return subscriberId + '|' + targetStateSlug + '|' + serviceType;
+}
+function drLoadMobilityCompletions() {
+  return fetch('/api/firm/mobility/completions', {credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      if (!res.ok) return null;
+      return res.json();
+    })
+    .then(function(data) {
+      drMobilityCompletions = {};
+      ((data && data.completions) || []).forEach(function(c) {
+        drMobilityCompletions[drMobilityCompletionKey(c.subscriber_id, c.target_state_slug, c.service_type)] =
+          {rule_verified_date: c.rule_verified_date};
+      });
+    })
+    .catch(function() {});
+}
+
 function drSubmitCpeEntry(form) {
   var errEl = document.getElementById('dr-cpe-log-error');
   if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
@@ -6016,7 +6062,12 @@ function drLoadLicenses() {
       drRenderCalendar();
       drRenderAgenda();
       drPopulateMapStaffSelect();
-      drRenderMapForSelection();
+      // Completions loaded BEFORE the first map paint so
+      // drApplyMobilityResults() never renders a stale (pre-completion)
+      // color for the initial view -- a later reload from drMarkMobility-
+      // Complete() doesn't need this ordering since drMobilityCompletions
+      // is already populated by then.
+      drLoadMobilityCompletions().then(drRenderMapForSelection);
       drLoadCpeEntries();
     })
     .catch(function() {
@@ -6340,12 +6391,62 @@ _MOBILITY_JS_HTML = """<script>
           badge(data.overall) + '<p>' + esc(overallText(data.overall)) + '</p></div>' +
           findingHtml('The individual CPA', data.individual) +
           findingHtml('The firm', data.firm);
+        // "Mark requirements met" -- only offered when there is something to
+        // mark (action_required) AND a real roster record to attach it to
+        // (a staff member was picked, not the anonymous "just checking"
+        // default). Records ONLY that the firm says it handled this, never
+        // a re-verification -- see migration 0016's own comment for why
+        // this is a deliberately distinct signal from the engine's verdict.
+        var staffId = document.getElementById('dr-mob-staff').value;
+        if (data.overall === 'action_required' && staffId) {
+          html += '<div class="dr-verdict" id="dr-mob-complete-wrap">' +
+            '<button type="button" id="dr-mob-complete-btn" data-subscriber-id="' + esc(staffId) +
+            '" data-target-state-slug="' + esc(body.target_state_slug) + '" data-service-type="' + esc(body.service_type) + '">' +
+            'Mark requirements met</button>' +
+            '<p class="field-hint">Records that your firm handled this -- not a re-check. Also updates the Map.</p></div>';
+        }
         if (resultEl) { resultEl.innerHTML = html; resultEl.hidden = false; }
       });
     }).catch(function () {
       if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
     });
   });
+
+  // Delegated (the button is created fresh on every result render, never
+  // present at page load) -- same pattern the dashboard's own dynamically
+  // rendered roster-action buttons would use if this page had that JS
+  // loaded, which it doesn't.
+  if (resultEl) {
+    resultEl.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('#dr-mob-complete-btn');
+      if (!btn) return;
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      fetch('/api/firm/mobility/completions', {
+        method: 'POST', credentials: 'include',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          subscriber_id: btn.getAttribute('data-subscriber-id'),
+          target_state_slug: btn.getAttribute('data-target-state-slug'),
+          service_type: btn.getAttribute('data-service-type')
+        })
+      }).then(function (res) {
+        if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+        return res.ok;
+      }).then(function (ok) {
+        var wrap = document.getElementById('dr-mob-complete-wrap');
+        if (!wrap) return;
+        if (ok) {
+          wrap.innerHTML = '<p>Marked complete. The Map will show this the next time it loads.</p>';
+        } else {
+          wrap.innerHTML = '<p class="field-hint" style="color:#c33737;">Something went wrong saving that. Please try again.</p>';
+        }
+      }).catch(function () {
+        btn.disabled = false;
+        btn.textContent = 'Mark requirements met';
+      });
+    });
+  }
 })();
 </script>"""
 
@@ -6570,6 +6671,13 @@ first? Every answer is tied to the rule it came from.</p>
     <p class="field-hint">Attest work frequently triggers a firm-registration requirement where tax work
     doesn't &mdash; that gap is the most common real-world mobility mistake.</p>
 
+    <label for="dr-mob-staff">For which staff member? (optional)</label>
+    <select id="dr-mob-staff" name="staff_subscriber_id">
+      <option value="">Just checking &mdash; don't save this result</option>
+    </select>
+    <p class="field-hint">Pick someone from your roster if you want to mark an "Action required"
+    result complete once you've handled it &mdash; that also updates the Map.</p>
+
     <label class="dr-mob-check">
       <input type="checkbox" id="dr-mob-standing" name="license_in_good_standing">
       The license is active and in good standing in the home state
@@ -6594,12 +6702,28 @@ first? Every answer is tied to the rule it came from.</p>
 
 <script>
 (function () {{
-  var el = document.getElementById('dr-firm-name-static');
-  if (!el) return;
+  var nameEl = document.getElementById('dr-firm-name-static');
+  var staffSel = document.getElementById('dr-mob-staff');
+  if (!nameEl && !staffSel) return;
   fetch('{REMINDER_BACKEND_BASE_URL}/firm/licenses', {{credentials: 'include'}}).then(function (r) {{
     return r.ok ? r.json() : null;
   }}).then(function (data) {{
-    if (data && data.firm_name) el.textContent = data.firm_name;
+    if (!data) return;
+    if (nameEl && data.firm_name) nameEl.textContent = data.firm_name;
+    // Staff dropdown, so marking an "Action required" result complete (see
+    // _MOBILITY_JS_HTML) can actually be tied to a real roster record
+    // instead of a bare state pair -- POST /firm/mobility/completions needs
+    // a subscriber_id. The first option ("just checking") stays selected by
+    // default so this remains a fully anonymous quick-lookup tool unless the
+    // caller deliberately picks someone.
+    if (staffSel && data.licenses) {{
+      data.licenses.forEach(function (item) {{
+        var opt = document.createElement('option');
+        opt.value = item.id;
+        opt.textContent = (item.staff_label || item.email) + ' (' + (item.state_name || item.state_slug) + ')';
+        staffSel.appendChild(opt);
+      }});
+    }}
   }}).catch(function () {{}});
 }})();
 </script>

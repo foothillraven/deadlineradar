@@ -873,6 +873,11 @@
   .dr-map-state--home { fill: #1f9e5c; }
   .dr-map-state--clear { fill: #6b8fd4; }
   .dr-map-state--action { fill: #d98a1f; }
+  /* 2026-08-04: self-reported "we handled it" -- deliberately a distinct
+     teal, never the same blue as --clear (an independently rule-verified
+     determination). See migration 0016's docstring for why these must
+     never look identical. */
+  .dr-map-state--complete { fill: #1f9e8e; }
   .dr-map-state--coverage { fill: #8a6bd4; }
   .dr-map-link { cursor: default; outline: none; }
   .dr-map-link[data-has-staff="true"] { cursor: pointer; }
@@ -1206,6 +1211,13 @@ first? Every answer is tied to the rule it came from.</p>
     <p class="field-hint">Attest work frequently triggers a firm-registration requirement where tax work
     doesn't &mdash; that gap is the most common real-world mobility mistake.</p>
 
+    <label for="dr-mob-staff">For which staff member? (optional)</label>
+    <select id="dr-mob-staff" name="staff_subscriber_id">
+      <option value="">Just checking &mdash; don't save this result</option>
+    </select>
+    <p class="field-hint">Pick someone from your roster if you want to mark an "Action required"
+    result complete once you've handled it &mdash; that also updates the Map.</p>
+
     <label class="dr-mob-check">
       <input type="checkbox" id="dr-mob-standing" name="license_in_good_standing">
       The license is active and in good standing in the home state
@@ -1230,12 +1242,28 @@ first? Every answer is tied to the rule it came from.</p>
 
 <script>
 (function () {
-  var el = document.getElementById('dr-firm-name-static');
-  if (!el) return;
+  var nameEl = document.getElementById('dr-firm-name-static');
+  var staffSel = document.getElementById('dr-mob-staff');
+  if (!nameEl && !staffSel) return;
   fetch('/api/firm/licenses', {credentials: 'include'}).then(function (r) {
     return r.ok ? r.json() : null;
   }).then(function (data) {
-    if (data && data.firm_name) el.textContent = data.firm_name;
+    if (!data) return;
+    if (nameEl && data.firm_name) nameEl.textContent = data.firm_name;
+    // Staff dropdown, so marking an "Action required" result complete (see
+    // _MOBILITY_JS_HTML) can actually be tied to a real roster record
+    // instead of a bare state pair -- POST /firm/mobility/completions needs
+    // a subscriber_id. The first option ("just checking") stays selected by
+    // default so this remains a fully anonymous quick-lookup tool unless the
+    // caller deliberately picks someone.
+    if (staffSel && data.licenses) {
+      data.licenses.forEach(function (item) {
+        var opt = document.createElement('option');
+        opt.value = item.id;
+        opt.textContent = (item.staff_label || item.email) + ' (' + (item.state_name || item.state_slug) + ')';
+        staffSel.appendChild(opt);
+      });
+    }
   }).catch(function () {});
 })();
 </script>
@@ -1337,12 +1365,62 @@ first? Every answer is tied to the rule it came from.</p>
           badge(data.overall) + '<p>' + esc(overallText(data.overall)) + '</p></div>' +
           findingHtml('The individual CPA', data.individual) +
           findingHtml('The firm', data.firm);
+        // "Mark requirements met" -- only offered when there is something to
+        // mark (action_required) AND a real roster record to attach it to
+        // (a staff member was picked, not the anonymous "just checking"
+        // default). Records ONLY that the firm says it handled this, never
+        // a re-verification -- see migration 0016's own comment for why
+        // this is a deliberately distinct signal from the engine's verdict.
+        var staffId = document.getElementById('dr-mob-staff').value;
+        if (data.overall === 'action_required' && staffId) {
+          html += '<div class="dr-verdict" id="dr-mob-complete-wrap">' +
+            '<button type="button" id="dr-mob-complete-btn" data-subscriber-id="' + esc(staffId) +
+            '" data-target-state-slug="' + esc(body.target_state_slug) + '" data-service-type="' + esc(body.service_type) + '">' +
+            'Mark requirements met</button>' +
+            '<p class="field-hint">Records that your firm handled this -- not a re-check. Also updates the Map.</p></div>';
+        }
         if (resultEl) { resultEl.innerHTML = html; resultEl.hidden = false; }
       });
     }).catch(function () {
       if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
     });
   });
+
+  // Delegated (the button is created fresh on every result render, never
+  // present at page load) -- same pattern the dashboard's own dynamically
+  // rendered roster-action buttons would use if this page had that JS
+  // loaded, which it doesn't.
+  if (resultEl) {
+    resultEl.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('#dr-mob-complete-btn');
+      if (!btn) return;
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      fetch('/api/firm/mobility/completions', {
+        method: 'POST', credentials: 'include',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          subscriber_id: btn.getAttribute('data-subscriber-id'),
+          target_state_slug: btn.getAttribute('data-target-state-slug'),
+          service_type: btn.getAttribute('data-service-type')
+        })
+      }).then(function (res) {
+        if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+        return res.ok;
+      }).then(function (ok) {
+        var wrap = document.getElementById('dr-mob-complete-wrap');
+        if (!wrap) return;
+        if (ok) {
+          wrap.innerHTML = '<p>Marked complete. The Map will show this the next time it loads.</p>';
+        } else {
+          wrap.innerHTML = '<p class="field-hint" style="color:#c33737;">Something went wrong saving that. Please try again.</p>';
+        }
+      }).catch(function () {
+        btn.disabled = false;
+        btn.textContent = 'Mark requirements met';
+      });
+    });
+  }
 })();
 </script>
 

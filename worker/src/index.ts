@@ -3827,6 +3827,14 @@ async function handleMobilityCheckBatch(request: Request, env: Env): Promise<Res
       overall: result.overall,
       individual: result.individual,
       firm: result.firm,
+      // 2026-08-04, practice-privilege completion tracking (migration
+      // 0016): lets the client compare a stored completion's
+      // rule_verified_date snapshot against the CURRENT rule to notice the
+      // underlying law has changed since something was marked complete.
+      // Not consumed by the Map UI yet -- shipping the field now so that
+      // staleness reconciliation is a display-layer follow-up, not another
+      // server round-trip to add later.
+      rule_verified_date: rule.verified_date,
     };
   });
 

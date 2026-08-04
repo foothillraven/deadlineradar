@@ -1732,9 +1732,20 @@ function drDaysUntil(iso) {
   if (!iso) return null;
   var target = new Date(iso + 'T00:00:00Z').getTime();
   if (isNaN(target)) return null;
+  // AuditLab TZ-1 (MEDIUM, 2026-08-04): the deadline itself stays a UTC
+  // calendar date (right -- drFormatDeadline() renders it with
+  // timeZone: 'UTC' on purpose, so the same statutory date reads identically
+  // for every viewer). But "today" was ALSO anchored to UTC, and this is a
+  // US-only product -- every customer is west of UTC, so UTC rolls to
+  // tomorrow hours before their own working day ends. On the deadline day
+  // itself this told an Eastern CPA "OVERDUE" at 8pm with 4 real hours left,
+  // and a Hawaii CPA from 4pm. Anchoring "today" to the viewer's own local
+  // calendar (matches _MY_DASHBOARD_JS_HTML's drDaysUntil(), which already
+  // did this correctly) fixes it while keeping the deadline side UTC-pinned
+  // and the whole comparison DST-safe (both sides are UTC-midnight keys).
   var now = new Date();
-  var todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  return Math.round((target - todayUtc) / 86400000);
+  var todayLocal = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((target - todayLocal) / 86400000);
 }
 
 function drDaysAgo(isoTimestamp) {
@@ -1950,7 +1961,15 @@ function drRenderCalendar() {
   var byDate = drLicensesByDate();
   var firstDow = ref.getUTCDay();
   var numDays = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() + 1, 0)).getUTCDate();
-  var todayIso = new Date().toISOString().slice(0, 10);
+  // AuditLab TZ-1 (MEDIUM, 2026-08-04), same class as drDaysUntil() above:
+  // toISOString() is always UTC, so this lit up "today" a day early every
+  // evening for every US timezone. The day cells themselves are keyed by
+  // calendar date (built from ref's UTC getters just above, which is fine --
+  // ref is a fixed month reference, not "now"); this needs to match the
+  // viewer's own local calendar date instead.
+  var todayNow = new Date();
+  var todayIso = todayNow.getFullYear() + '-' + String(todayNow.getMonth() + 1).padStart(2, '0') +
+    '-' + String(todayNow.getDate()).padStart(2, '0');
 
   var html = DR_DOW_NAMES.map(function(d) { return '<div class="dr-cal-dow">' + d + '</div>'; }).join('');
   for (var lead = 0; lead < firstDow; lead++) {

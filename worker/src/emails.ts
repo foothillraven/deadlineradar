@@ -781,7 +781,17 @@ export function buildConfirmationEmail(
  */
 export function buildFirmStaffAddedEmail(firmName: string, stateName: string, unsubscribeUrl: string): BuiltEmail {
   const addr = mailingAddress();
-  const subject = `${firmName} added you to DeadlineRadar`;
+  // AuditLab EMAIL-1 (LOW, 2026-08-04): the only subject line built from
+  // attacker-influenceable text (firmName) with no control-char stripping
+  // of its own -- CRLF survives into it if it ever got there. Not
+  // exploitable today (handleFirmSignup()'s input gate 400s on control
+  // characters, firm_name is set only at signup, and sender.ts JSON-encodes
+  // the subject rather than writing raw SMTP headers), but the template
+  // layer relying ENTIRELY on an upstream gate is exactly the kind of
+  // single point of failure that becomes live the moment either changes --
+  // a firm-rename route, or a transport swap to raw SMTP. One line of
+  // defense-in-depth at the point where the string is actually built.
+  const subject = `${firmName.replace(/[\r\n]+/g, " ")} added you to DeadlineRadar`;
 
   const textBody =
     `Hi there,\n\n` +

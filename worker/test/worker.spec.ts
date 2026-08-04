@@ -2098,6 +2098,20 @@ describe("POST /firm/licenses/:id/renew -- atomic renew-and-rearm (Part A #5)", 
   });
 });
 
+describe("emails.ts buildFirmStaffAddedEmail -- AuditLab EMAIL-1", () => {
+  it("strips CR/LF from an attacker-influenceable firm name before it reaches the subject line", async () => {
+    const { buildFirmStaffAddedEmail } = await import("../src/emails");
+    const hostile = "Acme\r\nBcc: attacker@evil.example\r\nX-Injected: yes";
+    const built = buildFirmStaffAddedEmail(hostile, "Texas", "https://deadline-radar.com/api/unsubscribe?token=abc");
+    expect(built.subject).not.toMatch(/[\r\n]/);
+    expect(built.subject).toBe("Acme Bcc: attacker@evil.example X-Injected: yes added you to DeadlineRadar");
+    // The body text is unaffected -- this is a subject-line-specific
+    // control (header-injection surface), not a general sanitizer; the
+    // firm name still reads naturally in the message body.
+    expect(built.textBody).toContain(hostile);
+  });
+});
+
 describe("emails.ts buildFirmLoginEmail", () => {
   it("includes the login link, the 15-minute expiry copy, and a real mailing address", async () => {
     const { buildFirmLoginEmail, MAILING_ADDRESS } = await import("../src/emails");

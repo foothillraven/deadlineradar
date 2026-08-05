@@ -6663,6 +6663,21 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
+  // Reported directly, 2026-08-05: every /firm-mobility/ sidebar link
+  // (Calendar, Map, CPE Hours, Account) pointed at a bare /firm-dashboard/
+  // with no way to say WHICH tab -- this page's tabs are pure client-side
+  // JS state (drSwitchView()), never read from the URL, so every one of
+  // those links silently landed on whatever tab the static markup shows
+  // by default (Roster) regardless of which the customer actually clicked.
+  // Reading a #view hash on load (matching _dashboard_sidebar_html()'s new
+  // /firm-dashboard/#{view} links) closes that without changing how
+  // in-page tab clicks work at all -- they still call drSwitchView()
+  // directly, never touching the hash.
+  var initialView = (window.location.hash || '').replace('#', '');
+  if (initialView && document.getElementById('dr-view-' + initialView)) {
+    drSwitchView(initialView);
+  }
+
   var calPrev = document.getElementById('dr-cal-prev');
   var calNext = document.getElementById('dr-cal-next');
   var calToday = document.getElementById('dr-cal-today');
@@ -6866,9 +6881,19 @@ _MOBILITY_JS_HTML = """<script>
     } else {
       cite = '<p class="dr-verdict-cite">No verified citation on file for this one &mdash; which is exactly why it is not a yes.</p>';
     }
-    var gap = f.dataGapNote ? '<p class="dr-verdict-cite">' + esc(f.dataGapNote) + '</p>' : '';
+    // Reported directly, 2026-08-05: dataGapNote was rendered here verbatim,
+    // unlabeled, in the SAME <p class="dr-verdict-cite"> style as the real
+    // citation -- indistinguishable from an official source to a customer.
+    // mobility_rules.json's data_gap_note is authored as internal
+    // verification methodology (53 of 55 states have one), full of phrases
+    // like "verifier concurs" and "RESOLVED (verifier)" -- it is the
+    // record's own research audit trail, not customer copy, and no amount
+    // of labeling fixes prose written in that register. The engine still
+    // uses data_gap_note internally (isSubstantiveCitation() etc., see
+    // mobility.ts) to decide staleness/verification status; only the
+    // customer-facing render of the raw text is removed here.
     return '<div class="dr-verdict"><h3>' + esc(title) + '</h3>' + badge(f.verdict) +
-      '<p>' + esc(f.summary) + '</p>' + reqs + cite + gap +
+      '<p>' + esc(f.summary) + '</p>' + reqs + cite +
       '<p class="dr-verdict-disclaimer">' + esc(f.disclaimer) + '</p></div>';
   }
 
@@ -7025,9 +7050,13 @@ def _dashboard_sidebar_html(active: str, tabs_live_here: bool) -> str:
     its pay-gated fetch/session logic into drSwitchView's tab machinery for a
     problem that's purely "the sidebar disappeared", not "the interaction
     model is wrong"). On /firm-mobility/ the Roster/Calendar/Map/CPE Hours/
-    Account items link back to /firm-dashboard/ (there is no tab-switch JS on
-    this page to answer a click on those) and Practice Privilege Check itself
-    is a plain highlighted link, not a tab."""
+    Account items link to /firm-dashboard/#{view} (there is no tab-switch JS
+    on THIS page to answer a click on those) -- the #view hash is read once
+    on /firm-dashboard/'s own DOMContentLoaded to open the right tab (fixed
+    2026-08-05: it used to link to a bare /firm-dashboard/ with no hash at
+    all, which silently landed on whichever tab the static markup defaults
+    to -- Roster -- regardless of which link was actually clicked). Practice
+    Privilege Check itself is a plain highlighted link, not a tab."""
     def item(view: str, label: str) -> str:
         is_current = active == view
         cls = ' class="is-active"' if is_current else ""
@@ -7040,7 +7069,7 @@ def _dashboard_sidebar_html(active: str, tabs_live_here: bool) -> str:
             # aria-selected) was otherwise already correct, this was the one
             # missing piece.
             return f'<li><a href="#"{cls} data-view="{view}" role="tab" aria-selected="{aria}" aria-controls="dr-view-{view}">{esc(label)}</a></li>'
-        return f'<li><a href="/firm-dashboard/"{cls}>{esc(label)}</a></li>'
+        return f'<li><a href="/firm-dashboard/#{view}"{cls}>{esc(label)}</a></li>'
 
     nav_items = "\n      ".join(
         item(view, label)

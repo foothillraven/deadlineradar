@@ -1981,11 +1981,18 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
   // purpose, see deadline.ts's dataFreshnessInfo() docstring; the dashboard
   // banner still discloses staleness while renew keeps working.)
   const freshness = dataFreshnessInfo(asOf);
+  // seat_cap (2026-08-05, Devin's dashboard-polish request #1): the 25-staff
+  // cap was invisible until a firm actually hit it and got a 402 from
+  // POST /firm/licenses -- the dashboard had no way to show usage against a
+  // limit nobody could see coming. Surfacing the same SELF_SERVE_SEAT_CAP
+  // constant the create route already enforces, not a second hardcoded
+  // number, so the two can never drift apart.
   return jsonResponse(200, {
     licenses: items,
     firm_name: firm?.name ?? null,
     data_as_of: freshness.as_of_date,
     data_stale: freshness.stale,
+    seat_cap: SELF_SERVE_SEAT_CAP,
   });
 }
 

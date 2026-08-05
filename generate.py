@@ -5251,6 +5251,11 @@ var DR_STATUS_CLASSES = {
 
 var drLicenses = [];
 var drEditingId = null;
+// GET /firm/licenses's own seat_cap (worker/src/validation.ts's
+// SELF_SERVE_SEAT_CAP) -- null until the first successful load, same "don't
+// show a number we haven't actually gotten from the server yet" posture as
+// drLicenses starting empty rather than a guessed default.
+var drSeatCap = null;
 
 function drShowError(msg) {
   drClearSuccess();
@@ -5477,23 +5482,43 @@ var DR_DONUT_ORDER = ['active', 'pending', 'needs-attention', 'opted_out'];
 var DR_DONUT_COLORS = {active: '#1f9e5c', pending: '#9c7a12', 'needs-attention': '#c33737', opted_out: '#8595a3'};
 var DR_DONUT_LABELS = {active: 'Active', pending: 'Pending', 'needs-attention': 'Needs attention', opted_out: 'Opted out'};
 
+// Dashboard-polish item #2 (2026-08-05, Devin): a SECOND, orthogonal
+// breakdown from the same drDonutSvg() renderer -- by deadline PROXIMITY
+// (is this person's next renewal comfortably out, due soon, or overdue),
+// not by the subscriber status enum DR_DONUT_ORDER already covers. Reuses
+// this site's own existing green/gold/red status language (the exact same
+// hex values as DR_DONUT_COLORS.active/pending/needs-attention above) --
+// deliberately not a new palette, just a new grouping of the same colors.
+// "Due soon" uses the identical 30-day-or-unresolved test the "Due soon"
+// stat tile and the Staff-at-risk panel already use, so the three can never
+// silently disagree about who counts.
+var DR_PROXIMITY_ORDER = ['active', 'due_soon', 'overdue'];
+var DR_PROXIMITY_COLORS = {active: '#1f9e5c', due_soon: '#9c7a12', overdue: '#c33737'};
+var DR_PROXIMITY_LABELS = {active: 'Active', due_soon: 'Due soon', overdue: 'Overdue'};
+
 // Plain CSS conic-gradient, not an SVG pie -- no path-arc trigonometry needed
-// for a simple ring, and it's one element instead of N <path>s.
-function drDonutSvg(counts, total) {
+// for a simple ring, and it's one element instead of N <path>s. order/colors/
+// labels default to the subscriber-status breakdown (the Roster status
+// tile's own original call shape) so that call site didn't need to change
+// when this grew a second use (the Coverage tile's proximity breakdown).
+function drDonutSvg(counts, total, order, colors, labels) {
+  order = order || DR_DONUT_ORDER;
+  colors = colors || DR_DONUT_COLORS;
+  labels = labels || DR_DONUT_LABELS;
   if (!total) return '<div class="dr-donut-wrap"><div class="dr-panel-empty">No staff yet</div></div>';
   var acc = 0;
   var segments = [];
-  DR_DONUT_ORDER.forEach(function(key) {
+  order.forEach(function(key) {
     var n = counts[key] || 0;
     if (!n) return;
     var start = (acc / total) * 360;
     acc += n;
     var end = (acc / total) * 360;
-    segments.push(DR_DONUT_COLORS[key] + ' ' + start.toFixed(1) + 'deg ' + end.toFixed(1) + 'deg');
+    segments.push(colors[key] + ' ' + start.toFixed(1) + 'deg ' + end.toFixed(1) + 'deg');
   });
-  var legend = DR_DONUT_ORDER.filter(function(k) { return counts[k]; }).map(function(k) {
-    return '<li><span class="swatch" style="background:' + DR_DONUT_COLORS[k] + '"></span>' +
-      drEscapeHtml(DR_DONUT_LABELS[k]) + ' (' + counts[k] + ')</li>';
+  var legend = order.filter(function(k) { return counts[k]; }).map(function(k) {
+    return '<li><span class="swatch" style="background:' + colors[k] + '"></span>' +
+      drEscapeHtml(labels[k]) + ' (' + counts[k] + ')</li>';
   }).join('');
   return '<div class="dr-donut-wrap">' +
     '<div style="width:58px;height:58px;border-radius:50%;flex:none;display:flex;align-items:center;' +
@@ -5507,6 +5532,7 @@ function drRenderStats() {
   if (!row) return;
   var total = drLicenses.length;
   var counts = {active: 0, pending: 0, 'needs-attention': 0, opted_out: 0};
+  var proximity = {active: 0, due_soon: 0, overdue: 0};
   var atRisk = 0;
   drLicenses.forEach(function(item) {
     var s = item.status || 'needs-attention';
@@ -5521,17 +5547,31 @@ function drRenderStats() {
     // time-sensitive yet.
     var days = drDaysUntil(item.next_deadline);
     if (days === null || days <= 30) atRisk++;
+    // Same three-way split the "Due soon" tile's own definition and the
+    // Staff-at-risk list already use -- "overdue" is `days < 0` (matches
+    // drRenderAtRisk()'s "Overdue" label), "due soon" is the identical
+    // within-30-days-or-unresolved test as atRisk above, everyone else is
+    // comfortably on track.
+    if (days !== null && days < 0) proximity.overdue++;
+    else if (days === null || days <= 30) proximity.due_soon++;
+    else proximity.active++;
   });
-  var coveragePct = total ? Math.round((counts.active / total) * 100) : 0;
+  var proximityPct = total ? Math.round((proximity.active / total) * 100) : 0;
   var riskPct = total ? Math.round((atRisk / total) * 100) : 0;
+  // Dashboard-polish item #1 (2026-08-05, Devin): the 25-staff cap was
+  // invisible until a firm actually hit it and got rejected -- showing
+  // usage against the limit up front (once the API has actually told us
+  // what it is; drSeatCap starts null) is a normal SaaS dashboard
+  // convention this was missing entirely.
+  var seatSub = drSeatCap !== null ? total + ' / ' + drSeatCap + ' staff tracked' : total + ' staff tracked';
 
   row.innerHTML =
-    '<div class="dr-stat-card">' + drRingSvg(coveragePct, false) +
-      '<div><div class="dr-stat-label">Coverage</div><div class="dr-stat-value">' + coveragePct + '%</div>' +
-      '<div class="dr-stat-sub">' + counts.active + ' of ' + total + ' active</div></div></div>' +
+    '<div class="dr-stat-card">' + drDonutSvg(proximity, total, DR_PROXIMITY_ORDER, DR_PROXIMITY_COLORS, DR_PROXIMITY_LABELS) +
+      '<div><div class="dr-stat-label">Coverage</div><div class="dr-stat-value">' + proximityPct + '%</div>' +
+      '<div class="dr-stat-sub">on track</div></div></div>' +
     '<div class="dr-stat-card">' + drDonutSvg(counts, total) +
       '<div><div class="dr-stat-label">Roster status</div><div class="dr-stat-value">' + total + '</div>' +
-      '<div class="dr-stat-sub">staff tracked</div></div></div>' +
+      '<div class="dr-stat-sub">' + seatSub + '</div></div></div>' +
     '<div class="dr-stat-card">' + drRingSvg(riskPct, atRisk > 0) +
       // Deliberately labeled "Due soon", not "Needs attention" -- that exact
       // phrase is already the donut/roster-table's label for the DIFFERENT,
@@ -6599,6 +6639,7 @@ function drLoadLicenses() {
     .then(function(data) {
       if (!data) return;
       drLicenses = data.licenses || [];
+      drSeatCap = typeof data.seat_cap === 'number' ? data.seat_cap : null;
       drRenderFirmName(data.firm_name);
       drRenderStalenessBanner(data.data_as_of, data.data_stale);
       drRenderTable();

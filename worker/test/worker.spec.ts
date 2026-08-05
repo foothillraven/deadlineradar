@@ -1619,6 +1619,15 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
     expect(body.data_stale).toBe(false);
   });
 
+  it("GET /firm/licenses discloses seat_cap (dashboard-polish #1, 2026-08-05) so the client can show usage against the 25-staff cap before a firm actually hits it", async () => {
+    const { cookie } = await createFirmWithSession("Seat Cap Firm", `seatcap-${Date.now()}@example.com`);
+    const body = (await (await getFirmLicenses(cookie)).json()) as { seat_cap: number };
+    // Same constant POST /firm/licenses's own 402 enforcement reads
+    // (SELF_SERVE_SEAT_CAP) -- asserting the literal value, not importing
+    // it, so this test also catches the constant silently changing.
+    expect(body.seat_cap).toBe(25);
+  });
+
   it("HYBRID consent model: the transparent first-contact email fires (not the confirm email), names the firm, and its link is the unsubscribe token (not the confirm token)", async () => {
     const worker = (await import("../src/index")).default;
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 202 }));

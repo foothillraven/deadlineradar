@@ -169,6 +169,8 @@
     background: var(--verified-green-bg); color: var(--verified-green);
   }
   .rc-badge-conflict { background: var(--gold-bg); color: var(--gold); }
+  
+  .rc-badge-upcoming { background: var(--gold-bg); color: var(--gold); }
   .rc-conflict { border-color: var(--gold); }
   .rc-date { margin: 0.5rem 0 0.2rem; font-size: 0.9rem; }
   .rc-detail { margin: 0.4rem 0; font-size: 0.92rem; line-height: 1.5; }
@@ -427,6 +429,8 @@
     gap: 0.65rem; margin: 0 0 2rem; list-style: none; padding: 0;
   }
   .state-grid--mobile-fallback { display: none; }
+  
+  .guide-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
   .map-section {
     display: grid; grid-template-columns: 1fr 220px; gap: 1.25rem; align-items: stretch;
     margin: 0 0 2rem;
@@ -969,7 +973,7 @@
       <span class="wordmark">DeadlineRadar</span>
     </a>
     <div class="nav-links">
-      <a href="/">Browse States</a>
+      <a href="/#all-states">Browse States</a>
       <a href="/methodology/">How We Verify</a>
       <a href="/for-firms/">For Firms</a>
       <a href="/signin/" class="nav-quiet" id="dr-nav-signin">Sign In</a>
@@ -993,7 +997,7 @@ Our automated day-to-day monitoring hasn't flagged and promoted a confirmed chan
 <div class="rc-card">
   <div class="rc-head">
     <span class="rc-jurisdiction">Colorado</span>
-    <span class="rc-badge">Enacted</span>
+    <span class="rc-badge rc-badge-upcoming">Enacted</span>
   </div>
   <p class="rc-date"><strong>Effective August 12, 2026</strong> &mdash; not yet in force.</p>
   <p class="rc-detail">Colorado&#x27;s CPA mobility rule is changing to state-level substantial-equivalence mobility (based on the practitioner&#x27;s home state&#x27;s overall status). See the citation below for the exact requirements.</p>
@@ -1003,7 +1007,7 @@ Our automated day-to-day monitoring hasn't flagged and promoted a confirmed chan
 <div class="rc-card">
   <div class="rc-head">
     <span class="rc-jurisdiction">Missouri</span>
-    <span class="rc-badge">Enacted</span>
+    <span class="rc-badge rc-badge-upcoming">Enacted</span>
   </div>
   <p class="rc-date"><strong>Effective August 28, 2026</strong> &mdash; not yet in force.</p>
   <p class="rc-detail">Missouri&#x27;s CPA mobility rule is changing to state-level substantial-equivalence mobility (based on the practitioner&#x27;s home state&#x27;s overall status). See the citation below for the exact requirements.</p>
@@ -1013,7 +1017,7 @@ Our automated day-to-day monitoring hasn't flagged and promoted a confirmed chan
 <div class="rc-card">
   <div class="rc-head">
     <span class="rc-jurisdiction">Alabama</span>
-    <span class="rc-badge">Enacted</span>
+    <span class="rc-badge rc-badge-upcoming">Enacted</span>
   </div>
   <p class="rc-date"><strong>Effective October 1, 2026</strong> &mdash; not yet in force.</p>
   <p class="rc-detail">Alabama&#x27;s CPA mobility rule is changing. See the citation below for the exact requirements.</p>
@@ -1023,7 +1027,7 @@ Our automated day-to-day monitoring hasn't flagged and promoted a confirmed chan
 <div class="rc-card">
   <div class="rc-head">
     <span class="rc-jurisdiction">Oklahoma</span>
-    <span class="rc-badge">Enacted</span>
+    <span class="rc-badge rc-badge-upcoming">Enacted</span>
   </div>
   <p class="rc-date"><strong>Effective November 1, 2026</strong> &mdash; not yet in force.</p>
   <p class="rc-detail">Oklahoma&#x27;s CPA mobility rule is changing. See the citation below for the exact requirements.</p>
@@ -1033,7 +1037,7 @@ Our automated day-to-day monitoring hasn't flagged and promoted a confirmed chan
 <div class="rc-card">
   <div class="rc-head">
     <span class="rc-jurisdiction">New York</span>
-    <span class="rc-badge">Enacted</span>
+    <span class="rc-badge rc-badge-upcoming">Enacted</span>
   </div>
   <p class="rc-date"><strong>Effective November 21, 2026</strong> &mdash; not yet in force.</p>
   <p class="rc-detail">New York&#x27;s CPA mobility rule is changing. See the citation below for the exact requirements.</p>
@@ -1043,7 +1047,7 @@ Our automated day-to-day monitoring hasn't flagged and promoted a confirmed chan
 <div class="rc-card">
   <div class="rc-head">
     <span class="rc-jurisdiction">Arizona</span>
-    <span class="rc-badge">Enacted</span>
+    <span class="rc-badge rc-badge-upcoming">Enacted</span>
   </div>
   <p class="rc-date"><strong>Effective January 1, 2027</strong> &mdash; not yet in force.</p>
   <p class="rc-detail">Arizona&#x27;s CPA mobility rule is changing. See the citation below for the exact requirements.</p>
@@ -1053,7 +1057,7 @@ Our automated day-to-day monitoring hasn't flagged and promoted a confirmed chan
 <div class="rc-card">
   <div class="rc-head">
     <span class="rc-jurisdiction">Illinois</span>
-    <span class="rc-badge">Enacted</span>
+    <span class="rc-badge rc-badge-upcoming">Enacted</span>
   </div>
   <p class="rc-date"><strong>Effective January 1, 2027</strong> &mdash; not yet in force.</p>
   <p class="rc-detail">Illinois&#x27;s CPA mobility rule is changing. See the citation below for the exact requirements.</p>
@@ -1063,7 +1067,7 @@ Our automated day-to-day monitoring hasn't flagged and promoted a confirmed chan
 <div class="rc-card">
   <div class="rc-head">
     <span class="rc-jurisdiction">Indiana</span>
-    <span class="rc-badge">Enacted</span>
+    <span class="rc-badge rc-badge-upcoming">Enacted</span>
   </div>
   <p class="rc-date"><strong>Effective January 1, 2027</strong> &mdash; not yet in force.</p>
   <p class="rc-detail">Indiana&#x27;s CPA mobility rule is changing to state-level substantial-equivalence mobility (based on the practitioner&#x27;s home state&#x27;s overall status). See the citation below for the exact requirements.</p>
@@ -1073,7 +1077,7 @@ Our automated day-to-day monitoring hasn't flagged and promoted a confirmed chan
 <div class="rc-card">
   <div class="rc-head">
     <span class="rc-jurisdiction">Massachusetts</span>
-    <span class="rc-badge">Enacted</span>
+    <span class="rc-badge rc-badge-upcoming">Enacted</span>
   </div>
   <p class="rc-date"><strong>Effective January 1, 2027</strong> &mdash; not yet in force.</p>
   <p class="rc-detail">Massachusetts&#x27;s CPA mobility rule is changing to state-level substantial-equivalence mobility (based on the practitioner&#x27;s home state&#x27;s overall status). See the citation below for the exact requirements.</p>

@@ -170,6 +170,8 @@
     background: var(--verified-green-bg); color: var(--verified-green);
   }
   .rc-badge-conflict { background: var(--gold-bg); color: var(--gold); }
+  
+  .rc-badge-upcoming { background: var(--gold-bg); color: var(--gold); }
   .rc-conflict { border-color: var(--gold); }
   .rc-date { margin: 0.5rem 0 0.2rem; font-size: 0.9rem; }
   .rc-detail { margin: 0.4rem 0; font-size: 0.92rem; line-height: 1.5; }
@@ -428,6 +430,8 @@
     gap: 0.65rem; margin: 0 0 2rem; list-style: none; padding: 0;
   }
   .state-grid--mobile-fallback { display: none; }
+  
+  .guide-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
   .map-section {
     display: grid; grid-template-columns: 1fr 220px; gap: 1.25rem; align-items: stretch;
     margin: 0 0 2rem;
@@ -970,7 +974,7 @@
       <span class="wordmark">DeadlineRadar</span>
     </a>
     <div class="nav-links">
-      <a href="/">Browse States</a>
+      <a href="/#all-states">Browse States</a>
       <a href="/methodology/">How We Verify</a>
       <a href="/for-firms/">For Firms</a>
       <a href="/signin/" class="nav-quiet" id="dr-nav-signin">Sign In</a>
@@ -1124,6 +1128,7 @@
   <p style="font-size:0.88rem; color:var(--muted); margin-top:0.6rem;">
   <a href="illinois/" style="font-weight:600;">Open the full Illinois fact sheet &rarr;</a></p>
 </section>
+<div id="all-states">
 <div class="map-section">
   <div class="map-figure">
     <svg class="us-map" viewBox="0 0 959 593" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Clickable map of US states -- select a state for its CPA renewal deadline">
@@ -1257,6 +1262,7 @@
 <a class="state-card" href="west-virginia/" data-state-name="West Virginia"><div class="state-name">West Virginia</div><div class="state-hint">June 30, 2027</div></a>
 <a class="state-card" href="wisconsin/" data-state-name="Wisconsin"><div class="state-name">Wisconsin</div><div class="state-hint">December 15, 2027</div></a>
 <a class="state-card" href="wyoming/" data-state-name="Wyoming"><div class="state-name">Wyoming</div><div class="state-hint">December 31, 2026</div></a>
+</div>
 </div>
 <section class="band-section">
   <p class="eyebrow">How we verify</p>

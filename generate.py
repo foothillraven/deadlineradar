@@ -534,6 +534,14 @@ PAGE_CSS = """
     background: var(--verified-green-bg); color: var(--verified-green);
   }
   .rc-badge-conflict { background: var(--gold-bg); color: var(--gold); }
+  /* Reported directly, 2026-08-04: "Enacted" is accurate legislative language
+     (signed into law) but its badge reused --verified-green, the same
+     "confirmed/settled" color as every other verified date on this site --
+     directly beside "not yet in force" copy for upcoming items, that reads
+     as self-contradictory. Gold is this page's own existing "pending/not
+     yet settled" color (see rc-badge-conflict above); only actually-in-force
+     changes keep the green "Enacted" treatment. */
+  .rc-badge-upcoming { background: var(--gold-bg); color: var(--gold); }
   .rc-conflict { border-color: var(--gold); }
   .rc-date { margin: 0.5rem 0 0.2rem; font-size: 0.9rem; }
   .rc-detail { margin: 0.4rem 0; font-size: 0.92rem; line-height: 1.5; }
@@ -802,6 +810,15 @@ PAGE_CSS = """
     gap: 0.65rem; margin: 0 0 2rem; list-style: none; padding: 0;
   }
   .state-grid--mobile-fallback { display: none; }
+  /* Reported directly, 2026-08-04: /blog/'s 8 cards inherited .state-grid's
+     minmax(148px,...) columns, which fits 7 per row at this page's content
+     width -- orphaning the 8th card alone on a near-empty second row. That
+     column width is right for a single state name (the homepage/404 use of
+     .state-grid); a guide card also carries a full description line and
+     reads better wider anyway. minmax(240px,...) fits exactly 4 per row at
+     .wrap's 1180px max-width, so today's 8 guides fill two full rows with
+     nothing left over. */
+  .guide-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
   .map-section {
     display: grid; grid-template-columns: 1fr 220px; gap: 1.25rem; align-items: stretch;
     margin: 0 0 2rem;
@@ -1544,7 +1561,7 @@ def site_header(
       <span class="wordmark">{esc(SITE_NAME)}</span>
     </a>
     <div class="nav-links">
-      <a href="/">Browse States</a>
+      <a href="/#all-states">Browse States</a>
       <a href="/methodology/">How We Verify</a>
       <a href="/for-firms/">For Firms</a>
       {signin_link_html}<a href="{esc(remind_href)}" class="cta">Get reminders</a>
@@ -3401,9 +3418,11 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
 
     body = f"""{hero_html}
 {demo_html}
+<div id="all-states">
 {build_us_map_html(by_slug)}
 <div class="state-grid state-grid--mobile-fallback">
 {chr(10).join(cards)}
+</div>
 </div>
 {method_band_html}
 {firm_preview_html}
@@ -3612,10 +3631,11 @@ def _rule_change_card_html(e: dict) -> str:
     # string ("UPDATE (verifier): ... CiteID ...") caught by preship_gate.
     detail = e.get("summary_public") or ""
     source_label = "automated source monitoring" if e.get("source") == "difflab_reg_change_engine" else "dual-source legal research"
+    badge_class = "rc-badge rc-badge-upcoming" if e.get("upcoming") else "rc-badge"
     return f"""<div class="rc-card">
   <div class="rc-head">
     <span class="rc-jurisdiction">{esc(e.get("jurisdiction") or e.get("jurisdiction_slug", ""))}</span>
-    <span class="rc-badge">{esc(_rule_change_status_label(e.get("status")))}</span>
+    <span class="{badge_class}">{esc(_rule_change_status_label(e.get("status")))}</span>
   </div>
   {eff_html}
   <p class="rc-detail">{esc(detail)}</p>
@@ -8398,7 +8418,7 @@ def build_blog_index_page(articles: list[dict]) -> str:
     body = f"""<h1>Guides</h1>
 <p class="intro">Deeper explainers on CPA license renewal and CPE deadlines &mdash; sourced the same
 way as every state page on this site.</p>
-<div class="state-grid">
+<div class="state-grid guide-grid">
 {cards}
 </div>
 <p class="backlink"><a href="../">&larr; Back to home</a></p>

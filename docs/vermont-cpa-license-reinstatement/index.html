@@ -169,6 +169,8 @@
     background: var(--verified-green-bg); color: var(--verified-green);
   }
   .rc-badge-conflict { background: var(--gold-bg); color: var(--gold); }
+  
+  .rc-badge-upcoming { background: var(--gold-bg); color: var(--gold); }
   .rc-conflict { border-color: var(--gold); }
   .rc-date { margin: 0.5rem 0 0.2rem; font-size: 0.9rem; }
   .rc-detail { margin: 0.4rem 0; font-size: 0.92rem; line-height: 1.5; }
@@ -427,6 +429,8 @@
     gap: 0.65rem; margin: 0 0 2rem; list-style: none; padding: 0;
   }
   .state-grid--mobile-fallback { display: none; }
+  
+  .guide-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
   .map-section {
     display: grid; grid-template-columns: 1fr 220px; gap: 1.25rem; align-items: stretch;
     margin: 0 0 2rem;
@@ -969,7 +973,7 @@
       <span class="wordmark">DeadlineRadar</span>
     </a>
     <div class="nav-links">
-      <a href="/">Browse States</a>
+      <a href="/#all-states">Browse States</a>
       <a href="/methodology/">How We Verify</a>
       <a href="/for-firms/">For Firms</a>
       <a href="/signin/" class="nav-quiet" id="dr-nav-signin">Sign In</a>

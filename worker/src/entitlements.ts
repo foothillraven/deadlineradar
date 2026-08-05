@@ -123,14 +123,25 @@ export function checkPremiumAccess(
 
 /** User-facing copy per denial reason. Deliberately never says "pay us" to
  * a firm whose account is suspended -- that would be both wrong and
- * irritating. */
+ * irritating.
+ *
+ * Generalized 2026-08-05 (paid tiers): this used to say "Mobility checks
+ * are part of the paid firm plan" -- true when mobility was the only
+ * pay-gated feature, but wrong once requireFirmSessionAndEntitlement()
+ * started reusing this same message for every gated route (Roster, CPE
+ * Hours, etc, not just mobility). Caught live in Gate-1 testing: the new
+ * dashboard paywall panel showed this exact string next to its own "pick a
+ * plan" tier buttons, so "get in touch to continue" directly contradicted
+ * the UI right next to it. Kept feature-agnostic so it reads correctly in
+ * BOTH the plain-text mobility display (its original caller) and the
+ * dashboard-wide paywall panel. */
 export function entitlementMessage(reason: EntitlementDenialReason): string {
   switch (reason) {
     case "firm_inactive":
       return "This account isn't active. Get in touch and we'll sort it out.";
     case "pilot_expired":
-      return "Your 30-day pilot has ended. Mobility checks are part of the paid firm plan -- get in touch to continue.";
+      return "Your 30-day pilot has ended. Pick a plan to continue.";
     case "tier_not_premium":
-      return "Mobility checks are part of the paid firm plan. Get in touch and we'll set you up.";
+      return "This feature is part of the paid firm plan. Pick a plan to continue.";
   }
 }

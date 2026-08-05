@@ -497,6 +497,22 @@ function actionBaseUrl(env: Env): string {
   return env.ACTION_BASE_URL || ACTION_BASE_URL;
 }
 
+// The static site's own absolute origin (no /api -- unlike ACTION_BASE_URL
+// above, this points at the Pages-served site itself, e.g. /firm-dashboard/).
+// Every OTHER `env.STATIC_SITE_BASE_URL || ""` call site in this file is a
+// browser REDIRECT (a relative Location header resolves fine against
+// whatever origin the browser is already on), so those correctly stay
+// relative. Stripe's Checkout Session API is different: success_url/
+// cancel_url are validated SERVER-SIDE by Stripe itself, which has no
+// browser context to resolve a relative path against -- a relative value
+// there is rejected outright (2026-08-05, live Gate-1 test: this is exactly
+// what produced "Couldn't start checkout" / a 502, verified against the
+// real Stripe API before this fix).
+const SITE_ORIGIN = "https://deadline-radar.com";
+function staticSiteAbsoluteBaseUrl(env: Env): string {
+  return env.STATIC_SITE_BASE_URL || SITE_ORIGIN;
+}
+
 // migration 0008 -- firm admin login cookie. HttpOnly (never readable from
 // JS -- the dashboard's frontend never needs the raw token, only the
 // server does), Secure (HTTPS-only transmission), SameSite=Lax (sent on
@@ -1520,11 +1536,20 @@ async function requireFirmSessionAndEntitlement(
 
   const access = checkPremiumAccess(firm);
   if (!access.allowed) {
+    // current_staff_count (2026-08-05, Devin's Gate-1 UX note): the
+    // dashboard paywall showed all 3 tiers regardless of roster size, so a
+    // 20-staff firm could click Starter and get a clean-but-avoidable
+    // rejection. checkout already computes this same live count to
+    // validate a tier choice server-side (the authoritative check); surfacing
+    // it here too lets the paywall pre-filter to only the tiers that fit,
+    // without duplicating that logic client-side against stale/spoofable data.
+    const currentStaffCount = await store.countFirmLicenses(env.DB, session.firmId);
     return jsonResponse(isWrite ? 402 : 403, {
       error: entitlementMessage(access.reason),
       reason: access.reason,
       pilot_days_remaining: access.pilotDaysRemaining,
       pay_now_url: "/firm-dashboard/#account",
+      current_staff_count: currentStaffCount,
     });
   }
 
@@ -1590,7 +1615,7 @@ async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Re
     return jsonResponse(503, { error: "That plan isn't available for checkout yet." });
   }
 
-  const dashboardBase = `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/`;
+  const dashboardBase = `${staticSiteAbsoluteBaseUrl(env)}/firm-dashboard/`;
   try {
     const checkoutSession = await createCheckoutSession(env.STRIPE_SECRET_KEY, {
       priceId,

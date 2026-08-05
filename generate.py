@@ -5374,7 +5374,7 @@ function drClearWarning() {
 // open when the fetch ran. drLoadLicenses() is the single fetch that drives
 // Roster/Calendar/Map/CPE Hours/mobility-completions (see its own comment),
 // so checking there covers all of them without a separate check per tab.
-function drShowPaywall(message, payNowUrl) {
+function drShowPaywall(message, payNowUrl, currentStaffCount) {
   drClearError();
   var views = document.querySelectorAll('.dr-view');
   for (var i = 0; i < views.length; i++) { views[i].hidden = true; }
@@ -5382,6 +5382,16 @@ function drShowPaywall(message, payNowUrl) {
   if (!panel) return;
   var msgEl = document.getElementById('dr-paywall-message');
   if (msgEl) msgEl.textContent = message || 'Your plan needs to be upgraded to continue.';
+  // Devin's Gate-1 UX note (2026-08-05): only show tiers that actually fit
+  // the current roster, rather than all 3 and rejecting after a click --
+  // checkout enforces this same fit server-side regardless, so hiding an
+  // unreachable tier here is purely a courtesy, not the real guard.
+  var buttons = document.querySelectorAll('.dr-paywall-tier-btn');
+  for (var j = 0; j < buttons.length; j++) {
+    var cap = parseInt(buttons[j].getAttribute('data-seat-cap'), 10);
+    var fits = typeof currentStaffCount !== 'number' || isNaN(cap) || currentStaffCount <= cap;
+    buttons[j].hidden = !fits;
+  }
   panel.hidden = false;
 }
 function drHidePaywall() {
@@ -6783,7 +6793,7 @@ function drLoadLicenses() {
       if (res.status === 402 || res.status === 403) {
         return drReadJsonSafe(res).then(function(data) {
           if (data && data.reason) {
-            drShowPaywall(data.error, data.pay_now_url);
+            drShowPaywall(data.error, data.pay_now_url, data.current_staff_count);
             return null;
           }
           drShowError('Something went wrong loading your roster. Please try again.');
@@ -7661,10 +7671,10 @@ def build_firm_dashboard_page(
     <div id="dr-paywall-panel" class="dr-panel" hidden>
       <h2>Continue with a paid plan</h2>
       <p id="dr-paywall-message" class="subhead"></p>
-      <div class="dr-paywall-tiers">
-        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_starter">Starter<br><span>$199/year &middot; up to 5 staff</span></button>
-        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_growth">Growth<br><span>$349/year &middot; up to 15 staff</span></button>
-        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_standard">Standard<br><span>$500/year &middot; up to 25 staff</span></button>
+      <div class="dr-paywall-tiers" id="dr-paywall-tiers">
+        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_starter" data-seat-cap="5">Starter<br><span>$199/year &middot; up to 5 staff</span></button>
+        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_growth" data-seat-cap="15">Growth<br><span>$349/year &middot; up to 15 staff</span></button>
+        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_standard" data-seat-cap="25">Standard<br><span>$500/year &middot; up to 25 staff</span></button>
       </div>
       <p style="font-size:0.88rem; color:var(--muted); margin-top:0.9rem;">Every tier has the identical
       feature set &mdash; the only difference is staff count. More than 25 staff?

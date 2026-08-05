@@ -115,9 +115,11 @@ describe("denial messaging", () => {
     expect(entitlementMessage("firm_inactive")).not.toMatch(/plan|pay|upgrade/i);
   });
 
-  it("explains the pilot ended, and that mobility is a paid feature", () => {
+  it("explains the pilot ended and points at picking a plan -- feature-agnostic wording (2026-08-05: this message is now shared by every gated route, not just mobility, so it must not name mobility specifically)", () => {
     expect(entitlementMessage("pilot_expired")).toMatch(/pilot/i);
-    expect(entitlementMessage("pilot_expired")).toMatch(/paid firm plan/i);
+    expect(entitlementMessage("pilot_expired")).toMatch(/plan/i);
+    expect(entitlementMessage("pilot_expired")).not.toMatch(/mobility/i);
     expect(entitlementMessage("tier_not_premium")).toMatch(/paid firm plan/i);
+    expect(entitlementMessage("tier_not_premium")).not.toMatch(/mobility/i);
   });
 });

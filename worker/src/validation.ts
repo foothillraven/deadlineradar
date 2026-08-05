@@ -523,9 +523,18 @@ export const RATE_LIMIT_MOBILITY_CHECK: RateLimit = { max: 120, windowSeconds: 3
  * state for one person), so it gets its own, tighter bucket rather than
  * sharing RATE_LIMIT_MOBILITY_CHECK's 120/hour: unbounded at that rate it
  * would let one firm run ~6,000 individual determinations/hour through a
- * side door. Selecting each of a firm's staff once or twice an hour from
- * the Map tab fits easily inside 20. */
-export const RATE_LIMIT_MOBILITY_CHECK_BATCH: RateLimit = { max: 20, windowSeconds: 3600 };
+ * side door.
+ *
+ * Raised 20 -> 40 (reported directly, 2026-08-04): the client caches results
+ * per home STATE, not per staffer, so this was meant to cover "select each
+ * of a firm's staff once or twice an hour" cheaply -- but a firm whose
+ * roster spans close to (or more than) 20 distinct home states hits this
+ * reviewing their OWN roster once, exactly the walkthrough a new firm does
+ * when deciding whether to trust the product. 40 keeps the same order-of-
+ * magnitude protection against the ~6,000/hour side-door scenario above
+ * (40 * ~50 = 2,000/hour, still well under it) while giving real headroom
+ * for a single-sitting full-roster review. */
+export const RATE_LIMIT_MOBILITY_CHECK_BATCH: RateLimit = { max: 40, windowSeconds: 3600 };
 
 /** Returns true if this request is ALLOWED, false if it should be blocked. */
 export async function checkRateLimit(

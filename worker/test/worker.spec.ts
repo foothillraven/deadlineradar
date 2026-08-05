@@ -4787,10 +4787,10 @@ describe("POST /firm/mobility/check-batch -- same gate, same engine, no target l
     expect(alabama!.individual.summary).toBe(singleBody.individual.summary);
   });
 
-  it("blocks the 21st batch call from the same firm within the hour (tighter bucket than the single check)", async () => {
+  it("blocks the 41st batch call from the same firm within the hour (tighter bucket than the single check)", async () => {
     const { cookie } = await firmOnTier("firm", new Date().toISOString());
     let sawA429 = false;
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 45; i++) {
       const resp = await postMobilityCheckBatch(VALID_BATCH_CHECK, cookie, `203.0.113.${100 + i}`);
       if (resp.status === 429) {
         sawA429 = true;
@@ -4798,6 +4798,6 @@ describe("POST /firm/mobility/check-batch -- same gate, same engine, no target l
       }
       expect(resp.status).toBe(200);
     }
-    expect(sawA429, "expected a 429 within the RATE_LIMIT_MOBILITY_CHECK_BATCH ceiling (20/hour) -- got none in 25 requests").toBe(true);
-  }, 20000);
+    expect(sawA429, "expected a 429 within the RATE_LIMIT_MOBILITY_CHECK_BATCH ceiling (40/hour) -- got none in 45 requests").toBe(true);
+  }, 40000);
 });

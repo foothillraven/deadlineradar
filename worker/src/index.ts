@@ -4440,6 +4440,15 @@ async function handleOauthIdentityDelete(request: Request, env: Env, id: string)
   const session = await requireFirmSession(request, env);
   if (session instanceof Response) return session;
 
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own
+  // comment. AuditLab CSRF-1 (2026-08-05): missed in the original rollout --
+  // its sibling on the same DELETE branch (handleMobilityCompletionDelete)
+  // got this check, this one didn't. Unlinking a firm's SSO identity is a
+  // real state change with account-access consequences.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
   // Per-FIRM daily cap -- AuditLab S-3, 2026-08-03. Same reasoning as
   // RATE_LIMIT_OAUTH_START's own comment (bounds table growth from a
   // compromised/careless session), applied to the unlink side.

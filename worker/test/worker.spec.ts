@@ -4785,6 +4785,25 @@ describe("GET/DELETE /firm/oauth-identities -- connected accounts", () => {
     expect(await store.listOauthIdentitiesForFirm(env.DB, victimId)).toHaveLength(1);
   });
 
+  it("AuditLab CSRF-1 (2026-08-05): DELETE is rejected when Origin doesn't match, same as its sibling routes", async () => {
+    const email = `ident-csrf1-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "CSRF-1 Firm", adminEmail: email });
+    const linked = await store.linkOauthIdentity(env.DB, {
+      firmId,
+      provider: "google",
+      providerSubject: `csrf1-sub-${Date.now()}`,
+      providerEmail: email,
+    });
+    const { rawSessionToken } = await store.createSession(env.DB, firmId);
+    const resp = await SELF.fetch(`https://deadline-radar.com/firm/oauth-identities/${linked!.id}`, {
+      method: "DELETE",
+      headers: { "cf-connecting-ip": "203.0.113.242", Cookie: `dr_firm_session=${rawSessionToken}`, Origin: "https://attacker.example" },
+    });
+    expect(resp.status).toBe(400);
+    // The identity must survive -- the request was rejected, not processed.
+    expect(await store.listOauthIdentitiesForFirm(env.DB, firmId)).toHaveLength(1);
+  });
+
   it("unlinking is always allowed -- the emailed sign-in link means it cannot lock anyone out", async () => {
     // Deliberate design property, and the reason no "last sign-in method"
     // guard exists (an earlier comment wrongly claimed one did).

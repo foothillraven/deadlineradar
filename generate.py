@@ -1629,6 +1629,41 @@ PAGE_CSS = """
   .dr-my-upsell { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.3rem 1.4rem; margin-top: 2rem; }
   .dr-my-upsell h2 { font-size: 1.1rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
   .dr-my-upsell p { font-size: 0.92rem; }
+
+  /* Orchestrator (2026-08-05): the homepage promises "a fact sheet you
+     could hand to a partner" (see build_homepage_page()'s "WHAT A LOOKUP
+     ACTUALLY GIVES YOU" section) but nothing backed that up -- printing a
+     state page dumped the dark-theme UI as-is: dark background (wastes ink,
+     may not even render on some printers), full nav bar, footer legal
+     disclaimer block. Overriding the SAME custom properties everything
+     already reads from (:root, above) is the one-place fix -- every
+     component using var(--bg)/var(--fg)/var(--card-bg) etc. inherits the
+     light values automatically, same technique dark mode itself already
+     uses, just for print instead of a color-scheme media query. Nav,
+     footer, and every signup/lead-capture CTA are hidden outright -- none
+     of those belong on a printed handout, and per this file's own citation-
+     first design, the .sheet fact-sheet card (citation, deadline, verified
+     badge) is what's left standing. */
+  @media print {
+    :root {
+      --bg: #ffffff; --page-bg: #ffffff; --fg: #000000; --muted: #333333; --faint: #444444;
+      --border: #cccccc; --border-strong: #999999; --card-bg: #ffffff; --row-alt: #f4f4f4;
+      --accent: #17212b; --accent-deep: #000000; --accent-bg: #eeeeee; --on-accent: #000000;
+      --gold: #6b5423; --gold-line: #999999; --gold-bg: #ffffff;
+      --verified-green: #1c5238; --verified-green-bg: #ffffff;
+      --trust-bg: #ffffff; --trust-border: #999999;
+      --shadow: none;
+    }
+    .mainnav, .site-footer, .signup-form, .remind-panel, .dr-quicklinks,
+    .state-search-wrap, .dr-sso-block, button, .cta-button {
+      display: none !important;
+    }
+    body { padding: 0; }
+    .wrap { max-width: none; }
+    .sheet { box-shadow: none; border: 1px solid #999999; break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+    .cite a { text-decoration: underline; } /* the citation link IS the point of a printed fact sheet */
+  }
 """
 
 

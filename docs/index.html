@@ -699,6 +699,9 @@
   .dr-roster-panel .dr-roster-email { color: var(--muted); font-size: 0.82rem; margin-top: 0.1rem; }
 
   
+  .dr-roster-panel .dr-deadline-overdue { color: #c33737; font-weight: 700; }
+
+  
   .dr-roster-panel .dr-edit-label,
   .dr-roster-panel .dr-edit-email {
     width: 100%; box-sizing: border-box; padding: 0.45rem 0.55rem;
@@ -713,6 +716,10 @@
   .dr-roster-panel:has(.dr-edit-email) th:nth-child(1),
   .dr-roster-panel:has(.dr-edit-email) td:nth-child(1) {
     width: 17rem;
+  }
+  
+  .dr-roster-panel:has(.dr-edit-email) table {
+    min-width: 59rem;
   }
   
   .dr-roster-panel tr.dr-roster-editing td {

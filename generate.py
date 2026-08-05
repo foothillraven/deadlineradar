@@ -1178,6 +1178,14 @@ PAGE_CSS = """
   .dr-roster-panel .dr-roster-name { font-weight: 600; }
   .dr-roster-panel .dr-roster-email { color: var(--muted); font-size: 0.82rem; margin-top: 0.1rem; }
 
+  /* Task #16 (2026-08-05, confirmed via live test): an overdue Next deadline
+     read as a plain date with no visual difference from a comfortably-future
+     one -- the Status badge doesn't reliably catch this either, since it's
+     computed off missing/unresolvable data, not off the date itself. Same
+     red (#c33737) already used for "Overdue" everywhere else on this
+     dashboard (Staff-at-risk list, Coverage donut, /my/ cards). */
+  .dr-roster-panel .dr-deadline-overdue { color: #c33737; font-weight: 700; }
+
   /* Reported directly ("this is overlapped when editing", 2026-08-04): the
      edit-mode Name/Email <input> elements had no width rule at all, so they
      rendered at the browser's own default input size (natively wider than
@@ -1210,6 +1218,20 @@ PAGE_CSS = """
   .dr-roster-panel:has(.dr-edit-email) th:nth-child(1),
   .dr-roster-panel:has(.dr-edit-email) td:nth-child(1) {
     width: 17rem;
+  }
+  /* Task #13 (2026-08-05, reported directly: "Next Deadline is cut off when
+     editing it", screenshot showed just "N"). Same bug class as the
+     2026-08-04 "no Status or expiration column" fix above, re-introduced
+     here: the Staff column's edit-mode width (11rem -> 17rem, rule above)
+     grows the column sum from 53rem to 59rem, but the table's own
+     min-width (line ~1159) stayed locked at 53rem -- table-layout: fixed
+     then treats every explicit width as a PROPORTIONAL WEIGHT within that
+     locked 53rem again, squeezing the already-narrow Status/Next-deadline
+     columns down to near nothing. Bumping min-width to match, scoped to the
+     same :has(.dr-edit-email) selector, is the fix that already worked for
+     the static case -- just never carried over to this edit-mode variant. */
+  .dr-roster-panel:has(.dr-edit-email) table {
+    min-width: 59rem;
   }
   /* No visual signal a row was mid-edit -- it silently swapped text for
      input boxes with nothing marking which row. A left accent stripe +
@@ -5570,12 +5592,27 @@ var drEditingId = null;
 // drLicenses starting empty rather than a guessed default.
 var drSeatCap = null;
 
+// Task #14 (2026-08-05, reported directly: "why would nothing happen when
+// clicking Mark Renewed" -- the write DID succeed, drShowSuccess() DID run,
+// but this banner lives at the very top of .dr-main while the Roster table
+// (and its Mark renewed/Remove/Save buttons) sits well below the overview
+// stats/at-risk panel/activity feed -- on any normal viewport the banner
+// fires completely off-screen above whatever the admin is actually looking
+// at, indistinguishable from silently doing nothing. scrollIntoView on both
+// banners (not just success) fixes the whole class of "did my click do
+// anything" reports from any roster action, not just this one.
+function drScrollBannerIntoView(el) {
+  if (el && typeof el.scrollIntoView === 'function') {
+    el.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  }
+}
 function drShowError(msg) {
   drClearSuccess();
   var el = document.getElementById('dr-dash-error');
   if (!el) return;
   el.textContent = msg;
   el.hidden = false;
+  drScrollBannerIntoView(el);
 }
 function drClearError() {
   var el = document.getElementById('dr-dash-error');
@@ -5592,6 +5629,7 @@ function drShowSuccess(msg) {
   if (!el) return;
   el.textContent = msg;
   el.hidden = false;
+  drScrollBannerIntoView(el);
 }
 function drClearSuccess() {
   var el = document.getElementById('dr-dash-success');
@@ -5700,6 +5738,22 @@ function drFormatDeadline(iso) {
   }
 }
 
+// Roster table gap, confirmed via live test (2026-08-05): the Status badge
+// column can say "Active" or "Needs attention" without matching whether the
+// date in the very next column has actually passed -- "Needs attention" is
+// server-computed off missing/unresolvable data, not off the deadline date
+// itself, so a genuinely overdue license with otherwise-complete data reads
+// as a plain, unremarkable date next to an "Active" badge. Same is-overdue
+// definition (days < 0) the Staff-at-risk panel and Coverage donut already
+// use (see drDaysUntil() below), so a date can't be flagged here and not
+// there. drDaysUntil() is declared further down but hoisted (function
+// declaration, not a var), so calling it here is safe.
+function drRosterDeadlineCellAttrs(iso) {
+  var days = drDaysUntil(iso);
+  if (days === null || days >= 0) return '';
+  return ' class="dr-deadline-overdue" title="Overdue"';
+}
+
 function drRenderRow(item) {
   var statusClass = DR_STATUS_CLASSES[item.status] || 'mock-status--risk';
   var statusLabel = DR_STATUS_LABELS[item.status] || item.status;
@@ -5763,7 +5817,7 @@ function drRenderRow(item) {
     '<td data-label="State"' + stateTitle + '>' + drEscapeHtml(item.state_name || '') + '</td>' +
     '<td data-label="License type">' + drEscapeHtml(drPrettyLicenseType(licenseTypeIdForDisplay)) + '</td>' +
     '<td data-label="Status"><span class="mock-status ' + statusClass + '">' + drEscapeHtml(statusLabel) + '</span></td>' +
-    '<td data-label="Next deadline">' + drEscapeHtml(drFormatDeadline(item.next_deadline)) + '</td>' +
+    '<td data-label="Next deadline"' + drRosterDeadlineCellAttrs(item.next_deadline) + '>' + drEscapeHtml(drFormatDeadline(item.next_deadline)) + '</td>' +
     '<td data-label="Actions" class="dr-actions">' + actionsCell + '</td>' +
   '</tr>';
 }

@@ -75,4 +75,49 @@ describe("verifyWebhookSignature", () => {
     const header = await signPayload(SECRET, Math.floor(Date.now() / 1000), payload);
     expect(await verifyWebhookSignature(payload, header, "")).toBe(false);
   });
+
+  describe("AuditLab BILL-2: multiple v1 signatures during a webhook-secret rotation", () => {
+    async function signatureHex(secret: string, timestampSeconds: number, payload: string): Promise<string> {
+      const signedPayload = `${timestampSeconds}.${payload}`;
+      const key = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(secret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+      const sigBuffer = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signedPayload));
+      return [...new Uint8Array(sigBuffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    it("accepts a match on the FIRST v1 when a second (different-secret) v1 follows it -- the exact bug: a naive last-write-wins parse would keep only the second and reject this", async () => {
+      const payload = JSON.stringify({ id: "evt_rotation_1" });
+      const nowMs = 1_700_000_000_000;
+      const t = Math.floor(nowMs / 1000);
+      const ourSigFirst = await signatureHex(SECRET, t, payload);
+      const otherSigSecond = await signatureHex("whsec_the_other_active_secret", t, payload);
+      const header = `t=${t},v1=${ourSigFirst},v1=${otherSigSecond}`;
+      expect(await verifyWebhookSignature(payload, header, SECRET, nowMs)).toBe(true);
+    });
+
+    it("accepts a match on the SECOND v1 when the first is a different secret", async () => {
+      const payload = JSON.stringify({ id: "evt_rotation_2" });
+      const nowMs = 1_700_000_000_000;
+      const t = Math.floor(nowMs / 1000);
+      const otherSigFirst = await signatureHex("whsec_the_other_active_secret", t, payload);
+      const ourSigSecond = await signatureHex(SECRET, t, payload);
+      const header = `t=${t},v1=${otherSigFirst},v1=${ourSigSecond}`;
+      expect(await verifyWebhookSignature(payload, header, SECRET, nowMs)).toBe(true);
+    });
+
+    it("rejects when NEITHER v1 matches our configured secret", async () => {
+      const payload = JSON.stringify({ id: "evt_rotation_3" });
+      const nowMs = 1_700_000_000_000;
+      const t = Math.floor(nowMs / 1000);
+      const sigA = await signatureHex("whsec_secret_a", t, payload);
+      const sigB = await signatureHex("whsec_secret_b", t, payload);
+      const header = `t=${t},v1=${sigA},v1=${sigB}`;
+      expect(await verifyWebhookSignature(payload, header, SECRET, nowMs)).toBe(false);
+    });
+  });
 });

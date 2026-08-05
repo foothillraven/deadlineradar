@@ -1911,6 +1911,10 @@ def _turnstile_shared_widget_html() -> str:
   <div class="cf-turnstile" data-sitekey="{esc(TURNSTILE_SITE_KEY)}"
        data-appearance="interaction-only" data-callback="drTurnstileDone"
        data-expired-callback="drTurnstileExpired" data-error-callback="drTurnstileExpired"></div>
+  <p id="dr-turnstile-blocked-notice" role="status" hidden style="font-size:0.85rem; color:var(--muted); margin-top:0.5rem;">
+    Having trouble? If you use an ad blocker or privacy extension, try allowing
+    <code>challenges.cloudflare.com</code> for this page &mdash; you can still submit either way.
+  </p>
 </div>
 <script>
 (function () {{
@@ -1925,6 +1929,18 @@ def _turnstile_shared_widget_html() -> str:
     }}
   }};
   window.drTurnstileExpired = function () {{ drTurnstileToken = ""; }};
+  // Purely informational, never blocks submission (the server accepts a
+  // missing token on the routes this widget serves -- see verifyTurnstile()'s
+  // `allowMissingToken`). 2026-08-05: an ad blocker can prevent
+  // challenges.cloudflare.com from ever loading with no visible sign
+  // anything is wrong, so a visitor who never sees this widget resolve has
+  // no way to know WHY -- this surfaces that explanation without gating
+  // anything on it.
+  setTimeout(function () {{
+    if (drTurnstileToken) return;
+    var notice = document.getElementById("dr-turnstile-blocked-notice");
+    if (notice) notice.hidden = false;
+  }}, 4000);
   // Called after a failed submit -- that token is now server-side consumed
   // (Turnstile tokens are single-use), so forget it and ask Cloudflare for a
   // fresh one. `cb` fires once a NEW token has actually arrived (or after a
@@ -3536,12 +3552,26 @@ var DR_STATES = {json.dumps(state_options)};
 
 
 def build_privacy_page(updated: date) -> str:
+    """Expanded 2026-08-05 (Devin: "everything we've changed") -- the original
+    version described a single-purpose free reminder tool (email + state +
+    optional birth-month field, nothing else). Since then this product grew a
+    firm tier (accounts, passwords, a staff roster one admin enters on behalf
+    of other people, CPE-hour self-logging, Practice Privilege Check queries,
+    Google OAuth sign-in) and real Stripe billing. None of that was reflected
+    here -- this rewrite adds a section per genuinely new data category
+    instead of folding firm data into the individual-only list above it,
+    since a firm's roster is data about people who did NOT sign themselves
+    up, which deserves its own explicit disclosure. Every claim below
+    describes real, shipped behavior (checked against entitlements.ts,
+    store.ts, stripe.ts, and oauth.ts while writing this), not aspirational
+    copy -- same standard this site holds its deadline data to."""
     body = f"""<h1>Privacy Policy</h1>
-<p class="intro"><strong>The short version:</strong> we use your email address for one thing only &mdash;
-to send you the CPA license deadline reminders you asked for. We never sell, rent, or share it, and you
-can unsubscribe in one click from any email. That's the whole deal.</p>
+<p class="intro"><strong>The short version:</strong> we collect only what's needed to run the reminder
+and license-tracking service you or your firm signed up for, we never sell or rent it, and every email
+gives you a one-click way to stop. Firms have a few more data categories than individuals (a password,
+a staff roster, CPE hours, billing status) -- all covered below.</p>
 
-<h2>What we collect</h2>
+<h2>What we collect &mdash; individual reminders</h2>
 <p>Only what's needed to remind you about your deadline:</p>
 <ul>
   <li><strong>Your email address</strong> &mdash; so we can send the reminders.</li>
@@ -3552,43 +3582,85 @@ can unsubscribe in one click from any email. That's the whole deal.</p>
   <li><strong>Your first name (optional)</strong> &mdash; only if you choose to provide it, so reminders
   can greet you by name.</li>
 </ul>
-<p>We do not collect anything else, and we do not build a profile of who you are.</p>
+<p>We do not build a profile of who you are from this.</p>
+
+<h2>What we collect &mdash; firm accounts</h2>
+<p>A firm account collects a few things an individual signup doesn't:</p>
+<ul>
+  <li><strong>Firm name and admin email</strong> &mdash; to create and identify the account.</li>
+  <li><strong>A password, if you set one</strong> &mdash; stored as a salted, one-way hash. We cannot see
+  or recover your actual password, and never store it in plain text.</li>
+  <li><strong>CPE (continuing education) hours you log</strong> &mdash; date, hour count, and category.
+  This is your own self-reported record, not independently verified, and is used only to show your
+  progress against your state's requirement.</li>
+  <li><strong>Practice Privilege Check queries and completions</strong> &mdash; which states and service
+  type you looked up, and any completion you mark, used only to show that determination back to you.</li>
+  <li><strong>Billing status</strong> &mdash; which plan you're on and identifiers Stripe assigns to your
+  account (see "Payment information" below). We do not store card numbers.</li>
+</ul>
+
+<h2>If your firm adds you to its roster</h2>
+<p>A firm admin can add staff directly &mdash; meaning some people in our system did not sign themselves
+up. If that's you: your firm's admin provided your name, email, state, and license type to track your
+renewal on the firm's behalf. We email you directly the moment you're added, naming the firm that added
+you, with a one-click link to opt out that works exactly like the individual unsubscribe link below
+&mdash; nothing about being added by someone else changes your ability to stop being contacted.</p>
+
+<h2>Payment information</h2>
+<p>Paid firm plans are billed through <strong>Stripe</strong>. When you check out, you enter your card
+details directly on Stripe's own secure checkout page &mdash; <strong>we never see, receive, or store
+your card number</strong>. What we do store is the plan you're on and the Stripe-assigned customer and
+subscription identifiers needed to keep your account's access in sync with your billing status.</p>
+
+<h2>Signing in with Google</h2>
+<p>If a firm chooses "Continue with Google" instead of a password, Google shares your email address and
+account identifier with us so we can recognize you on return visits. We do not request or receive access
+to your Google Drive, contacts, or anything beyond basic sign-in identity.</p>
 
 <h2>How we use it</h2>
-<p>Your information is used solely to operate the reminder service you signed up for: to send a
-confirmation email, to send your deadline reminders as the date approaches, and to let you stop them at
-any time. We never use it for advertising, and never for any purpose you didn't ask for.</p>
+<p>Your information is used solely to operate the service you or your firm signed up for: sending
+confirmation and reminder emails, showing your roster/CPE/renewal status, processing billing, and letting
+you stop any of it at any time. We never use it for advertising, and never for any purpose you didn't
+ask for.</p>
 
 <h2>How it's stored and protected</h2>
-<p>Your data is encrypted in transit (this site and the signup form use HTTPS) and stored in a private
-database on Cloudflare's infrastructure. It is never published on this website, never included in our
-public code, and never exposed to other visitors. Access is restricted to the service itself.</p>
+<p>Your data is encrypted in transit (this site and every form use HTTPS) and stored in a private
+database on Cloudflare's infrastructure. Passwords are never stored in plain text. It is never published
+on this website, never included in our public code, and never exposed to other visitors. Access is
+restricted to the service itself.</p>
 
 <h2>Who we share it with</h2>
 <p>We do <strong>not</strong> sell, rent, or trade your information to anyone. We rely on a small number
 of service providers strictly to run the service:</p>
 <ul>
   <li><strong>Cloudflare</strong> &mdash; hosting, our database, and bot/abuse protection.</li>
-  <li><strong>Our email delivery provider</strong> &mdash; to send the reminder emails to your inbox.</li>
+  <li><strong>Our email delivery provider</strong> &mdash; to send confirmation, reminder, and account
+  emails to your inbox.</li>
+  <li><strong>Stripe</strong> &mdash; to process payment for paid firm plans. Stripe receives your card
+  details directly; we do not.</li>
+  <li><strong>Google</strong> &mdash; only if you choose "Continue with Google" to sign in, to verify your
+  identity.</li>
 </ul>
 <p>These providers process your data only to deliver the service on our behalf, never for their own
 marketing.</p>
 
 <h2>Cookies and analytics</h2>
-<p>We do not use advertising cookies or cross-site trackers. We may use privacy-first, cookie-less
-analytics (such as Cloudflare Web Analytics) to understand aggregate traffic &mdash; this does not track
-you across the web or identify you personally.</p>
+<p>We do not use advertising cookies or cross-site trackers. Signed-in firm and individual sessions use a
+strictly-necessary cookie to keep you logged in &mdash; not for tracking. We may use privacy-first,
+cookie-less analytics (such as Cloudflare Web Analytics) to understand aggregate traffic &mdash; this
+does not track you across the web or identify you personally.</p>
 
 <h2>Your choices</h2>
 <p>Every reminder email includes a one-click link to stop all reminders instantly. Using it permanently
 removes and suppresses your address so you won't be contacted again. You may also contact us to request
-access to, or deletion of, your information.</p>
+access to, correction of, or deletion of your information.</p>
 
 <h2>Data retention</h2>
-<p>We keep your information while you're subscribed and actively being reminded. When you unsubscribe
-&mdash; whether through your own one-click link, or because a firm admin removes you from their
-roster &mdash; we stop contacting you, but we retain a suppressed record of your address so it is
-never re-contacted and so a firm's roster history stays accurate.</p>
+<p>We keep your information while you're subscribed and actively being reminded, or while your firm
+account is active. When you unsubscribe &mdash; whether through your own one-click link, or because a
+firm admin removes you from their roster &mdash; we stop contacting you, but we retain a suppressed
+record of your address so it is never re-contacted and so a firm's roster history stays accurate. Billing
+records are retained as required to maintain accurate account and payment history.</p>
 
 <h2>Children</h2>
 <p>This service is intended for licensed professionals and is not directed to anyone under 16. We do not
@@ -3599,7 +3671,7 @@ knowingly collect information from children.</p>
 version.</p>
 
 <h2>Contact</h2>
-<p>Questions about your privacy, or requests to access or delete your data:</p>
+<p>Questions about your privacy, or requests to access, correct, or delete your data:</p>
 <p>{esc(SITE_NAME)} by {esc(BRAND_NAME)}<br>
 18121 E Hampden Ave, Unit C #1324<br>
 Aurora, CO 80013</p>
@@ -4586,17 +4658,21 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
     }
   }
 
-  // AuditLab L-2, 2026-08-03: nothing stopped a submit while the shared
-  // token was still "" (interaction-only hasn't resolved yet, or the
-  // browser/network blocks challenges.cloudflare.com entirely -- ad
-  // blockers and corporate proxies routinely do). That POST always fails,
-  // and retrying it can never work, so catching it before the network
-  // round trip and saying the real reason beats one more generic failure.
-  function turnstileFieldValue(form) {
-    var field = form.querySelector('input[name="cf-turnstile-response"]');
-    return field ? field.value : "";
-  }
-
+  // 2026-08-05, live Gate-1 testing: this used to hard-block submission
+  // client-side whenever the token was empty, showing a client-only error
+  // and NEVER calling fetch() -- indistinguishable, from the visitor's
+  // side, from the button doing nothing at all. Confirmed live: an ad
+  // blocker (a real, non-trivial share of traffic, not just an edge case)
+  // silently prevents challenges.cloudflare.com from ever loading, so the
+  // token never arrives and that block became a permanent dead end for
+  // every one of those visitors, right at the top of the signup funnel.
+  // The WORKER is now the one source of truth for whether a missing token
+  // is acceptable on a given route (verifyTurnstile's `allowMissingToken`,
+  // true only on routes gated by a subsequent real email click -- see that
+  // function's own docstring) -- so this always attempts the real request
+  // and lets the server's actual response drive the UI, rather than a
+  // client-side guess that can only be wrong in the direction of blocking
+  // a real visitor.
   function ajaxifyForm(formId, errorId, onSuccess) {
     var form = document.getElementById(formId);
     var errEl = errorId ? document.getElementById(errorId) : null;
@@ -4606,15 +4682,6 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
       if (errEl) { errEl.hidden = true; errEl.textContent = ""; }
       var submitBtn = form.querySelector('button[type="submit"]');
       if (submitBtn) submitBtn.disabled = true;
-      if (!turnstileFieldValue(form)) {
-        if (errEl) {
-          errEl.textContent = "Security check hasn't finished loading -- give it a moment and try "
-            + "again, or disable your ad blocker for this page.";
-          errEl.hidden = false;
-        }
-        recoverThenReenable(submitBtn);
-        return;
-      }
       fetch(form.getAttribute("action"), {
         method: "POST",
         credentials: "include",

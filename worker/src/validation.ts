@@ -579,9 +579,37 @@ export async function checkRateLimit(
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const TURNSTILE_TIMEOUT_MS = 5000; // server.py:113 `timeout=5`
 
-export async function verifyTurnstile(token: string | undefined, secret: string | undefined): Promise<boolean> {
+/**
+ * `allowMissingToken` (2026-08-05, live Gate-1 testing): Devin's own browser
+ * has an ad blocker, and confirmed live that it silently prevents
+ * `challenges.cloudflare.com` from ever loading -- the widget never renders,
+ * `data-callback` never fires, and the hidden `cf-turnstile-response` field
+ * stays empty forever. That is indistinguishable, from this function's
+ * point of view, from a legitimate visitor running uBlock/Brave
+ * Shields/Firefox Enhanced Tracking Protection, which covers a real,
+ * non-trivial share of traffic -- silently dead-ending every one of them at
+ * the top of the signup funnel is worse than the bot risk this parameter
+ * accepts.
+ *
+ * Scoped narrowly: an EMPTY token (never provided at all) passes when this
+ * is true; a token that WAS provided but fails verification still fails
+ * closed exactly as before -- this only forgives "the widget could never
+ * load," never "the widget loaded and rejected this." Callers only pass
+ * `true` on routes where the only thing a token-less submission can do is
+ * cause a confirmation/magic-link EMAIL to be sent -- the account/action
+ * stays inert until that link is actually clicked, which is a real inbox
+ * the caller must control, and the existing rate-limit/honeypot/control-char
+ * checks still run first on every one of those routes. Never set on a route that
+ * grants access directly (e.g. password sign-in) with no such secondary
+ * gate.
+ */
+export async function verifyTurnstile(
+  token: string | undefined,
+  secret: string | undefined,
+  allowMissingToken = false
+): Promise<boolean> {
   if (!secret) return true; // fallback for an environment without the secret set (not current prod)
-  if (!token) return false;
+  if (!token) return allowMissingToken;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TURNSTILE_TIMEOUT_MS);
   try {

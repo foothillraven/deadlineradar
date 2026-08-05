@@ -771,7 +771,7 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
     return errorPage(400, "Unsupported or missing state.");
   }
 
-  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY, true);
   if (!turnstileOk) {
     return errorPage(400, "Verification failed -- please try again.");
   }
@@ -962,7 +962,7 @@ async function handleFirmLead(request: Request, env: Env, ip: string): Promise<R
     return errorPage(400, "That doesn't look like a valid email address.");
   }
 
-  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY, true);
   if (!turnstileOk) {
     return errorPage(400, "Verification failed -- please try again.");
   }
@@ -1244,7 +1244,7 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
     }
   }
 
-  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY, true);
   if (!turnstileOk) {
     return errorPage(400, "Verification failed -- please try again.");
   }
@@ -1325,7 +1325,7 @@ async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<
     return errorPage(400, "That doesn't look like a valid email address.");
   }
 
-  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY, true);
   if (!turnstileOk) {
     return errorPage(400, "Verification failed -- please try again.");
   }
@@ -1842,7 +1842,7 @@ async function handleSubscriberLoginRequest(
     return errorPage(400, "That doesn't look like a valid email address.");
   }
 
-  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY, true);
   if (!turnstileOk) {
     return errorPage(400, "Verification failed -- please try again.");
   }
@@ -3482,9 +3482,21 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
     return errorPage(400, INVALID_CREDENTIALS_MESSAGE);
   }
 
+  // 2026-08-05: this route grants direct access on success (a password
+  // check, not a magic-link email), so it deliberately does NOT pass
+  // allowMissingToken -- unlike the other 5 verifyTurnstile() call sites,
+  // there is no secondary "must click a real emailed link" gate here to
+  // fall back on. An ad-blocked visitor genuinely needs to allow Cloudflare
+  // for this specific route, so the message says so explicitly rather than
+  // the generic wording those other routes used before they stopped
+  // needing it.
   const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
   if (!turnstileOk) {
-    return errorPage(400, "Verification failed -- please try again.");
+    return errorPage(
+      400,
+      "Verification failed -- please try again. If you use an ad blocker or privacy extension, " +
+        "allow challenges.cloudflare.com for this page and retry."
+    );
   }
 
   // Second bucket, keyed on the ACCOUNT rather than the source IP. Per-IP

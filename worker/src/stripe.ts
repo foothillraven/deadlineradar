@@ -107,15 +107,29 @@ export async function verifyWebhookSignature(
 ): Promise<boolean> {
   if (!sigHeader || !webhookSecret) return false;
 
-  const parts: Record<string, string> = {};
+  // AuditLab BILL-2, 2026-08-05: during a Stripe webhook-secret ROTATION,
+  // Stripe signs each event with EVERY active secret and sends multiple
+  // `v1=` pairs in the same header (e.g. "t=...,v1=AAAA,v1=BBBB") -- one per
+  // secret. A plain `Record<string,string>` keyed by field name silently
+  // keeps only the LAST one, so if our configured secret produced the
+  // FIRST (discarded) signature, every event fails verification for the
+  // whole rotation window. That failure mode is exactly the wrong direction
+  // for a webhook that flips a firm onto a paid plan: money taken,
+  // `plan_tier` never updated, and nothing on our side would report it.
+  // Collecting every `v1` and accepting any match (same as Stripe's own
+  // official libraries do) closes this regardless of rotation state.
+  const timestampParts: string[] = [];
+  const v1s: string[] = [];
   for (const kv of sigHeader.split(",")) {
     const eq = kv.indexOf("=");
     if (eq === -1) continue;
-    parts[kv.slice(0, eq).trim()] = kv.slice(eq + 1).trim();
+    const name = kv.slice(0, eq).trim();
+    const value = kv.slice(eq + 1).trim();
+    if (name === "t") timestampParts.push(value);
+    else if (name === "v1") v1s.push(value);
   }
-  const timestampRaw = parts["t"];
-  const v1 = parts["v1"];
-  if (!timestampRaw || !v1) return false;
+  const timestampRaw = timestampParts[0];
+  if (!timestampRaw || v1s.length === 0) return false;
 
   const timestamp = Number(timestampRaw);
   if (!Number.isFinite(timestamp)) return false;
@@ -132,7 +146,7 @@ export async function verifyWebhookSignature(
   const sigBuffer = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signedPayload));
   const expectedHex = [...new Uint8Array(sigBuffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
-  return timingSafeEqualHex(expectedHex, v1);
+  return v1s.some((v1) => timingSafeEqualHex(expectedHex, v1));
 }
 
 /** Constant-time comparison over equal-length hex strings -- a signature

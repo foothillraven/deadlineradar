@@ -9,6 +9,7 @@
  */
 
 import {
+  MAX_ADMIN_NAME_LEN,
   MAX_FIRM_NAME_LEN,
   MAX_STAFF_COUNT_HINT_LEN,
   MAX_STAFF_LABEL_LEN,
@@ -757,6 +758,10 @@ export interface FirmRow {
   id: string;
   name: string;
   admin_email: string;
+  // migration 0020: optional, collected at signup, used only to personalize
+  // outbound emails ("Hi Sarah" instead of a generic greeting) -- never
+  // required, never validated as a real legal name.
+  admin_name: string | null;
   plan_tier: string;
   status: string;
   created_at: string;
@@ -819,6 +824,8 @@ export const SESSION_TTL_DAYS = 30;
 export interface CreateFirmInput {
   name: string;
   adminEmail: string;
+  // Optional, never required -- see FirmRow.admin_name's own comment.
+  adminName?: string | null;
 }
 
 /**
@@ -836,12 +843,13 @@ export interface CreateFirmInput {
 export async function createFirm(db: D1Database, input: CreateFirmInput): Promise<{ id: string }> {
   const id = newToken();
   const name = sanitizeFreeText(input.name, MAX_FIRM_NAME_LEN) ?? "";
+  const adminName = sanitizeFreeText(input.adminName ?? null, MAX_ADMIN_NAME_LEN);
   await db
     .prepare(
-      `INSERT INTO firms (id, name, admin_email, plan_tier, status, created_at)
-       VALUES (?1,?2,?3,'pilot','active',?4)`
+      `INSERT INTO firms (id, name, admin_email, admin_name, plan_tier, status, created_at)
+       VALUES (?1,?2,?3,?4,'pilot','active',?5)`
     )
-    .bind(id, name, input.adminEmail, nowIso())
+    .bind(id, name, input.adminEmail, adminName, nowIso())
     .run();
   return { id };
 }

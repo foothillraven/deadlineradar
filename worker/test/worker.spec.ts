@@ -569,6 +569,30 @@ describe("POST /firm/signup -- firm account creation + login-link send", () => {
     expect(rows.results[0]?.name).toBe("First Name"); // unchanged by the second attempt
   });
 
+  it("Task #11: stores an optional admin_name when provided", async () => {
+    const email = `firmsignup-adminname-${Date.now()}@example.com`;
+    const resp = await postFirmSignup({ name: "Named Admin Firm", admin_email: email, admin_name: "  Jane Smith  " }, "203.0.113.170");
+    expect(resp.status).toBe(200);
+    const firm = await firmByAdminEmail(email);
+    expect(firm?.admin_name).toBe("Jane Smith"); // trimmed
+  });
+
+  it("Task #11: admin_name is optional -- omitting it stores null, not an error", async () => {
+    const email = `firmsignup-noadminname-${Date.now()}@example.com`;
+    const resp = await postFirmSignup({ name: "No Admin Name Firm", admin_email: email }, "203.0.113.171");
+    expect(resp.status).toBe(200);
+    const firm = await firmByAdminEmail(email);
+    expect(firm?.admin_name).toBeNull();
+  });
+
+  it("Task #11: a repeat signup does not overwrite an existing admin_name, even if resubmitted blank", async () => {
+    const email = `firmsignup-adminname-noclobber-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "First", admin_email: email, admin_name: "Original Name" }, "203.0.113.172");
+    await postFirmSignup({ name: "First Again", admin_email: email }, "203.0.113.173"); // no admin_name this time
+    const firm = await firmByAdminEmail(email);
+    expect(firm?.admin_name).toBe("Original Name");
+  });
+
   it("rejects an empty/whitespace-only firm name", async () => {
     const resp = await postFirmSignup(
       { name: "   ", admin_email: `firmsignup-noname-${Date.now()}@example.com` },
@@ -2309,6 +2333,17 @@ describe("emails.ts buildFirmLoginEmail", () => {
     expect(built.htmlBody).toContain("15 minutes");
     expect(built.htmlBody).toContain(MAILING_ADDRESS);
     expect(built.textBody).toContain(MAILING_ADDRESS);
+  });
+
+  it("Task #11: greets by name when an admin_name is available, and falls back generically when not", async () => {
+    const { buildFirmLoginEmail } = await import("../src/emails");
+    const named = buildFirmLoginEmail("https://deadline-radar.com/api/firm/login/verify?token=abc123", false, "Jane Smith");
+    expect(named.textBody).toContain("Hi Jane Smith,");
+    expect(named.htmlBody).toContain("Hi Jane Smith,");
+
+    const anonymous = buildFirmLoginEmail("https://deadline-radar.com/api/firm/login/verify?token=abc123");
+    expect(anonymous.textBody).toContain("Hi there,");
+    expect(anonymous.htmlBody).toContain("Hi there,");
   });
 });
 

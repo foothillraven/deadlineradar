@@ -50,6 +50,7 @@
 import type { Env } from "./env";
 import {
   HONEYPOT_FIELD_NAME,
+  MAX_ADMIN_NAME_LEN,
   MAX_BODY_BYTES,
   MAX_CPE_DESCRIPTION_LEN,
   MAX_CPE_HOURS_PER_ENTRY,
@@ -526,7 +527,7 @@ const INTERNAL_NOTIFY_EMAIL = "support@deadline-radar.com";
 async function sendSignupNotification(
   env: Env,
   kind: "individual" | "firm",
-  details: { email: string; stateName?: string; firmName?: string }
+  details: { email: string; stateName?: string; firmName?: string; adminName?: string | null }
 ): Promise<void> {
   if (!env.SENDGRID_API_KEY) return;
   try {
@@ -1169,7 +1170,8 @@ async function issueAndSendFirmLoginLink(
   env: Env,
   firmId: string,
   adminEmail: string,
-  purpose: store.LoginTokenPurpose = "login"
+  purpose: store.LoginTokenPurpose = "login",
+  adminName: string | null = null
 ): Promise<void> {
   const { rawToken } = await store.createLoginToken(env.DB, firmId, purpose);
   if (!env.SENDGRID_API_KEY) return;
@@ -1181,7 +1183,7 @@ async function issueAndSendFirmLoginLink(
     // say it leads to setting a password. An email promising a plain sign-in
     // and then landing on a password screen is the same class of mismatch as
     // the bug this fixes, just pointed the other way.
-    const built = buildFirmLoginEmail(loginUrl, purpose === "password_reset");
+    const built = buildFirmLoginEmail(loginUrl, purpose === "password_reset", adminName);
     await sendViaSendGrid(env.SENDGRID_API_KEY, adminEmail, built, env.EMAIL_ALLOWLIST);
   } catch {
     // Swallow -- same reasoning as every other best-effort send in this
@@ -1245,6 +1247,11 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
   if (nameRaw.length === 0) {
     return errorPage(400, "Please enter your firm's name.");
   }
+  // Optional (2026-08-05, Devin: "to make the email more personal when I
+  // email them") -- never required, same "empty -> null, never an error"
+  // convention as handleSubscribe()'s first_name field.
+  const adminNameRaw = (form.admin_name ?? "").trim().slice(0, MAX_ADMIN_NAME_LEN);
+  const adminName = adminNameRaw.length > 0 ? adminNameRaw : null;
 
   // Trial gate (2026-07-30, BUILD v2 item 4): a free-pilot firm account is a
   // real product surface a competitor could use to see how this works. Looked
@@ -1322,19 +1329,27 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
   // concurrent winner is not an error condition for THIS request, it's the
   // expected outcome of the exact race this migration exists to survive.
   let firmId: string;
+  // Existing firm's own stored admin_name (if any) wins on a resend -- this
+  // request's adminName field only ever applies to a BRAND NEW firm; a
+  // repeat /firm/signup submission must not silently overwrite a name the
+  // admin already has on file (or blank it out, if this attempt left the
+  // field empty).
+  let resolvedAdminName = adminName;
   if (existing) {
     firmId = existing.id;
+    resolvedAdminName = existing.admin_name;
   } else {
     try {
-      firmId = (await store.createFirm(env.DB, { name: nameRaw, adminEmail: email })).id;
+      firmId = (await store.createFirm(env.DB, { name: nameRaw, adminEmail: email, adminName })).id;
     } catch {
       const raced = await store.findFirmByAdminEmail(env.DB, email);
       if (!raced) throw new Error("firm signup: insert failed and no concurrent winner found");
       firmId = raced.id;
+      resolvedAdminName = raced.admin_name;
     }
   }
 
-  await issueAndSendFirmLoginLink(env, firmId, email);
+  await issueAndSendFirmLoginLink(env, firmId, email, undefined, resolvedAdminName);
 
   return htmlResponse(200, firmLoginSentPage(env));
 }
@@ -1410,7 +1425,7 @@ async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<
   // firm for this email" either way, so this does not introduce a new
   // enumeration signal.
   if (existing && existing.status === "active") {
-    await issueAndSendFirmLoginLink(env, existing.id, email, purpose);
+    await issueAndSendFirmLoginLink(env, existing.id, email, purpose, existing.admin_name);
   }
   // No firm for this email, or an inactive one: fall through to the SAME
   // response, sending nothing -- this is the anti-enumeration branch this
@@ -1495,7 +1510,7 @@ async function handleFirmLoginVerify(
     result.purpose === "password_reset"
   );
   if (isFirstEverSession) {
-    await sendSignupNotification(env, "firm", { email: firm.admin_email, firmName: firm.name });
+    await sendSignupNotification(env, "firm", { email: firm.admin_email, firmName: firm.name, adminName: firm.admin_name });
   }
   // The destination comes from the TOKEN's stored purpose, never from the
   // request. A password-reset link lands directly on "Choose a password"
@@ -4034,7 +4049,7 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
     try {
       const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
       if (underCap) {
-        const built = buildFirmPasswordChangedEmail(firm.name, new Date().toISOString());
+        const built = buildFirmPasswordChangedEmail(firm.name, new Date().toISOString(), firm.admin_name);
         await sendViaSendGrid(env.SENDGRID_API_KEY, firm.admin_email, built, env.EMAIL_ALLOWLIST);
       }
     } catch {
@@ -4230,7 +4245,7 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
     try {
       const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
       if (underCap) {
-        const built = buildFirmOauthLinkedEmail(firm.name, provider.displayName, claims.email, new Date().toISOString());
+        const built = buildFirmOauthLinkedEmail(firm.name, provider.displayName, claims.email, new Date().toISOString(), firm.admin_name);
         await sendViaSendGrid(env.SENDGRID_API_KEY, firm.admin_email, built, env.EMAIL_ALLOWLIST);
       }
     } catch {

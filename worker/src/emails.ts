@@ -465,7 +465,7 @@ export function buildStopConfirmationEmail(
  * (CAN-SPAM) via `mailingAddress()` and still identifies the sender, just
  * without the reminder-specific consent/unsubscribe language.
  */
-export function buildFirmLoginEmail(loginUrl: string, isPasswordReset = false): BuiltEmail {
+export function buildFirmLoginEmail(loginUrl: string, isPasswordReset = false, adminName: string | null = null): BuiltEmail {
   const addr = mailingAddress();
   // COPY HONESTY (2026-07-31): the same token machinery serves both "sign me
   // in" and "let me set a password", and the email must say which one the
@@ -480,6 +480,7 @@ export function buildFirmLoginEmail(loginUrl: string, isPasswordReset = false): 
   const cta = isPasswordReset ? "Set my password" : `Sign in to ${SITE_NAME}`;
 
   const textBody =
+    `${textGreeting(adminName)}\n\n` +
     `Here's your ${SITE_NAME} sign-in link:\n\n` +
     `${loginUrl}\n\n` +
     `This link expires in 15 minutes and can only be used once. If it's expired by the time you ` +
@@ -492,6 +493,7 @@ export function buildFirmLoginEmail(loginUrl: string, isPasswordReset = false): 
     subject,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `${esc(isPasswordReset ? "Set your password" : `Sign in to ${SITE_NAME}`)}</h1>` +
+      p(htmlGreeting(adminName)) +
       p(lead) +
       `<p style="margin:0 0 20px;">${button(loginUrl, cta)}</p>` +
       p(
@@ -644,11 +646,12 @@ export function buildStaffCpeReminderEmail(loginUrl: string, firmName: string, s
  * its own attack surface. Recovery is the existing emailed sign-in link,
  * which the attacker cannot intercept without the mailbox.
  */
-export function buildFirmPasswordChangedEmail(firmName: string, whenIso: string): BuiltEmail {
+export function buildFirmPasswordChangedEmail(firmName: string, whenIso: string, adminName: string | null = null): BuiltEmail {
   const addr = mailingAddress();
   const subject = `A password was set on your ${SITE_NAME} account`;
 
   const textBody =
+    `${textGreeting(adminName)}\n\n` +
     `The password for ${firmName} on ${SITE_NAME} was just set or changed (${whenIso}).
 
 ` +
@@ -671,6 +674,7 @@ ${addr}`;
     `A password was set on your ${SITE_NAME} account`,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `A password was set on your account</h1>` +
+      p(htmlGreeting(adminName)) +
       p(
         `The password for ${esc(firmName)} on ${esc(SITE_NAME)} was just set or changed ` +
           `(${esc(whenIso)}). Any other devices signed in to this account were signed out.`
@@ -705,12 +709,14 @@ export function buildFirmOauthLinkedEmail(
   firmName: string,
   providerDisplayName: string,
   providerEmail: string,
-  whenIso: string
+  whenIso: string,
+  adminName: string | null = null
 ): BuiltEmail {
   const addr = mailingAddress();
   const subject = `A ${providerDisplayName} sign-in method was connected to your ${SITE_NAME} account`;
 
   const textBody =
+    `${textGreeting(adminName)}\n\n` +
     `A ${providerDisplayName} account (${providerEmail}) was just connected as a sign-in method for ` +
     `${firmName} on ${SITE_NAME} (${whenIso}).
 
@@ -735,6 +741,7 @@ ${addr}`;
     `A ${providerDisplayName} sign-in method was connected to your ${SITE_NAME} account`,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `A ${esc(providerDisplayName)} sign-in method was connected</h1>` +
+      p(htmlGreeting(adminName)) +
       p(
         `A ${esc(providerDisplayName)} account (${esc(providerEmail)}) was just connected as a sign-in ` +
           `method for ${esc(firmName)} on ${esc(SITE_NAME)} (${esc(whenIso)}). Once connected, signing ` +
@@ -891,7 +898,7 @@ export function buildFirmStaffAddedEmail(firmName: string, stateName: string, un
  */
 export function buildSignupNotificationEmail(
   kind: "individual" | "firm",
-  details: { email: string; stateName?: string; firmName?: string }
+  details: { email: string; stateName?: string; firmName?: string; adminName?: string | null }
 ): BuiltEmail {
   // AuditLab EMAIL-1 (2026-08-04) fixed the same gap in
   // buildFirmStaffAddedEmail(): a subject line built from attacker-
@@ -906,10 +913,18 @@ export function buildSignupNotificationEmail(
   const safeFirmName = (details.firmName ?? "(no name)").replace(/[\r\n]+/g, " ");
   const safeEmail = details.email.replace(/[\r\n]+/g, " ");
   const subject = kind === "firm" ? `New firm signed up: ${safeFirmName}` : `New individual signup: ${safeEmail}`;
+  // Same CRLF-stripping as safeFirmName/safeEmail above -- an admin_name
+  // that reaches here has already been control-char-swept by
+  // handleFirmSignup()'s hasControlChars() loop, but this builder doesn't
+  // rely on that alone for the SUBJECT line already, so it doesn't start
+  // here either.
+  const safeAdminName = details.adminName ? details.adminName.replace(/[\r\n]+/g, " ") : null;
 
   const textBody =
     kind === "firm"
-      ? `Firm: ${details.firmName ?? "(no name)"}\nAdmin email: ${details.email}\n\n` +
+      ? `Firm: ${details.firmName ?? "(no name)"}\n` +
+        (safeAdminName ? `Admin name: ${safeAdminName}\n` : "") +
+        `Admin email: ${details.email}\n\n` +
         `This fired on their first successful sign-in (not the initial signup form), so the admin ` +
         `email is confirmed real.`
       : `Email: ${details.email}\nState: ${details.stateName ?? "(unknown)"}\n\n` +
@@ -919,7 +934,9 @@ export function buildSignupNotificationEmail(
     `<p>${kind === "firm" ? "Firm" : "Individual"} signup:</p>` +
     `<ul>` +
     (kind === "firm"
-      ? `<li>Firm: ${esc(details.firmName ?? "(no name)")}</li><li>Admin email: ${esc(details.email)}</li>`
+      ? `<li>Firm: ${esc(details.firmName ?? "(no name)")}</li>` +
+        (safeAdminName ? `<li>Admin name: ${esc(safeAdminName)}</li>` : "") +
+        `<li>Admin email: ${esc(details.email)}</li>`
       : `<li>Email: ${esc(details.email)}</li><li>State: ${esc(details.stateName ?? "(unknown)")}</li>`) +
     `</ul>`;
 

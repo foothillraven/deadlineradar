@@ -4258,7 +4258,7 @@ _FIRM_FAQ = [
         "tier, not losing anything.",
     ),
     (
-        "I'm a single CPA, not a firm &mdash; is this for me?",
+        "I'm a single CPA, not a firm — is this for me?",
         "This page is about the firm tier: a roster for whoever is tracking multiple staff CPAs. If "
         "you're only tracking your own license, the free individual reminders on our homepage "
         "already cover that at no cost, unchanged. There's also a $39/year Individual plan for a "
@@ -4545,6 +4545,9 @@ def build_firm_login_page() -> str:
     <label for="signup-firm-name">Firm name</label>
     <input type="text" id="signup-firm-name" name="name" required maxlength="200"
     placeholder="Example Firm, LLC">
+    <label for="signup-admin-name">Your name (optional)</label>
+    <input type="text" id="signup-admin-name" name="admin_name" maxlength="60"
+    autocomplete="name" placeholder="Jane Smith">
     <label for="signup-admin-email">Your email</label>
     <input type="email" id="signup-admin-email" name="admin_email" required
     autocomplete="email" placeholder="you@yourfirm.com">

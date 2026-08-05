@@ -33,6 +33,9 @@ export const MAX_FIRST_NAME_LEN = 60;
 // free-form prose.
 export const MAX_FIRM_NAME_LEN = 200;
 export const MAX_STAFF_COUNT_HINT_LEN = 20;
+// Matches handleSubscribe()'s existing first_name cap (index.ts) -- a
+// personal name, not free-form prose.
+export const MAX_ADMIN_NAME_LEN = 60;
 
 // Firm-dashboard staff license fields (2026-07-28 firm-dashboard MVP) --
 // staff_label is the admin's own short display name for a roster entry

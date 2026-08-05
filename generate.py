@@ -4109,9 +4109,10 @@ _FIRM_FAQ = [
     ),
     (
         "Do you track CPE hours too?",
-        "Not yet. If we ever add it, it will be labeled as your own self-reported log, not "
-        "independently verified &mdash; we won't blur it with the sourced renewal dates that are "
-        "the reason to trust this site in the first place.",
+        "Yes &mdash; the dashboard has a CPE Hours tab where your firm can log completed hours "
+        "against each state's own requirement. That log is your own self-reported record, not "
+        "independently verified, and we keep it clearly labeled and separate from the sourced "
+        "renewal dates &mdash; we won't blur the two.",
     ),
     (
         "How is this different from my staff just signing up for free individually?",
@@ -4122,7 +4123,7 @@ _FIRM_FAQ = [
     ),
     (
         "Who actually sets up my staff -- your team, or us?",
-        "You do, directly, once the self-serve dashboard is live: your admin adds each staff "
+        "You do, directly, through the self-serve dashboard: your admin adds each staff "
         "member's name, email, state, and license type, and their reminders start right away "
         "&mdash; no waiting on them to confirm anything, so your firm's coverage never has a silent "
         "gap. There's no concierge onboarding where our team collects a roster by email and enters "
@@ -4150,20 +4151,22 @@ def build_firms_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
     """B2B firm-tier landing page (rewritten 2026-07-28: the real buyer is the
     small-firm admin managing multiple staff CPAs across states, not a
     concierge-pilot where our team manually checks every staff license --
-    that idea is retired here). The CTA is now a real HTML form
-    (POST /api/firm/lead, see worker/src/index.ts's handleFirmLead()) that
-    captures interest -- NOT an instant self-serve signup, since the actual
-    firm-admin dashboard (staff roster + confirm-email flow) is a separate,
-    parallel build that hasn't shipped yet. Do not re-add any claim of a
-    recurring human/manual per-staff license check or a concierge-style
-    onboarding where our team enters a firm's roster for them -- both were
-    removed because they were never true and were about to become
-    demonstrably false the moment the self-serve dashboard ships (it's
-    self-serve BY DESIGN: the admin adds staff directly). Scoped deliberately
-    to license-renewal tracking only, matching the free tier's trust model;
-    any future CPE-hour tracking must be labeled as an unverified self-report,
-    never given the same certainty language as the sourced renewal dates --
-    that distinction is the entire brand and must not blur on the paid tier."""
+    that idea is retired here). The self-serve firm-admin dashboard (staff
+    roster, Calendar, Map, CPE Hours, Practice Privilege Check) has since
+    shipped and is live -- this page's "Create your firm account" CTA links
+    straight to it (POST /api/firm/lead below is the SEPARATE "not ready
+    yet, just leave your email" lead-capture path, not the primary CTA). Do
+    not re-add any claim of a recurring human/manual per-staff license check
+    or a concierge-style onboarding where our team enters a firm's roster
+    for them -- both were removed because they were never true (it's
+    self-serve BY DESIGN: the admin adds staff directly). CPE-hour tracking
+    also shipped (the dashboard's CPE Hours tab) -- reported directly,
+    2026-08-05, that this page's copy still described it as unbuilt future
+    tense weeks after it went live; keep it labeled as an unverified
+    self-report, never given the same certainty language as the sourced
+    renewal dates, but describe it as PRESENT, not hypothetical -- that
+    distinction (sourced vs. self-reported, not built vs. unbuilt) is the
+    entire brand and must not blur on the paid tier."""
     firm_lead_action = f"{esc(REMINDER_BACKEND_BASE_URL)}/firm/lead"
     body = f"""<h1>CPA License Tracking for Your Whole Firm</h1>
 <p class="intro">Every accounting firm has someone who has to make sure every partner's and staff CPA's
@@ -4195,11 +4198,12 @@ personal inbox provides, in one place.</p>
 
 {_firm_dashboard_mockup_html(by_slug, as_of)}
 
-<p><strong>Scope, plainly stated:</strong> this tracks license <em>renewal dates</em> &mdash; the part we
-can verify against actual state law, the same way we already do for individuals. It does not track CPE
-hour completion. If we ever add that, it will be clearly labeled as your own self-reported log, not
-independently verified &mdash; we won't blur it with the sourced renewal dates that are the whole reason to
-trust this site.</p>
+<p><strong>Scope, plainly stated:</strong> the license <em>renewal dates</em> are the part we verify
+against actual state law, the same way we already do for individuals. The dashboard also has a CPE
+Hours tab where your firm can log completed hours against each state's own requirement &mdash; that
+log is your own self-reported record, not independently verified, and we keep it clearly labeled and
+separate from the sourced renewal dates. We won't blur the two &mdash; self-reported hours and
+sourced dates staying visibly distinct is the whole reason to trust this site.</p>
 
 <h2>Pricing</h2>
 <p><strong>$500/year, flat &mdash; up to 25 staff. No per-person pricing.</strong>

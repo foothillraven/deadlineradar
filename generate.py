@@ -1042,6 +1042,14 @@ PAGE_CSS = """
   .dr-donut-legend { list-style: none; margin: 0; padding: 0; font-size: 0.74rem; color: var(--muted); display: flex; flex-direction: column; gap: 0.28rem; }
   .dr-donut-legend .swatch { width: 0.6rem; height: 0.6rem; border-radius: 2px; display: inline-block; margin-right: 0.4em; }
 
+  /* Dashboard-polish item #3 (2026-08-05): Coverage overview's cross-links
+     to Calendar/Map/CPE Hours -- plain text links, not styled as nav items
+     (no is-active toggling reaches these, unlike .dr-nav's own links), so a
+     simple inline row with the site's standard link color and a bit of
+     breathing room reads as "quick links out of this view" rather than a
+     second, competing tab strip. */
+  .dr-quicklinks { display: flex; flex-wrap: wrap; gap: 1.3rem; margin: -0.3rem 0 1.2rem; font-size: 0.88rem; }
+  .dr-quicklinks a { font-weight: 600; }
   .dr-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.2rem; }
   @media (max-width: 860px) { .dr-panel-row { grid-template-columns: 1fr; } }
   .dr-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; }
@@ -1067,9 +1075,16 @@ PAGE_CSS = """
      this is a channel-gap notice, not an urgency escalation. */
   .dr-at-risk-optedout { display: block; font-size: 0.72rem; color: #8595a3; margin-top: 0.15rem; }
   .dr-activity-item { display: flex; gap: 0.6rem; font-size: 0.85rem; align-items: flex-start; }
-  .dr-activity-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; margin-top: 0.4rem; flex: none; background: var(--accent); }
-  .dr-activity-dot--confirm { background: var(--verified-green); }
-  .dr-activity-dot--optout { background: var(--gold); }
+  /* Dashboard-polish item #4 (2026-08-05): was a plain colored dot (0.5rem
+     filled circle) -- now holds a small per-event-type icon instead, same
+     color logic (the --confirm/--optout modifiers), just driving `color`
+     for the icon's `stroke="currentColor"` rather than `background` for a
+     solid circle. Sized for the icon's own 16x16 viewBox at roughly the
+     text's own line-height, not a tiny dot's size. */
+  .dr-activity-dot { width: 1rem; height: 1rem; margin-top: 0.1rem; flex: none; color: var(--accent); }
+  .dr-activity-dot svg { width: 100%; height: 100%; display: block; }
+  .dr-activity-dot--confirm { color: var(--verified-green); }
+  .dr-activity-dot--optout { color: var(--gold); }
   .dr-activity-when { color: var(--faint); font-size: 0.75rem; display: block; margin-top: 0.1rem; }
 
   .dr-roster-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem 0.2rem; margin-bottom: 1.2rem; }
@@ -5635,6 +5650,19 @@ var DR_ACTIVITY_DOT_CLASS = {
   added: '', confirmed: 'dr-activity-dot--confirm', optout: 'dr-activity-dot--optout',
   edited: '', renewed: 'dr-activity-dot--confirm'
 };
+// Dashboard-polish item #4 (2026-08-05, Devin): per-type icon on each
+// Recent Activity line -- same minimal-line-SVG house style as
+// _VERIFIED_ICON_SVG (16x16 viewBox, stroke="currentColor", ~1.4-1.6
+// stroke-width), not a borrowed icon set. `confirmed` reuses that EXACT
+// checkmark path for visual consistency with the rest of the site's own
+// "verified/went active" language.
+var DR_ACTIVITY_ICON = {
+  added: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  confirmed: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  optout: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 8h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  edited: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.3 3.3l2.4 2.4-6.6 6.6-3 .6.6-3z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  renewed: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M12.3 8a4.3 4.3 0 1 1-1.4-3.2M12.3 2.3v3.2h-3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
 
 function drRenderActivity() {
   var el = document.getElementById('dr-activity-list');
@@ -5665,7 +5693,7 @@ function drRenderActivity() {
     return;
   }
   el.innerHTML = events.map(function(ev) {
-    return '<li class="dr-activity-item"><span class="dr-activity-dot ' + DR_ACTIVITY_DOT_CLASS[ev.type] + '"></span>' +
+    return '<li class="dr-activity-item"><span class="dr-activity-dot ' + DR_ACTIVITY_DOT_CLASS[ev.type] + '">' + (DR_ACTIVITY_ICON[ev.type] || '') + '</span>' +
       '<span class="dr-activity-text"><b>' + drEscapeHtml(ev.name) + '</b> ' + DR_ACTIVITY_LABELS[ev.type] +
       '<span class="dr-activity-when">' + drDaysAgo(ev.at) + '</span></span></li>';
   }).join('');
@@ -6757,7 +6785,11 @@ document.addEventListener('DOMContentLoaded', function() {
     mapStaffSelect.addEventListener('change', drRenderMapForSelection);
   }
 
-  document.querySelectorAll('.dr-nav a[data-view]').forEach(function(a) {
+  // Dashboard-polish item #3 (2026-08-05): was scoped to just .dr-nav (the
+  // sidebar) -- widened to any [data-view] link so the new Coverage-overview
+  // quick-links (.dr-quicklinks) work through the exact same drSwitchView()
+  // call, not a second click-handling path.
+  document.querySelectorAll('a[data-view]').forEach(function(a) {
     a.addEventListener('click', function(ev) {
       ev.preventDefault();
       drSwitchView(a.getAttribute('data-view'));
@@ -7490,6 +7522,12 @@ def build_firm_dashboard_page(
     <p class="subhead">Every CPA license you're tracking for your firm, at a glance.</p>
 
     <div class="dr-stat-row" id="dr-stat-row"></div>
+
+    <p class="dr-quicklinks">
+      <a href="#" data-view="calendar">View full calendar &rarr;</a>
+      <a href="#" data-view="map">View full map &rarr;</a>
+      <a href="#" data-view="cpe">View full CPE Hours &rarr;</a>
+    </p>
 
     <div class="dr-panel-row">
       <div class="dr-panel">

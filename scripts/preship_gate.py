@@ -275,6 +275,42 @@ def check_data_manifest_consistency(data_path: Path, docs_dir: Path) -> list[str
     return errors
 
 
+def check_deadline_currency(data_path: Path) -> list[str]:
+    """AuditLab DATE-1 (MEDIUM, 2026-08-04): deadlines come from two paths --
+    computed at build time (next_birth_month_parity_date()/next_annual_month_end(),
+    self-rolling by construction, immune to this) and hand-maintained JSON
+    (next_deadline_computed for fixed-calendar states, cohort_groups[].next_deadline
+    for cohort states) that nothing ever re-derives. A hand-maintained date is only
+    ever as current as the last edit -- Kentucky's even-numbered cohort shipped
+    "next deadline: July 31, 2026" live on the site for 4 days after that date had
+    already passed, surviving two unrelated data-file edits in between, because
+    nothing checked CURRENCY (only render-consistency -- see
+    check_data_manifest_consistency() above, which confirms the page repeats
+    whatever the manifest says without ever asking whether the manifest is still
+    true). Fails the build the moment any hand-maintained deadline elapses, so this
+    is caught in review instead of shipping live and unnoticed."""
+    errors = []
+    data = json.loads(data_path.read_text(encoding="utf-8"))
+    today = date.today().isoformat()
+    for r in data["records"]:
+        ndc = r.get("next_deadline_computed")
+        if ndc and ndc < today:
+            errors.append(
+                f"[C][{r['state_slug']}/{r['id']}] next_deadline_computed={ndc} has already elapsed "
+                f"(today={today}) -- this is a hand-maintained value nothing re-derives; update it or "
+                f"move this state onto a self-rolling computed path"
+            )
+        for g in r.get("cohort_groups") or []:
+            gd = g.get("next_deadline")
+            if gd and gd < today:
+                errors.append(
+                    f"[C][{r['state_slug']}/{r['id']}] cohort_groups['{g.get('group')}'].next_deadline={gd} "
+                    f"has already elapsed (today={today}) -- same hand-maintained-date risk as "
+                    f"next_deadline_computed above, just inside a cohort_groups entry"
+                )
+    return errors
+
+
 def check_json_copies_identical(repo_root: Path) -> list[str]:
     a = repo_root / "data" / "cpa_deadlines.json"
     b = repo_root / "worker" / "src" / "cpa_deadlines.json"
@@ -410,6 +446,7 @@ def main():
     all_errors += check_affiliate_disclosure(html_files)
     all_errors += check_named_vendor_disparagement(html_files)
     all_errors += check_data_manifest_consistency(data_path, docs_dir)
+    all_errors += check_deadline_currency(data_path)
     all_errors += check_json_copies_identical(repo_root)
 
     print(f"Pre-ship gate: scanned {len(html_files)} rendered pages, {len(state_dirs)} state dirs.")

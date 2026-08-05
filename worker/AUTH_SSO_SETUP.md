@@ -98,18 +98,18 @@ either.
 Setting the wrangler secrets makes the Worker's OAuth routes work, but the "Continue with
 Google"/"Continue with Microsoft" **button itself is rendered at STATIC-SITE BUILD TIME**, gated on
 `DR_SSO_PROVIDERS` (comma-separated provider ids, e.g. `google` or `google,microsoft`) — NOT on
-whether the Worker secrets exist. Defaults to empty (no buttons) deliberately, so a build never
-advertises a provider the deployed Worker isn't actually configured for. This means:
+whether the Worker secrets exist.
 
-```bash
-DR_SSO_PROVIDERS=google python generate.py    # regenerate docs/ WITH the button
-```
-
-**Every future `python generate.py` run must include this flag once a provider is live**, or the next
-unrelated regen will silently drop the button again (the code degrades safely — no error, no broken
-link, it just quietly vanishes). There is currently no persistent config file this reads from; the
-flag must be passed by hand on every build. If this becomes error-prone, worth adding a checked-in
-default once both providers are confirmed stable.
+**This bit AssetLab within the same session it was first documented**: the original default was
+empty (deliberately, so a build never advertised a provider the deployed Worker had no credentials
+for), which meant every future `python generate.py` had to remember `DR_SSO_PROVIDERS=google` by
+hand — and a plain, unrelated regen dropped the button silently a few hours later. Fixed by flipping
+`generate.py`'s own default to `"google"` (2026-08-05) now that Google SSO is live and stable, so a
+plain `python generate.py` keeps the button by default. `DR_SSO_PROVIDERS` still exists as an
+override (e.g. set it to `""` to build WITHOUT the button, or `"google,microsoft"` once Microsoft
+ships) — just don't rely on remembering to pass it for a provider that's already live. When
+Microsoft ships, give it the same treatment: flip its own default once its secrets are confirmed
+live in both environments, rather than extending the manual-flag pattern.
 
 ## 4. How the code behaves before these exist
 

@@ -107,6 +107,15 @@ describe("GET /health", () => {
     expect(resp.headers.get("Referrer-Policy")).toBeTruthy();
     expect(resp.headers.get("Content-Security-Policy")).toBeTruthy();
   });
+
+  // Orchestrator abuse-test finding (2026-08-05, LOW, latent): every
+  // response is per-request/per-session and must never be cached by an
+  // intermediary -- confirmed missing across 3 live probes.
+  it("carries Cache-Control: private, no-store and Vary: Cookie on every response", async () => {
+    const resp = await getAction("/health");
+    expect(resp.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(resp.headers.get("Vary")).toBe("Cookie");
+  });
 });
 
 describe("/api prefix stripping (Workers Route binding)", () => {
@@ -454,6 +463,20 @@ describe("POST /firm/lead -- firm-tier early-access capture", () => {
       ip
     );
     expect(sixth.status).toBe(429);
+  });
+
+  it("orchestrator abuse-test finding (2026-08-05): the 429 page has Retry-After, a real title/<h1>, and a recovery link", async () => {
+    const ip = "203.0.113.96";
+    for (let i = 0; i < 5; i++) {
+      await postFirmLead({ email: `firmlead-429ux-${i}-${Date.now()}@example.com`, firm_name: "Example Firm" }, ip);
+    }
+    const sixth = await postFirmLead({ email: `firmlead-429ux-6-${Date.now()}@example.com`, firm_name: "Example Firm" }, ip);
+    expect(sixth.status).toBe(429);
+    expect(sixth.headers.get("retry-after")).toBe("600");
+    const body = await sixth.text();
+    expect(body).toContain("<title>Slow down a little</title>");
+    expect(body).toContain("<h1>Slow down a little</h1>");
+    expect(body).toContain("/for-firms/");
   });
 });
 
@@ -1538,6 +1561,14 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
     expect((await renewFirmLicense(null, "nonexistent")).status).toBe(401);
   });
 
+  it("orchestrator abuse-test finding (2026-08-05): the 401 body is real JSON, not a full HTML error page", async () => {
+    const resp = await getFirmLicenses(null);
+    expect(resp.status).toBe(401);
+    expect(resp.headers.get("content-type")).toContain("application/json");
+    const body = (await resp.json()) as { error: string };
+    expect(typeof body.error).toBe("string");
+  });
+
   it("happy path (HYBRID consent model, 2026-07-28): POST creates an ACTIVE staff license immediately -- no pending-confirmation gate on the firm path -- and sends the transparent first-contact email with a one-click opt-out instead of a confirm link", async () => {
     const { cookie } = await createFirmWithSession("Roster Firm", `roster-${Date.now()}@example.com`);
     const staffEmail = `staff-${Date.now()}@example.com`;
@@ -2231,6 +2262,54 @@ describe("DELETE /firm/licenses/:id -- removes from roster and stops further rem
   });
 });
 
+describe("CSRF defense-in-depth (2026-08-05, orchestrator abuse-test finding): originAllowed() on mutating firm-session routes", () => {
+  it("POST /firm/licenses is rejected when the Origin header doesn't match any allowed origin", async () => {
+    const { cookie } = await createFirmWithSession("Origin Test Firm", `origintest-${Date.now()}@example.com`);
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/licenses", {
+      method: "POST",
+      headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.201", Cookie: cookie, Origin: "https://attacker.example" },
+      body: JSON.stringify({ email: `csrf-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" }),
+    });
+    expect(resp.status).toBe(400);
+  });
+
+  it("POST /firm/licenses still succeeds with no Origin header at all (a same-site form post / most non-browser clients)", async () => {
+    // originAllowed() returns true when Origin is absent entirely -- only a
+    // PRESENT, mismatched Origin is rejected. Real browsers always send
+    // Origin on a cross-site request but not necessarily on every same-site
+    // one, so treating "absent" as an error would break legitimate traffic
+    // this check was never meant to touch.
+    const { cookie } = await createFirmWithSession("No Origin Test Firm", `noorigintest-${Date.now()}@example.com`);
+    const resp = await postFirmLicense(cookie, { email: `csrf-noorigin-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
+    expect(resp.status).toBe(201);
+  });
+
+  it("POST /firm/licenses still succeeds with a real, matching Origin header", async () => {
+    const { cookie } = await createFirmWithSession("Matching Origin Test Firm", `matchorigintest-${Date.now()}@example.com`);
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/licenses", {
+      method: "POST",
+      headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.202", Cookie: cookie, Origin: "https://deadline-radar.com" },
+      body: JSON.stringify({ email: `csrf-match-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" }),
+    });
+    expect(resp.status).toBe(201);
+  });
+
+  it("POST /firm/licenses is rejected when Content-Type isn't application/json, even from an allowed Origin", async () => {
+    // The specific cross-site-form bypass this closes: <form
+    // enctype="text/plain"> never triggers a CORS preflight, so a
+    // Content-Type check is a real, independent second gate from
+    // originAllowed() -- confirmed here with a MATCHING Origin so this
+    // test proves the Content-Type check alone, not Origin rejection.
+    const { cookie } = await createFirmWithSession("Bad Content-Type Firm", `badcontenttype-${Date.now()}@example.com`);
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/licenses", {
+      method: "POST",
+      headers: { "content-type": "text/plain", "cf-connecting-ip": "203.0.113.203", Cookie: cookie, Origin: "https://deadline-radar.com" },
+      body: JSON.stringify({ email: `csrf-plaintext-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" }),
+    });
+    expect(resp.status).toBe(400);
+  });
+});
+
 describe("POST /firm/licenses/:id/renew -- atomic renew-and-rearm (Part A #5)", () => {
   it("stops this cycle AND re-arms for next cycle in one call: cycle+1, reminders_sent cleared, stop fields cleared, tokens rotated", async () => {
     const { cookie } = await createFirmWithSession("Renew Firm", `renew-${Date.now()}@example.com`);
@@ -2384,6 +2463,53 @@ describe("POST /subscribe -- cooldown + dedupe", () => {
       .bind(store.cooldownKey(base))
       .all<SubscriberRow>();
     expect(rows.results.length).toBe(1);
+  });
+
+  it("orchestrator cross-flow finding (2026-08-05): a firm adding someone to its roster does not consume that person's individual-signup cooldown slot", async () => {
+    const stamp = Date.now();
+    const email = `cross-flow-${stamp}@example.com`;
+    const firm = await store.createFirm(env.DB, { name: "Cross-Flow Test Firm", adminEmail: `admin-${stamp}@example.com` });
+    // Mirrors handleFirmLicenseCreate()'s real call shape: firmId set,
+    // skipConfirmation true -- the row IS in the subscribers table with a
+    // recent created_at, same as the live scenario reported.
+    await store.addPending(env.DB, {
+      email,
+      stateSlug: "georgia",
+      deadlineFields: {},
+      firstName: null,
+      firmId: firm.id,
+      staffLabel: "Cross Flow Staffer",
+      skipConfirmation: true,
+    });
+
+    // A DIFFERENT state -- this is exactly the reported scenario: the firm
+    // tracks them in Georgia, they separately try the free individual
+    // product for a license in another state entirely.
+    const resp = await postSubscribe({ email, state: "alabama", license_type_id: "al-all" }, "203.0.113.33");
+    expect(resp.status).toBe(200);
+
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1 AND state_slug = ?2")
+      .bind(email, "alabama")
+      .first<SubscriberRow>();
+    expect(row).not.toBeNull(); // the individual signup must actually go through, not silently no-op
+    expect(row?.firm_id).toBeNull();
+  });
+
+  it("the individual-signup cooldown itself is unaffected -- still blocks a second individual signup within the window", async () => {
+    const email = `still-blocked-${Date.now()}@example.com`;
+    const ip = "203.0.113.34";
+    const first = await postSubscribe({ email, state: "georgia", license_type_id: "ga-individual" }, ip);
+    expect(first.status).toBe(200);
+    // A different state, same identity, no firm involved at all -- this is
+    // the exact cross-state mail-bombing pattern the cooldown exists to
+    // stop, and must still be blocked.
+    const second = await postSubscribe({ email, state: "alabama", license_type_id: "al-all" }, ip);
+    expect(second.status).toBe(200); // same no-oracle success page either way
+
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1 AND state_slug = ?2")
+      .bind(email, "alabama")
+      .first();
+    expect(row).toBeNull(); // but no row was actually created
   });
 
   it("a repeat submission for an existing PENDING email+state still creates no second row, even long after the 24h cooldown window", async () => {

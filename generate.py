@@ -174,13 +174,20 @@ REMINDER_BACKEND_BASE_URL = os.environ.get("DR_REMINDER_BACKEND_BASE_URL", "/api
 # 2026-07-30 (auth suite). Comma-separated provider ids to render SSO
 # buttons for, e.g. DR_SSO_PROVIDERS="google".
 #
-# Defaults to EMPTY -- no SSO buttons -- deliberately. The Worker gates each
-# provider on ITS OWN secrets and 404s when they are absent, so a build that
-# advertises a provider the deployed Worker has no credentials for would
-# render a button that dead-ends on click. Safe-by-default means production
-# shows nothing until the secrets are actually in place, and the flag is set
-# for a build only alongside setting that environment's secrets.
-SSO_PROVIDERS = [p.strip() for p in os.environ.get("DR_SSO_PROVIDERS", "").split(",") if p.strip()]
+# Originally defaulted to EMPTY (no SSO buttons) deliberately, so a build
+# never advertised a provider the deployed Worker had no credentials for --
+# safe-by-default while Google SSO was still pre-production. Google SSO
+# shipped and went live 2026-08-05 (commit 0f169ce8, GOOGLE_OAUTH_CLIENT_ID/
+# SECRET set on both prod and preview), so the default flips to "google"
+# here rather than staying an env-var-only opt-in: AUTH_SSO_SETUP.md itself
+# flagged the old default as an error-prone footgun ("every future
+# `python generate.py` run must include this flag... or the next unrelated
+# regen will silently drop the button again") -- and it fired the very
+# session it was written, a plain regen for an unrelated fix silently
+# dropped the button. A future provider going live should get the same
+# treatment: flip its own default once its secrets are confirmed live,
+# rather than requiring DR_SSO_PROVIDERS to be remembered by hand forever.
+SSO_PROVIDERS = [p.strip() for p in os.environ.get("DR_SSO_PROVIDERS", "google").split(",") if p.strip()]
 
 # States whose worker (deadline.ts's computeSubscriberDeadline) has dedicated
 # per-state fields to compute a deadline even without a plain

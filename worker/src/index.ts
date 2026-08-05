@@ -983,7 +983,28 @@ function firmLeadSuccessPage(env: Env): string {
 async function handleFirmLead(request: Request, env: Env, ip: string): Promise<Response> {
   const allowed = await checkRateLimit(env.DB, ip, "firm_lead", RATE_LIMIT_FIRM_LEAD);
   if (!allowed) {
-    return errorPage(429, "Too many submissions from this address. Please try again later.");
+    // Orchestrator abuse-test pass (2026-08-05, LOW, 4 UX defects fired via
+    // real 429 testing): the generic errorPage() gave this real, user-
+    // facing throttle no Retry-After header, a bare "Error" <title>, no
+    // <h1> (unlike this route's own 200 success page), and no way back to
+    // /for-firms/. Purpose-built response fixes all four. Typed firm name/
+    // email being lost on throttle is real too (this is a full-page POST,
+    // not AJAX) but isn't fixed here -- echoing submitted values back would
+    // mean parsing the body BEFORE the rate-limit check, reordering a
+    // security-relevant check ahead of doing real work for an IP already
+    // being throttled; left as a separate, deliberate follow-up rather than
+    // bundled into this fix.
+    const homeUrl = env.STATIC_SITE_BASE_URL || "";
+    return new Response(
+      htmlPage(
+        "Slow down a little",
+        "<h1>Slow down a little</h1><p>Too many submissions from this address. Please try again in about " +
+          "10 minutes.</p>" +
+          `<p><a href="${homeUrl}/for-firms/">&larr; Back to DeadlineRadar for Firms</a></p>`,
+        homeUrl
+      ),
+      { status: 429, headers: { "Content-Type": "text/html; charset=utf-8", "Retry-After": String(RATE_LIMIT_FIRM_LEAD.windowSeconds) } }
+    );
   }
 
   let raw: string;
@@ -1588,13 +1609,22 @@ export async function requireFirmSession(
   request: Request,
   env: Env
 ): Promise<{ firmId: string; sessionId: string; passwordResetAuthorized: boolean } | Response> {
+  // Orchestrator abuse-test pass (2026-08-05, side note): every caller of
+  // this function is a JSON API handler (jsonResponse() on every success
+  // path) -- errorPage() returning a full HTML page here (2,921 bytes) was
+  // a pure content-type inconsistency. Confirmed harmless in practice
+  // (dashboard JS only ever checks res.status on a 401, never reads the
+  // body -- window.location.href = '/firm-login/' pattern), but not free:
+  // wasted bytes on every unauthenticated/expired request, and wrong for
+  // any future consumer that actually parses the body. jsonResponse() to
+  // match every real caller.
   const raw = getCookie(request, FIRM_SESSION_COOKIE_NAME);
   if (!raw) {
-    return errorPage(401, "You need to sign in to view this.");
+    return jsonResponse(401, { error: "You need to sign in to view this." });
   }
   const result = await store.verifySession(env.DB, raw);
   if (!result) {
-    return errorPage(401, "Your session has expired or is invalid. Please sign in again.");
+    return jsonResponse(401, { error: "Your session has expired or is invalid. Please sign in again." });
   }
   // A suspended/inactive firm must not keep working just because its
   // session predates the suspension (AuditLab F-1, 2026-08-02: this was
@@ -1604,7 +1634,7 @@ export async function requireFirmSession(
   // check now needs to live, since it's the one gate every firm route
   // already calls first.
   if (result.firmStatus !== "active") {
-    return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
+    return jsonResponse(403, { error: "This account isn't active. Get in touch and we'll sort it out." });
   }
   return result;
 }
@@ -1675,8 +1705,19 @@ async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Re
   const session = await requireFirmSession(request, env);
   if (session instanceof Response) return session;
 
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
   if (!env.STRIPE_SECRET_KEY) {
     return jsonResponse(503, { error: "Billing isn't set up yet. Get in touch and we'll sort it out." });
+  }
+
+  // CSRF defense-in-depth -- see readFirmLicenseJsonBody()'s own comment.
+  const billingContentType = request.headers.get("content-type") ?? "";
+  if (!billingContentType.toLowerCase().startsWith("application/json")) {
+    return jsonResponse(400, { error: "Expected a JSON request body." });
   }
 
   let parsed: unknown;
@@ -2070,13 +2111,14 @@ export async function requireSubscriberSession(
   request: Request,
   env: Env
 ): Promise<{ emailNormalized: string; sessionId: string } | Response> {
+  // Same content-type fix as requireFirmSession() -- see its own comment.
   const raw = getCookie(request, SUBSCRIBER_SESSION_COOKIE_NAME);
   if (!raw) {
-    return errorPage(401, "You need to sign in to view this.");
+    return jsonResponse(401, { error: "You need to sign in to view this." });
   }
   const result = await store.verifySubscriberSession(env.DB, raw);
   if (!result) {
-    return errorPage(401, "Your session has expired or is invalid. Please sign in again.");
+    return jsonResponse(401, { error: "Your session has expired or is invalid. Please sign in again." });
   }
   return result;
 }
@@ -2173,6 +2215,11 @@ async function handleSubscriberCpeEntryCreate(request: Request, env: Env): Promi
   const session = await requireSubscriberSession(request, env);
   if (session instanceof Response) return session;
 
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
   const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_cpe_create", RATE_LIMIT_SUBSCRIBER_CPE_CREATE);
   if (!allowed) {
     return jsonResponse(429, { error: "Too many entries logged today. Please try again tomorrow." });
@@ -2248,6 +2295,11 @@ async function handleFirmStaffCpeReminder(request: Request, env: Env): Promise<R
   const session = await requireFirmSessionAndEntitlement(request, env, true);
   if (session instanceof Response) return session;
 
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_staff_cpe_reminder", RATE_LIMIT_FIRM_STAFF_CPE_REMINDER);
   if (!allowed) {
     return jsonResponse(429, { error: "Too many reminders sent today. Please try again tomorrow." });
@@ -2318,6 +2370,18 @@ const MAX_FIRM_LICENSE_BODY_BYTES = MAX_BODY_BYTES;
  * `instanceof Response` fails type-narrowing, not silently misbehaves).
  */
 async function readFirmLicenseJsonBody(request: Request): Promise<Record<string, unknown> | Response> {
+  // CSRF defense-in-depth (2026-08-05, orchestrator abuse-test pass): this
+  // never checked Content-Type, so a cross-site <form enctype="text/plain">
+  // posting a JSON-shaped body would be accepted on content alone --
+  // text/plain is one of the fetch spec's "simple" content types, meaning a
+  // cross-site form submission carrying it never triggers a CORS preflight,
+  // unlike a real application/json fetch() would. Requiring the real
+  // content type here closes that specific bypass; originAllowed() (added
+  // to every caller of this function) is the other, independent layer.
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().startsWith("application/json")) {
+    return jsonResponse(400, { error: "Expected a JSON request body." });
+  }
   let raw: string;
   try {
     raw = await request.text();
@@ -2498,6 +2562,15 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
 async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Response> {
   const session = await requireFirmSessionAndEntitlement(request, env, true);
   if (session instanceof Response) return session;
+
+  // CSRF defense-in-depth (2026-08-05, orchestrator abuse-test pass):
+  // SameSite=Lax is the ONLY barrier on this route today -- originAllowed()
+  // already existed (handleFirmPasswordLogin's login-CSRF fix) but had
+  // exactly one call site, leaving every actual state-changing endpoint
+  // unchecked. A second layer independent of browser SameSite enforcement.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
 
   // Per-FIRM daily cap (not per-IP) -- see RATE_LIMIT_FIRM_LICENSE_CREATE's
   // own comment for why checkRateLimit()'s `ip` parameter is deliberately
@@ -2683,6 +2756,11 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
   const session = await requireFirmSessionAndEntitlement(request, env, true);
   if (session instanceof Response) return session;
 
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
   // Per-FIRM daily cap -- AuditLab F-2, 2026-08-02. This route previously
   // had none at all, unlike POST /firm/licenses (RATE_LIMIT_FIRM_LICENSE_CREATE
   // above): every email change here fires a confirmation email to the NEW
@@ -2847,6 +2925,11 @@ async function handleFirmLicenseDelete(request: Request, env: Env, id: string): 
   const session = await requireFirmSessionAndEntitlement(request, env, true);
   if (session instanceof Response) return session;
 
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
   // Per-FIRM daily cap -- AuditLab S-3, 2026-08-03. No send path here (unlike
   // F-2/RATE_LIMIT_FIRM_LICENSE_PATCH), but still unbounded D1 write
   // amplification with nothing bounding it before this.
@@ -2873,6 +2956,11 @@ async function handleFirmLicenseDelete(request: Request, env: Env, id: string): 
 async function handleFirmLicenseRenew(request: Request, env: Env, id: string): Promise<Response> {
   const session = await requireFirmSessionAndEntitlement(request, env, true);
   if (session instanceof Response) return session;
+
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
 
   // Per-FIRM daily cap -- AuditLab S-3, 2026-08-03. Same reasoning as the
   // DELETE handler above: no send path, but unbounded D1 write amplification.
@@ -2962,6 +3050,11 @@ async function handleCpeEntryCreate(request: Request, env: Env): Promise<Respons
   const session = await requireFirmSessionAndEntitlement(request, env, true);
   if (session instanceof Response) return session;
 
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
   const allowed = await checkRateLimit(env.DB, session.firmId, "cpe_entry_create", RATE_LIMIT_CPE_ENTRY_CREATE);
   if (!allowed) {
     return jsonResponse(429, { error: "Too many CPE entries logged today for this firm. Please try again tomorrow." });
@@ -3036,6 +3129,11 @@ async function handleCpeEntryCreate(request: Request, env: Env): Promise<Respons
 async function handleCpeEntryDelete(request: Request, env: Env, id: string): Promise<Response> {
   const session = await requireFirmSessionAndEntitlement(request, env, true);
   if (session instanceof Response) return session;
+
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
 
   // Per-FIRM daily cap -- AuditLab S-3, 2026-08-03. Same reasoning as
   // RATE_LIMIT_CPE_ENTRY_CREATE's own comment, applied to the delete side.
@@ -3249,6 +3347,17 @@ function withSecurityHeaders(response: Response): Response {
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'",
+    // Orchestrator abuse-test finding (2026-08-05, LOW, latent): every
+    // response from this Worker is per-request/per-session (JSON API data
+    // or a one-off confirmation/error page) and must never be cached by an
+    // intermediary. Not currently exploitable -- Cf-Cache-Status is absent
+    // on /api/* today, confirmed via distinct CF-RAYs on repeat calls, so
+    // Cloudflare itself isn't caching these -- but nothing on the wire
+    // currently SAYS that, so a future Cache Rule change or a corporate/ISP
+    // proxy has no signal that a response is per-user. Applied here, the
+    // one place that already wraps every response this Worker returns.
+    "Cache-Control": "private, no-store",
+    Vary: "Cookie",
   };
   for (const [k, v] of Object.entries(defaults)) {
     if (!headers.has(k)) headers.set(k, v);
@@ -3961,6 +4070,11 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
   const session = await requireFirmSession(request, env);
   if (session instanceof Response) return session;
 
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
   const allowed = await checkRateLimit(env.DB, ip, "firm_password_set", RATE_LIMIT_FIRM_PASSWORD_SET);
   if (!allowed) {
     return jsonResponse(429, { error: "Too many attempts. Please try again later." });
@@ -3969,6 +4083,13 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
   // Size-capped like every other JSON route in this file (the others go
   // through readFirmLicenseJsonBody). Flagged in review as the one
   // deviation from that convention.
+  //
+  // CSRF defense-in-depth -- see readFirmLicenseJsonBody()'s own comment.
+  // Especially load-bearing on THIS route: it sets the firm's password.
+  const passwordSetContentType = request.headers.get("content-type") ?? "";
+  if (!passwordSetContentType.toLowerCase().startsWith("application/json")) {
+    return jsonResponse(400, { error: "Expected a JSON request body." });
+  }
   let raw: string;
   try {
     raw = await request.text();
@@ -4572,6 +4693,11 @@ async function handleMobilityCompletionCreate(request: Request, env: Env): Promi
   const session = await requireFirmSession(request, env);
   if (session instanceof Response) return session;
 
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
   const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_completion_create", RATE_LIMIT_MOBILITY_COMPLETION_CREATE);
   if (!allowed) {
     return jsonResponse(429, { error: "Too many requests. Please try again later." });
@@ -4622,6 +4748,11 @@ async function handleMobilityCompletionCreate(request: Request, env: Env): Promi
 async function handleMobilityCompletionDelete(request: Request, env: Env, id: string): Promise<Response> {
   const session = await requireFirmSession(request, env);
   if (session instanceof Response) return session;
+
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_completion_delete", RATE_LIMIT_MOBILITY_COMPLETION_DELETE);
   if (!allowed) {

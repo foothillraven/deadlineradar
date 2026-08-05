@@ -171,8 +171,26 @@ export async function withinSignupCooldown(
 ): Promise<boolean> {
   const key = cooldownKey(email);
   const cutoff = new Date(Date.now() - cooldownHours * 3_600_000).toISOString();
+  // Orchestrator cross-flow finding (2026-08-05): this cooldown is the
+  // free-individual /subscribe flow's own mail-bombing backstop (see
+  // index.ts's comment at the one call site -- stops a burst of brand-new
+  // confirmation emails across many states hitting one inbox). A firm
+  // admin adding someone to their roster writes a subscribers row too, but
+  // that path is authenticated, separately rate-limited, sends a DIFFERENT
+  // email (buildFirmStaffAddedEmail(), under its own send budget), and
+  // skips confirmation entirely -- it was never the abuse pattern this
+  // cooldown defends against, so it must not consume the SAME person's
+  // cooldown slot for the unrelated individual product. firm_id is set
+  // only at INSERT time by the firm-add path (never backfilled onto an
+  // existing row -- see AddPendingInput.firmId's own docstring), so
+  // excluding it here is exact, not a heuristic.
+  //
+  // Deliberately NOT narrowed to (cooldown_key, state_slug) instead -- that
+  // was considered and rejected: it would reopen the exact cross-state
+  // mail-bombing pattern this cooldown exists to stop, since an attacker
+  // could then just submit once per state per window.
   const row = await db
-    .prepare("SELECT 1 FROM subscribers WHERE cooldown_key = ?1 AND created_at >= ?2 LIMIT 1")
+    .prepare("SELECT 1 FROM subscribers WHERE cooldown_key = ?1 AND created_at >= ?2 AND firm_id IS NULL LIMIT 1")
     .bind(key, cutoff)
     .first();
   return row !== null;

@@ -425,6 +425,26 @@ def print_cpe_hours_staleness_advisory(repo_root: Path) -> None:
         pass
 
 
+def print_reinstatement_staleness_advisory(repo_root: Path) -> None:
+    """Surfaces reinstatement_staleness_check.py (AuditLab REIN-1, 2026-08-05)
+    as part of the normal pre-ship run, same treatment as the CPE-hours
+    advisory above -- printed, never affects exit code. reinstatement.json
+    has no runtime guard of its own (inlined into static pages at build
+    time), so this is the only place its 51 "Last verified" dates get a
+    freshness check at all."""
+    sys.path.insert(0, str(repo_root / "scripts"))
+    try:
+        import reinstatement_staleness_check as rsc
+    except ImportError:
+        print("  (skipping reinstatement-staleness advisory -- reinstatement_staleness_check.py not importable)")
+        return
+    print("\n--- reinstatement-staleness advisory (does not affect gate exit code) ---")
+    try:
+        rsc.main()
+    except SystemExit:
+        pass
+
+
 def main():
     repo_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent
     docs_dir = repo_root / "docs"
@@ -456,12 +476,14 @@ def main():
             print(" ", e)
         print_worker_deploy_staleness_advisory(repo_root)
         print_cpe_hours_staleness_advisory(repo_root)
+        print_reinstatement_staleness_advisory(repo_root)
         print_dual_credential_citation_advisory(repo_root)
         print_seo_length_drift_advisory(html_files)
         sys.exit(1)
     print("\nPASS -- no violations found.")
     print_worker_deploy_staleness_advisory(repo_root)
     print_cpe_hours_staleness_advisory(repo_root)
+    print_reinstatement_staleness_advisory(repo_root)
     print_dual_credential_citation_advisory(repo_root)
     print_seo_length_drift_advisory(html_files)
     sys.exit(0)

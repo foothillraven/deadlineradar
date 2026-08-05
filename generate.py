@@ -1704,7 +1704,7 @@ def site_footer() -> str:
     <div class="foot-links">
       <a href="/">All {JURISDICTION_COUNT} jurisdictions</a>
       <a href="/methodology/">How We Verify</a>
-      <a href="/rule-changes/">Rule Changes</a>
+      <a href="/rule-changes/">Mobility Rule Changes</a>
       <a href="/blog/">Guides</a>
       <a href="/privacy/">Privacy</a>
       <a href="/contact/">Contact</a>

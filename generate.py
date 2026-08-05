@@ -5643,8 +5643,17 @@ function drRenderCalendar() {
   var label = document.getElementById('dr-cal-month-label');
   if (!grid || !label) return;
   if (!drCalendarRefDate) {
+    // AuditLab CAL-1 (LOW, 2026-08-04): this picked the default month from
+    // UTC while "today" (below, todayIso) is marked from LOCAL -- once UTC
+    // rolls into next month but the viewer's local date hasn't, the grid
+    // opens on the WRONG month with no "today" cell at all. Every customer
+    // is US-based (negative UTC offset), so this hit every viewer once a
+    // month, in the evening, on the last day of the month. Seeding from
+    // local Y/M (matches TZ-1/TZ-2's fix) makes both anchors agree; the
+    // grid itself stays UTC-built (correct -- cell keys are date-only
+    // strings, see this function's own next lines).
     var now = new Date();
-    drCalendarRefDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    drCalendarRefDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
   }
   var ref = drCalendarRefDate;
   label.textContent = DR_MONTH_NAMES[ref.getUTCMonth()] + ' ' + ref.getUTCFullYear();

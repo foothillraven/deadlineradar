@@ -696,11 +696,24 @@
   
   .dr-roster-panel .dr-edit-label,
   .dr-roster-panel .dr-edit-email {
-    width: 100%; box-sizing: border-box; padding: 0.3rem 0.4rem;
-    border: 1px solid var(--border); border-radius: 4px;
+    width: 100%; box-sizing: border-box; padding: 0.45rem 0.55rem;
+    border: 1px solid var(--border-strong); border-radius: 6px;
     background: var(--bg); color: var(--fg); font-size: inherit; font-family: inherit;
   }
-  .dr-roster-panel .dr-edit-email { margin-top: 0.3rem; }
+  .dr-roster-panel .dr-edit-label:focus, .dr-roster-panel .dr-edit-email:focus {
+    outline: none; border-color: var(--accent-deep); box-shadow: 0 0 0 3px var(--accent-bg);
+  }
+  .dr-roster-panel .dr-edit-email { margin-top: 0.35rem; }
+  
+  .dr-roster-panel:has(.dr-edit-email) th:nth-child(1),
+  .dr-roster-panel:has(.dr-edit-email) td:nth-child(1) {
+    width: 17rem;
+  }
+  
+  .dr-roster-panel tr.dr-roster-editing td {
+    background: var(--accent-bg) !important;
+    box-shadow: inset 3px 0 0 var(--accent-deep);
+  }
 
   
   .dr-roster-panel th.dr-actions-head,
@@ -716,6 +729,17 @@
 
   
   .dr-roster-panel td.dr-actions button { padding: 0.22rem 0.5rem; font-size: 0.76rem; white-space: nowrap; }
+  
+  .dr-roster-panel td.dr-actions button.dr-btn-save {
+    background: var(--accent); color: var(--on-accent);
+    border: 1px solid var(--accent); border-radius: 5px; font-weight: 700; cursor: pointer;
+  }
+  .dr-roster-panel td.dr-actions button.dr-btn-save:hover { opacity: 0.9; }
+  .dr-roster-panel td.dr-actions button.dr-btn-cancel {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border-strong); border-radius: 5px; cursor: pointer;
+  }
+  .dr-roster-panel td.dr-actions button.dr-btn-cancel:hover { color: var(--fg); border-color: var(--fg); }
 
   @media (max-width: 860px) {
     

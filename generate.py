@@ -1173,11 +1173,38 @@ PAGE_CSS = """
      top of 100% and overflow by that amount anyway. */
   .dr-roster-panel .dr-edit-label,
   .dr-roster-panel .dr-edit-email {
-    width: 100%; box-sizing: border-box; padding: 0.3rem 0.4rem;
-    border: 1px solid var(--border); border-radius: 4px;
+    width: 100%; box-sizing: border-box; padding: 0.45rem 0.55rem;
+    border: 1px solid var(--border-strong); border-radius: 6px;
     background: var(--bg); color: var(--fg); font-size: inherit; font-family: inherit;
   }
-  .dr-roster-panel .dr-edit-email { margin-top: 0.3rem; }
+  .dr-roster-panel .dr-edit-label:focus, .dr-roster-panel .dr-edit-email:focus {
+    outline: none; border-color: var(--accent-deep); box-shadow: 0 0 0 3px var(--accent-bg);
+  }
+  .dr-roster-panel .dr-edit-email { margin-top: 0.35rem; }
+  /* Reported directly, 2026-08-05: the Staff column's 11rem read-mode width
+     (tuned for truncate-with-tooltip text, see the column-width comment
+     above) left an edit-mode <input> too narrow to show a normal email
+     without cutting it off mid-string, with no ellipsis to signal there
+     was more. table-layout: fixed means every row shares one column width,
+     so this widens the WHOLE column for every row while ANY row is being
+     edited (:has() -- only one row can ever be mid-edit at a time, per
+     drEditingId), rather than fighting the fixed layout with an absolutely-
+     positioned overlay input for one row alone. .table-wrap's existing
+     overflow-x:auto absorbs the extra width the same way it already does
+     for any table wider than its container. */
+  .dr-roster-panel:has(.dr-edit-email) th:nth-child(1),
+  .dr-roster-panel:has(.dr-edit-email) td:nth-child(1) {
+    width: 17rem;
+  }
+  /* No visual signal a row was mid-edit -- it silently swapped text for
+     input boxes with nothing marking which row. A left accent stripe +
+     tinted background (same accent-bg/accent-deep pair every focus ring
+     on this page already uses) makes the editing row unambiguous at a
+     glance, including once the inputs themselves lose focus. */
+  .dr-roster-panel tr.dr-roster-editing td {
+    background: var(--accent-bg) !important;
+    box-shadow: inset 3px 0 0 var(--accent-deep);
+  }
 
   /* Sticky Actions. The background is opaque and matches the row so the
      scrolled-under content does not bleed through, and the left shadow
@@ -1202,6 +1229,27 @@ PAGE_CSS = """
 
   /* Tighter action buttons so the sticky column costs less width. */
   .dr-roster-panel td.dr-actions button { padding: 0.22rem 0.5rem; font-size: 0.76rem; white-space: nowrap; }
+  /* Reported directly, 2026-08-05: Save/Cancel rendered identically to
+     Edit/Mark renewed/Remove (same flat neutral button) -- no hierarchy at
+     all between "confirm this edit" and every other action. Save gets the
+     same accent/on-accent pairing every primary CTA on this site already
+     uses (.signup-form button); Cancel stays visually secondary
+     (outlined, not filled) so the two read as a clear pair rather than
+     two more buttons in a row of five identical ones.
+     Scoped to exactly these two classes -- Edit/Mark renewed/Remove keep
+     their existing (unstyled, native dark-mode UA default) look
+     untouched; this is additive, not a re-theme of the whole Actions
+     column. */
+  .dr-roster-panel td.dr-actions button.dr-btn-save {
+    background: var(--accent); color: var(--on-accent);
+    border: 1px solid var(--accent); border-radius: 5px; font-weight: 700; cursor: pointer;
+  }
+  .dr-roster-panel td.dr-actions button.dr-btn-save:hover { opacity: 0.9; }
+  .dr-roster-panel td.dr-actions button.dr-btn-cancel {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border-strong); border-radius: 5px; cursor: pointer;
+  }
+  .dr-roster-panel td.dr-actions button.dr-btn-cancel:hover { color: var(--fg); border-color: var(--fg); }
 
   @media (max-width: 860px) {
     /* Stacked cards. Each cell carries its own label via data-label, so the
@@ -5297,9 +5345,20 @@ function drRenderRow(item) {
   // worse rather than just narrower). Edit mode stacks the two inputs the
   // same way the display mode stacks the two text lines.
   if (drEditingId === item.id) {
+    // Reported directly, 2026-08-05 ("wasn't attractive at all"): the edit
+    // inputs used the plain narrow styling below with no `title`, so a
+    // value longer than the (deliberately narrow, see the column-width
+    // comment above) Staff cell just cut off with no way to read the rest
+    // short of clicking in and scrolling the input's own text. `title`
+    // gives the same hover-tooltip affordance the read-mode text already
+    // has; the CSS widening on .dr-roster-panel:has(.dr-edit-email) (below)
+    // is the real fix -- it grows the Staff column while ANY row is being
+    // edited, same table-wide-column-width constraint table-layout:fixed
+    // already implies, and the tooltip is the fallback for values still
+    // too long even at the wider size.
     staffCell =
-      '<input type="text" class="dr-edit-label" maxlength="120" placeholder="Name or label" value="' + drEscapeHtml(item.staff_label || '') + '"><br>' +
-      '<input type="email" class="dr-edit-email" value="' + drEscapeHtml(item.email) + '">';
+      '<input type="text" class="dr-edit-label" maxlength="120" placeholder="Name or label" title="' + drEscapeHtml(item.staff_label || '') + '" value="' + drEscapeHtml(item.staff_label || '') + '"><br>' +
+      '<input type="email" class="dr-edit-email" title="' + drEscapeHtml(item.email) + '" value="' + drEscapeHtml(item.email) + '">';
     actionsCell =
       '<button type="button" class="dr-btn-save" data-id="' + idAttr + '" aria-label="Save ' + whoAttr + '">Save</button> ' +
       '<button type="button" class="dr-btn-cancel" data-id="' + idAttr + '" aria-label="Cancel editing ' + whoAttr + '">Cancel</button>';
@@ -5323,7 +5382,8 @@ function drRenderRow(item) {
   // why) -- display-only, never sent back to the server, never overrides a
   // real stored license_type_id.
   var licenseTypeIdForDisplay = item.license_type_id || DR_DEFAULT_LICENSE_TYPE_ID[item.state_slug];
-  return '<tr data-id="' + idAttr + '">' +
+  var rowClass = drEditingId === item.id ? ' class="dr-roster-editing"' : '';
+  return '<tr data-id="' + idAttr + '"' + rowClass + '>' +
     '<td data-label="Staff">' + staffCell + '</td>' +
     '<td data-label="State"' + stateTitle + '>' + drEscapeHtml(item.state_name || '') + '</td>' +
     '<td data-label="License type">' + drEscapeHtml(drPrettyLicenseType(licenseTypeIdForDisplay)) + '</td>' +

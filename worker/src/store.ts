@@ -458,14 +458,37 @@ export async function recordResend(db: D1Database, id: string): Promise<void> {
     .run();
 }
 
-/** store.py:244 `confirm()` -- idempotent, matches the Python original. */
+/**
+ * store.py:244 `confirm()` -- idempotent, matches the Python original.
+ * Thin wrapper over confirmIfPending() below; see that function for why the
+ * transition flag exists.
+ */
 export async function confirm(db: D1Database, confirmToken: string): Promise<SubscriberRow | null> {
+  const result = await confirmIfPending(db, confirmToken);
+  return result ? result.subscriber : null;
+}
+
+/**
+ * Same PENDING -> CONFIRMED transition as confirm() above, but also reports
+ * whether THIS call is what performed it, vs. finding the subscriber
+ * already confirmed (confirm() is deliberately idempotent, so a repeat hit
+ * on the same link -- an email client prefetching it, a double-click --
+ * returns the same row either way). index.ts's handleConfirm() needs this
+ * distinction so it fires the internal signup-notification email (2026-08-05)
+ * exactly once per real confirmation, not once per request that happens to
+ * land on an already-confirmed token.
+ */
+export async function confirmIfPending(
+  db: D1Database,
+  confirmToken: string
+): Promise<{ subscriber: SubscriberRow; wasNewlyConfirmed: boolean } | null> {
   const row = await db
     .prepare("SELECT * FROM subscribers WHERE confirm_token = ?1")
     .bind(confirmToken)
     .first<SubscriberRow>();
   if (!row) return null;
-  if (row.status === STATUS_PENDING) {
+  const wasNewlyConfirmed = row.status === STATUS_PENDING;
+  if (wasNewlyConfirmed) {
     const confirmedAt = nowIso();
     await db
       .prepare("UPDATE subscribers SET status = ?1, confirmed_at = ?2 WHERE id = ?3")
@@ -474,7 +497,7 @@ export async function confirm(db: D1Database, confirmToken: string): Promise<Sub
     row.status = STATUS_CONFIRMED;
     row.confirmed_at = confirmedAt;
   }
-  return row;
+  return { subscriber: row, wasNewlyConfirmed };
 }
 
 /**
@@ -989,6 +1012,22 @@ export async function peekLoginTokenPasswordEligibility(
  * the RAW value for the caller to set as the `dr_firm_session` cookie (see
  * index.ts). `expires_at` = now + SESSION_TTL_DAYS.
  */
+
+/**
+ * Whether this firm has ever had a session before (2026-08-05, signup
+ * notification). Checked BEFORE createSession() inserts the new one, so
+ * "true" here means "this login-verify is genuinely the first session this
+ * firm has ever had" -- used to fire a one-time internal notification email
+ * rather than one on every sign-in. Not race-proof against two truly
+ * concurrent first logins (both could read zero before either inserts) --
+ * accepted: the cost of a rare duplicate internal notification is far lower
+ * than the complexity of locking this, and it is not a security boundary.
+ */
+export async function hasAnyFirmSession(db: D1Database, firmId: string): Promise<boolean> {
+  const row = await db.prepare(`SELECT 1 FROM firm_sessions WHERE firm_id = ?1 LIMIT 1`).bind(firmId).first();
+  return row !== null;
+}
+
 export async function createSession(
   db: D1Database,
   firmId: string,

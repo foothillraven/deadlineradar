@@ -108,6 +108,7 @@ import {
   buildFirmOauthLinkedEmail,
   buildFirmStaffAddedEmail,
   buildStopConfirmationEmail,
+  buildSignupNotificationEmail,
   fmtDate,
 } from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, isEmailAllowlisted, sendViaSendGrid } from "./sender";
@@ -495,6 +496,42 @@ const ACTION_BASE_URL = "https://deadline-radar.com/api";
 // so a preview deployment's emailed links point back at itself.
 function actionBaseUrl(env: Env): string {
   return env.ACTION_BASE_URL || ACTION_BASE_URL;
+}
+
+// Where signup notifications go (2026-08-05, Devin: "I want an email
+// notification on every signup. So I can personally reach out and greet
+// them."). Devin's own choice -- the existing public contact address, not a
+// new one. A fixed constant, never derived from anything a request carries,
+// so nothing about who signed up can redirect this to another address.
+const INTERNAL_NOTIFY_EMAIL = "support@deadline-radar.com";
+
+/**
+ * Best-effort internal notification -- same posture as every other send in
+ * this file (never fails the caller's real action, degrades to a no-op
+ * without SENDGRID_API_KEY, shares the one daily circuit breaker). Fires on:
+ *   - an individual's double-opt-in CONFIRMATION (handleConfirm), not the
+ *     initial /subscribe capture -- confirms the address is real and the
+ *     signup wasn't abandoned before ever being useful to greet.
+ *   - a firm's FIRST-EVER successful login (handleFirmLoginVerify), not
+ *     account creation -- confirms the admin email is real and the firm
+ *     actually followed through, not just submitted a form (Devin's
+ *     explicit choice over notifying at creation time).
+ */
+async function sendSignupNotification(
+  env: Env,
+  kind: "individual" | "firm",
+  details: { email: string; stateName?: string; firmName?: string }
+): Promise<void> {
+  if (!env.SENDGRID_API_KEY) return;
+  try {
+    const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+    if (!underCap) return;
+    const built = buildSignupNotificationEmail(kind, details);
+    await sendViaSendGrid(env.SENDGRID_API_KEY, INTERNAL_NOTIFY_EMAIL, built, env.EMAIL_ALLOWLIST);
+  } catch {
+    // Best-effort, same posture as every other send in this file -- never
+    // let a notification failure affect the real signup/login it's about.
+  }
 }
 
 // The static site's own absolute origin (no /api -- unlike ACTION_BASE_URL
@@ -1426,11 +1463,18 @@ async function handleFirmLoginVerify(
       // itself -- same posture as handleFirmPasswordLogin's rehash step.
     }
   }
+  // Checked BEFORE createSession() inserts the new row -- see
+  // hasAnyFirmSession()'s own docstring for why this is the signal for
+  // "the firm's first-ever successful login," not account creation.
+  const isFirstEverSession = !(await store.hasAnyFirmSession(env.DB, result.firmId));
   const { rawSessionToken } = await store.createSession(
     env.DB,
     result.firmId,
     result.purpose === "password_reset"
   );
+  if (isFirstEverSession) {
+    await sendSignupNotification(env, "firm", { email: firm.admin_email, firmName: firm.name });
+  }
   // The destination comes from the TOKEN's stored purpose, never from the
   // request. A password-reset link lands directly on "Choose a password"
   // instead of the dashboard -- the whole point of the fix, since the old
@@ -2798,8 +2842,15 @@ async function handleCpeEntryDelete(request: Request, env: Env, id: string): Pro
 
 async function handleConfirm(env: Env, token: string | null): Promise<Response> {
   if (!token) return errorPage(400, "Missing confirmation link.");
-  const subscriber = await store.confirm(env.DB, token);
-  if (!subscriber) return errorPage(404, "That confirmation link is invalid or already used.");
+  const result = await store.confirmIfPending(env.DB, token);
+  if (!result) return errorPage(404, "That confirmation link is invalid or already used.");
+  const { subscriber, wasNewlyConfirmed } = result;
+  if (wasNewlyConfirmed) {
+    await sendSignupNotification(env, "individual", {
+      email: subscriber.email,
+      stateName: stateNameFromSlug(subscriber.state_slug),
+    });
+  }
   return htmlResponse(
     200,
     htmlPage(

@@ -827,3 +827,42 @@ export function buildFirmStaffAddedEmail(firmName: string, stateName: string, un
 
   return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
 }
+
+/**
+ * Internal-only notification (2026-08-05, Devin: "I want an email
+ * notification on every signup. So I can personally reach out and greet
+ * them."). Sent to INTERNAL_NOTIFY_EMAIL (a fixed constant in index.ts, not
+ * a recipient any caller/request can influence), never to the person who
+ * signed up -- this is not a customer-facing email, so it deliberately
+ * skips every CAN-SPAM/unsubscribe apparatus every other builder in this
+ * file carries (mailingAddress(), listUnsubHeaders(), htmlShell()'s full
+ * branded footer): none of that applies to a message the business owner
+ * sends to themselves.
+ */
+export function buildSignupNotificationEmail(
+  kind: "individual" | "firm",
+  details: { email: string; stateName?: string; firmName?: string }
+): BuiltEmail {
+  const subject =
+    kind === "firm"
+      ? `New firm signed up: ${details.firmName ?? "(no name)"}`
+      : `New individual signup: ${details.email}`;
+
+  const textBody =
+    kind === "firm"
+      ? `Firm: ${details.firmName ?? "(no name)"}\nAdmin email: ${details.email}\n\n` +
+        `This fired on their first successful sign-in (not the initial signup form), so the admin ` +
+        `email is confirmed real.`
+      : `Email: ${details.email}\nState: ${details.stateName ?? "(unknown)"}\n\n` +
+        `This fired on double-opt-in confirmation, so the address is confirmed real.`;
+
+  const htmlBody =
+    `<p>${kind === "firm" ? "Firm" : "Individual"} signup:</p>` +
+    `<ul>` +
+    (kind === "firm"
+      ? `<li>Firm: ${esc(details.firmName ?? "(no name)")}</li><li>Admin email: ${esc(details.email)}</li>`
+      : `<li>Email: ${esc(details.email)}</li><li>State: ${esc(details.stateName ?? "(unknown)")}</li>`) +
+    `</ul>`;
+
+  return { subject, textBody, htmlBody, headers: {} };
+}

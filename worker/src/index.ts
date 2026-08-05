@@ -2102,6 +2102,22 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
   // buildFirmStaffAddedEmail() below, not the confirm email, is sent instead
   // -- states plainly who added them and gives an equally prominent
   // one-click opt-out.
+  // Reported directly, 2026-08-05: adding this email onto a DIFFERENT state
+  // than one already on the roster goes through cleanly with no signal at
+  // all -- both rows count toward the 25-staff cap as if they're distinct
+  // people. Deliberately NOT a block: one real CPA licensed in multiple
+  // states is legitimately tracked as multiple rows sharing an email (see
+  // findOtherFirmRowsByEmail()'s own docstring), so this only ever
+  // surfaces a non-blocking warning for the admin to eyeball, never
+  // refuses the add.
+  const duplicateEmailRows = await store.findOtherFirmRowsByEmail(env.DB, session.firmId, email, "");
+  const duplicateEmailWarning =
+    duplicateEmailRows.length > 0
+      ? `This email is already on your roster for ${duplicateEmailRows
+          .map((r) => stateNameFromSlug(r.state_slug))
+          .join(", ")}. If this is a different state license for the same person, that's fine -- just double-check it isn't a typo of someone else.`
+      : null;
+
   const record = await store.addPending(env.DB, {
     email,
     stateSlug,
@@ -2144,7 +2160,7 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
     }
   }
 
-  return jsonResponse(201, toFirmLicenseJson(record, new Date()));
+  return jsonResponse(201, { ...toFirmLicenseJson(record, new Date()), duplicate_email_warning: duplicateEmailWarning });
 }
 
 /** Strips this file's htmlPage() wrapper down to just the inner error
@@ -2275,6 +2291,19 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
     }
   }
 
+  // Same non-blocking warning POST /firm/licenses gives -- see
+  // findOtherFirmRowsByEmail()'s own docstring for why this is a warning,
+  // not a second dedupe gate. Computed BEFORE the write so the "other"
+  // rows reflect current state -- this row's own id is always excluded, so
+  // an unrelated field edit (e.g. staff_label) never warns about itself.
+  const duplicateEmailRows = await store.findOtherFirmRowsByEmail(env.DB, session.firmId, email, existing.id);
+  const duplicateEmailWarning =
+    duplicateEmailRows.length > 0
+      ? `This email is already on your roster for ${duplicateEmailRows
+          .map((r) => stateNameFromSlug(r.state_slug))
+          .join(", ")}. If this is a different state license for the same person, that's fine -- just double-check it isn't a typo of someone else.`
+      : null;
+
   const updated = await store.updateFirmLicense(env.DB, session.firmId, id, {
     email,
     staffLabel,
@@ -2310,7 +2339,7 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
     }
   }
 
-  return jsonResponse(200, toFirmLicenseJson(updated, new Date()));
+  return jsonResponse(200, { ...toFirmLicenseJson(updated, new Date()), duplicate_email_warning: duplicateEmailWarning });
 }
 
 /** DELETE /firm/licenses/:id -- removes a staff member from the roster (see

@@ -196,6 +196,37 @@ export async function findActiveOrPending(
 }
 
 /**
+ * Reported directly, 2026-08-05: a firm can add/edit a roster row onto an
+ * email ALREADY live elsewhere on their own roster (a different state, or a
+ * genuine typo of someone already added), with no signal at all -- both
+ * rows count toward the 25-staff cap and the roster reports them as
+ * distinct people. NOT a hard block: (email, state_slug) is findActiveOrPending()'s
+ * deliberate uniqueness key, not (email) alone, because one real CPA
+ * licensed in multiple states is legitimately tracked as multiple rows
+ * sharing an email -- a firm-wide email-uniqueness constraint would break
+ * that intentional case. This is a same-firm, state-agnostic lookup used
+ * ONLY to surface a non-blocking warning back to the admin ("this email is
+ * already on your roster for X") so an honest typo gets caught without
+ * disallowing the legitimate multi-state one.
+ */
+export async function findOtherFirmRowsByEmail(
+  db: D1Database,
+  firmId: string,
+  email: string,
+  excludeId: string
+): Promise<SubscriberRow[]> {
+  const key = cooldownKey(email);
+  const result = await db
+    .prepare(
+      `SELECT * FROM subscribers
+       WHERE cooldown_key = ?1 AND firm_id = ?2 AND status IN (?3, ?4) AND id != ?5`
+    )
+    .bind(key, firmId, STATUS_PENDING, STATUS_CONFIRMED, excludeId)
+    .all<SubscriberRow>();
+  return result.results ?? [];
+}
+
+/**
  * store.py:149 `is_permanently_suppressed()`.
  *
  * Filtered in SQL by `LOWER(TRIM(email)) = ?1` -- the same normalization

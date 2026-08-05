@@ -5233,6 +5233,23 @@ function drClearSuccess() {
   el.hidden = true;
   el.textContent = '';
 }
+// Same single-banner pattern as drShowError/drShowSuccess, but deliberately
+// does NOT clear a success message (or get cleared by one) -- a duplicate-
+// email warning is a caution ABOUT a successful add/edit, not a competing
+// outcome, so both can be visible together. Still clears any stale error.
+function drShowWarning(msg) {
+  drClearError();
+  var el = document.getElementById('dr-dash-warning');
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = false;
+}
+function drClearWarning() {
+  var el = document.getElementById('dr-dash-warning');
+  if (!el) return;
+  el.hidden = true;
+  el.textContent = '';
+}
 function drReadJsonSafe(res) {
   return res.json().catch(function() { return null; });
 }
@@ -5365,9 +5382,19 @@ function drDaysUntil(iso) {
 
 function drDaysAgo(isoTimestamp) {
   if (!isoTimestamp) return null;
-  var then = new Date(isoTimestamp).getTime();
-  if (isNaN(then)) return null;
-  var days = Math.floor((Date.now() - then) / 86400000);
+  var then = new Date(isoTimestamp);
+  if (isNaN(then.getTime())) return null;
+  // AuditLab TZ-2 (LOW, 2026-08-04): this measured elapsed milliseconds
+  // (a rolling 24h window), not calendar days, so "today"/"1 day ago" were
+  // elapsed-time claims wearing calendar-day labels -- evening activity
+  // (a CPA logging CPE after work) read as "today" for nearly the whole of
+  // the FOLLOWING day too. Same fix as TZ-1's drDaysUntil(): anchor both
+  // sides to the viewer's own local calendar midnight before differencing,
+  // so the label is an actual calendar-day comparison.
+  var now = new Date();
+  var thenLocal = Date.UTC(then.getFullYear(), then.getMonth(), then.getDate());
+  var nowLocal = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  var days = Math.round((nowLocal - thenLocal) / 86400000);
   if (days <= 0) return 'today';
   if (days === 1) return '1 day ago';
   if (days < 30) return days + ' days ago';
@@ -6198,8 +6225,15 @@ function drCpeProgressForSubscriber(item) {
 }
 
 function drCpeBarHtml(label, logged, required) {
-  var pct = required ? Math.min(100, Math.round((logged / required) * 100)) : 0;
   var behind = required !== null && logged < required;
+  // AuditLab BAR-1 (LOW, 2026-08-04): rounding independently of `behind`
+  // let anything >=99.5% of the requirement paint a FULL-width bar on
+  // someone who hasn't met it (e.g. 119.5/120h rounds to 100%) -- the fill
+  // color (red) says not-done while the width says done, contradictory on
+  // the one screen a firm uses to decide who still owes hours. Capping at
+  // 99 while behind keeps the bar visibly short of complete regardless of
+  // how close the rounded percentage gets.
+  var pct = required ? Math.min(behind ? 99 : 100, Math.round((logged / required) * 100)) : 0;
   return '<div class="dr-cpe-bar-row"><span class="dr-cpe-bar-label">' + drEscapeHtml(label) + '</span>' +
     '<span class="dr-cpe-bar-track"><span class="dr-cpe-bar-fill' + (behind ? ' dr-cpe-bar-fill--behind' : '') +
     '" style="width:' + pct + '%"></span></span>' +
@@ -6576,6 +6610,7 @@ function drRemoveLicense(id, label) {
 
 function drSaveEdit(id, tr) {
   drClearError();
+  drClearWarning();
   var labelInput = tr.querySelector('.dr-edit-label');
   var emailInput = tr.querySelector('.dr-edit-email');
   var email = emailInput ? emailInput.value.trim() : '';
@@ -6593,6 +6628,7 @@ function drSaveEdit(id, tr) {
         return;
       }
       drEditingId = null;
+      if (data && data.duplicate_email_warning) { drShowWarning(data.duplicate_email_warning); }
       drShowSuccess((body.staff_label || body.email) + ' updated.');
       drLoadLicenses();
     });
@@ -6716,6 +6752,7 @@ document.addEventListener('DOMContentLoaded', function() {
       ev.preventDefault();
       var errEl = document.getElementById('dr-add-error');
       if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+      drClearWarning();
       var fd = new FormData(addForm);
       var body = {};
       fd.forEach(function(v, k) { body[k] = v; });
@@ -6731,6 +6768,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (errEl) { errEl.textContent = msg; errEl.hidden = false; } else { drShowError(msg); }
             return;
           }
+          if (data && data.duplicate_email_warning) { drShowWarning(data.duplicate_email_warning); }
           addForm.reset();
           drUpdateFields('');
           drLoadLicenses();
@@ -7305,6 +7343,7 @@ def build_firm_dashboard_page(
   <div class="dr-main">
     <div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" role="alert" hidden></div>
     <div id="dr-dash-success" class="callout" style="border-left-color:var(--verified-green);" role="status" hidden></div>
+    <div id="dr-dash-warning" class="callout" style="border-left-color:var(--gold);" role="status" hidden></div>
     <div id="dr-staleness-banner" class="callout" style="border-left-color:#b8860b;" hidden></div>
 
     <div id="dr-view-roster" class="dr-view" role="tabpanel">

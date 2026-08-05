@@ -843,10 +843,19 @@ export function buildSignupNotificationEmail(
   kind: "individual" | "firm",
   details: { email: string; stateName?: string; firmName?: string }
 ): BuiltEmail {
-  const subject =
-    kind === "firm"
-      ? `New firm signed up: ${details.firmName ?? "(no name)"}`
-      : `New individual signup: ${details.email}`;
+  // AuditLab EMAIL-1 (2026-08-04) fixed the same gap in
+  // buildFirmStaffAddedEmail(): a subject line built from attacker-
+  // influenceable text with no control-char stripping of its own lets CRLF
+  // survive into it if it ever reaches here. Not exploitable today (both
+  // fields are already control-char-gated upstream -- handleSubscribe()'s
+  // email format check, handleFirmSignup()'s hasControlChars() sweep -- and
+  // sender.ts JSON-encodes the subject rather than writing raw SMTP
+  // headers), but that is exactly the "relies entirely on an upstream gate"
+  // single point of failure EMAIL-1 called out. Same one-line fix, applied
+  // here too rather than leaving this builder as the one that didn't get it.
+  const safeFirmName = (details.firmName ?? "(no name)").replace(/[\r\n]+/g, " ");
+  const safeEmail = details.email.replace(/[\r\n]+/g, " ");
+  const subject = kind === "firm" ? `New firm signed up: ${safeFirmName}` : `New individual signup: ${safeEmail}`;
 
   const textBody =
     kind === "firm"

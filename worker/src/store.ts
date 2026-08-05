@@ -746,6 +746,10 @@ export interface FirmRow {
   password_iterations: number | null;
   password_rounds: number | null;
   password_updated_at: string | null;
+  // migration 0018 (paid tiers). Both nullable: a pilot firm that has never
+  // reached checkout has neither.
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -1134,6 +1138,87 @@ export async function countFirmLicenses(db: D1Database, firmId: string): Promise
     .bind(firmId, STATUS_STOPPED, STOP_REASON_REMOVED_BY_ADMIN)
     .first<{ n: number }>();
   return row?.n ?? 0;
+}
+
+// ---------------------------------------------------------------------------
+// Stripe billing (2026-08-05, migration 0018).
+// ---------------------------------------------------------------------------
+
+/**
+ * Flips a firm onto a paid tier and records its Stripe ids -- the ONLY place
+ * `firms.plan_tier` is written by the billing path (handleStripeWebhook's
+ * `checkout.session.completed` branch is the sole caller). Also used by the
+ * `customer.subscription.deleted` branch to revert a firm to `pilot`, so
+ * `stripeSubscriptionId` is nullable: a reverted-to-pilot firm keeps its
+ * `stripe_customer_id` (so a future checkout reuses the same Customer) but
+ * loses the now-cancelled subscription id.
+ */
+export async function updateFirmBilling(
+  db: D1Database,
+  firmId: string,
+  fields: { planTier: string; stripeCustomerId: string; stripeSubscriptionId: string | null }
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE firms SET plan_tier = ?1, stripe_customer_id = ?2, stripe_subscription_id = ?3 WHERE id = ?4`
+    )
+    .bind(fields.planTier, fields.stripeCustomerId, fields.stripeSubscriptionId, firmId)
+    .run();
+}
+
+/**
+ * Looked up by `customer.subscription.deleted`/`invoice.payment_failed`
+ * webhook branches -- those events carry only the Stripe subscription id,
+ * not the original Checkout Session's `metadata.firm_id`, so this is the
+ * only way back to the firm row for them.
+ */
+export async function findFirmByStripeSubscriptionId(
+  db: D1Database,
+  stripeSubscriptionId: string
+): Promise<FirmRow | null> {
+  const row = await db
+    .prepare(`SELECT * FROM firms WHERE stripe_subscription_id = ?1 LIMIT 1`)
+    .bind(stripeSubscriptionId)
+    .first<FirmRow>();
+  return row ?? null;
+}
+
+/**
+ * Idempotency guard for /stripe/webhook (migration 0018's
+ * `stripe_webhook_events` ledger). Stripe retries any delivery that doesn't
+ * get a 2xx, and can redeliver even after a 2xx in rare cases -- this makes
+ * a duplicate delivery a harmless no-op instead of double-applying a plan
+ * change. Returns true the FIRST time a given Stripe event.id is seen (the
+ * caller should process it), false on every subsequent delivery of the same
+ * id (caller should skip processing and still return 200). Relies on `id`
+ * being the PRIMARY KEY -- same "let a DB unique constraint be the race
+ * guard" idiom handleFirmSignup() already uses, so two concurrent
+ * deliveries of the same event can't both win.
+ */
+export async function recordWebhookEventIfNew(
+  db: D1Database,
+  eventId: string,
+  eventType: string,
+  firmId: string | null
+): Promise<boolean> {
+  try {
+    await db
+      .prepare(`INSERT INTO stripe_webhook_events (id, event_type, firm_id, received_at) VALUES (?1,?2,?3,?4)`)
+      .bind(eventId, eventType, firmId, nowIso())
+      .run();
+    return true;
+  } catch {
+    // UNIQUE constraint violation on `id` -- already recorded, so already
+    // processed (or concurrently being processed). Either way, not new.
+    return false;
+  }
+}
+
+export async function markWebhookEventProcessed(db: D1Database, eventId: string): Promise<void> {
+  await db
+    .prepare(`UPDATE stripe_webhook_events SET processed_at = ?1 WHERE id = ?2`)
+    .bind(nowIso(), eventId)
+    .run();
 }
 
 /**

@@ -1266,6 +1266,23 @@ PAGE_CSS = """
   }
   .dr-roster-panel td.dr-actions button.dr-btn-cancel:hover { color: var(--fg); border-color: var(--fg); }
 
+  /* Paid-tiers paywall panel (2026-08-05) -- shown in place of every tab's
+     content once checkPremiumAccess() denies a lapsed pilot/inactive
+     account. Reuses the site's own accent/on-accent pairing (same as
+     .dr-btn-save above), not a new palette. */
+  .dr-paywall-tiers {
+    display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 0.9rem;
+  }
+  .dr-paywall-tier-btn {
+    flex: 1 1 160px; background: var(--accent); color: var(--on-accent);
+    border: 1px solid var(--accent); border-radius: 9px; font-weight: 700;
+    font-size: 1rem; padding: 0.8rem 1rem; cursor: pointer; font-family: inherit;
+    text-align: center; line-height: 1.5;
+  }
+  .dr-paywall-tier-btn span { display: block; font-weight: 500; font-size: 0.82rem; opacity: 0.9; }
+  .dr-paywall-tier-btn:hover { opacity: 0.9; }
+  .dr-paywall-tier-btn:disabled { opacity: 0.6; cursor: default; }
+
   @media (max-width: 860px) {
     /* Stacked cards. Each cell carries its own label via data-label, so the
        header row can be hidden without losing what each value means. */
@@ -3480,10 +3497,10 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   whole firm's staff across multiple states, the firm dashboard below is the same sourced-to-codified-
   law data in one roster view &mdash; who's current, who's at risk, and who needs to act.</p>
   {_firm_dashboard_mockup_html(by_slug, as_of)}
-  <p class="how-it-works"><strong>$500/year, flat &mdash; up to 25 staff. No per-person pricing.</strong>
-  Starting with a free 30-day pilot, no card required. More than 25 staff?
-  <a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a>. <a href="for-firms/" style="font-weight:600;">See
-  firm-tier pricing and details &rarr;</a></p>
+  <p class="how-it-works"><strong>Firm plans from $199/year</strong> (up to 5 staff) to $500/year (up to
+  25 staff) &mdash; every tier has the identical feature set, gated only by staff count. Starting with a
+  free 30-day pilot, no card required. <a href="for-firms/" style="font-weight:600;">See full pricing and
+  details &rarr;</a></p>
 </section>"""
 
     body = f"""{hero_html}
@@ -4108,6 +4125,22 @@ _FIRM_FAQ = [
         "during or after it &mdash; there's no contract to get out of.",
     ),
     (
+        "Which plan should my firm pick?",
+        "Whatever covers your current staff count &mdash; Starter (up to 5), Growth (up to 15), or "
+        "Standard (up to 25). Every tier has the exact same feature set (Roster, Calendar, Map, CPE "
+        "Hours, Practice Privilege Check); the only thing that changes between tiers is how many "
+        "staff it covers, never what it can do. Outgrowing your plan later just means moving up a "
+        "tier, not losing anything.",
+    ),
+    (
+        "I'm a single CPA, not a firm &mdash; is this for me?",
+        "This page is about the firm tier: a roster for whoever is tracking multiple staff CPAs. If "
+        "you're only tracking your own license, the free individual reminders on our homepage "
+        "already cover that at no cost, unchanged. There's also a $39/year Individual plan for a "
+        "single CPA's own CPE tracking and Practice Privilege Check &mdash; get in touch if you "
+        "want it.",
+    ),
+    (
         "Do you track CPE hours too?",
         "Yes &mdash; the dashboard has a CPE Hours tab where your firm can log completed hours "
         "against each state's own requirement. That log is your own self-reported record, not "
@@ -4206,9 +4239,21 @@ separate from the sourced renewal dates. We won't blur the two &mdash; self-repo
 sourced dates staying visibly distinct is the whole reason to trust this site.</p>
 
 <h2>Pricing</h2>
-<p><strong>$500/year, flat &mdash; up to 25 staff. No per-person pricing.</strong>
-Start with a <strong>free 30-day pilot &mdash; no card required</strong>. More than 25 staff?
-<a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a>.</p>
+<p>Every firm tier gets the <strong>identical feature set</strong> &mdash; Roster, Calendar, Map, CPE
+Hours, Practice Privilege Check, all of it. The only difference between tiers is how many staff it
+covers; nothing is held back on a cheaper plan.</p>
+<ul class="firm-pricing-list">
+  <li><strong>Starter</strong> &mdash; $199/year, up to 5 staff</li>
+  <li><strong>Growth</strong> &mdash; $349/year, up to 15 staff</li>
+  <li><strong>Standard</strong> &mdash; $500/year, up to 25 staff</li>
+  <li><strong>More than 25 staff?</strong> <a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a>.</li>
+</ul>
+<p><strong>Tracking just your own license, not a firm roster?</strong> The free individual reminders
+on our homepage already cover that at no cost, unchanged. There's also a <strong>$39/year Individual
+plan</strong> for a single CPA's own CPE tracking and Practice Privilege Check &mdash;
+<a href="mailto:{esc(CONTACT_EMAIL)}?subject=Individual%20plan">get in touch</a> if you want it.</p>
+<p>Every plan &mdash; firm or individual &mdash; starts with a <strong>free 30-day pilot, no card
+required</strong>.</p>
 
 <div class="remind-panel" id="firm-signup">
   <div>
@@ -4258,8 +4303,9 @@ invoice; a self-serve card-payment option is coming soon. Not ready to create an
 """
     return page_shell(
         f"For Firms — {SITE_NAME}",
-        "CPA firm license tracking: $500/year flat for up to 25 staff, free 30-day pilot. "
-        "Sourced to the same codified state law DeadlineRadar verifies for every state.",
+        "CPA firm license tracking: plans from $199/year (5 staff) to $500/year (25 staff), plus a "
+        "$39/year individual plan. Free 30-day pilot. Sourced to the same codified state law "
+        "DeadlineRadar verifies for every state.",
         body,
         home_href="../",
         canonical_path="/for-firms/",
@@ -5321,6 +5367,53 @@ function drClearWarning() {
   if (!el) return;
   el.hidden = true;
   el.textContent = '';
+}
+// Paid-tiers paywall (2026-08-05). Shown in place of every tab's content --
+// hiding every .dr-view rather than just one, because a checkPremiumAccess()
+// denial applies to the whole firm account, not the tab that happened to be
+// open when the fetch ran. drLoadLicenses() is the single fetch that drives
+// Roster/Calendar/Map/CPE Hours/mobility-completions (see its own comment),
+// so checking there covers all of them without a separate check per tab.
+function drShowPaywall(message, payNowUrl) {
+  drClearError();
+  var views = document.querySelectorAll('.dr-view');
+  for (var i = 0; i < views.length; i++) { views[i].hidden = true; }
+  var panel = document.getElementById('dr-paywall-panel');
+  if (!panel) return;
+  var msgEl = document.getElementById('dr-paywall-message');
+  if (msgEl) msgEl.textContent = message || 'Your plan needs to be upgraded to continue.';
+  panel.hidden = false;
+}
+function drHidePaywall() {
+  var panel = document.getElementById('dr-paywall-panel');
+  if (panel) panel.hidden = true;
+}
+function drStartCheckout(tier, btn) {
+  var errEl = document.getElementById('dr-paywall-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  if (btn) btn.disabled = true;
+  fetch('/api/firm/billing/checkout', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {'content-type': 'application/json'},
+    body: JSON.stringify({tier: tier})
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        if (errEl) {
+          errEl.textContent = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+          errEl.hidden = false;
+        }
+        if (btn) btn.disabled = false;
+        return;
+      }
+      if (data && data.checkout_url) { window.location.href = data.checkout_url; }
+    });
+  }).catch(function() {
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+    if (btn) btn.disabled = false;
+  });
 }
 function drReadJsonSafe(res) {
   return res.json().catch(function() { return null; });
@@ -6656,11 +6749,30 @@ function drSubmitPassword(form) {
 
 function drLoadLicenses() {
   drClearError();
+  drHidePaywall();
   fetch('/api/firm/licenses', {credentials: 'include'})
     .then(function(res) {
       if (res.status === 401) {
         window.location.href = '/firm-login/';
         return null;
+      }
+      // requireFirmSessionAndEntitlement() (2026-08-05, paid tiers) denies a
+      // lapsed pilot/unentitled tier with 403 and a JSON {error, reason,
+      // pay_now_url} body -- checked BEFORE the generic !res.ok fallback so
+      // this shows the real paywall panel instead of a plain "something
+      // went wrong". An inactive/suspended firm still 403s from
+      // requireFirmSession() itself as a plain HTML error page (no `reason`
+      // field), which falls through to the generic fallback below --
+      // correct, since that's a different, non-billing denial.
+      if (res.status === 402 || res.status === 403) {
+        return drReadJsonSafe(res).then(function(data) {
+          if (data && data.reason) {
+            drShowPaywall(data.error, data.pay_now_url);
+            return null;
+          }
+          drShowError('Something went wrong loading your roster. Please try again.');
+          return null;
+        });
       }
       if (!res.ok) {
         drShowError('Something went wrong loading your roster. Please try again.');
@@ -6813,6 +6925,15 @@ document.addEventListener('DOMContentLoaded', function() {
   var initialView = (window.location.hash || '').replace('#', '');
   if (initialView && document.getElementById('dr-view-' + initialView)) {
     drSwitchView(initialView);
+  }
+
+  var paywallPanel = document.getElementById('dr-paywall-panel');
+  if (paywallPanel) {
+    paywallPanel.addEventListener('click', function(e) {
+      var btn = e.target.closest('.dr-paywall-tier-btn');
+      if (!btn) return;
+      drStartCheckout(btn.getAttribute('data-tier'), btn);
+    });
   }
 
   var calPrev = document.getElementById('dr-cal-prev');
@@ -7520,6 +7641,20 @@ def build_firm_dashboard_page(
     <div id="dr-dash-success" class="callout" style="border-left-color:var(--verified-green);" role="status" hidden></div>
     <div id="dr-dash-warning" class="callout" style="border-left-color:var(--gold);" role="status" hidden></div>
     <div id="dr-staleness-banner" class="callout" style="border-left-color:#b8860b;" hidden></div>
+
+    <div id="dr-paywall-panel" class="dr-panel" hidden>
+      <h2>Continue with a paid plan</h2>
+      <p id="dr-paywall-message" class="subhead"></p>
+      <div class="dr-paywall-tiers">
+        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_starter">Starter<br><span>$199/year &middot; up to 5 staff</span></button>
+        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_growth">Growth<br><span>$349/year &middot; up to 15 staff</span></button>
+        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_standard">Standard<br><span>$500/year &middot; up to 25 staff</span></button>
+      </div>
+      <p style="font-size:0.88rem; color:var(--muted); margin-top:0.9rem;">Every tier has the identical
+      feature set &mdash; the only difference is staff count. More than 25 staff?
+      <a href="/for-firms/">Contact us</a>.</p>
+      <p id="dr-paywall-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
+    </div>
 
     <div id="dr-view-roster" class="dr-view" role="tabpanel">
     <h1>Coverage overview</h1>

@@ -1933,7 +1933,10 @@ describe("POST /firm/licenses -- BILL-1 seat cap (25 staff, matches the advertis
     expect(blocked.status).toBe(402);
     const body = (await blocked.json()) as { error: string };
     expect(body.error).toContain("25");
-    expect(body.error.toLowerCase()).toContain("contact us");
+    // Copy changed 2026-08-05 (paid tiers): a pilot/unrecognised-tier firm
+    // now has a real upgrade path via Stripe checkout, so the seat-cap
+    // message points there instead of "contact us".
+    expect(body.error.toLowerCase()).toContain("upgrade");
   });
 
   it("a firm already over 25 (grandfathered) keeps its existing roster untouched but still can't add more", async () => {

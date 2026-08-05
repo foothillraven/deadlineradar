@@ -43,11 +43,30 @@ describe("premium entitlement -- fails closed", () => {
 
 describe("paid tiers", () => {
   it("allows the recognised premium tiers", () => {
-    for (const tier of ["firm", "firm_annual", "premium"]) {
+    for (const tier of [
+      "firm",
+      "firm_annual",
+      "premium",
+      // 2026-08-05, Stripe-backed paid tiers -- see tiers.ts. All four carry
+      // the identical feature set as the original three; only the seat cap
+      // (checked separately, in tiers.spec.ts) differs between them.
+      "firm_starter",
+      "firm_growth",
+      "firm_standard",
+      "individual",
+    ]) {
       const res = checkPremiumAccess(firm({ plan_tier: tier }), NOW);
       expect(res.allowed, `tier "${tier}" should grant access`).toBe(true);
       if (res.allowed) expect(res.via).toBe("paid_tier");
     }
+  });
+
+  it("an individual_accounts-shaped row (not a FirmRow) satisfies checkPremiumAccess structurally", () => {
+    // No `id`/`admin_email`/password fields -- proves the parameter type is
+    // genuinely structural, not accidentally still FirmRow-specific.
+    const individualAccount = { plan_tier: "individual", status: "active", created_at: "2026-07-25T12:00:00Z" };
+    const res = checkPremiumAccess(individualAccount, NOW);
+    expect(res.allowed).toBe(true);
   });
 
   it("a paid tier is not time-bounded -- an old account still has access", () => {

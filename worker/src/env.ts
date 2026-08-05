@@ -90,4 +90,29 @@ export interface Env {
   PASSWORD_PEPPER?: string;
   GOOGLE_OAUTH_CLIENT_ID?: string;
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
+  /**
+   * Stripe billing (2026-08-05, paid tiers). OPTIONAL, same degrade-safely
+   * convention as SENDGRID_API_KEY/TURNSTILE_SECRET_KEY: unset means
+   * checkout.ts's routes refuse with a clear error instead of throwing, so a
+   * preview/dev environment with no Stripe config simply can't reach
+   * checkout rather than crashing.
+   *
+   * STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are `wrangler secret put`
+   * values, never committed. During Gate 1 these are TEST-mode values
+   * (`sk_test_...` / a `whsec_...` from a test-mode webhook endpoint);
+   * swapping to live values at Gate 2 is a pure secret rotation, zero code
+   * diff, by design (PRO_TIER_SPEC / the paid-tiers plan).
+   *
+   * The four STRIPE_PRICE_* values are Stripe Price ids, not secrets (Stripe
+   * price ids are safe to expose client-side), but are still env-sourced
+   * rather than hardcoded because test-mode and live-mode prices are
+   * DIFFERENT ids on the same Stripe account -- hardcoding would break the
+   * Gate 1 -> Gate 2 swap the same way hardcoding the key would.
+   */
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_PRICE_INDIVIDUAL?: string;
+  STRIPE_PRICE_FIRM_STARTER?: string;
+  STRIPE_PRICE_FIRM_GROWTH?: string;
+  STRIPE_PRICE_FIRM_STANDARD?: string;
 }

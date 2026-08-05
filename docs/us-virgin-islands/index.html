@@ -745,6 +745,20 @@
   }
   .dr-roster-panel td.dr-actions button.dr-btn-cancel:hover { color: var(--fg); border-color: var(--fg); }
 
+  
+  .dr-paywall-tiers {
+    display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 0.9rem;
+  }
+  .dr-paywall-tier-btn {
+    flex: 1 1 160px; background: var(--accent); color: var(--on-accent);
+    border: 1px solid var(--accent); border-radius: 9px; font-weight: 700;
+    font-size: 1rem; padding: 0.8rem 1rem; cursor: pointer; font-family: inherit;
+    text-align: center; line-height: 1.5;
+  }
+  .dr-paywall-tier-btn span { display: block; font-weight: 500; font-size: 0.82rem; opacity: 0.9; }
+  .dr-paywall-tier-btn:hover { opacity: 0.9; }
+  .dr-paywall-tier-btn:disabled { opacity: 0.6; cursor: default; }
+
   @media (max-width: 860px) {
     
     

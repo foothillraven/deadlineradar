@@ -75,7 +75,6 @@ import {
   RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT,
   RATE_LIMIT_FIRM_SIGNUP,
   RATE_LIMIT_SUBSCRIBE,
-  SELF_SERVE_SEAT_CAP,
   checkRateLimit,
   checkSignupDomainGate,
   escapeHtml,
@@ -137,6 +136,8 @@ import {
   type MobilityRuleRow,
 } from "./mobility";
 import { checkPremiumAccess, entitlementMessage } from "./entitlements";
+import { firmTierByPlanTier, firmTierForSeatCount, seatCapForFirmTier, stripePriceIdForTier } from "./tiers";
+import { createCheckoutSession, verifyWebhookSignature, StripeApiError, type StripeWebhookEvent } from "./stripe";
 
 const SITE_NAME_FOR_WORKER = "DeadlineRadar";
 
@@ -1491,6 +1492,223 @@ export async function requireFirmSession(
   return result;
 }
 
+/**
+ * requireFirmSession() -> getFirmById() -> checkPremiumAccess(), in one call
+ * (2026-08-05, paid tiers). Same "returns the resolved value or a
+ * ready-to-return Response" idiom requireFirmSession() itself uses -- every
+ * handler this wraps had these three steps duplicated inline (see
+ * handleMobilityCheck's own version, still there, now the last holdout).
+ *
+ * Read-vs-write status code split matches what mobility's routes already
+ * shipped and already test: GET-shaped handlers pass `isWrite: false` and
+ * get a 403 with `{error, reason, pilot_days_remaining}`; mutating handlers
+ * pass `isWrite: true` and get a 402, extending handleFirmLicenseCreate's
+ * existing seat-cap-exceeded 402 precedent to every entitlement denial. Both
+ * include `pay_now_url` so the dashboard paywall always has something
+ * concrete to link to.
+ */
+async function requireFirmSessionAndEntitlement(
+  request: Request,
+  env: Env,
+  isWrite: boolean
+): Promise<{ firmId: string; sessionId: string; passwordResetAuthorized: boolean; firm: store.FirmRow } | Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  const firm = await store.getFirmById(env.DB, session.firmId);
+  if (!firm) return jsonResponse(404, { error: "Not found." });
+
+  const access = checkPremiumAccess(firm);
+  if (!access.allowed) {
+    return jsonResponse(isWrite ? 402 : 403, {
+      error: entitlementMessage(access.reason),
+      reason: access.reason,
+      pilot_days_remaining: access.pilotDaysRemaining,
+      pay_now_url: "/firm-dashboard/#account",
+    });
+  }
+
+  return { ...session, firm };
+}
+
+// ---------------------------------------------------------------------------
+// Stripe billing (2026-08-05, paid tiers). No `stripe` npm package -- see
+// stripe.ts's own docstring for why this Worker hand-writes its Stripe
+// calls the same way it hand-writes SendGrid/Turnstile.
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /firm/billing/checkout -- creates a Stripe Checkout Session for the
+ * signed-in firm to convert onto a paid tier, at ANY point: during the free
+ * 30-day pilot (an early "pay now" conversion) or after it has lapsed (to
+ * get back in). Deliberately session-gated only, NOT entitlement-gated --
+ * requireFirmSessionAndEntitlement() would 402/403 exactly the firms this
+ * route exists to unblock.
+ */
+async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  if (!env.STRIPE_SECRET_KEY) {
+    return jsonResponse(503, { error: "Billing isn't set up yet. Get in touch and we'll sort it out." });
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = await request.json();
+  } catch {
+    return jsonResponse(400, { error: "Invalid request body." });
+  }
+  const requestedTier =
+    typeof parsed === "object" && parsed !== null && typeof (parsed as Record<string, unknown>).tier === "string"
+      ? ((parsed as Record<string, unknown>).tier as string)
+      : null;
+  const tierDef = requestedTier ? firmTierByPlanTier(requestedTier) : null;
+  if (!tierDef) {
+    return jsonResponse(400, { error: "Unrecognised plan." });
+  }
+
+  const firm = await store.getFirmById(env.DB, session.firmId);
+  if (!firm) return jsonResponse(404, { error: "Not found." });
+
+  // The firm's LIVE roster count at click-time -- never trusted from the
+  // request -- so a client can never buy a cheaper tier than its real
+  // headcount qualifies for. There is no staff-count value captured at
+  // signup to compare against instead; this is the actual source of truth.
+  const seatCount = await store.countFirmLicenses(env.DB, session.firmId);
+  const minimumTier = firmTierForSeatCount(seatCount);
+  if (!minimumTier || tierDef.seatCap < minimumTier.seatCap) {
+    return jsonResponse(400, {
+      error: minimumTier
+        ? `Your roster (${seatCount} staff) needs at least the ${minimumTier.label} plan.`
+        : `Your roster (${seatCount} staff) is above our self-serve tiers. Get in touch for a custom plan.`,
+    });
+  }
+
+  const priceId = stripePriceIdForTier(env, tierDef.planTier);
+  if (!priceId) {
+    return jsonResponse(503, { error: "That plan isn't available for checkout yet." });
+  }
+
+  const dashboardBase = `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/`;
+  try {
+    const checkoutSession = await createCheckoutSession(env.STRIPE_SECRET_KEY, {
+      priceId,
+      successUrl: `${dashboardBase}#account?checkout=success`,
+      cancelUrl: `${dashboardBase}#account?checkout=cancelled`,
+      metadata: { firm_id: firm.id, target_plan_tier: tierDef.planTier },
+      customerId: firm.stripe_customer_id ?? undefined,
+      customerEmail: firm.stripe_customer_id ? undefined : firm.admin_email,
+    });
+    return jsonResponse(200, { checkout_url: checkoutSession.url });
+  } catch (err) {
+    if (err instanceof StripeApiError) {
+      return jsonResponse(502, { error: "Couldn't start checkout. Please try again." });
+    }
+    throw err;
+  }
+}
+
+/**
+ * POST /stripe/webhook -- Stripe calls this directly, not a browser. Reads
+ * the RAW body before any parsing (signature verification is over the exact
+ * bytes Stripe sent, not a re-serialized copy) and rejects with 400 before
+ * trusting the body at all if the `Stripe-Signature` header doesn't verify.
+ *
+ * Idempotent via store.recordWebhookEventIfNew() (migration 0018's
+ * stripe_webhook_events ledger) -- Stripe retries any non-2xx delivery, so a
+ * redelivered event must be a no-op, not a second plan-tier flip.
+ */
+async function handleStripeWebhook(request: Request, env: Env): Promise<Response> {
+  if (!env.STRIPE_SECRET_KEY || !env.STRIPE_WEBHOOK_SECRET) {
+    // Not configured -- reject rather than silently accepting unverifiable
+    // webhook calls. Stripe will retry once configuration lands.
+    return jsonResponse(503, { error: "Billing isn't set up yet." });
+  }
+
+  const rawBody = await request.text();
+  const sigHeader = request.headers.get("Stripe-Signature");
+  const verified = await verifyWebhookSignature(rawBody, sigHeader, env.STRIPE_WEBHOOK_SECRET);
+  if (!verified) {
+    return jsonResponse(400, { error: "Invalid signature." });
+  }
+
+  let event: StripeWebhookEvent;
+  try {
+    event = JSON.parse(rawBody) as StripeWebhookEvent;
+  } catch {
+    return jsonResponse(400, { error: "Invalid payload." });
+  }
+  if (!event.id || !event.type) {
+    return jsonResponse(400, { error: "Invalid event." });
+  }
+
+  const object = event.data.object as Record<string, unknown>;
+
+  if (event.type === "checkout.session.completed") {
+    const metadata = (object.metadata as Record<string, unknown> | undefined) ?? {};
+    const firmId = typeof metadata.firm_id === "string" ? metadata.firm_id : null;
+    const targetPlanTier = typeof metadata.target_plan_tier === "string" ? metadata.target_plan_tier : null;
+    const customerId = typeof object.customer === "string" ? object.customer : null;
+    const subscriptionId = typeof object.subscription === "string" ? object.subscription : null;
+
+    if (firmId && targetPlanTier && customerId && subscriptionId) {
+      const isNew = await store.recordWebhookEventIfNew(env.DB, event.id, event.type, firmId);
+      if (isNew) {
+        await store.updateFirmBilling(env.DB, firmId, {
+          planTier: targetPlanTier,
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: subscriptionId,
+        });
+        await store.markWebhookEventProcessed(env.DB, event.id);
+      }
+    }
+    return jsonResponse(200, { received: true });
+  }
+
+  if (event.type === "customer.subscription.deleted") {
+    const subscriptionId = typeof object.id === "string" ? object.id : null;
+    if (subscriptionId) {
+      const isNew = await store.recordWebhookEventIfNew(env.DB, event.id, event.type, null);
+      if (isNew) {
+        const firm = await store.findFirmByStripeSubscriptionId(env.DB, subscriptionId);
+        // A cancellation reverts to `pilot`, not a hard lockout -- if any
+        // pilot days remain, checkPremiumAccess() still grants access via
+        // the pilot window; if not, the ordinary "pilot_expired" denial
+        // applies. Either way this is the SAME state a firm that never paid
+        // would be in, which is the correct floor for a cancelled sub.
+        if (firm) {
+          await store.updateFirmBilling(env.DB, firm.id, {
+            planTier: "pilot",
+            stripeCustomerId: firm.stripe_customer_id ?? "",
+            stripeSubscriptionId: null,
+          });
+        }
+        await store.markWebhookEventProcessed(env.DB, event.id);
+      }
+    }
+    return jsonResponse(200, { received: true });
+  }
+
+  if (event.type === "invoice.payment_failed") {
+    // Best-effort record only -- Stripe's own retry/dunning cycle handles
+    // the grace period, so this does not revoke access mid-retry. If
+    // retries exhaust, Stripe itself fires customer.subscription.deleted
+    // (handled above), which is what actually changes access.
+    const isNew = await store.recordWebhookEventIfNew(env.DB, event.id, event.type, null);
+    if (isNew) {
+      await store.markWebhookEventProcessed(env.DB, event.id);
+    }
+    return jsonResponse(200, { received: true });
+  }
+
+  // Unrecognised event types are acknowledged, not errored -- the webhook
+  // endpoint is registered for a fixed set of events, but Stripe's retry
+  // behavior treats any non-2xx as "try again forever," so an event this
+  // handler doesn't act on must still 200.
+  return jsonResponse(200, { received: true });
+}
+
 // ---------------------------------------------------------------------------
 // FREE-TIER individual sign-in (2026-07-31, migration 0012).
 //
@@ -1949,7 +2167,7 @@ function toFirmLicenseJson(row: store.SubscriberRow, asOf: Date): Record<string,
  * soonest deadline first (a null/uncomputable deadline sorts last -- there's
  * nothing more urgent to show for it). */
 async function handleFirmLicensesList(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSession(request, env);
+  const session = await requireFirmSessionAndEntitlement(request, env, false);
   if (session instanceof Response) return session;
 
   const rows = await store.listFirmLicenses(env.DB, session.firmId);
@@ -1963,16 +2181,6 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     if (bd === null) return -1;
     return ad < bd ? -1 : ad > bd ? 1 : 0;
   });
-  // firm_name (2026-07-30, BUILD v2 Phase B): the dashboard's sidebar shows
-  // which firm the signed-in admin is looking at -- looked up by
-  // session.firmId (never client-supplied), so this can't be used to probe
-  // another firm's name. `?? null` only covers "no firm row found" (should
-  // be unreachable given a valid session already resolved this same
-  // firmId) -- it does NOT guard against getFirmById() itself throwing (a
-  // real D1 outage would still fail this whole request, same as every other
-  // unguarded D1 call in this handler; not a new resilience gap this
-  // endpoint introduces, just not one it fixes either).
-  const firm = await store.getFirmById(env.DB, session.firmId);
   // AuditLab ST-1: every date above is derived from the same reference data
   // the write guards (checkDataFreshness()) can refuse to trust -- surface
   // its freshness here too instead of rendering it silently, since the
@@ -1981,18 +2189,18 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
   // purpose, see deadline.ts's dataFreshnessInfo() docstring; the dashboard
   // banner still discloses staleness while renew keeps working.)
   const freshness = dataFreshnessInfo(asOf);
-  // seat_cap (2026-08-05, Devin's dashboard-polish request #1): the 25-staff
-  // cap was invisible until a firm actually hit it and got a 402 from
-  // POST /firm/licenses -- the dashboard had no way to show usage against a
-  // limit nobody could see coming. Surfacing the same SELF_SERVE_SEAT_CAP
-  // constant the create route already enforces, not a second hardcoded
-  // number, so the two can never drift apart.
+  // seat_cap (2026-08-05, Devin's dashboard-polish request #1, tier-aware
+  // since the same-day paid-tiers build): the cap was invisible until a firm
+  // actually hit it and got a 402 from POST /firm/licenses -- the dashboard
+  // had no way to show usage against a limit nobody could see coming.
+  // seatCapForFirmTier() is the SAME lookup the create route enforces below,
+  // not a second hardcoded number, so the two can never drift apart.
   return jsonResponse(200, {
     licenses: items,
-    firm_name: firm?.name ?? null,
+    firm_name: session.firm.name ?? null,
     data_as_of: freshness.as_of_date,
     data_stale: freshness.stale,
-    seat_cap: SELF_SERVE_SEAT_CAP,
+    seat_cap: seatCapForFirmTier(session.firm.plan_tier),
   });
 }
 
@@ -2012,7 +2220,7 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
  * grant silent consent, it grants transparent, easily-declinable consent.
  */
 async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSession(request, env);
+  const session = await requireFirmSessionAndEntitlement(request, env, true);
   if (session instanceof Response) return session;
 
   // Per-FIRM daily cap (not per-IP) -- see RATE_LIMIT_FIRM_LICENSE_CREATE's
@@ -2024,19 +2232,23 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
     return jsonResponse(429, { error: "Too many staff added today for this firm. Please try again tomorrow." });
   }
 
-  // BILL-1 (2026-08-04, Devin's decision): enforce the advertised 25-staff
-  // self-serve cap. Frozen-at-current-count grandfathering, not a retroactive
-  // lockout: a firm already AT or OVER the cap (e.g. from before this check
-  // existed) is never touched here -- existing roster rows keep working
-  // exactly as before, nothing is deactivated -- this only blocks adding
-  // MORE staff once the count is at or past SELF_SERVE_SEAT_CAP. That
-  // freezes any already-over-cap firm at whatever it already had, which
-  // was the explicit instruction rather than either force-removing rows
-  // down to 25 or silently exempting them from the cap going forward.
+  // BILL-1 (2026-08-04, Devin's decision): enforce the advertised self-serve
+  // cap -- tier-aware since the same-day paid-tiers build (seatCapForFirmTier
+  // falls back to today's SELF_SERVE_SEAT_CAP for `pilot`/any unrecognised
+  // tier, so pre-conversion behavior is unchanged). Frozen-at-current-count
+  // grandfathering, not a retroactive lockout: a firm already AT or OVER the
+  // cap is never touched here -- existing roster rows keep working exactly
+  // as before, nothing is deactivated -- this only blocks adding MORE staff
+  // once the count is at or past the cap. That freezes any already-over-cap
+  // firm at whatever it already had, which was the explicit instruction
+  // rather than either force-removing rows down to the cap or silently
+  // exempting them from it going forward.
+  const seatCap = seatCapForFirmTier(session.firm.plan_tier);
   const currentSeatCount = await store.countFirmLicenses(env.DB, session.firmId);
-  if (currentSeatCount >= SELF_SERVE_SEAT_CAP) {
+  if (currentSeatCount >= seatCap) {
     return jsonResponse(402, {
-      error: `Your plan covers up to ${SELF_SERVE_SEAT_CAP} staff. Contact us to add more.`,
+      error: `Your plan covers up to ${seatCap} staff. Upgrade to add more.`,
+      pay_now_url: "/firm-dashboard/#account",
     });
   }
 
@@ -2192,7 +2404,7 @@ function stripHtmlErrorMessage(html: string): string {
  * untouched.
  */
 async function handleFirmLicensePatch(request: Request, env: Env, id: string): Promise<Response> {
-  const session = await requireFirmSession(request, env);
+  const session = await requireFirmSessionAndEntitlement(request, env, true);
   if (session instanceof Response) return session;
 
   // Per-FIRM daily cap -- AuditLab F-2, 2026-08-02. This route previously
@@ -2356,7 +2568,7 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
  * reminder cron's allConfirmedActive() only ever reads status='confirmed'
  * rows). */
 async function handleFirmLicenseDelete(request: Request, env: Env, id: string): Promise<Response> {
-  const session = await requireFirmSession(request, env);
+  const session = await requireFirmSessionAndEntitlement(request, env, true);
   if (session instanceof Response) return session;
 
   // Per-FIRM daily cap -- AuditLab S-3, 2026-08-03. No send path here (unlike
@@ -2383,7 +2595,7 @@ async function handleFirmLicenseDelete(request: Request, env: Env, id: string): 
  * to build two different code paths for the same operation.
  */
 async function handleFirmLicenseRenew(request: Request, env: Env, id: string): Promise<Response> {
-  const session = await requireFirmSession(request, env);
+  const session = await requireFirmSessionAndEntitlement(request, env, true);
   if (session instanceof Response) return session;
 
   // Per-FIRM daily cap -- AuditLab S-3, 2026-08-03. Same reasoning as the
@@ -2453,7 +2665,7 @@ function toCpeEntryJson(row: store.CpeEntryRow): Record<string, unknown> {
  * roster. The dashboard rolls this up per staffer client-side (same
  * pattern as GET /firm/licenses's roster-wide fetch). */
 async function handleCpeEntriesList(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSession(request, env);
+  const session = await requireFirmSessionAndEntitlement(request, env, false);
   if (session instanceof Response) return session;
   const rows = await store.listCpeEntriesForFirm(env.DB, session.firmId);
   return jsonResponse(200, { entries: rows.map(toCpeEntryJson) });
@@ -2470,7 +2682,7 @@ async function handleCpeEntriesList(request: Request, env: Env): Promise<Respons
  * firm-scoped mutation in this file.
  */
 async function handleCpeEntryCreate(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSession(request, env);
+  const session = await requireFirmSessionAndEntitlement(request, env, true);
   if (session instanceof Response) return session;
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "cpe_entry_create", RATE_LIMIT_CPE_ENTRY_CREATE);
@@ -2544,7 +2756,7 @@ async function handleCpeEntryCreate(request: Request, env: Env): Promise<Respons
 /** DELETE /firm/cpe/:id -- soft-delete (see migration 0009's comment for
  * why it's not a real DELETE), firm-scoped. */
 async function handleCpeEntryDelete(request: Request, env: Env, id: string): Promise<Response> {
-  const session = await requireFirmSession(request, env);
+  const session = await requireFirmSessionAndEntitlement(request, env, true);
   if (session instanceof Response) return session;
 
   // Per-FIRM daily cap -- AuditLab S-3, 2026-08-03. Same reasoning as
@@ -2952,6 +3164,27 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           return await handleMobilityCompletionCreate(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/billing/checkout") {
+        try {
+          return await handleFirmBillingCheckout(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/stripe/webhook") {
+        try {
+          return await handleStripeWebhook(request, env);
+        } catch {
+          // Deliberately 400, not the generic 500 a raw throw would produce
+          // -- Stripe treats anything outside 2xx as "retry me," and a body
+          // it can't recover from (e.g. a transient D1 error mid-processing)
+          // SHOULD be retried, same as every other failure mode this handler
+          // returns non-2xx for.
+          return jsonResponse(400, { error: "Webhook processing failed." });
         }
       }
 

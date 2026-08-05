@@ -1,19 +1,28 @@
 /**
- * Which firms may use premium features (2026-07-30, mobility phase).
+ * Which firms/individuals may use premium features (2026-07-30, mobility
+ * phase; generalized 2026-08-05 for Stripe-backed paid tiers).
  *
  * This is the FIRST entitlement logic in the codebase -- until now every
  * firm-scoped route was available to any authenticated firm. Mobility is
  * the first pay-gated feature, per its directive ("Behind the pay gate --
  * part of the premium firm tier, not the free public pages").
  *
- * ## This deliberately does NOT touch billing
+ * ## Structural, not FirmRow-specific
  *
- * No Stripe, no payment capture, no card. AssetLab's guardrails forbid
- * money-touching work without an explicit go, and none has been given. So
- * this gates on `firms.plan_tier` and the pilot window only -- the plumbing
- * a future billing integration would flip, without being that integration.
- * A firm becomes paid today by an operator changing plan_tier, which is
- * the honest state of things and is documented rather than disguised.
+ * `checkPremiumAccess()` takes an `EntitlementSubject` (plan_tier/status/
+ * created_at) rather than a `FirmRow`-literal pick, so both `firms` rows and
+ * the new `individual_accounts` rows (2026-08-05 paid-tiers migration)
+ * satisfy it with zero body changes -- an individual's $39/yr tier reuses
+ * the exact same pilot math as a firm's, on purpose (see tiers.ts for what
+ * each tier actually includes/costs).
+ *
+ * ## Billing is real now
+ *
+ * `firms.stripe_customer_id`/`stripe_subscription_id` (migration 0018) and
+ * the `/stripe/webhook` handler in index.ts are what flip `plan_tier` today
+ * -- `checkPremiumAccess()` itself still only reads `plan_tier`/`status`/
+ * `created_at` and knows nothing about Stripe, same separation of concerns
+ * as before.
  *
  * ## Fail closed
  *
@@ -29,10 +38,27 @@ import type { FirmRow } from "./store";
  * pilot, no card required") -- if that copy changes, this must too. */
 export const PILOT_DAYS = 30;
 
+/** Anything with these three fields can be checked -- `firms` rows and
+ * `individual_accounts` rows both satisfy this structurally, no cast
+ * needed. */
+export type EntitlementSubject = Pick<FirmRow, "plan_tier" | "status" | "created_at">;
+
 /** Tiers that include premium features. `pilot` is NOT here: pilot access
  * is time-bounded and handled separately below, so an expired pilot cannot
- * pass by tier name alone. */
-const PREMIUM_PLAN_TIERS = new Set(["firm", "firm_annual", "premium"]);
+ * pass by tier name alone. `firm`/`firm_annual`/`premium` are the original
+ * manually-set tiers (still honored -- no existing row is migrated off
+ * them); `firm_starter`/`firm_growth`/`firm_standard`/`individual` are the
+ * Stripe-backed tiers (2026-08-05, see tiers.ts). All four paid firm tiers
+ * carry the IDENTICAL feature set -- this set gates access, not capability. */
+const PREMIUM_PLAN_TIERS = new Set([
+  "firm",
+  "firm_annual",
+  "premium",
+  "firm_starter",
+  "firm_growth",
+  "firm_standard",
+  "individual",
+]);
 
 export type EntitlementDenialReason =
   | "firm_inactive"
@@ -45,7 +71,7 @@ export type EntitlementResult =
 
 /** Whole days remaining in the pilot, or null if the created_at timestamp
  * is missing/unparseable (which denies rather than grants -- see below). */
-export function pilotDaysRemaining(firm: Pick<FirmRow, "created_at">, now: Date): number | null {
+export function pilotDaysRemaining(firm: Pick<EntitlementSubject, "created_at">, now: Date): number | null {
   if (!firm.created_at) return null;
   const created = Date.parse(firm.created_at);
   if (Number.isNaN(created)) return null;
@@ -69,7 +95,7 @@ export function pilotDaysRemaining(firm: Pick<FirmRow, "created_at">, now: Date)
  * suspended account with a paid tier must not retain access.
  */
 export function checkPremiumAccess(
-  firm: Pick<FirmRow, "plan_tier" | "status" | "created_at">,
+  firm: EntitlementSubject,
   now: Date = new Date()
 ): EntitlementResult {
   const remaining = pilotDaysRemaining(firm, now);

@@ -6444,9 +6444,25 @@ function drCpeProgressForSubscriber(item) {
     if (e.category === 'ethics' && inEthicsWindow) ethicsLoggedTenths += Math.round(e.hours * 10);
   });
   var totalLogged = totalLoggedTenths / 10, ethicsLogged = ethicsLoggedTenths / 10;
-  var behind =
+  var hoursShort =
     (req.total_hours !== null && totalLoggedTenths < Math.round(req.total_hours * 10)) ||
     (req.ethics_hours !== null && ethicsLoggedTenths < Math.round(req.ethics_hours * 10));
+  // Orchestrator/Devin, 2026-08-05: "behind" was a blind hours-logged-so-far
+  // < required check, with no regard for how much of the cycle remains --
+  // that flagged 18/20 staff as behind, most of whom simply hadn't finished
+  // yet with a year or more still left, not anyone actually at risk of
+  // missing their deadline. Real "behind" has to answer "can this person
+  // still realistically finish before their real deadline," not "have they
+  // finished the whole thing right now" -- there's no legal even-pacing
+  // requirement for CPE hours (states don't mandate finishing any fixed
+  // fraction by a cycle's midpoint), so the only defensible signal for "running
+  // out of time" is proximity to the deadline itself. Reuses the EXACT same
+  // within-30-days-or-unresolved-date convention drRenderStats() already
+  // uses for the Roster's own due-soon/overdue split (see its own comment),
+  // rather than inventing a second, different threshold for CPE.
+  var daysUntilDeadline = drDaysUntil(item.next_deadline);
+  var dueSoonOrOverdue = daysUntilDeadline === null || daysUntilDeadline <= 30;
+  var behind = hoursShort && dueSoonOrOverdue;
   return {
     hasRequirement: true,
     totalRequired: req.total_hours, totalLogged: totalLogged,

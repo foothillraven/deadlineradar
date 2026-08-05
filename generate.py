@@ -1605,6 +1605,7 @@ PAGE_CSS = """
   .dr-my-cpe-bar-row > span:last-child { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--muted); }
   .dr-my-cpe-bar-track { flex: 1 1 auto; height: 7px; border-radius: 4px; background: var(--row-alt); overflow: hidden; }
   .dr-my-cpe-bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .dr-my-cpe-bar-fill--behind { background: #c33737; }
   .dr-my-cpe-entries { list-style: none; padding: 0; margin: 0.4rem 0; font-size: 0.82rem; color: var(--muted); }
   .dr-my-cpe-entries li { padding: 0.2rem 0; }
   .dr-my-cpe-empty { font-size: 0.82rem; color: var(--muted); margin: 0.4rem 0; }
@@ -5200,11 +5201,22 @@ _MY_DASHBOARD_JS_HTML = """<script>
     };
   }
 
+  // AuditLab BAR-1r (LOW, 2026-08-05): this reimplements drCpeBarHtml()
+  // from the firm dashboard and reintroduced the exact BAR-1 defect already
+  // fixed there -- rounding independently of completion let 119.5/120h
+  // round to 100% and paint a full, unmodified-green bar on someone who
+  // hasn't actually met their requirement. Same one-expression fix: cap at
+  // 99% while incomplete. Deliberately staying completion-only (no
+  // riskBehind param) rather than adopting the dashboard's pace-aware
+  // colour -- this is the staff member's OWN view of their OWN progress,
+  // not an admin's at-risk triage list, so a plain still-short-of-done
+  // signal is the right scope here.
   function drCpeBarHtml(label, logged, required) {
     if (required === null) return '';
-    var pct = Math.min(100, Math.round((logged / required) * 100));
+    var incomplete = logged < required;
+    var pct = Math.min(incomplete ? 99 : 100, Math.round((logged / required) * 100));
     return '<div class="dr-my-cpe-bar-row"><span>' + drEsc(label) + '</span>' +
-      '<span class="dr-my-cpe-bar-track"><span class="dr-my-cpe-bar-fill" style="width:' + pct + '%"></span></span>' +
+      '<span class="dr-my-cpe-bar-track"><span class="dr-my-cpe-bar-fill' + (incomplete ? ' dr-my-cpe-bar-fill--behind' : '') + '" style="width:' + pct + '%"></span></span>' +
       '<span>' + logged + ' / ' + required + 'h</span></div>';
   }
 

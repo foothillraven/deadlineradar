@@ -1051,7 +1051,11 @@
     .wrap { max-width: none; }
     .sheet { box-shadow: none; border: 1px solid #999999; break-inside: avoid; }
     a { color: inherit; text-decoration: none; }
-    .cite a { text-decoration: underline; } 
+    .cite a, .trust-line a, .cite-link { text-decoration: underline; } 
+    
+    .cite a[href^="http"]::after, .trust-line a[href^="http"]::after, .cite-link[href^="http"]::after {
+      content: " (" attr(href) ")"; font-size: 0.85em; word-break: break-all;
+    }
   }
 
 </style>

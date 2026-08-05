@@ -1662,7 +1662,31 @@ PAGE_CSS = """
     .wrap { max-width: none; }
     .sheet { box-shadow: none; border: 1px solid #999999; break-inside: avoid; }
     a { color: inherit; text-decoration: none; }
-    .cite a { text-decoration: underline; } /* the citation link IS the point of a printed fact sheet */
+    .cite a, .trust-line a, .cite-link { text-decoration: underline; } /* the citation link IS the point of a printed fact sheet */
+    /* AuditLab PRINT-1 (2026-08-05): an underlined link with no printed URL
+       points nowhere on paper. Scoped to EXTERNAL citations only (http/https)
+       -- the internal cross-links (CPE-hours page, reinstatement page, "back
+       to all states", "see how we verify every deadline") are navigation,
+       not evidence, and printing THEIR relative paths would just be noise
+       with no source to trace; the [href^="http"] scoping is what keeps
+       those out automatically (they're all relative paths).
+
+       THREE distinct DOM patterns render "the citation" depending on page/
+       record type -- confirmed live, not assumed, after AuditLab's suggested
+       single `.cite` selector turned out to match neither Texas nor Illinois
+       (both real live pages) at all:
+         .cite       icon-chip citation, _source_cite_html()'s sibling render
+                     path (used where the fact-sheet's inline chip layout applies)
+         .trust-line "Last verified... official state board" prose block --
+                     the one AuditLab actually tested against on /texas/, and
+                     also what /illinois/ and reinstatement pages use
+         .cite-link  "Source of record ... read the rule ->" block
+                     (_source_cite_html()) -- what CPE-hours pages use
+       All three need the fix independently; fixing only the one AuditLab
+       named would have left the two most common real patterns broken. */
+    .cite a[href^="http"]::after, .trust-line a[href^="http"]::after, .cite-link[href^="http"]::after {
+      content: " (" attr(href) ")"; font-size: 0.85em; word-break: break-all;
+    }
   }
 """
 

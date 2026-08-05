@@ -915,27 +915,38 @@ export async function verifyAndConsumeLoginToken(
 }
 
 /**
- * Read-only lookup of a login token's purpose, for the GET confirm page
- * ONLY (index.ts's actionConfirmPage()) -- never marks the token used.
- * Exists because that page needs to know whether to show the "set a
- * password now" optional field: it's silently a no-op for a password_reset
- * token (that flow always lands on /set-password/ next), and showing it
- * anyway reads as "why did it ask me to set a password twice" (reported
- * directly, 2026-08-03). Same expired/used-then-treat-as-unknown posture as
- * verifyAndConsumeLoginToken() -- a dead link gets the generic invalid-link
- * error on submit either way, so there is nothing to gain from
- * distinguishing purpose on a token that won't redeem.
+ * Read-only lookup of a login token's purpose AND whether its firm already
+ * has a password, for the GET render of /firm/login/verify ONLY (index.ts's
+ * actionConfirmPage()) -- never marks the token used. Exists because that
+ * page needs to know whether to show the "set a password now" optional
+ * field: it's a no-op for a password_reset token (that flow always lands on
+ * /set-password/ next) and a no-op for a firm that already has a password
+ * (handleFirmLoginVerify() ignores the submitted value either way) --
+ * showing the field in either case reads as asking for a password that gets
+ * silently discarded (reported directly, 2026-08-03 for the purpose case,
+ * VAL-2 2026-08-04 for the already-has-a-password case). Same expired/used-
+ * then-treat-as-unknown posture as verifyAndConsumeLoginToken() -- a dead
+ * link gets the generic invalid-link error on submit either way, so there is
+ * nothing to gain from distinguishing purpose on a token that won't redeem.
+ * One joined query, no extra round trip, token still unconsumed.
  */
-export async function peekLoginTokenPurpose(db: D1Database, rawToken: string): Promise<LoginTokenPurpose | null> {
+export async function peekLoginTokenPasswordEligibility(
+  db: D1Database,
+  rawToken: string
+): Promise<{ purpose: LoginTokenPurpose; firmHasPassword: boolean } | null> {
   const tokenHash = await hashToken(rawToken);
   const row = await db
-    .prepare(`SELECT used_at, expires_at, purpose FROM firm_login_tokens WHERE token_hash = ?1`)
+    .prepare(
+      `SELECT t.used_at, t.expires_at, t.purpose, f.password_hash
+       FROM firm_login_tokens t JOIN firms f ON f.id = t.firm_id
+       WHERE t.token_hash = ?1`
+    )
     .bind(tokenHash)
-    .first<{ used_at: string | null; expires_at: string; purpose: unknown }>();
+    .first<{ used_at: string | null; expires_at: string; purpose: unknown; password_hash: string | null }>();
   if (!row) return null;
   if (row.used_at) return null;
   if (Date.parse(row.expires_at) <= Date.now()) return null;
-  return normalizeLoginTokenPurpose(row.purpose);
+  return { purpose: normalizeLoginTokenPurpose(row.purpose), firmHasPassword: row.password_hash !== null };
 }
 
 /**

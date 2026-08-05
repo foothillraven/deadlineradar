@@ -4625,7 +4625,7 @@ def build_set_password_page() -> str:
     autocomplete="current-password">
 
     <label for="dr-setpw-new">New password</label>
-    <input type="password" id="dr-setpw-new" name="new_password" required
+    <input type="password" id="dr-setpw-new" name="new_password" required minlength="12"
     autocomplete="new-password">
     <p class="field-hint">At least 12 characters. Longer beats complicated &mdash; a short phrase
     you'll remember is stronger than a scramble you won't.</p>

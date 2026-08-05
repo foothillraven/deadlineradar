@@ -405,13 +405,15 @@ async function actionConfirmPage(pathname: string, token: string, env: Env): Pro
   // A non-consuming peek at the token's purpose lets the copy match what
   // will actually happen, without spending the token's one-time use just to
   // render a page.
-  const tokenPurpose = pathname === "/firm/login/verify" ? await store.peekLoginTokenPurpose(env.DB, token) : null;
+  const passwordEligibility =
+    pathname === "/firm/login/verify" ? await store.peekLoginTokenPasswordEligibility(env.DB, token) : null;
+  const tokenPurpose = passwordEligibility?.purpose ?? null;
   const passwordFieldHtml =
-    pathname === "/firm/login/verify" && tokenPurpose !== "password_reset"
+    pathname === "/firm/login/verify" && tokenPurpose !== "password_reset" && passwordEligibility?.firmHasPassword === false
       ? `<div style="margin:0 0 1rem;">` +
         `<label for="dr-optional-password">` +
         `Optional: set a password now, so you can skip this email next time</label>` +
-        `<input type="password" id="dr-optional-password" name="new_password" minlength="12" ` +
+        `<input type="password" id="dr-optional-password" name="new_password" minlength="12" maxlength="200" ` +
         `autocomplete="new-password" placeholder="At least 12 characters">` +
         `</div>`
       : "";

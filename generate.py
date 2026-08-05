@@ -6521,9 +6521,8 @@ function drCpeProgressForSubscriber(item) {
     if (e.category === 'ethics' && inEthicsWindow) ethicsLoggedTenths += Math.round(e.hours * 10);
   });
   var totalLogged = totalLoggedTenths / 10, ethicsLogged = ethicsLoggedTenths / 10;
-  var hoursShort =
-    (req.total_hours !== null && totalLoggedTenths < Math.round(req.total_hours * 10)) ||
-    (req.ethics_hours !== null && ethicsLoggedTenths < Math.round(req.ethics_hours * 10));
+  var totalShort = req.total_hours !== null && totalLoggedTenths < Math.round(req.total_hours * 10);
+  var ethicsShort = req.ethics_hours !== null && ethicsLoggedTenths < Math.round(req.ethics_hours * 10);
   // Orchestrator/Devin, 2026-08-05: "behind" was a blind hours-logged-so-far
   // < required check, with no regard for how much of the cycle remains --
   // that flagged 18/20 staff as behind, most of whom simply hadn't finished
@@ -6537,32 +6536,59 @@ function drCpeProgressForSubscriber(item) {
   // within-30-days-or-unresolved-date convention drRenderStats() already
   // uses for the Roster's own due-soon/overdue split (see its own comment),
   // rather than inventing a second, different threshold for CPE.
+  //
+  // AuditLab CPE-3 follow-up: total and ethics get their OWN pace-aware
+  // verdict (totalBehind/ethicsBehind), not one shared flag -- the renewal
+  // DEADLINE is the same date for both (so dueSoonOrOverdue is shared), but
+  // someone can be short on ethics while having fully met their total
+  // hours (or vice versa), and a single combined flag would incorrectly
+  // paint BOTH bars red for a shortfall in only one of them.
   var daysUntilDeadline = drDaysUntil(item.next_deadline);
   var dueSoonOrOverdue = daysUntilDeadline === null || daysUntilDeadline <= 30;
-  var behind = hoursShort && dueSoonOrOverdue;
+  var totalBehind = totalShort && dueSoonOrOverdue;
+  var ethicsBehind = ethicsShort && dueSoonOrOverdue;
   return {
     hasRequirement: true,
     totalRequired: req.total_hours, totalLogged: totalLogged,
     ethicsRequired: req.ethics_hours, ethicsLogged: ethicsLogged,
-    behind: behind,
+    totalBehind: totalBehind,
+    ethicsBehind: ethicsBehind,
+    // Aggregate for the roster-wide "Behind on hours" stat -- true if EITHER
+    // metric is genuinely at risk.
+    behind: totalBehind || ethicsBehind,
     noCycleDate: !win,
     excludedCount: excludedCount,
     cycleWindow: win,
   };
 }
 
-function drCpeBarHtml(label, logged, required) {
-  var behind = required !== null && logged < required;
-  // AuditLab BAR-1 (LOW, 2026-08-04): rounding independently of `behind`
+// AuditLab CPE-3 (MEDIUM, found @ 84021e37): this used to compute its OWN
+// `behind` locally (raw logged < required, no deadline-proximity check) --
+// a second, different definition from the pace-aware one 5aef8a3e added to
+// drCpeProgressForSubscriber(). Both rendered on the same screen: the
+// summary ring could read "0% behind" (correctly, per the pace-aware
+// definition) while every individual row still painted a red risk-styled
+// bar (per the old raw-completion one) -- same data, contradictory
+// verdicts, exactly the wall-of-red the original report was about.
+// `riskBehind` is now the CALLER's already-computed pace-aware verdict
+// (drCpeProgressForSubscriber()'s `p.behind`), so one definition drives
+// both. `incomplete` stays a separate, LOCAL raw-completion check used only
+// for the bar's WIDTH -- "10/40 hours logged" should still show as ~25%
+// full regardless of how urgent it is, that's honest progress, not a risk
+// claim. Keeping the two questions (how much is done vs. how worried
+// should you be) visually distinct is the whole point of the pace-aware
+// change; this just stops the color from re-asking the old question.
+function drCpeBarHtml(label, logged, required, riskBehind) {
+  var incomplete = required !== null && logged < required;
+  // AuditLab BAR-1 (LOW, 2026-08-04): rounding independently of `incomplete`
   // let anything >=99.5% of the requirement paint a FULL-width bar on
   // someone who hasn't met it (e.g. 119.5/120h rounds to 100%) -- the fill
-  // color (red) says not-done while the width says done, contradictory on
-  // the one screen a firm uses to decide who still owes hours. Capping at
-  // 99 while behind keeps the bar visibly short of complete regardless of
-  // how close the rounded percentage gets.
-  var pct = required ? Math.min(behind ? 99 : 100, Math.round((logged / required) * 100)) : 0;
+  // width said done while the number didn't. Capping at 99 while incomplete
+  // keeps the bar visibly short of complete regardless of how close the
+  // rounded percentage gets.
+  var pct = required ? Math.min(incomplete ? 99 : 100, Math.round((logged / required) * 100)) : 0;
   return '<div class="dr-cpe-bar-row"><span class="dr-cpe-bar-label">' + drEscapeHtml(label) + '</span>' +
-    '<span class="dr-cpe-bar-track"><span class="dr-cpe-bar-fill' + (behind ? ' dr-cpe-bar-fill--behind' : '') +
+    '<span class="dr-cpe-bar-track"><span class="dr-cpe-bar-fill' + (riskBehind ? ' dr-cpe-bar-fill--behind' : '') +
     '" style="width:' + pct + '%"></span></span>' +
     '<span class="dr-cpe-bar-value">' + logged + ' / ' + required + 'h</span></div>';
 }
@@ -6602,8 +6628,8 @@ function drRenderCpeStaffProgress() {
         '<span class="dr-cpe-staff-name">' + name + '</span><span class="dr-cpe-staff-state">' + state + '</span></div>' +
         '<p class="dr-cpe-gap-note">' + gapText + '</p></div>';
     }
-    var totalBar = p.totalRequired !== null ? drCpeBarHtml('Total', p.totalLogged, p.totalRequired) : '';
-    var ethicsBar = p.ethicsRequired !== null ? drCpeBarHtml('Ethics', p.ethicsLogged, p.ethicsRequired) : '';
+    var totalBar = p.totalRequired !== null ? drCpeBarHtml('Total', p.totalLogged, p.totalRequired, p.totalBehind) : '';
+    var ethicsBar = p.ethicsRequired !== null ? drCpeBarHtml('Ethics', p.ethicsLogged, p.ethicsRequired, p.ethicsBehind) : '';
     var cycleNote = p.noCycleDate
       ? '<p class="dr-cpe-gap-note">No renewal date on file &mdash; add one to track progress for this cycle.</p>'
       : (p.excludedCount > 0

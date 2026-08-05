@@ -17,7 +17,10 @@
  * Turnstile (env.TURNSTILE_SECRET_KEY): with the secret set, a bot that can't
  * solve the challenge never reaches the send path, so the public form can't be
  * used to blast confirmation emails at arbitrary addresses. A per-day circuit
- * breaker (sender.checkAndCountSend) is the last-resort cap on total sends.
+ * breaker (sender.checkAndCountActionSend) is the last-resort cap on total
+ * sends -- its own counter (migration 0019, AuditLab TS-1), separate from
+ * the reminder scheduler's, so a burst against any of these routes can never
+ * starve real deadline reminders of the shared budget they used to share.
  *
  * Abuse-hardening carried forward from reminders/server.py's module
  * docstring, in the same checked order:
@@ -59,6 +62,8 @@ import {
   RATE_LIMIT_FIRM_PASSWORD_SET,
   RATE_LIMIT_OAUTH_START,
   RATE_LIMIT_CPE_ENTRY_CREATE,
+  RATE_LIMIT_SUBSCRIBER_CPE_CREATE,
+  RATE_LIMIT_FIRM_STAFF_CPE_REMINDER,
   RATE_LIMIT_FIRM_LEAD,
   RATE_LIMIT_MOBILITY_CHECK,
   RATE_LIMIT_MOBILITY_CHECK_BATCH,
@@ -104,6 +109,7 @@ import {
   buildConfirmationEmail,
   buildFirmLoginEmail,
   buildSubscriberLoginEmail,
+  buildStaffCpeReminderEmail,
   buildFirmPasswordChangedEmail,
   buildFirmOauthLinkedEmail,
   buildFirmStaffAddedEmail,
@@ -111,7 +117,7 @@ import {
   buildSignupNotificationEmail,
   fmtDate,
 } from "./emails";
-import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, isEmailAllowlisted, sendViaSendGrid } from "./sender";
+import { DEFAULT_DAILY_SEND_CAP, checkAndCountActionSend, isEmailAllowlisted, sendViaSendGrid } from "./sender";
 import { StaleDataError as SchedulerStaleDataError, runReminderPass } from "./scheduler";
 import {
   MAX_PASSWORD_LEN,
@@ -524,7 +530,7 @@ async function sendSignupNotification(
 ): Promise<void> {
   if (!env.SENDGRID_API_KEY) return;
   try {
-    const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+    const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
     if (!underCap) return;
     const built = buildSignupNotificationEmail(kind, details);
     await sendViaSendGrid(env.SENDGRID_API_KEY, INTERNAL_NOTIFY_EMAIL, built, env.EMAIL_ALLOWLIST);
@@ -853,7 +859,7 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
     if (existing.status === store.STATUS_PENDING && env.SENDGRID_API_KEY) {
       try {
         if (store.resendEligible(existing, new Date())) {
-          const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+          const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
           if (underCap) {
             const confirmUrl = `${actionBaseUrl(env)}/confirm?token=${encodeURIComponent(existing.confirm_token)}`;
             const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(existing.unsubscribe_token)}`;
@@ -907,15 +913,15 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
 
   // Send the double-opt-in confirmation email. Best-effort and fully isolated:
   //   - Only when a SendGrid key is configured (absent key => capture-only).
-  //   - Guarded by the daily circuit breaker (checkAndCountSend) so a burst
-  //     can never blow past the cap and torch sender reputation.
+  //   - Guarded by the daily circuit breaker (checkAndCountActionSend) so a
+  //     burst can never blow past the cap and torch sender reputation.
   //   - Wrapped so ANY failure (SendGrid down, cap hit, build error) never
   //     turns an already-stored signup into an error response. The record is
   //     persisted regardless; the user sees the same success page either way,
   //     which also preserves the no-enumeration-oracle property.
   if (env.SENDGRID_API_KEY) {
     try {
-      const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
       if (underCap) {
         const confirmUrl = `${actionBaseUrl(env)}/confirm?token=${encodeURIComponent(record.confirm_token)}`;
         const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
@@ -1168,7 +1174,7 @@ async function issueAndSendFirmLoginLink(
   const { rawToken } = await store.createLoginToken(env.DB, firmId, purpose);
   if (!env.SENDGRID_API_KEY) return;
   try {
-    const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+    const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
     if (!underCap) return;
     const loginUrl = `${actionBaseUrl(env)}/firm/login/verify?token=${encodeURIComponent(rawToken)}`;
     // COPY HONESTY (2026-07-31): a link issued from "Forgot password" must
@@ -1281,9 +1287,25 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
     }
   }
 
-  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY, true);
+  // AuditLab TS-1 (2026-08-05, revised after correction): this is the ONE
+  // relaxed route that also writes a real, persistent row (a new `firms`
+  // row with an attacker-chosen name) -- unlike the other 4 relaxed routes,
+  // where a token-less submission can only cause an email to be sent.
+  // AuditLab's explicit revised recommendation was to re-require the token
+  // HERE specifically while leaving the email-only routes relaxed, so this
+  // does NOT pass allowMissingToken. An ad-blocked visitor hitting this one
+  // still gets a real, actionable error instead of the original silent dead
+  // end: the informational notice near the widget (visible after ~4s if it
+  // never resolves) plus this message's own explicit "allow
+  // challenges.cloudflare.com" instruction -- the fallback for THIS one
+  // route is a clear explanation, not a bypass.
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
   if (!turnstileOk) {
-    return errorPage(400, "Verification failed -- please try again.");
+    return errorPage(
+      400,
+      "Verification failed. If you use an ad blocker or privacy extension, allow " +
+        "challenges.cloudflare.com for this page and try again."
+    );
   }
 
   // AuditLab F-4, 2026-08-02: `existing` was checked above, but nothing
@@ -1810,7 +1832,7 @@ async function issueAndSendSubscriberLoginLink(env: Env, email: string): Promise
   const { rawToken } = await store.createSubscriberLoginToken(env.DB, email);
   if (!env.SENDGRID_API_KEY) return;
   try {
-    const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+    const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
     if (!underCap) return;
     const loginUrl = `${actionBaseUrl(env)}/subscriber/login/verify?token=${encodeURIComponent(rawToken)}`;
     const built = buildSubscriberLoginEmail(loginUrl);
@@ -2079,6 +2101,156 @@ async function handleSubscriberLicensesList(request: Request, env: Env): Promise
     return ad < bd ? -1 : ad > bd ? 1 : 0;
   });
   return jsonResponse(200, { email: session.emailNormalized, licenses: items });
+}
+
+// ---------------------------------------------------------------------------
+// Staff self-service CPE entry (2026-08-05). The "/my/" page used to be
+// read-only by design (see build_my_page()'s own docstring in generate.py) --
+// this is the first WRITE capability added to it, deliberately narrow: a
+// signed-in subscriber may only ever touch cpe_entries rows scoped to their
+// OWN subscriber row(s), proven by email match (store.addCpeEntryForSubscriber()),
+// never by anything client-supplied. Free individuals (no firm_id) cannot
+// have CPE entries at all -- cpe_entries.firm_id is NOT NULL by schema
+// (migration 0009) -- so this only ever does anything for firm-tracked staff.
+// ---------------------------------------------------------------------------
+
+/** GET /subscriber/cpe -- every non-deleted CPE entry across every
+ * subscriber row this signed-in email owns. Empty for a free individual, not
+ * an error -- see this section's own comment for why. */
+async function handleSubscriberCpeEntriesList(request: Request, env: Env): Promise<Response> {
+  const session = await requireSubscriberSession(request, env);
+  if (session instanceof Response) return session;
+
+  const rows = await store.listCpeEntriesForSubscriberEmail(env.DB, session.emailNormalized);
+  return jsonResponse(200, { entries: rows.map(toCpeEntryJson) });
+}
+
+/**
+ * POST /subscriber/cpe -- body: subscriber_id (which of the signed-in
+ * email's tracked licenses this is for), entry_date, hours, category,
+ * description. Validation is deliberately duplicated from handleCpeEntryCreate()
+ * rather than shared: the two differ in exactly one place (how ownership is
+ * proven -- firm_id vs email), and sharing would mean threading a
+ * discriminated-union principal through one function for a handful of
+ * identical lines.
+ */
+async function handleSubscriberCpeEntryCreate(request: Request, env: Env): Promise<Response> {
+  const session = await requireSubscriberSession(request, env);
+  if (session instanceof Response) return session;
+
+  const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_cpe_create", RATE_LIMIT_SUBSCRIBER_CPE_CREATE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many entries logged today. Please try again tomorrow." });
+  }
+
+  const parsed = await readFirmLicenseJsonBody(request); // generic despite the name -- see that function's own signature
+  if (parsed instanceof Response) return parsed;
+  const form = stringFieldsOf(parsed);
+
+  for (const value of Object.values(form)) {
+    if (hasControlChars(value)) {
+      return jsonResponse(400, { error: "Invalid characters in submission." });
+    }
+  }
+
+  const subscriberId = (form.subscriber_id ?? "").trim();
+  if (!subscriberId) {
+    return jsonResponse(400, { error: "Missing subscriber_id." });
+  }
+
+  const entryDateParsed = parseStrictIsoDate(form.entry_date ?? "");
+  if (!entryDateParsed) {
+    return jsonResponse(400, { error: "Please enter a valid completion date." });
+  }
+  const entryDateIso = (form.entry_date ?? "").trim();
+  // Same one-UTC-day grace window as handleCpeEntryCreate() -- see that
+  // handler's own comment for why a raw `> Date.now()` comparison would
+  // wrongly reject a same-day entry from most positive-UTC-offset timezones.
+  const now = new Date();
+  const utcTodayPlusOneDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+  if (entryDateParsed.getTime() > utcTodayPlusOneDay) {
+    return jsonResponse(400, { error: "Completion date can't be in the future." });
+  }
+
+  const hours = parseStrictCpeHours(form.hours ?? "");
+  if (hours === null) {
+    return jsonResponse(400, { error: `Please enter a valid number of hours (greater than 0, up to ${MAX_CPE_HOURS_PER_ENTRY}).` });
+  }
+
+  const categoryRaw = (form.category ?? "general").trim();
+  if (!isValidCpeCategory(categoryRaw)) {
+    return jsonResponse(400, { error: "Category must be general, ethics, or other." });
+  }
+
+  const descriptionRaw = (form.description ?? "").trim();
+  const description = descriptionRaw.length > 0 ? sanitizeFreeText(descriptionRaw, MAX_CPE_DESCRIPTION_LEN) : null;
+
+  const created = await store.addCpeEntryForSubscriber(env.DB, session.emailNormalized, {
+    subscriberId,
+    entryDate: entryDateIso,
+    hours,
+    category: categoryRaw,
+    description,
+  });
+  if (!created) return jsonResponse(404, { error: "Not found." });
+
+  return jsonResponse(201, toCpeEntryJson(created));
+}
+
+/**
+ * POST /firm/staff-cpe-reminder -- body: subscriber_id. Admin-triggered
+ * nudge (2026-08-05): mints the SAME subscriber magic-link token
+ * issueAndSendSubscriberLoginLink() uses, but with copy specific to "log
+ * your CPE hours" (buildStaffCpeReminderEmail) naming the firm that asked --
+ * same transparency convention as buildFirmStaffAddedEmail(). Response is
+ * deliberately honest about WHY nothing sent (suppressed / cap hit / no
+ * SendGrid key) rather than a blanket "sent" -- this is an authenticated
+ * admin action against their own roster, not a public route, so there is no
+ * enumeration risk in telling the truth, and an admin wondering why a
+ * staffer never got the email is exactly the confusion this avoids.
+ */
+async function handleFirmStaffCpeReminder(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionAndEntitlement(request, env, true);
+  if (session instanceof Response) return session;
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_staff_cpe_reminder", RATE_LIMIT_FIRM_STAFF_CPE_REMINDER);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many reminders sent today. Please try again tomorrow." });
+  }
+
+  const parsed = await readFirmLicenseJsonBody(request);
+  if (parsed instanceof Response) return parsed;
+  const form = stringFieldsOf(parsed);
+  const subscriberId = (form.subscriber_id ?? "").trim();
+  if (!subscriberId) return jsonResponse(400, { error: "Missing subscriber_id." });
+
+  const staffRow = await store.getFirmLicense(env.DB, session.firmId, subscriberId);
+  if (!staffRow) return jsonResponse(404, { error: "Not found." });
+
+  let sent = false;
+  let reason: string | null = null;
+  if (!env.SENDGRID_API_KEY) {
+    reason = "Email sending isn't configured.";
+  } else if (await store.isPermanentlySuppressed(env.DB, staffRow.email)) {
+    reason = "This person has unsubscribed from all emails, so we can't reach them.";
+  } else {
+    try {
+      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      if (!underCap) {
+        reason = "Today's email limit has been reached. Please try again tomorrow.";
+      } else {
+        const { rawToken } = await store.createSubscriberLoginToken(env.DB, staffRow.email);
+        const loginUrl = `${actionBaseUrl(env)}/subscriber/login/verify?token=${encodeURIComponent(rawToken)}`;
+        const built = buildStaffCpeReminderEmail(loginUrl, session.firm.name, stateNameFromSlug(staffRow.state_slug));
+        sent = await sendViaSendGrid(env.SENDGRID_API_KEY, staffRow.email, built, env.EMAIL_ALLOWLIST);
+        if (!sent) reason = "Something went wrong sending the email. Please try again.";
+      }
+    } catch {
+      reason = "Something went wrong sending the email. Please try again.";
+    }
+  }
+
+  return jsonResponse(200, { sent, reason });
 }
 
 // ---------------------------------------------------------------------------
@@ -2433,7 +2605,7 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
 
   if (env.SENDGRID_API_KEY) {
     try {
-      const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
       if (underCap) {
         const firm = await store.getFirmById(env.DB, session.firmId);
         const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
@@ -2609,7 +2781,7 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
   // as every other send in this file.
   if (emailChanged && env.SENDGRID_API_KEY) {
     try {
-      const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
       if (underCap) {
         const confirmUrl = `${actionBaseUrl(env)}/confirm?token=${encodeURIComponent(updated.confirm_token)}`;
         const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(updated.unsubscribe_token)}`;
@@ -2727,6 +2899,7 @@ function toCpeEntryJson(row: store.CpeEntryRow): Record<string, unknown> {
     hours: row.hours,
     category: row.category,
     description: row.description,
+    entered_by_actor_type: row.entered_by_actor_type,
   };
 }
 
@@ -2816,6 +2989,7 @@ async function handleCpeEntryCreate(request: Request, env: Env): Promise<Respons
     category: categoryRaw,
     description,
     enteredByFirmSessionId: session.sessionId,
+    enteredByActorType: "admin",
   });
   if (!created) return jsonResponse(404, { error: "Not found." });
 
@@ -2896,7 +3070,7 @@ async function handleRenewed(env: Env, token: string | null): Promise<Response> 
   // that's already been made" rule this build's task called out.
   if (env.SENDGRID_API_KEY) {
     try {
-      const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
       if (underCap) {
         const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(subscriber.unsubscribe_token)}`;
         const built = buildStopConfirmationEmail(
@@ -3096,6 +3270,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/subscriber/licenses") {
         try {
           return await handleSubscriberLicensesList(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/subscriber/cpe") {
+        try {
+          return await handleSubscriberCpeEntriesList(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -3352,6 +3534,22 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
       }
 
+      if (url.pathname === "/subscriber/cpe") {
+        try {
+          return await handleSubscriberCpeEntryCreate(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/staff-cpe-reminder") {
+        try {
+          return await handleFirmStaffCpeReminder(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
       // PREVIEW/STAGING ONLY -- see RATE_LIMIT_DEBUG_REMINDER_PASS's own
       // comment. Gated on env.EMAIL_ALLOWLIST being SET, which is never true
       // in production (that env var only exists on a preview deployment) --
@@ -3537,16 +3735,27 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
   // check, not a magic-link email), so it deliberately does NOT pass
   // allowMissingToken -- unlike the other 5 verifyTurnstile() call sites,
   // there is no secondary "must click a real emailed link" gate here to
-  // fall back on. An ad-blocked visitor genuinely needs to allow Cloudflare
-  // for this specific route, so the message says so explicitly rather than
-  // the generic wording those other routes used before they stopped
-  // needing it.
+  // fall back on. Relaxing it would mean a password-guessing bot no longer
+  // needs to solve Turnstile at all, which is a real regression on the one
+  // route that grants access directly -- so this stays strict.
+  //
+  // AuditLab TS-2 (MEDIUM, 2026-08-05): the ORIGINAL copy here said "please
+  // try again", which cannot succeed while the blocker stays active and
+  // sends an ad-blocked visitor into a retry loop with no way out -- on
+  // /firm-login/, the primary paid-firm sign-in path, no less. The fix is
+  // not to relax the check (see above) but to point at the fallback that
+  // already exists on the SAME page and IS relaxed: the magic-link "Email
+  // me a sign-in link instead" option, unaffected by Turnstile since it
+  // doesn't grant access directly. ajaxifyForm() shows this text inline on
+  // /firm-login/ without navigating away, so that link is already visible
+  // right there when this message renders.
   const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
   if (!turnstileOk) {
     return errorPage(
       400,
-      "Verification failed -- please try again. If you use an ad blocker or privacy extension, " +
-        "allow challenges.cloudflare.com for this page and retry."
+      "Verification failed. If you use an ad blocker or privacy extension, it may be blocking " +
+        "our security check for password sign-in specifically -- use \"Email me a sign-in link " +
+        "instead\" below, which doesn't need it."
     );
   }
 
@@ -3823,7 +4032,7 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
   // quota, so consistency wins over always-notify here.
   if (env.SENDGRID_API_KEY) {
     try {
-      const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
       if (underCap) {
         const built = buildFirmPasswordChangedEmail(firm.name, new Date().toISOString());
         await sendViaSendGrid(env.SENDGRID_API_KEY, firm.admin_email, built, env.EMAIL_ALLOWLIST);
@@ -4019,7 +4228,7 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
   // must not block a legitimate sign-in.
   if (env.SENDGRID_API_KEY) {
     try {
-      const underCap = await checkAndCountSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
       if (underCap) {
         const built = buildFirmOauthLinkedEmail(firm.name, provider.displayName, claims.email, new Date().toISOString());
         await sendViaSendGrid(env.SENDGRID_API_KEY, firm.admin_email, built, env.EMAIL_ALLOWLIST);

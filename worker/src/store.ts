@@ -1565,6 +1565,14 @@ export interface AddCpeEntryInput {
   category: CpeCategory;
   description: string | null;
   enteredByFirmSessionId: string | null;
+  /** 'staff' (2026-08-05, self-service CPE entry) is the future login the
+   * migration 0009 comment already anticipated -- the staffer THIS entry is
+   * about, signed in via their own subscriber session, logging their own
+   * hours. `enteredByFirmSessionId` is always null on a 'staff' entry (no
+   * firm session exists in that flow); kept as a separate field rather than
+   * inferring actor type FROM null-ness of the session id, so a future
+   * caller can't accidentally mislabel one by leaving a field unset. */
+  enteredByActorType: "admin" | "staff";
 }
 
 /**
@@ -1589,7 +1597,7 @@ export async function addCpeEntry(db: D1Database, input: AddCpeEntryInput): Prom
       `INSERT INTO cpe_entries
        (id, firm_id, subscriber_id, entry_date, hours, category, description,
         certificate_document_id, entered_by_actor_type, entered_by_firm_session_id, created_at)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,NULL,'admin',?8,?9)`
+       VALUES (?1,?2,?3,?4,?5,?6,?7,NULL,?8,?9,?10)`
     )
     .bind(
       id,
@@ -1599,6 +1607,7 @@ export async function addCpeEntry(db: D1Database, input: AddCpeEntryInput): Prom
       input.hours,
       input.category,
       input.description,
+      input.enteredByActorType,
       input.enteredByFirmSessionId,
       createdAt
     )
@@ -1613,11 +1622,67 @@ export async function addCpeEntry(db: D1Database, input: AddCpeEntryInput): Prom
     category: input.category,
     description: input.description,
     certificate_document_id: null,
-    entered_by_actor_type: "admin",
+    entered_by_actor_type: input.enteredByActorType,
     entered_by_firm_session_id: input.enteredByFirmSessionId,
     created_at: createdAt,
     deleted_at: null,
   };
+}
+
+/**
+ * The subscriber-self-service counterpart to addCpeEntry() (2026-08-05).
+ * Ownership is proven by EMAIL, not firm_id: a signed-in subscriber may log
+ * hours only against a subscriber row that (a) matches their own
+ * session.emailNormalized and (b) has a firm_id at all -- cpe_entries.firm_id
+ * is NOT NULL by schema (migration 0009), so a free individual subscriber
+ * (no firm_id) structurally cannot have CPE entries, matching this feature's
+ * actual scope (firm staff logging their own hours, not the free tier).
+ * Returns null (caller 404s) for a nonexistent id, someone else's row, or a
+ * firm-less row -- identically, so a client can't distinguish "not yours"
+ * from "doesn't exist" (same anti-enumeration posture as getFirmLicense()).
+ */
+export async function addCpeEntryForSubscriber(
+  db: D1Database,
+  emailNormalized: string,
+  input: { subscriberId: string; entryDate: string; hours: number; category: CpeCategory; description: string | null }
+): Promise<CpeEntryRow | null> {
+  const owned = await db
+    .prepare(`SELECT firm_id FROM subscribers WHERE id = ?1 AND LOWER(TRIM(email)) = ?2 AND firm_id IS NOT NULL`)
+    .bind(input.subscriberId, emailNormalized)
+    .first<{ firm_id: string }>();
+  if (!owned) return null;
+
+  return addCpeEntry(db, {
+    firmId: owned.firm_id,
+    subscriberId: input.subscriberId,
+    entryDate: input.entryDate,
+    hours: input.hours,
+    category: input.category,
+    description: input.description,
+    enteredByFirmSessionId: null,
+    enteredByActorType: "staff",
+  });
+}
+
+/**
+ * Every non-deleted CPE entry across every subscriber row this email owns
+ * (2026-08-05) -- the self-service counterpart to listCpeEntriesForFirm().
+ * Scoped by email through a subquery against `subscribers` (mirroring
+ * listSubscriberLicenses()'s own email-match condition) rather than
+ * requiring the caller to already know their subscriber_id(s), since a
+ * signed-in subscriber's session only carries their email.
+ */
+export async function listCpeEntriesForSubscriberEmail(db: D1Database, emailNormalized: string): Promise<CpeEntryRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT ce.* FROM cpe_entries ce
+        JOIN subscribers s ON s.id = ce.subscriber_id
+       WHERE LOWER(TRIM(s.email)) = ?1 AND ce.deleted_at IS NULL
+       ORDER BY ce.entry_date DESC`
+    )
+    .bind(emailNormalized)
+    .all<CpeEntryRow>();
+  return results ?? [];
 }
 
 /** Every non-deleted CPE entry across the WHOLE firm's roster -- the

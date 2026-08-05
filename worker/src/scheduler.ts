@@ -113,6 +113,16 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
   const freshnessToday = opts.asOf ? new Date() : asOf;
   checkDataFreshness(freshnessToday);
 
+  // AuditLab SCHED-E (2026-08-05, HIGH): the cron fires at 18:00 UTC
+  // (wrangler.toml), so an un-normalised `asOf` is always ~0.75 days short of
+  // a full day before the UTC-midnight-anchored deadline -- Math.round() then
+  // rounds every daysRemaining down by exactly one (k - 0.75 rounds to k - 1),
+  // understating every reminder's day count and shifting every threshold a
+  // day early. Normalised to UTC midnight here, used ONLY for the
+  // daysRemaining subtraction below -- deadline computation above still uses
+  // the raw asOf, unchanged.
+  const asOfDay = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate()));
+
   const send: ReminderSendFn =
     opts.send ??
     ((to, built) => {
@@ -161,7 +171,7 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
       continue;
     }
 
-    const daysRemaining = Math.round((deadline.getTime() - asOf.getTime()) / MS_PER_DAY);
+    const daysRemaining = Math.round((deadline.getTime() - asOfDay.getTime()) / MS_PER_DAY);
     let alreadySent: number[];
     try {
       alreadySent = JSON.parse(sub.reminders_sent || "[]");

@@ -476,6 +476,23 @@ export const RATE_LIMIT_FIRM_LICENSE_RENEW: RateLimit = { max: 50, windowSeconds
 export const RATE_LIMIT_CPE_ENTRY_DELETE: RateLimit = { max: 100, windowSeconds: 86400 };
 export const RATE_LIMIT_OAUTH_IDENTITY_DELETE: RateLimit = { max: 20, windowSeconds: 86400 };
 
+// POST /subscriber/cpe (2026-08-05, staff self-service CPE entry) -- keyed
+// on the subscriber's own emailNormalized, not IP: the risk this bounds is a
+// compromised/careless subscriber session logging junk entries against
+// their own record, not an anonymous caller (they can only ever touch rows
+// matching their own email -- see store.addCpeEntryForSubscriber()). Same
+// generous-but-bounded shape as RATE_LIMIT_CPE_ENTRY_CREATE, just a smaller
+// ceiling since one person logging their own hours is inherently
+// lower-volume than a firm admin bulk-logging a whole roster.
+export const RATE_LIMIT_SUBSCRIBER_CPE_CREATE: RateLimit = { max: 20, windowSeconds: 86400 };
+
+// POST /firm/staff-cpe-reminder (2026-08-05) -- an admin-triggered nudge
+// email to one staff member. Keyed on firm_id like RATE_LIMIT_FIRM_LICENSE_CREATE,
+// bounding a compromised/careless firm session from mail-bombing its own
+// staff roster with reminder emails, not sized for "one per staff member per
+// day" (a firm reasonably re-sending after someone missed the first one).
+export const RATE_LIMIT_FIRM_STAFF_CPE_REMINDER: RateLimit = { max: 50, windowSeconds: 86400 };
+
 // POST/DELETE /firm/mobility/completions (2026-08-04) -- same reasoning and
 // same 100/day ceiling as RATE_LIMIT_CPE_ENTRY_CREATE/DELETE: an
 // already-authenticated, firm-scoped mutation, bounded against a

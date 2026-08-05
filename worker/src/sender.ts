@@ -56,6 +56,28 @@ export async function checkAndCountSend(db: D1Database, cap: number): Promise<bo
   return (result.meta.changes ?? 0) > 0;
 }
 
+/** AuditLab TS-1 (2026-08-05): action/signup emails (confirmation, firm-lead,
+ * firm-signup, firm-login, subscriber-login) used to spend from the SAME
+ * counter the reminder scheduler does, so a spam wave against any of the
+ * ad-blocker-relaxed routes could exhaust the shared daily cap and silently
+ * stop real deadline reminders for the rest of the UTC day. This is the
+ * IDENTICAL circuit breaker against migration 0019's separate
+ * `action_send_counters` table -- every caller sending an action/transactional
+ * email (never a reminder) must use this instead of checkAndCountSend(). */
+export const DEFAULT_DAILY_ACTION_SEND_CAP = 300;
+
+export async function checkAndCountActionSend(db: D1Database, cap: number): Promise<boolean> {
+  const day = todayUtc();
+  const result = await db
+    .prepare(
+      `INSERT INTO action_send_counters (day, count) VALUES (?1, 1)
+       ON CONFLICT(day) DO UPDATE SET count = count + 1 WHERE count < ?2`
+    )
+    .bind(day, cap)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
 /**
  * Case-insensitive, trimmed membership check against a comma-separated
  * allowlist string (env.EMAIL_ALLOWLIST). Returns null when `raw` is

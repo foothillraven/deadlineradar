@@ -91,7 +91,11 @@ describe("provider configuration gating", () => {
   });
 
   it("requests identity-only scopes (broader scopes would trigger Google's verification review)", () => {
-    expect(PROVIDERS.google!.scopes).toBe("openid email profile");
+    // AuditLab OAUTH-1 (2026-08-05): dropped 'profile' -- requested but
+    // never used, and it made the Google consent screen list more than the
+    // privacy policy claims we receive.
+    expect(PROVIDERS.google!.scopes).toBe("openid email");
+    expect(PROVIDERS.google!.scopes).not.toContain("profile");
   });
 });
 
@@ -157,7 +161,7 @@ describe("authorize URL", () => {
     expect(url.searchParams.get("nonce")).toBe(NONCE);
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");
     expect(url.searchParams.get("code_challenge")).toBe(await pkceChallengeS256("verifier-abc"));
-    expect(url.searchParams.get("scope")).toBe("openid email profile");
+    expect(url.searchParams.get("scope")).toBe("openid email");
   });
 
   it("never puts the code_verifier or client_secret in the browser-visible URL", async () => {

@@ -2773,6 +2773,56 @@ describe("sender.ts checkAndCountSend -- daily circuit breaker", () => {
   });
 });
 
+describe("sender.ts checkAndCountActionSend -- separate budget from reminders (AuditLab TS-1, 2026-08-05)", () => {
+  it("allows sends up to its own cap, then refuses further sends that UTC day", async () => {
+    const { checkAndCountActionSend } = await import("../src/sender");
+    const before = await env.DB
+      .prepare("SELECT count FROM action_send_counters WHERE day = strftime('%Y-%m-%d','now')")
+      .first<{ count: number }>();
+    const alreadyUsed = before?.count ?? 0;
+    const cap = alreadyUsed + 3;
+    const results: boolean[] = [];
+    for (let i = 0; i < 5; i++) {
+      results.push(await checkAndCountActionSend(env.DB, cap));
+    }
+    expect(results).toEqual([true, true, true, false, false]);
+  });
+
+  it("is a genuinely SEPARATE counter from checkAndCountSend() -- exhausting one cannot starve the other", async () => {
+    // This is the actual defect TS-1 reported: before migration 0019, every
+    // action email (confirmation, firm-signup login link, etc.) spent from
+    // the SAME counter the reminder scheduler does, so a spam wave against
+    // an ad-blocker-relaxed signup route could exhaust the shared cap and
+    // silently stop real deadline reminders for the rest of the UTC day.
+    const { checkAndCountSend, checkAndCountActionSend } = await import("../src/sender");
+
+    const reminderBefore = await env.DB
+      .prepare("SELECT count FROM send_counters WHERE day = strftime('%Y-%m-%d','now')")
+      .first<{ count: number }>();
+    const reminderUsed = reminderBefore?.count ?? 0;
+
+    const actionBefore = await env.DB
+      .prepare("SELECT count FROM action_send_counters WHERE day = strftime('%Y-%m-%d','now')")
+      .first<{ count: number }>();
+    const actionUsed = actionBefore?.count ?? 0;
+
+    // Exhaust the ACTION budget completely (cap = current usage, so the very
+    // next call is already refused).
+    const actionCap = actionUsed;
+    expect(await checkAndCountActionSend(env.DB, actionCap)).toBe(false);
+    expect(await checkAndCountActionSend(env.DB, actionCap)).toBe(false);
+
+    // The REMINDER counter must be completely unaffected -- still exactly
+    // where it was, and a reminder send with room in ITS OWN cap still goes
+    // through cleanly.
+    const reminderAfterExhaustion = await env.DB
+      .prepare("SELECT count FROM send_counters WHERE day = strftime('%Y-%m-%d','now')")
+      .first<{ count: number }>();
+    expect(reminderAfterExhaustion?.count ?? 0).toBe(reminderUsed);
+    expect(await checkAndCountSend(env.DB, reminderUsed + 1)).toBe(true);
+  });
+});
+
 describe("emails.ts buildConfirmationEmail", () => {
   it("builds a subject, both bodies, the confirm link, and a real CAN-SPAM address", async () => {
     const { buildConfirmationEmail, MAILING_ADDRESS } = await import("../src/emails");
@@ -2855,6 +2905,37 @@ describe("scheduler.ts runReminderPass -- one pass", () => {
     const mine = sends.find((s) => s.to === email);
     expect(mine).toBeTruthy();
     expect(mine?.subject).toContain("Texas");
+    expect(mine?.subject).toContain("7 days");
+
+    const row = await env.DB.prepare("SELECT reminders_sent FROM subscribers WHERE id = ?1").bind(rec.id).first<{ reminders_sent: string }>();
+    expect(JSON.parse(row?.reminders_sent ?? "[]")).toContain(7);
+  });
+
+  it("AuditLab SCHED-E: at the real cron invocation time (18:00 UTC), daysRemaining is not understated by one", async () => {
+    const { runReminderPass } = await import("../src/scheduler");
+    const email = `sched-tx-schede-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, {
+      email,
+      stateSlug: "texas",
+      deadlineFields: { birth_month: "7" }, // TX deadline = end of July -> July 31 2026 UTC midnight
+      firstName: "Tester",
+    });
+    await store.confirm(env.DB, rec.confirm_token);
+
+    const sends: { to: string; subject: string }[] = [];
+    // Pre-fix, Math.round(7 days - 18 hours) understated this to 6 -- wrangler.toml's
+    // actual cron ("0 18 * * *") fires at exactly this hour every day in production.
+    const summary = await runReminderPass(env, {
+      asOf: new Date(Date.UTC(2026, 6, 24, 18, 0, 0)),
+      send: async (to, built) => {
+        sends.push({ to, subject: built.subject });
+        return true;
+      },
+    });
+
+    expect(summary.errors).toEqual([]);
+    const mine = sends.find((s) => s.to === email);
+    expect(mine).toBeTruthy();
     expect(mine?.subject).toContain("7 days");
 
     const row = await env.DB.prepare("SELECT reminders_sent FROM subscribers WHERE id = ?1").bind(rec.id).first<{ reminders_sent: string }>();

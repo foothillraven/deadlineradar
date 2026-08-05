@@ -889,7 +889,11 @@
   .dr-cpe-staff-card:last-child { margin-bottom: 0; }
   .dr-cpe-staff-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.8rem; margin-bottom: 0.6rem; }
   .dr-cpe-staff-name { font-weight: 600; }
-  .dr-cpe-staff-state { color: var(--muted); font-size: 0.82rem; }
+  .dr-cpe-staff-state { color: var(--muted); font-size: 0.82rem; margin-right: auto; }
+  
+  .dr-cpe-remind-btn { font-family: inherit; font-size: 0.78rem; padding: 0.25rem 0.6rem; border: 1px solid var(--border-strong); border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; white-space: nowrap; }
+  .dr-cpe-remind-btn:hover { color: var(--fg); border-color: var(--fg); }
+  .dr-cpe-remind-btn:disabled { opacity: 0.6; cursor: default; }
   .dr-cpe-bar-row { display: flex; align-items: center; gap: 0.7rem; font-size: 0.82rem; margin-top: 0.4rem; }
   .dr-cpe-bar-label { flex: 0 0 5.5rem; color: var(--muted); }
   .dr-cpe-bar-track { flex: 1 1 auto; height: 0.55rem; border-radius: 999px; background: var(--border); overflow: hidden; }
@@ -994,6 +998,24 @@
   .is-soon .dr-my-count { color: #a86a10; }
   .is-overdue .dr-my-count { color: #c33737; }
   .dr-my-note { font-size: 0.82rem; color: var(--muted); margin-top: 0.55rem; }
+  
+  .dr-my-cpe { border-top: 1px solid var(--border); margin-top: 0.8rem; padding-top: 0.8rem; }
+  .dr-my-cpe h4 { margin: 0 0 0.5rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); }
+  .dr-my-cpe-bar-row { display: flex; align-items: center; gap: 0.6rem; font-size: 0.82rem; margin-bottom: 0.4rem; }
+  .dr-my-cpe-bar-row > span:first-child { flex: 0 0 3.2rem; color: var(--muted); }
+  .dr-my-cpe-bar-row > span:last-child { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .dr-my-cpe-bar-track { flex: 1 1 auto; height: 7px; border-radius: 4px; background: var(--row-alt); overflow: hidden; }
+  .dr-my-cpe-bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .dr-my-cpe-entries { list-style: none; padding: 0; margin: 0.4rem 0; font-size: 0.82rem; color: var(--muted); }
+  .dr-my-cpe-entries li { padding: 0.2rem 0; }
+  .dr-my-cpe-empty { font-size: 0.82rem; color: var(--muted); margin: 0.4rem 0; }
+  .dr-my-cpe-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.6rem; }
+  .dr-my-cpe-form input, .dr-my-cpe-form select { font-family: inherit; font-size: 0.85rem; padding: 0.4rem 0.5rem; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--card-bg); color: inherit; }
+  .dr-my-cpe-form input[type=number] { width: 5.5rem; }
+  .dr-my-cpe-form button { font-family: inherit; font-size: 0.85rem; font-weight: 700; padding: 0.4rem 0.9rem; border: 0; border-radius: 6px; background: var(--accent); color: var(--on-accent); cursor: pointer; }
+  .dr-my-cpe-form button:hover { opacity: 0.9; }
+  .dr-my-cpe-form button:disabled { opacity: 0.6; cursor: default; }
+  .dr-my-cpe-error { flex: 1 0 100%; font-size: 0.8rem; color: #c33737; }
   .dr-my-error { border: 1px solid #c33737; border-radius: 11px; padding: 0.9rem 1.1rem; margin-top: 1.2rem; font-size: 0.9rem; }
   .dr-my-empty { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.2rem; margin-top: 1.2rem; }
   .dr-my-actions { margin-top: 1.4rem; font-size: 0.9rem; }
@@ -1019,6 +1041,7 @@
     <div class="nav-links">
       <a href="/#all-states">Browse States</a>
       <a href="/methodology/">How We Verify</a>
+      <a href="/blog/">Guides</a>
       <a href="/for-firms/">For Firms</a>
       <a href="/signin/" class="nav-quiet" id="dr-nav-signin">Sign In</a>
       <a href="#remind" class="cta">Get reminders</a>

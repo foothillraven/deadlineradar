@@ -1435,7 +1435,14 @@ PAGE_CSS = """
   .dr-cpe-staff-card:last-child { margin-bottom: 0; }
   .dr-cpe-staff-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.8rem; margin-bottom: 0.6rem; }
   .dr-cpe-staff-name { font-weight: 600; }
-  .dr-cpe-staff-state { color: var(--muted); font-size: 0.82rem; }
+  .dr-cpe-staff-state { color: var(--muted); font-size: 0.82rem; margin-right: auto; }
+  /* Staff self-service nudge (2026-08-05) -- margin-right:auto on the state
+     span above absorbs the space-between gap so this button sits flush
+     right regardless of name/state length, without restructuring the
+     name+state markup into a shared wrapper just for this. */
+  .dr-cpe-remind-btn { font-family: inherit; font-size: 0.78rem; padding: 0.25rem 0.6rem; border: 1px solid var(--border-strong); border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; white-space: nowrap; }
+  .dr-cpe-remind-btn:hover { color: var(--fg); border-color: var(--fg); }
+  .dr-cpe-remind-btn:disabled { opacity: 0.6; cursor: default; }
   .dr-cpe-bar-row { display: flex; align-items: center; gap: 0.7rem; font-size: 0.82rem; margin-top: 0.4rem; }
   .dr-cpe-bar-label { flex: 0 0 5.5rem; color: var(--muted); }
   .dr-cpe-bar-track { flex: 1 1 auto; height: 0.55rem; border-radius: 999px; background: var(--border); overflow: hidden; }
@@ -1564,6 +1571,28 @@ PAGE_CSS = """
   .is-soon .dr-my-count { color: #a86a10; }
   .is-overdue .dr-my-count { color: #c33737; }
   .dr-my-note { font-size: 0.82rem; color: var(--muted); margin-top: 0.55rem; }
+  /* CPE self-service (2026-08-05) -- only rendered inside a managed_by_firm
+     card. Same visual language as the rest of this page (var(--card-bg)
+     nested block, var(--muted) secondary text) rather than borrowing the
+     firm dashboard's own CPE bar styling, since this page's tone is calmer/
+     personal, not a roster-wide risk scan. */
+  .dr-my-cpe { border-top: 1px solid var(--border); margin-top: 0.8rem; padding-top: 0.8rem; }
+  .dr-my-cpe h4 { margin: 0 0 0.5rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); }
+  .dr-my-cpe-bar-row { display: flex; align-items: center; gap: 0.6rem; font-size: 0.82rem; margin-bottom: 0.4rem; }
+  .dr-my-cpe-bar-row > span:first-child { flex: 0 0 3.2rem; color: var(--muted); }
+  .dr-my-cpe-bar-row > span:last-child { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .dr-my-cpe-bar-track { flex: 1 1 auto; height: 7px; border-radius: 4px; background: var(--row-alt); overflow: hidden; }
+  .dr-my-cpe-bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .dr-my-cpe-entries { list-style: none; padding: 0; margin: 0.4rem 0; font-size: 0.82rem; color: var(--muted); }
+  .dr-my-cpe-entries li { padding: 0.2rem 0; }
+  .dr-my-cpe-empty { font-size: 0.82rem; color: var(--muted); margin: 0.4rem 0; }
+  .dr-my-cpe-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.6rem; }
+  .dr-my-cpe-form input, .dr-my-cpe-form select { font-family: inherit; font-size: 0.85rem; padding: 0.4rem 0.5rem; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--card-bg); color: inherit; }
+  .dr-my-cpe-form input[type=number] { width: 5.5rem; }
+  .dr-my-cpe-form button { font-family: inherit; font-size: 0.85rem; font-weight: 700; padding: 0.4rem 0.9rem; border: 0; border-radius: 6px; background: var(--accent); color: var(--on-accent); cursor: pointer; }
+  .dr-my-cpe-form button:hover { opacity: 0.9; }
+  .dr-my-cpe-form button:disabled { opacity: 0.6; cursor: default; }
+  .dr-my-cpe-error { flex: 1 0 100%; font-size: 0.8rem; color: #c33737; }
   .dr-my-error { border: 1px solid #c33737; border-radius: 11px; padding: 0.9rem 1.1rem; margin-top: 1.2rem; font-size: 0.9rem; }
   .dr-my-empty { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.2rem; margin-top: 1.2rem; }
   .dr-my-actions { margin-top: 1.4rem; font-size: 0.9rem; }
@@ -1650,6 +1679,7 @@ def site_header(
     <div class="nav-links">
       <a href="/#all-states">Browse States</a>
       <a href="/methodology/">How We Verify</a>
+      <a href="/blog/">Guides</a>
       <a href="/for-firms/">For Firms</a>
       {signin_link_html}<a href="{esc(remind_href)}" class="cta">Get reminders</a>
     </div>
@@ -5112,14 +5142,93 @@ _MY_DASHBOARD_JS_HTML = """<script>
     return null;
   }
 
+  // Staff self-service CPE entry (2026-08-05). drCpeEntries and drLicenses
+  // are module-level (not just locals inside drRender) because the
+  // delegated form-submit handler below needs to look up which state/
+  // requirement a given subscriber_id belongs to, and because logging a new
+  // entry re-renders from the SAME two arrays rather than re-fetching
+  // licenses (which never change from this page).
+  var drLicenses = [];
+  var drCpeEntries = [];
+
+  function drCpeReq(stateSlug) {
+    return (window.DR_CPE_REQUIREMENTS || {})[stateSlug] || null;
+  }
+
+  // Deliberately simpler than the firm dashboard's drCpeProgressForSubscriber:
+  // no pace-aware "behind" risk verdict here -- this is one person's own
+  // view of their own hours, not a roster-wide risk stat an admin scans for
+  // who to chase. Just an honest "here's what's logged against what's
+  // required."
+  function drCpeProgressFor(lic) {
+    var req = drCpeReq(lic.state_slug);
+    if (!req || (req.total_hours === null && req.ethics_hours === null)) {
+      return {hasRequirement: false, dataGapNote: req ? req.data_gap_note : null};
+    }
+    var totalLoggedTenths = 0, ethicsLoggedTenths = 0;
+    drCpeEntries.forEach(function (e) {
+      if (e.subscriber_id !== lic.id) return;
+      totalLoggedTenths += Math.round(e.hours * 10);
+      if (e.category === 'ethics') ethicsLoggedTenths += Math.round(e.hours * 10);
+    });
+    return {
+      hasRequirement: true,
+      totalRequired: req.total_hours, totalLogged: totalLoggedTenths / 10,
+      ethicsRequired: req.ethics_hours, ethicsLogged: ethicsLoggedTenths / 10,
+    };
+  }
+
+  function drCpeBarHtml(label, logged, required) {
+    if (required === null) return '';
+    var pct = Math.min(100, Math.round((logged / required) * 100));
+    return '<div class="dr-my-cpe-bar-row"><span>' + drEsc(label) + '</span>' +
+      '<span class="dr-my-cpe-bar-track"><span class="dr-my-cpe-bar-fill" style="width:' + pct + '%"></span></span>' +
+      '<span>' + logged + ' / ' + required + 'h</span></div>';
+  }
+
+  function drCpeEntriesHtml(lic) {
+    var entries = drCpeEntries.filter(function (e) { return e.subscriber_id === lic.id; });
+    if (!entries.length) return '<p class="dr-my-cpe-empty">No hours logged yet.</p>';
+    return '<ul class="dr-my-cpe-entries">' + entries.map(function (e) {
+      return '<li>' + drEsc(e.entry_date) + ' &mdash; ' + e.hours + 'h' +
+        (e.category !== 'general' ? ' (' + drEsc(e.category) + ')' : '') +
+        (e.description ? ': ' + drEsc(e.description) : '') + '</li>';
+    }).join('') + '</ul>';
+  }
+
+  // Only rendered for a firm-tracked license (lic.managed_by_firm) -- CPE
+  // entries require a firm_id by schema (migration 0009), so a free
+  // individual's own license structurally can never have any; showing this
+  // section there would be a form that always 404s on submit.
+  function drCpeSectionHtml(lic) {
+    var p = drCpeProgressFor(lic);
+    if (!p.hasRequirement) {
+      var gapText = p.dataGapNote ? drEsc(p.dataGapNote) : 'CPE requirement not codified for this state.';
+      return '<div class="dr-my-cpe"><h4>CPE hours</h4><p class="dr-my-cpe-empty">' + gapText + '</p></div>';
+    }
+    var totalBar = p.totalRequired !== null ? drCpeBarHtml('Total', p.totalLogged, p.totalRequired) : '';
+    var ethicsBar = p.ethicsRequired !== null ? drCpeBarHtml('Ethics', p.ethicsLogged, p.ethicsRequired) : '';
+    return '<div class="dr-my-cpe"><h4>CPE hours</h4>' + totalBar + ethicsBar +
+      drCpeEntriesHtml(lic) +
+      '<form class="dr-my-cpe-form" data-subscriber-id="' + drEsc(lic.id) + '">' +
+        '<input type="date" name="entry_date" required aria-label="Date completed">' +
+        '<input type="number" name="hours" step="0.1" min="0.1" max="1000" required aria-label="Hours" placeholder="Hours">' +
+        '<select name="category" aria-label="Category">' +
+          '<option value="general">General</option><option value="ethics">Ethics</option><option value="other">Other</option>' +
+        '</select>' +
+        '<button type="submit">Log hours</button>' +
+        '<span class="dr-my-cpe-error" role="alert" hidden></span>' +
+      '</form></div>';
+  }
+
   function drRender(data) {
     if (emailEl) emailEl.textContent = data.email || '';
-    var licenses = data.licenses || [];
-    if (!licenses.length) {
+    drLicenses = data.licenses || [];
+    if (!drLicenses.length) {
       if (emptyEl) emptyEl.hidden = false;
       return;
     }
-    listEl.innerHTML = licenses.map(function (lic) {
+    listEl.innerHTML = drLicenses.map(function (lic) {
       var days = lic.next_deadline ? drDaysUntil(lic.next_deadline) : null;
       var dateText = lic.next_deadline
         ? drFormatDate(lic.next_deadline)
@@ -5141,9 +5250,49 @@ _MY_DASHBOARD_JS_HTML = """<script>
         '<div class="dr-my-date">' + drEsc(dateText) + '</div>' +
         (days !== null ? '<div class="dr-my-count">' + drEsc(drCountdown(days)) + '</div>' : '') +
         (note ? '<div class="dr-my-note">' + drEsc(note) + '</div>' : '') +
+        (lic.managed_by_firm ? drCpeSectionHtml(lic) : '') +
         '</li>';
     }).join('');
   }
+
+  // Delegated submit handler -- the forms above are rebuilt on every
+  // drRender() call, so a per-form listener would need re-wiring each time;
+  // one listener on the list container survives every re-render.
+  listEl.addEventListener('submit', function (e) {
+    var form = e.target.closest ? e.target.closest('.dr-my-cpe-form') : null;
+    if (!form) return;
+    e.preventDefault();
+    var errEl = form.querySelector('.dr-my-cpe-error');
+    if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+    var btn = form.querySelector('button[type="submit"]');
+    if (btn) btn.disabled = true;
+    var body = {
+      subscriber_id: form.getAttribute('data-subscriber-id'),
+      entry_date: form.entry_date.value,
+      hours: form.hours.value,
+      category: form.category.value,
+    };
+    fetch('/api/subscriber/cpe', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify(body),
+    }).then(function (res) {
+      if (res.status === 401) { window.location.href = '/signin/'; return null; }
+      return res.json().catch(function () { return null; }).then(function (data) {
+        if (!res.ok) {
+          if (errEl) { errEl.textContent = (data && data.error) ? data.error : 'Something went wrong, please try again.'; errEl.hidden = false; }
+          if (btn) btn.disabled = false;
+          return;
+        }
+        if (data) drCpeEntries.push(data);
+        drRender({email: emailEl ? emailEl.textContent : '', licenses: drLicenses});
+      });
+    }).catch(function () {
+      if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+      if (btn) btn.disabled = false;
+    });
+  });
 
   fetch('/api/subscriber/licenses', {credentials: 'include'})
     .then(function (res) {
@@ -5151,7 +5300,18 @@ _MY_DASHBOARD_JS_HTML = """<script>
       if (!res.ok) throw new Error('load failed');
       return res.json();
     })
-    .then(function (data) { if (data) drRender(data); })
+    .then(function (data) {
+      if (!data) return null;
+      // CPE entries loaded BEFORE the first render, so a firm-tracked
+      // license's progress bars never flash empty-then-populated.
+      return fetch('/api/subscriber/cpe', {credentials: 'include'})
+        .then(function (res) { return res.ok ? res.json() : {entries: []}; })
+        .catch(function () { return {entries: []}; })
+        .then(function (cpeData) {
+          drCpeEntries = (cpeData && cpeData.entries) || [];
+          drRender(data);
+        });
+    })
     .catch(function () {
       // Never leave the page sitting on "Loading..." forever -- a silent
       // spinner reads as "you have nothing", which for a deadline product is
@@ -5167,19 +5327,37 @@ _MY_DASHBOARD_JS_HTML = _MY_DASHBOARD_JS_HTML.replace(
 )
 
 
-def build_my_page() -> str:
+def build_my_page(cpe_hours_by_slug: dict[str, dict]) -> str:
     """The free individual's dashboard (2026-07-31).
 
-    Read-only, on purpose. Everything this page shows already existed --
-    the reminders have been sending since day one -- so this adds visibility,
-    not capability, and every mutation (unsubscribe, re-arm, "I renewed")
-    stays where it already works: the tokenised links in the reminder emails
-    themselves. That keeps the entire write surface for individuals at zero
-    new endpoints.
+    Was read-only by design -- every mutation (unsubscribe, re-arm, "I
+    renewed") stayed on the tokenised links in reminder emails, keeping the
+    write surface at zero new endpoints. That changed 2026-08-05 (Devin:
+    staff self-service CPE entry, "an email... but only option is to input
+    hours"): this page is also where a firm-tracked staffer signs in
+    themselves, so it's no longer accurate to call the whole page read-only
+    -- CPE hours are the one thing a signed-in subscriber can now write, and
+    only ever against their own subscriber row(s) (POST /subscriber/cpe,
+    proven by email match server-side, never by anything this page sends).
+    Everything else on this page -- unsubscribe, re-arm, "I renewed" -- is
+    still exactly as read-only as before.
 
     `noindex` for the same reason /firm-dashboard/ is: a signed-in app view,
     not indexable content. /signin/ stays indexable.
     """
+    # Same small, static projection of cpe_hours.json build_firm_dashboard_page()
+    # embeds -- see that function's own comment for why (no citation/notes,
+    # just what the progress calculation and the honest-gap message need).
+    cpe_requirements_json = {
+        slug: {
+            "total_hours": rec.get("total_hours"),
+            "period_years": rec.get("period_years"),
+            "ethics_hours": rec.get("ethics_hours"),
+            "ethics_period_years": rec.get("ethics_period_years"),
+            "data_gap_note": rec.get("data_gap_note"),
+        }
+        for slug, rec in cpe_hours_by_slug.items()
+    }
     body = f"""<div class="dr-my-shell">
   <div class="dr-my-head">
     <div>
@@ -5218,6 +5396,9 @@ def build_my_page() -> str:
     <p><a class="cta-button" href="/for-firms/">See DeadlineRadar for Firms &rarr;</a></p>
   </div>
 </div>
+<script>
+var DR_CPE_REQUIREMENTS = {json.dumps(cpe_requirements_json)};
+</script>
 {_MY_DASHBOARD_JS_HTML}
 """
 
@@ -6622,10 +6803,15 @@ function drRenderCpeStaffProgress() {
     var p = drCpeProgressForSubscriber(item);
     var name = drEscapeHtml(item.staff_label || item.email);
     var state = drEscapeHtml(item.state_name || '');
+    // Admin-triggered nudge (2026-08-05, staff self-service CPE entry):
+    // lives on the CPE Hours tab, next to the exact progress it's about,
+    // rather than the roster's already-crowded Actions column.
+    var reminderBtn = '<button type="button" class="dr-cpe-remind-btn" data-id="' + drEscapeHtml(item.id) +
+      '" aria-label="Email ' + name + ' a CPE-hours reminder">Email reminder</button>';
     if (!p.hasRequirement) {
       var gapText = p.dataGapNote ? drEscapeHtml(p.dataGapNote) : 'Requirement not codified for this state &mdash; track manually.';
       return '<div class="dr-cpe-staff-card"><div class="dr-cpe-staff-head">' +
-        '<span class="dr-cpe-staff-name">' + name + '</span><span class="dr-cpe-staff-state">' + state + '</span></div>' +
+        '<span class="dr-cpe-staff-name">' + name + '</span><span class="dr-cpe-staff-state">' + state + '</span>' + reminderBtn + '</div>' +
         '<p class="dr-cpe-gap-note">' + gapText + '</p></div>';
     }
     var totalBar = p.totalRequired !== null ? drCpeBarHtml('Total', p.totalLogged, p.totalRequired, p.totalBehind) : '';
@@ -6639,7 +6825,7 @@ function drRenderCpeStaffProgress() {
           ' counted above &mdash; not a bug, just outside this renewal period.</p>'
         : '');
     return '<div class="dr-cpe-staff-card"><div class="dr-cpe-staff-head">' +
-      '<span class="dr-cpe-staff-name">' + name + '</span><span class="dr-cpe-staff-state">' + state + '</span></div>' +
+      '<span class="dr-cpe-staff-name">' + name + '</span><span class="dr-cpe-staff-state">' + state + '</span>' + reminderBtn + '</div>' +
       totalBar + ethicsBar + cycleNote + '</div>';
   }).join('');
 }
@@ -7052,6 +7238,42 @@ document.addEventListener('DOMContentLoaded', function() {
       var btn = e.target.closest('.dr-paywall-tier-btn');
       if (!btn) return;
       drStartCheckout(btn.getAttribute('data-tier'), btn);
+    });
+  }
+
+  // Staff self-service CPE-entry nudge (2026-08-05) -- one delegated
+  // listener on the container, since drRenderCpeStaffProgress() rebuilds
+  // #dr-cpe-staff-body's innerHTML on every reload and a per-button
+  // listener would need re-wiring each time.
+  var cpeStaffBody = document.getElementById('dr-cpe-staff-body');
+  if (cpeStaffBody) {
+    cpeStaffBody.addEventListener('click', function(e) {
+      var btn = e.target.closest('.dr-cpe-remind-btn');
+      if (!btn) return;
+      var subscriberId = btn.getAttribute('data-id');
+      var originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      fetch('/api/firm/staff-cpe-reminder', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({subscriber_id: subscriberId}),
+      }).then(function (res) {
+        if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+        return res.json().catch(function () { return null; });
+      }).then(function (data) {
+        if (!data) return;
+        // Honest per-click feedback, not a generic toast -- the response
+        // itself says WHY nothing sent (suppressed / cap hit / no key),
+        // and this is exactly the button that was clicked, so putting the
+        // answer right there beats a page-wide banner for a one-off action.
+        btn.textContent = data.sent ? 'Sent!' : (data.reason || 'Not sent');
+        setTimeout(function () { btn.textContent = originalText; btn.disabled = false; }, 3000);
+      }).catch(function () {
+        btn.textContent = 'Failed — try again';
+        setTimeout(function () { btn.textContent = originalText; btn.disabled = false; }, 3000);
+      });
     });
   }
 
@@ -9191,7 +9413,7 @@ def main() -> None:
 
     my_dir = SITE_DIR / "my"
     my_dir.mkdir(parents=True, exist_ok=True)
-    (my_dir / "index.html").write_text(build_my_page(), encoding="utf-8")
+    (my_dir / "index.html").write_text(build_my_page(cpe_hours_by_slug), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/my/index.html")
 
     firm_mobility_dir = SITE_DIR / "firm-mobility"

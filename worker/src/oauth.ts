@@ -60,7 +60,16 @@ export const PROVIDERS: Record<string, OauthProvider> = {
     // Identity only. Anything broader drags the app into Google's
     // verification review and annual security assessment for no benefit --
     // we only need to know who signed in.
-    scopes: "openid email profile",
+    //
+    // AuditLab OAUTH-1 (LOW, 2026-08-05): `profile` was requested but never
+    // used -- the claims type this file actually reads is {sub, email,
+    // emailVerified}, and linkOauthIdentity() stores only providerSubject +
+    // providerEmail. Worse than unused: it made the Google consent screen
+    // list more than the privacy policy claims we receive ("basic sign-in
+    // identity", not name/picture/locale), a real discrepancy for a
+    // skeptical evaluator comparing the two. Dropped -- costs nothing since
+    // the code never touched it.
+    scopes: "openid email",
     clientIdVar: "GOOGLE_OAUTH_CLIENT_ID",
     clientSecretVar: "GOOGLE_OAUTH_CLIENT_SECRET",
   },

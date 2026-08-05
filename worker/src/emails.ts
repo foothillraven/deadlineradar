@@ -577,6 +577,56 @@ export function buildSubscriberLoginEmail(loginUrl: string): BuiltEmail {
 }
 
 /**
+ * Admin-triggered nudge (2026-08-05, staff self-service CPE entry): a firm
+ * admin asks us to remind one specific staff member to log their CPE hours.
+ * Reuses the EXACT same magic-link mechanism as buildSubscriberLoginEmail()
+ * above (same token, same 15-minute/one-time terms) -- this is not a new
+ * credential type, just different copy explaining WHY the link showed up,
+ * naming the firm that asked (same transparency convention
+ * buildFirmStaffAddedEmail() already established: the recipient should
+ * never wonder who's contacting them or why).
+ */
+export function buildStaffCpeReminderEmail(loginUrl: string, firmName: string, stateName: string): BuiltEmail {
+  const addr = mailingAddress();
+  const safeFirmName = firmName.replace(/[\r\n]+/g, " ");
+  const subject = `${safeFirmName} would like you to log your CPE hours`;
+
+  const textBody =
+    `${safeFirmName} asked us to remind you to log your continuing education hours for your ` +
+    `${stateName} CPA license.\n\n` +
+    `Click below to sign in and enter them -- it takes a minute:\n\n` +
+    `${loginUrl}\n\n` +
+    `This link expires in 15 minutes and can only be used once. If it's expired by the time you ` +
+    `click it, ask ${safeFirmName} to send another.\n\n` +
+    `Signing in also shows you every renewal deadline we're tracking for this email address, not ` +
+    `just this one.\n\n` +
+    `If this doesn't apply to you, you can safely ignore this email.\n\n` +
+    `---\n${SENDER_LINE}\n${addr}`;
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `Log your CPE hours</h1>` +
+      p(
+        `${esc(safeFirmName)} asked us to remind you to log your continuing education hours for ` +
+          `your ${esc(stateName)} CPA license.`
+      ) +
+      `<p style="margin:0 0 20px;">${button(loginUrl, "Sign in and log hours")}</p>` +
+      p(
+        `This link expires in 15 minutes and can only be used once. If it's expired by the time ` +
+          `you click it, ask ${esc(safeFirmName)} to send another.`,
+        13,
+        LIGHT.muted
+      ) +
+      p("If this doesn't apply to you, you can safely ignore this email.", 13, LIGHT.muted),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
  * Sent whenever a firm's password is set or changed (2026-07-30, from the
  * security review).
  *

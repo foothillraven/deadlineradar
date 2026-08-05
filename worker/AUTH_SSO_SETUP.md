@@ -93,6 +93,24 @@ either.
 
 ---
 
+## 3.5. One more step this doc originally omitted — the static-site build flag
+
+Setting the wrangler secrets makes the Worker's OAuth routes work, but the "Continue with
+Google"/"Continue with Microsoft" **button itself is rendered at STATIC-SITE BUILD TIME**, gated on
+`DR_SSO_PROVIDERS` (comma-separated provider ids, e.g. `google` or `google,microsoft`) — NOT on
+whether the Worker secrets exist. Defaults to empty (no buttons) deliberately, so a build never
+advertises a provider the deployed Worker isn't actually configured for. This means:
+
+```bash
+DR_SSO_PROVIDERS=google python generate.py    # regenerate docs/ WITH the button
+```
+
+**Every future `python generate.py` run must include this flag once a provider is live**, or the next
+unrelated regen will silently drop the button again (the code degrades safely — no error, no broken
+link, it just quietly vanishes). There is currently no persistent config file this reads from; the
+flag must be passed by hand on every build. If this becomes error-prone, worth adding a checked-in
+default once both providers are confirmed stable.
+
 ## 4. How the code behaves before these exist
 
 Each provider is independently gated on its own two secrets being present:

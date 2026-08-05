@@ -947,11 +947,26 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
 // Same "one generic response regardless of which internal branch ran"
 // no-enumeration-oracle posture as SUBSCRIBE_SUCCESS_PAGE above -- a real
 // insert and a honeypot no-op must look identical from the outside.
-const FIRM_LEAD_SUCCESS_PAGE = htmlPage(
-  "You're on the list",
-  "<h1>You're on the list</h1><p>We'll email you the moment self-serve signup for the firm dashboard " +
-    "opens. No account has been created yet &mdash; this just reserves your spot.</p>"
-);
+//
+// COPY FIX (2026-08-05, orchestrator live-test): this used to say "we'll
+// email you the moment self-serve signup opens... no account has been
+// created yet" -- stale from before self-serve firm signup existed. A
+// prospect who filled out THIS lower-commitment "just leave your email"
+// form specifically because they weren't ready to commit was told to wait
+// for a launch that already happened, instead of being pointed at the
+// signup they could complete right now -- a real, avoidable lost
+// conversion. Now offers the real signup link unconditionally, same
+// pattern as firmLoginSentPage()'s "New here? create your account" line.
+function firmLeadSuccessPage(env: Env): string {
+  const homeUrl = env.STATIC_SITE_BASE_URL || "";
+  return htmlPage(
+    "You've got it saved",
+    "<h1>You've got it saved</h1><p>We've got your info and may follow up. If you're ready now, " +
+      `self-serve signup is live &mdash; <a href="${homeUrl}/firm-login/">create your firm account</a> ` +
+      "any time, no waiting required.</p>" +
+      `<p><a href="${homeUrl}/">&larr; Back to the homepage</a></p>`
+  );
+}
 
 /**
  * POST /api/firm/lead -- the /for-firms/ page's "reserve early access" form
@@ -992,7 +1007,7 @@ async function handleFirmLead(request: Request, env: Env, ip: string): Promise<R
   // check as handleSubscribe() -- silently looks like success to a bot.
   const honeypotValue = form[HONEYPOT_FIELD_NAME];
   if (honeypotValue !== undefined && honeypotValue !== "") {
-    return htmlResponse(200, FIRM_LEAD_SUCCESS_PAGE);
+    return htmlResponse(200, firmLeadSuccessPage(env));
   }
 
   for (const value of Object.values(form)) {
@@ -1018,7 +1033,7 @@ async function handleFirmLead(request: Request, env: Env, ip: string): Promise<R
 
   await store.addFirmLead(env.DB, { email, firmName, staffCountHint });
 
-  return htmlResponse(200, FIRM_LEAD_SUCCESS_PAGE);
+  return htmlResponse(200, firmLeadSuccessPage(env));
 }
 
 // ---------------------------------------------------------------------------
@@ -1249,9 +1264,14 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
   }
   // Optional (2026-08-05, Devin: "to make the email more personal when I
   // email them") -- never required, same "empty -> null, never an error"
-  // convention as handleSubscribe()'s first_name field.
-  const adminNameRaw = (form.admin_name ?? "").trim().slice(0, MAX_ADMIN_NAME_LEN);
-  const adminName = adminNameRaw.length > 0 ? adminNameRaw : null;
+  // convention as handleSubscribe()'s first_name field. AuditLab review
+  // (2026-08-05): sanitizeFreeText() strips C1 control chars (U+0080-U+009F)
+  // that the blanket hasControlChars() sweep above does not cover (that regex
+  // is /[\x00-\x1f\x7f]/, ASCII-only) -- no exploitable path today (this
+  // field only ever reaches an email BODY greeting, never a subject/header),
+  // but every other free-text field in this file uses sanitizeFreeText(), and
+  // matching that standard here costs nothing.
+  const adminName = sanitizeFreeText(form.admin_name, MAX_ADMIN_NAME_LEN);
 
   // Trial gate (2026-07-30, BUILD v2 item 4): a free-pilot firm account is a
   // real product surface a competitor could use to see how this works. Looked

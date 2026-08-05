@@ -377,7 +377,13 @@ describe("POST /firm/lead -- firm-tier early-access capture", () => {
     );
     expect(resp.status).toBe(200);
     const body = await resp.text();
-    expect(body.toLowerCase()).toContain("on the list");
+    expect(body.toLowerCase()).toContain("got it saved");
+    // Orchestrator live-test finding (2026-08-05): this page used to say
+    // self-serve signup wasn't open yet -- stale, since it already existed.
+    // Now offers the real signup link unconditionally.
+    expect(body).toContain("/firm-login/");
+    expect(body.toLowerCase()).not.toContain("no account has been created yet");
+    expect(body.toLowerCase()).not.toContain("the moment self-serve signup");
 
     const row = await env.DB.prepare("SELECT * FROM firm_leads WHERE email = ?1").bind(email).first<FirmLeadRow>();
     expect(row).not.toBeNull();

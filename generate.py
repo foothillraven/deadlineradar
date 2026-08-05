@@ -6143,7 +6143,16 @@ function drCpeProgressForSubscriber(item) {
   // the total window when ethics_period_years is null (44 states where the
   // two match, plus LA/SD whose rules set no ethics hour count at all).
   var winEthics = drCpeCycleWindow(item.next_deadline, req.ethics_period_years || req.period_years);
-  var totalLogged = 0, ethicsLogged = 0, excludedCount = 0;
+  // AuditLab CPE-2 (MEDIUM, 2026-08-04): summing IEEE-754 doubles directly
+  // (e.g. 2.4 + 4.3 = 6.699999999999999) both rendered a 16-digit number to
+  // the customer and, worse, could put a subscriber who logged EXACTLY the
+  // required hours a hair under the requirement (39.99999999999999 < 40 ->
+  // shown as behind, and counted against the firm's "behind" percentage).
+  // Every hours value is entered via step="0.1", so accumulating in integer
+  // tenths and dividing back once at the end -- rather than accumulating
+  // in fractional hours and rounding only for display -- makes both the
+  // comparison and the displayed value exact.
+  var totalLoggedTenths = 0, ethicsLoggedTenths = 0, excludedCount = 0;
   drCpeEntries.forEach(function(e) {
     if (e.subscriber_id !== item.id) return;
     // No renewal date means we don't know either cycle boundary -- excluding
@@ -6170,12 +6179,13 @@ function drCpeProgressForSubscriber(item) {
     var inTotalWindow = e.entry_date >= win.start && e.entry_date <= win.end;
     var inEthicsWindow = winEthics && e.entry_date >= winEthics.start && e.entry_date <= winEthics.end;
     if (!inTotalWindow && !(e.category === 'ethics' && inEthicsWindow)) { excludedCount++; return; }
-    if (inTotalWindow) totalLogged += e.hours;
-    if (e.category === 'ethics' && inEthicsWindow) ethicsLogged += e.hours;
+    if (inTotalWindow) totalLoggedTenths += Math.round(e.hours * 10);
+    if (e.category === 'ethics' && inEthicsWindow) ethicsLoggedTenths += Math.round(e.hours * 10);
   });
+  var totalLogged = totalLoggedTenths / 10, ethicsLogged = ethicsLoggedTenths / 10;
   var behind =
-    (req.total_hours !== null && totalLogged < req.total_hours) ||
-    (req.ethics_hours !== null && ethicsLogged < req.ethics_hours);
+    (req.total_hours !== null && totalLoggedTenths < Math.round(req.total_hours * 10)) ||
+    (req.ethics_hours !== null && ethicsLoggedTenths < Math.round(req.ethics_hours * 10));
   return {
     hasRequirement: true,
     totalRequired: req.total_hours, totalLogged: totalLogged,

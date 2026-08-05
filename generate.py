@@ -714,7 +714,14 @@ PAGE_CSS = """
     width: 100%; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #fff;
     border-radius: 7px; padding: 0.6rem 0.7rem; font-family: inherit; font-size: 0.92rem;
   }
-  .remind-panel input::placeholder { color: #8fa7bb; }
+  /* CONTRAST-1 (LOW, 2026-08-04): this was scoped to .remind-panel only, so
+     every input outside it (the 55 state pages' CPE/reinstatement
+     email-capture forms, /signin/, the homepage state search) fell back to
+     Chrome's default placeholder grey -- 3.97:1 against this site's dark
+     backgrounds, below WCAG AA's 4.5:1. #8fa7bb is already proven at 5.31:1
+     against the darkest background in use; unscoping it clears every case
+     with margin instead of picking a new color. */
+  input::placeholder, textarea::placeholder { color: #8fa7bb; }
   .remind-panel input:focus, .remind-panel select:focus {
     outline: none; border-color: #7fb0d6; box-shadow: 0 0 0 3px rgba(127,176,214,.2);
   }

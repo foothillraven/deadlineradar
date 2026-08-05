@@ -243,6 +243,162 @@ describe("POST /firm/billing/checkout", () => {
   });
 });
 
+describe("POST /firm/billing/cancel and /firm/billing/resume (2026-08-05, self-serve cancellation)", () => {
+  it("401s with no session", async () => {
+    expect((await SELF.fetch("https://deadline-radar.com/firm/billing/cancel", { method: "POST" })).status).toBe(401);
+    expect((await SELF.fetch("https://deadline-radar.com/firm/billing/resume", { method: "POST" })).status).toBe(401);
+  });
+
+  it("402s once entitlement is denied (expired pilot) -- same gate as every other paid-tier write", async () => {
+    // A FRESH pilot (createFirmWithSession's default) is still within its
+    // 30-day trial, so entitlement actually PASSES -- that firm falls
+    // through to the "no active subscription" 400 case instead (covered by
+    // its own test below), which is correct: a pilot has nothing to cancel
+    // either way, just via a different, more specific error. This test
+    // needs a genuinely EXPIRED pilot to exercise the entitlement gate itself.
+    const { firmId, cookie } = await createFirmWithSession("Cancel Pilot Firm", `cancelpilot-${Date.now()}@example.com`);
+    await setFirmTierAndAge(firmId, "pilot", daysAgoIso(40));
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/billing/cancel", { method: "POST", headers: { Cookie: cookie } });
+    expect(resp.status).toBe(402);
+  });
+
+  it("400s when Origin doesn't match -- same CSRF defense-in-depth as every other mutating firm route", async () => {
+    const { firmId, cookie } = await createFirmWithSession("Cancel CSRF Firm", `cancelcsrf-${Date.now()}@example.com`);
+    await setFirmTierAndAge(firmId, "firm_starter", daysAgoIso(10));
+    await env.DB.prepare("UPDATE firms SET stripe_subscription_id = ?1 WHERE id = ?2").bind("sub_csrf_test", firmId).run();
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/billing/cancel", {
+      method: "POST",
+      headers: { Cookie: cookie, Origin: "https://attacker.example" },
+    });
+    expect(resp.status).toBe(400);
+  });
+
+  it("503s when Stripe isn't configured", async () => {
+    const { firmId, cookie } = await createFirmWithSession("Cancel No Stripe Firm", `cancelnostripe-${Date.now()}@example.com`);
+    await setFirmTierAndAge(firmId, "firm_starter", daysAgoIso(10));
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/billing/cancel", { method: "POST", headers: { Cookie: cookie } });
+    expect(resp.status).toBe(503);
+  });
+
+  it("400s a paid firm with no stripe_subscription_id on record", async () => {
+    const { firmId, cookie } = await createFirmWithSession("Cancel No Sub Firm", `cancelnosub-${Date.now()}@example.com`);
+    await setFirmTierAndAge(firmId, "firm_starter", daysAgoIso(10));
+    const resp = await workerFetch(
+      new Request("https://deadline-radar.com/firm/billing/cancel", { method: "POST", headers: { Cookie: cookie } }),
+      { STRIPE_SECRET_KEY: "sk_test_x" }
+    );
+    expect(resp.status).toBe(400);
+  });
+
+  it("happy path: cancel sets cancel_at_period_end (Stripe mocked), plan_tier is UNCHANGED", async () => {
+    const { firmId, cookie } = await createFirmWithSession("Cancel Happy Firm", `cancelhappy-${Date.now()}@example.com`);
+    await setFirmTierAndAge(firmId, "firm_starter", daysAgoIso(10));
+    await env.DB.prepare("UPDATE firms SET stripe_subscription_id = ?1 WHERE id = ?2").bind("sub_happy_test", firmId).run();
+    const periodEndUnix = Math.floor(Date.now() / 1000) + 20 * 86400; // ~20 days out
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "sub_happy_test", cancel_at_period_end: true, current_period_end: periodEndUnix }), { status: 200 })
+    );
+    try {
+      const resp = await workerFetch(
+        new Request("https://deadline-radar.com/firm/billing/cancel", { method: "POST", headers: { Cookie: cookie } }),
+        { STRIPE_SECRET_KEY: "sk_test_x" }
+      );
+      expect(resp.status).toBe(200);
+      const body = (await resp.json()) as { cancel_at_period_end: boolean; current_period_end: string };
+      expect(body.cancel_at_period_end).toBe(true);
+      expect(body.current_period_end).toBe(new Date(periodEndUnix * 1000).toISOString());
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [calledUrl, calledInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(calledUrl).toBe("https://api.stripe.com/v1/subscriptions/sub_happy_test");
+      expect((calledInit.body as string) ?? "").toContain("cancel_at_period_end=true");
+
+      // plan_tier must NOT have moved -- access continues to period end,
+      // only Stripe's own customer.subscription.deleted webhook (at the
+      // real period end) is allowed to touch plan_tier.
+      const firm = await store.getFirmById(env.DB, firmId);
+      expect(firm?.plan_tier).toBe("firm_starter");
+      expect(firm?.cancel_at_period_end).toBe(1);
+      expect(firm?.current_period_end).toBe(new Date(periodEndUnix * 1000).toISOString());
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("resume: same toggle with cancel_at_period_end=false, clears the local flag", async () => {
+    const { firmId, cookie } = await createFirmWithSession("Resume Happy Firm", `resumehappy-${Date.now()}@example.com`);
+    await setFirmTierAndAge(firmId, "firm_growth", daysAgoIso(10));
+    await env.DB.prepare("UPDATE firms SET stripe_subscription_id = ?1, cancel_at_period_end = 1, current_period_end = ?2 WHERE id = ?3")
+      .bind("sub_resume_test", new Date().toISOString(), firmId)
+      .run();
+    const periodEndUnix = Math.floor(Date.now() / 1000) + 25 * 86400;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "sub_resume_test", cancel_at_period_end: false, current_period_end: periodEndUnix }), { status: 200 })
+    );
+    try {
+      const resp = await workerFetch(
+        new Request("https://deadline-radar.com/firm/billing/resume", { method: "POST", headers: { Cookie: cookie } }),
+        { STRIPE_SECRET_KEY: "sk_test_x" }
+      );
+      expect(resp.status).toBe(200);
+      const body = (await resp.json()) as { cancel_at_period_end: boolean };
+      expect(body.cancel_at_period_end).toBe(false);
+
+      const [, calledInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect((calledInit.body as string) ?? "").toContain("cancel_at_period_end=false");
+
+      const firm = await store.getFirmById(env.DB, firmId);
+      expect(firm?.plan_tier).toBe("firm_growth"); // untouched throughout
+      expect(firm?.cancel_at_period_end).toBe(0);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("a Stripe API error surfaces as 502, not a raw 500", async () => {
+    const { firmId, cookie } = await createFirmWithSession("Cancel Stripe Error Firm", `cancelerr-${Date.now()}@example.com`);
+    await setFirmTierAndAge(firmId, "firm_starter", daysAgoIso(10));
+    await env.DB.prepare("UPDATE firms SET stripe_subscription_id = ?1 WHERE id = ?2").bind("sub_err_test", firmId).run();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: { message: "No such subscription" } }), { status: 404 })
+    );
+    try {
+      const resp = await workerFetch(
+        new Request("https://deadline-radar.com/firm/billing/cancel", { method: "POST", headers: { Cookie: cookie } }),
+        { STRIPE_SECRET_KEY: "sk_test_x" }
+      );
+      expect(resp.status).toBe(502);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("is rate-limited per firm", async () => {
+    const { firmId, cookie } = await createFirmWithSession("Cancel Rate Limit Firm", `cancelrl-${Date.now()}@example.com`);
+    await setFirmTierAndAge(firmId, "firm_starter", daysAgoIso(10));
+    await env.DB.prepare("UPDATE firms SET stripe_subscription_id = ?1 WHERE id = ?2").bind("sub_rl_test", firmId).run();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "sub_rl_test", cancel_at_period_end: true, current_period_end: Math.floor(Date.now() / 1000) }), { status: 200 })
+    );
+    try {
+      let sawA429 = false;
+      for (let i = 0; i < 15; i++) {
+        const resp = await workerFetch(
+          new Request("https://deadline-radar.com/firm/billing/cancel", { method: "POST", headers: { Cookie: cookie } }),
+          { STRIPE_SECRET_KEY: "sk_test_x" }
+        );
+        if (resp.status === 429) {
+          sawA429 = true;
+          break;
+        }
+      }
+      expect(sawA429, "expected a 429 within RATE_LIMIT_FIRM_BILLING_CANCEL's ceiling (10/hour)").toBe(true);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
 describe("POST /stripe/webhook", () => {
   const SECRET = "whsec_test_secret";
 

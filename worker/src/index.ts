@@ -60,6 +60,7 @@ import {
   MAX_STAFF_LABEL_LEN,
   RATE_LIMIT_ACTION,
   RATE_LIMIT_FIRM_PASSWORD_LOGIN,
+  RATE_LIMIT_FIRM_BILLING_CANCEL,
   RATE_LIMIT_FIRM_PASSWORD_SET,
   RATE_LIMIT_OAUTH_START,
   RATE_LIMIT_CPE_ENTRY_CREATE,
@@ -145,7 +146,13 @@ import {
 } from "./mobility";
 import { checkPremiumAccess, entitlementMessage } from "./entitlements";
 import { firmTierByPlanTier, firmTierForSeatCount, seatCapForFirmTier, stripePriceIdForTier } from "./tiers";
-import { createCheckoutSession, verifyWebhookSignature, StripeApiError, type StripeWebhookEvent } from "./stripe";
+import {
+  createCheckoutSession,
+  updateSubscriptionCancelAtPeriodEnd,
+  verifyWebhookSignature,
+  StripeApiError,
+  type StripeWebhookEvent,
+} from "./stripe";
 
 const SITE_NAME_FOR_WORKER = "DeadlineRadar";
 
@@ -1777,6 +1784,59 @@ async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Re
 }
 
 /**
+ * POST /firm/billing/cancel and POST /firm/billing/resume -- self-serve
+ * subscription cancellation (2026-08-05, Devin's decision: build self-serve
+ * cancel now; no refunds, access continues to the current period's end).
+ * Both call the SAME Stripe toggle (cancel_at_period_end), just opposite
+ * values -- see stripe.ts's own comment for why this is a scheduling flag,
+ * not an immediate cancellation. Neither touches plan_tier: the firm keeps
+ * full access either way until Stripe's own customer.subscription.deleted
+ * webhook fires at the real period end (handleStripeWebhook, unchanged).
+ *
+ * Entitlement-gated (not just session-gated) -- a pilot/lapsed firm has no
+ * subscription to cancel or resume, and requireFirmSessionAndEntitlement()
+ * already gives the exact "not currently on a paid plan" 402 shape the
+ * dashboard's other paywall-denial cases use, so this doesn't need its own
+ * separate check for that.
+ */
+async function handleFirmBillingCancellationToggle(request: Request, env: Env, cancelAtPeriodEnd: boolean): Promise<Response> {
+  const session = await requireFirmSessionAndEntitlement(request, env, true);
+  if (session instanceof Response) return session;
+
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  if (!env.STRIPE_SECRET_KEY) {
+    return jsonResponse(503, { error: "Billing isn't set up yet. Get in touch and we'll sort it out." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_billing_cancel", RATE_LIMIT_FIRM_BILLING_CANCEL);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  if (!session.firm.stripe_subscription_id) {
+    return jsonResponse(400, { error: "No active subscription to update." });
+  }
+
+  try {
+    const result = await updateSubscriptionCancelAtPeriodEnd(env.STRIPE_SECRET_KEY, session.firm.stripe_subscription_id, cancelAtPeriodEnd);
+    await store.updateFirmCancellation(env.DB, session.firmId, {
+      cancelAtPeriodEnd: result.cancelAtPeriodEnd,
+      currentPeriodEnd: result.currentPeriodEnd,
+    });
+    return jsonResponse(200, { cancel_at_period_end: result.cancelAtPeriodEnd, current_period_end: result.currentPeriodEnd });
+  } catch (err) {
+    if (err instanceof StripeApiError) {
+      return jsonResponse(502, { error: "Couldn't update your subscription. Please try again." });
+    }
+    throw err;
+  }
+}
+
+/**
  * POST /stripe/webhook -- Stripe calls this directly, not a browser. Reads
  * the RAW body before any parsing (signature verification is over the exact
  * bytes Stripe sent, not a re-serialized copy) and rejects with 400 before
@@ -2541,6 +2601,13 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     data_as_of: freshness.as_of_date,
     data_stale: freshness.stale,
     seat_cap: seatCapForFirmTier(session.firm.plan_tier),
+    // Self-serve cancellation UI (migration 0021) reads these three to
+    // decide what the Account tab's billing panel shows -- see
+    // handleFirmBillingCancellationToggle()'s own docstring for why
+    // cancel_at_period_end never implies a plan_tier change.
+    plan_tier: session.firm.plan_tier,
+    cancel_at_period_end: Boolean(session.firm.cancel_at_period_end),
+    current_period_end: session.firm.current_period_end,
   });
 }
 
@@ -3572,6 +3639,22 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/billing/checkout") {
         try {
           return await handleFirmBillingCheckout(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/billing/cancel") {
+        try {
+          return await handleFirmBillingCancellationToggle(request, env, true);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/billing/resume") {
+        try {
+          return await handleFirmBillingCancellationToggle(request, env, false);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }

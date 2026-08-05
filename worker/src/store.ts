@@ -796,6 +796,13 @@ export interface FirmRow {
   // reached checkout has neither.
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
+  // migration 0021 (self-serve cancellation). cancel_at_period_end is
+  // display/UI state only -- plan_tier (and therefore real access) never
+  // changes until Stripe's own customer.subscription.deleted webhook fires
+  // at the actual period end. current_period_end is null until a cancel or
+  // resume call has actually run at least once.
+  cancel_at_period_end: number;
+  current_period_end: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -1228,6 +1235,19 @@ export async function updateFirmBilling(
       `UPDATE firms SET plan_tier = ?1, stripe_customer_id = ?2, stripe_subscription_id = ?3 WHERE id = ?4`
     )
     .bind(fields.planTier, fields.stripeCustomerId, fields.stripeSubscriptionId, firmId)
+    .run();
+}
+
+/** Self-serve cancel/resume (migration 0021) -- display/UI state only, see
+ * that migration's own comment for why this never touches plan_tier. */
+export async function updateFirmCancellation(
+  db: D1Database,
+  firmId: string,
+  fields: { cancelAtPeriodEnd: boolean; currentPeriodEnd: string }
+): Promise<void> {
+  await db
+    .prepare(`UPDATE firms SET cancel_at_period_end = ?1, current_period_end = ?2 WHERE id = ?3`)
+    .bind(fields.cancelAtPeriodEnd ? 1 : 0, fields.currentPeriodEnd, firmId)
     .run();
 }
 

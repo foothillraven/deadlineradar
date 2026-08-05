@@ -526,6 +526,10 @@ export const RATE_LIMIT_FIRM_PASSWORD_LOGIN: RateLimit = { max: 10, windowSecond
  * compromised session being used to burn CPU. */
 export const RATE_LIMIT_FIRM_PASSWORD_SET: RateLimit = { max: 10, windowSeconds: 3600 };
 
+/** Cancel/resume are authenticated + rate-limited the same as password set
+ * -- no legitimate admin needs more than a handful of toggles a day. */
+export const RATE_LIMIT_FIRM_BILLING_CANCEL: RateLimit = { max: 10, windowSeconds: 3600 };
+
 /** Opening an SSO handshake is cheap, but each one writes a
  * firm_oauth_states row -- throttled so an abandoned-handshake flood can't
  * grow the table. */

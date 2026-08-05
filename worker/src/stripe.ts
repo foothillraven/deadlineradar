@@ -82,6 +82,55 @@ export async function createCheckoutSession(
   return { id: json.id, url: json.url };
 }
 
+export interface StripeSubscriptionCancellation {
+  /** Stripe's own current_period_end (Unix seconds) as an ISO string --
+   * display-only, see the migration's own comment for why this never
+   * drives an access decision. */
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+}
+
+/**
+ * POST /v1/subscriptions/{id} with cancel_at_period_end=true|false. This is
+ * a SCHEDULING toggle, not `DELETE /v1/subscriptions/{id}` (which cancels
+ * immediately) -- Devin's decision was "no refunds, access continues to the
+ * current period's end," and cancel_at_period_end is exactly that: the
+ * subscription (and this firm's plan_tier) stays untouched until Stripe's
+ * own customer.subscription.deleted webhook fires at the real period end.
+ * Setting it back to false (resume) is the same call with the opposite
+ * value -- Stripe supports un-cancelling a still-active subscription this
+ * way with no separate endpoint.
+ */
+export async function updateSubscriptionCancelAtPeriodEnd(
+  secretKey: string,
+  subscriptionId: string,
+  cancelAtPeriodEnd: boolean
+): Promise<StripeSubscriptionCancellation> {
+  const body = new URLSearchParams();
+  body.set("cancel_at_period_end", cancelAtPeriodEnd ? "true" : "false");
+
+  const res = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${btoa(`${secretKey}:`)}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: body.toString(),
+  });
+  const json = (await res.json()) as {
+    current_period_end?: number;
+    cancel_at_period_end?: boolean;
+    error?: { message?: string };
+  };
+  if (!res.ok || typeof json.current_period_end !== "number" || typeof json.cancel_at_period_end !== "boolean") {
+    throw new StripeApiError(json.error?.message ?? "Stripe subscription update failed.", res.status);
+  }
+  return {
+    currentPeriodEnd: new Date(json.current_period_end * 1000).toISOString(),
+    cancelAtPeriodEnd: json.cancel_at_period_end,
+  };
+}
+
 /**
  * Verifies a Stripe `Stripe-Signature` header against the RAW (unparsed)
  * request body, per Stripe's documented scheme:

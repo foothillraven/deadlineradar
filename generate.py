@@ -1549,6 +1549,13 @@ PAGE_CSS = """
     border-radius: 8px; background: #1f5fbf; color: #fff; font-family: inherit; font-size: 0.98rem;
     font-weight: 700; cursor: pointer; }
   .dr-auth-card button[type="submit"]:hover, .dr-account-panel form button[type="submit"]:hover { background: #1a4f9e; }
+  /* Self-serve cancellation (2026-08-05) -- a standalone action button in a
+     paragraph, not a form's own submit, so it gets the same compact/bordered
+     treatment as this dashboard's other secondary action buttons
+     (.dr-cpe-remind-btn) rather than the full-width form-submit style above. */
+  .dr-account-panel #dr-billing-body button { font-family: inherit; font-size: 0.85rem; font-weight: 600; padding: 0.4rem 0.9rem; border: 1px solid var(--border-strong); border-radius: 7px; background: transparent; color: inherit; cursor: pointer; margin-top: 0.4rem; }
+  .dr-account-panel #dr-billing-body button:hover { border-color: var(--fg); }
+  .dr-account-panel #dr-billing-body button:disabled { opacity: 0.6; cursor: default; }
   /* Show/hide-password toggle (2026-08-04, reported directly) -- generic,
      not scoped to any one form: _SHOW_PASSWORD_TOGGLE_HTML wraps every
      input[type=password] on every page in this span, wherever it lives.
@@ -1671,20 +1678,31 @@ PAGE_CSS = """
        with no source to trace; the [href^="http"] scoping is what keeps
        those out automatically (they're all relative paths).
 
-       THREE distinct DOM patterns render "the citation" depending on page/
+       FOUR distinct DOM patterns render "the citation" depending on page/
        record type -- confirmed live, not assumed, after AuditLab's suggested
        single `.cite` selector turned out to match neither Texas nor Illinois
        (both real live pages) at all:
-         .cite       icon-chip citation, _source_cite_html()'s sibling render
-                     path (used where the fact-sheet's inline chip layout applies)
+         .cite       the link ITSELF carries this class (<a class="cite">),
+                     not a wrapper -- AuditLab PRINT-1r (2026-08-05) caught
+                     that the first fix used the descendant form (`.cite a`,
+                     0 matches) instead of the self form, the same class-name-
+                     without-reading-the-element mistake their own original
+                     suggestion made, on the very selector they named.
          .trust-line "Last verified... official state board" prose block --
-                     the one AuditLab actually tested against on /texas/, and
-                     also what /illinois/ and reinstatement pages use
+                     what /texas/, /illinois/, and reinstatement pages use
          .cite-link  "Source of record ... read the rule ->" block
                      (_source_cite_html()) -- what CPE-hours pages use
-       All three need the fix independently; fixing only the one AuditLab
-       named would have left the two most common real patterns broken. */
-    .cite a[href^="http"]::after, .trust-line a[href^="http"]::after, .cite-link[href^="http"]::after {
+         .rc-cite    /rule-changes/'s citation, a real wrapper (<p class=
+                     "rc-cite"><a href=...>) -- was never in scope until
+                     PRINT-1r caught it; needs the descendant form, unlike
+                     .cite.
+       All four need the fix independently; fixing only the pattern named in
+       the original AuditLab report would have left the two MOST COMMON real
+       patterns (.trust-line, .cite-link) broken, which is exactly what
+       shipping that suggestion as-is would have done. */
+    .cite[href^="http"]::after, .cite a[href^="http"]::after,
+    .trust-line a[href^="http"]::after, .cite-link[href^="http"]::after,
+    .rc-cite a[href^="http"]::after {
       content: " (" attr(href) ")"; font-size: 0.85em; word-break: break-all;
     }
   }
@@ -5673,6 +5691,13 @@ var drEditingId = null;
 // drLicenses starting empty rather than a guessed default.
 var drSeatCap = null;
 
+// Self-serve cancellation (2026-08-05, migration 0021). Same "null until
+// the first real load" posture as drSeatCap above.
+var drBilling = null;
+var DR_PLAN_TIER_LABELS = {
+  firm_starter: 'Starter', firm_growth: 'Growth', firm_standard: 'Standard'
+};
+
 // Task #14 (2026-08-05, reported directly: "why would nothing happen when
 // clicking Mark Renewed" -- the write DID succeed, drShowSuccess() DID run,
 // but this banner lives at the very top of .dr-main while the Roster table
@@ -6192,6 +6217,85 @@ function drRenderActivity() {
 function drRenderFirmName(name) {
   var el = document.getElementById('dr-firm-name');
   if (el && name) el.textContent = name;
+}
+
+// Self-serve cancellation (2026-08-05, Devin's decision: build self-serve
+// cancel now; no refunds, access continues to the current period's end).
+// drBilling.cancelAtPeriodEnd is a SCHEDULING flag, not an access change --
+// the plan_tier this panel shows doesn't move until Stripe's own
+// customer.subscription.deleted webhook fires at the real period end, so a
+// firm mid-cancellation still sees its real, unchanged plan name here (not
+// "pilot") right up until that date. current_period_end is a full ISO
+// datetime from Stripe; drFormatDeadline() expects a plain date, hence the
+// slice(0, 10).
+function drRenderBillingPanel() {
+  var body = document.getElementById('dr-billing-body');
+  if (!body || !drBilling) return;
+  var tierDef = DR_PLAN_TIER_LABELS[drBilling.planTier];
+  if (!tierDef) {
+    body.innerHTML = '<p class="dr-panel-empty">You are on the free 30-day pilot. ' +
+      '<a href="#" id="dr-billing-upgrade-link">See paid plans</a>.</p>';
+    var upgradeLink = document.getElementById('dr-billing-upgrade-link');
+    if (upgradeLink) {
+      upgradeLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        drLoadLicenses(); // re-trigger the same 402 paywall path a lapsed pilot would hit
+      });
+    }
+    return;
+  }
+  if (drBilling.cancelAtPeriodEnd && drBilling.currentPeriodEnd) {
+    var endDate = drFormatDeadline(drBilling.currentPeriodEnd.slice(0, 10));
+    body.innerHTML = '<p><strong>' + drEscapeHtml(tierDef) + ' plan</strong> &mdash; ' +
+      'ending ' + drEscapeHtml(endDate) + '. You will keep full access until then; no refund for ' +
+      'the current period.</p>' +
+      '<button type="button" id="dr-billing-resume-btn">Resume subscription</button>';
+    var resumeBtn = document.getElementById('dr-billing-resume-btn');
+    if (resumeBtn) resumeBtn.addEventListener('click', function() { drToggleCancellation(false, resumeBtn); });
+  } else {
+    body.innerHTML = '<p><strong>' + drEscapeHtml(tierDef) + ' plan</strong> &mdash; active.</p>' +
+      '<button type="button" id="dr-billing-cancel-btn">Cancel subscription</button>';
+    var cancelBtn = document.getElementById('dr-billing-cancel-btn');
+    if (cancelBtn) cancelBtn.addEventListener('click', function() { drToggleCancellation(true, cancelBtn); });
+  }
+}
+
+function drToggleCancellation(cancel, btn) {
+  var confirmMsg = cancel
+    ? 'Cancel your subscription? No refund for the current period, but you will keep full access until it ends.'
+    : 'Resume your subscription? It will renew normally at the end of the current period.';
+  if (!window.confirm(confirmMsg)) return;
+  if (btn) btn.disabled = true;
+  var okEl = document.getElementById('dr-billing-ok');
+  var errEl = document.getElementById('dr-billing-error');
+  if (okEl) okEl.hidden = true;
+  if (errEl) errEl.hidden = true;
+  fetch('/api/firm/billing/' + (cancel ? 'cancel' : 'resume'), {
+    method: 'POST',
+    credentials: 'include',
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        if (errEl) { errEl.textContent = (data && data.error) || 'Something went wrong, please try again.'; errEl.hidden = false; }
+        if (btn) btn.disabled = false;
+        return;
+      }
+      drBilling = {
+        planTier: drBilling.planTier,
+        cancelAtPeriodEnd: Boolean(data.cancel_at_period_end),
+        currentPeriodEnd: data.current_period_end || null
+      };
+      if (okEl) {
+        okEl.textContent = cancel ? 'Subscription set to cancel at period end.' : 'Subscription resumed.';
+        okEl.hidden = false;
+      }
+      drRenderBillingPanel();
+    });
+  }).catch(function() {
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+    if (btn) btn.disabled = false;
+  });
 }
 
 // AuditLab ST-1: the API refuses new signups/staff-adds once its reference
@@ -7224,8 +7328,14 @@ function drLoadLicenses() {
       if (!data) return;
       drLicenses = data.licenses || [];
       drSeatCap = typeof data.seat_cap === 'number' ? data.seat_cap : null;
+      drBilling = {
+        planTier: data.plan_tier || 'pilot',
+        cancelAtPeriodEnd: Boolean(data.cancel_at_period_end),
+        currentPeriodEnd: data.current_period_end || null
+      };
       drRenderFirmName(data.firm_name);
       drRenderStalenessBanner(data.data_as_of, data.data_stale);
+      drRenderBillingPanel();
       drRenderTable();
       drRenderStats();
       drRenderAtRisk();
@@ -8260,6 +8370,13 @@ def build_firm_dashboard_page(
     </div>
 
     <div id="dr-view-account" class="dr-view" role="tabpanel" hidden>
+      <div class="dr-account-panel" id="dr-billing-panel">
+        <h2>Billing</h2>
+        <div id="dr-billing-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
+        <p id="dr-billing-ok" class="dr-account-ok" hidden></p>
+        <p id="dr-billing-error" role="alert" class="dr-account-err" hidden></p>
+      </div>
+
       <div class="dr-account-panel">
         <h2>Password</h2>
         <p class="signup-microcopy">Set a password to sign in directly, instead of waiting on an

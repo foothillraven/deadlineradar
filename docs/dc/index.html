@@ -966,6 +966,10 @@
     font-weight: 700; cursor: pointer; }
   .dr-auth-card button[type="submit"]:hover, .dr-account-panel form button[type="submit"]:hover { background: #1a4f9e; }
   
+  .dr-account-panel #dr-billing-body button { font-family: inherit; font-size: 0.85rem; font-weight: 600; padding: 0.4rem 0.9rem; border: 1px solid var(--border-strong); border-radius: 7px; background: transparent; color: inherit; cursor: pointer; margin-top: 0.4rem; }
+  .dr-account-panel #dr-billing-body button:hover { border-color: var(--fg); }
+  .dr-account-panel #dr-billing-body button:disabled { opacity: 0.6; cursor: default; }
+  
   .dr-pw-wrap { position: relative; display: block; }
   .dr-pw-wrap input { padding-right: 3.4rem !important; }
   .dr-pw-toggle {
@@ -1052,7 +1056,9 @@
     a { color: inherit; text-decoration: none; }
     .cite a, .trust-line a, .cite-link { text-decoration: underline; } 
     
-    .cite a[href^="http"]::after, .trust-line a[href^="http"]::after, .cite-link[href^="http"]::after {
+    .cite[href^="http"]::after, .cite a[href^="http"]::after,
+    .trust-line a[href^="http"]::after, .cite-link[href^="http"]::after,
+    .rc-cite a[href^="http"]::after {
       content: " (" attr(href) ")"; font-size: 0.85em; word-break: break-all;
     }
   }

@@ -296,7 +296,13 @@ describe("POST /firm/billing/cancel and /firm/billing/resume (2026-08-05, self-s
     await env.DB.prepare("UPDATE firms SET stripe_subscription_id = ?1 WHERE id = ?2").bind("sub_happy_test", firmId).run();
     const periodEndUnix = Math.floor(Date.now() / 1000) + 20 * 86400; // ~20 days out
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ id: "sub_happy_test", cancel_at_period_end: true, current_period_end: periodEndUnix }), { status: 200 })
+      // Real Stripe response shape (2026-08-05, confirmed against a live
+      // test-mode call): current_period_end lives per subscription-item,
+      // not at the top level.
+      new Response(
+        JSON.stringify({ id: "sub_happy_test", cancel_at_period_end: true, items: { data: [{ current_period_end: periodEndUnix }] } }),
+        { status: 200 }
+      )
     );
     try {
       const resp = await workerFetch(
@@ -333,7 +339,10 @@ describe("POST /firm/billing/cancel and /firm/billing/resume (2026-08-05, self-s
       .run();
     const periodEndUnix = Math.floor(Date.now() / 1000) + 25 * 86400;
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ id: "sub_resume_test", cancel_at_period_end: false, current_period_end: periodEndUnix }), { status: 200 })
+      new Response(
+        JSON.stringify({ id: "sub_resume_test", cancel_at_period_end: false, items: { data: [{ current_period_end: periodEndUnix }] } }),
+        { status: 200 }
+      )
     );
     try {
       const resp = await workerFetch(
@@ -378,7 +387,10 @@ describe("POST /firm/billing/cancel and /firm/billing/resume (2026-08-05, self-s
     await setFirmTierAndAge(firmId, "firm_starter", daysAgoIso(10));
     await env.DB.prepare("UPDATE firms SET stripe_subscription_id = ?1 WHERE id = ?2").bind("sub_rl_test", firmId).run();
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ id: "sub_rl_test", cancel_at_period_end: true, current_period_end: Math.floor(Date.now() / 1000) }), { status: 200 })
+      new Response(
+        JSON.stringify({ id: "sub_rl_test", cancel_at_period_end: true, items: { data: [{ current_period_end: Math.floor(Date.now() / 1000) }] } }),
+        { status: 200 }
+      )
     );
     try {
       let sawA429 = false;

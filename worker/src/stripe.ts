@@ -118,15 +118,23 @@ export async function updateSubscriptionCancelAtPeriodEnd(
     body: body.toString(),
   });
   const json = (await res.json()) as {
-    current_period_end?: number;
+    // Confirmed live, 2026-08-05, against a real test-mode subscription
+    // (caught by an actual failed call, not read from docs): current_period_end
+    // is NOT on the Subscription object at top level in this API version --
+    // it now lives per subscription-item, since a subscription's items can
+    // each have their own billing period. This Worker's checkout only ever
+    // creates a single-item subscription (one price, quantity 1), so
+    // items.data[0] is always the one that matters.
     cancel_at_period_end?: boolean;
+    items?: { data?: Array<{ current_period_end?: number }> };
     error?: { message?: string };
   };
-  if (!res.ok || typeof json.current_period_end !== "number" || typeof json.cancel_at_period_end !== "boolean") {
+  const currentPeriodEndUnix = json.items?.data?.[0]?.current_period_end;
+  if (!res.ok || typeof currentPeriodEndUnix !== "number" || typeof json.cancel_at_period_end !== "boolean") {
     throw new StripeApiError(json.error?.message ?? "Stripe subscription update failed.", res.status);
   }
   return {
-    currentPeriodEnd: new Date(json.current_period_end * 1000).toISOString(),
+    currentPeriodEnd: new Date(currentPeriodEndUnix * 1000).toISOString(),
     cancelAtPeriodEnd: json.cancel_at_period_end,
   };
 }

@@ -1392,6 +1392,21 @@ PAGE_CSS = """
   }
   .dr-cal-item--soon { background: rgba(200, 55, 55, 0.15); color: #c33737; }
   @media (prefers-color-scheme: dark) { .dr-cal-item--soon { background: rgba(230, 90, 90, 0.2); color: #ff8080; } }
+  /* Upcoming rule-change events (2026-08-06) -- a real <button>, not a div
+     like the staff .dr-cal-item entries above, since this one opens a
+     detail modal and needs to be keyboard-operable. Gold, matching
+     rc-badge-upcoming's own "not yet settled" color on /rule-changes/
+     itself -- this is the exact same feed, so the color should read the
+     same way in both places. */
+  .dr-cal-item--rule-change {
+    display: block; width: 100%; text-align: left; border: none; font: inherit;
+    background: var(--gold-bg); color: var(--gold); cursor: pointer;
+    font-size: 0.7rem; line-height: 1.25; padding: 0.1rem 0.3rem; border-radius: 4px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .dr-cal-item--rule-change:hover, .dr-cal-item--rule-change:focus-visible {
+    outline: 2px solid var(--gold); outline-offset: 1px;
+  }
   @media (max-width: 640px) {
     .dr-cal-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
     .dr-cal-day { min-height: 3rem; font-size: 0.68rem; }
@@ -5839,6 +5854,7 @@ var DR_STATUS_CLASSES = {
 var drLicenses = [];
 var drEditModalId = null;
 var drEditModalTriggerBtn = null;
+var drRuleChangeModalTriggerBtn = null;
 // GET /firm/licenses's own seat_cap (worker/src/validation.ts's
 // SELF_SERVE_SEAT_CAP) -- null until the first successful load, same "don't
 // show a number we haven't actually gotten from the server yet" posture as
@@ -6518,6 +6534,58 @@ function drLicensesByDate() {
   return map;
 }
 
+// Upcoming rule-change events (2026-08-06) that affect one of THIS firm's
+// staff -- DR_RULE_CHANGE_EVENTS (build-time, from data/reg_change_events.json,
+// see generate.py's own comment) is the same 55-jurisdiction feed
+// /rule-changes/ publishes; "affects this firm" is the one thing that page
+// can't answer, since it doesn't know any firm's roster. Scoped to
+// jurisdictions with at least one active, non-opted-out staff member --
+// a jurisdiction change is only actionable for a firm that actually has
+// someone practicing there.
+function drRuleChangeEventsForFirm() {
+  var activeStates = {};
+  drLicenses.forEach(function(item) {
+    if (item.status === 'opted_out' || !item.state_slug) return;
+    activeStates[item.state_slug] = true;
+  });
+  return DR_RULE_CHANGE_EVENTS.filter(function(e) { return activeStates[e.jurisdiction_slug]; });
+}
+
+function drRuleChangeEventsByDate() {
+  var map = {};
+  drRuleChangeEventsForFirm().forEach(function(e) {
+    if (!map[e.effective_date]) map[e.effective_date] = [];
+    map[e.effective_date].push(e);
+  });
+  return map;
+}
+
+function drOpenRuleChangeModal(event, triggerBtn) {
+  var modal = document.getElementById('dr-rule-change-modal');
+  if (!modal || !event) return;
+  drRuleChangeModalTriggerBtn = triggerBtn || null;
+  document.getElementById('dr-rule-change-modal-title').textContent = event.jurisdiction;
+  document.getElementById('dr-rule-change-modal-date').innerHTML =
+    '<strong>Effective ' + drEscapeHtml(drFormatDeadline(event.effective_date)) + '</strong> &mdash; not yet in force.';
+  document.getElementById('dr-rule-change-modal-summary').textContent = event.summary;
+  var citeLink = document.getElementById('dr-rule-change-modal-citation-link');
+  citeLink.href = event.citation_url || '#';
+  citeLink.textContent = event.citation || 'Primary source';
+  document.getElementById('dr-rule-change-modal-confidence').textContent =
+    ' · confidence: ' + (event.confidence || 'unverified');
+  modal.hidden = false;
+  document.getElementById('dr-rule-change-modal-close').focus();
+}
+
+function drCloseRuleChangeModal() {
+  var modal = document.getElementById('dr-rule-change-modal');
+  if (modal) modal.hidden = true;
+  if (drRuleChangeModalTriggerBtn && document.body.contains(drRuleChangeModalTriggerBtn)) {
+    drRuleChangeModalTriggerBtn.focus();
+  }
+  drRuleChangeModalTriggerBtn = null;
+}
+
 function drRenderCalendar() {
   var grid = document.getElementById('dr-cal-grid');
   var label = document.getElementById('dr-cal-month-label');
@@ -6539,6 +6607,7 @@ function drRenderCalendar() {
   label.textContent = DR_MONTH_NAMES[ref.getUTCMonth()] + ' ' + ref.getUTCFullYear();
 
   var byDate = drLicensesByDate();
+  var ruleChangesByDate = drRuleChangeEventsByDate();
   var firstDow = ref.getUTCDay();
   var numDays = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() + 1, 0)).getUTCDate();
   // AuditLab TZ-1 (MEDIUM, 2026-08-04), same class as drDaysUntil() above:
@@ -6559,6 +6628,7 @@ function drRenderCalendar() {
     var iso = ref.getUTCFullYear() + '-' + String(ref.getUTCMonth() + 1).padStart(2, '0') +
       '-' + String(day).padStart(2, '0');
     var items = byDate[iso] || [];
+    var ruleEvents = ruleChangesByDate[iso] || [];
     var cellItems = items.slice(0, 3).map(function(item) {
       var days = drDaysUntil(item.next_deadline);
       var soon = days !== null && days <= 7;
@@ -6568,8 +6638,19 @@ function drRenderCalendar() {
     if (items.length > 3) {
       cellItems += '<div class="dr-cal-item">+' + (items.length - 3) + ' more</div>';
     }
+    // Upcoming rule-change events affecting this firm's staff (2026-08-06,
+    // reported directly by Devin live-testing the calendar) -- a real
+    // <button> (not the plain divs above) so it's keyboard-operable;
+    // data-rule-change-id looked up against DR_RULE_CHANGE_EVENTS by the
+    // grid's own click delegation below, rather than re-serializing the
+    // whole event object into the DOM.
+    cellItems += ruleEvents.map(function(e) {
+      return '<button type="button" class="dr-cal-item--rule-change" data-rule-change-id="' + drEscapeHtml(e.id) + '" ' +
+        'aria-label="Rule change: ' + drEscapeHtml(e.jurisdiction) + '">' +
+        drEscapeHtml(e.jurisdiction) + ': rule change</button>';
+    }).join('');
     html += '<div class="dr-cal-day' + (iso === todayIso ? ' dr-cal-day--today' : '') +
-      (items.length ? ' dr-cal-day--has-item' : '') + '">' +
+      ((items.length || ruleEvents.length) ? ' dr-cal-day--has-item' : '') + '">' +
       '<span class="dr-cal-daynum">' + day + '</span>' + cellItems + '</div>';
   }
   grid.innerHTML = html;
@@ -7813,6 +7894,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  var ruleChangeModal = document.getElementById('dr-rule-change-modal');
+  var ruleChangeModalCloseBtn = document.getElementById('dr-rule-change-modal-close');
+  if (ruleChangeModalCloseBtn) ruleChangeModalCloseBtn.addEventListener('click', drCloseRuleChangeModal);
+  if (ruleChangeModal) {
+    ruleChangeModal.addEventListener('click', function(ev) {
+      if (ev.target === ruleChangeModal) drCloseRuleChangeModal();
+    });
+    document.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Escape' && !ruleChangeModal.hidden) drCloseRuleChangeModal();
+    });
+  }
+
   var mapStaffSelect = document.getElementById('dr-map-staff-select');
   if (mapStaffSelect) {
     mapStaffSelect.addEventListener('change', drRenderMapForSelection);
@@ -7947,6 +8040,16 @@ document.addEventListener('DOMContentLoaded', function() {
     calToday.addEventListener('click', function() {
       drCalendarRefDate = null;
       drRenderCalendar();
+    });
+  }
+  var calGrid = document.getElementById('dr-cal-grid');
+  if (calGrid) {
+    calGrid.addEventListener('click', function(ev) {
+      var btn = ev.target.closest ? ev.target.closest('.dr-cal-item--rule-change') : null;
+      if (!btn) return;
+      var id = btn.getAttribute('data-rule-change-id');
+      var event = DR_RULE_CHANGE_EVENTS.filter(function(e) { return e.id === id; })[0];
+      if (event) drOpenRuleChangeModal(event, btn);
     });
   }
 
@@ -8579,19 +8682,57 @@ def build_firm_dashboard_page(
     view, not indexable content -- unlike /firm-login/, which stays
     indexable/linkable like every other marketing/functional page.
 
-    Edit is deliberately scoped to staff_label/email only, never
-    state/license-type/deadline fields: GET /firm/licenses only returns
+    Edit is scoped to staff_label/email/license-expiration-date (only for
+    "bring your own date" records -- see the edit modal's own JS comments),
+    never state or license type: GET /firm/licenses only returns
     license_type_id (see index.ts's toFirmLicenseJson()), never the
-    underlying raw birth_month/birth_year/cohort_group/user_deadline a PATCH
-    would need alongside a state_slug change to keep resolveDeadlineInput()
-    happy. An edit UI that touched those fields without the real current
-    values to pre-fill would either have to guess (risking silently
-    corrupting a working deadline) or force a full re-entry that looks like
-    an edit but actually resets configuration the admin never meant to
-    touch. To change someone's state or license type, remove and re-add
+    underlying raw birth_month/birth_year/cohort_group a PATCH would need
+    alongside a state_slug change to keep resolveDeadlineInput() happy. An
+    edit UI that touched those fields without the real current values to
+    pre-fill would either have to guess (risking silently corrupting a
+    working deadline) or force a full re-entry that looks like an edit but
+    actually resets configuration the admin never meant to touch. The one
+    exception, license_expiration_date, doesn't have this problem: it IS
+    the raw stored value for a "bring your own date" record (no per-state
+    fields to reconstruct), which is exactly why it's the one deadline
+    field this form can safely expose (2026-08-06, Devin caught the gap
+    live -- the "edit their record with the new date" banner had nothing to
+    edit). To change someone's state or license type, remove and re-add
     them -- safe, unambiguous, no silent data loss."""
     add_staff_html = _firm_dashboard_add_staff_form_html(by_slug, as_of)
     map_svg_html = _firm_dashboard_map_svg_html(by_slug)
+    # Calendar tab, "upcoming rule changes" (2026-08-06, reported directly by
+    # Devin live-testing the calendar): the same sourced feed /rule-changes/
+    # already publishes (data/reg_change_events.json), reused here rather
+    # than a second dataset -- inlined at build time same as
+    # cpe_requirements_json below, since it's small, static, and identical
+    # for every firm. Client-side JS (drRuleChangeEventsForFirm()) filters
+    # this down to only the jurisdictions a firm actually has staff in --
+    # "affects one of the firm's staff" is a roster-dependent, per-firm
+    # question this static page can't answer at build time. Scoped to
+    # kind=='rule_change' AND upcoming (excludes source_conflict entries,
+    # which aren't confirmed changes, and already-effective ones, which
+    # belong on the roster/deadline surfaces instead) -- matches
+    # build_rule_changes_page()'s own "Upcoming changes" section exactly, so
+    # this can never show something that page itself wouldn't stand behind.
+    # summary_public ONLY, same reason as that page's own comment: never a
+    # raw internal-prose field.
+    _reg_change_raw = json.loads(REG_CHANGE_EVENTS_PATH.read_text(encoding="utf-8"))
+    rule_change_events_json = [
+        {
+            "id": e["event_id"],
+            "jurisdiction_slug": e["jurisdiction_slug"],
+            "jurisdiction": e.get("jurisdiction") or e["jurisdiction_slug"],
+            "effective_date": e["effective_date"],
+            "topic": e.get("topic") or "",
+            "summary": e.get("summary_public") or "",
+            "citation": e.get("citation") or "",
+            "citation_url": e.get("citation_url"),
+            "confidence": e.get("confidence") or "",
+        }
+        for e in _reg_change_raw.get("events", [])
+        if e.get("kind") == "rule_change" and e.get("upcoming") and e.get("effective_date")
+    ]
     # CPE Hours tab (2026-07-30): the state-by-state REQUIREMENT (how many
     # hours, ethics sub-requirement, cycle length) is static reference data,
     # so it's inlined once at build time -- same "static data inlined,
@@ -8724,6 +8865,24 @@ def build_firm_dashboard_page(
             <button type="button" class="dr-btn-cancel" id="dr-edit-modal-cancel">Cancel</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div id="dr-rule-change-modal" class="dr-modal-overlay" hidden>
+      <div class="dr-modal" role="dialog" aria-modal="true" aria-labelledby="dr-rule-change-modal-title">
+        <div class="rc-head">
+          <span class="rc-jurisdiction" id="dr-rule-change-modal-title"></span>
+          <span class="rc-badge rc-badge-upcoming">Upcoming</span>
+        </div>
+        <p class="rc-date" id="dr-rule-change-modal-date"></p>
+        <p class="rc-detail" id="dr-rule-change-modal-summary"></p>
+        <p class="rc-cite">
+          <a id="dr-rule-change-modal-citation-link" target="_blank" rel="noopener"></a>
+          <span class="rc-conf" id="dr-rule-change-modal-confidence"></span>
+        </p>
+        <div class="dr-modal-actions">
+          <button type="button" class="dr-btn-cancel" id="dr-rule-change-modal-close">Close</button>
+        </div>
       </div>
     </div>
 
@@ -8887,6 +9046,7 @@ def build_firm_dashboard_page(
 <script>
 var DR_CPE_REQUIREMENTS = {json.dumps(cpe_requirements_json)};
 var DR_DEFAULT_LICENSE_TYPE_ID = {json.dumps(default_license_type_id_json)};
+var DR_RULE_CHANGE_EVENTS = {json.dumps(rule_change_events_json)};
 </script>
 
 {_FIRM_DASHBOARD_JS_HTML}

@@ -841,6 +841,16 @@
   }
   .dr-cal-item--soon { background: rgba(200, 55, 55, 0.15); color: #c33737; }
   @media (prefers-color-scheme: dark) { .dr-cal-item--soon { background: rgba(230, 90, 90, 0.2); color: #ff8080; } }
+  
+  .dr-cal-item--rule-change {
+    display: block; width: 100%; text-align: left; border: none; font: inherit;
+    background: var(--gold-bg); color: var(--gold); cursor: pointer;
+    font-size: 0.7rem; line-height: 1.25; padding: 0.1rem 0.3rem; border-radius: 4px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .dr-cal-item--rule-change:hover, .dr-cal-item--rule-change:focus-visible {
+    outline: 2px solid var(--gold); outline-offset: 1px;
+  }
   @media (max-width: 640px) {
     .dr-cal-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
     .dr-cal-day { min-height: 3rem; font-size: 0.68rem; }

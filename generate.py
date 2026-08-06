@@ -7405,10 +7405,17 @@ function drApplyMobilityResults(homeStateSlug, entry, gen, subscriberId) {
       // above) href absence is the one signal cursor:default vs pointer
       // actually reads correctly on a state that's already handled.
       tipText += ' Click to open Practice Privilege Check for this person and state.';
-      link.href = '/firm-mobility/?home=' + encodeURIComponent(homeStateSlug) +
+      // setAttribute(), NOT link.href = ... -- these are SVG <a> elements,
+      // and unlike an HTML anchor, SVG's .href is an SVGAnimatedString
+      // object, not a plain settable string; assigning to it silently does
+      // nothing. Caught live: the tooltip text updated correctly but every
+      // link's real href stayed null. setAttribute() works identically on
+      // both HTML and SVG elements, which is why link.removeAttribute('href')
+      // just above/below already used it instead of `link.href = null`.
+      link.setAttribute('href', '/firm-mobility/?home=' + encodeURIComponent(homeStateSlug) +
         '&target=' + encodeURIComponent(slug) +
         '&service=' + encodeURIComponent(DR_MOBILITY_SERVICE_TYPE) +
-        (subscriberId ? '&staff=' + encodeURIComponent(subscriberId) : '');
+        (subscriberId ? '&staff=' + encodeURIComponent(subscriberId) : ''));
     } else {
       link.removeAttribute('href');
     }

@@ -2749,6 +2749,28 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
   });
 }
 
+/** GET /firm/activity -- durable Recent Activity feed (Task #26, migration
+ * 0025). Same read-gate as GET /firm/licenses -- a lapsed/pilot-expired firm
+ * shouldn't see a working panel here either. Capped at 20 -- the dashboard
+ * panel itself only ever renders the newest 6, but a small buffer avoids a
+ * pointless re-fetch just because a couple of the newest 6 happen to filter
+ * out client-side for some future reason. */
+async function handleFirmActivityList(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionAndEntitlement(request, env, false);
+  if (session instanceof Response) return session;
+
+  const events = await store.listRecentActivity(env.DB, session.firmId, 20);
+  return jsonResponse(200, {
+    events: events.map((e) => ({
+      id: e.id,
+      staff_label: e.staff_label,
+      email: e.email,
+      event_type: e.event_type,
+      created_at: e.created_at,
+    })),
+  });
+}
+
 /** GET /firm/calendar.ics -- static, one-time roster export (2026-08-06,
  * off Devin's live Calendar-feature feedback). Deliberately NOT a live
  * webcal:// subscription -- see ics.ts's own docstring for why that's a
@@ -2966,6 +2988,23 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
     // pre-existing (LOW-severity, safe-direction) behavior this improves on.
   }
 
+  // Task #26 (2026-08-06): durable Recent Activity, independent of whether
+  // this row is still on the live roster later -- see migration 0025's own
+  // docstring for why a live-roster-derived feed can't show a removal.
+  // Best-effort, same posture as every other non-critical write in this
+  // handler above.
+  try {
+    await store.logActivity(env.DB, {
+      firmId: session.firmId,
+      subscriberId: record.id,
+      staffLabel: record.staff_label,
+      email: record.email,
+      eventType: "added",
+    });
+  } catch {
+    // Non-fatal -- the roster add already succeeded regardless.
+  }
+
   if (env.SENDGRID_API_KEY) {
     try {
       const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
@@ -3167,6 +3206,19 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
     }
   }
 
+  // Task #26 -- see handleFirmLicenseCreate's own comment on this same call.
+  try {
+    await store.logActivity(env.DB, {
+      firmId: session.firmId,
+      subscriberId: updated.id,
+      staffLabel: updated.staff_label,
+      email: updated.email,
+      eventType: "edited",
+    });
+  } catch {
+    // Non-fatal -- the edit already succeeded regardless.
+  }
+
   return jsonResponse(200, { ...toFirmLicenseJson(updated, new Date()), duplicate_email_warning: duplicateEmailWarning });
 }
 
@@ -3195,6 +3247,26 @@ async function handleFirmLicenseDelete(request: Request, env: Env, id: string): 
 
   const result = await store.removeFirmLicense(env.DB, session.firmId, id);
   if (!result) return jsonResponse(404, { error: "Not found." });
+
+  // Task #26 -- the ONE case this whole feature exists for: removeFirmLicense()
+  // soft-deletes (see its own docstring), and listFirmLicenses() then
+  // deliberately excludes the row from every future GET /firm/licenses --
+  // meaning a live-roster-derived activity feed can never show a removal at
+  // all, the exact bug this durable log fixes. staffLabel/email are read
+  // from `result` (still populated -- nothing was actually SQL-deleted),
+  // not re-fetched.
+  try {
+    await store.logActivity(env.DB, {
+      firmId: session.firmId,
+      subscriberId: result.id,
+      staffLabel: result.staff_label,
+      email: result.email,
+      eventType: "removed",
+    });
+  } catch {
+    // Non-fatal -- the removal already succeeded regardless.
+  }
+
   return jsonResponse(200, { id: result.id, status: "removed" });
 }
 
@@ -3247,6 +3319,19 @@ async function handleFirmLicenseRenew(request: Request, env: Env, id: string): P
       });
     }
     return jsonResponse(400, { error: "Couldn't renew this record." });
+  }
+
+  // Task #26 -- see handleFirmLicenseCreate's own comment on this same call.
+  try {
+    await store.logActivity(env.DB, {
+      firmId: session.firmId,
+      subscriberId: updated.id,
+      staffLabel: updated.staff_label,
+      email: updated.email,
+      eventType: "renewed",
+    });
+  } catch {
+    // Non-fatal -- the renewal already succeeded regardless.
   }
 
   return jsonResponse(200, toFirmLicenseJson(updated, new Date()));
@@ -3428,6 +3513,24 @@ async function handleUnsubscribe(env: Env, token: string | null): Promise<Respon
   if (!token) return errorPage(400, "Missing unsubscribe link.");
   const subscriber = await store.stop(env.DB, token, "unsubscribed");
   if (!subscriber) return errorPage(404, "That link is invalid.");
+
+  // Task #26 (2026-08-06): only firm-scoped rows have a Recent Activity
+  // panel to feed -- a free-tier individual unsubscribing has no firm_id
+  // and nothing on the other end to show it to.
+  if (subscriber.firm_id) {
+    try {
+      await store.logActivity(env.DB, {
+        firmId: subscriber.firm_id,
+        subscriberId: subscriber.id,
+        staffLabel: subscriber.staff_label,
+        email: subscriber.email,
+        eventType: "opted_out",
+      });
+    } catch {
+      // Non-fatal -- honoring the unsubscribe already happened regardless.
+    }
+  }
+
   // No stop-confirmation email in Phase 1 (no sender exists) -- the
   // underlying stop still happens instantly regardless, same priority as
   // reminders/server.py: honoring a stop is never conditioned on whether a
@@ -3692,6 +3795,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/calendar.ics") {
         try {
           return await handleFirmCalendarIcs(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/activity") {
+        try {
+          return await handleFirmActivityList(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -4416,6 +4526,19 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
     return jsonResponse(404, { error: "Not found." });
   }
 
+  // Task #27 (2026-08-06): a demo_locked firm's shared password can still
+  // be rotated by whoever controls its registered inbox, via the normal
+  // password-RESET flow (passwordResetAuthorized below) -- just not by
+  // anyone who merely knows the current shared password. Checked BEFORE
+  // that exemption's own currentPassword check, so a demo visitor who
+  // happens to know the current password still can't use it to set a new
+  // one.
+  if (firm.demo_locked && !session.passwordResetAuthorized) {
+    return jsonResponse(403, {
+      error: "This is a shared demo account. Password changes aren't available this way -- use \"Forgot password\" instead.",
+    });
+  }
+
   // A session minted by redeeming a password-RESET link is exempt from
   // proving the old password (migration 0014). It has to be: the person who
   // clicked "Forgot password" is by definition the person who cannot supply
@@ -4868,6 +4991,13 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
   // race, which re-validates against this same firm.id).
   if (firm.status !== "active") {
     return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.", ssoContactLink(env));
+  }
+  // Task #27 (2026-08-06, Devin's call): a linked Google identity would let
+  // whoever linked it keep signing in without ever needing the shared
+  // password again -- silently undoing a password rotation meant to lock
+  // out everyone who had the old one. Blocked outright, not worked around.
+  if (firm.demo_locked) {
+    return errorPage(400, "Sign-in for this shared demo account works with the demo password only.", ssoContactLink(env));
   }
 
   const linked = await store.linkOauthIdentity(env.DB, {

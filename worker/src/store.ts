@@ -803,6 +803,10 @@ export interface FirmRow {
   // resume call has actually run at least once.
   cancel_at_period_end: number;
   current_period_end: string | null;
+  // migration 0024 (Task #27): a shared public/sandbox account. See that
+  // migration's own docstring -- blocks self-serve in-session password
+  // changes and SSO linking, NOT the emailed password-reset path.
+  demo_locked: number;
 }
 
 export interface FirmLoginTokenRow {
@@ -1297,6 +1301,42 @@ export async function listFirmLicenses(db: D1Database, firmId: string): Promise<
     )
     .bind(firmId, STATUS_STOPPED, STOP_REASON_REMOVED_BY_ADMIN)
     .all<SubscriberRow>();
+  return results;
+}
+
+export interface ActivityLogRow {
+  id: string;
+  firm_id: string;
+  subscriber_id: string;
+  staff_label: string | null;
+  email: string;
+  event_type: string;
+  created_at: string;
+}
+
+/** Task #26 (migration 0025). Best-effort by every call site (never allowed
+ * to roll back the mutation it's logging) -- see this file's own convention
+ * for the transparency emails right next to each call site. */
+export async function logActivity(
+  db: D1Database,
+  input: { firmId: string; subscriberId: string; staffLabel: string | null; email: string; eventType: string }
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO activity_log (id, firm_id, subscriber_id, staff_label, email, event_type, created_at)
+       VALUES (?1,?2,?3,?4,?5,?6,?7)`
+    )
+    .bind(newToken(), input.firmId, input.subscriberId, input.staffLabel, input.email, input.eventType, nowIso())
+    .run();
+}
+
+/** Newest-first, capped -- this is a "Recent Activity" panel, not a full
+ * audit-export surface. */
+export async function listRecentActivity(db: D1Database, firmId: string, limit: number): Promise<ActivityLogRow[]> {
+  const { results } = await db
+    .prepare(`SELECT * FROM activity_log WHERE firm_id = ?1 ORDER BY created_at DESC LIMIT ?2`)
+    .bind(firmId, limit)
+    .all<ActivityLogRow>();
   return results;
 }
 

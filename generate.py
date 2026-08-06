@@ -6507,59 +6507,60 @@ function drRenderAtRisk() {
 }
 
 var DR_ACTIVITY_LABELS = {
-  added: 'added to the roster', confirmed: 'went active', optout: 'opted out of reminders',
-  edited: 'record updated', renewed: 'marked renewed'
+  added: 'added to the roster', opted_out: 'opted out of reminders',
+  edited: 'record updated', renewed: 'marked renewed', removed: 'removed from the roster'
 };
 var DR_ACTIVITY_DOT_CLASS = {
-  added: '', confirmed: 'dr-activity-dot--confirm', optout: 'dr-activity-dot--optout',
-  edited: '', renewed: 'dr-activity-dot--confirm'
+  added: '', opted_out: 'dr-activity-dot--optout',
+  edited: '', renewed: 'dr-activity-dot--confirm', removed: 'dr-activity-dot--optout'
 };
 // Dashboard-polish item #4 (2026-08-05, Devin): per-type icon on each
 // Recent Activity line -- same minimal-line-SVG house style as
 // _VERIFIED_ICON_SVG (16x16 viewBox, stroke="currentColor", ~1.4-1.6
-// stroke-width), not a borrowed icon set. `confirmed` reuses that EXACT
-// checkmark path for visual consistency with the rest of the site's own
-// "verified/went active" language.
+// stroke-width), not a borrowed icon set.
 var DR_ACTIVITY_ICON = {
   added: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
-  confirmed: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  optout: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 8h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  opted_out: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 8h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
   edited: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10.3 3.3l2.4 2.4-6.6 6.6-3 .6.6-3z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  renewed: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M12.3 8a4.3 4.3 0 1 1-1.4-3.2M12.3 2.3v3.2h-3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  renewed: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M12.3 8a4.3 4.3 0 1 1-1.4-3.2M12.3 2.3v3.2h-3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  removed: '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 8h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'
 };
 
-function drRenderActivity() {
+// Task #26 (2026-08-06, Devin's decision: durable log, not a live-roster
+// reflection). Fetched separately from drLoadLicenses()'s own GET
+// /firm/licenses -- same "own fetch, own render, doesn't block the primary
+// roster load" pattern drLoadCpeEntries() already uses right next to this
+// call. Was previously DERIVED from drLicenses (the live roster array),
+// which structurally could never show a removal: listFirmLicenses()
+// deliberately excludes admin-removed rows from what it returns, so a
+// removed staffer's edit AND removal both silently vanished from the feed
+// the moment they were removed. GET /firm/activity reads from its own
+// durable table instead, unaffected by later roster changes.
+function drLoadActivity() {
+  return fetch('/api/firm/activity', {credentials: 'include'})
+    .then(function(res) {
+      if (!res.ok) return null;
+      return res.json();
+    })
+    .then(function(data) {
+      drRenderActivity((data && data.events) || []);
+    })
+    .catch(function() {});
+}
+
+function drRenderActivity(events) {
   var el = document.getElementById('dr-activity-list');
   if (!el) return;
-  var events = [];
-  drLicenses.forEach(function(item) {
-    var name = item.staff_label || item.email;
-    if (item.created_at) events.push({type: 'added', at: item.created_at, name: name});
-    // Skip a 'confirmed' event that landed at the exact same instant as
-    // 'added' -- under the HYBRID consent model (the only path that creates
-    // a firm-scoped roster entry today) every admin-added staffer is
-    // confirmed immediately, so created_at === confirmed_at always. Without
-    // this check one atomic "add staff" click would render as two separate
-    // feed entries.
-    if (item.confirmed_at && item.confirmed_at !== item.created_at) {
-      events.push({type: 'confirmed', at: item.confirmed_at, name: name});
-    }
-    if (item.status === 'opted_out' && item.stopped_at) events.push({type: 'optout', at: item.stopped_at, name: name});
-    // 'edited'/'renewed' -- migration 0017. Both null until the first PATCH
-    // / .../renew ever hits this row, so most records never contribute one.
-    if (item.last_edited_at) events.push({type: 'edited', at: item.last_edited_at, name: name});
-    if (item.renewed_at) events.push({type: 'renewed', at: item.renewed_at, name: name});
-  });
-  events.sort(function(a, b) { return new Date(b.at).getTime() - new Date(a.at).getTime(); });
   events = events.slice(0, 6);
   if (events.length === 0) {
     el.innerHTML = '<li class="dr-panel-empty">No activity yet.</li>';
     return;
   }
   el.innerHTML = events.map(function(ev) {
-    return '<li class="dr-activity-item"><span class="dr-activity-dot ' + DR_ACTIVITY_DOT_CLASS[ev.type] + '">' + (DR_ACTIVITY_ICON[ev.type] || '') + '</span>' +
-      '<span class="dr-activity-text"><b>' + drEscapeHtml(ev.name) + '</b> ' + DR_ACTIVITY_LABELS[ev.type] +
-      '<span class="dr-activity-when">' + drDaysAgo(ev.at) + '</span></span></li>';
+    var name = ev.staff_label || ev.email;
+    return '<li class="dr-activity-item"><span class="dr-activity-dot ' + (DR_ACTIVITY_DOT_CLASS[ev.event_type] || '') + '">' + (DR_ACTIVITY_ICON[ev.event_type] || '') + '</span>' +
+      '<span class="dr-activity-text"><b>' + drEscapeHtml(name) + '</b> ' + (DR_ACTIVITY_LABELS[ev.event_type] || ev.event_type) +
+      '<span class="dr-activity-when">' + drDaysAgo(ev.created_at) + '</span></span></li>';
   }).join('');
 }
 
@@ -7910,7 +7911,6 @@ function drLoadLicenses() {
       drRenderTable();
       drRenderStats();
       drRenderAtRisk();
-      drRenderActivity();
       drRenderCalendar();
       drRenderAgenda();
       drPopulateMapStaffSelect();
@@ -7921,6 +7921,7 @@ function drLoadLicenses() {
       // is already populated by then.
       drLoadMobilityCompletions().then(drRenderMapForSelection);
       drLoadCpeEntries();
+      drLoadActivity();
     })
     .catch(function() {
       drShowError('Something went wrong loading your roster. Please try again.');

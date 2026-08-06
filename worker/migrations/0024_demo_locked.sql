@@ -1,0 +1,19 @@
+-- Task #27 (2026-08-06): public/sandbox demo firm account.
+--
+-- A firm flagged demo_locked shares its login credentials publicly (any
+-- prospect can sign in and explore the product before creating a real
+-- account). The one lockdown: nobody may change its password through the
+-- normal self-serve "I know the current password" path -- that would let
+-- one visitor lock out every visitor after them, or lock the owner out of
+-- their own demo account. The password-RESET path (emailed magic link,
+-- proves control of the account's registered inbox) is deliberately left
+-- open -- see handleFirmPasswordSet()'s own comment -- so the owner can
+-- still rotate the password themselves whenever they want, which also ends
+-- every other session for the firm the same way a normal password change
+-- already does.
+--
+-- SSO linking is blocked outright (Devin's call, 2026-08-06): a linked
+-- Google identity would let whoever linked it keep signing in without the
+-- shared password at all, silently undoing a password rotation meant to
+-- lock everyone else out.
+ALTER TABLE firms ADD COLUMN demo_locked INTEGER NOT NULL DEFAULT 0;

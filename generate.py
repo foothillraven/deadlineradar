@@ -6253,8 +6253,16 @@ function drRenderBillingPanel() {
       '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_growth" data-seat-cap="15" ' + (seatCount > 15 ? 'hidden' : '') + '>Growth<br><span>$349/year &middot; up to 15 staff</span></button>' +
       '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_standard" data-seat-cap="25" ' + (seatCount > 25 ? 'hidden' : '') + '>Standard<br><span>$500/year &middot; up to 25 staff</span></button>' +
       '</div>';
+    // AuditLab PAYNOW-1 (2026-08-05, caught pre-deploy): the lapsed-pilot
+    // paywall this panel is modeled on has this exact same fallback for a
+    // roster over 25 -- without it, a large pilot firm that opens this tab
+    // sees the intro line, then an empty box (all 3 buttons hidden), no
+    // explanation. Same copy as that panel (generate.py's paywall block)
+    // so the two can't drift out of sync again.
+    var moreThan25Html = '<p style="font-size:0.85rem; color:var(--muted); margin-top:0.7rem;">' +
+      'More than 25 staff? <a href="/for-firms/">Contact us</a>.</p>';
     body.innerHTML = '<p class="dr-panel-empty">You are on the free 30-day pilot. Upgrade any time ' +
-      '&mdash; same price whether you convert today or on day 30.</p>' + tiersHtml;
+      '&mdash; same price whether you convert today or on day 30.</p>' + tiersHtml + moreThan25Html;
     return;
   }
   if (drBilling.cancelAtPeriodEnd && drBilling.currentPeriodEnd) {
@@ -6691,6 +6699,16 @@ function drSetMapTooltipWrap(wrap) {
 function drApplyMobilityResults(homeStateSlug, entry, gen, subscriberId) {
   if (gen !== drMapSelectionGen) return;
   var noteEl = document.getElementById('dr-map-mobility-note');
+  // AuditLab MOB-1 (2026-08-05, MEDIUM): mobility.ts's own MobilityFinding
+  // contract says "Always present. The UI must render it next to every
+  // determination" -- the Map painted per-state clear/action-required
+  // verdicts without it (the /firm-mobility/ single-check page already
+  // rendered it correctly; only this view missed the wiring). `disclaimer`
+  // is a per-result field but its value (MOBILITY_DISCLAIMER) is the SAME
+  // constant on every result in a batch, so reading it off the first
+  // result is representative of the whole map, not a shortcut that could
+  // show the wrong text for some states.
+  var disclaimerEl = document.getElementById('dr-map-mobility-disclaimer');
   var links = document.querySelectorAll('.dr-map-link');
   drSetMapTooltipWrap(true);
   if (entry.denied) {
@@ -6698,6 +6716,9 @@ function drApplyMobilityResults(homeStateSlug, entry, gen, subscriberId) {
       noteEl.textContent = entry.denied;
       noteEl.hidden = false;
     }
+    // No determinations are being shown in the denied/rate-limited case --
+    // nothing here for the disclaimer to be "next to".
+    if (disclaimerEl) disclaimerEl.hidden = true;
     links.forEach(function(link) {
       var path = link.querySelector('path');
       drClearMapStateClasses(path);
@@ -6711,6 +6732,15 @@ function drApplyMobilityResults(homeStateSlug, entry, gen, subscriberId) {
       'every state (service type: ' + DR_MOBILITY_SERVICE_TYPE + '). For this person’s own facts, ' +
       'use Practice Privilege Check.';
     noteEl.hidden = false;
+  }
+  if (disclaimerEl) {
+    var disclaimerText = (entry.results && entry.results[0] && entry.results[0].disclaimer) || '';
+    if (disclaimerText) {
+      disclaimerEl.textContent = disclaimerText;
+      disclaimerEl.hidden = false;
+    } else {
+      disclaimerEl.hidden = true;
+    }
   }
   var byTarget = {};
   entry.results.forEach(function(r) { byTarget[r.target_state_slug] = r; });
@@ -6823,8 +6853,10 @@ function drRenderMapForSelection() {
   var sel = document.getElementById('dr-map-staff-select');
   var value = sel ? sel.value : '';
   var noteEl = document.getElementById('dr-map-mobility-note');
+  var disclaimerEl = document.getElementById('dr-map-mobility-disclaimer');
   if (!value) {
     if (noteEl) noteEl.hidden = true;
+    if (disclaimerEl) disclaimerEl.hidden = true;
     drSetMapTooltipWrap(false);
     drRenderMap(gen);
     return;
@@ -8384,6 +8416,7 @@ def build_firm_dashboard_page(
         </select>
       </div>
       <p class="dr-map-mobility-note" id="dr-map-mobility-note" hidden></p>
+      <p class="dr-verdict-disclaimer" id="dr-map-mobility-disclaimer" hidden></p>
       <div class="dr-map-panel">
         {map_svg_html}
       </div>

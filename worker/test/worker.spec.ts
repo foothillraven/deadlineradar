@@ -4411,6 +4411,98 @@ describe("POST /firm/sign-out-other-devices", () => {
   });
 });
 
+// AuditLab (2026-08-05, findings/auditlab_20260805_signout_detection_email.spec.ts):
+// no test above exercises the detection email itself -- same blind spot as
+// the pre-existing, also-untested buildFirmPasswordChangedEmail() send, but
+// the handler's own comment calls this email load-bearing ("the only
+// signal the real admin ever gets" if the triggering click was a stolen
+// session), so proving the try/catch-wrapped best-effort code actually
+// does the right thing, rather than trusting it, is worth the permanent
+// coverage. Folded into the shipped suite verbatim (env override + fetch
+// spy, no new helpers needed -- workerFetch's envOverrides pattern already
+// exists elsewhere in this file for the same reason).
+describe("POST /firm/sign-out-other-devices -- detection email (AuditLab)", () => {
+  async function workerFetchWithEnv(request: Request, envOverrides: Record<string, unknown>): Promise<Response> {
+    const worker = (await import("../src/index")).default;
+    return worker.fetch(request, { ...env, ...envOverrides } as never, testExecutionContext());
+  }
+
+  it("sends to the firm's OWN admin_email, not anywhere request-influenced, when a session is ended", async () => {
+    const adminEmail = `signout-email-${Date.now()}@examplefirm.com`;
+    const a = await createFirmWithSession("Detection Email Firm", adminEmail);
+    await store.createSession(env.DB, a.firmId); // a second, "other" session to end
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 202 }));
+    try {
+      const resp = await workerFetchWithEnv(
+        new Request("https://deadline-radar.com/firm/sign-out-other-devices", {
+          method: "POST",
+          headers: { Cookie: a.cookie, "cf-connecting-ip": "203.0.113.240" },
+        }),
+        { SENDGRID_API_KEY: "test-key-not-real" }
+      );
+      expect(resp.status).toBe(200);
+      expect(((await resp.json()) as { other_sessions_ended: number }).other_sessions_ended).toBe(1);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [calledUrl, calledInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(calledUrl).toBe("https://api.sendgrid.com/v3/mail/send");
+      const sentBody = JSON.parse((calledInit.body as string) ?? "{}");
+      expect(sentBody.personalizations?.[0]?.to?.[0]?.email).toBe(adminEmail); // real admin address, from the DB row
+      expect((sentBody.subject ?? "").toLowerCase()).toContain("signed out");
+      const htmlContent = (sentBody.content ?? []).find((c: { type: string }) => c.type === "text/html")?.value ?? "";
+      expect(htmlContent).toContain("If this was not you");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("does NOT send an email when there was nothing to end (endedSessions === 0 gate)", async () => {
+    const adminEmail = `signout-noemail-${Date.now()}@examplefirm.com`;
+    const a = await createFirmWithSession("No Email Firm", adminEmail);
+    // No second session created -- this is the only one.
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 202 }));
+    try {
+      const resp = await workerFetchWithEnv(
+        new Request("https://deadline-radar.com/firm/sign-out-other-devices", {
+          method: "POST",
+          headers: { Cookie: a.cookie, "cf-connecting-ip": "203.0.113.241" },
+        }),
+        { SENDGRID_API_KEY: "test-key-not-real" }
+      );
+      expect(resp.status).toBe(200);
+      expect(((await resp.json()) as { other_sessions_ended: number }).other_sessions_ended).toBe(0);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("a SendGrid failure never fails the request -- the sweep already happened and must not be undone by an email error", async () => {
+    const adminEmail = `signout-fail-${Date.now()}@examplefirm.com`;
+    const a = await createFirmWithSession("Send Fail Firm", adminEmail);
+    const other = await store.createSession(env.DB, a.firmId);
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
+    try {
+      const resp = await workerFetchWithEnv(
+        new Request("https://deadline-radar.com/firm/sign-out-other-devices", {
+          method: "POST",
+          headers: { Cookie: a.cookie, "cf-connecting-ip": "203.0.113.242" },
+        }),
+        { SENDGRID_API_KEY: "test-key-not-real" }
+      );
+      expect(resp.status).toBe(200);
+      expect(((await resp.json()) as { other_sessions_ended: number }).other_sessions_ended).toBe(1);
+      // The session sweep must have actually happened despite the email throwing.
+      expect(await store.verifySession(env.DB, other.rawSessionToken)).toBeNull();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
 describe("SSO routes", () => {
   const ssoEnv = { GOOGLE_OAUTH_CLIENT_ID: "test-client-id", GOOGLE_OAUTH_CLIENT_SECRET: "test-client-secret" };
 

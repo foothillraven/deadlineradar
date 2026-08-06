@@ -709,9 +709,11 @@
 
   
   .dr-roster-panel .dr-roster-name,
-  .dr-roster-panel .dr-roster-email,
-  .dr-roster-panel td:nth-child(2) {
+  .dr-roster-panel .dr-roster-email {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;
+  }
+  .dr-roster-panel td:nth-child(2) {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .dr-roster-panel .dr-roster-name { font-weight: 600; }
   .dr-roster-panel .dr-roster-email { color: var(--muted); font-size: 0.82rem; margin-top: 0.1rem; }

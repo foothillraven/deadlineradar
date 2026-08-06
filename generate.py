@@ -1200,11 +1200,29 @@ PAGE_CSS = """
      above for why wrapping (the first attempt at this) looked worse, not
      just narrower. Name and email each truncate on their OWN line inside
      the stacked Staff cell, independently, so a long email doesn't eat
-     into the name's line or vice versa. */
+     into the name's line or vice versa.
+
+     Reported directly (2026-08-06, live screenshot): the State column's
+     bottom border hugged its text instead of spanning the full row like
+     every other column. Root cause -- this rule's selector list ALSO
+     matched `td:nth-child(2)` (the State cell itself, not just the
+     name/email SPANS inside Staff), so `display: block` landed on the
+     table cell too. A block-display <td> stops participating in normal
+     table-row sizing -- its border-bottom sits at the bottom of its OWN
+     one-line content box instead of the shared row height every sibling
+     cell (still `display: table-cell`) uses. `.dr-roster-name`/
+     `.dr-roster-email` genuinely need `display: block` (they're inline
+     <span>s -- text-overflow does nothing on an inline box); the State
+     <td> does not -- text-overflow works on a table-cell box directly,
+     with table-layout: fixed already giving it a real width to truncate
+     against. Split into two rules so the fix can't silently regress by
+     someone adding a third column to this same list later. */
   .dr-roster-panel .dr-roster-name,
-  .dr-roster-panel .dr-roster-email,
-  .dr-roster-panel td:nth-child(2) {
+  .dr-roster-panel .dr-roster-email {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;
+  }
+  .dr-roster-panel td:nth-child(2) {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .dr-roster-panel .dr-roster-name { font-weight: 600; }
   .dr-roster-panel .dr-roster-email { color: var(--muted); font-size: 0.82rem; margin-top: 0.1rem; }

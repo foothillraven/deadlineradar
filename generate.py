@@ -1400,7 +1400,12 @@ PAGE_CSS = """
     background: transparent; border: none; color: var(--muted); font-size: 0.78rem; cursor: pointer;
     text-decoration: underline; padding: 0; font-family: inherit;
   }
+  /* [hidden] override required (2026-08-06, caught live): an unconditional
+     `display: flex` here beats the browser's own [hidden] UA rule, same
+     class of bug as .dr-view[hidden] elsewhere in this file already guards
+     against -- the form was visible by default despite hidden="true". */
   .dr-roadmap-notify-form { margin: 0; display: flex; gap: 0.4rem; align-items: center; }
+  .dr-roadmap-notify-form[hidden] { display: none; }
   .dr-roadmap-notify-form input[type=email] {
     font-size: 0.85rem; padding: 0.35rem 0.5rem; border: 1px solid var(--border-strong); border-radius: 6px;
     background: var(--bg); color: inherit; width: 190px; max-width: 40vw;

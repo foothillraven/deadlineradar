@@ -327,6 +327,24 @@ describe("flux SEVERITY split (2026-08-03): rule_changes_on vs today, not one bl
     expect(res.individual.requirements.join(" ")).not.toMatch(/now-irrelevant/i);
   });
 
+  // AuditLab MOB-2 (2026-08-05), narrowed after independent verification:
+  // the dashboard MAP tooltip reads `summary` only, never `requirements` --
+  // so a settled-flux state's recent-change caveat (already correctly
+  // appended to `requirements` above) was invisible on the Map specifically.
+  // `summary` must carry the same signal, in addition to (not instead of)
+  // requirements.
+  it("the recent-change caveat is ALSO appended to summary (not just requirements) -- the Map tooltip reads summary only", () => {
+    const rule = verifiedPermissiveRule({
+      rule_in_flux: true,
+      rule_changes_on: "2026-01-01",
+    });
+    const res = evaluateMobility(input(), rule);
+    expect(res.individual.summary).toMatch(/changed on 2026-01-01/i);
+    // The ORIGINAL summary text must still be present, not replaced.
+    const plainSummary = evaluateMobility(input(), verifiedPermissiveRule({ rule_in_flux: false })).individual.summary;
+    expect(res.individual.summary).toContain(plainSummary);
+  });
+
   it("a flux rule with a FUTURE rule_changes_on still blocks -- the change hasn't happened yet", () => {
     const future = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
     const rule = verifiedPermissiveRule({ rule_in_flux: true, rule_changes_on: future });
@@ -358,6 +376,18 @@ describe("flux SEVERITY split (2026-08-03): rule_changes_on vs today, not one bl
   it("an undated flux rule (source disagreement, no fixed date) never counts as settled", () => {
     const rule = verifiedPermissiveRule({ rule_in_flux: true, rule_changes_on: null });
     expect(evaluateMobility(input(), rule).overall).toBe("not_verified");
+  });
+
+  // Recorded as a permanent guard, not a new fix: an UNSETTLED (blocked)
+  // flux row already gets a flux-specific `summary` from
+  // blockingRuleCondition(), not the generic not_verified fallback -- so
+  // the Map tooltip (summary-only) was never actually blind for these
+  // rows, only for the SETTLED ones the fix above addresses.
+  it("a BLOCKED (unsettled) flux rule's summary is flux-specific, not the generic not-verified fallback", () => {
+    const rule = verifiedPermissiveRule({ rule_in_flux: true, rule_changes_on: null });
+    const res = evaluateMobility(input(), rule);
+    expect(res.individual.verdict).toBe("not_verified");
+    expect(res.individual.summary.toLowerCase()).toMatch(/mid-change|disagree/);
   });
 
   it("the home-state (not_applicable) branch never gets the caveat -- flux doesn't apply to your own state", () => {

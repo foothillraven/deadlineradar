@@ -426,6 +426,21 @@ function applyRecentChangeCaveat(finding: MobilityFinding, rule: MobilityRuleRow
   if (finding.verdict === "not_verified" || finding.verdict === "not_applicable") return finding;
   return {
     ...finding,
+    // AuditLab MOB-2 (2026-08-05, LOW), narrowed after independent
+    // verification: the dashboard MAP tooltip reads `summary` only, never
+    // `requirements` (unlike the Practice Privilege Check page, which
+    // renders both) -- so the requirements-only caveat this function
+    // already appended was invisible on the Map for exactly the 27 settled-
+    // flux states it applies to. `blockingRuleCondition`'s genuinely-
+    // UNSETTLED branch already sets a flux-specific `summary` (so those 17
+    // states were never actually blind on the Map, contrary to MOB-2's
+    // original "44 of 55... no UI could show them" framing) -- this closes
+    // the one real remaining gap: the SETTLED half. Appended to `summary`
+    // in addition to (not instead of) the existing `requirements` entry, so
+    // the single-check page keeps its fuller detail and the Map gains a
+    // short version of the same signal. Purely additive text -- does not
+    // touch verdict, citation, or any of the correctness guards above.
+    summary: `${finding.summary} (This state's rule changed on ${rule.rule_changes_on}.)`,
     requirements: [
       ...finding.requirements,
       `This state's rule changed on ${rule.rule_changes_on} -- if any part of your engagement spans ` +

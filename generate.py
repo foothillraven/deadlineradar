@@ -7365,12 +7365,14 @@ function drApplyMobilityResults(homeStateSlug, entry, gen, subscriberId) {
       link.setAttribute('data-tip', homeTip);
       link.setAttribute('aria-label', homeTip);
       link.setAttribute('data-has-staff', 'true');
+      link.removeAttribute('href');
       return;
     }
     var r = byTarget[slug];
     if (!r) {
       link.removeAttribute('data-tip');
       link.setAttribute('data-has-staff', 'false');
+      link.removeAttribute('href');
       return;
     }
     var verdict = r.overall;
@@ -7392,6 +7394,24 @@ function drApplyMobilityResults(homeStateSlug, entry, gen, subscriberId) {
     // not_verified (or anything else): no color class, stays default gray.
     var tipText = r.individual && r.individual.summary ? r.individual.summary : 'Not verified for this state.';
     if (completed) tipText += ' Marked complete by your firm.';
+    if (verdict !== 'action_required' || !completed) {
+      // Deep-link into Practice Privilege Check with the same home/target/
+      // service/staff already picked (2026-08-06, live request: "exactly
+      // what needs to be done, or a way to mark someone cleared" -- the
+      // tooltip already has the requirement text on hover, this is the
+      // "now go do something about it" click). Skipped once already marked
+      // complete -- clicking through again to re-run the same check the
+      // firm already resolved isn't useful, and (unlike the tooltip note
+      // above) href absence is the one signal cursor:default vs pointer
+      // actually reads correctly on a state that's already handled.
+      tipText += ' Click to open Practice Privilege Check for this person and state.';
+      link.href = '/firm-mobility/?home=' + encodeURIComponent(homeStateSlug) +
+        '&target=' + encodeURIComponent(slug) +
+        '&service=' + encodeURIComponent(DR_MOBILITY_SERVICE_TYPE) +
+        (subscriberId ? '&staff=' + encodeURIComponent(subscriberId) : '');
+    } else {
+      link.removeAttribute('href');
+    }
     link.setAttribute('data-tip', tipText);
     link.setAttribute('aria-label', tipText);
     link.setAttribute('data-has-staff', verdict !== 'not_verified' ? 'true' : 'false');
@@ -9087,6 +9107,23 @@ first? Every answer is tied to the rule it came from.</p>
         staffSel.appendChild(opt);
       }});
     }}
+    // Deep-link pre-fill from the dashboard Map (2026-08-06, live request:
+    // "exactly what needs to be done, or a way to mark someone cleared" --
+    // the Map already shows the exact requirement text on hover and
+    // "Mark complete" already existed on THIS page, the missing piece was
+    // getting here with the same home/target/service/staff already picked,
+    // instead of re-selecting all four by hand). Pre-fills only -- the
+    // click that actually spends a mobility-check rate-limit unit stays a
+    // deliberate "Run check" from the visitor, same principle as the demo
+    // login pre-fill (?demo=1 on /firm-login/) not auto-submitting either.
+    var deepLinkParams = new URLSearchParams(window.location.search);
+    var homeSel = document.getElementById('dr-mob-home');
+    var targetSel = document.getElementById('dr-mob-target');
+    var serviceSel = document.getElementById('dr-mob-service');
+    if (homeSel && deepLinkParams.get('home')) homeSel.value = deepLinkParams.get('home');
+    if (targetSel && deepLinkParams.get('target')) targetSel.value = deepLinkParams.get('target');
+    if (serviceSel && deepLinkParams.get('service')) serviceSel.value = deepLinkParams.get('service');
+    if (staffSel && deepLinkParams.get('staff')) staffSel.value = deepLinkParams.get('staff');
   }}).catch(function () {{}});
 }})();
 </script>

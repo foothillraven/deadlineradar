@@ -5,10 +5,27 @@
  * just patched around.
  */
 import { env, SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as store from "../src/store";
 
 const BASE = "https://deadline-radar.com";
+
+function testExecutionContext(): ExecutionContext {
+  return {
+    waitUntil() {},
+    passThroughOnException() {},
+    props: {},
+  } as unknown as ExecutionContext;
+}
+
+async function workerFetch(request: Request, envOverrides: Record<string, unknown> = {}): Promise<Response> {
+  const worker = (await import("../src/index")).default;
+  return worker.fetch(request, { ...env, ...envOverrides } as never, testExecutionContext());
+}
+
+function okResponse(): Response {
+  return new Response("{}", { status: 202 });
+}
 
 async function createFirmWithSession(name: string, adminEmail: string): Promise<{ firmId: string; cookie: string }> {
   const firm = await store.createFirm(env.DB, { name, adminEmail });
@@ -149,5 +166,84 @@ describe("GET /firm/activity", () => {
     const activityResp = await getActivity(cookie);
     const activity = (await activityResp.json()) as { events: { event_type: string; staff_label: string | null }[] };
     expect(activity.events.some((e) => e.event_type === "opted_out" && e.staff_label === "Opts Out")).toBe(true);
+  });
+});
+
+// Task #10 (2026-08-06): push notification to the firm's own admin_email
+// alongside the passive Recent Activity entry above -- same event, same
+// unsubscribe flow, different assertion (an outbound SendGrid call, not a
+// GET /firm/activity read).
+describe("POST /unsubscribe -- admin notification (Task #10)", () => {
+  it("emails the firm's admin_email when a roster staffer unsubscribes", async () => {
+    const adminEmail = `notifyadmin-${Date.now()}@example.com`;
+    const { cookie } = await createFirmWithSession("Notify Admin LLC", adminEmail);
+    const created = await postFirmLicense(cookie, {
+      staff_label: "Will Unsubscribe",
+      email: `willunsub-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    const { id } = (await created.json()) as { id: string };
+    const row = await env.DB.prepare("SELECT unsubscribe_token FROM subscribers WHERE id = ?1").bind(id).first<{ unsubscribe_token: string }>();
+    const rawToken = row!.unsubscribe_token;
+
+    const page = await SELF.fetch(`${BASE}/unsubscribe?token=${encodeURIComponent(rawToken)}`);
+    const html = await page.text();
+    const nonce = /name="action_csrf" value="([^"]+)"/.exec(html)?.[1] ?? "";
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(okResponse());
+    try {
+      const unsubResp = await workerFetch(
+        new Request(`${BASE}/unsubscribe`, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ token: rawToken, action_csrf: nonce }).toString(),
+        }),
+        { SENDGRID_API_KEY: "test-key-not-real" }
+      );
+      expect(unsubResp.status).toBe(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [, sendGridCallInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      const sentBody = JSON.parse(String(sendGridCallInit.body));
+      expect(sentBody.personalizations[0].to[0].email).toBe(adminEmail);
+      expect(sentBody.subject).toContain("Will Unsubscribe");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("does not email anyone for a free-tier individual (no firm_id)", async () => {
+    const email = `notifyindividual-${Date.now()}@example.com`;
+    await store.addPending(env.DB, {
+      email,
+      stateSlug: "georgia",
+      deadlineFields: {},
+      firstName: null,
+      deadlineSource: "computed",
+      userDeadline: null,
+      skipConfirmation: true,
+    });
+    const row = await env.DB.prepare("SELECT unsubscribe_token FROM subscribers WHERE email = ?1").bind(email).first<{ unsubscribe_token: string }>();
+    const rawToken = row!.unsubscribe_token;
+
+    const page = await SELF.fetch(`${BASE}/unsubscribe?token=${encodeURIComponent(rawToken)}`);
+    const html = await page.text();
+    const nonce = /name="action_csrf" value="([^"]+)"/.exec(html)?.[1] ?? "";
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(okResponse());
+    try {
+      const unsubResp = await workerFetch(
+        new Request(`${BASE}/unsubscribe`, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ token: rawToken, action_csrf: nonce }).toString(),
+        }),
+        { SENDGRID_API_KEY: "test-key-not-real" }
+      );
+      expect(unsubResp.status).toBe(200);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });

@@ -866,6 +866,61 @@ ${addr}`;
 }
 
 /**
+ * Sent to the FIRM'S OWN admin_email whenever a roster staffer unsubscribes
+ * (2026-08-06, Task #10). Not the same recipient as
+ * buildSignupNotificationEmail() (that one goes to INTERNAL_NOTIFY_EMAIL,
+ * the business owner) -- this is a real customer being told about their own
+ * roster, so it follows buildFirmPasswordChangedEmail()'s plain-transactional
+ * pattern (SENDER_LINE + address, no unsubscribe apparatus) rather than
+ * buildFirmStaffAddedEmail()'s marketing-adjacent one: there's no sensible
+ * "opt out of operational notices about your own account" concept here.
+ * Firm-side visibility already existed passively via the Recent Activity
+ * panel (Task #26) -- this is the same event, just pushed instead of
+ * requiring the admin to happen to check the dashboard.
+ */
+export function buildStaffUnsubscribedNotificationEmail(
+  firmName: string,
+  staffLabel: string | null,
+  staffEmail: string,
+  stateName: string,
+  adminName: string | null = null
+): BuiltEmail {
+  const addr = mailingAddress();
+  const displayName = (staffLabel || staffEmail).replace(/[\r\n]+/g, " ");
+  const subject = `${displayName} unsubscribed from ${firmName}'s DeadlineRadar roster`;
+
+  const textBody =
+    `${textGreeting(adminName)}\n\n` +
+    `${displayName} (${staffEmail}) just unsubscribed from renewal reminders for their ${stateName} ` +
+    `CPA license, tracked under ${firmName} on ${SITE_NAME}.\n\n` +
+    `Reminders have already stopped -- this is informational only, nothing further is needed unless ` +
+    `you want to re-add them yourself from your dashboard's Roster tab.\n\n` +
+    `---\n${SENDER_LINE}\n${addr}`;
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `A staff member unsubscribed</h1>` +
+      p(htmlGreeting(adminName)) +
+      p(
+        `<strong>${esc(displayName)}</strong> (${esc(staffEmail)}) just unsubscribed from renewal ` +
+          `reminders for their ${esc(stateName)} CPA license, tracked under ${esc(firmName)} on ` +
+          `${esc(SITE_NAME)}.`
+      ) +
+      p(
+        "Reminders have already stopped -- this is informational only, nothing further is needed " +
+          "unless you want to re-add them yourself from your dashboard's Roster tab.",
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
  * Sent whenever POST /firm/sign-out-other-devices ends at least one OTHER
  * session (2026-08-05, Task #18). Same rationale as
  * buildFirmPasswordChangedEmail() -- ending every other session is a

@@ -122,6 +122,7 @@ import {
   buildSubscriberLoginEmail,
   buildStaffCpeReminderEmail,
   buildRuleChangeNotificationEmail,
+  buildStaffUnsubscribedNotificationEmail,
   buildFirmPasswordChangedEmail,
   buildFirmSessionsEndedEmail,
   buildFirmEmailChangeConfirmEmail,
@@ -3808,12 +3809,35 @@ async function handleUnsubscribe(env: Env, token: string | null): Promise<Respon
     } catch {
       // Non-fatal -- honoring the unsubscribe already happened regardless.
     }
+
+    // Task #10 (2026-08-06): the Recent Activity entry above is passive --
+    // an admin only sees it if they happen to open the dashboard. This
+    // pushes it instead, same best-effort/never-block-the-real-action
+    // posture as every other notification in this file (checked AFTER the
+    // stop already committed, wrapped so a send failure can't turn a
+    // successful unsubscribe into an error page).
+    try {
+      if (env.SENDGRID_API_KEY) {
+        const firm = await store.getFirmById(env.DB, subscriber.firm_id);
+        if (firm && firm.admin_email) {
+          const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+          if (underCap) {
+            const built = buildStaffUnsubscribedNotificationEmail(
+              firm.name ?? "your firm",
+              subscriber.staff_label,
+              subscriber.email,
+              stateNameFromSlug(subscriber.state_slug),
+              firm.admin_name
+            );
+            await sendViaSendGrid(env.SENDGRID_API_KEY, firm.admin_email, built, env.EMAIL_ALLOWLIST);
+          }
+        }
+      }
+    } catch {
+      // Non-fatal -- same reasoning as the Activity log write above.
+    }
   }
 
-  // No stop-confirmation email in Phase 1 (no sender exists) -- the
-  // underlying stop still happens instantly regardless, same priority as
-  // reminders/server.py: honoring a stop is never conditioned on whether a
-  // notification email can be sent.
   return htmlResponse(
     200,
     htmlPage("Unsubscribed", "<h1>Done</h1><p>You're unsubscribed, instantly and permanently.</p>")

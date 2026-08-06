@@ -72,6 +72,8 @@ import {
   RATE_LIMIT_SUBSCRIBER_CPE_CREATE,
   RATE_LIMIT_FIRM_STAFF_CPE_REMINDER,
   RATE_LIMIT_FIRM_RULE_CHANGE_NOTIFY,
+  RATE_LIMIT_ROADMAP_VOTE,
+  RATE_LIMIT_ROADMAP_NOTIFY_SIGNUP,
   RATE_LIMIT_FIRM_LEAD,
   RATE_LIMIT_MOBILITY_CHECK,
   RATE_LIMIT_MOBILITY_CHECK_BATCH,
@@ -123,6 +125,8 @@ import {
   buildStaffCpeReminderEmail,
   buildRuleChangeNotificationEmail,
   buildStaffUnsubscribedNotificationEmail,
+  buildFeatureIdeaNotifyConfirmEmail,
+  buildFeatureIdeaShippedEmail,
   buildFirmPasswordChangedEmail,
   buildFirmSessionsEndedEmail,
   buildFirmEmailChangeConfirmEmail,
@@ -283,6 +287,14 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
     heading: "Sign in to DeadlineRadar",
     intro: "Click below to see the renewal deadlines we're tracking for you.",
     button: "Sign in",
+  },
+  // Task #19 (2026-08-06). Same prefetch-safety reasoning as every route
+  // above -- an email scanner auto-visiting this link must not silently
+  // confirm a real person's notify-signup.
+  "/roadmap/notify-confirm": {
+    heading: "Confirm your roadmap notification",
+    intro: "Click below to confirm -- you'll get one email if and when this ships, nothing else.",
+    button: "Confirm notification",
   },
 };
 
@@ -2912,6 +2924,166 @@ async function handleFirmRuleChangeNotify(request: Request, env: Env): Promise<R
   });
 }
 
+// ---------------------------------------------------------------------------
+// Public /roadmap/ voting (Task #19, 2026-08-06). See migration 0029's own
+// docstring for the full design reasoning: anonymous cookie-based voting
+// (no account, no email required), a separate opt-in "notify me when this
+// ships" that DOES require a confirm-click, an operator-curated idea list
+// (no free-form submission -- zero moderation surface to build).
+// ---------------------------------------------------------------------------
+
+const ROADMAP_VOTER_COOKIE_NAME = "dr_roadmap_voter";
+// A year -- long enough that a real repeat visitor's vote still "sticks"
+// without them re-voting, short enough that this isn't presented as a
+// permanent identifier. Not a security boundary (see migration 0029's own
+// docstring on why voting is deliberately low-friction, not high-assurance).
+const ROADMAP_VOTER_COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
+
+function roadmapVoterCookieHeader(voterId: string, env: Env): string {
+  return (
+    `${ROADMAP_VOTER_COOKIE_NAME}=${encodeURIComponent(voterId)}; HttpOnly; Secure; ` +
+    `SameSite=${firmSessionCookieSameSite(env)}; Path=/; Max-Age=${ROADMAP_VOTER_COOKIE_MAX_AGE_SECONDS}`
+  );
+}
+
+/** GET /roadmap-data -- public, no session. Returns every active idea with
+ * its live vote count and whether THIS browser (by cookie) already voted
+ * for it. No cookie yet (first-ever visit) reads as "voted nothing", never
+ * an error -- an anonymous GET has nothing to mint a cookie FOR until a
+ * real vote happens. */
+async function handleRoadmapData(request: Request, env: Env): Promise<Response> {
+  const voterId = getCookie(request, ROADMAP_VOTER_COOKIE_NAME) ?? "";
+  const ideas = await store.listActiveFeatureIdeasWithVotes(env.DB, voterId);
+  return jsonResponse(200, {
+    ideas: ideas.map((i) => ({
+      id: i.id,
+      title: i.title,
+      description: i.description,
+      status: i.status,
+      vote_count: i.vote_count,
+      voted_by_me: i.voted_by_me,
+    })),
+  });
+}
+
+/** POST /roadmap/vote -- body: `idea_id`. Public, no session -- see this
+ * section's own header comment for the full anti-abuse layering (IP rate
+ * limit + Turnstile here, UNIQUE(idea_id, voter_id) at the DB layer doing
+ * the actual dedup work). Mints a voter cookie on first-ever vote if the
+ * request didn't already carry one. */
+async function handleRoadmapVote(request: Request, env: Env, ip: string): Promise<Response> {
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, ip, "roadmap_vote", RATE_LIMIT_ROADMAP_VOTE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many votes from this address. Please try again later." });
+  }
+
+  const parsed = await readFirmLicenseJsonBody(request); // generic despite the name -- see that function's own signature
+  if (parsed instanceof Response) return parsed;
+  const form = stringFieldsOf(parsed);
+  const ideaId = (form.idea_id ?? "").trim();
+  if (!ideaId || hasControlChars(ideaId)) {
+    return jsonResponse(400, { error: "Missing idea_id." });
+  }
+
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY, true);
+  if (!turnstileOk) {
+    return jsonResponse(400, { error: "Verification failed -- please try again." });
+  }
+
+  if (!(await store.ideaExists(env.DB, ideaId))) {
+    return jsonResponse(404, { error: "Not found." });
+  }
+
+  let voterId = getCookie(request, ROADMAP_VOTER_COOKIE_NAME);
+  const mintedNewVoterId = !voterId;
+  if (!voterId) voterId = store.newToken();
+
+  await store.recordFeatureIdeaVote(env.DB, ideaId, voterId);
+  const ideas = await store.listActiveFeatureIdeasWithVotes(env.DB, voterId);
+  const updated = ideas.find((i) => i.id === ideaId);
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (mintedNewVoterId) headers["Set-Cookie"] = roadmapVoterCookieHeader(voterId, env);
+  return new Response(JSON.stringify({ vote_count: updated?.vote_count ?? 0, voted_by_me: true }), { status: 200, headers });
+}
+
+/** POST /roadmap/notify-signup -- body: `idea_id`, `email`. Public, no
+ * session. Sends a confirm-click email (nothing is stored as confirmed
+ * until that's clicked -- see store.createFeatureIdeaNotifySignup()'s own
+ * docstring). Reuses the same email-blocklist gate signup uses (Task #7)
+ * and Turnstile the same way every other public form here does. */
+async function handleRoadmapNotifySignup(request: Request, env: Env, ip: string): Promise<Response> {
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, ip, "roadmap_notify_signup", RATE_LIMIT_ROADMAP_NOTIFY_SIGNUP);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many requests from this address. Please try again later." });
+  }
+
+  const parsed = await readFirmLicenseJsonBody(request);
+  if (parsed instanceof Response) return parsed;
+  const form = stringFieldsOf(parsed);
+  const ideaId = (form.idea_id ?? "").trim();
+  const email = (form.email ?? "").trim();
+  if (!ideaId || hasControlChars(ideaId)) {
+    return jsonResponse(400, { error: "Missing idea_id." });
+  }
+  if (!isValidEmail(email)) {
+    return jsonResponse(400, { error: "That doesn't look like a valid email address." });
+  }
+  if (await store.isEmailBlocklisted(env.DB, email)) {
+    return jsonResponse(400, { error: "We're not able to use that address right now." });
+  }
+
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY, true);
+  if (!turnstileOk) {
+    return jsonResponse(400, { error: "Verification failed -- please try again." });
+  }
+
+  const idea = (await store.listActiveFeatureIdeasWithVotes(env.DB, "")).find((i) => i.id === ideaId);
+  if (!idea) {
+    return jsonResponse(404, { error: "Not found." });
+  }
+
+  let sent = false;
+  if (env.SENDGRID_API_KEY) {
+    const signup = await store.createFeatureIdeaNotifySignup(env.DB, ideaId, email);
+    if (signup) {
+      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      if (underCap) {
+        const confirmUrl = `${actionBaseUrl(env)}/roadmap/notify-confirm?token=${encodeURIComponent(signup.rawToken)}`;
+        const built = buildFeatureIdeaNotifyConfirmEmail(idea.title, confirmUrl);
+        sent = await sendViaSendGrid(env.SENDGRID_API_KEY, email, built, env.EMAIL_ALLOWLIST);
+      }
+    } else {
+      // Already confirmed for this idea -- nothing to (re-)send, but this
+      // is success from the caller's perspective (they're already on the list).
+      sent = true;
+    }
+  }
+
+  // Same anti-enumeration posture as every other public form here: no
+  // distinction in the response between "sent", "already confirmed", and
+  // "SendGrid not configured" -- a generic acknowledgement either way.
+  return jsonResponse(200, { ok: true, sent });
+}
+
+async function handleRoadmapNotifyConfirm(env: Env, token: string | null): Promise<Response> {
+  if (!token) return errorPage(400, "Missing confirmation link.");
+  const confirmed = await store.confirmFeatureIdeaNotifySignup(env.DB, token);
+  if (!confirmed) return errorPage(404, "That link is invalid or already used.");
+  return htmlResponse(
+    200,
+    htmlPage("Confirmed", "<h1>Done</h1><p>You'll get an email if and when this ships.</p>")
+  );
+}
+
 /** Reuses deadline.ts's own computeSubscriberDeadline() -- never
  * re-implements the date math, per this build's own instructions. */
 function firmLicenseNextDeadline(row: store.SubscriberRow, asOf: Date): string | null {
@@ -3026,6 +3198,10 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     // billing/delete controls up front, rather than letting a demo visitor
     // fill out a form and only find out it's refused on submit.
     demo_locked: Boolean(session.firm.demo_locked),
+    // Task #19 (2026-08-06): drives the one-time post-signup feature-
+    // request questionnaire prompt -- true until the firm either submits
+    // it or explicitly skips it, never shown again after either.
+    questionnaire_pending: session.firm.feature_questionnaire_dismissed_at === null,
   });
 }
 
@@ -3049,6 +3225,61 @@ async function handleFirmActivityList(request: Request, env: Env): Promise<Respo
       created_at: e.created_at,
     })),
   });
+}
+
+const MAX_QUESTIONNAIRE_FEATURES = 20;
+const MAX_QUESTIONNAIRE_FEATURE_LEN = 100;
+const MAX_QUESTIONNAIRE_OTHER_LEN = 1000;
+
+/** POST /firm/questionnaire -- body: `selected_features` (array of
+ * strings), `other_text` (optional). Task #19 (2026-08-06): the post-signup
+ * feature-request prompt. Not validated against feature_ideas' exact id
+ * list -- this is free-text-adjacent feedback for a human (Devin) to read,
+ * not something that grants access to anything, so a loose length/count
+ * cap is the right amount of validation, not an exact-match gate that
+ * would just break the moment the checkbox list changes. */
+async function handleFirmQuestionnaireSubmit(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const parsed = await readFirmLicenseJsonBody(request);
+  if (parsed instanceof Response) return parsed;
+  const body = parsed as Record<string, unknown>;
+
+  const rawFeatures = Array.isArray(body.selected_features) ? body.selected_features : [];
+  if (rawFeatures.length > MAX_QUESTIONNAIRE_FEATURES) {
+    return jsonResponse(400, { error: "Too many selections." });
+  }
+  const selectedFeatures: string[] = [];
+  for (const f of rawFeatures) {
+    if (typeof f !== "string" || f.length === 0 || f.length > MAX_QUESTIONNAIRE_FEATURE_LEN || hasControlChars(f)) {
+      return jsonResponse(400, { error: "Invalid selection." });
+    }
+    selectedFeatures.push(f);
+  }
+  const otherText = sanitizeFreeText(typeof body.other_text === "string" ? body.other_text : null, MAX_QUESTIONNAIRE_OTHER_LEN);
+
+  await store.submitFeatureQuestionnaire(env.DB, session.firmId, selectedFeatures, otherText);
+  return jsonResponse(200, { ok: true });
+}
+
+/** POST /firm/questionnaire/dismiss -- skip without answering. Idempotent:
+ * a firm that already dismissed (submitted or previously skipped) just
+ * gets ok:true again, never an error. */
+async function handleFirmQuestionnaireDismiss(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  await store.dismissFeatureQuestionnaire(env.DB, session.firmId);
+  return jsonResponse(200, { ok: true });
 }
 
 /** GET /firm/calendar.ics -- static, one-time roster export (2026-08-06,
@@ -4072,6 +4303,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
     // one-time link before the human ever clicks it. The state change happens
     // only on the POST below (the button on this page), which scanners don't do.
     if (request.method === "GET") {
+      if (url.pathname === "/roadmap-data") {
+        try {
+          return await handleRoadmapData(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
       if (url.pathname === "/subscriber/licenses") {
         try {
           return await handleSubscriberLicensesList(request, env);
@@ -4417,6 +4656,38 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
       }
 
+      if (url.pathname === "/firm/questionnaire") {
+        try {
+          return await handleFirmQuestionnaireSubmit(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/questionnaire/dismiss") {
+        try {
+          return await handleFirmQuestionnaireDismiss(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/roadmap/vote") {
+        try {
+          return await handleRoadmapVote(request, env, ip);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/roadmap/notify-signup") {
+        try {
+          return await handleRoadmapNotifySignup(request, env, ip);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
       // PREVIEW/STAGING ONLY -- see RATE_LIMIT_DEBUG_REMINDER_PASS's own
       // comment. Gated on env.EMAIL_ALLOWLIST being SET, which is never true
       // in production (that env var only exists on a preview deployment) --
@@ -4496,6 +4767,8 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
               return await handleFirmLoginVerify(env, token, optionalNewPassword);
             case "/subscriber/login/verify":
               return await handleSubscriberLoginVerify(env, token);
+            case "/roadmap/notify-confirm":
+              return await handleRoadmapNotifyConfirm(env, token);
           }
         } catch {
           return errorPage(400, "Something went wrong processing that request.");

@@ -1272,3 +1272,77 @@ export function buildAccountDeletionNotificationEmail(details: {
 
   return { subject, textBody, htmlBody, headers: {} };
 }
+
+/**
+ * Task #19 (2026-08-06): confirms a "notify me when this ships" signup on
+ * the public /roadmap/ page. Voting itself is anonymous (a cookie, no
+ * email) -- this is the ONE place on that page an email is collected, and
+ * it's optional and opt-in, so it gets a real confirm-click before
+ * anything is stored as confirmed (store.createFeatureIdeaNotifySignup()'s
+ * own docstring). Plain transactional shape (SENDER_LINE + address, no
+ * List-Unsubscribe machinery) -- there's nothing recurring to unsubscribe
+ * from, this confirms a single one-time future email tied to one idea.
+ */
+export function buildFeatureIdeaNotifyConfirmEmail(ideaTitle: string, confirmUrl: string): BuiltEmail {
+  const addr = mailingAddress();
+  const safeTitle = ideaTitle.replace(/[\r\n]+/g, " ");
+  const subject = `Confirm: notify me when "${safeTitle}" ships`;
+
+  const textBody =
+    `You asked to be notified when "${safeTitle}" ships on ${SITE_NAME}'s roadmap.\n\n` +
+    `Click below to confirm -- this is the only email you'll get unless it actually ships:\n\n` +
+    `${confirmUrl}\n\n` +
+    `If you didn't request this, you can safely ignore it -- nothing happens unless you click.\n\n` +
+    `---\n${SENDER_LINE}\n${addr}`;
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `Confirm your roadmap notification</h1>` +
+      p(`You asked to be notified when <strong>${esc(safeTitle)}</strong> ships on ${esc(SITE_NAME)}'s roadmap.`) +
+      `<p style="margin:0 0 20px;">${button(confirmUrl, "Confirm notification")}</p>` +
+      p(
+        "This is the only email you'll get unless it actually ships. If you didn't request this, " +
+          "you can safely ignore it -- nothing happens unless you click.",
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
+ * Task #19 (2026-08-06): sent once, when an operator marks a roadmap idea
+ * shipped (no automatic detection -- see index.ts's handleRoadmapMarkShipped
+ * docstring). One-time by construction (notified_at is set the moment this
+ * goes out, and there's only ever one "shipped" transition per idea), so
+ * this carries the same plain-transactional shape as the confirm email
+ * above rather than full unsubscribe machinery.
+ */
+export function buildFeatureIdeaShippedEmail(ideaTitle: string): BuiltEmail {
+  const addr = mailingAddress();
+  const safeTitle = ideaTitle.replace(/[\r\n]+/g, " ");
+  const subject = `It shipped: ${safeTitle}`;
+
+  const textBody =
+    `Good news -- "${safeTitle}" is live on ${SITE_NAME} now. You asked to hear about this on the ` +
+    `roadmap page, so here it is.\n\n` +
+    `---\n${SENDER_LINE}\n${addr}`;
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `It shipped</h1>` +
+      p(
+        `<strong>${esc(safeTitle)}</strong> is live on ${esc(SITE_NAME)} now. You asked to hear about ` +
+          `this on the roadmap page, so here it is.`
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}

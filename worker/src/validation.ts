@@ -534,6 +534,21 @@ export const RATE_LIMIT_FIRM_STAFF_CPE_REMINDER: RateLimit = { max: 50, windowSe
 // compromised session from mail-bombing the whole roster repeatedly.
 export const RATE_LIMIT_FIRM_RULE_CHANGE_NOTIFY: RateLimit = { max: 20, windowSeconds: 86400 };
 
+// POST /roadmap/vote (Task #19, 2026-08-06) -- anonymous, no session, keyed
+// on IP. The real dedup guarantee is UNIQUE(idea_id, voter_id) at the DB
+// layer (see migration 0029) -- this exists to blunt a scripted loop
+// generating fresh voter-id cookies per request, not as the primary
+// defense. 8 ideas exist today; 20/hour per IP comfortably covers one real
+// visitor voting on all of them more than once, with room to grow the idea
+// list, while still bounding a single source hammering the endpoint.
+export const RATE_LIMIT_ROADMAP_VOTE: RateLimit = { max: 20, windowSeconds: 3600 };
+
+// POST /roadmap/notify-signup (Task #19, 2026-08-06) -- sends a real email,
+// so tighter than the vote limit above and keyed on IP the same way.
+// Mirrors RATE_LIMIT_SUBSCRIBE's own shape (a public, anonymous,
+// email-sending endpoint) rather than inventing a new ratio.
+export const RATE_LIMIT_ROADMAP_NOTIFY_SIGNUP: RateLimit = { max: 5, windowSeconds: 600 };
+
 // POST/DELETE /firm/mobility/completions (2026-08-04) -- same reasoning and
 // same 100/day ceiling as RATE_LIMIT_CPE_ENTRY_CREATE/DELETE: an
 // already-authenticated, firm-scoped mutation, bounded against a

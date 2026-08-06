@@ -1023,6 +1023,16 @@ PAGE_CSS = """
   .dr-mobility-callout { background: var(--row-alt); border-left: 3px solid var(--border-strong); border-radius: 6px; padding: 0.9rem 1.1rem; margin-bottom: 1.4rem; font-size: 0.88rem; line-height: 1.55; }
   .dr-mob-check { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0.7rem 0; font-size: 0.9rem; font-weight: 400; }
   .dr-mob-check input { margin-top: 0.2rem; flex: 0 0 auto; }
+  .dr-questionnaire-check { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0.5rem 0; font-size: 0.88rem; font-weight: 400; }
+  .dr-questionnaire-check input { margin-top: 0.2rem; flex: 0 0 auto; }
+  /* .dr-questionnaire-other, not an #id selector -- preship_gate's stylesheet-
+     integrity check (added after the 2026-07-31 truncated-CSS incident, see
+     its own docstring) flags ANY line starting with "#" as a leaked Python
+     comment, since CSS's own comment syntax never does. A real #id selector
+     is a false positive for that heuristic, not a bug in the check -- easier
+     to just not write one here than to loosen a check that already caught a
+     genuine site-wide breakage once. */
+  .dr-questionnaire-other { width: 100%; font-family: inherit; font-size: 0.88rem; padding: 0.5rem; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--bg); color: inherit; resize: vertical; }
   .dr-verdict { border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem 1.2rem; margin-bottom: 1rem; background: var(--card-bg); }
   .dr-verdict h3 { margin: 0 0 0.5rem; font-size: 1rem; font-family: var(--font-display); }
   .dr-verdict-badge { display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 0.2rem 0.5rem; border-radius: 999px; margin-bottom: 0.6rem; }
@@ -1360,6 +1370,51 @@ PAGE_CSS = """
     text-decoration: none; display: block; flex: 0 0 auto; margin-top: auto;
   }
   .pricing-card--wide { grid-column: 1 / -1; text-align: center; }
+
+  /* Public roadmap (Task #19, 2026-08-06). */
+  .dr-roadmap-list { display: flex; flex-direction: column; gap: 0.9rem; margin: 1.4rem 0; }
+  .dr-roadmap-idea {
+    background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
+    padding: 1.1rem 1.2rem; display: flex; flex-wrap: wrap; align-items: center;
+    justify-content: space-between; gap: 1rem;
+  }
+  .dr-roadmap-idea-info { flex: 1 1 260px; min-width: 0; }
+  .dr-roadmap-idea-info h2 { font-size: 1.02rem; margin: 0 0 0.25rem; font-family: var(--font-display); }
+  .dr-roadmap-idea-info p { margin: 0; color: var(--muted); font-size: 0.88rem; }
+  .dr-roadmap-status {
+    display: inline-block; margin-left: 0.6rem; font-size: 0.7rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.03em; padding: 0.15rem 0.5rem; border-radius: 999px;
+    vertical-align: middle;
+  }
+  .dr-roadmap-status--in_progress { background: var(--gold-bg); color: var(--gold); }
+  .dr-roadmap-status--shipped { background: rgba(31, 158, 92, 0.15); color: var(--verified-green); }
+  .dr-roadmap-idea-actions { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; }
+  .dr-roadmap-vote-form { margin: 0; }
+  .dr-roadmap-vote-btn {
+    background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent);
+    border-radius: 999px; font-weight: 700; cursor: pointer; padding: 0.45rem 1rem; font-size: 0.88rem;
+    font-family: inherit; white-space: nowrap;
+  }
+  .dr-roadmap-vote-btn:disabled { opacity: 0.65; cursor: default; background: var(--muted); border-color: var(--muted); }
+  .dr-roadmap-notify-toggle {
+    background: transparent; border: none; color: var(--muted); font-size: 0.78rem; cursor: pointer;
+    text-decoration: underline; padding: 0; font-family: inherit;
+  }
+  .dr-roadmap-notify-form { margin: 0; display: flex; gap: 0.4rem; align-items: center; }
+  .dr-roadmap-notify-form input[type=email] {
+    font-size: 0.85rem; padding: 0.35rem 0.5rem; border: 1px solid var(--border-strong); border-radius: 6px;
+    background: var(--bg); color: inherit; width: 190px; max-width: 40vw;
+  }
+  .dr-roadmap-notify-form button {
+    font-size: 0.85rem; padding: 0.35rem 0.7rem; border: 1px solid var(--border-strong); border-radius: 6px;
+    background: transparent; color: inherit; cursor: pointer; font-family: inherit; white-space: nowrap;
+  }
+  .dr-roadmap-notify-result { margin: 0; font-size: 0.8rem; color: var(--muted); text-align: right; }
+  @media (max-width: 560px) {
+    .dr-roadmap-idea { flex-direction: column; align-items: stretch; }
+    .dr-roadmap-idea-actions { align-items: stretch; }
+    .dr-roadmap-notify-form input[type=email] { width: auto; max-width: none; flex: 1; }
+  }
 
   @media (max-width: 860px) {
     /* Stacked cards. Each cell carries its own label via data-label, so the
@@ -1980,6 +2035,7 @@ def site_footer() -> str:
       <a href="/rule-changes/">Mobility Rule Changes</a>
       <a href="/blog/">Guides</a>
       <a href="/pricing/">Pricing</a>
+      <a href="/roadmap/">Roadmap</a>
       <a href="/privacy/">Privacy</a>
       <a href="/terms/">Terms</a>
       <a href="/contact/">Contact</a>
@@ -4113,6 +4169,196 @@ for that tier, same as the dashboard's own upgrade panel.</p>
         canonical_path="/pricing/",
         has_remind_anchor=False,
     ) + _PRICING_CHECKOUT_JS_HTML
+
+
+def build_roadmap_page() -> str:
+    """Task #19 (2026-08-06): public roadmap voting. Design settled with
+    Devin across several rounds -- see migration 0029's own docstring for
+    the full reasoning. Voting is anonymous (a cookie, no account); "notify
+    me when this ships" is a separate, optional, email-confirmed opt-in.
+
+    The idea list and vote counts are NOT baked in at build time -- they're
+    live (GET /roadmap-data), same reasoning /firm-mobility/'s roster
+    dropdown fetches live rather than being static. One shared Turnstile
+    widget (shared_widget=True forms) covers both the vote buttons and the
+    notify-signup forms, matching /firm-login/'s own multi-form pattern --
+    a widget per idea would be visually loud on a page meant to be quick to
+    use.
+    """
+    body = f"""<h1>Roadmap</h1>
+<p class="intro">Vote on what we build next. No account needed &mdash; one click per idea, and you can
+change your mind later. Want an email when something ships? Say so after you vote.</p>
+
+{_turnstile_shared_widget_html()}
+
+<div id="dr-roadmap-error" role="alert" class="field-hint" style="color:#c33737;" hidden></div>
+<div id="dr-roadmap-list" class="dr-roadmap-list"><p class="dr-panel-empty">Loading&hellip;</p></div>
+
+<p class="backlink">Have an idea that's not listed? <a href="mailto:{esc(CONTACT_EMAIL)}?subject=Roadmap%20idea">Tell us</a> &mdash;
+new ideas get added by hand, not submitted directly, to keep this list something worth actually
+looking at.</p>
+"""
+    return page_shell(
+        f"Roadmap — {SITE_NAME}",
+        "Vote on what DeadlineRadar builds next -- SMS reminders, practice-management integrations, "
+        "API access, and more. No account needed.",
+        body,
+        home_href="../",
+        canonical_path="/roadmap/",
+        has_remind_anchor=False,
+    ) + _ROADMAP_JS_HTML
+
+
+# Fixed, in case the idea list ever needs a client-side label without a
+# server round trip -- kept as documentation of what ships server-side in
+# migration 0029's seed data, not read by the JS below (which always
+# renders whatever GET /roadmap-data actually returns, live).
+_ROADMAP_HONEYPOT_TURNSTILE_HIDDEN_HTML = (
+    f'<div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;">'
+    f'<input type="text" name="{_HONEYPOT_FIELD_NAME}" tabindex="-1" autocomplete="off"></div>'
+    f'<input type="hidden" name="cf-turnstile-response" value="">'
+)
+
+_ROADMAP_JS_HTML = f"""<script>
+(function() {{
+  var API = "{REMINDER_BACKEND_BASE_URL}";
+  var listEl = document.getElementById('dr-roadmap-list');
+  var errEl = document.getElementById('dr-roadmap-error');
+  if (!listEl) return;
+
+  function esc(s) {{
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }}
+
+  var hiddenFieldsHtml = {json.dumps(_ROADMAP_HONEYPOT_TURNSTILE_HIDDEN_HTML)};
+
+  var STATUS_LABELS = {{in_progress: 'In progress', shipped: 'Shipped'}};
+
+  function render(ideas) {{
+    listEl.innerHTML = ideas.map(function(idea) {{
+      var statusLabel = STATUS_LABELS[idea.status];
+      var statusBadge = statusLabel
+        ? '<span class="dr-roadmap-status dr-roadmap-status--' + esc(idea.status) + '">' + statusLabel + '</span>'
+        : '';
+      var shipped = idea.status === 'shipped';
+      // Voting stays open for 'open' and 'in_progress' -- shipped is the
+      // one state where a vote button stops making sense (nothing left to
+      // decide). Notify-me still shows for a shipped idea in the rare case
+      // someone's landing on this page for the first time after it went
+      // live -- no reason to hide the option just because it's already true.
+      var voteHtml = shipped
+        ? ''
+        : '<form class="dr-roadmap-vote-form" data-idea-id="' + esc(idea.id) + '">' + hiddenFieldsHtml +
+          '<button type="submit" class="dr-roadmap-vote-btn"' + (idea.voted_by_me ? ' disabled' : '') + '>' +
+          (idea.voted_by_me ? '&check; Voted' : '&#9650; Vote') +
+          ' <span class="dr-roadmap-vote-count">' + idea.vote_count + '</span></button></form>';
+      return '<div class="dr-roadmap-idea">' +
+        '<div class="dr-roadmap-idea-info"><h2>' + esc(idea.title) + statusBadge + '</h2>' +
+        (idea.description ? '<p>' + esc(idea.description) + '</p>' : '') + '</div>' +
+        '<div class="dr-roadmap-idea-actions">' +
+        voteHtml +
+        '<button type="button" class="dr-roadmap-notify-toggle">Notify me when this ships</button>' +
+        '<form class="dr-roadmap-notify-form" data-idea-id="' + esc(idea.id) + '" hidden>' + hiddenFieldsHtml +
+        '<input type="email" class="dr-roadmap-notify-email" placeholder="you@example.com" required autocomplete="email">' +
+        '<button type="submit">Notify me</button></form>' +
+        '<p class="dr-roadmap-notify-result" hidden></p>' +
+        '</div></div>';
+    }}).join('');
+  }}
+
+  function loadIdeas() {{
+    fetch(API + '/roadmap-data', {{credentials: 'include'}})
+      .then(function(res) {{ return res.ok ? res.json() : null; }})
+      .then(function(data) {{
+        if (!data || !data.ideas) {{
+          if (errEl) {{ errEl.hidden = false; errEl.textContent = 'Something went wrong loading the roadmap. Please try again.'; }}
+          return;
+        }}
+        render(data.ideas);
+      }})
+      .catch(function() {{
+        if (errEl) {{ errEl.hidden = false; errEl.textContent = 'Something went wrong loading the roadmap. Please try again.'; }}
+      }});
+  }}
+
+  listEl.addEventListener('submit', function(ev) {{
+    var form = ev.target;
+    if (form.classList.contains('dr-roadmap-vote-form')) {{
+      ev.preventDefault();
+      var btn = form.querySelector('.dr-roadmap-vote-btn');
+      var ideaId = form.getAttribute('data-idea-id');
+      var turnstileToken = form.querySelector('input[name="cf-turnstile-response"]').value;
+      if (btn) btn.disabled = true;
+      fetch(API + '/roadmap/vote', {{
+        method: 'POST', credentials: 'include',
+        headers: {{'Content-Type': 'application/json'}},
+        body: JSON.stringify({{idea_id: ideaId, 'cf-turnstile-response': turnstileToken}})
+      }}).then(function(res) {{
+        return res.json().then(function(data) {{ return {{ok: res.ok, data: data}}; }});
+      }}).then(function(result) {{
+        if (!result.ok) {{
+          if (btn) btn.disabled = false;
+          if (errEl) {{ errEl.hidden = false; errEl.textContent = (result.data && result.data.error) || 'Something went wrong. Please try again.'; }}
+          return;
+        }}
+        var countEl = form.querySelector('.dr-roadmap-vote-count');
+        if (countEl) countEl.textContent = result.data.vote_count;
+        if (btn) btn.innerHTML = '&check; Voted <span class="dr-roadmap-vote-count">' + result.data.vote_count + '</span>';
+      }}).catch(function() {{
+        if (btn) btn.disabled = false;
+        if (errEl) {{ errEl.hidden = false; errEl.textContent = 'Something went wrong. Please try again.'; }}
+      }});
+      return;
+    }}
+    if (form.classList.contains('dr-roadmap-notify-form')) {{
+      ev.preventDefault();
+      var ideaId2 = form.getAttribute('data-idea-id');
+      var emailEl = form.querySelector('.dr-roadmap-notify-email');
+      var turnstileToken2 = form.querySelector('input[name="cf-turnstile-response"]').value;
+      var resultEl = form.parentElement.querySelector('.dr-roadmap-notify-result');
+      var submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+      fetch(API + '/roadmap/notify-signup', {{
+        method: 'POST', credentials: 'include',
+        headers: {{'Content-Type': 'application/json'}},
+        body: JSON.stringify({{idea_id: ideaId2, email: emailEl.value, 'cf-turnstile-response': turnstileToken2}})
+      }}).then(function(res) {{
+        return res.json().then(function(data) {{ return {{ok: res.ok, data: data}}; }});
+      }}).then(function(result) {{
+        if (submitBtn) submitBtn.disabled = false;
+        if (resultEl) {{
+          resultEl.hidden = false;
+          resultEl.textContent = result.ok
+            ? 'Check your inbox to confirm.'
+            : ((result.data && result.data.error) || 'Something went wrong. Please try again.');
+        }}
+        if (result.ok) {{ form.hidden = true; }}
+      }}).catch(function() {{
+        if (submitBtn) submitBtn.disabled = false;
+        if (resultEl) {{ resultEl.hidden = false; resultEl.textContent = 'Something went wrong. Please try again.'; }}
+      }});
+      return;
+    }}
+  }});
+
+  listEl.addEventListener('click', function(ev) {{
+    var toggle = ev.target.closest ? ev.target.closest('.dr-roadmap-notify-toggle') : null;
+    if (!toggle) return;
+    var form = toggle.parentElement.querySelector('.dr-roadmap-notify-form');
+    if (form) {{
+      form.hidden = !form.hidden;
+      if (!form.hidden) {{
+        var emailInput = form.querySelector('.dr-roadmap-notify-email');
+        if (emailInput) emailInput.focus();
+      }}
+    }}
+  }});
+
+  loadIdeas();
+}})();
+</script>"""
 
 
 def build_privacy_page(updated: date) -> str:
@@ -8011,6 +8257,66 @@ function drSignOutOtherDevices(btn) {
   });
 }
 
+// Task #19 (2026-08-06): one-time post-signup feature-request prompt.
+// Both "Submit" and "Skip" mark it dismissed server-side (POST
+// /firm/questionnaire and /firm/questionnaire/dismiss respectively) -- the
+// modal never reopens after either, only after neither has happened yet.
+function drOpenQuestionnaireModal() {
+  var modal = document.getElementById('dr-questionnaire-modal');
+  if (!modal || !modal.hidden) return; // already open -- a second /firm/licenses
+  modal.hidden = false;                // reload mid-decision must not reset the form
+}
+
+function drCloseQuestionnaireModal() {
+  var modal = document.getElementById('dr-questionnaire-modal');
+  if (modal) modal.hidden = true;
+}
+
+function drSubmitQuestionnaire(ev) {
+  ev.preventDefault();
+  var form = document.getElementById('dr-questionnaire-form');
+  var errEl = document.getElementById('dr-questionnaire-error');
+  var submitBtn = document.getElementById('dr-questionnaire-submit-btn');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  var checked = Array.prototype.slice.call(form.querySelectorAll('input[name="feature"]:checked'))
+    .map(function(el) { return el.value; });
+  var otherText = (document.getElementById('dr-questionnaire-other').value || '').trim();
+  if (submitBtn) submitBtn.disabled = true;
+  fetch('/api/firm/questionnaire', {
+    method: 'POST', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({selected_features: checked, other_text: otherText || null})
+  }).then(function(res) {
+    if (submitBtn) submitBtn.disabled = false;
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        if (errEl) { errEl.textContent = (data && data.error) || 'Something went wrong, please try again.'; errEl.hidden = false; }
+        return;
+      }
+      drCloseQuestionnaireModal();
+      drShowSuccess('Thanks -- that helps us decide what to build next.');
+    });
+  }).catch(function() {
+    if (submitBtn) submitBtn.disabled = false;
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
+function drSkipQuestionnaire() {
+  var skipBtn = document.getElementById('dr-questionnaire-skip-btn');
+  if (skipBtn) skipBtn.disabled = true;
+  fetch('/api/firm/questionnaire/dismiss', {method: 'POST', credentials: 'include'})
+    .then(function(res) {
+      if (skipBtn) skipBtn.disabled = false;
+      if (res.status === 401) { window.location.href = '/firm-login/'; return; }
+      // Close either way -- a network hiccup on a "skip" shouldn't trap the
+      // admin in the modal; worst case it just reappears next load.
+      drCloseQuestionnaireModal();
+    })
+    .catch(function() { if (skipBtn) skipBtn.disabled = false; drCloseQuestionnaireModal(); });
+}
+
 // Task #3 (2026-08-06): self-serve account deletion. The "type your firm's
 // name to confirm" gate (drCheckDeleteConfirmName) is the REAL "are you
 // sure" -- deliberately not a second click/window.confirm(), which is too
@@ -8157,6 +8463,12 @@ function drLoadLicenses() {
       drRenderCurrentEmail(data.admin_email);
       drRenderStalenessBanner(data.data_as_of, data.data_stale);
       drRenderAccountLockdown();
+      // Task #19 (2026-08-06): one-time post-signup feature-request prompt.
+      // Checked on every load (not just the very first) since
+      // questionnaire_pending stays true until a real submit or an
+      // explicit skip -- a firm that closes the tab mid-decision sees it
+      // again next time, same as it would have the first time.
+      if (data.questionnaire_pending) drOpenQuestionnaireModal();
       drRenderBillingPanel();
       drRenderTable();
       drRenderStats();
@@ -8533,6 +8845,24 @@ document.addEventListener('DOMContentLoaded', function() {
   if (signOutOtherBtn) {
     signOutOtherBtn.addEventListener('click', function() {
       drSignOutOtherDevices(signOutOtherBtn);
+    });
+  }
+
+  var questionnaireForm = document.getElementById('dr-questionnaire-form');
+  var questionnaireSkipBtn = document.getElementById('dr-questionnaire-skip-btn');
+  var questionnaireModal = document.getElementById('dr-questionnaire-modal');
+  if (questionnaireForm) questionnaireForm.addEventListener('submit', drSubmitQuestionnaire);
+  if (questionnaireSkipBtn) questionnaireSkipBtn.addEventListener('click', drSkipQuestionnaire);
+  if (questionnaireModal) {
+    // Backdrop click / Escape count as a skip, not just a close -- this
+    // modal is meant to appear exactly once total (submit or skip both
+    // dismiss it server-side); a bare close would just bring it back on
+    // the next page load, which defeats the point.
+    questionnaireModal.addEventListener('click', function(ev) {
+      if (ev.target === questionnaireModal) drSkipQuestionnaire();
+    });
+    document.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Escape' && !questionnaireModal.hidden) drSkipQuestionnaire();
     });
   }
 
@@ -9538,6 +9868,30 @@ def build_firm_dashboard_page(
       <button type="button" class="dr-btn-save" id="dr-rule-change-notify-btn">Notify staff in this state</button>
       <button type="button" class="dr-btn-cancel" id="dr-rule-change-modal-close">Close</button>
     </div>
+  </div>
+</div>
+
+<div id="dr-questionnaire-modal" class="dr-modal-overlay" hidden>
+  <div class="dr-modal" role="dialog" aria-modal="true" aria-labelledby="dr-questionnaire-modal-title">
+    <h2 id="dr-questionnaire-modal-title">What would make this more useful for your firm?</h2>
+    <p class="dr-modal-hint">Totally optional, one-time, and skippable -- just tell us what'd help, or skip it.</p>
+    <form id="dr-questionnaire-form">
+      <label class="dr-questionnaire-check"><input type="checkbox" name="feature" value="SMS reminders"> SMS reminders</label>
+      <label class="dr-questionnaire-check"><input type="checkbox" name="feature" value="Practice-management integration"> Practice-management integration (QuickBooks, Karbon, Canopy)</label>
+      <label class="dr-questionnaire-check"><input type="checkbox" name="feature" value="Batch Practice Privilege Check"> Batch Practice Privilege Check</label>
+      <label class="dr-questionnaire-check"><input type="checkbox" name="feature" value="White-label / custom branding"> White-label / custom branding</label>
+      <label class="dr-questionnaire-check"><input type="checkbox" name="feature" value="API access"> API access</label>
+      <label class="dr-questionnaire-check"><input type="checkbox" name="feature" value="CPE certificate upload"> CPE certificate upload</label>
+      <label class="dr-questionnaire-check"><input type="checkbox" name="feature" value="Slack / Teams notifications"> Slack / Teams notifications</label>
+      <label class="dr-questionnaire-check"><input type="checkbox" name="feature" value="Custom reminder schedule"> Custom reminder schedule</label>
+      <label for="dr-questionnaire-other" style="margin-top:0.7rem;">Something else? <span class="field-hint">(optional)</span></label>
+      <textarea id="dr-questionnaire-other" class="dr-questionnaire-other" name="other_text" rows="2" maxlength="1000"></textarea>
+      <div class="dr-modal-actions">
+        <button type="submit" class="dr-btn-save" id="dr-questionnaire-submit-btn">Submit</button>
+        <button type="button" class="dr-btn-cancel" id="dr-questionnaire-skip-btn">Skip</button>
+      </div>
+    </form>
+    <p id="dr-questionnaire-error" role="alert" class="dr-account-err" hidden></p>
   </div>
 </div>
 
@@ -10814,6 +11168,11 @@ def main() -> None:
     pricing_dir.mkdir(parents=True, exist_ok=True)
     (pricing_dir / "index.html").write_text(build_pricing_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/pricing/index.html")
+
+    roadmap_dir = SITE_DIR / "roadmap"
+    roadmap_dir.mkdir(parents=True, exist_ok=True)
+    (roadmap_dir / "index.html").write_text(build_roadmap_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/roadmap/index.html")
 
     contact_dir = SITE_DIR / "contact"
     contact_dir.mkdir(parents=True, exist_ok=True)

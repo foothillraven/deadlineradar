@@ -824,6 +824,10 @@ export interface FirmRow {
   // migration 0027 (Task #32). Both null when no refund applied.
   deletion_refund_cents: number | null;
   deletion_refund_id: string | null;
+  // migration 0029 (Task #19). Null = still show the one-time post-signup
+  // feature-request questionnaire; set (real submission or an explicit
+  // skip) = never show it again for this firm.
+  feature_questionnaire_dismissed_at: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -2631,4 +2635,194 @@ export async function listSubscriberLicenses(
     .bind(emailNormalized, STATUS_STOPPED, STOP_REASON_REMOVED_BY_ADMIN)
     .all<SubscriberRow>();
   return results ?? [];
+}
+
+// ---------------------------------------------------------------------------
+// Feature requests: post-signup questionnaire (private, per-firm) + the
+// public /roadmap/ voting page (Task #19, 2026-08-06, migration 0029). See
+// that migration's own docstring for the full design reasoning.
+// ---------------------------------------------------------------------------
+
+export type FeatureIdeaStatus = "open" | "in_progress" | "shipped";
+const FEATURE_IDEA_STATUSES: ReadonlySet<string> = new Set(["open", "in_progress", "shipped"]);
+
+export interface FeatureIdeaRow {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  active: number;
+  created_at: string;
+}
+
+export interface FeatureIdeaWithVotes extends FeatureIdeaRow {
+  vote_count: number;
+  voted_by_me: boolean;
+}
+
+/**
+ * voterId is the caller's own anonymous cookie value (empty string if this
+ * browser has never voted) -- passed straight into a LEFT JOIN's ON clause
+ * rather than a second query per idea, so "did I already vote for this
+ * one" comes back in the same round trip as the public counts.
+ */
+export async function listActiveFeatureIdeasWithVotes(db: D1Database, voterId: string): Promise<FeatureIdeaWithVotes[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT fi.*,
+              COUNT(v.id) AS vote_count,
+              MAX(CASE WHEN v.voter_id = ?1 THEN 1 ELSE 0 END) AS voted_by_me
+         FROM feature_ideas fi
+         LEFT JOIN feature_idea_votes v ON v.idea_id = fi.id
+        WHERE fi.active = 1
+        GROUP BY fi.id
+        ORDER BY vote_count DESC, fi.created_at ASC`
+    )
+    .bind(voterId)
+    .all<FeatureIdeaRow & { vote_count: number; voted_by_me: number }>();
+  return (results ?? []).map((r) => ({ ...r, voted_by_me: r.voted_by_me === 1 }));
+}
+
+/**
+ * Idempotent by design (UNIQUE(idea_id, voter_id), migration 0029) -- a
+ * retried or double-fired click can never double-count. Returns whether
+ * this call is what actually recorded the vote (false for an already-
+ * voted repeat), purely for the caller's own response shape, not a
+ * meaningful security signal on its own.
+ */
+export async function recordFeatureIdeaVote(db: D1Database, ideaId: string, voterId: string): Promise<boolean> {
+  const result = await db
+    .prepare(`INSERT OR IGNORE INTO feature_idea_votes (id, idea_id, voter_id, created_at) VALUES (?1,?2,?3,?4)`)
+    .bind(newToken(), ideaId, voterId, nowIso())
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+export async function ideaExists(db: D1Database, ideaId: string): Promise<boolean> {
+  const row = await db.prepare(`SELECT 1 FROM feature_ideas WHERE id = ?1 AND active = 1`).bind(ideaId).first();
+  return row !== null;
+}
+
+/**
+ * Queues (or re-queues) a "notify me when this ships" signup -- NOT yet
+ * confirmed. UNIQUE(idea_id, email) means a repeat request for the same
+ * pair just rotates the token/timestamp rather than creating a duplicate
+ * row, so a lost confirmation email can always be re-requested. Returns
+ * null if this email/domain is already confirmed for this idea (nothing
+ * to re-send, avoids burning a send on a no-op).
+ */
+export async function createFeatureIdeaNotifySignup(
+  db: D1Database,
+  ideaId: string,
+  email: string
+): Promise<{ rawToken: string } | null> {
+  const normalized = normalizeEmail(email);
+  const existing = await db
+    .prepare(`SELECT confirmed_at FROM feature_idea_notify_signups WHERE idea_id = ?1 AND email = ?2`)
+    .bind(ideaId, normalized)
+    .first<{ confirmed_at: string | null }>();
+  if (existing && existing.confirmed_at) return null;
+
+  const rawToken = newToken();
+  const tokenHash = await hashToken(rawToken);
+  const now = nowIso();
+  await db
+    .prepare(
+      `INSERT INTO feature_idea_notify_signups (id, idea_id, email, confirm_token, confirmed_at, notified_at, created_at)
+       VALUES (?1,?2,?3,?4,NULL,NULL,?5)
+       ON CONFLICT(idea_id, email) DO UPDATE SET confirm_token = excluded.confirm_token, created_at = excluded.created_at`
+    )
+    .bind(newToken(), ideaId, normalized, tokenHash, now)
+    .run();
+  return { rawToken };
+}
+
+/**
+ * Same no-oracle posture as verifyAndConsumeSubscriberLoginToken() --
+ * unknown, already-confirmed, and never-issued are indistinguishable to
+ * the caller. confirm_token is cleared on success (not the row itself),
+ * so notify-on-ship still has a live email address to send to later.
+ */
+export async function confirmFeatureIdeaNotifySignup(db: D1Database, rawToken: string): Promise<boolean> {
+  const tokenHash = await hashToken(rawToken);
+  const row = await db
+    .prepare(`SELECT id FROM feature_idea_notify_signups WHERE confirm_token = ?1 AND confirmed_at IS NULL`)
+    .bind(tokenHash)
+    .first<{ id: string }>();
+  if (!row) return false;
+  const result = await db
+    .prepare(`UPDATE feature_idea_notify_signups SET confirmed_at = ?1, confirm_token = NULL WHERE id = ?2 AND confirmed_at IS NULL`)
+    .bind(nowIso(), row.id)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+export async function submitFeatureQuestionnaire(
+  db: D1Database,
+  firmId: string,
+  selectedFeatures: string[],
+  otherText: string | null
+): Promise<void> {
+  const now = nowIso();
+  await db
+    .prepare(
+      `INSERT INTO feature_questionnaire_responses (id, firm_id, selected_features, other_text, created_at)
+       VALUES (?1,?2,?3,?4,?5)`
+    )
+    .bind(newToken(), firmId, JSON.stringify(selectedFeatures), otherText, now)
+    .run();
+  await db.prepare(`UPDATE firms SET feature_questionnaire_dismissed_at = ?1 WHERE id = ?2`).bind(now, firmId).run();
+}
+
+/**
+ * Ops-only, no HTTP route (2026-08-06, Devin: "update it when starting a
+ * new task") -- same "human judgment call, driven by whoever's operating
+ * the fleet" reasoning as listConfirmedUnnotifiedSignupsForIdea() just
+ * below. Call this the moment real work on an idea actually starts
+ * (in_progress) and again the moment it ships -- not automatic, and not
+ * gated on anything voting-related.
+ */
+export async function setFeatureIdeaStatus(db: D1Database, ideaId: string, status: FeatureIdeaStatus): Promise<boolean> {
+  if (!FEATURE_IDEA_STATUSES.has(status)) return false;
+  const result = await db.prepare(`UPDATE feature_ideas SET status = ?1 WHERE id = ?2`).bind(status, ideaId).run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+export async function dismissFeatureQuestionnaire(db: D1Database, firmId: string): Promise<void> {
+  await db
+    .prepare(`UPDATE firms SET feature_questionnaire_dismissed_at = ?1 WHERE id = ?2 AND feature_questionnaire_dismissed_at IS NULL`)
+    .bind(nowIso(), firmId)
+    .run();
+}
+
+/**
+ * Ops-only, no HTTP route (2026-08-06) -- deliberately not wired up as an
+ * endpoint yet. "An idea shipped" is a human judgment call with no
+ * automatic trigger, made rarely, so this is meant to be driven by a
+ * one-off script run by whoever's operating the fleet when the day
+ * actually comes, using this + buildFeatureIdeaShippedEmail() +
+ * sendViaSendGrid() directly -- not worth a whole admin-auth surface for
+ * something invoked a handful of times a year. Returns every CONFIRMED,
+ * not-yet-notified signup for the idea; the caller sends and then calls
+ * markFeatureIdeaNotifySignupsNotified() with the ids that actually sent.
+ */
+export async function listConfirmedUnnotifiedSignupsForIdea(
+  db: D1Database,
+  ideaId: string
+): Promise<{ id: string; email: string }[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, email FROM feature_idea_notify_signups
+        WHERE idea_id = ?1 AND confirmed_at IS NOT NULL AND notified_at IS NULL`
+    )
+    .bind(ideaId)
+    .all<{ id: string; email: string }>();
+  return results ?? [];
+}
+
+export async function markFeatureIdeaNotifySignupsNotified(db: D1Database, ids: string[]): Promise<void> {
+  const now = nowIso();
+  for (const id of ids) {
+    await db.prepare(`UPDATE feature_idea_notify_signups SET notified_at = ?1 WHERE id = ?2`).bind(now, id).run();
+  }
 }

@@ -7558,13 +7558,19 @@ function drSubmitChangeEmail(form) {
 
   var fd = new FormData(form);
   var newEmail = fd.get('new_email') || '';
+  // AuditLab EMAILCHG-1 (2026-08-05): step-up auth, same field/semantics as
+  // drSubmitPassword() -- only sent when non-empty, so a magic-link-only
+  // firm (no password yet) isn't blocked from ever using this form.
+  var changeBody = {new_email: newEmail};
+  var currentPassword = fd.get('current_password');
+  if (currentPassword) changeBody.current_password = currentPassword;
   var submitBtn = form.querySelector('button[type="submit"]');
   if (submitBtn) submitBtn.disabled = true;
 
   fetch('/api/firm/change-email', {
     method: 'POST', credentials: 'include',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({new_email: newEmail})
+    body: JSON.stringify(changeBody)
   }).then(function(res) {
     if (submitBtn) submitBtn.disabled = false;
     if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
@@ -8741,6 +8747,8 @@ def build_firm_dashboard_page(
         <form id="dr-change-email-form" method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/change-email">
           <label for="dr-new-email">New email address</label>
           <input type="email" id="dr-new-email" name="new_email" required autocomplete="email">
+          <label for="dr-change-email-current-password">Current password <span class="field-hint">(leave blank if you've never set one)</span></label>
+          <input type="password" id="dr-change-email-current-password" name="current_password" autocomplete="current-password">
           <button type="submit">Send confirmation link</button>
         </form>
         <p id="dr-change-email-ok" class="dr-account-ok" hidden></p>

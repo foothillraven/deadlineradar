@@ -4533,13 +4533,15 @@ describe("POST /firm/sign-out-other-devices -- detection email (AuditLab)", () =
 // the new address); POST /firm/login/verify (email_change purpose) is what
 // actually APPLIES it, on redemption. Tested as two describe blocks
 // matching that split.
-async function postChangeEmail(cookie: string | null, newEmail: string, ip: string): Promise<Response> {
+async function postChangeEmail(cookie: string | null, newEmail: string, ip: string, currentPassword?: string): Promise<Response> {
   const headers: Record<string, string> = { "content-type": "application/json", "cf-connecting-ip": ip };
   if (cookie) headers["Cookie"] = cookie;
+  const bodyObj: Record<string, string> = { new_email: newEmail };
+  if (currentPassword !== undefined) bodyObj.current_password = currentPassword;
   return SELF.fetch("https://deadline-radar.com/firm/change-email", {
     method: "POST",
     headers,
-    body: JSON.stringify({ new_email: newEmail }),
+    body: JSON.stringify(bodyObj),
   });
 }
 
@@ -4547,6 +4549,53 @@ describe("POST /firm/change-email -- request phase", () => {
   it("requires a session", async () => {
     const resp = await postChangeEmail(null, "new@example.com", "203.0.113.260");
     expect(resp.status).toBe(401);
+  });
+
+  // AuditLab EMAILCHG-1 (2026-08-05, MEDIUM): a session cookie alone used to
+  // be enough -- the admin_email is the account's recovery channel, so a
+  // temporary session compromise could become a PERMANENT takeover via
+  // email-change, unlike a password change (which correctly already
+  // required the current password). Mirrors handleFirmPasswordSet's exact
+  // gate; these tests mirror ITS "requires the CURRENT password" test.
+  it("requires the CURRENT password to request a change, when the firm has one set", async () => {
+    const email = `changeemail-stepup-${Date.now()}@example.com`;
+    const firm = await firmWithPassword(email, STRONG_PASSWORD);
+    const { rawSessionToken } = await store.createSession(env.DB, firm.id);
+    const cookie = `dr_firm_session=${rawSessionToken}`;
+
+    const noCurrent = await postChangeEmail(cookie, `changeemail-stepup-new-${Date.now()}@example.com`, "203.0.113.294");
+    expect(noCurrent.status).toBe(400);
+
+    const wrongCurrent = await postChangeEmail(cookie, `changeemail-stepup-new2-${Date.now()}@example.com`, "203.0.113.295", "not the current password");
+    expect(wrongCurrent.status).toBe(400);
+
+    // Neither failed attempt should have created a redeemable token.
+    const rows = await env.DB
+      .prepare("SELECT COUNT(*) AS c FROM firm_login_tokens WHERE firm_id = ?1 AND purpose = 'email_change'")
+      .bind(firm.id)
+      .first<{ c: number }>();
+    expect(rows?.c).toBe(0);
+
+    const correct = await postChangeEmail(cookie, `changeemail-stepup-new3-${Date.now()}@example.com`, "203.0.113.296", STRONG_PASSWORD);
+    expect(correct.status).toBe(200);
+  });
+
+  it("does NOT require a password for a magic-link-only firm (no password set yet)", async () => {
+    const email = `changeemail-nopw-${Date.now()}@example.com`;
+    const { cookie } = await createFirmWithSession("Change Email No Password Firm", email);
+    const resp = await postChangeEmail(cookie, `changeemail-nopw-new-${Date.now()}@example.com`, "203.0.113.297");
+    expect(resp.status).toBe(200);
+  });
+
+  it("skips the current-password check when the session is passwordResetAuthorized (already proved control of the inbox via a fresh reset link)", async () => {
+    const email = `changeemail-resetauth-${Date.now()}@example.com`;
+    const firm = await firmWithPassword(email, STRONG_PASSWORD);
+    const { rawToken } = await store.createLoginToken(env.DB, firm.id, "password_reset");
+    const resetVerify = await postFirmLoginVerify(rawToken, "203.0.113.298");
+    const cookie = `dr_firm_session=${cookieValue(resetVerify.headers.get("Set-Cookie") ?? "", "dr_firm_session")}`;
+
+    const resp = await postChangeEmail(cookie, `changeemail-resetauth-new-${Date.now()}@example.com`, "203.0.113.299");
+    expect(resp.status).toBe(200); // no current_password supplied, but the session itself authorizes it
   });
 
   it("400s when Origin doesn't match -- same CSRF defense-in-depth as every other mutating firm route", async () => {

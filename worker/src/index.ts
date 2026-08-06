@@ -4496,9 +4496,40 @@ async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise
   if (!isValidEmail(newEmailRaw)) {
     return jsonResponse(400, { error: "That doesn't look like a valid email address." });
   }
+  const currentPassword = typeof body.current_password === "string" ? body.current_password : "";
 
   const firm = await store.getFirmById(env.DB, session.firmId);
   if (!firm) return jsonResponse(404, { error: "Not found." });
+
+  // AuditLab EMAILCHG-1 (2026-08-05, MEDIUM): a session cookie alone used to
+  // be enough to REQUEST an email change, unlike handleFirmPasswordSet's own
+  // step-up check for the exact same class of risk (a credential change).
+  // The admin_email is the account's recovery channel -- every password-
+  // reset and magic-link sign-in resolves through it -- so a session
+  // compromise that a password change would correctly still require the
+  // OLD password to fix becomes PERMANENT if routed through email-change
+  // first: once confirmed, the attacker's address IS the account's login
+  // identity, independent of whether the stolen session cookie is ever
+  // revoked. Mirrors handleFirmPasswordSet's exact gate: skipped only when
+  // the firm has no password yet (a magic-link-only firm must still be able
+  // to use this feature) or the session itself is passwordResetAuthorized
+  // (already proved control of the current inbox via a fresh reset link).
+  if (firm.password_hash && !session.passwordResetAuthorized) {
+    const currentOk = await verifyPassword(
+      currentPassword,
+      {
+        algo: firm.password_algo ?? undefined,
+        salt: firm.password_salt ?? undefined,
+        iterations: firm.password_iterations ?? undefined,
+        rounds: firm.password_rounds ?? undefined,
+        hash: firm.password_hash,
+      },
+      env.PASSWORD_PEPPER
+    );
+    if (!currentOk) {
+      return jsonResponse(400, { error: "That current password isn't right." });
+    }
+  }
 
   // Same LOWER(TRIM()) normalization findFirmByAdminEmail()/the migration
   // 0015 unique index use, so this comparison agrees with what the actual

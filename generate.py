@@ -9110,7 +9110,7 @@ lapsed because they tracked the wrong date.</p>
 <p>Take Missouri. The license itself renews <strong>every two years</strong>, on a fixed September 30
 date (Mo. Code Regs. Ann. tit. 20 &sect; 2010-2.070(1)). But CPE hours are checked <strong>every
 single year</strong> &mdash; 40 hours including 2 ethics hours, due annually, even in the "off year"
-when the license itself isn't up for renewal (20 CSR 2010-4.010(1)(C)). A Missouri CPA could renew
+when the license itself isn't up for renewal (20 CSR 2010-4.010(1)(B)). A Missouri CPA could renew
 their license this year, relax about paperwork for twelve months, and still owe a full year of CPE
 hours in that gap year &mdash; with a January 1&ndash;March 1 grace window to catch up if they fall
 behind.</p>
@@ -9221,7 +9221,7 @@ year than its individual license holders' next renewal, even at the same firm.</
 <h2>CPE: checked annually, regardless of the two-year license cycle</h2>
 <p>Here's the part that catches people: even though the individual license itself only renews every
 two years, CPE compliance is checked on a calendar-year basis &mdash; 40 hours per year, including 2
-ethics hours, every single year, not just in "renewal years" (20 CSR 2010-4.010(1)(C)). If you fall
+ethics hours, every single year, not just in "renewal years" (20 CSR 2010-4.010(1)(B)). If you fall
 behind, the rule gives a January 1 through March 1 grace period each year to catch up on the prior
 year's shortfall. Don't let a two-year license cycle lull you into treating CPE as a
 once-every-two-years task &mdash; it isn't.</p>

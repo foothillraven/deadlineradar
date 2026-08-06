@@ -2846,6 +2846,35 @@ describe("deadlines.ts", () => {
     expect(d.getUTCFullYear()).toBe(2027);
   });
 
+  it("AuditLab DEADLINE-1: nextAnnualMonthEnd does not roll forward a year on the deadline's own due day", () => {
+    // Texas, month=8, deadline is 2026-08-31. Probed with a real timestamp
+    // (not bare midnight) at various points that day and the day around it.
+    expect(nextAnnualMonthEnd(new Date("2026-08-30T23:59:00Z"), 8).getUTCFullYear()).toBe(2026);
+    expect(nextAnnualMonthEnd(new Date("2026-08-31T00:00:00Z"), 8).toISOString().slice(0, 10)).toBe(
+      "2026-08-31"
+    );
+    expect(nextAnnualMonthEnd(new Date("2026-08-31T01:00:00Z"), 8).toISOString().slice(0, 10)).toBe(
+      "2026-08-31"
+    );
+    expect(nextAnnualMonthEnd(new Date("2026-08-31T23:59:59Z"), 8).toISOString().slice(0, 10)).toBe(
+      "2026-08-31"
+    );
+    expect(nextAnnualMonthEnd(new Date("2026-09-01T00:00:00Z"), 8).getUTCFullYear()).toBe(2027);
+  });
+
+  it("AuditLab DEADLINE-1: nextBirthMonthParityDate does not roll forward a full cycle on the deadline's own due day", () => {
+    // California, month=8/odd, deadline is 2027-08-31 (odd year).
+    expect(
+      nextBirthMonthParityDate(new Date("2027-08-31T00:00:00Z"), 8, "odd").toISOString().slice(0, 10)
+    ).toBe("2027-08-31");
+    expect(
+      nextBirthMonthParityDate(new Date("2027-08-31T13:00:00Z"), 8, "odd").toISOString().slice(0, 10)
+    ).toBe("2027-08-31");
+    expect(nextBirthMonthParityDate(new Date("2027-09-01T00:00:00Z"), 8, "odd").getUTCFullYear()).toBe(
+      2029
+    );
+  });
+
   it("computeSubscriberDeadline resolves Ohio cohort groups and rejects unknown ones", () => {
     const asOf = new Date("2026-07-03T00:00:00Z");
     expect(computeSubscriberDeadline("ohio", { cohort_group: "Group 1" }, asOf)).not.toBeNull();

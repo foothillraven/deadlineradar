@@ -60,15 +60,28 @@ function utcDate(year: number, month: number, day: number): Date {
   return new Date(Date.UTC(year, month - 1, day));
 }
 
+/** Start of `asOf`'s own UTC calendar day. AuditLab DEADLINE-1: comparing a
+ * candidate date (always UTC midnight) against a real timestamped `asOf`
+ * directly made a deadline falling ON the current day read as "already
+ * passed" for the whole day from 00:00:00.001 UTC onward -- inverting this
+ * codebase's own "a date due today has not passed" principle (generate.py
+ * ~9916) for exactly the two dynamically-computed states. Truncating `asOf`
+ * to its own midnight before comparing makes "today" compare equal, not
+ * greater-than, regardless of what time of day the check runs. */
+function startOfUtcDay(d: Date): Date {
+  return utcDate(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+}
+
 /** generate.py:92 `next_birth_month_parity_date()`. */
 export function nextBirthMonthParityDate(asOf: Date, month: number, parity: "odd" | "even"): Date {
+  const today = startOfUtcDay(asOf);
   let y = asOf.getUTCFullYear();
   // eslint-disable-next-line no-constant-condition
   while (true) {
     const yearIsTargetParity = parity === "odd" ? y % 2 === 1 : y % 2 === 0;
     if (yearIsTargetParity) {
       const d = utcDate(y, month, monthLastDay(y, month));
-      if (d.getTime() > asOf.getTime()) return d;
+      if (d.getTime() >= today.getTime()) return d;
     }
     y += 1;
   }
@@ -76,9 +89,10 @@ export function nextBirthMonthParityDate(asOf: Date, month: number, parity: "odd
 
 /** generate.py:105 `next_annual_month_end()`. */
 export function nextAnnualMonthEnd(asOf: Date, month: number): Date {
+  const today = startOfUtcDay(asOf);
   const y = asOf.getUTCFullYear();
   let d = utcDate(y, month, monthLastDay(y, month));
-  if (d.getTime() <= asOf.getTime()) {
+  if (d.getTime() < today.getTime()) {
     d = utcDate(y + 1, month, monthLastDay(y + 1, month));
   }
   return d;

@@ -251,22 +251,24 @@ def fmt_date_iso(d: date) -> str:
 
 def next_birth_month_parity_date(as_of: date, month: int, parity: str) -> date:
     """Next date, on the last day of `month`, in a year whose parity matches
-    `parity` ('odd'/'even'), strictly after `as_of`."""
+    `parity` ('odd'/'even'), on or after `as_of` -- a date due today has not
+    passed (AuditLab DEADLINE-1, matches the same "due today" principle
+    documented near line 9916 below and mirrored in deadline.ts)."""
     y = as_of.year
     while True:
         year_is_target_parity = (y % 2 == 1) if parity == "odd" else (y % 2 == 0)
         if year_is_target_parity:
             d = date(y, month, month_last_day(y, month))
-            if d > as_of:
+            if d >= as_of:
                 return d
         y += 1
 
 
 def next_annual_month_end(as_of: date, month: int) -> date:
-    """Next date on the last day of `month`, strictly after `as_of` (this year
-    if it hasn't happened yet, else next year)."""
+    """Next date on the last day of `month`, on or after `as_of` (this year
+    if it hasn't happened yet or is due today, else next year)."""
     d = date(as_of.year, month, month_last_day(as_of.year, month))
-    if d <= as_of:
+    if d < as_of:
         d = date(as_of.year + 1, month, month_last_day(as_of.year + 1, month))
     return d
 
@@ -9809,6 +9811,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/contact/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/terms/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/for-firms/</loc>

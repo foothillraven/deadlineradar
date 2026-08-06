@@ -4256,6 +4256,161 @@ describe("POST /firm/password -- set and change", () => {
   });
 });
 
+// Task #18 (2026-08-05): explicit self-serve version of the same
+// store.deleteOtherSessionsForFirm() sweep POST /firm/password already
+// triggers as a side effect (see the "ends every OTHER session on change"
+// test above) -- lets an admin end stray sessions WITHOUT changing their
+// password first.
+async function postSignOutOtherDevices(cookie: string | null, ip: string): Promise<Response> {
+  const headers: Record<string, string> = { "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch("https://deadline-radar.com/firm/sign-out-other-devices", { method: "POST", headers });
+}
+
+describe("POST /firm/sign-out-other-devices", () => {
+  it("requires a session", async () => {
+    const resp = await postSignOutOtherDevices(null, "203.0.113.220");
+    expect(resp.status).toBe(401);
+  });
+
+  it("ends every OTHER session but keeps the caller's own, and reports the count", async () => {
+    const email = `signout-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "Sign Out Firm", adminEmail: email });
+    const mine = await store.createSession(env.DB, firmId);
+    const otherA = await store.createSession(env.DB, firmId);
+    const otherB = await store.createSession(env.DB, firmId);
+
+    const resp = await postSignOutOtherDevices(`dr_firm_session=${mine.rawSessionToken}`, "203.0.113.221");
+    expect(resp.status).toBe(200);
+    expect((await resp.json<{ ok: boolean; other_sessions_ended: number }>()).other_sessions_ended).toBe(2);
+
+    expect(await store.verifySession(env.DB, mine.rawSessionToken)).not.toBeNull();
+    expect(await store.verifySession(env.DB, otherA.rawSessionToken)).toBeNull();
+    expect(await store.verifySession(env.DB, otherB.rawSessionToken)).toBeNull();
+  });
+
+  it("reports zero, not an error, when no other sessions exist", async () => {
+    const email = `signout-solo-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "Solo Firm", adminEmail: email });
+    const mine = await store.createSession(env.DB, firmId);
+
+    const resp = await postSignOutOtherDevices(`dr_firm_session=${mine.rawSessionToken}`, "203.0.113.222");
+    expect(resp.status).toBe(200);
+    expect((await resp.json<{ other_sessions_ended: number }>()).other_sessions_ended).toBe(0);
+    expect(await store.verifySession(env.DB, mine.rawSessionToken)).not.toBeNull();
+  });
+
+  it("does not touch ANOTHER firm's sessions -- the session decides the target, not the request", async () => {
+    const victimEmail = `signout-victim-${Date.now()}@examplefirm.com`;
+    const { id: victimId } = await store.createFirm(env.DB, { name: "Victim Firm", adminEmail: victimEmail });
+    const victimSession = await store.createSession(env.DB, victimId);
+
+    const attackerEmail = `signout-attacker-${Date.now()}@examplefirm.com`;
+    const { id: attackerId } = await store.createFirm(env.DB, { name: "Attacker Firm", adminEmail: attackerEmail });
+    const attackerSession = await store.createSession(env.DB, attackerId);
+
+    const resp = await postSignOutOtherDevices(`dr_firm_session=${attackerSession.rawSessionToken}`, "203.0.113.223");
+    expect(resp.status).toBe(200);
+    expect((await resp.json<{ other_sessions_ended: number }>()).other_sessions_ended).toBe(0);
+
+    // The victim's unrelated session must be completely unaffected.
+    expect(await store.verifySession(env.DB, victimSession.rawSessionToken)).not.toBeNull();
+  });
+
+  it("works for a pilot (unpaid) firm -- this is a security action, not a paid feature", async () => {
+    const email = `signout-pilot-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "Pilot Firm", adminEmail: email });
+    const mine = await store.createSession(env.DB, firmId);
+    const other = await store.createSession(env.DB, firmId);
+
+    const resp = await postSignOutOtherDevices(`dr_firm_session=${mine.rawSessionToken}`, "203.0.113.224");
+    expect(resp.status).toBe(200);
+    expect(await store.verifySession(env.DB, other.rawSessionToken)).toBeNull();
+  });
+
+  it("400s when Origin doesn't match -- same CSRF defense-in-depth as every other mutating firm route", async () => {
+    const email = `signout-csrf-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "CSRF Firm", adminEmail: email });
+    const mine = await store.createSession(env.DB, firmId);
+    const other = await store.createSession(env.DB, firmId);
+
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/sign-out-other-devices", {
+      method: "POST",
+      headers: { "cf-connecting-ip": "203.0.113.225", Cookie: `dr_firm_session=${mine.rawSessionToken}`, Origin: "https://attacker.example" },
+    });
+    expect(resp.status).toBe(400);
+    // Rejected before it touches anything -- the other session must still be alive.
+    expect(await store.verifySession(env.DB, other.rawSessionToken)).not.toBeNull();
+  });
+
+  it("also invalidates any outstanding (unused) emailed login link -- a live link is a bearer credential too", async () => {
+    const email = `signout-tokens-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "Outstanding Link Firm", adminEmail: email });
+    const mine = await store.createSession(env.DB, firmId);
+    await store.createLoginToken(env.DB, firmId, "login");
+    const other = await store.createSession(env.DB, firmId);
+    void other;
+
+    const resp = await postSignOutOtherDevices(`dr_firm_session=${mine.rawSessionToken}`, "203.0.113.226");
+    expect(resp.status).toBe(200);
+
+    const outstanding = await env.DB
+      .prepare("SELECT COUNT(*) AS c FROM firm_login_tokens WHERE firm_id = ?1 AND used_at IS NULL")
+      .bind(firmId)
+      .first<{ c: number }>();
+    expect(outstanding?.c).toBe(0);
+  });
+
+  it("does NOT invalidate outstanding login links when there was nothing to end (no other sessions)", async () => {
+    // Guards the endedSessions > 0 gate itself: a solo session calling this
+    // must not have a side effect on tokens it never touched.
+    const email = `signout-tokens-solo-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "Solo Link Firm", adminEmail: email });
+    const mine = await store.createSession(env.DB, firmId);
+    await store.createLoginToken(env.DB, firmId, "login");
+
+    const resp = await postSignOutOtherDevices(`dr_firm_session=${mine.rawSessionToken}`, "203.0.113.227");
+    expect(resp.status).toBe(200);
+
+    const outstanding = await env.DB
+      .prepare("SELECT COUNT(*) AS c FROM firm_login_tokens WHERE firm_id = ?1 AND used_at IS NULL")
+      .bind(firmId)
+      .first<{ c: number }>();
+    expect(outstanding?.c).toBe(1);
+  });
+
+  it("rate-limits PER SESSION, not per firm -- one session's budget can't 429 a different session of the same firm", async () => {
+    // Adversarial-review finding (2026-08-05): a per-firm key would let a
+    // STOLEN session burn the whole firm's hourly budget across many IPs,
+    // then 429 the real owner's own fresh session out of the exact remedy
+    // this route exists to offer -- the attacker's session would still be
+    // alive while its victim gets "too many attempts." Confirms the fix:
+    // exhausting one session's budget leaves a DIFFERENT session's budget
+    // untouched.
+    const email = `signout-ratelimit-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "Rate Limit Firm", adminEmail: email });
+    const stolen = await store.createSession(env.DB, firmId);
+
+    let sawA429 = false;
+    for (let i = 0; i < 12; i++) {
+      const resp = await postSignOutOtherDevices(`dr_firm_session=${stolen.rawSessionToken}`, `203.0.113.${230 + i}`);
+      if (resp.status === 429) {
+        sawA429 = true;
+        break;
+      }
+      expect(resp.status).toBe(200);
+    }
+    expect(sawA429, "expected the STOLEN session's own budget (10/hour) to exhaust within 12 calls").toBe(true);
+
+    // The owner signing back in AFTER the stolen session burned its own
+    // budget gets a brand-new session id -- and therefore a clean budget,
+    // never having made a call on it before.
+    const owner = await store.createSession(env.DB, firmId);
+    const ownerResp = await postSignOutOtherDevices(`dr_firm_session=${owner.rawSessionToken}`, "203.0.113.250");
+    expect(ownerResp.status).toBe(200);
+  });
+});
+
 describe("SSO routes", () => {
   const ssoEnv = { GOOGLE_OAUTH_CLIENT_ID: "test-client-id", GOOGLE_OAUTH_CLIENT_SECRET: "test-client-secret" };
 

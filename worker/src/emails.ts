@@ -696,6 +696,67 @@ ${addr}`;
 }
 
 /**
+ * Sent whenever POST /firm/sign-out-other-devices ends at least one OTHER
+ * session (2026-08-05, Task #18). Same rationale as
+ * buildFirmPasswordChangedEmail() -- ending every other session is a
+ * DETECTION control as much as a remediation one: if the click that
+ * triggered it came from a stolen session rather than the real admin, this
+ * email is the only signal the real admin ever gets that something used
+ * their account. Unlike a password change, the credential itself is
+ * unchanged here, so the remediation copy points at changing the password,
+ * not just signing back in.
+ */
+export function buildFirmSessionsEndedEmail(
+  firmName: string,
+  whenIso: string,
+  endedCount: number,
+  adminName: string | null = null
+): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `Other devices were signed out of your ${SITE_NAME} account`;
+  const deviceWord = endedCount === 1 ? "device" : "devices";
+
+  const textBody =
+    `${textGreeting(adminName)}\n\n` +
+    `${endedCount} other ${deviceWord} signed in to ${firmName} on ${SITE_NAME} were just signed out (${whenIso}).
+
+` +
+    `If this was you, nothing further is needed.
+
+` +
+    `IF THIS WAS NOT YOU, someone else may have had access to your account. Request a sign-in ` +
+    `link from the sign-in page to get back in, then change your password immediately.
+
+` +
+    `---
+${SENDER_LINE}
+${addr}`;
+
+  const htmlBody = htmlShell(
+    `Other devices were signed out of your ${SITE_NAME} account`,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `Other devices were signed out</h1>` +
+      p(htmlGreeting(adminName)) +
+      p(
+        `${endedCount} other ${esc(deviceWord)} signed in to ${esc(firmName)} on ${esc(SITE_NAME)} were ` +
+          `just signed out (${esc(whenIso)}).`
+      ) +
+      p("If this was you, nothing further is needed.", 13, LIGHT.muted) +
+      p(
+        "<strong>If this was not you</strong>, someone else may have had access to your account. " +
+          "Request a sign-in link from the sign-in page to get back in, then change your password " +
+          "immediately.",
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
  * Sent whenever a new provider identity is linked to a firm via SSO
  * (2026-08-03, AuditLab SSO-B).
  *

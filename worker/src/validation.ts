@@ -530,6 +530,11 @@ export const RATE_LIMIT_FIRM_PASSWORD_SET: RateLimit = { max: 10, windowSeconds:
  * -- no legitimate admin needs more than a handful of toggles a day. */
 export const RATE_LIMIT_FIRM_BILLING_CANCEL: RateLimit = { max: 10, windowSeconds: 3600 };
 
+/** Task #18 (2026-08-05): same reasoning as RATE_LIMIT_FIRM_PASSWORD_SET --
+ * already authenticated, this only stops a compromised session being reused
+ * to hammer the D1 write. */
+export const RATE_LIMIT_FIRM_SIGNOUT_OTHER: RateLimit = { max: 10, windowSeconds: 3600 };
+
 /** Opening an SSO handshake is cheap, but each one writes a
  * firm_oauth_states row -- throttled so an abandoned-handshake flood can't
  * grow the table. */

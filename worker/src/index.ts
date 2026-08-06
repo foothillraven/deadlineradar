@@ -61,6 +61,7 @@ import {
   RATE_LIMIT_ACTION,
   RATE_LIMIT_FIRM_PASSWORD_LOGIN,
   RATE_LIMIT_FIRM_BILLING_CANCEL,
+  RATE_LIMIT_FIRM_SIGNOUT_OTHER,
   RATE_LIMIT_FIRM_PASSWORD_SET,
   RATE_LIMIT_OAUTH_START,
   RATE_LIMIT_CPE_ENTRY_CREATE,
@@ -113,6 +114,7 @@ import {
   buildSubscriberLoginEmail,
   buildStaffCpeReminderEmail,
   buildFirmPasswordChangedEmail,
+  buildFirmSessionsEndedEmail,
   buildFirmOauthLinkedEmail,
   buildFirmStaffAddedEmail,
   buildStopConfirmationEmail,
@@ -3721,6 +3723,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
       }
 
+      if (url.pathname === "/firm/sign-out-other-devices") {
+        try {
+          return await handleFirmSignOutOtherDevices(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
       if (url.pathname === "/firm/mobility/check") {
         try {
           return await handleMobilityCheck(request, env, ip);
@@ -4278,6 +4288,72 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
       }
     } catch {
       // Intentionally swallowed -- see above.
+    }
+  }
+
+  return jsonResponse(200, { ok: true, other_sessions_ended: endedSessions });
+}
+
+/**
+ * POST /firm/sign-out-other-devices -- Task #18 (2026-08-05). Self-serve
+ * version of the same store.deleteOtherSessionsForFirm() sweep a password
+ * change already triggers (see handleFirmPasswordSet's own comment) --
+ * lets an admin end every OTHER session (e.g. a shared/public computer they
+ * forgot to sign out of) WITHOUT having to change their password to do it.
+ * The caller's own session survives, same as the password-change sweep.
+ *
+ * Session-gated only, not entitlement-gated -- ending stray sessions is a
+ * security action, not a paid feature, so a lapsed-pilot firm can still use
+ * it (matches handleFirmPasswordSet's own gate for the same reason).
+ *
+ * Rate-limited per SESSION, not per firm (2026-08-05, adversarial review
+ * finding). A per-firm key would let a single stolen session burn the
+ * firm's whole hourly budget across every IP, 429-ing the real owner's own
+ * fresh session out of the exact remedy this route exists to offer them --
+ * the attacker's stolen session would still be sitting there, un-ended,
+ * while its victim gets "too many attempts." Per-session means every NEW
+ * session (i.e. the owner signing back in) always starts with a clean
+ * budget, regardless of what an old, possibly-stolen session already spent.
+ */
+async function handleFirmSignOutOtherDevices(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.sessionId, "firm_signout_other", RATE_LIMIT_FIRM_SIGNOUT_OTHER);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  const endedSessions = await store.deleteOtherSessionsForFirm(env.DB, session.firmId, session.sessionId);
+
+  if (endedSessions > 0) {
+    // Same reasoning as handleFirmPasswordSet's own token sweep: an
+    // outstanding emailed link is a live bearer credential too, so ending
+    // every session but leaving a still-redeemable link would only close
+    // part of the door.
+    await store.invalidateOutstandingLoginTokens(env.DB, session.firmId);
+
+    const firm = await store.getFirmById(env.DB, session.firmId);
+    // Best-effort and never allowed to fail the request -- see
+    // handleFirmPasswordSet's own comment on the identical pattern. This is
+    // the DETECTION control: if the click that triggered this came from a
+    // stolen session rather than the real admin, this email is the only
+    // signal the real admin ever gets.
+    if (firm && env.SENDGRID_API_KEY) {
+      try {
+        const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+        if (underCap) {
+          const built = buildFirmSessionsEndedEmail(firm.name, new Date().toISOString(), endedSessions, firm.admin_name);
+          await sendViaSendGrid(env.SENDGRID_API_KEY, firm.admin_email, built, env.EMAIL_ALLOWLIST);
+        }
+      } catch {
+        // Intentionally swallowed -- see above.
+      }
     }
   }
 

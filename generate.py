@@ -1553,9 +1553,9 @@ PAGE_CSS = """
      paragraph, not a form's own submit, so it gets the same compact/bordered
      treatment as this dashboard's other secondary action buttons
      (.dr-cpe-remind-btn) rather than the full-width form-submit style above. */
-  .dr-account-panel #dr-billing-body button { font-family: inherit; font-size: 0.85rem; font-weight: 600; padding: 0.4rem 0.9rem; border: 1px solid var(--border-strong); border-radius: 7px; background: transparent; color: inherit; cursor: pointer; margin-top: 0.4rem; }
-  .dr-account-panel #dr-billing-body button:hover { border-color: var(--fg); }
-  .dr-account-panel #dr-billing-body button:disabled { opacity: 0.6; cursor: default; }
+  .dr-account-panel #dr-billing-body button, .dr-account-panel #dr-signout-other-btn { font-family: inherit; font-size: 0.85rem; font-weight: 600; padding: 0.4rem 0.9rem; border: 1px solid var(--border-strong); border-radius: 7px; background: transparent; color: inherit; cursor: pointer; margin-top: 0.4rem; }
+  .dr-account-panel #dr-billing-body button:hover, .dr-account-panel #dr-signout-other-btn:hover { border-color: var(--fg); }
+  .dr-account-panel #dr-billing-body button:disabled, .dr-account-panel #dr-signout-other-btn:disabled { opacity: 0.6; cursor: default; }
   /* Show/hide-password toggle (2026-08-04, reported directly) -- generic,
      not scoped to any one form: _SHOW_PASSWORD_TOGGLE_HTML wraps every
      input[type=password] on every page in this span, wherever it lives.
@@ -5790,8 +5790,13 @@ function drHidePaywall() {
   var panel = document.getElementById('dr-paywall-panel');
   if (panel) panel.hidden = true;
 }
-function drStartCheckout(tier, btn) {
-  var errEl = document.getElementById('dr-paywall-error');
+function drStartCheckout(tier, btn, errElId) {
+  // Task #12: the billing panel's pilot-upgrade buttons reuse this same
+  // function but need their error surfaced in the Account tab's own
+  // dr-billing-error box, not the (hidden, off-tab) paywall panel's --
+  // defaults to the original paywall error id so the existing call site
+  // below needs no change.
+  var errEl = document.getElementById(errElId || 'dr-paywall-error');
   if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
   if (btn) btn.disabled = true;
   fetch('/api/firm/billing/checkout', {
@@ -6233,15 +6238,23 @@ function drRenderBillingPanel() {
   if (!body || !drBilling) return;
   var tierDef = DR_PLAN_TIER_LABELS[drBilling.planTier];
   if (!tierDef) {
-    body.innerHTML = '<p class="dr-panel-empty">You are on the free 30-day pilot. ' +
-      '<a href="#" id="dr-billing-upgrade-link">See paid plans</a>.</p>';
-    var upgradeLink = document.getElementById('dr-billing-upgrade-link');
-    if (upgradeLink) {
-      upgradeLink.addEventListener('click', function(e) {
-        e.preventDefault();
-        drLoadLicenses(); // re-trigger the same 402 paywall path a lapsed pilot would hit
-      });
-    }
+    // Task #12 (2026-08-05): the old "See paid plans" link just re-ran
+    // drLoadLicenses() to re-trigger the SAME 402 paywall a lapsed pilot
+    // hits -- a firm still mid-pilot never gets that 402 (the load just
+    // succeeds normally), so the link was a dead click for exactly the
+    // audience "pay now, mid-trial" is for. POST /firm/billing/checkout
+    // (drStartCheckout) has always accepted a pilot firm; this just gives
+    // it a real, always-visible trigger instead of borrowing the lockout
+    // flow. Same tier-fit filtering as the paywall panel (courtesy only --
+    // checkout re-checks the real roster count server-side either way).
+    var seatCount = drLicenses.length;
+    var tiersHtml = '<div class="dr-paywall-tiers" id="dr-billing-upgrade-tiers">' +
+      '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_starter" data-seat-cap="5" ' + (seatCount > 5 ? 'hidden' : '') + '>Starter<br><span>$199/year &middot; up to 5 staff</span></button>' +
+      '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_growth" data-seat-cap="15" ' + (seatCount > 15 ? 'hidden' : '') + '>Growth<br><span>$349/year &middot; up to 15 staff</span></button>' +
+      '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_standard" data-seat-cap="25" ' + (seatCount > 25 ? 'hidden' : '') + '>Standard<br><span>$500/year &middot; up to 25 staff</span></button>' +
+      '</div>';
+    body.innerHTML = '<p class="dr-panel-empty">You are on the free 30-day pilot. Upgrade any time ' +
+      '&mdash; same price whether you convert today or on day 30.</p>' + tiersHtml;
     return;
   }
   if (drBilling.cancelAtPeriodEnd && drBilling.currentPeriodEnd) {
@@ -7291,6 +7304,43 @@ function drSubmitPassword(form) {
   });
 }
 
+// Task #18 (2026-08-05): explicit self-serve version of the same
+// other-sessions sweep drSubmitPassword() already triggers as a side
+// effect of changing a password -- same endpoint response shape
+// ({ok, other_sessions_ended}), same "this device stays signed in" framing.
+function drSignOutOtherDevices(btn) {
+  if (!window.confirm('Sign out every OTHER device? This browser stays signed in.')) return;
+  var okEl = document.getElementById('dr-signout-other-ok');
+  var errEl = document.getElementById('dr-signout-other-error');
+  if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  if (btn) btn.disabled = true;
+
+  fetch('/api/firm/sign-out-other-devices', {
+    method: 'POST', credentials: 'include'
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (btn) btn.disabled = false;
+      if (!res.ok) {
+        var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        return;
+      }
+      var ended = (data && data.other_sessions_ended) || 0;
+      if (okEl) {
+        okEl.textContent = ended > 0
+          ? 'Signed out on ' + ended + ' other device' + (ended === 1 ? '' : 's') + '.'
+          : 'No other sessions were active.';
+        okEl.hidden = false;
+      }
+    });
+  }).catch(function() {
+    if (btn) btn.disabled = false;
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
 function drLoadLicenses() {
   drClearError();
   drHidePaywall();
@@ -7485,6 +7535,18 @@ document.addEventListener('DOMContentLoaded', function() {
       drStartCheckout(btn.getAttribute('data-tier'), btn);
     });
   }
+  // Task #12: same delegated pattern as the paywall panel above, separate
+  // listener since #dr-billing-body's innerHTML is rebuilt by
+  // drRenderBillingPanel() on every load/tier-change (a listener attached
+  // directly to a tier button would be destroyed with it).
+  var billingBody = document.getElementById('dr-billing-body');
+  if (billingBody) {
+    billingBody.addEventListener('click', function(e) {
+      var btn = e.target.closest('.dr-paywall-tier-btn');
+      if (!btn) return;
+      drStartCheckout(btn.getAttribute('data-tier'), btn, 'dr-billing-error');
+    });
+  }
 
   // Staff self-service CPE-entry nudge (2026-08-05) -- one delegated
   // listener on the container, since drRenderCpeStaffProgress() rebuilds
@@ -7564,6 +7626,13 @@ document.addEventListener('DOMContentLoaded', function() {
     passwordForm.addEventListener('submit', function(ev) {
       ev.preventDefault();
       drSubmitPassword(passwordForm);
+    });
+  }
+
+  var signOutOtherBtn = document.getElementById('dr-signout-other-btn');
+  if (signOutOtherBtn) {
+    signOutOtherBtn.addEventListener('click', function() {
+      drSignOutOtherDevices(signOutOtherBtn);
     });
   }
 
@@ -8400,6 +8469,15 @@ def build_firm_dashboard_page(
         </form>
         <p id="dr-password-ok" class="dr-account-ok" hidden></p>
         <p id="dr-password-error" role="alert" class="dr-account-err" hidden></p>
+      </div>
+
+      <div class="dr-account-panel">
+        <h2>Sessions</h2>
+        <p class="signup-microcopy">Signed in somewhere you shouldn't be &mdash; a shared computer, an
+        old device? End every OTHER session right now. This browser stays signed in.</p>
+        <button type="button" id="dr-signout-other-btn">Sign out other devices</button>
+        <p id="dr-signout-other-ok" class="dr-account-ok" hidden></p>
+        <p id="dr-signout-other-error" role="alert" class="dr-account-err" hidden></p>
       </div>
 
       <div class="dr-account-panel">

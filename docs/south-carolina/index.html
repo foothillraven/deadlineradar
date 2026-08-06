@@ -728,7 +728,7 @@
   .dr-modal h2 { margin: 0 0 1rem; font-size: 1.1rem; font-family: var(--font-display); }
   .dr-modal label { display: block; font-weight: 600; font-size: 0.85rem; margin: 0.9rem 0 0.3rem; }
   .dr-modal label:first-of-type { margin-top: 0; }
-  .dr-modal input[type="text"], .dr-modal input[type="email"] {
+  .dr-modal input[type="text"], .dr-modal input[type="email"], .dr-modal input[type="date"] {
     width: 100%; box-sizing: border-box; padding: 0.55rem 0.65rem;
     border: 1px solid var(--border-strong); border-radius: 6px;
     background: var(--bg); color: var(--fg); font-size: inherit; font-family: inherit;
@@ -736,6 +736,8 @@
   .dr-modal input:focus {
     outline: none; border-color: var(--accent-deep); box-shadow: 0 0 0 3px var(--accent-bg);
   }
+  
+  .dr-modal-hint { font-size: 0.78rem; color: var(--muted); margin: 0.35rem 0 0; line-height: 1.4; }
   .dr-modal-actions { display: flex; gap: 0.6rem; margin-top: 1.3rem; }
   
   .dr-modal-actions .dr-btn-save {

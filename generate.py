@@ -1247,7 +1247,7 @@ PAGE_CSS = """
   .dr-modal h2 { margin: 0 0 1rem; font-size: 1.1rem; font-family: var(--font-display); }
   .dr-modal label { display: block; font-weight: 600; font-size: 0.85rem; margin: 0.9rem 0 0.3rem; }
   .dr-modal label:first-of-type { margin-top: 0; }
-  .dr-modal input[type="text"], .dr-modal input[type="email"] {
+  .dr-modal input[type="text"], .dr-modal input[type="email"], .dr-modal input[type="date"] {
     width: 100%; box-sizing: border-box; padding: 0.55rem 0.65rem;
     border: 1px solid var(--border-strong); border-radius: 6px;
     background: var(--bg); color: var(--fg); font-size: inherit; font-family: inherit;
@@ -1255,6 +1255,17 @@ PAGE_CSS = """
   .dr-modal input:focus {
     outline: none; border-color: var(--accent-deep); box-shadow: 0 0 0 3px var(--accent-bg);
   }
+  /* Only shown for "bring your own date" records (deadline_source==='user')
+     -- the small set of states this product has no computable renewal rule
+     for at all, so a manual date is the ONLY valid representation of their
+     deadline (see resolveDeadlineInput()'s own comment, worker/src/index.ts).
+     Every other record's deadline is state-rule-computed and deliberately
+     NOT editable here -- letting a firm freely override a computed
+     compliance date would undermine the one thing this product promises to
+     get right, and the backend refuses it anyway (PATCH silently re-derives
+     a computed state's deadline from state_slug/license_type_id, never from
+     a raw date). */
+  .dr-modal-hint { font-size: 0.78rem; color: var(--muted); margin: 0.35rem 0 0; line-height: 1.4; }
   .dr-modal-actions { display: flex; gap: 0.6rem; margin-top: 1.3rem; }
   /* Same accent/on-accent pairing every primary CTA on this site already
      uses (.signup-form button); Cancel stays visually secondary (outlined,
@@ -7695,11 +7706,33 @@ function drOpenEditModal(item, triggerBtn) {
   var labelInput = document.getElementById('dr-edit-modal-label');
   var emailInput = document.getElementById('dr-edit-modal-email');
   var title = document.getElementById('dr-edit-modal-title');
+  var deadlineField = document.getElementById('dr-edit-modal-deadline-field');
+  var deadlineInput = document.getElementById('dr-edit-modal-deadline');
   if (!modal || !labelInput || !emailInput) return;
   drEditModalId = item.id;
   drEditModalTriggerBtn = triggerBtn || null;
   labelInput.value = item.staff_label || '';
   emailInput.value = item.email || '';
+  // "Bring your own date" records (see the CSS comment on
+  // .dr-modal-hint) are the only ones with an editable deadline -- every
+  // other record's deadline is state-rule-computed, and the PATCH endpoint
+  // itself ignores a raw date for those, so there's nothing useful for this
+  // field to do there.
+  var isOwnDate = item.deadline_source === 'user';
+  if (deadlineField) deadlineField.hidden = !isOwnDate;
+  if (deadlineInput) {
+    deadlineInput.value = isOwnDate && item.next_deadline ? item.next_deadline : '';
+    deadlineInput.required = isOwnDate;
+    // Same-day UX nicety only (matches the public signup form's own
+    // license_expiration_date field) -- the PATCH endpoint's own
+    // resolveDeadlineInput() is the real, authoritative "not in the past"
+    // check regardless of what the browser enforces.
+    if (isOwnDate) {
+      var todayLocal = new Date();
+      deadlineInput.min = new Date(todayLocal.getFullYear(), todayLocal.getMonth(), todayLocal.getDate() + 1)
+        .toISOString().slice(0, 10);
+    }
+  }
   if (title) title.textContent = 'Edit ' + (item.staff_label || item.email);
   drClearError();
   drClearWarning();
@@ -7724,9 +7757,21 @@ function drSubmitEditModal(ev) {
   drClearWarning();
   var labelInput = document.getElementById('dr-edit-modal-label');
   var emailInput = document.getElementById('dr-edit-modal-email');
+  var deadlineField = document.getElementById('dr-edit-modal-deadline-field');
+  var deadlineInput = document.getElementById('dr-edit-modal-deadline');
   var email = emailInput ? emailInput.value.trim() : '';
   if (!email) { drShowError('Email is required.'); return; }
   var body = {staff_label: labelInput ? labelInput.value.trim() : '', email: email};
+  // Only sent for "bring your own date" records (the field is hidden for
+  // everyone else) -- omitting the key entirely for a computed-cadence
+  // record matters, not just hiding the input: sending it would make the
+  // PATCH handler re-resolve the deadline at all, which server-side ignores
+  // a raw date for a computable state and can 400 instead of a harmless no-op.
+  if (deadlineField && !deadlineField.hidden) {
+    var deadlineValue = deadlineInput ? deadlineInput.value : '';
+    if (!deadlineValue) { drShowError('License expiration date is required.'); return; }
+    body.license_expiration_date = deadlineValue;
+  }
   var id = drEditModalId;
   fetch('/api/firm/licenses/' + encodeURIComponent(id), {
     method: 'PATCH', credentials: 'include',
@@ -8669,6 +8714,11 @@ def build_firm_dashboard_page(
           <input type="text" id="dr-edit-modal-label" maxlength="120" placeholder="Name or label">
           <label for="dr-edit-modal-email">Email</label>
           <input type="email" id="dr-edit-modal-email" required>
+          <div id="dr-edit-modal-deadline-field" hidden>
+            <label for="dr-edit-modal-deadline">License expiration date</label>
+            <input type="date" id="dr-edit-modal-deadline">
+            <p class="dr-modal-hint">This state has no automatic renewal rule we can compute, so we track whatever date is printed on the license -- update it here whenever it renews.</p>
+          </div>
           <div class="dr-modal-actions">
             <button type="submit" class="dr-btn-save">Save</button>
             <button type="button" class="dr-btn-cancel" id="dr-edit-modal-cancel">Cancel</button>

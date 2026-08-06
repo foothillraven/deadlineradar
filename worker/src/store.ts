@@ -37,6 +37,13 @@ export const STATUS_STOPPED = "stopped";
 // listFirmLicenses() below is the one place that filters this value out.
 export const STOP_REASON_REMOVED_BY_ADMIN = "removed_by_admin";
 
+// Task #3 (2026-08-06): the firm deleted its own account -- distinguishes
+// this from an admin removing one specific staffer. requestFirmDeletion()
+// below is the only writer.
+export const STOP_REASON_FIRM_DELETED = "firm_deleted";
+
+export const FIRM_STATUS_DELETED = "deleted";
+
 export const SIGNUP_COOLDOWN_HOURS = 24; // store.py:44
 
 // migration 0006. A repeat /subscribe for an email+state that already has a
@@ -807,6 +814,13 @@ export interface FirmRow {
   // migration's own docstring -- blocks self-serve in-session password
   // changes and SSO linking, NOT the emailed password-reset path.
   demo_locked: number;
+  // migration 0026 (Task #3). Null unless deletion has been requested; once
+  // set, requestFirmDeletion() has already flipped status to
+  // FIRM_STATUS_DELETED, so these three are otherwise inert (nothing reads
+  // them to make an access decision -- status already did that).
+  deletion_requested_at: string | null;
+  deletion_survey_reason: string | null;
+  deletion_survey_detail: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -895,6 +909,87 @@ export async function createFirm(db: D1Database, input: CreateFirmInput): Promis
 export async function getFirmById(db: D1Database, firmId: string): Promise<FirmRow | null> {
   const row = await db.prepare(`SELECT * FROM firms WHERE id = ?1`).bind(firmId).first<FirmRow>();
   return row ?? null;
+}
+
+/**
+ * Task #3 (2026-08-06, Devin's decision: soft-deactivate immediately + a
+ * 30-day hard-delete grace period). Two things happen atomically-in-effect
+ * (D1 has no multi-statement transactions from the Workers binding, so this
+ * is two sequential UPDATEs, not a real transaction -- accepted, since a
+ * failure between them just leaves the firm deleted with an active-looking
+ * roster for a moment, never the reverse, and the caller in index.ts wraps
+ * both in an overall best-effort posture anyway):
+ *
+ *   1. The firm itself: status -> FIRM_STATUS_DELETED (blocks every future
+ *      login/API call immediately -- requireFirmSession() already treats
+ *      ANY non-'active' status as denied, so no other code needed to change
+ *      for access to actually stop).
+ *   2. Every one of its subscriber rows that's still ACTUALLY going to
+ *      receive future reminders (confirmed or pending) gets stopped too --
+ *      allConfirmedActive() (the reminder cron's own query) has no idea
+ *      what a firm's status is, so without this step a "deleted" account's
+ *      staff would keep getting emailed forever. Already-inert rows
+ *      (opted-out, previously removed, etc.) are left alone -- nothing to
+ *      do there.
+ *
+ * The survey fields are optional and skippable by design (Devin's original
+ * task scope) -- both may be null.
+ */
+export async function requestFirmDeletion(
+  db: D1Database,
+  firmId: string,
+  survey: { reason: string | null; detail: string | null }
+): Promise<void> {
+  const now = nowIso();
+  await db
+    .prepare(
+      `UPDATE firms SET status = ?1, deletion_requested_at = ?2, deletion_survey_reason = ?3, deletion_survey_detail = ?4 WHERE id = ?5`
+    )
+    .bind(FIRM_STATUS_DELETED, now, survey.reason, survey.detail, firmId)
+    .run();
+  await db
+    .prepare(
+      `UPDATE subscribers SET status = ?1, stopped_at = ?2, stop_reason = ?3
+       WHERE firm_id = ?4 AND status IN (?5, ?6)`
+    )
+    .bind(STATUS_STOPPED, now, STOP_REASON_FIRM_DELETED, firmId, STATUS_CONFIRMED, STATUS_PENDING)
+    .run();
+}
+
+/**
+ * The other half of Task #3 -- the daily cron sweep (index.ts's own
+ * scheduled() handler) that actually erases a firm's data once its 30-day
+ * grace period has elapsed. No ON DELETE CASCADE exists on any firm_id
+ * REFERENCES in this schema (see migration 0026's own comment for why:
+ * D1/SQLite here doesn't enforce or cascade FKs, this codebase never
+ * assumed it would), so every firm-scoped table is deleted explicitly,
+ * children before the firms row itself. stripe_webhook_events is
+ * DELIBERATELY left alone -- it's a raw idempotency/audit log of Stripe
+ * events, not the firm's own data, and erasing it could let a
+ * late-redelivered webhook for this firm_id be reprocessed as if new.
+ *
+ * Returns the ids actually deleted, so the caller can log a real count
+ * instead of a silent no-op either way.
+ */
+export async function hardDeleteExpiredFirms(db: D1Database, asOf: Date, graceDays = 30): Promise<string[]> {
+  const cutoff = new Date(asOf.getTime() - graceDays * 86_400_000).toISOString();
+  const { results } = await db
+    .prepare(`SELECT id FROM firms WHERE status = ?1 AND deletion_requested_at IS NOT NULL AND deletion_requested_at <= ?2`)
+    .bind(FIRM_STATUS_DELETED, cutoff)
+    .all<{ id: string }>();
+
+  const ids = results.map((r) => r.id);
+  for (const firmId of ids) {
+    await db.prepare(`DELETE FROM firm_login_tokens WHERE firm_id = ?1`).bind(firmId).run();
+    await db.prepare(`DELETE FROM firm_sessions WHERE firm_id = ?1`).bind(firmId).run();
+    await db.prepare(`DELETE FROM cpe_entries WHERE firm_id = ?1`).bind(firmId).run();
+    await db.prepare(`DELETE FROM firm_oauth_identities WHERE firm_id = ?1`).bind(firmId).run();
+    await db.prepare(`DELETE FROM mobility_completions WHERE firm_id = ?1`).bind(firmId).run();
+    await db.prepare(`DELETE FROM activity_log WHERE firm_id = ?1`).bind(firmId).run();
+    await db.prepare(`DELETE FROM subscribers WHERE firm_id = ?1`).bind(firmId).run();
+    await db.prepare(`DELETE FROM firms WHERE id = ?1`).bind(firmId).run();
+  }
+  return ids;
 }
 
 /**
@@ -2319,6 +2414,14 @@ export async function deleteOtherSessionsForFirm(
     .prepare(`DELETE FROM firm_sessions WHERE firm_id = ?1 AND id != ?2`)
     .bind(firmId, keepSessionId)
     .run();
+  return result.meta.changes ?? 0;
+}
+
+/** Task #3 (2026-08-06): account deletion ends EVERY session, including the
+ * caller's own -- unlike deleteOtherSessionsForFirm() above, there's no
+ * session worth preserving once the account itself is gone. */
+export async function deleteAllSessionsForFirm(db: D1Database, firmId: string): Promise<number> {
+  const result = await db.prepare(`DELETE FROM firm_sessions WHERE firm_id = ?1`).bind(firmId).run();
   return result.meta.changes ?? 0;
 }
 

@@ -1264,12 +1264,14 @@ PAGE_CSS = """
   .dr-modal h2 { margin: 0 0 1rem; font-size: 1.1rem; font-family: var(--font-display); }
   .dr-modal label { display: block; font-weight: 600; font-size: 0.85rem; margin: 0.9rem 0 0.3rem; }
   .dr-modal label:first-of-type { margin-top: 0; }
-  .dr-modal input[type="text"], .dr-modal input[type="email"], .dr-modal input[type="date"] {
+  .dr-modal input[type="text"], .dr-modal input[type="email"], .dr-modal input[type="date"],
+  .dr-modal select, .dr-modal textarea {
     width: 100%; box-sizing: border-box; padding: 0.55rem 0.65rem;
     border: 1px solid var(--border-strong); border-radius: 6px;
     background: var(--bg); color: var(--fg); font-size: inherit; font-family: inherit;
   }
-  .dr-modal input:focus {
+  .dr-modal textarea { resize: vertical; }
+  .dr-modal input:focus, .dr-modal select:focus, .dr-modal textarea:focus {
     outline: none; border-color: var(--accent-deep); box-shadow: 0 0 0 3px var(--accent-bg);
   }
   /* Only shown for "bring your own date" records (deadline_source==='user')
@@ -1569,6 +1571,18 @@ PAGE_CSS = """
   .dr-account-panel h2 { font-size: 1.05rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
   .dr-account-ok { color: #1f9e5c; font-size: 0.85rem; margin-top: 0.6rem; }
   .dr-account-err { color: #c33737; font-size: 0.85rem; margin-top: 0.6rem; }
+  /* Task #3 (2026-08-06): visually set apart from every other Account tab
+     panel above it -- same red already used for .dr-account-err/
+     .dr-cal-item--soon, at low opacity so it reads as "be careful here"
+     rather than as an active error state. */
+  .dr-danger-zone { border-color: rgba(200, 55, 55, 0.4); }
+  .dr-danger-zone h2 { color: #c33737; }
+  .dr-btn-danger {
+    background: transparent; color: #c33737; border: 1px solid #c33737; border-radius: 6px;
+    font-weight: 600; cursor: pointer; padding: 0.5rem 1rem; font-size: 0.88rem; font-family: inherit;
+  }
+  .dr-btn-danger:hover:not(:disabled) { background: rgba(200, 55, 55, 0.1); }
+  .dr-btn-danger:disabled { opacity: 0.45; cursor: default; }
 
   /* ---- Sign-in account chooser, /signin/ (2026-08-02) ---- */
   .signin-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; margin: 1.4rem 0 1.8rem; }
@@ -4962,6 +4976,8 @@ def build_firm_login_page() -> str:
 <div class="dr-auth-view" id="dr-view-signin">
   <h1>Sign in</h1>
   <p class="subhead">One roster for every staff CPA's license renewal.</p>
+  <p class="dr-account-ok" id="dr-account-deleted-notice" hidden>Your account has been deleted. It's
+  deactivated immediately; the data is permanently erased in 30 days.</p>
 {sso_buttons_html}
   <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/login/password" id="dr-firmlogin-signin-form">
     {_BOT_DEFENSE_FIELDS_HTML_SIGNIN}
@@ -5123,6 +5139,15 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
 
   window.addEventListener("hashchange", function () { show(fromHash()); });
   show(fromHash());
+
+  // Task #3 (2026-08-06): the redirect target after a successful self-serve
+  // account deletion -- the session that did the deleting is already dead
+  // server-side by the time this page loads, so there's nothing to sign out
+  // of; this is purely a "yes, that worked" confirmation.
+  if (new URLSearchParams(window.location.search).get("account-deleted") === "1") {
+    var deletedNotice = document.getElementById("dr-account-deleted-notice");
+    if (deletedNotice) deletedNotice.hidden = false;
+  }
 
   // These three forms POST straight to the Worker with no JS at all, so any
   // error (wrong password, a blocked domain, a rate limit) navigated the
@@ -7814,6 +7839,72 @@ function drSignOutOtherDevices(btn) {
   });
 }
 
+// Task #3 (2026-08-06): self-serve account deletion. The "type your firm's
+// name to confirm" gate (drCheckDeleteConfirmName) is the REAL "are you
+// sure" -- deliberately not a second click/window.confirm(), which is too
+// easy to reflexively dismiss for something this irreversible-in-effect.
+function drOpenDeleteAccountModal() {
+  var modal = document.getElementById('dr-delete-account-modal');
+  if (!modal) return;
+  var nameEl = document.getElementById('dr-firm-name');
+  var firmName = nameEl ? nameEl.textContent : '';
+  var targetEl = document.getElementById('dr-delete-confirm-name-target');
+  if (targetEl) targetEl.textContent = firmName;
+  var form = document.getElementById('dr-delete-account-form');
+  if (form) form.reset();
+  var submitBtn = document.getElementById('dr-delete-account-submit-btn');
+  if (submitBtn) submitBtn.disabled = true;
+  var errEl = document.getElementById('dr-delete-account-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  modal.hidden = false;
+}
+function drCloseDeleteAccountModal() {
+  var modal = document.getElementById('dr-delete-account-modal');
+  if (modal) modal.hidden = true;
+}
+function drCheckDeleteConfirmName() {
+  var input = document.getElementById('dr-delete-confirm-name');
+  var targetEl = document.getElementById('dr-delete-confirm-name-target');
+  var submitBtn = document.getElementById('dr-delete-account-submit-btn');
+  if (!input || !targetEl || !submitBtn) return;
+  submitBtn.disabled = input.value.trim() !== targetEl.textContent.trim();
+}
+function drSubmitDeleteAccount(ev) {
+  ev.preventDefault();
+  var submitBtn = document.getElementById('dr-delete-account-submit-btn');
+  if (submitBtn && submitBtn.disabled) return;
+  if (submitBtn) submitBtn.disabled = true;
+  var errEl = document.getElementById('dr-delete-account-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  var reasonEl = document.getElementById('dr-delete-reason');
+  var detailEl = document.getElementById('dr-delete-detail');
+  fetch('/api/firm/account/delete', {
+    method: 'POST', credentials: 'include',
+    headers: {'content-type': 'application/json'},
+    body: JSON.stringify({
+      reason: reasonEl ? reasonEl.value : '',
+      detail: detailEl ? detailEl.value : ''
+    })
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        if (submitBtn) submitBtn.disabled = false;
+        return;
+      }
+      // Nothing left to load -- the account is deactivated and the session
+      // that just deleted it is already dead server-side. account-deleted=1
+      // lets /firm-login/ show a real confirmation instead of a blank form.
+      window.location.href = '/firm-login/?account-deleted=1';
+    });
+  }).catch(function() {
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+    if (submitBtn) submitBtn.disabled = false;
+  });
+}
+
 // Task #29 (2026-08-05): requests an email change -- does NOT apply it.
 // POST /firm/change-email only issues a confirmation token and emails a
 // link to the NEW address; the actual swap happens when that link is
@@ -8290,6 +8381,24 @@ document.addEventListener('DOMContentLoaded', function() {
   if (signOutOtherBtn) {
     signOutOtherBtn.addEventListener('click', function() {
       drSignOutOtherDevices(signOutOtherBtn);
+    });
+  }
+
+  var deleteAccountOpenBtn = document.getElementById('dr-delete-account-open-btn');
+  if (deleteAccountOpenBtn) deleteAccountOpenBtn.addEventListener('click', drOpenDeleteAccountModal);
+  var deleteAccountModal = document.getElementById('dr-delete-account-modal');
+  var deleteAccountForm = document.getElementById('dr-delete-account-form');
+  var deleteAccountCancelBtn = document.getElementById('dr-delete-account-cancel');
+  var deleteConfirmNameInput = document.getElementById('dr-delete-confirm-name');
+  if (deleteAccountForm) deleteAccountForm.addEventListener('submit', drSubmitDeleteAccount);
+  if (deleteAccountCancelBtn) deleteAccountCancelBtn.addEventListener('click', drCloseDeleteAccountModal);
+  if (deleteConfirmNameInput) deleteConfirmNameInput.addEventListener('input', drCheckDeleteConfirmName);
+  if (deleteAccountModal) {
+    deleteAccountModal.addEventListener('click', function(ev) {
+      if (ev.target === deleteAccountModal) drCloseDeleteAccountModal();
+    });
+    document.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Escape' && !deleteAccountModal.hidden) drCloseDeleteAccountModal();
     });
   }
 
@@ -9247,7 +9356,51 @@ def build_firm_dashboard_page(
         <div id="dr-identities-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
         <p id="dr-identity-error" role="alert" class="dr-account-err" hidden></p>
       </div>
+
+      <div class="dr-account-panel dr-danger-zone">
+        <h2>Delete account</h2>
+        <p class="signup-microcopy">Deactivates your account immediately -- your roster stops sending
+        reminders and nobody can sign in, including you. The data is permanently erased 30 days later.
+        This can't be undone.</p>
+        <button type="button" class="dr-btn-danger" id="dr-delete-account-open-btn">Delete account&hellip;</button>
+      </div>
     </div>
+  </div>
+</div>
+
+<div id="dr-delete-account-modal" class="dr-modal-overlay" hidden>
+  <div class="dr-modal" role="dialog" aria-modal="true" aria-labelledby="dr-delete-account-modal-title">
+    <h2 id="dr-delete-account-modal-title">Delete your account?</h2>
+    <p class="dr-modal-hint">Your account deactivates immediately -- nobody, including you, can sign in
+    afterward, and your roster stops sending reminders right away. The underlying data is permanently
+    erased 30 days from now. If you're on a paid plan, no further charges occur, but time already paid
+    for isn't refunded. This can't be undone.</p>
+
+    <form id="dr-delete-account-form">
+      <p class="dr-modal-hint" style="margin-bottom:0.3rem;"><strong>Optional</strong> &mdash; help us
+      improve (skip if you'd rather not):</p>
+      <label for="dr-delete-reason">Reason</label>
+      <select id="dr-delete-reason" name="reason">
+        <option value="">Prefer not to say</option>
+        <option value="too_expensive">Too expensive</option>
+        <option value="missing_feature">Missing a feature we need</option>
+        <option value="switching_tools">Switching to another tool</option>
+        <option value="no_longer_needed">No longer needed</option>
+        <option value="other">Other</option>
+      </select>
+      <label for="dr-delete-detail">Anything else? <span class="field-hint">(optional)</span></label>
+      <textarea id="dr-delete-detail" name="detail" rows="2" maxlength="500"></textarea>
+
+      <label for="dr-delete-confirm-name" style="margin-top:0.9rem;">Type your firm's name
+      (<strong id="dr-delete-confirm-name-target"></strong>) to confirm</label>
+      <input type="text" id="dr-delete-confirm-name" autocomplete="off">
+
+      <div class="dr-modal-actions">
+        <button type="submit" class="dr-btn-danger" id="dr-delete-account-submit-btn" disabled>Permanently delete</button>
+        <button type="button" class="dr-btn-cancel" id="dr-delete-account-cancel">Cancel</button>
+      </div>
+    </form>
+    <p id="dr-delete-account-error" role="alert" class="dr-account-err" hidden></p>
   </div>
 </div>
 

@@ -61,6 +61,9 @@ import {
   RATE_LIMIT_ACTION,
   RATE_LIMIT_FIRM_PASSWORD_LOGIN,
   RATE_LIMIT_FIRM_BILLING_CANCEL,
+  RATE_LIMIT_FIRM_ACCOUNT_DELETE,
+  DELETION_SURVEY_REASONS,
+  MAX_DELETION_SURVEY_DETAIL_LEN,
   RATE_LIMIT_FIRM_SIGNOUT_OTHER,
   RATE_LIMIT_FIRM_CHANGE_EMAIL,
   RATE_LIMIT_FIRM_PASSWORD_SET,
@@ -125,6 +128,7 @@ import {
   buildFirmStaffAddedEmail,
   buildStopConfirmationEmail,
   buildSignupNotificationEmail,
+  buildAccountDeletionNotificationEmail,
   fmtDate,
 } from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountActionSend, isEmailAllowlisted, sendViaSendGrid } from "./sender";
@@ -1967,6 +1971,118 @@ async function handleFirmBillingCancellationToggle(request: Request, env: Env, c
     }
     throw err;
   }
+}
+
+/**
+ * POST /firm/account/delete -- Task #3 (2026-08-06, Devin's decision:
+ * soft-deactivate immediately, hard-delete after a 30-day grace period).
+ *
+ * Session-gated only, NOT entitlement-gated -- same reasoning as
+ * handleFirmPasswordSet: deleting the account must work regardless of
+ * plan_tier/pilot-expiry state, not just for firms currently entitled to
+ * paid features.
+ *
+ * The exit survey (reason + free-text detail) is entirely OPTIONAL, per
+ * the task's own scope -- both may be omitted, and an unrecognised reason
+ * value is silently dropped to null rather than 400ing the whole deletion
+ * over a cosmetic mismatch (deleting the account is the part that must not
+ * fail; the survey is a courtesy on top of it).
+ */
+async function handleFirmAccountDelete(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_account_delete", RATE_LIMIT_FIRM_ACCOUNT_DELETE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  const contentType = request.headers.get("content-type") ?? "";
+  let body: Record<string, unknown> = {};
+  if (contentType.toLowerCase().startsWith("application/json")) {
+    try {
+      const raw = await request.text();
+      if (raw.length > 0 && raw.length <= MAX_BODY_BYTES) {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) body = parsed;
+      }
+    } catch {
+      // A malformed/missing body just means "no survey answer" -- the
+      // survey is optional, so this is never a reason to refuse deletion.
+    }
+  }
+
+  const reasonRaw = typeof body.reason === "string" ? body.reason : null;
+  const reason = reasonRaw && DELETION_SURVEY_REASONS.has(reasonRaw) ? reasonRaw : null;
+  const detail = sanitizeFreeText(typeof body.detail === "string" ? body.detail : null, MAX_DELETION_SURVEY_DETAIL_LEN);
+
+  const firm = await store.getFirmById(env.DB, session.firmId);
+  if (!firm) {
+    return jsonResponse(404, { error: "Not found." });
+  }
+  if (firm.status === store.FIRM_STATUS_DELETED) {
+    // Guards the narrow concurrent-request race: two delete calls close
+    // enough together that requireFirmSession() (which only ever sees the
+    // status as of ITS OWN read) passed both before either write below
+    // committed. A sequential retry never reaches this branch --
+    // requireFirmSession() itself already 403s once status has actually
+    // flipped, same as any other route on an inactive firm.
+    return jsonResponse(200, { ok: true });
+  }
+
+  await store.requestFirmDeletion(env.DB, session.firmId, { reason, detail });
+
+  // Best-effort from here down -- the account is already, irreversibly (in
+  // effect) deactivated by the line above. None of the following may fail
+  // the request.
+  if (env.STRIPE_SECRET_KEY && firm.stripe_subscription_id && !firm.cancel_at_period_end) {
+    try {
+      const result = await updateSubscriptionCancelAtPeriodEnd(env.STRIPE_SECRET_KEY, firm.stripe_subscription_id, true);
+      await store.updateFirmCancellation(env.DB, session.firmId, {
+        cancelAtPeriodEnd: result.cancelAtPeriodEnd,
+        currentPeriodEnd: result.currentPeriodEnd,
+      });
+    } catch {
+      // Stripe outage must not block account deletion -- access is already
+      // gone via status='deleted' regardless of what Stripe billing does.
+    }
+  }
+
+  try {
+    await store.invalidateOutstandingLoginTokens(env.DB, session.firmId);
+  } catch {
+    // Non-fatal -- see above.
+  }
+  try {
+    await store.deleteAllSessionsForFirm(env.DB, session.firmId);
+  } catch {
+    // Non-fatal -- status='deleted' already blocks any surviving session
+    // at the very next request regardless.
+  }
+
+  if (env.SENDGRID_API_KEY) {
+    try {
+      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      if (underCap) {
+        const built = buildAccountDeletionNotificationEmail({
+          firmName: firm.name,
+          adminEmail: firm.admin_email,
+          reason,
+          detail,
+        });
+        await sendViaSendGrid(env.SENDGRID_API_KEY, INTERNAL_NOTIFY_EMAIL, built, env.EMAIL_ALLOWLIST);
+      }
+    } catch {
+      // Non-fatal -- see above.
+    }
+  }
+
+  return jsonResponse(200, { ok: true });
 }
 
 /**
@@ -3965,6 +4081,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
       }
 
+      if (url.pathname === "/firm/account/delete") {
+        try {
+          return await handleFirmAccountDelete(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
       if (url.pathname === "/stripe/webhook") {
         try {
           return await handleStripeWebhook(request, env);
@@ -5448,6 +5572,24 @@ export default {
    * fail-safe (a wrong-date reminder is worse than none).
    */
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    // Task #3 (2026-08-06): hard-deletes any firm past its 30-day
+    // soft-delete grace period. Deliberately NOT inside the
+    // SENDGRID_API_KEY gate below -- account deletion must keep working in
+    // any environment, configured for email or not; these are unrelated
+    // concerns that happened to share one cron trigger.
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const deletedFirmIds = await store.hardDeleteExpiredFirms(env.DB, new Date());
+          if (deletedFirmIds.length > 0) {
+            console.log(`[account-deletion-cron] hard-deleted ${deletedFirmIds.length} firm(s): ${deletedFirmIds.join(", ")}`);
+          }
+        } catch (err) {
+          console.log(`[account-deletion-cron] error: ${String(err)}`);
+        }
+      })()
+    );
+
     if (!env.SENDGRID_API_KEY) return;
     ctx.waitUntil(
       (async () => {

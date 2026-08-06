@@ -1109,3 +1109,41 @@ export function buildSignupNotificationEmail(
 
   return { subject, textBody, htmlBody, headers: {} };
 }
+
+/**
+ * Task #3 (2026-08-06): internal notification on a firm self-deleting its
+ * account -- same "so Devin can actually see the feedback" reasoning as
+ * sendSignupNotification() above, reused for the opposite event. The
+ * survey is optional/skippable, so both fields may be null; the email says
+ * so plainly rather than rendering an empty bullet.
+ */
+export function buildAccountDeletionNotificationEmail(details: {
+  firmName: string;
+  adminEmail: string;
+  reason: string | null;
+  detail: string | null;
+}): BuiltEmail {
+  const safeFirmName = details.firmName.replace(/[\r\n]+/g, " ");
+  const safeEmail = details.adminEmail.replace(/[\r\n]+/g, " ");
+  const safeDetail = details.detail ? details.detail.replace(/[\r\n]+/g, " ") : null;
+  const subject = `Firm deleted their account: ${safeFirmName}`;
+
+  const textBody =
+    `Firm: ${details.firmName}\n` +
+    `Admin email: ${details.adminEmail}\n` +
+    `Reason given: ${details.reason ?? "(skipped)"}\n` +
+    `Detail: ${safeDetail ?? "(none)"}\n\n` +
+    `Account is deactivated immediately; the data hard-deletes automatically in 30 days.`;
+
+  const htmlBody =
+    `<p>Firm deleted their account:</p>` +
+    `<ul>` +
+    `<li>Firm: ${esc(safeFirmName)}</li>` +
+    `<li>Admin email: ${esc(safeEmail)}</li>` +
+    `<li>Reason given: ${esc(details.reason ?? "(skipped)")}</li>` +
+    `<li>Detail: ${esc(safeDetail ?? "(none)")}</li>` +
+    `</ul>` +
+    `<p>Account is deactivated immediately; the data hard-deletes automatically in 30 days.</p>`;
+
+  return { subject, textBody, htmlBody, headers: {} };
+}

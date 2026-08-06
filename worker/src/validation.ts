@@ -65,6 +65,24 @@ export const MAX_CPE_DESCRIPTION_LEN = 200;
 // entries; this cap only bounds a single entry's plausibility.
 export const MAX_CPE_HOURS_PER_ENTRY = 100;
 
+// Task #3 (2026-08-06): the account-deletion exit survey's optional
+// free-text field. Same "cosmetic-only free text" category as
+// MAX_STAFF_LABEL_LEN/MAX_CPE_DESCRIPTION_LEN above -- generous enough for
+// a genuine sentence or two of feedback, not a support-ticket body.
+export const MAX_DELETION_SURVEY_DETAIL_LEN = 500;
+
+// A fixed set, not free text -- keeps the reason field analyzable (Devin
+// can actually see "3 people picked 'too expensive' this month") instead of
+// N slightly-different free-text phrasings of the same reason. "other" is
+// the escape hatch; the free-text detail field is where nuance goes.
+export const DELETION_SURVEY_REASONS = new Set([
+  "too_expensive",
+  "missing_feature",
+  "switching_tools",
+  "no_longer_needed",
+  "other",
+]);
+
 const CPE_CATEGORIES = new Set(["general", "ethics", "other"]);
 
 export function isValidCpeCategory(value: string): value is "general" | "ethics" | "other" {
@@ -541,6 +559,12 @@ export const RATE_LIMIT_FIRM_PASSWORD_SET: RateLimit = { max: 10, windowSeconds:
 /** Cancel/resume are authenticated + rate-limited the same as password set
  * -- no legitimate admin needs more than a handful of toggles a day. */
 export const RATE_LIMIT_FIRM_BILLING_CANCEL: RateLimit = { max: 10, windowSeconds: 3600 };
+
+/** Task #3 (2026-08-06): a firm only ever legitimately deletes its own
+ * account once. Tighter than the toggles above on purpose -- this is
+ * irreversible-in-effect (immediate deactivation), not a reversible
+ * setting flip. */
+export const RATE_LIMIT_FIRM_ACCOUNT_DELETE: RateLimit = { max: 3, windowSeconds: 3600 };
 
 /** AuditLab RL-5 (2026-08-06): checkout had no bucket at all, unlike its
  * sibling cancel/resume above -- each call is a live Stripe API request

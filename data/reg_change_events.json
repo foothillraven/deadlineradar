@@ -1,16 +1,16 @@
 {
   "_meta": {
     "purpose": "Publishable rule-change events for the public changes feed.",
-    "generated_from": "worker/src/mobility_rules.json (batch research) + automated day-to-day source monitoring (0 currently promoted).",
-    "separable": "Deliberately independent of the mobility determination engine, which is HELD from production. The feed publishes change facts + citations only.",
+    "generated_from": "worker/src/mobility_rules.json (batch research) + automated day-to-day source monitoring (2 currently promoted).",
+    "separable": "Deliberately independent of the mobility determination engine (AuditLab MON-2, 2026-08-06: the engine shipped to production 2026-07-30 -- /firm/mobility/check, /firm/mobility/check-batch, /firm/mobility/coverage, and the /firm-mobility/ Practice Privilege Check UI are all live; this note previously said HELD, which stopped being true and would have misled a future maintainer about what's deployed). This feed publishes change facts + citations only and stays architecturally independent of that engine either way -- a change fact does not require or imply a mobility determination for the same state.",
     "status_derivation": "Structured fields ONLY (rule_changes_on presence + direction, or the monitoring pipeline's own classified status). Status is NOT inferred from prose: 27 of 55 mobility records match enacted/proposed/rule signals simultaneously, so a regex label would be a guess. Records whose status cannot be established from structure are not emitted.",
     "reverification_rule": "needs_reverification=true means the effective date has passed and we have NOT re-checked. The page must say 'effective [date]; we re-verify on/after that date' -- never 'is now in effect'.",
-    "as_of": "2026-08-02",
-    "changes_published": 10,
-    "changes_upcoming": 9,
+    "as_of": "2026-08-06",
+    "changes_published": 12,
+    "changes_upcoming": 11,
     "changes_recent": 1,
     "source_conflicts_published": 7,
-    "live_monitoring_count": 0
+    "live_monitoring_count": 2
   },
   "events": [
     {
@@ -69,6 +69,46 @@
       "status_source_url": null,
       "upcoming": true,
       "needs_reverification": false
+    },
+    {
+      "event_id": "missouri-regwatch-aa512a864046",
+      "jurisdiction_slug": "missouri",
+      "jurisdiction": "Missouri",
+      "topic": "CPA regulatory/statutory change",
+      "citation": "Mo. Rev. Stat. section 326.289",
+      "citation_url": "https://revisor.mo.gov/main/OneSection.aspx?section=326.289",
+      "secondary_url": "https://pr.mo.gov/accountancy.asp",
+      "verified_date": "2026-08-05",
+      "confidence": "single_source",
+      "summary_public": "A new enactment of the CPA firm permit issuance-and-renewal statute takes effect, replacing the version in effect since 2020. The board may grant or renew permits to practice as a certified public accounting firm to applicants meeting the qualifications in this chapter.",
+      "kind": "rule_change",
+      "effective_date": "2026-08-28",
+      "status": "ENACTED",
+      "status_evidence": "Effective - 28 Aug 2026, 6 histories ... 326.289 8/28/2026 [Effective, no End date] ... The board may grant or renew permits to practice as a certified public accounting firm to applicants that demonstrate their qualifications in accordance with this chapter.",
+      "status_source_url": "https://revisor.mo.gov/main/OneSection.aspx?section=326.289",
+      "upcoming": true,
+      "needs_reverification": false,
+      "source": "difflab_reg_change_engine"
+    },
+    {
+      "event_id": "missouri-regwatch-d4c826d1ac09",
+      "jurisdiction_slug": "missouri",
+      "jurisdiction": "Missouri",
+      "topic": "CPA regulatory/statutory change",
+      "citation": "Mo. Rev. Stat. section 326.283",
+      "citation_url": "https://revisor.mo.gov/main/OneSection.aspx?section=326.283",
+      "secondary_url": "https://pr.mo.gov/accountancy.asp",
+      "verified_date": "2026-08-05",
+      "confidence": "single_source",
+      "summary_public": "A new enactment of the individual out-of-state CPA reciprocity/practice-privilege statute takes effect, replacing the version in effect since 2017. Under the new version, an individual with a valid, unrestricted CPA license from any state may practice in Missouri without obtaining a Missouri license, notifying the board, or paying a fee, provided the individual met qualifying education/experience requirements at initial licensure (or held qualifying practice privileges as of 2024-12-31 under a grandfather provision).",
+      "kind": "rule_change",
+      "effective_date": "2026-08-28",
+      "status": "ENACTED",
+      "status_evidence": "Effective - 28 Aug 2026, 5 histories ... 326.283 8/28/2026 [Effective, no End date] ... An individual whose principal place of business, domicile, or residency is not in this state and who holds a valid and unrestricted license in good standing to practice public accounting from any state shall have all the privileges of licensees of this state without the need to obtain a license",
+      "status_source_url": "https://revisor.mo.gov/main/OneSection.aspx?section=326.283",
+      "upcoming": true,
+      "needs_reverification": false,
+      "source": "difflab_reg_change_engine"
     },
     {
       "event_id": "alabama-mobility-2026-10-01",

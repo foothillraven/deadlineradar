@@ -399,8 +399,15 @@ def main() -> int:
             "generated_from": "worker/src/mobility_rules.json (batch research) + "
                               "automated day-to-day source monitoring "
                               f"({len(difflab_live)} currently promoted).",
-            "separable": "Deliberately independent of the mobility determination engine, which is "
-                         "HELD from production. The feed publishes change facts + citations only.",
+            "separable": "Deliberately independent of the mobility determination engine (AuditLab "
+                         "MON-2, 2026-08-06: the engine shipped to production 2026-07-30 -- "
+                         "/firm/mobility/check, /firm/mobility/check-batch, /firm/mobility/coverage, "
+                         "and the /firm-mobility/ Practice Privilege Check UI are all live; this note "
+                         "previously said HELD, which stopped being true and would have misled a "
+                         "future maintainer about what's deployed). This feed publishes change facts "
+                         "+ citations only and stays architecturally independent of that engine "
+                         "either way -- a change fact does not require or imply a mobility "
+                         "determination for the same state.",
             "status_derivation": "Structured fields ONLY (rule_changes_on presence + direction, or "
                                  "the monitoring pipeline's own classified status). Status is NOT inferred from "
                                  "prose: 27 of 55 mobility records match enacted/proposed/rule "

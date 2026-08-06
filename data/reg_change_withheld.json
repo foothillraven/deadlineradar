@@ -2,7 +2,7 @@
   "_meta": {
     "purpose": "Jurisdictions NOT published to the changes feed, and why. A WORK QUEUE.",
     "policy": "Orchestrator 2026-08-02: withhold rather than guess a charter status; 40 well-labelled items beat 55 with some mislabelled. Tracked here so held-back items get resolved rather than silently forgotten.",
-    "as_of": "2026-08-02"
+    "as_of": "2026-08-06"
   },
   "withheld": [
     {

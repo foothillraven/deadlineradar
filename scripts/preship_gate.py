@@ -464,6 +464,25 @@ def print_reinstatement_staleness_advisory(repo_root: Path) -> None:
         pass
 
 
+def print_rule_change_monitoring_staleness_advisory(repo_root: Path) -> None:
+    """Surfaces rule_change_monitoring_staleness_check.py (AuditLab MON-1,
+    2026-08-04) as part of the normal pre-ship run, same treatment as the
+    CPE-hours/reinstatement advisories above -- printed, never affects exit
+    code. /rule-changes/'s "daily" monitoring claim had no freshness check
+    at all before this; see the checker's own docstring for why."""
+    sys.path.insert(0, str(repo_root / "scripts"))
+    try:
+        import rule_change_monitoring_staleness_check as rcmsc
+    except ImportError:
+        print("  (skipping rule-change-monitoring-staleness advisory -- rule_change_monitoring_staleness_check.py not importable)")
+        return
+    print("\n--- rule-change-monitoring-staleness advisory (does not affect gate exit code) ---")
+    try:
+        rcmsc.main()
+    except SystemExit:
+        pass
+
+
 def main():
     repo_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent
     docs_dir = repo_root / "docs"
@@ -496,6 +515,7 @@ def main():
         print_worker_deploy_staleness_advisory(repo_root)
         print_cpe_hours_staleness_advisory(repo_root)
         print_reinstatement_staleness_advisory(repo_root)
+        print_rule_change_monitoring_staleness_advisory(repo_root)
         print_dual_credential_citation_advisory(repo_root)
         print_seo_length_drift_advisory(html_files)
         sys.exit(1)
@@ -503,6 +523,7 @@ def main():
     print_worker_deploy_staleness_advisory(repo_root)
     print_cpe_hours_staleness_advisory(repo_root)
     print_reinstatement_staleness_advisory(repo_root)
+    print_rule_change_monitoring_staleness_advisory(repo_root)
     print_dual_credential_citation_advisory(repo_root)
     print_seo_length_drift_advisory(html_files)
     sys.exit(0)

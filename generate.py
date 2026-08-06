@@ -1814,6 +1814,7 @@ def site_footer() -> str:
       <a href="/rule-changes/">Mobility Rule Changes</a>
       <a href="/blog/">Guides</a>
       <a href="/privacy/">Privacy</a>
+      <a href="/terms/">Terms</a>
       <a href="/contact/">Contact</a>
       <a href="/for-firms/">For Firms</a>
     </div>
@@ -3729,6 +3730,126 @@ var DR_STATES = {json.dumps(state_options)};
     )
 
 
+def build_terms_page(updated: date) -> str:
+    """Task #28 (2026-08-05). Genuinely net-new -- grepped the whole codebase
+    first and confirmed zero existing "Terms of Service"/"/terms/" reference
+    anywhere, including at signup/checkout, which had no agreement language
+    pointing at anything. Written the same way build_privacy_page() was
+    rewritten: every claim below describes real, shipped behavior (checked
+    against tiers.ts, the billing-cancellation handler, and the actual
+    live pricing copy on /for-firms/ while writing this), not aspirational
+    copy. Deliberately does NOT mention the $39/year individual tier --
+    HANDOFF's own record is explicit that checkout for it was never built,
+    so promising terms for a product that doesn't exist yet would be the
+    exact kind of overclaim this site's own /methodology/ page exists to
+    rule out. Cancellation terms quote the dashboard's own confirm-dialog
+    wording verbatim (generate.py's drToggleCancellation()) rather than a
+    paraphrase that could drift from what the product actually does."""
+    body = f"""<h1>Terms of Service</h1>
+<p class="intro"><strong>The short version:</strong> {esc(SITE_NAME)} is an informational reminder and
+license-tracking service. Free individual reminders stay free. Paid firm plans self-serve cancel any
+time &mdash; no refund for the time already paid for, but you keep full access through the end of the
+period you paid for. Nothing here is legal, tax, or professional advice.</p>
+
+<h2>1. Who we are, and what this service is</h2>
+<p>{esc(SITE_NAME)} is operated by {esc(BRAND_NAME)}. We track publicly available CPA license renewal
+deadlines, CPE requirements, and practice-privilege (mobility) rules, and send reminder emails based on
+them. We are an independent service &mdash; <strong>not affiliated with, endorsed by, or connected to
+NASBA, the AICPA, or any state board of accountancy.</strong> Renewal dates and rules are compiled from
+public sources for informational purposes only; they are not legal, tax, or professional advice, and you
+should always confirm your exact deadline and requirements directly with your state board before relying
+on anything shown here.</p>
+
+<h2>2. Accounts</h2>
+<p>An individual reminder signup requires only an email address and state. A firm account additionally
+requires an admin email, and may have a password you set. You're responsible for keeping your login
+credentials confidential and for all activity under your account. If a firm admin adds staff to a
+roster, that admin is responsible for the accuracy of the license and contact information entered on
+that person's behalf.</p>
+
+<h2>3. Free tier and the firm pilot</h2>
+<p>Individual reminder signups are free, with no card required, for as long as you stay subscribed. New
+firm accounts start with a <strong>free 30-day pilot</strong>, also with no card required. Nothing is
+charged unless and until you choose to convert to a paid firm plan.</p>
+
+<h2>4. Paid firm plans and billing</h2>
+<p>Paid firm plans (Starter, Growth, and Standard, priced by staff-count capacity &mdash; every tier has
+the identical feature set) are billed annually in advance through Stripe. We never see or store your card
+number; Stripe processes payment directly. By subscribing to a paid plan, you authorize us to charge your
+payment method on file for each renewal period until you cancel. An Individual plan is also available for
+a single CPA's own CPE tracking and Practice Privilege Check &mdash; that plan is arranged directly with
+us rather than through self-serve checkout; the billing and cancellation terms below apply to it too.</p>
+
+<h2>5. Cancellation and refunds</h2>
+<p>You can cancel a paid subscription at any time from your account's Billing tab. <strong>Cancelling
+stops future renewal charges but does not refund the current period</strong> &mdash; you keep full access
+to your plan through the end of the period you already paid for, then your account reverts to the free
+pilot state. You can resume a subscription you've scheduled to cancel at any point before that period
+ends, and billing continues normally. We do not offer partial-period or prorated refunds.</p>
+
+<h2>6. Acceptable use</h2>
+<p>You agree not to: use the service to violate any law; attempt to access another firm's account, staff
+roster, or data; interfere with or disrupt the service's operation; scrape or bulk-extract data from the
+site beyond normal use of the tools we provide; or misrepresent your identity or authority to add staff
+to a firm roster. We may suspend or terminate an account that violates this section.</p>
+
+<h2>7. Practice Privilege Check and CPE tracking are informational tools, not verification</h2>
+<p>The Practice Privilege Check tool and CPE-hour tracking reflect rules we've researched and hours you
+or your firm self-report &mdash; they are not independently verified against your actual license status,
+and a "clear" result is never a substitute for confirming directly with the relevant state board of
+accountancy before providing services there. See each result's own disclaimer for the specifics.</p>
+
+<h2>8. Intellectual property</h2>
+<p>The site's design, code, and compiled datasets belong to {esc(BRAND_NAME)}. We grant you a limited,
+non-exclusive right to use the service for its intended purpose &mdash; tracking your own or your firm's
+renewal deadlines. You may not copy, resell, or redistribute the service or its underlying data as your
+own product.</p>
+
+<h2>9. Disclaimers</h2>
+<p>The service is provided "as is." We work to keep renewal dates, CPE requirements, and mobility rules
+accurate and current (see <a href="/methodology/">how we verify our data</a>), but rules change, and we
+cannot guarantee the service is error-free or that a deadline will never change after we've verified it.
+<strong>We are not liable for a missed deadline, late fee, license lapse, or any other consequence of
+relying on information from this service</strong> instead of confirming directly with the applicable
+state board of accountancy.</p>
+
+<h2>10. Limitation of liability</h2>
+<p>To the maximum extent permitted by law, {esc(BRAND_NAME)}'s total liability for any claim relating to
+the service is limited to the amount you paid us, if any, in the 12 months before the claim arose. We are
+not liable for indirect, incidental, or consequential damages.</p>
+
+<h2>11. Termination</h2>
+<p>You may stop using the service at any time &mdash; the one-click unsubscribe link in any reminder
+email works instantly for individual reminders; a firm admin can cancel a paid plan from the Billing tab.
+We may suspend or terminate an account for violating these terms.</p>
+
+<h2>12. Changes to these terms</h2>
+<p>We may update these terms from time to time. The "last updated" date below always reflects the current
+version. Continued use of the service after a change means you accept the updated terms.</p>
+
+<h2>13. Governing law</h2>
+<p>These terms are governed by the laws of the State of Colorado, without regard to conflict-of-law
+principles.</p>
+
+<h2>14. Contact</h2>
+<p>Questions about these terms:</p>
+<p>{esc(SITE_NAME)} by {esc(BRAND_NAME)}<br>
+18121 E Hampden Ave, Unit C #1324<br>
+Aurora, CO 80013</p>
+
+<p class="how-it-works">Last updated: {esc(fmt_date(updated))}. See also our <a
+href="/privacy/">Privacy Policy</a>.</p>
+"""
+    return page_shell(
+        f"Terms of Service — {SITE_NAME}",
+        "The terms that govern using DeadlineRadar's free reminders and paid firm plans, including "
+        "our self-serve cancellation and no-refund billing policy.",
+        body,
+        home_href="../",
+        canonical_path="/terms/",
+    )
+
+
 def build_privacy_page(updated: date) -> str:
     """Expanded 2026-08-05 (Devin: "everything we've changed") -- the original
     version described a single-purpose free reminder tool (email + state +
@@ -3855,7 +3976,8 @@ version.</p>
 Aurora, CO 80013</p>
 <p>For the fastest removal, use the unsubscribe link in any reminder email &mdash; it's instant.</p>
 
-<p class="how-it-works">Last updated: {esc(fmt_date(updated))}.</p>
+<p class="how-it-works">Last updated: {esc(fmt_date(updated))}. See also our <a
+href="/terms/">Terms of Service</a>.</p>
 """
     return page_shell(
         f"Privacy Policy — {SITE_NAME}",
@@ -4517,6 +4639,8 @@ required</strong>.</p>
     <p class="remind-promise">Free 30-day pilot, no card collected anywhere in this flow.</p>
   </div>
   <p><a class="cta-button" href="../firm-login/">Create your firm account &rarr;</a></p>
+  <p class="field-hint">By creating an account, you agree to our <a href="../terms/">Terms of
+  Service</a> and <a href="../privacy/">Privacy Policy</a>.</p>
 </div>
 
 <h2>How it actually works</h2>
@@ -9789,6 +9913,11 @@ def main() -> None:
     privacy_dir.mkdir(parents=True, exist_ok=True)
     (privacy_dir / "index.html").write_text(build_privacy_page(real_today), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/privacy/index.html")
+
+    terms_dir = SITE_DIR / "terms"
+    terms_dir.mkdir(parents=True, exist_ok=True)
+    (terms_dir / "index.html").write_text(build_terms_page(real_today), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/terms/index.html")
 
     contact_dir = SITE_DIR / "contact"
     contact_dir.mkdir(parents=True, exist_ok=True)

@@ -474,7 +474,7 @@ def main():
         print(f"FATAL: no HTML files found under {docs_dir} -- did you run generate.py first?")
         sys.exit(2)
 
-    state_dirs = {p.parent for p in html_files if p.parent.name not in ("privacy", "contact")} - {docs_dir}
+    state_dirs = {p.parent for p in html_files if p.parent.name not in ("privacy", "contact", "terms")} - {docs_dir}
     state_page_files = [d / "index.html" for d in state_dirs if (d / "index.html").exists()]
 
     all_errors = []

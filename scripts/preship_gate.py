@@ -85,6 +85,19 @@ EMPTY_TAG_RE = re.compile(r"<(em|p|li|strong|span|h[1-6])>\s*</\1>", re.IGNORECA
 
 DISCLAIMER_PHRASE = "affiliated with"
 REQUIRED_ADDRESS = "18121 E Hampden Ave, Unit C #1324, Aurora, CO 80013"
+
+# AuditLab GATE-2 (2026-08-05, LOW): check_stylesheet_integrity's three
+# assertions (leaked '#', balanced braces, balanced comments) all pass
+# VACUOUSLY on a truncated or completely emptied stylesheet -- with nothing
+# there, nothing is unbalanced and nothing leaks. Same "passes BECAUSE the
+# thing under test is missing" failure mode that function's own docstring
+# names as the worst kind of check. This floor is a cheap belt for that
+# specific blind spot; it is a raw '{' count (same signal the brace-balance
+# assertion above it already computes), not a claim about the exact rule
+# count -- current shipped baseline is ~580. If PAGE_CSS ever legitimately
+# shrinks a lot, lower this deliberately; do not raise it to silence a
+# real drop.
+MIN_SHIPPED_CSS_RULE_BLOCKS = 400
 FORBIDDEN_ADDRESS_HINTS = []  # populated by caller if a real home/work address is known
 
 
@@ -149,6 +162,12 @@ def check_stylesheet_integrity(html_files: list[Path]) -> list[str]:
             if css.count("/*") != css.count("*/"):
                 errors.append(
                     f"[B][{f}] unterminated CSS comment -- everything after it is swallowed"
+                )
+            if css.count("{") < MIN_SHIPPED_CSS_RULE_BLOCKS:
+                errors.append(
+                    f"[B][{f}] shipped CSS has only {css.count('{')} rule blocks "
+                    f"(floor: {MIN_SHIPPED_CSS_RULE_BLOCKS}) -- a truncated or emptied "
+                    f"stylesheet passes every other assertion in this check vacuously"
                 )
     return errors
 

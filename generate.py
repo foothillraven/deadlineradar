@@ -2308,6 +2308,47 @@ def _strip_css_comments(css: str) -> str:
     today, but the parser handles it correctly regardless) is left alone."""
     if css in _STRIPPED_CSS_CACHE:
         return _STRIPPED_CSS_CACHE[css]
+
+    # AuditLab GATE-1 (2026-08-05, MEDIUM): preship_gate.py's brace-balance
+    # check can never fire on a real build, because tinycss2 does not error
+    # or drop content on an unbalanced brace -- it silently RE-PARENTS the
+    # trailing rules into the previous rule's body instead, producing a
+    # syntactically valid but structurally wrong stylesheet (deleting one
+    # `}` from the real stylesheet turned 379/447 top-level rules into rules
+    # nested inside a single selector, which every browser then only applies
+    # *inside* that selector -- the same site-wide silent style loss as the
+    # 2026-07-31 incident this whole stripper exists to prevent, just
+    # laundered past the check written to catch it, since the gate only
+    # ever scans POST-strip docs/, where the round-trip has already
+    # repaired the imbalance).
+    #
+    # The naive fix -- compare tinycss2's parsed rule count before vs after
+    # its own round-trip -- does NOT work and was caught only by writing a
+    # control test against the exact mutation above: tinycss2 performs the
+    # re-parenting at PARSE time, on the very first parse of the (already
+    # corrupted) input, so "parse once" and "parse-serialize-reparse" of
+    # that SAME input are idempotent -- both already reflect the corrupted
+    # structure, so they always agree with each other, whether or not the
+    # SOURCE was well-formed. tinycss2 never sees a "before" state to
+    # compare against.
+    #
+    # The only signal a real corruption actually leaves behind is a RAW
+    # brace-count mismatch on the source text itself, before tinycss2 ever
+    # touches it (comments stripped with a plain regex here, not a full
+    # parse, purely to keep a brace character inside a comment from
+    # producing a false positive) -- confirmed against the real stylesheet:
+    # a deleted brace shows raw 579 open / 578 close on the SOURCE, while
+    # tinycss2's own output is (by construction) always exactly balanced.
+    _naive_comment_free = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    raw_open, raw_close = _naive_comment_free.count("{"), _naive_comment_free.count("}")
+    if raw_open != raw_close:
+        raise RuntimeError(
+            f"_strip_css_comments: source CSS has unbalanced braces ({raw_open} open vs "
+            f"{raw_close} close). tinycss2 will silently re-parent this into a syntactically "
+            f"valid but structurally wrong stylesheet rather than erroring on it -- fix the "
+            f"source CSS; do not ship this."
+        )
+
     import tinycss2
     rules = tinycss2.parse_stylesheet(css, skip_comments=True, skip_whitespace=False)
     stripped = tinycss2.serialize(rules)

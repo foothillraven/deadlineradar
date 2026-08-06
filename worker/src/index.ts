@@ -785,7 +785,12 @@ function resolveDeadlineInput(stateSlug: string, form: Record<string, string>): 
 async function handleSubscribe(request: Request, env: Env, ip: string): Promise<Response> {
   const allowed = await checkRateLimit(env.DB, ip, "subscribe", RATE_LIMIT_SUBSCRIBE);
   if (!allowed) {
-    return errorPage(429, "Too many signups from this address. Please try again later.");
+    // AuditLab RL-2 (LOW, 2026-08-04): "later" doesn't tell a real person --
+    // e.g. several colleagues at one shared office IP signing up together --
+    // when to come back. The sibling firm-lead rate limit (handleFirmLead,
+    // same 10-minute window) already says the concrete wait; this route
+    // didn't. Matches that copy exactly rather than inventing new wording.
+    return errorPage(429, "Too many signups from this address. Please try again in about 10 minutes.");
   }
 
   // Cap the decoded body size -- the equivalent hardening to server.py's

@@ -9184,24 +9184,6 @@ def build_firm_dashboard_page(
       </div>
     </div>
 
-    <div id="dr-rule-change-modal" class="dr-modal-overlay" hidden>
-      <div class="dr-modal" role="dialog" aria-modal="true" aria-labelledby="dr-rule-change-modal-title">
-        <div class="rc-head">
-          <span class="rc-jurisdiction" id="dr-rule-change-modal-title"></span>
-          <span class="rc-badge rc-badge-upcoming">Upcoming</span>
-        </div>
-        <p class="rc-date" id="dr-rule-change-modal-date"></p>
-        <p class="rc-detail" id="dr-rule-change-modal-summary"></p>
-        <p class="rc-cite">
-          <a id="dr-rule-change-modal-citation-link" target="_blank" rel="noopener"></a>
-          <span class="rc-conf" id="dr-rule-change-modal-confidence"></span>
-        </p>
-        <div class="dr-modal-actions">
-          <button type="button" class="dr-btn-cancel" id="dr-rule-change-modal-close">Close</button>
-        </div>
-      </div>
-    </div>
-
     {add_staff_html}
     </div>
 
@@ -9364,6 +9346,36 @@ def build_firm_dashboard_page(
         This can't be undone.</p>
         <button type="button" class="dr-btn-danger" id="dr-delete-account-open-btn">Delete account&hellip;</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Moved here from inside #dr-view-roster (2026-08-06: a Calendar-tab
+     rule-change badge click did nothing visible). It opened correctly
+     (hidden->false, real content filled in) but rendered at 0x0 -- a
+     position:fixed descendant of a display:none ancestor (the Roster tab's own
+     .dr-view[hidden] rule) still collapses to nothing, fixed positioning
+     doesn't escape it. dr-delete-account-modal (right below) already lives
+     outside every .dr-view for this exact reason -- this one just missed the
+     pattern because it was added inline right after the Roster view's own
+     markup. (dr-edit-modal has the identical nesting but never hits the bug
+     in practice, since it's only ever opened while the Roster tab -- its own
+     container -- is already the visible one; worth the same fix if it ever
+     needs opening from elsewhere.) -->
+<div id="dr-rule-change-modal" class="dr-modal-overlay" hidden>
+  <div class="dr-modal" role="dialog" aria-modal="true" aria-labelledby="dr-rule-change-modal-title">
+    <div class="rc-head">
+      <span class="rc-jurisdiction" id="dr-rule-change-modal-title"></span>
+      <span class="rc-badge rc-badge-upcoming">Upcoming</span>
+    </div>
+    <p class="rc-date" id="dr-rule-change-modal-date"></p>
+    <p class="rc-detail" id="dr-rule-change-modal-summary"></p>
+    <p class="rc-cite">
+      <a id="dr-rule-change-modal-citation-link" target="_blank" rel="noopener"></a>
+      <span class="rc-conf" id="dr-rule-change-modal-confidence"></span>
+    </p>
+    <div class="dr-modal-actions">
+      <button type="button" class="dr-btn-cancel" id="dr-rule-change-modal-close">Close</button>
     </div>
   </div>
 </div>

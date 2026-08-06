@@ -1,16 +1,11 @@
 /**
- * Paid-tiers + Stripe billing (2026-08-05).
- *
- * Three things this file proves, per the paid-tiers plan's own verification
- * section:
- *   1. requireFirmSessionAndEntitlement() actually gates every route it was
- *      wired into -- read-403/write-402 across pilot/paid-tier/expired/
- *      suspended, not just checkPremiumAccess() in isolation (already
- *      covered by entitlements.spec.ts).
- *   2. POST /firm/billing/checkout rejects a tier smaller than the firm's
+ * Paid-tiers + Stripe billing (2026-08-05; entitlement model rewritten
+ * 2026-08-06 -- see entitlements.ts's own docstring). Two things this file
+ * proves, per the paid-tiers plan's own verification section:
+ *   1. POST /firm/billing/checkout rejects a tier smaller than the firm's
  *      live roster, and (with Stripe mocked) creates a real Checkout
  *      Session with the right metadata.
- *   3. POST /stripe/webhook verifies signatures, is idempotent on a
+ *   2. POST /stripe/webhook verifies signatures, is idempotent on a
  *      redelivered event.id, and each of the three v1 event branches
  *      (checkout.session.completed / customer.subscription.deleted /
  *      invoice.payment_failed) does what it's supposed to.
@@ -95,55 +90,46 @@ async function postWebhook(payload: string, sigHeader: string | null, envOverrid
   );
 }
 
-describe("entitlement gate -- newly-gated firm routes (2026-08-05)", () => {
-  it("GET /firm/licenses: 200 on an active pilot, 403 once the pilot has expired", async () => {
+describe("Roster/CPE Hours are a standing free tier -- no expiration, no entitlement gate (2026-08-06)", () => {
+  it("GET /firm/licenses: 200 whether the firm is free or on an old (500-day) free-tier account -- no expiration exists to hit", async () => {
     const { firmId, cookie } = await createFirmWithSession("Gate Firm A", `gatea-${Date.now()}@example.com`);
     expect((await getFirmLicenses(cookie)).status).toBe(200);
 
-    await setFirmTierAndAge(firmId, "pilot", daysAgoIso(40));
-    const expired = await getFirmLicenses(cookie);
-    expect(expired.status).toBe(403);
-    const body = (await expired.json()) as { reason: string; pay_now_url: string };
-    expect(body.reason).toBe("pilot_expired");
-    expect(body.pay_now_url).toBeTruthy();
+    await setFirmTierAndAge(firmId, "free", daysAgoIso(500));
+    expect((await getFirmLicenses(cookie)).status).toBe(200);
   });
 
-  it("GET /firm/licenses: 200 on every paid firm tier", async () => {
+  it("GET /firm/licenses: 200 on every paid firm tier too -- paid tiers grant Map/Practice Privilege Check on top, never take away the free features", async () => {
     for (const tier of ["firm_starter", "firm_growth", "firm_standard", "firm", "firm_annual", "premium"]) {
       const { firmId, cookie } = await createFirmWithSession(`Gate Firm ${tier}`, `gate-${tier}-${Date.now()}@example.com`);
-      await setFirmTierAndAge(firmId, tier, daysAgoIso(500)); // old account -- a paid tier is not time-bounded
+      await setFirmTierAndAge(firmId, tier, daysAgoIso(500));
       expect((await getFirmLicenses(cookie)).status, `tier "${tier}" should grant access`).toBe(200);
     }
   });
 
-  it("POST /firm/licenses: 402 (not 403) when the entitlement check fails on a write", async () => {
+  it("POST /firm/licenses: 201 on a long-standing free-tier firm -- no 402 paywall on roster writes anymore", async () => {
     const { firmId, cookie } = await createFirmWithSession("Gate Firm B", `gateb-${Date.now()}@example.com`);
-    await setFirmTierAndAge(firmId, "pilot", daysAgoIso(40));
+    await setFirmTierAndAge(firmId, "free", daysAgoIso(500));
     const resp = await postFirmLicense(cookie, { staff_label: "X", email: `x-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
-    expect(resp.status).toBe(402);
-    const body = (await resp.json()) as { reason: string };
-    expect(body.reason).toBe("pilot_expired");
+    expect(resp.status).toBe(201);
   });
 
-  it("GET /firm/cpe: 403 once expired, 200 on a paid tier -- gate applies beyond just the roster route", async () => {
+  it("GET /firm/cpe: 200 on a long-standing free-tier firm and on a paid tier alike", async () => {
     const { firmId, cookie } = await createFirmWithSession("Gate Firm C", `gatec-${Date.now()}@example.com`);
-    await setFirmTierAndAge(firmId, "pilot", daysAgoIso(40));
-    expect((await getFirmCpe(cookie)).status).toBe(403);
+    await setFirmTierAndAge(firmId, "free", daysAgoIso(500));
+    expect((await getFirmCpe(cookie)).status).toBe(200);
 
-    await setFirmTierAndAge(firmId, "firm_growth", daysAgoIso(40));
+    await setFirmTierAndAge(firmId, "firm_growth", daysAgoIso(500));
     expect((await getFirmCpe(cookie)).status).toBe(200);
   });
 
-  it("a suspended firm is denied even on a paid tier (firm_inactive, not tier_not_premium)", async () => {
+  it("a suspended firm is still denied, free tier or paid -- requireFirmSession() catches this on its own, unrelated to plan_tier", async () => {
     const { firmId, cookie } = await createFirmWithSession("Gate Firm D", `gated-${Date.now()}@example.com`);
     await setFirmTierAndAge(firmId, "firm_standard", daysAgoIso(10), "suspended");
-    // requireFirmSession() itself already 403s a suspended firm before the
-    // entitlement check runs -- proving the OUTER gate still catches it is
-    // the point (a firm must not slip through via a paid tier).
     expect((await getFirmLicenses(cookie)).status).toBe(403);
   });
 
-  it("dashboard-visible seat_cap on GET /firm/licenses is tier-aware", async () => {
+  it("dashboard-visible seat_cap on GET /firm/licenses is still tier-aware", async () => {
     const { firmId, cookie } = await createFirmWithSession("Gate Firm E", `gatee-${Date.now()}@example.com`);
     await setFirmTierAndAge(firmId, "firm_starter", daysAgoIso(1));
     const resp = await getFirmLicenses(cookie);
@@ -276,17 +262,18 @@ describe("POST /firm/billing/cancel and /firm/billing/resume (2026-08-05, self-s
     expect((await SELF.fetch("https://deadline-radar.com/firm/billing/resume", { method: "POST" })).status).toBe(401);
   });
 
-  it("402s once entitlement is denied (expired pilot) -- same gate as every other paid-tier write", async () => {
-    // A FRESH pilot (createFirmWithSession's default) is still within its
-    // 30-day trial, so entitlement actually PASSES -- that firm falls
-    // through to the "no active subscription" 400 case instead (covered by
-    // its own test below), which is correct: a pilot has nothing to cancel
-    // either way, just via a different, more specific error. This test
-    // needs a genuinely EXPIRED pilot to exercise the entitlement gate itself.
-    const { firmId, cookie } = await createFirmWithSession("Cancel Pilot Firm", `cancelpilot-${Date.now()}@example.com`);
-    await setFirmTierAndAge(firmId, "pilot", daysAgoIso(40));
-    const resp = await SELF.fetch("https://deadline-radar.com/firm/billing/cancel", { method: "POST", headers: { Cookie: cookie } });
-    expect(resp.status).toBe(402);
+  it("400s for a long-standing free-tier firm with nothing to cancel -- billing management has no entitlement gate anymore (2026-08-06)", async () => {
+    // Billing self-management (cancel/resume) is one of the routes that
+    // moved off requireFirmSessionAndEntitlement() entirely -- it's not a
+    // paid FEATURE, it's account management, and a free-tier firm must be
+    // able to reach it (if only to discover it has nothing to cancel).
+    const { firmId, cookie } = await createFirmWithSession("Cancel Free Firm", `cancelfree-${Date.now()}@example.com`);
+    await setFirmTierAndAge(firmId, "free", daysAgoIso(500));
+    const resp = await workerFetch(
+      new Request("https://deadline-radar.com/firm/billing/cancel", { method: "POST", headers: { Cookie: cookie } }),
+      { STRIPE_SECRET_KEY: "sk_test_x" }
+    );
+    expect(resp.status).toBe(400);
   });
 
   it("400s when Origin doesn't match -- same CSRF defense-in-depth as every other mutating firm route", async () => {
@@ -501,7 +488,7 @@ describe("POST /stripe/webhook", () => {
     expect(firm?.plan_tier).toBe("firm_standard");
   });
 
-  it("customer.subscription.deleted reverts the firm to pilot and clears the subscription id", async () => {
+  it("customer.subscription.deleted reverts the firm to the free tier and clears the subscription id", async () => {
     const { firmId } = await createFirmWithSession("Webhook Firm C", `webhookc-${Date.now()}@example.com`);
     await env.DB.prepare("UPDATE firms SET plan_tier = 'firm_starter', stripe_customer_id = 'cus_test_3', stripe_subscription_id = 'sub_test_3' WHERE id = ?1")
       .bind(firmId)
@@ -518,7 +505,7 @@ describe("POST /stripe/webhook", () => {
     expect(resp.status).toBe(200);
 
     const firm = await store.getFirmById(env.DB, firmId);
-    expect(firm?.plan_tier).toBe("pilot");
+    expect(firm?.plan_tier).toBe("free");
     expect(firm?.stripe_subscription_id).toBeNull();
     // Customer id is retained -- a future checkout should reuse the same
     // Stripe Customer rather than creating a duplicate.

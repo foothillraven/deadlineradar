@@ -156,7 +156,7 @@ import {
   normalizeRuleRow,
   type MobilityRuleRow,
 } from "./mobility";
-import { checkPremiumAccess, entitlementMessage } from "./entitlements";
+import { checkPaidFeatureAccess, paidFeatureDenialMessage } from "./entitlements";
 import { firmTierByPlanTier, firmTierForSeatCount, seatCapForFirmTier, stripePriceIdForTier } from "./tiers";
 import {
   createCheckoutSession,
@@ -1780,24 +1780,37 @@ export async function requireFirmSession(
 }
 
 /**
- * requireFirmSession() -> getFirmById() -> checkPremiumAccess(), in one call
- * (2026-08-05, paid tiers). Same "returns the resolved value or a
- * ready-to-return Response" idiom requireFirmSession() itself uses -- every
- * handler this wraps had these three steps duplicated inline (see
- * handleMobilityCheck's own version, still there, now the last holdout).
- *
- * Read-vs-write status code split matches what mobility's routes already
- * shipped and already test: GET-shaped handlers pass `isWrite: false` and
- * get a 403 with `{error, reason, pilot_days_remaining}`; mutating handlers
- * pass `isWrite: true` and get a 402, extending handleFirmLicenseCreate's
- * existing seat-cap-exceeded 402 precedent to every entitlement denial. Both
- * include `pay_now_url` so the dashboard paywall always has something
- * concrete to link to.
+ * requireFirmSession() -> getFirmById(), with NO entitlement check at all
+ * (2026-08-06) -- for the standing free-tier routes (Roster, Calendar, CPE
+ * Hours, billing self-management) that still need the FirmRow itself
+ * (name, admin_email, plan_tier, stripe ids, ...) but must never be
+ * paywalled. Replaces requireFirmSessionAndEntitlement() at every call site
+ * that isn't Map/Practice Privilege Check -- those free features have no
+ * expiration and no tier requirement, just "signed in, account active."
  */
-async function requireFirmSessionAndEntitlement(
+async function requireFirmSessionWithFirm(
   request: Request,
-  env: Env,
-  isWrite: boolean
+  env: Env
+): Promise<{ firmId: string; sessionId: string; passwordResetAuthorized: boolean; firm: store.FirmRow } | Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+  const firm = await store.getFirmById(env.DB, session.firmId);
+  if (!firm) return jsonResponse(404, { error: "Not found." });
+  return { ...session, firm };
+}
+
+/**
+ * requireFirmSession() -> getFirmById() -> checkPaidFeatureAccess(), in one
+ * call (2026-08-06, Map/Practice Privilege Check pay-gating). Only the two
+ * genuinely paid features use this now -- Roster/Calendar/CPE Hours are a
+ * standing free tier and just call requireFirmSession() directly, no
+ * entitlement check at all. Always 403 (no read/write 402 split anymore --
+ * that existed for roster mutations, which are no longer pay-gated; every
+ * remaining caller of this wrapper is GET-or-GET-shaped).
+ */
+async function requireFirmSessionAndPaidTier(
+  request: Request,
+  env: Env
 ): Promise<{ firmId: string; sessionId: string; passwordResetAuthorized: boolean; firm: store.FirmRow } | Response> {
   const session = await requireFirmSession(request, env);
   if (session instanceof Response) return session;
@@ -1805,22 +1818,12 @@ async function requireFirmSessionAndEntitlement(
   const firm = await store.getFirmById(env.DB, session.firmId);
   if (!firm) return jsonResponse(404, { error: "Not found." });
 
-  const access = checkPremiumAccess(firm);
+  const access = checkPaidFeatureAccess(firm);
   if (!access.allowed) {
-    // current_staff_count (2026-08-05, Devin's Gate-1 UX note): the
-    // dashboard paywall showed all 3 tiers regardless of roster size, so a
-    // 20-staff firm could click Essentials and get a clean-but-avoidable
-    // rejection. checkout already computes this same live count to
-    // validate a tier choice server-side (the authoritative check); surfacing
-    // it here too lets the paywall pre-filter to only the tiers that fit,
-    // without duplicating that logic client-side against stale/spoofable data.
-    const currentStaffCount = await store.countFirmLicenses(env.DB, session.firmId);
-    return jsonResponse(isWrite ? 402 : 403, {
-      error: entitlementMessage(access.reason),
+    return jsonResponse(403, {
+      error: paidFeatureDenialMessage(access.reason),
       reason: access.reason,
-      pilot_days_remaining: access.pilotDaysRemaining,
       pay_now_url: "/firm-dashboard/#account",
-      current_staff_count: currentStaffCount,
     });
   }
 
@@ -1835,11 +1838,10 @@ async function requireFirmSessionAndEntitlement(
 
 /**
  * POST /firm/billing/checkout -- creates a Stripe Checkout Session for the
- * signed-in firm to convert onto a paid tier, at ANY point: during the free
- * 30-day pilot (an early "pay now" conversion) or after it has lapsed (to
- * get back in). Deliberately session-gated only, NOT entitlement-gated --
- * requireFirmSessionAndEntitlement() would 402/403 exactly the firms this
- * route exists to unblock.
+ * signed-in firm to convert onto a paid tier, at ANY point: while free or
+ * already paid (upgrading tiers). Deliberately session-gated only, NOT
+ * paid-feature-gated -- requireFirmSessionAndPaidTier() would 403 exactly
+ * the free-tier firms this route exists to convert.
  */
 async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Response> {
   const session = await requireFirmSession(request, env);
@@ -1934,14 +1936,13 @@ async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Re
  * full access either way until Stripe's own customer.subscription.deleted
  * webhook fires at the real period end (handleStripeWebhook, unchanged).
  *
- * Entitlement-gated (not just session-gated) -- a pilot/lapsed firm has no
- * subscription to cancel or resume, and requireFirmSessionAndEntitlement()
- * already gives the exact "not currently on a paid plan" 402 shape the
- * dashboard's other paywall-denial cases use, so this doesn't need its own
- * separate check for that.
+ * Session-gated only (2026-08-06), NOT paid-feature-gated -- billing
+ * self-management isn't a paid FEATURE, a free-tier firm must be able to
+ * reach it too (if only to discover it has nothing to cancel, via the
+ * plain 400 below for a missing stripe_subscription_id).
  */
 async function handleFirmBillingCancellationToggle(request: Request, env: Env, cancelAtPeriodEnd: boolean): Promise<Response> {
-  const session = await requireFirmSessionAndEntitlement(request, env, true);
+  const session = await requireFirmSessionWithFirm(request, env);
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -2174,14 +2175,14 @@ async function handleStripeWebhook(request: Request, env: Env): Promise<Response
       const isNew = await store.recordWebhookEventIfNew(env.DB, event.id, event.type, null);
       if (isNew) {
         const firm = await store.findFirmByStripeSubscriptionId(env.DB, subscriptionId);
-        // A cancellation reverts to `pilot`, not a hard lockout -- if any
-        // pilot days remain, checkPremiumAccess() still grants access via
-        // the pilot window; if not, the ordinary "pilot_expired" denial
-        // applies. Either way this is the SAME state a firm that never paid
-        // would be in, which is the correct floor for a cancelled sub.
+        // A cancellation reverts to `free`, not a hard lockout -- Roster/
+        // Calendar/CPE Hours stay fully usable (the free tier has no
+        // expiration), Map/Practice Privilege Check lose access the same
+        // way they would for a firm that never paid. That's the correct
+        // floor for a cancelled subscription.
         if (firm) {
           await store.updateFirmBilling(env.DB, firm.id, {
-            planTier: "pilot",
+            planTier: "free",
             stripeCustomerId: firm.stripe_customer_id ?? "",
             stripeSubscriptionId: null,
           });
@@ -2627,7 +2628,7 @@ async function handleSubscriberCpeEntryCreate(request: Request, env: Env): Promi
  * staffer never got the email is exactly the confusion this avoids.
  */
 async function handleFirmStaffCpeReminder(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionAndEntitlement(request, env, true);
+  const session = await requireFirmSessionWithFirm(request, env);
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -2842,7 +2843,7 @@ function toFirmLicenseJson(row: store.SubscriberRow, asOf: Date): Record<string,
  * soonest deadline first (a null/uncomputable deadline sorts last -- there's
  * nothing more urgent to show for it). */
 async function handleFirmLicensesList(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionAndEntitlement(request, env, false);
+  const session = await requireFirmSessionWithFirm(request, env);
   if (session instanceof Response) return session;
 
   const rows = await store.listFirmLicenses(env.DB, session.firmId);
@@ -2898,7 +2899,7 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
  * pointless re-fetch just because a couple of the newest 6 happen to filter
  * out client-side for some future reason. */
 async function handleFirmActivityList(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionAndEntitlement(request, env, false);
+  const session = await requireFirmSessionWithFirm(request, env);
   if (session instanceof Response) return session;
 
   const events = await store.listRecentActivity(env.DB, session.firmId, 20);
@@ -2920,7 +2921,7 @@ async function handleFirmActivityList(request: Request, env: Env): Promise<Respo
  * handleFirmLicensesList uses -- a lapsed/pilot-expired firm shouldn't get a
  * working export either. */
 async function handleFirmCalendarIcs(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionAndEntitlement(request, env, false);
+  const session = await requireFirmSessionWithFirm(request, env);
   if (session instanceof Response) return session;
 
   const rows = await store.listFirmLicenses(env.DB, session.firmId);
@@ -2972,7 +2973,7 @@ async function handleFirmCalendarIcs(request: Request, env: Env): Promise<Respon
  * grant silent consent, it grants transparent, easily-declinable consent.
  */
 async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionAndEntitlement(request, env, true);
+  const session = await requireFirmSessionWithFirm(request, env);
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05, orchestrator abuse-test pass):
@@ -3189,7 +3190,7 @@ function stripHtmlErrorMessage(html: string): string {
  * untouched.
  */
 async function handleFirmLicensePatch(request: Request, env: Env, id: string): Promise<Response> {
-  const session = await requireFirmSessionAndEntitlement(request, env, true);
+  const session = await requireFirmSessionWithFirm(request, env);
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -3371,7 +3372,7 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
  * reminder cron's allConfirmedActive() only ever reads status='confirmed'
  * rows). */
 async function handleFirmLicenseDelete(request: Request, env: Env, id: string): Promise<Response> {
-  const session = await requireFirmSessionAndEntitlement(request, env, true);
+  const session = await requireFirmSessionWithFirm(request, env);
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -3423,7 +3424,7 @@ async function handleFirmLicenseDelete(request: Request, env: Env, id: string): 
  * to build two different code paths for the same operation.
  */
 async function handleFirmLicenseRenew(request: Request, env: Env, id: string): Promise<Response> {
-  const session = await requireFirmSessionAndEntitlement(request, env, true);
+  const session = await requireFirmSessionWithFirm(request, env);
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -3512,7 +3513,7 @@ function toCpeEntryJson(row: store.CpeEntryRow): Record<string, unknown> {
  * roster. The dashboard rolls this up per staffer client-side (same
  * pattern as GET /firm/licenses's roster-wide fetch). */
 async function handleCpeEntriesList(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionAndEntitlement(request, env, false);
+  const session = await requireFirmSessionWithFirm(request, env);
   if (session instanceof Response) return session;
   const rows = await store.listCpeEntriesForFirm(env.DB, session.firmId);
   return jsonResponse(200, { entries: rows.map(toCpeEntryJson) });
@@ -3529,7 +3530,7 @@ async function handleCpeEntriesList(request: Request, env: Env): Promise<Respons
  * firm-scoped mutation in this file.
  */
 async function handleCpeEntryCreate(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionAndEntitlement(request, env, true);
+  const session = await requireFirmSessionWithFirm(request, env);
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -3609,7 +3610,7 @@ async function handleCpeEntryCreate(request: Request, env: Env): Promise<Respons
 /** DELETE /firm/cpe/:id -- soft-delete (see migration 0009's comment for
  * why it's not a real DELETE), firm-scoped. */
 async function handleCpeEntryDelete(request: Request, env: Env, id: string): Promise<Response> {
-  const session = await requireFirmSessionAndEntitlement(request, env, true);
+  const session = await requireFirmSessionWithFirm(request, env);
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -4580,20 +4581,8 @@ for (const raw of (mobilityRulesData.records ?? []) as unknown[]) {
  * competitive intelligence for the incumbents this feature competes with.
  */
 async function handleMobilityCoverage(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSession(request, env);
+  const session = await requireFirmSessionAndPaidTier(request, env);
   if (session instanceof Response) return session;
-
-  const firm = await store.getFirmById(env.DB, session.firmId);
-  if (!firm) return jsonResponse(404, { error: "Not found." });
-
-  const access = checkPremiumAccess(firm);
-  if (!access.allowed) {
-    return jsonResponse(403, {
-      error: entitlementMessage(access.reason),
-      reason: access.reason,
-      pilot_days_remaining: access.pilotDaysRemaining,
-    });
-  }
 
   const covered = Object.values(MOBILITY_RULES_BY_SLUG).map((r) => ({
     state_slug: r.state_slug,
@@ -4605,7 +4594,6 @@ async function handleMobilityCoverage(request: Request, env: Env): Promise<Respo
     covered,
     covered_count: covered.length,
     as_of: (mobilityRulesData._meta as Record<string, unknown> | undefined)?.as_of_date ?? null,
-    pilot_days_remaining: access.pilotDaysRemaining,
     disclaimer: MOBILITY_DISCLAIMER,
   });
 }
@@ -5272,28 +5260,17 @@ async function handleOauthIdentityDelete(request: Request, env: Env, id: string)
  * mobility.ts. They are inputs to the determination, not facts we assert.
  */
 async function handleMobilityCheck(request: Request, env: Env, ip: string): Promise<Response> {
-  const session = await requireFirmSession(request, env);
-  if (session instanceof Response) return session;
-
   // Keyed on the AUTHENTICATED FIRM, not the caller's IP. The stated threat
   // is "harvesting by a subscriber", which an IP key does not bound (rotate
   // IPs and it never binds) while it DOES punish a whole firm behind one
   // office NAT. Matches RATE_LIMIT_FIRM_LICENSE_CREATE's convention for
   // authenticated routes. Also moved after the entitlement check so an
   // unentitled session cannot burn a paying firm's budget.
-  const firm = await store.getFirmById(env.DB, session.firmId);
-  if (!firm) return jsonResponse(404, { error: "Not found." });
-
+  //
   // Entitlement BEFORE any work: a non-paying firm must not receive a
   // determination under any circumstances.
-  const access = checkPremiumAccess(firm);
-  if (!access.allowed) {
-    return jsonResponse(403, {
-      error: entitlementMessage(access.reason),
-      reason: access.reason,
-      pilot_days_remaining: access.pilotDaysRemaining,
-    });
-  }
+  const session = await requireFirmSessionAndPaidTier(request, env);
+  if (session instanceof Response) return session;
 
   // Rate limit AFTER the gate. Review finding: with it first, an
   // authenticated-but-unentitled session could exhaust the firm's budget
@@ -5379,20 +5356,8 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
  * attestation data is not stuck with this one's assumption.
  */
 async function handleMobilityCheckBatch(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSession(request, env);
+  const session = await requireFirmSessionAndPaidTier(request, env);
   if (session instanceof Response) return session;
-
-  const firm = await store.getFirmById(env.DB, session.firmId);
-  if (!firm) return jsonResponse(404, { error: "Not found." });
-
-  const access = checkPremiumAccess(firm);
-  if (!access.allowed) {
-    return jsonResponse(403, {
-      error: entitlementMessage(access.reason),
-      reason: access.reason,
-      pilot_days_remaining: access.pilotDaysRemaining,
-    });
-  }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_check_batch", RATE_LIMIT_MOBILITY_CHECK_BATCH);
   if (!allowed) {

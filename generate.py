@@ -1320,10 +1320,14 @@ PAGE_CSS = """
   }
   .dr-modal-actions .dr-btn-cancel:hover { color: var(--fg); border-color: var(--fg); }
 
-  /* Paid-tiers paywall panel (2026-08-05) -- shown in place of every tab's
-     content once checkPremiumAccess() denies a lapsed pilot/inactive
-     account. Reuses the site's own accent/on-accent pairing (same as
-     .dr-btn-save above), not a new palette. */
+  /* Paid-tier upgrade buttons -- shared by the pricing page, the /pricing/
+     cards, and the dashboard's own billing-panel upgrade prompt (2026-08-06:
+     the old whole-dashboard paywall panel that originally introduced this
+     class was removed once Roster/Calendar/CPE Hours became a standing free
+     tier with nothing left to gate there -- only Map and Practice Privilege
+     Check are paid now, and both already degrade gracefully in place on a
+     403 rather than blocking the whole dashboard). Reuses the site's own
+     accent/on-accent pairing (same as .dr-btn-save above), not a new palette. */
   .dr-paywall-tiers {
     display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 0.9rem;
   }
@@ -1815,13 +1819,14 @@ _NAV_TOGGLE_JS_HTML = """<script>
 
 # Task #8 (2026-08-06): every firm-tier button on /pricing/ always attempts
 # a REAL checkout first (Devin's explicit call) -- for a visitor who
-# already has a firm session (mid-pilot or past it), this is one click
-# straight into Stripe, identical to the dashboard's own paywall. For an
-# anonymous visitor, POST /firm/billing/checkout 401s (requireFirmSession
-# gates it) and this redirects to /firm-login/ to start the free pilot
-# first -- same fallback drStartCheckout() (the dashboard's own version of
-# this) already uses, just without that function's paywall-specific
-# seat-cap filtering, which doesn't apply to a visitor with no roster yet.
+# already has a firm session (free tier or already paid), this is one click
+# straight into Stripe, identical to the dashboard's own billing-panel
+# upgrade prompt. For an anonymous visitor, POST /firm/billing/checkout
+# 401s (requireFirmSession gates it) and this redirects to /firm-login/ to
+# create a free account first -- same fallback drStartCheckout() (the
+# dashboard's own version of this) already uses, just without that
+# function's seat-cap filtering, which doesn't apply to a visitor with no
+# roster yet.
 _PRICING_CHECKOUT_JS_HTML = f"""<script>
 (function() {{
   var buttons = document.querySelectorAll('.dr-pricing-tier-btn');
@@ -1940,6 +1945,7 @@ def site_header(
       <a href="/methodology/">How We Verify</a>
       <a href="/blog/">Guides</a>
       <a href="/for-firms/">For Firms</a>
+      <a href="/firm-login/?demo=1">Live Demo</a>
       {signin_link_html}<a href="{esc(remind_href)}" class="cta">Get reminders</a>
     </div>
   </div>
@@ -1983,6 +1989,18 @@ def site_footer() -> str:
 
 
 CONTACT_EMAIL = "support@deadline-radar.com"
+
+# Task #33 (2026-08-06): public demo firm account -- Devin + orchestrator's
+# decision was "public link, no gate" (the competitive-snooping risk is
+# theoretical; the actual moat is sourced-citation data quality, not UI,
+# and there's essentially no traffic yet for a competitor to stumble onto
+# this). demo_locked=1 on this firm's row blocks password changes/SSO
+# linking entirely (see migration 0024's own docstring) -- publishing the
+# password here is safe BECAUSE that flag exists, not despite it. On a
+# paid tier server-side so it can actually demonstrate Map/Practice
+# Privilege Check, the two features this account exists to show off.
+DEMO_FIRM_EMAIL = "demo@deadline-radar.com"
+DEMO_FIRM_PASSWORD = "ZcWxv-5BbcS-Xjbcv-ASPi0"
 
 
 TRUST_MICROCOPY = (
@@ -3846,9 +3864,10 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   whole firm's staff across multiple states, the firm dashboard below is the same sourced-to-codified-
   law data in one roster view &mdash; who's current, who's at risk, and who needs to act.</p>
   {_firm_dashboard_mockup_html(by_slug, as_of)}
-  <p class="how-it-works"><strong>Firm plans from $199/year</strong> (up to 5 staff) to $500/year (up to
-  25 staff) &mdash; every tier has the identical feature set, gated only by staff count. Starting with a
-  free 30-day pilot, no card required. <a href="for-firms/" style="font-weight:600;">See the firm overview
+  <p class="how-it-works"><strong>Roster, calendar, and CPE tracking are free</strong>, no card required,
+  no time limit. Firm plans from $199/year (up to 5 staff) to $500/year (up to 25 staff) add the
+  multistate map and practice-privilege check &mdash; every paid tier has the identical feature set,
+  gated only by staff count. <a href="for-firms/" style="font-weight:600;">See the firm overview
   &rarr;</a> &middot; <a href="pricing/">Full pricing (incl. individual) &rarr;</a></p>
 </section>"""
 
@@ -3921,10 +3940,11 @@ credentials confidential and for all activity under your account. If a firm admi
 roster, that admin is responsible for the accuracy of the license and contact information entered on
 that person's behalf.</p>
 
-<h2>3. Free tier and the firm pilot</h2>
+<h2>3. Free tier and paid firm plans</h2>
 <p>Individual reminder signups are free, with no card required, for as long as you stay subscribed. New
-firm accounts start with a <strong>free 30-day pilot</strong>, also with no card required. Nothing is
-charged unless and until you choose to convert to a paid firm plan.</p>
+firm accounts start on a <strong>standing free tier</strong> &mdash; roster, calendar, and CPE-hours
+tracking, with no card required and no time limit. Nothing is charged unless and until you choose to
+upgrade to a paid firm plan for the multistate map and Practice Privilege Check.</p>
 
 <h2>4. Paid firm plans and billing</h2>
 <p>Paid firm plans (Essentials, Professional, and Enterprise, priced by staff-count capacity &mdash; every tier has
@@ -3938,8 +3958,10 @@ us rather than through self-serve checkout; the billing and cancellation terms b
 <p>You can cancel a paid subscription at any time from your account's Billing tab. <strong>Cancelling
 stops future renewal charges but does not refund the current period</strong> &mdash; you keep full access
 to your plan through the end of the period you already paid for, then your account reverts to the free
-pilot state. You can resume a subscription you've scheduled to cancel at any point before that period
-ends, and billing continues normally. We do not offer partial-period or prorated refunds.</p>
+tier (roster, calendar, and CPE-hours tracking remain available; the map and Practice Privilege Check do
+not). You can resume a subscription you've scheduled to cancel at any point before that period ends, and
+billing continues normally. Cancelling alone is not prorated or refunded; deleting your account instead
+of just cancelling is &mdash; see Section 11.</p>
 
 <h2>6. Acceptable use</h2>
 <p>You agree not to: use the service to violate any law; attempt to access another firm's account, staff
@@ -4026,10 +4048,10 @@ def build_pricing_page() -> str:
     working purchase flow that doesn't exist.
     """
     body = f"""<h1>Pricing</h1>
-<p class="intro">One plan for individual CPAs, three for firms &mdash; every firm tier has the
-<strong>identical feature set</strong> (Roster, Calendar, Map, CPE Hours, Practice Privilege Check).
-The only difference between firm tiers is how many staff it covers; nothing is held back on a cheaper
-plan.</p>
+<p class="intro">Roster, calendar, and CPE-hours tracking are <strong>free for any firm</strong>, no
+card required, no time limit. Paid firm plans add the multistate map and Practice Privilege Check
+&mdash; every paid tier has the identical feature set, priced only by how many staff it covers; nothing
+is held back on a cheaper plan.</p>
 
 <p id="dr-pricing-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
 
@@ -4047,19 +4069,19 @@ plan.</p>
     <h2>Essentials</h2>
     <p class="price">$199<span>/year</span></p>
     <p class="detail">Up to 5 staff.</p>
-    <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_starter">Start free pilot</button>
+    <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_starter">Get Essentials</button>
   </div>
   <div class="pricing-card">
     <h2>Professional</h2>
     <p class="price">$349<span>/year</span></p>
     <p class="detail">Up to 15 staff.</p>
-    <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_growth">Start free pilot</button>
+    <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_growth">Get Professional</button>
   </div>
   <div class="pricing-card">
     <h2>Enterprise</h2>
     <p class="price">$500<span>/year</span></p>
     <p class="detail">Up to 25 staff.</p>
-    <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_standard">Start free pilot</button>
+    <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_standard">Get Enterprise</button>
   </div>
   <div class="pricing-card pricing-card--wide">
     <h2>More than 25 staff?</h2>
@@ -4067,9 +4089,10 @@ plan.</p>
   </div>
 </div>
 
-<p>Every firm account starts with a <strong>free 30-day pilot</strong>, no card required. "Start free
-pilot" above begins that trial if you don't already have a firm account; if you're already signed in,
-it goes straight to checkout for that tier, same as the dashboard's own upgrade panel.</p>
+<p>Roster, calendar, and CPE-hours tracking are free for any firm, no card required, no time limit.
+The buttons above are for the paid map + Practice Privilege Check tiers: if you don't already have a
+firm account, they start free signup first; if you're already signed in, they go straight to checkout
+for that tier, same as the dashboard's own upgrade panel.</p>
 
 <p class="backlink">See exactly <a href="/methodology/">how we verify every deadline</a>, or read the
 <a href="/for-firms/">full firm-tier breakdown</a>.</p>
@@ -4727,9 +4750,11 @@ _FIRM_FAQ = [
         "everyone else's.",
     ),
     (
-        "Can I cancel the pilot anytime?",
-        "Yes. It's a free 30-day pilot, no card required to start, and you can stop at any point "
-        "during or after it &mdash; there's no contract to get out of.",
+        "Can I cancel anytime?",
+        "Yes. Roster, calendar, and CPE Hours are free with no card required and no time limit. If "
+        "you upgrade for the map and Practice Privilege Check, you can cancel that subscription at "
+        "any point &mdash; there's no contract to get out of, and your account just drops back to "
+        "the free tier at the end of the period you already paid for.",
     ),
     (
         "Which plan should my firm pick?",
@@ -4838,6 +4863,10 @@ personal inbox provides, in one place.</p>
 
 {_firm_dashboard_mockup_html(by_slug, as_of)}
 
+<p class="how-it-works"><strong>Want to click around for real instead of a mockup?</strong>
+<a href="/firm-login/?demo=1" style="font-weight:600;">Try the live demo &rarr;</a> A shared account,
+seeded with sample staff, credentials pre-filled for you &mdash; no signup needed.</p>
+
 <p><strong>Scope, plainly stated:</strong> the license <em>renewal dates</em> are the part we verify
 against actual state law, the same way we already do for individuals. The dashboard also has a CPE
 Hours tab where your firm can log completed hours against each state's own requirement &mdash; that
@@ -4846,9 +4875,10 @@ separate from the sourced renewal dates. We won't blur the two &mdash; self-repo
 sourced dates staying visibly distinct is the whole reason to trust this site.</p>
 
 <h2>Pricing</h2>
-<p>Every firm tier gets the <strong>identical feature set</strong> &mdash; Roster, Calendar, Map, CPE
-Hours, Practice Privilege Check, all of it. The only difference between tiers is how many staff it
-covers; nothing is held back on a cheaper plan.</p>
+<p>Roster, Calendar, and CPE Hours are <strong>free for any firm</strong>, no card required, no time
+limit. Paid tiers add the Map and Practice Privilege Check &mdash; every paid tier gets the identical
+feature set; the only difference between them is how many staff it covers, nothing is held back on a
+cheaper plan.</p>
 <ul class="firm-pricing-list">
   <li><strong>Essentials</strong> &mdash; $199/year, up to 5 staff</li>
   <li><strong>Professional</strong> &mdash; $349/year, up to 15 staff</li>
@@ -4860,8 +4890,6 @@ covers; nothing is held back on a cheaper plan.</p>
 on our homepage already cover that at no cost, unchanged. There's also a <strong>$39/year Individual
 plan</strong> for a single CPA's own CPE tracking and Practice Privilege Check &mdash;
 <a href="mailto:{esc(CONTACT_EMAIL)}?subject=Individual%20plan">get in touch</a> if you want it.</p>
-<p>Every plan &mdash; firm or individual &mdash; starts with a <strong>free 30-day pilot, no card
-required</strong>.</p>
 
 <div class="remind-panel" id="firm-signup">
   <div>
@@ -4872,7 +4900,7 @@ required</strong>.</p>
     confirmation step to wait on, so your firm's coverage never has a silent gap. Each staff member
     gets one transparent email the moment they're added, naming your firm and with an equally
     prominent one-click opt-out.</p>
-    <p class="remind-promise">Free 30-day pilot, no card collected anywhere in this flow.</p>
+    <p class="remind-promise">Free, no time limit, no card collected anywhere in this flow.</p>
   </div>
   <p><a class="cta-button" href="../firm-login/">Create your firm account &rarr;</a></p>
   <p class="field-hint">By creating an account, you agree to our <a href="../terms/">Terms of
@@ -4913,9 +4941,10 @@ invoice; a self-serve card-payment option is coming soon. Not ready to create an
 """
     return page_shell(
         f"For Firms — {SITE_NAME}",
-        "CPA firm license tracking: plans from $199/year (5 staff) to $500/year (25 staff), plus a "
-        "$39/year individual plan. Free 30-day pilot. Sourced to the same codified state law "
-        "DeadlineRadar verifies for every state.",
+        "CPA firm license tracking: roster, calendar, and CPE hours free forever, plus paid plans "
+        "from $199/year (5 staff) to $500/year (25 staff) for the map and Practice Privilege Check, "
+        "or a $39/year individual plan. Sourced to the same codified state law DeadlineRadar "
+        "verifies for every state.",
         body,
         home_href="../",
         canonical_path="/for-firms/",
@@ -5000,6 +5029,9 @@ def build_firm_login_page() -> str:
   <p class="subhead">One roster for every staff CPA's license renewal.</p>
   <p class="dr-account-ok" id="dr-account-deleted-notice" hidden>Your account has been deleted. It's
   deactivated immediately; the data is permanently erased in 30 days.</p>
+  <p class="dr-account-ok" id="dr-demo-prefill-notice" hidden>Demo credentials filled in below --
+  click Sign in. It's a shared account (roster changes are visible to other visitors, and the password
+  can't be changed), seeded with sample data so you can look around.</p>
 {sso_buttons_html}
   <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/login/password" id="dr-firmlogin-signin-form">
     {_BOT_DEFENSE_FIELDS_HTML_SIGNIN}
@@ -5026,7 +5058,7 @@ def build_firm_login_page() -> str:
 
 <div class="dr-auth-view" id="dr-view-signup">
   <h1>Create your firm account</h1>
-  <p class="subhead">Free to start &mdash; a 30-day pilot, no card required.</p>
+  <p class="subhead">Free, no time limit, no card required.</p>
   <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/signup" id="dr-firmlogin-signup-form">
     {_BOT_DEFENSE_FIELDS_HTML_ALT}
     <label for="signup-firm-name">Firm name</label>
@@ -5171,6 +5203,22 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
     if (deletedNotice) deletedNotice.hidden = false;
   }
 
+  // Task #33 (2026-08-06): public demo link (/firm-login/?demo=1) pre-fills
+  // the sign-in form with the shared demo account's credentials -- still a
+  // real form submit, one real click, not an auto-login teleport, so it
+  // stays obviously "this is a real login" rather than something that
+  // could be mistaken for a broken auth bypass. demo_locked on that firm's
+  // row means these credentials can only ever sign in, never change
+  // anything about their own account (see migration 0024).
+  if (new URLSearchParams(window.location.search).get("demo") === "1") {
+    var demoEmailEl = document.getElementById("signin-email");
+    var demoPasswordEl = document.getElementById("signin-password");
+    if (demoEmailEl) demoEmailEl.value = "__DEMO_EMAIL__";
+    if (demoPasswordEl) demoPasswordEl.value = "__DEMO_PASSWORD__";
+    var demoNoticeEl = document.getElementById("dr-demo-prefill-notice");
+    if (demoNoticeEl) demoNoticeEl.hidden = false;
+  }
+
   // These three forms POST straight to the Worker with no JS at all, so any
   // error (wrong password, a blocked domain, a rate limit) navigated the
   // whole browser to the raw API response instead of showing an error on
@@ -5272,6 +5320,9 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
   });
 })();
 </script>"""
+_FIRM_LOGIN_VIEW_JS_HTML = (
+    _FIRM_LOGIN_VIEW_JS_HTML.replace("__DEMO_EMAIL__", DEMO_FIRM_EMAIL).replace("__DEMO_PASSWORD__", DEMO_FIRM_PASSWORD)
+)
 
 
 _SET_PASSWORD_JS_HTML = """<script>
@@ -5924,7 +5975,7 @@ def build_my_page(cpe_hours_by_slug: dict[str, dict]) -> str:
   <div class="dr-my-upsell">
     <h2>Tracking renewals for a team?</h2>
     <p>DeadlineRadar for Firms puts every staff CPA's renewal on one roster, sorted by what needs
-    attention soonest &mdash; plus CPE hour tracking and a calendar view. Free 30-day pilot, no card
+    attention soonest &mdash; plus CPE hour tracking and a calendar view. Free, no time limit, no card
     required.</p>
     <p><a class="cta-button" href="/for-firms/">See DeadlineRadar for Firms &rarr;</a></p>
   </div>
@@ -6174,43 +6225,13 @@ function drClearWarning() {
   el.hidden = true;
   el.textContent = '';
 }
-// Paid-tiers paywall (2026-08-05). Shown in place of every tab's content --
-// hiding every .dr-view rather than just one, because a checkPremiumAccess()
-// denial applies to the whole firm account, not the tab that happened to be
-// open when the fetch ran. drLoadLicenses() is the single fetch that drives
-// Roster/Calendar/Map/CPE Hours/mobility-completions (see its own comment),
-// so checking there covers all of them without a separate check per tab.
-function drShowPaywall(message, payNowUrl, currentStaffCount) {
-  drClearError();
-  var views = document.querySelectorAll('.dr-view');
-  for (var i = 0; i < views.length; i++) { views[i].hidden = true; }
-  var panel = document.getElementById('dr-paywall-panel');
-  if (!panel) return;
-  var msgEl = document.getElementById('dr-paywall-message');
-  if (msgEl) msgEl.textContent = message || 'Your plan needs to be upgraded to continue.';
-  // Devin's Gate-1 UX note (2026-08-05): only show tiers that actually fit
-  // the current roster, rather than all 3 and rejecting after a click --
-  // checkout enforces this same fit server-side regardless, so hiding an
-  // unreachable tier here is purely a courtesy, not the real guard.
-  var buttons = document.querySelectorAll('.dr-paywall-tier-btn');
-  for (var j = 0; j < buttons.length; j++) {
-    var cap = parseInt(buttons[j].getAttribute('data-seat-cap'), 10);
-    var fits = typeof currentStaffCount !== 'number' || isNaN(cap) || currentStaffCount <= cap;
-    buttons[j].hidden = !fits;
-  }
-  panel.hidden = false;
-}
-function drHidePaywall() {
-  var panel = document.getElementById('dr-paywall-panel');
-  if (panel) panel.hidden = true;
-}
 function drStartCheckout(tier, btn, errElId) {
-  // Task #12: the billing panel's pilot-upgrade buttons reuse this same
-  // function but need their error surfaced in the Account tab's own
-  // dr-billing-error box, not the (hidden, off-tab) paywall panel's --
-  // defaults to the original paywall error id so the existing call site
-  // below needs no change.
-  var errEl = document.getElementById(errElId || 'dr-paywall-error');
+  // Task #12: the billing panel's upgrade buttons (the only remaining caller
+  // -- the old whole-dashboard paywall panel was removed 2026-08-06 once
+  // Roster/Calendar/CPE Hours became a standing free tier with nothing left
+  // to gate there) surface their error in the Account tab's dr-billing-error
+  // box.
+  var errEl = document.getElementById(errElId || 'dr-billing-error');
   if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
   if (btn) btn.disabled = true;
   fetch('/api/firm/billing/checkout', {
@@ -6628,7 +6649,7 @@ function drRenderCurrentEmail(email) {
 // the plan_tier this panel shows doesn't move until Stripe's own
 // customer.subscription.deleted webhook fires at the real period end, so a
 // firm mid-cancellation still sees its real, unchanged plan name here (not
-// "pilot") right up until that date. current_period_end is a full ISO
+// "free") right up until that date. current_period_end is a full ISO
 // datetime from Stripe; drFormatDeadline() expects a plain date, hence the
 // slice(0, 10).
 function drRenderBillingPanel() {
@@ -6636,31 +6657,26 @@ function drRenderBillingPanel() {
   if (!body || !drBilling) return;
   var tierDef = DR_PLAN_TIER_LABELS[drBilling.planTier];
   if (!tierDef) {
-    // Task #12 (2026-08-05): the old "See paid plans" link just re-ran
-    // drLoadLicenses() to re-trigger the SAME 402 paywall a lapsed pilot
-    // hits -- a firm still mid-pilot never gets that 402 (the load just
-    // succeeds normally), so the link was a dead click for exactly the
-    // audience "pay now, mid-trial" is for. POST /firm/billing/checkout
-    // (drStartCheckout) has always accepted a pilot firm; this just gives
-    // it a real, always-visible trigger instead of borrowing the lockout
-    // flow. Same tier-fit filtering as the paywall panel (courtesy only --
-    // checkout re-checks the real roster count server-side either way).
+    // Task #12 (2026-08-05): a real, always-visible upgrade trigger on the
+    // Account tab, rather than making a free-tier firm discover paid plans
+    // only by clicking into Map/Practice Privilege Check and hitting the
+    // 403 denial there. POST /firm/billing/checkout (drStartCheckout) has
+    // always accepted a free-tier firm. Same tier-fit filtering the old
+    // whole-dashboard paywall panel used (courtesy only -- checkout
+    // re-checks the real roster count server-side either way).
     var seatCount = drLicenses.length;
     var tiersHtml = '<div class="dr-paywall-tiers" id="dr-billing-upgrade-tiers">' +
       '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_starter" data-seat-cap="5" ' + (seatCount > 5 ? 'hidden' : '') + '>Essentials<br><span>$199/year &middot; up to 5 staff</span></button>' +
       '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_growth" data-seat-cap="15" ' + (seatCount > 15 ? 'hidden' : '') + '>Professional<br><span>$349/year &middot; up to 15 staff</span></button>' +
       '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_standard" data-seat-cap="25" ' + (seatCount > 25 ? 'hidden' : '') + '>Enterprise<br><span>$500/year &middot; up to 25 staff</span></button>' +
       '</div>';
-    // AuditLab PAYNOW-1 (2026-08-05, caught pre-deploy): the lapsed-pilot
-    // paywall this panel is modeled on has this exact same fallback for a
-    // roster over 25 -- without it, a large pilot firm that opens this tab
-    // sees the intro line, then an empty box (all 3 buttons hidden), no
-    // explanation. Same copy as that panel (generate.py's paywall block)
-    // so the two can't drift out of sync again.
+    // AuditLab PAYNOW-1 (2026-08-05, caught pre-deploy): a roster over 25
+    // hides all 3 buttons -- without this, that firm sees the intro line
+    // then an empty box, no explanation.
     var moreThan25Html = '<p style="font-size:0.85rem; color:var(--muted); margin-top:0.7rem;">' +
       'More than 25 staff? <a href="/for-firms/">Contact us</a>.</p>';
-    body.innerHTML = '<p class="dr-panel-empty">You are on the free 30-day pilot. Upgrade any time ' +
-      '&mdash; same price whether you convert today or on day 30.</p>' + tiersHtml + moreThan25Html;
+    body.innerHTML = '<p class="dr-panel-empty">You are on the free tier. Upgrade any time for the ' +
+      'map and Practice Privilege Check.</p>' + tiersHtml + moreThan25Html;
     return;
   }
   if (drBilling.cancelAtPeriodEnd && drBilling.currentPeriodEnd) {
@@ -7977,31 +7993,16 @@ function drSubmitChangeEmail(form) {
 
 function drLoadLicenses() {
   drClearError();
-  drHidePaywall();
   fetch('/api/firm/licenses', {credentials: 'include'})
     .then(function(res) {
       if (res.status === 401) {
         window.location.href = '/firm-login/';
         return null;
       }
-      // requireFirmSessionAndEntitlement() (2026-08-05, paid tiers) denies a
-      // lapsed pilot/unentitled tier with 403 and a JSON {error, reason,
-      // pay_now_url} body -- checked BEFORE the generic !res.ok fallback so
-      // this shows the real paywall panel instead of a plain "something
-      // went wrong". An inactive/suspended firm still 403s from
-      // requireFirmSession() itself as a plain HTML error page (no `reason`
-      // field), which falls through to the generic fallback below --
-      // correct, since that's a different, non-billing denial.
-      if (res.status === 402 || res.status === 403) {
-        return drReadJsonSafe(res).then(function(data) {
-          if (data && data.reason) {
-            drShowPaywall(data.error, data.pay_now_url, data.current_staff_count);
-            return null;
-          }
-          drShowError('Something went wrong loading your roster. Please try again.');
-          return null;
-        });
-      }
+      // Roster/Calendar/CPE Hours are a standing free tier with no
+      // entitlement gate (2026-08-06) -- /firm/licenses only ever 401s (no
+      // session) or 403s via requireFirmSession()'s own inactive/suspended
+      // check, which falls through to the generic fallback below.
       if (!res.ok) {
         drShowError('Something went wrong loading your roster. Please try again.');
         return null;
@@ -8013,7 +8014,7 @@ function drLoadLicenses() {
       drLicenses = data.licenses || [];
       drSeatCap = typeof data.seat_cap === 'number' ? data.seat_cap : null;
       drBilling = {
-        planTier: data.plan_tier || 'pilot',
+        planTier: data.plan_tier || 'free',
         cancelAtPeriodEnd: Boolean(data.cancel_at_period_end),
         currentPeriodEnd: data.current_period_end || null
       };
@@ -8279,16 +8280,7 @@ document.addEventListener('DOMContentLoaded', function() {
     drShowError('That email address was claimed by another account before you confirmed. Nothing changed — try a different address.');
   }
 
-  var paywallPanel = document.getElementById('dr-paywall-panel');
-  if (paywallPanel) {
-    paywallPanel.addEventListener('click', function(e) {
-      var btn = e.target.closest('.dr-paywall-tier-btn');
-      if (!btn) return;
-      drStartCheckout(btn.getAttribute('data-tier'), btn);
-    });
-  }
-  // Task #12: same delegated pattern as the paywall panel above, separate
-  // listener since #dr-billing-body's innerHTML is rebuilt by
+  // Task #12: delegated pattern, since #dr-billing-body's innerHTML is rebuilt by
   // drRenderBillingPanel() on every load/tier-change (a listener attached
   // directly to a tier button would be destroyed with it).
   var billingBody = document.getElementById('dr-billing-body');
@@ -9130,20 +9122,6 @@ def build_firm_dashboard_page(
     <div id="dr-dash-success" class="callout" style="border-left-color:var(--verified-green);" role="status" hidden></div>
     <div id="dr-dash-warning" class="callout" style="border-left-color:var(--gold);" role="status" hidden></div>
     <div id="dr-staleness-banner" class="callout" style="border-left-color:#b8860b;" hidden></div>
-
-    <div id="dr-paywall-panel" class="dr-panel" hidden>
-      <h2>Continue with a paid plan</h2>
-      <p id="dr-paywall-message" class="subhead"></p>
-      <div class="dr-paywall-tiers" id="dr-paywall-tiers">
-        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_starter" data-seat-cap="5">Essentials<br><span>$199/year &middot; up to 5 staff</span></button>
-        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_growth" data-seat-cap="15">Professional<br><span>$349/year &middot; up to 15 staff</span></button>
-        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_standard" data-seat-cap="25">Enterprise<br><span>$500/year &middot; up to 25 staff</span></button>
-      </div>
-      <p style="font-size:0.88rem; color:var(--muted); margin-top:0.9rem;">Every tier has the identical
-      feature set &mdash; the only difference is staff count. More than 25 staff?
-      <a href="/for-firms/">Contact us</a>.</p>
-      <p id="dr-paywall-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
-    </div>
 
     <div id="dr-view-roster" class="dr-view" role="tabpanel">
     <h1>Coverage overview</h1>

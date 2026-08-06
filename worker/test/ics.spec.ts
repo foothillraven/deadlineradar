@@ -82,10 +82,10 @@ describe("GET /firm/calendar.ics", () => {
     expect((await getFirmCalendarIcs(null)).status).toBe(401);
   });
 
-  it("403s for a lapsed/expired pilot firm -- same read-gate as GET /firm/licenses", async () => {
+  it("200s for a long-standing free-tier firm -- Calendar export has no entitlement gate, matching GET /firm/licenses (2026-08-06)", async () => {
     const { firmId, cookie } = await createFirmWithSession("Ics Firm A", `icsa-${Date.now()}@example.com`);
-    await setFirmTierAndAge(firmId, "pilot", daysAgoIso(40));
-    expect((await getFirmCalendarIcs(cookie)).status).toBe(403);
+    await setFirmTierAndAge(firmId, "free", daysAgoIso(500));
+    expect((await getFirmCalendarIcs(cookie)).status).toBe(200);
   });
 
   it("returns a downloadable .ics with one event per roster member with a resolvable deadline, excluding opted-out staff", async () => {

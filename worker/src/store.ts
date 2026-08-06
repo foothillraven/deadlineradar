@@ -896,7 +896,7 @@ export async function createFirm(db: D1Database, input: CreateFirmInput): Promis
   await db
     .prepare(
       `INSERT INTO firms (id, name, admin_email, admin_name, plan_tier, status, created_at)
-       VALUES (?1,?2,?3,?4,'pilot','active',?5)`
+       VALUES (?1,?2,?3,?4,'free','active',?5)`
     )
     .bind(id, name, input.adminEmail, adminName, nowIso())
     .run();

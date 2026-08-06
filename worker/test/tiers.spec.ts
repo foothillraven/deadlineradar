@@ -8,9 +8,9 @@ import {
 } from "../src/tiers";
 import { SELF_SERVE_SEAT_CAP } from "../src/validation";
 
-describe("seatCapForFirmTier -- unchanged behavior for pilot/unrecognised", () => {
-  it("falls back to today's SELF_SERVE_SEAT_CAP for pilot", () => {
-    expect(seatCapForFirmTier("pilot")).toBe(SELF_SERVE_SEAT_CAP);
+describe("seatCapForFirmTier -- unchanged behavior for free/unrecognised", () => {
+  it("falls back to today's SELF_SERVE_SEAT_CAP for the free tier", () => {
+    expect(seatCapForFirmTier("free")).toBe(SELF_SERVE_SEAT_CAP);
   });
 
   it("falls back to SELF_SERVE_SEAT_CAP for an unrecognised tier", () => {
@@ -59,8 +59,8 @@ describe("firmTierByPlanTier", () => {
     expect(firmTierByPlanTier("firm_growth")?.priceUsd).toBe(349);
   });
 
-  it("returns null for pilot/individual/unrecognised -- not firm-tier lookups", () => {
-    expect(firmTierByPlanTier("pilot")).toBeNull();
+  it("returns null for free/individual/unrecognised -- not firm-tier lookups", () => {
+    expect(firmTierByPlanTier("free")).toBeNull();
     expect(firmTierByPlanTier("individual")).toBeNull();
     expect(firmTierByPlanTier("bogus")).toBeNull();
   });
@@ -82,6 +82,6 @@ describe("stripePriceIdForTier", () => {
 
   it("returns null when the env var isn't set (not configured) or the tier is unrecognised", () => {
     expect(stripePriceIdForTier({} as any, "firm_starter")).toBeNull();
-    expect(stripePriceIdForTier({} as any, "pilot")).toBeNull();
+    expect(stripePriceIdForTier({} as any, "free")).toBeNull();
   });
 });

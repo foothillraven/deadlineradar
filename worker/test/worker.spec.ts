@@ -571,7 +571,7 @@ describe("POST /firm/signup -- firm account creation + login-link send", () => {
     const firm = await firmByAdminEmail(email);
     expect(firm).not.toBeNull();
     expect(firm?.name).toBe("Example CPA Firm");
-    expect(firm?.plan_tier).toBe("pilot");
+    expect(firm?.plan_tier).toBe("free");
     expect(firm?.status).toBe("active");
 
     const tokenRow = await env.DB
@@ -849,7 +849,7 @@ describe("POST /firm/signup -- trial gate (disposable + competitor domains)", ()
     const firmId = crypto.randomUUID();
     await env.DB
       .prepare(
-        "INSERT INTO firms (id, name, admin_email, plan_tier, status, created_at) VALUES (?1, ?2, ?3, 'pilot', 'active', datetime('now'))"
+        "INSERT INTO firms (id, name, admin_email, plan_tier, status, created_at) VALUES (?1, ?2, ?3, 'free', 'active', datetime('now'))"
       )
       .bind(firmId, "Preexisting Gmail Firm", email)
       .run();
@@ -873,7 +873,7 @@ describe("POST /firm/signup -- trial gate (disposable + competitor domains)", ()
     const existingEmail = `trialgate-domain-a-${Date.now()}@mailinator.com`;
     await env.DB
       .prepare(
-        "INSERT INTO firms (id, name, admin_email, plan_tier, status, created_at) VALUES (?1, ?2, ?3, 'pilot', 'active', datetime('now'))"
+        "INSERT INTO firms (id, name, admin_email, plan_tier, status, created_at) VALUES (?1, ?2, ?3, 'free', 'active', datetime('now'))"
       )
       .bind(crypto.randomUUID(), "Someone Else's Firm", existingEmail)
       .run();
@@ -893,7 +893,7 @@ describe("POST /firm/signup -- trial gate (disposable + competitor domains)", ()
     const firmId = crypto.randomUUID();
     await env.DB
       .prepare(
-        "INSERT INTO firms (id, name, admin_email, plan_tier, status, created_at) VALUES (?1, ?2, ?3, 'pilot', 'active', datetime('now'))"
+        "INSERT INTO firms (id, name, admin_email, plan_tier, status, created_at) VALUES (?1, ?2, ?3, 'free', 'active', datetime('now'))"
       )
       .bind(firmId, "Preexisting Gmail Firm", email)
       .run();
@@ -2068,7 +2068,7 @@ describe("POST /firm/licenses -- BILL-1 seat cap (25 staff, matches the advertis
     expect(blocked.status).toBe(402);
     const body = (await blocked.json()) as { error: string };
     expect(body.error).toContain("25");
-    // Copy changed 2026-08-05 (paid tiers): a pilot/unrecognised-tier firm
+    // Copy changed 2026-08-05 (paid tiers): a free/unrecognised-tier firm
     // now has a real upgrade path via Stripe checkout, so the seat-cap
     // message points there instead of "contact us".
     expect(body.error.toLowerCase()).toContain("upgrade");
@@ -3894,7 +3894,7 @@ describe("GET/POST/DELETE /firm/mobility/completions -- practice-privilege compl
     expect((await deleteMobilityCompletion(null, "nonexistent")).status).toBe(401);
   });
 
-  it("no entitlement gate -- an unpaid/pilot firm can still record a completion (recording isn't itself a determination)", async () => {
+  it("no entitlement gate -- a free-tier firm can still record a completion (recording isn't itself a determination)", async () => {
     const { cookie } = await createFirmWithSession("Mobility Completion Firm", `mob-comp-${Date.now()}@example.com`);
     const created = await postFirmLicense(cookie, { email: `mob-comp-staff-${Date.now()}@example.com`, state_slug: "georgia", license_type_id: "ga-individual" });
     const { id: subscriberId } = (await created.json()) as { id: string };
@@ -4420,9 +4420,9 @@ describe("POST /firm/sign-out-other-devices", () => {
     expect(await store.verifySession(env.DB, victimSession.rawSessionToken)).not.toBeNull();
   });
 
-  it("works for a pilot (unpaid) firm -- this is a security action, not a paid feature", async () => {
-    const email = `signout-pilot-${Date.now()}@examplefirm.com`;
-    const { id: firmId } = await store.createFirm(env.DB, { name: "Pilot Firm", adminEmail: email });
+  it("works for a free-tier (unpaid) firm -- this is a security action, not a paid feature", async () => {
+    const email = `signout-free-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "Free Tier Firm", adminEmail: email });
     const mine = await store.createSession(env.DB, firmId);
     const other = await store.createSession(env.DB, firmId);
 
@@ -5556,19 +5556,19 @@ describe("POST /firm/mobility/check -- pay gate", () => {
     expect((await postMobilityCheck(VALID_CHECK, null)).status).toBe(401);
   });
 
-  it("allows a firm inside its free pilot window", async () => {
-    const { cookie } = await firmOnTier("pilot", new Date().toISOString());
+  it("BLOCKS a brand-new free-tier firm -- no trial exception, ever (2026-08-06 policy change)", async () => {
+    const { cookie } = await firmOnTier("free", new Date().toISOString());
     const resp = await postMobilityCheck(VALID_CHECK, cookie);
-    expect(resp.status).toBe(200);
+    expect(resp.status).toBe(403);
   });
 
-  it("BLOCKS a firm whose pilot has expired, and returns no determination at all", async () => {
+  it("BLOCKS a long-standing free-tier firm too, and returns no determination at all", async () => {
     const longAgo = new Date(Date.now() - 90 * 86_400_000).toISOString();
-    const { cookie } = await firmOnTier("pilot", longAgo);
+    const { cookie } = await firmOnTier("free", longAgo);
     const resp = await postMobilityCheck(VALID_CHECK, cookie);
     expect(resp.status).toBe(403);
     const body = await resp.json<{ reason: string; individual?: unknown; overall?: unknown }>();
-    expect(body.reason).toBe("pilot_expired");
+    expect(body.reason).toBe("tier_not_paid");
     // The determination must not leak in the denial payload.
     expect(body.individual).toBeUndefined();
     expect(body.overall).toBeUndefined();
@@ -5589,21 +5589,20 @@ describe("POST /firm/mobility/check -- pay gate", () => {
     const { firmId, cookie } = await firmOnTier("firm", new Date().toISOString());
     await env.DB.prepare("UPDATE firms SET status = 'suspended' WHERE id = ?1").bind(firmId).run();
     const resp = await postMobilityCheck(VALID_CHECK, cookie);
-    // requireFirmSession() now blocks a suspended firm before this route's
-    // OWN checkPremiumAccess() call ever runs (AuditLab F-1, 2026-08-02) --
-    // that gate previously only fired here and on the coverage endpoint,
-    // now every firm route enforces it at the one shared auth check. The
-    // 403 HTML page comes from requireFirmSession(), not a JSON body with
-    // a `reason` field anymore; requireFirmSession()'s own test suite
-    // covers that response shape directly.
+    // requireFirmSession() blocks a suspended firm before
+    // requireFirmSessionAndPaidTier()'s own checkPaidFeatureAccess() call
+    // ever runs (AuditLab F-1, 2026-08-02) -- every firm route enforces
+    // this at the one shared auth check. The response comes from
+    // requireFirmSession() itself, not a JSON body with a `reason` field;
+    // requireFirmSession()'s own test suite covers that response shape
+    // directly.
     expect(resp.status).toBe(403);
     const body = await resp.text();
     expect(body).toContain("sort it out");
   });
 
   it("gates the COVERAGE endpoint too -- the premium dataset's shape is not free", async () => {
-    const longAgo = new Date(Date.now() - 90 * 86_400_000).toISOString();
-    const { cookie } = await firmOnTier("pilot", longAgo);
+    const { cookie } = await firmOnTier("free", new Date().toISOString());
     const resp = await SELF.fetch("https://deadline-radar.com/firm/mobility/coverage", {
       headers: { Cookie: cookie, "cf-connecting-ip": "203.0.113.251" },
     });
@@ -5706,13 +5705,12 @@ describe("POST /firm/mobility/check-batch -- same gate, same engine, no target l
     expect((await postMobilityCheckBatch(VALID_BATCH_CHECK, null)).status).toBe(401);
   });
 
-  it("gates on the same premium entitlement as the single check", async () => {
-    const longAgo = new Date(Date.now() - 90 * 86_400_000).toISOString();
-    const { cookie } = await firmOnTier("pilot", longAgo);
+  it("gates on the same paid-feature entitlement as the single check", async () => {
+    const { cookie } = await firmOnTier("free", new Date().toISOString());
     const resp = await postMobilityCheckBatch(VALID_BATCH_CHECK, cookie);
     expect(resp.status).toBe(403);
     const body = await resp.json<{ reason: string; results?: unknown }>();
-    expect(body.reason).toBe("pilot_expired");
+    expect(body.reason).toBe("tier_not_paid");
     expect(body.results).toBeUndefined();
   });
 

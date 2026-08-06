@@ -1122,17 +1122,22 @@ export function buildAccountDeletionNotificationEmail(details: {
   adminEmail: string;
   reason: string | null;
   detail: string | null;
+  /** Task #32 (2026-08-06). Cents, or null when no refund applied (no
+   * subscription, a $0 invoice, or the proration rounded to $0). */
+  refundCents: number | null;
 }): BuiltEmail {
   const safeFirmName = details.firmName.replace(/[\r\n]+/g, " ");
   const safeEmail = details.adminEmail.replace(/[\r\n]+/g, " ");
   const safeDetail = details.detail ? details.detail.replace(/[\r\n]+/g, " ") : null;
   const subject = `Firm deleted their account: ${safeFirmName}`;
+  const refundLine = details.refundCents !== null ? `$${(details.refundCents / 100).toFixed(2)} (prorated, unused time)` : "(none)";
 
   const textBody =
     `Firm: ${details.firmName}\n` +
     `Admin email: ${details.adminEmail}\n` +
     `Reason given: ${details.reason ?? "(skipped)"}\n` +
-    `Detail: ${safeDetail ?? "(none)"}\n\n` +
+    `Detail: ${safeDetail ?? "(none)"}\n` +
+    `Refund issued: ${refundLine}\n\n` +
     `Account is deactivated immediately; the data hard-deletes automatically in 30 days.`;
 
   const htmlBody =
@@ -1142,6 +1147,7 @@ export function buildAccountDeletionNotificationEmail(details: {
     `<li>Admin email: ${esc(safeEmail)}</li>` +
     `<li>Reason given: ${esc(details.reason ?? "(skipped)")}</li>` +
     `<li>Detail: ${esc(safeDetail ?? "(none)")}</li>` +
+    `<li>Refund issued: ${esc(refundLine)}</li>` +
     `</ul>` +
     `<p>Account is deactivated immediately; the data hard-deletes automatically in 30 days.</p>`;
 

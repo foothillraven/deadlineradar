@@ -139,6 +139,152 @@ export async function updateSubscriptionCancelAtPeriodEnd(
   };
 }
 
+export interface StripeInvoiceDetails {
+  invoiceId: string;
+  /** Smallest currency unit (cents for USD) -- what was ACTUALLY charged,
+   * post any discount, not the price's list amount. */
+  amountPaid: number;
+  periodStart: string;
+  periodEnd: string;
+  /** Null when the invoice has no linked payment (e.g. a $0 invoice, or one
+   * that hasn't actually been paid yet) -- callers must treat null as "no
+   * refund is possible here," not retry or error. */
+  paymentIntentId: string | null;
+}
+
+/**
+ * Task #3 follow-up (2026-08-06, Devin's decision: a prorated refund on
+ * account DELETION, distinct from plain cancellation which stays no-refund
+ * -- see handleFirmAccountDelete's own comment). Two calls, not one:
+ *
+ *   1. GET /v1/subscriptions/{id}?expand[]=latest_invoice for the invoice
+ *      id/amount_paid and the CURRENT period's real boundaries (item-level
+ *      current_period_start/end -- same "confirmed live against a real
+ *      subscription, not read from docs" finding
+ *      updateSubscriptionCancelAtPeriodEnd() already made: current_period_end
+ *      lives per subscription-item in this API version, not at the top
+ *      level).
+ *   2. GET /v1/invoices/{id}?expand[]=payments for the actual payment_intent
+ *      id -- confirmed live (2026-08-06, against a real disposable test-mode
+ *      subscription, not docs) that invoice.charge/invoice.payment_intent
+ *      are BOTH absent in this API version; the real linkage is the
+ *      `payments` expansion, `payments.data[0].payment.payment_intent`.
+ *      (charges?customer=X also finds the charge, but with no reliable link
+ *      back to THIS invoice specifically once a firm has more than one
+ *      historical invoice -- payments is the version-correct path.)
+ */
+export async function getLatestInvoiceForSubscription(
+  secretKey: string,
+  subscriptionId: string
+): Promise<StripeInvoiceDetails | null> {
+  const subRes = await fetch(
+    `https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}?expand[]=latest_invoice`,
+    { headers: { Authorization: `Basic ${btoa(`${secretKey}:`)}` } }
+  );
+  const subJson = (await subRes.json()) as {
+    items?: { data?: Array<{ current_period_start?: number; current_period_end?: number }> };
+    latest_invoice?: { id?: string; amount_paid?: number };
+    error?: { message?: string };
+  };
+  if (!subRes.ok) {
+    throw new StripeApiError(subJson.error?.message ?? "Stripe subscription lookup failed.", subRes.status);
+  }
+  const periodStartUnix = subJson.items?.data?.[0]?.current_period_start;
+  const periodEndUnix = subJson.items?.data?.[0]?.current_period_end;
+  const invoiceId = subJson.latest_invoice?.id;
+  const amountPaid = subJson.latest_invoice?.amount_paid;
+  if (
+    typeof periodStartUnix !== "number" ||
+    typeof periodEndUnix !== "number" ||
+    typeof invoiceId !== "string" ||
+    typeof amountPaid !== "number"
+  ) {
+    return null;
+  }
+
+  const invRes = await fetch(`https://api.stripe.com/v1/invoices/${encodeURIComponent(invoiceId)}?expand[]=payments`, {
+    headers: { Authorization: `Basic ${btoa(`${secretKey}:`)}` },
+  });
+  const invJson = (await invRes.json()) as {
+    payments?: { data?: Array<{ payment?: { payment_intent?: string; type?: string } }> };
+    error?: { message?: string };
+  };
+  if (!invRes.ok) {
+    throw new StripeApiError(invJson.error?.message ?? "Stripe invoice lookup failed.", invRes.status);
+  }
+  const paymentIntentId = invJson.payments?.data?.find((p) => p.payment?.type === "payment_intent")?.payment?.payment_intent ?? null;
+
+  return {
+    invoiceId,
+    amountPaid,
+    periodStart: new Date(periodStartUnix * 1000).toISOString(),
+    periodEnd: new Date(periodEndUnix * 1000).toISOString(),
+    paymentIntentId,
+  };
+}
+
+/**
+ * Whole-cents proration over the CURRENT period only -- if `asOf` is at or
+ * past periodEnd (shouldn't happen for a still-active subscription, but not
+ * this function's job to assume), 0 unused time means 0 refund, not a
+ * negative or NaN amount. `Math.round`, not truncation -- a customer's
+ * unused-time refund should round in their favor at the half-cent boundary,
+ * matching this codebase's general "the safe direction favors the person
+ * being charged" posture (e.g. checkDataFreshness()'s own fail-closed
+ * choice elsewhere).
+ */
+export function computeProratedRefundCents(amountPaidCents: number, periodStartIso: string, periodEndIso: string, asOf: Date): number {
+  const periodStartMs = new Date(periodStartIso).getTime();
+  const periodEndMs = new Date(periodEndIso).getTime();
+  const totalMs = periodEndMs - periodStartMs;
+  if (totalMs <= 0) return 0;
+  const remainingMs = Math.max(0, Math.min(periodEndMs - asOf.getTime(), totalMs));
+  return Math.round((amountPaidCents * remainingMs) / totalMs);
+}
+
+/** POST /v1/refunds against a PaymentIntent -- refunding by payment_intent
+ * (rather than an older `charge` id) works regardless of how many charge
+ * attempts a PaymentIntent went through, and is what getLatestInvoiceForSubscription()
+ * above already resolves down to. */
+export async function refundPaymentIntent(secretKey: string, paymentIntentId: string, amountCents: number): Promise<{ refundId: string }> {
+  const body = new URLSearchParams();
+  body.set("payment_intent", paymentIntentId);
+  body.set("amount", String(amountCents));
+  body.set("reason", "requested_by_customer");
+
+  const res = await fetch("https://api.stripe.com/v1/refunds", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${btoa(`${secretKey}:`)}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: body.toString(),
+  });
+  const json = (await res.json()) as { id?: string; error?: { message?: string } };
+  if (!res.ok || !json.id) {
+    throw new StripeApiError(json.error?.message ?? "Stripe refund failed.", res.status);
+  }
+  return { refundId: json.id };
+}
+
+/** DELETE /v1/subscriptions/{id} -- immediate cancellation, deliberately NOT
+ * updateSubscriptionCancelAtPeriodEnd()'s scheduling toggle. Account
+ * deletion cuts access right now (status='deleted'), so the subscription
+ * itself should stop right now too, not linger to the period end with
+ * nothing left for it to gate. Stripe's own customer.subscription.deleted
+ * webhook (already handled, unchanged) fires from this the same as it does
+ * at a natural period end. */
+export async function cancelSubscriptionImmediately(secretKey: string, subscriptionId: string): Promise<void> {
+  const res = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Basic ${btoa(`${secretKey}:`)}` },
+  });
+  const json = (await res.json()) as { status?: string; error?: { message?: string } };
+  if (!res.ok || json.status !== "canceled") {
+    throw new StripeApiError(json.error?.message ?? "Stripe subscription cancellation failed.", res.status);
+  }
+}
+
 /**
  * Verifies a Stripe `Stripe-Signature` header against the RAW (unparsed)
  * request body, per Stripe's documented scheme:

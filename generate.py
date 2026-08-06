@@ -3956,8 +3956,12 @@ not liable for indirect, incidental, or consequential damages.</p>
 
 <h2>11. Termination</h2>
 <p>You may stop using the service at any time &mdash; the one-click unsubscribe link in any reminder
-email works instantly for individual reminders; a firm admin can cancel a paid plan from the Billing tab.
-We may suspend or terminate an account for violating these terms.</p>
+email works instantly for individual reminders; a firm admin can cancel a paid plan from the Billing tab
+(access continues through the period already paid for, no refund) or delete the account entirely from
+the Account tab. Deleting is different from cancelling: it deactivates your account immediately, and if
+you're on a paid plan, we refund the prorated, unused portion of your current billing period rather than
+holding payment for time you can no longer access. Deleted account data is permanently erased 30 days
+later. We may suspend or terminate an account for violating these terms.</p>
 
 <h2>12. Changes to these terms</h2>
 <p>We may update these terms from time to time. The "last updated" date below always reflects the current
@@ -9373,8 +9377,8 @@ def build_firm_dashboard_page(
     <h2 id="dr-delete-account-modal-title">Delete your account?</h2>
     <p class="dr-modal-hint">Your account deactivates immediately -- nobody, including you, can sign in
     afterward, and your roster stops sending reminders right away. The underlying data is permanently
-    erased 30 days from now. If you're on a paid plan, no further charges occur, but time already paid
-    for isn't refunded. This can't be undone.</p>
+    erased 30 days from now. If you're on a paid plan, your subscription cancels immediately and we
+    refund the prorated, unused portion of your current billing period. This can't be undone.</p>
 
     <form id="dr-delete-account-form">
       <p class="dr-modal-hint" style="margin-bottom:0.3rem;"><strong>Optional</strong> &mdash; help us

@@ -1,5 +1,38 @@
 import { describe, it, expect } from "vitest";
-import { verifyWebhookSignature } from "../src/stripe";
+import { verifyWebhookSignature, computeProratedRefundCents } from "../src/stripe";
+
+describe("computeProratedRefundCents", () => {
+  it("refunds the exact unused fraction of the period", () => {
+    // 10 of 100 days used -> 90% of $349.00 unused
+    const start = "2026-01-01T00:00:00.000Z";
+    const end = "2026-04-11T00:00:00.000Z"; // 100 days later
+    const asOf = new Date("2026-01-11T00:00:00.000Z"); // 10 days in
+    expect(computeProratedRefundCents(34900, start, end, asOf)).toBe(31410);
+  });
+
+  it("refunds the full amount when nothing has been used yet", () => {
+    const start = "2026-01-01T00:00:00.000Z";
+    const end = "2026-02-01T00:00:00.000Z";
+    expect(computeProratedRefundCents(19900, start, end, new Date(start))).toBe(19900);
+  });
+
+  it("refunds nothing once the period has fully elapsed", () => {
+    const start = "2026-01-01T00:00:00.000Z";
+    const end = "2026-02-01T00:00:00.000Z";
+    expect(computeProratedRefundCents(19900, start, end, new Date(end))).toBe(0);
+  });
+
+  it("clamps to 0, never negative, if asOf is somehow past periodEnd", () => {
+    const start = "2026-01-01T00:00:00.000Z";
+    const end = "2026-02-01T00:00:00.000Z";
+    expect(computeProratedRefundCents(19900, start, end, new Date("2026-03-01T00:00:00.000Z"))).toBe(0);
+  });
+
+  it("returns 0 rather than dividing by zero for a malformed zero-length period", () => {
+    const t = "2026-01-01T00:00:00.000Z";
+    expect(computeProratedRefundCents(19900, t, t, new Date(t))).toBe(0);
+  });
+});
 
 const SECRET = "whsec_test_secret_value";
 

@@ -161,6 +161,10 @@ import { firmTierByPlanTier, firmTierForSeatCount, seatCapForFirmTier, stripePri
 import {
   createCheckoutSession,
   updateSubscriptionCancelAtPeriodEnd,
+  getLatestInvoiceForSubscription,
+  computeProratedRefundCents,
+  refundPaymentIntent,
+  cancelSubscriptionImmediately,
   verifyWebhookSignature,
   StripeApiError,
   type StripeWebhookEvent,
@@ -2040,16 +2044,37 @@ async function handleFirmAccountDelete(request: Request, env: Env): Promise<Resp
   // Best-effort from here down -- the account is already, irreversibly (in
   // effect) deactivated by the line above. None of the following may fail
   // the request.
-  if (env.STRIPE_SECRET_KEY && firm.stripe_subscription_id && !firm.cancel_at_period_end) {
+  //
+  // Task #32 (2026-08-06, Devin's decision): DELETION gets a prorated
+  // refund for the unused remainder of the current billing period, plus an
+  // IMMEDIATE Stripe cancellation -- deliberately different from plain
+  // "Cancel subscription" (handleFirmBillingCancellationToggle above),
+  // which stays no-refund/access-continues-to-period-end. The distinction
+  // is access: a plain cancel keeps the firm using the product through
+  // what it already paid for, so no refund is owed; deletion cuts access
+  // RIGHT NOW, so holding payment for days that can never be used isn't
+  // right. Applies regardless of whether the firm had already clicked
+  // "Cancel" first -- deleting is what triggers the refund, not a prior
+  // cancellation state.
+  let refundCents: number | null = null;
+  if (env.STRIPE_SECRET_KEY && firm.stripe_subscription_id) {
     try {
-      const result = await updateSubscriptionCancelAtPeriodEnd(env.STRIPE_SECRET_KEY, firm.stripe_subscription_id, true);
-      await store.updateFirmCancellation(env.DB, session.firmId, {
-        cancelAtPeriodEnd: result.cancelAtPeriodEnd,
-        currentPeriodEnd: result.currentPeriodEnd,
-      });
+      const invoice = await getLatestInvoiceForSubscription(env.STRIPE_SECRET_KEY, firm.stripe_subscription_id);
+      if (invoice && invoice.paymentIntentId && invoice.amountPaid > 0) {
+        const proratedCents = computeProratedRefundCents(invoice.amountPaid, invoice.periodStart, invoice.periodEnd, new Date());
+        if (proratedCents > 0) {
+          const refund = await refundPaymentIntent(env.STRIPE_SECRET_KEY, invoice.paymentIntentId, proratedCents);
+          await store.recordFirmDeletionRefund(env.DB, session.firmId, proratedCents, refund.refundId);
+          refundCents = proratedCents;
+        }
+      }
+      await cancelSubscriptionImmediately(env.STRIPE_SECRET_KEY, firm.stripe_subscription_id);
     } catch {
       // Stripe outage must not block account deletion -- access is already
       // gone via status='deleted' regardless of what Stripe billing does.
+      // A failure here (refund OR cancellation) needs a human to reconcile
+      // -- the internal notification email below fires regardless of this
+      // try/catch and is the detection signal for that.
     }
   }
 
@@ -2074,6 +2099,7 @@ async function handleFirmAccountDelete(request: Request, env: Env): Promise<Resp
           adminEmail: firm.admin_email,
           reason,
           detail,
+          refundCents,
         });
         await sendViaSendGrid(env.SENDGRID_API_KEY, INTERNAL_NOTIFY_EMAIL, built, env.EMAIL_ALLOWLIST);
       }

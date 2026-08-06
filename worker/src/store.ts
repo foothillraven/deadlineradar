@@ -821,6 +821,9 @@ export interface FirmRow {
   deletion_requested_at: string | null;
   deletion_survey_reason: string | null;
   deletion_survey_detail: string | null;
+  // migration 0027 (Task #32). Both null when no refund applied.
+  deletion_refund_cents: number | null;
+  deletion_refund_id: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -953,6 +956,17 @@ export async function requestFirmDeletion(
        WHERE firm_id = ?4 AND status IN (?5, ?6)`
     )
     .bind(STATUS_STOPPED, now, STOP_REASON_FIRM_DELETED, firmId, STATUS_CONFIRMED, STATUS_PENDING)
+    .run();
+}
+
+/** Task #32 (2026-08-06). Durable record of the prorated refund issued on
+ * account deletion, alongside the best-effort internal notification email
+ * -- real money moving deserves more than "we sent an email" as its only
+ * trail. */
+export async function recordFirmDeletionRefund(db: D1Database, firmId: string, refundCents: number, refundId: string): Promise<void> {
+  await db
+    .prepare(`UPDATE firms SET deletion_refund_cents = ?1, deletion_refund_id = ?2 WHERE id = ?3`)
+    .bind(refundCents, refundId, firmId)
     .run();
 }
 

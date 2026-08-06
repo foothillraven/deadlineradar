@@ -118,29 +118,114 @@ describe("POST /firm/account/delete", () => {
     expect(firm?.deletion_survey_detail).toBeNull();
   });
 
-  it("cancels a live Stripe subscription (cancel_at_period_end) as part of deletion", async () => {
+  /** Task #32 (2026-08-06): a real deletion touches Stripe 4 times in
+   * sequence -- GET subscription (latest_invoice), GET invoice (payments),
+   * POST refund, DELETE subscription. Routes each mocked response by
+   * method + URL shape rather than call order, since call order is an
+   * implementation detail this test shouldn't be coupled to. */
+  function mockStripeSequence(opts: {
+    periodStartUnix: number;
+    periodEndUnix: number;
+    amountPaid: number;
+    paymentIntentId: string | null;
+  }) {
+    return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      const method = typeof input === "string" ? (init?.method ?? "GET") : (input as Request).method;
+      if (url.includes("/v1/subscriptions/") && url.includes("latest_invoice") && method !== "DELETE") {
+        return new Response(
+          JSON.stringify({
+            items: { data: [{ current_period_start: opts.periodStartUnix, current_period_end: opts.periodEndUnix }] },
+            latest_invoice: { id: "in_test123", amount_paid: opts.amountPaid },
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes("/v1/invoices/")) {
+        return new Response(
+          JSON.stringify({
+            payments: {
+              data: opts.paymentIntentId
+                ? [{ payment: { type: "payment_intent", payment_intent: opts.paymentIntentId } }]
+                : [],
+            },
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes("/v1/refunds")) {
+        return new Response(JSON.stringify({ id: "re_test123" }), { status: 200 });
+      }
+      if (url.includes("/v1/subscriptions/") && method === "DELETE") {
+        return new Response(JSON.stringify({ status: "canceled" }), { status: 200 });
+      }
+      throw new Error(`Unexpected Stripe call: ${method} ${url}`);
+    });
+  }
+
+  it("refunds the prorated unused portion and cancels immediately, for a firm mid-period", async () => {
     const { firmId, cookie } = await createFirmWithSession("Paid Delete LLC", `paiddelete-${Date.now()}@example.com`);
     await env.DB.prepare("UPDATE firms SET plan_tier = 'firm_growth', stripe_subscription_id = ?1 WHERE id = ?2")
       .bind("sub_delete_test", firmId)
       .run();
-    const periodEndUnix = Math.floor(Date.now() / 1000) + 20 * 86400;
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({ id: "sub_delete_test", cancel_at_period_end: true, items: { data: [{ current_period_end: periodEndUnix }] } }),
-        { status: 200 }
-      )
-    );
+    const nowUnix = Math.floor(Date.now() / 1000);
+    // 10 days used out of a 100-day period -> 90% of $349.00 (34900 cents) unused
+    const fetchSpy = mockStripeSequence({
+      periodStartUnix: nowUnix - 10 * 86400,
+      periodEndUnix: nowUnix + 90 * 86400,
+      amountPaid: 34900,
+      paymentIntentId: "pi_test123",
+    });
     try {
       const resp = await workerFetch(
         new Request(`${BASE}/firm/account/delete`, { method: "POST", headers: { Cookie: cookie } }),
         { STRIPE_SECRET_KEY: "sk_test_x" }
       );
       expect(resp.status).toBe(200);
-      const [, calledInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
-      expect((calledInit.body as string) ?? "").toContain("cancel_at_period_end=true");
+
+      const refundCall = fetchSpy.mock.calls.find((c) => (typeof c[0] === "string" ? c[0] : (c[0] as Request).url).includes("/v1/refunds"));
+      expect(refundCall).toBeTruthy();
+      const [, refundInit] = refundCall as [string, RequestInit];
+      expect((refundInit.body as string) ?? "").toContain("payment_intent=pi_test123");
+      expect((refundInit.body as string) ?? "").toContain("amount=31410"); // 90% of 34900, rounded
+
+      const deleteCall = fetchSpy.mock.calls.find((c) => {
+        const url = typeof c[0] === "string" ? c[0] : (c[0] as Request).url;
+        const init = c[1] as RequestInit | undefined;
+        return url.includes("/v1/subscriptions/") && init?.method === "DELETE";
+      });
+      expect(deleteCall).toBeTruthy();
 
       const firm = await store.getFirmById(env.DB, firmId);
-      expect(firm?.cancel_at_period_end).toBe(1);
+      expect(firm?.status).toBe(store.FIRM_STATUS_DELETED);
+      expect(firm?.deletion_refund_cents).toBe(31410);
+      expect(firm?.deletion_refund_id).toBe("re_test123");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("still cancels, but issues no refund, when the invoice has no linked payment", async () => {
+    const { firmId, cookie } = await createFirmWithSession("No Payment Delete LLC", `nopayment-${Date.now()}@example.com`);
+    await env.DB.prepare("UPDATE firms SET stripe_subscription_id = ?1 WHERE id = ?2").bind("sub_nopay_test", firmId).run();
+    const nowUnix = Math.floor(Date.now() / 1000);
+    const fetchSpy = mockStripeSequence({
+      periodStartUnix: nowUnix - 5 * 86400,
+      periodEndUnix: nowUnix + 25 * 86400,
+      amountPaid: 19900,
+      paymentIntentId: null,
+    });
+    try {
+      const resp = await workerFetch(
+        new Request(`${BASE}/firm/account/delete`, { method: "POST", headers: { Cookie: cookie } }),
+        { STRIPE_SECRET_KEY: "sk_test_x" }
+      );
+      expect(resp.status).toBe(200);
+      const refundCall = fetchSpy.mock.calls.find((c) => (typeof c[0] === "string" ? c[0] : (c[0] as Request).url).includes("/v1/refunds"));
+      expect(refundCall).toBeUndefined();
+
+      const firm = await store.getFirmById(env.DB, firmId);
+      expect(firm?.deletion_refund_cents).toBeNull();
       expect(firm?.status).toBe(store.FIRM_STATUS_DELETED);
     } finally {
       fetchSpy.mockRestore();

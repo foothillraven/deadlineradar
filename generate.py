@@ -7858,6 +7858,16 @@ _MOBILITY_JS_HTML = """<script>
         cite += ' &middot; <a href="' + esc(f.sourceUrl) + '" rel="noopener noreferrer" target="_blank">board page</a>';
       }
       if (f.verifiedDate) { cite += ' &middot; verified ' + esc(f.verifiedDate); }
+      // MOB-2 (AuditLab, 2026-08-05, LOW): confidence was already on every
+      // API response and rendered nowhere -- 7 of 55 states rest on a
+      // single source, presented identically to the other 48's dual-source
+      // records. Only surfaced when BELOW the site's stated two-source
+      // standard (/methodology/), same "only flag what's weaker than the
+      // default" posture the state pages already use -- not a badge of
+      // honor on the other 48 for meeting the bar.
+      if (f.confidence === 'single_source') {
+        cite += ' &middot; single-source (not yet independently confirmed by a second source)';
+      }
       cite = '<p class="dr-verdict-cite">Source: ' + cite + '</p>';
     } else if (f.verdict === 'not_applicable') {
       // Telling a CPA we have "no verified citation" for their OWN home

@@ -6389,6 +6389,12 @@ function drRenderFirmName(name) {
   if (el && name) el.textContent = name;
 }
 
+// Task #29 (2026-08-05): shows what the email-change form is changing FROM.
+function drRenderCurrentEmail(email) {
+  var el = document.getElementById('dr-current-email');
+  if (el && email) el.textContent = email;
+}
+
 // Self-serve cancellation (2026-08-05, Devin's decision: build self-serve
 // cancel now; no refunds, access continues to the current period's end).
 // drBilling.cancelAtPeriodEnd is a SCHEDULING flag, not an access change --
@@ -7538,6 +7544,48 @@ function drSignOutOtherDevices(btn) {
   });
 }
 
+// Task #29 (2026-08-05): requests an email change -- does NOT apply it.
+// POST /firm/change-email only issues a confirmation token and emails a
+// link to the NEW address; the actual swap happens when that link is
+// clicked (handleFirmLoginVerify's email_change branch), landing back here
+// via the '#account?email_changed=1' hash this same tick's DOMContentLoaded
+// block now reads.
+function drSubmitChangeEmail(form) {
+  var okEl = document.getElementById('dr-change-email-ok');
+  var errEl = document.getElementById('dr-change-email-error');
+  if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+
+  var fd = new FormData(form);
+  var newEmail = fd.get('new_email') || '';
+  var submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
+
+  fetch('/api/firm/change-email', {
+    method: 'POST', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({new_email: newEmail})
+  }).then(function(res) {
+    if (submitBtn) submitBtn.disabled = false;
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        return;
+      }
+      form.reset();
+      if (okEl) {
+        okEl.textContent = 'Check ' + newEmail + ' for a confirmation link. Nothing changes until you click it.';
+        okEl.hidden = false;
+      }
+    });
+  }).catch(function() {
+    if (submitBtn) submitBtn.disabled = false;
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
 function drLoadLicenses() {
   drClearError();
   drHidePaywall();
@@ -7581,6 +7629,7 @@ function drLoadLicenses() {
         currentPeriodEnd: data.current_period_end || null
       };
       drRenderFirmName(data.firm_name);
+      drRenderCurrentEmail(data.admin_email);
       drRenderStalenessBanner(data.data_as_of, data.data_stale);
       drRenderBillingPanel();
       drRenderTable();
@@ -7719,9 +7768,31 @@ document.addEventListener('DOMContentLoaded', function() {
   // /firm-dashboard/#{view} links) closes that without changing how
   // in-page tab clicks work at all -- they still call drSwitchView()
   // directly, never touching the hash.
-  var initialView = (window.location.hash || '').replace('#', '');
+  // Task #29 (2026-08-05): the hash can carry a view name AND an outcome
+  // query string on the SAME redirect (e.g. '#account?email_changed=1',
+  // matching the '#account?checkout=success'/'?checkout=cancelled' shape
+  // Stripe's own successUrl/cancelUrl already used). Split on the first '?'
+  // BEFORE doing the dr-view-* lookup below -- an unsplit
+  // 'account?email_changed=1' matches no element id at all, which is a
+  // real, live bug this same tick fixes: the Stripe checkout redirect has
+  // set '#account?checkout=success'/'?checkout=cancelled' since Task #12,
+  // and NOTHING has ever read it -- a firm completing real payment lands
+  // back on the default Roster tab with no confirmation shown at all.
+  var hashRaw = (window.location.hash || '').replace('#', '');
+  var qIdx = hashRaw.indexOf('?');
+  var initialView = qIdx === -1 ? hashRaw : hashRaw.slice(0, qIdx);
+  var hashParams = new URLSearchParams(qIdx === -1 ? '' : hashRaw.slice(qIdx + 1));
   if (initialView && document.getElementById('dr-view-' + initialView)) {
     drSwitchView(initialView);
+  }
+  if (hashParams.get('checkout') === 'success') {
+    drShowSuccess('Payment successful — your plan is now active.');
+  } else if (hashParams.get('checkout') === 'cancelled') {
+    drShowError('Checkout was cancelled. No charge was made.');
+  } else if (hashParams.get('email_changed') === '1') {
+    drShowSuccess('Your sign-in email has been updated.');
+  } else if (hashParams.get('email_change_failed') === 'conflict') {
+    drShowError('That email address was claimed by another account before you confirmed. Nothing changed — try a different address.');
   }
 
   var paywallPanel = document.getElementById('dr-paywall-panel');
@@ -7815,6 +7886,14 @@ document.addEventListener('DOMContentLoaded', function() {
       var btn = ev.target.closest ? ev.target.closest('[data-identity-id]') : null;
       if (!btn) return;
       drRemoveIdentity(btn.getAttribute('data-identity-id'), btn.getAttribute('data-identity-label'));
+    });
+  }
+
+  var changeEmailForm = document.getElementById('dr-change-email-form');
+  if (changeEmailForm) {
+    changeEmailForm.addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      drSubmitChangeEmail(changeEmailForm);
     });
   }
 
@@ -8652,6 +8731,20 @@ def build_firm_dashboard_page(
         <div id="dr-billing-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
         <p id="dr-billing-ok" class="dr-account-ok" hidden></p>
         <p id="dr-billing-error" role="alert" class="dr-account-err" hidden></p>
+      </div>
+
+      <div class="dr-account-panel">
+        <h2>Email address</h2>
+        <p class="signup-microcopy">Currently signed in as <strong id="dr-current-email">&hellip;</strong>.
+        Changing this sends a confirmation link to the NEW address &mdash; nothing changes until you
+        click it there.</p>
+        <form id="dr-change-email-form" method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/change-email">
+          <label for="dr-new-email">New email address</label>
+          <input type="email" id="dr-new-email" name="new_email" required autocomplete="email">
+          <button type="submit">Send confirmation link</button>
+        </form>
+        <p id="dr-change-email-ok" class="dr-account-ok" hidden></p>
+        <p id="dr-change-email-error" role="alert" class="dr-account-err" hidden></p>
       </div>
 
       <div class="dr-account-panel">

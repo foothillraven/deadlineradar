@@ -816,6 +816,9 @@ export interface FirmLoginTokenRow {
    * migration predate the column; normalizeLoginTokenPurpose() turns any
    * absent/unrecognised value into the safe "login" default. */
   purpose?: string;
+  /** migration 0022. Only ever set (and only ever meaningful) when
+   * purpose === "email_change" -- see createLoginToken()'s own comment. */
+  pending_new_email?: string | null;
 }
 
 export interface FirmSessionRow {
@@ -912,6 +915,40 @@ export async function findFirmByAdminEmail(db: D1Database, email: string): Promi
 }
 
 /**
+ * Task #29 (2026-08-05). Applied only at email-change TOKEN REDEMPTION time
+ * (proven control of the new inbox), never at request time. Returns `false`
+ * instead of throwing on a UNIQUE-constraint hit (migration 0015) -- the
+ * target address can legitimately get claimed by a DIFFERENT firm in the
+ * window between when this token was issued and when it's redeemed (e.g. two
+ * firms both requesting the same address), and that is a real, expected
+ * outcome for the caller to show a clean error for, not a crash.
+ *
+ * Adversarial-review L1 (2026-08-05): a bare catch-all here would mislabel
+ * ANY D1 failure (a transient connectivity blip, a future schema change) as
+ * "someone else claimed this email" -- confusing the admin AND burning the
+ * single-use token for a failure that had nothing to do with a real
+ * conflict. Matches on the specific error text confirmed live against this
+ * table's real index (`D1_ERROR: UNIQUE constraint failed: index
+ * 'idx_firms_admin_email_unique'...`) and re-throws anything else, so an
+ * unrelated failure surfaces as the generic 500 every other route already
+ * gets instead of a wrong, misleading "conflict" outcome.
+ */
+export async function updateFirmAdminEmail(db: D1Database, firmId: string, newEmail: string): Promise<boolean> {
+  try {
+    await db
+      .prepare(`UPDATE firms SET admin_email = ?1 WHERE id = ?2`)
+      .bind(newEmail.trim(), firmId)
+      .run();
+    return true;
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("idx_firms_admin_email_unique")) {
+      return false;
+    }
+    throw err;
+  }
+}
+
+/**
  * Generates a raw CSPRNG login token, stores only its hash (see
  * `hashToken()`'s own docstring), and returns the RAW value for the caller
  * to email -- this function is the only place the raw value ever exists
@@ -927,16 +964,26 @@ export async function findFirmByAdminEmail(db: D1Database, email: string): Promi
  * argument degrades to the ORDINARY sign-in rather than the privileged
  * password-set branch.
  */
-export type LoginTokenPurpose = "login" | "password_reset";
+export type LoginTokenPurpose = "login" | "password_reset" | "email_change";
 
 export function normalizeLoginTokenPurpose(raw: unknown): LoginTokenPurpose {
-  return raw === "password_reset" ? "password_reset" : "login";
+  if (raw === "password_reset" || raw === "email_change") return raw;
+  return "login";
 }
 
+/**
+ * `pendingNewEmail` (migration 0022, Task #29) is required for -- and only
+ * meaningful for -- purpose "email_change": the specific address that was
+ * proven reachable by emailing THIS token to it, applied at redemption and
+ * never at the redeeming request's discretion (same "intent lives on the
+ * token row" reasoning migration 0013 already established for
+ * password_reset). Any other purpose leaves it unset/NULL.
+ */
 export async function createLoginToken(
   db: D1Database,
   firmId: string,
-  purpose: LoginTokenPurpose = "login"
+  purpose: LoginTokenPurpose = "login",
+  pendingNewEmail: string | null = null
 ): Promise<{ rawToken: string }> {
   const rawToken = newToken();
   const tokenHash = await hashToken(rawToken);
@@ -944,10 +991,18 @@ export async function createLoginToken(
   const expiresAt = new Date(now.getTime() + LOGIN_TOKEN_TTL_MINUTES * 60_000).toISOString();
   await db
     .prepare(
-      `INSERT INTO firm_login_tokens (id, firm_id, token_hash, created_at, expires_at, used_at, purpose)
-       VALUES (?1,?2,?3,?4,?5,NULL,?6)`
+      `INSERT INTO firm_login_tokens (id, firm_id, token_hash, created_at, expires_at, used_at, purpose, pending_new_email)
+       VALUES (?1,?2,?3,?4,?5,NULL,?6,?7)`
     )
-    .bind(newToken(), firmId, tokenHash, now.toISOString(), expiresAt, normalizeLoginTokenPurpose(purpose))
+    .bind(
+      newToken(),
+      firmId,
+      tokenHash,
+      now.toISOString(),
+      expiresAt,
+      normalizeLoginTokenPurpose(purpose),
+      purpose === "email_change" ? pendingNewEmail : null
+    )
     .run();
   return { rawToken };
 }
@@ -970,6 +1025,22 @@ export async function invalidateOutstandingLoginTokens(db: D1Database, firmId: s
 }
 
 /**
+ * Task #29 (2026-08-05). Narrower than invalidateOutstandingLoginTokens() --
+ * scoped to purpose = 'email_change' only, so requesting a second email
+ * change doesn't also burn an unrelated outstanding login/password-reset
+ * link the same firm might have pending. A firm that requests "change to A"
+ * and then "change to B" should only ever be able to confirm B; the stale
+ * link for A sitting in that old inbox must stop working.
+ */
+export async function invalidateOutstandingEmailChangeTokens(db: D1Database, firmId: string): Promise<number> {
+  const result = await db
+    .prepare(`UPDATE firm_login_tokens SET used_at = ?1 WHERE firm_id = ?2 AND purpose = 'email_change' AND used_at IS NULL`)
+    .bind(nowIso(), firmId)
+    .run();
+  return result.meta.changes ?? 0;
+}
+
+/**
  * Hashes the incoming raw token and looks it up by `token_hash` -- the raw
  * value itself is never compared or stored. Single-use (`used_at`) and
  * time-bound (`expires_at`): either an already-used or an expired token is
@@ -983,7 +1054,7 @@ export async function invalidateOutstandingLoginTokens(db: D1Database, firmId: s
 export async function verifyAndConsumeLoginToken(
   db: D1Database,
   rawToken: string
-): Promise<{ firmId: string; purpose: LoginTokenPurpose } | null> {
+): Promise<{ firmId: string; purpose: LoginTokenPurpose; pendingNewEmail: string | null } | null> {
   const tokenHash = await hashToken(rawToken);
   const row = await db
     .prepare(`SELECT * FROM firm_login_tokens WHERE token_hash = ?1`)
@@ -1000,9 +1071,15 @@ export async function verifyAndConsumeLoginToken(
     .bind(nowIso(), row.id)
     .run();
   if ((result.meta.changes ?? 0) === 0) return null;
-  // The purpose is read from the ROW -- never from anything the redeeming
-  // request supplied. See migration 0013.
-  return { firmId: row.firm_id, purpose: normalizeLoginTokenPurpose((row as { purpose?: unknown }).purpose) };
+  // The purpose (and, for email_change, the target address) are read from
+  // the ROW -- never from anything the redeeming request supplied. See
+  // migration 0013 and 0022.
+  const purpose = normalizeLoginTokenPurpose(row.purpose);
+  return {
+    firmId: row.firm_id,
+    purpose,
+    pendingNewEmail: purpose === "email_change" ? row.pending_new_email ?? null : null,
+  };
 }
 
 /**

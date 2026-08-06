@@ -535,6 +535,15 @@ export const RATE_LIMIT_FIRM_BILLING_CANCEL: RateLimit = { max: 10, windowSecond
  * to hammer the D1 write. */
 export const RATE_LIMIT_FIRM_SIGNOUT_OTHER: RateLimit = { max: 10, windowSeconds: 3600 };
 
+/** Task #29 (2026-08-05). Keyed per-firm like the others above, but this
+ * route is a DIFFERENT risk shape than a password/session action: each call
+ * sends real email to an address of the CALLER'S choosing, not to the
+ * account's own address -- an unthrottled version is a spam-relay lever
+ * against arbitrary strangers' inboxes, not just a D1-hammering nuisance.
+ * checkAndCountActionSend()'s global daily send cap is the second, larger
+ * layer against that; this is the per-account first layer. */
+export const RATE_LIMIT_FIRM_CHANGE_EMAIL: RateLimit = { max: 5, windowSeconds: 3600 };
+
 /** Opening an SSO handshake is cheap, but each one writes a
  * firm_oauth_states row -- throttled so an abandoned-handshake flood can't
  * grow the table. */

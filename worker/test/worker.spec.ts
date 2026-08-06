@@ -973,6 +973,31 @@ describe("POST /firm/login -- login-link resend for an existing firm", () => {
     expect(after?.c).toBe((before?.c ?? 0) + 1);
   });
 
+  // Adversarial-review M2 (2026-08-05): store.normalizeLoginTokenPurpose()
+  // was widened to accept "email_change" for POST /firm/change-email's own
+  // use -- but this route is UNAUTHENTICATED and pre-session. Before the
+  // fix, submitting intent=email_change here minted a privileged-purpose
+  // token (with pending_new_email left NULL, since this form has no such
+  // field) for ANY existing firm's email, harmless today only because
+  // handleFirmLoginVerify() also happens to check pendingNewEmail is
+  // truthy -- one future edit away from being the only guard. This route
+  // must only ever be able to produce "login" or "password_reset".
+  it("M2 regression: intent=email_change from the unauthenticated form is downgraded to a plain login token, never minted as email_change", async () => {
+    const email = `firmlogin-m2-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "M2 Firm", admin_email: email }, "203.0.113.292");
+    const firm = await firmByAdminEmail(email);
+
+    const resp = await postFirmLogin({ admin_email: email, intent: "email_change" }, "203.0.113.293");
+    expect(resp.status).toBe(200);
+
+    const rows = await env.DB
+      .prepare("SELECT purpose FROM firm_login_tokens WHERE firm_id = ?1 ORDER BY created_at DESC LIMIT 1")
+      .bind(firm?.id)
+      .first<{ purpose: string }>();
+    expect(rows?.purpose).not.toBe("email_change");
+    expect(rows?.purpose).toBe("login");
+  });
+
   // AuditLab re-verify follow-up, 2026-08-03: a suspended firm's login
   // TOKEN still correctly 403s on redemption (F-1), but this resend
   // endpoint issued and emailed a fresh one anyway -- spending a send from
@@ -4500,6 +4525,294 @@ describe("POST /firm/sign-out-other-devices -- detection email (AuditLab)", () =
     } finally {
       fetchSpy.mockRestore();
     }
+  });
+});
+
+// Task #29 (2026-08-05): self-serve admin-email change. Two-phase --
+// POST /firm/change-email only REQUESTS the change (issues a token, emails
+// the new address); POST /firm/login/verify (email_change purpose) is what
+// actually APPLIES it, on redemption. Tested as two describe blocks
+// matching that split.
+async function postChangeEmail(cookie: string | null, newEmail: string, ip: string): Promise<Response> {
+  const headers: Record<string, string> = { "content-type": "application/json", "cf-connecting-ip": ip };
+  if (cookie) headers["Cookie"] = cookie;
+  return SELF.fetch("https://deadline-radar.com/firm/change-email", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ new_email: newEmail }),
+  });
+}
+
+describe("POST /firm/change-email -- request phase", () => {
+  it("requires a session", async () => {
+    const resp = await postChangeEmail(null, "new@example.com", "203.0.113.260");
+    expect(resp.status).toBe(401);
+  });
+
+  it("400s when Origin doesn't match -- same CSRF defense-in-depth as every other mutating firm route", async () => {
+    const { cookie } = await createFirmWithSession("Change Email CSRF Firm", `changeemail-csrf-${Date.now()}@example.com`);
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/change-email", {
+      method: "POST",
+      headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.261", Cookie: cookie, Origin: "https://attacker.example" },
+      body: JSON.stringify({ new_email: "new@example.com" }),
+    });
+    expect(resp.status).toBe(400);
+  });
+
+  it("rejects an invalid email format", async () => {
+    const { cookie } = await createFirmWithSession("Change Email Bad Firm", `changeemail-bad-${Date.now()}@example.com`);
+    const resp = await postChangeEmail(cookie, "not-an-email", "203.0.113.262");
+    expect(resp.status).toBe(400);
+  });
+
+  it("rejects a request to change to the SAME email already on file", async () => {
+    const email = `changeemail-same-${Date.now()}@example.com`;
+    const { cookie } = await createFirmWithSession("Change Email Same Firm", email);
+    const resp = await postChangeEmail(cookie, email.toUpperCase(), "203.0.113.263"); // case-insensitive match
+    expect(resp.status).toBe(400);
+  });
+
+  it("rejects a request to change to an email ANOTHER firm already uses", async () => {
+    const takenEmail = `changeemail-taken-${Date.now()}@example.com`;
+    await createFirmWithSession("Change Email Taken Firm", takenEmail);
+    const { cookie } = await createFirmWithSession("Change Email Requester Firm", `changeemail-requester-${Date.now()}@example.com`);
+    const resp = await postChangeEmail(cookie, takenEmail, "203.0.113.264");
+    expect(resp.status).toBe(400);
+  });
+
+  it("on success, creates an email_change token carrying the exact requested address, and does NOT change admin_email yet", async () => {
+    const email = `changeemail-req-${Date.now()}@example.com`;
+    const newEmail = `changeemail-new-${Date.now()}@example.com`;
+    const { firmId, cookie } = await createFirmWithSession("Change Email Request Firm", email);
+
+    const resp = await postChangeEmail(cookie, newEmail, "203.0.113.265");
+    expect(resp.status).toBe(200);
+
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.admin_email).toBe(email); // unchanged -- request phase only
+
+    const row = await env.DB
+      .prepare("SELECT purpose, pending_new_email, used_at FROM firm_login_tokens WHERE firm_id = ?1 AND purpose = 'email_change'")
+      .bind(firmId)
+      .first<{ purpose: string; pending_new_email: string; used_at: string | null }>();
+    expect(row?.pending_new_email).toBe(newEmail);
+    expect(row?.used_at).toBeNull();
+  });
+
+  it("sends TWO emails on success -- a confirm link to the NEW address, a notice to the OLD one", async () => {
+    const oldEmail = `changeemail-old-${Date.now()}@example.com`;
+    const newEmail = `changeemail-newdest-${Date.now()}@example.com`;
+    const { cookie } = await createFirmWithSession("Change Email Send Firm", oldEmail);
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 202 }));
+    try {
+      const headers: Record<string, string> = { "content-type": "application/json", "cf-connecting-ip": "203.0.113.266", Cookie: cookie };
+      const worker = (await import("../src/index")).default;
+      const resp = await worker.fetch(
+        new Request("https://deadline-radar.com/firm/change-email", { method: "POST", headers, body: JSON.stringify({ new_email: newEmail }) }),
+        { ...env, SENDGRID_API_KEY: "test-key-not-real" } as never,
+        testExecutionContext()
+      );
+      expect(resp.status).toBe(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      const recipients = fetchSpy.mock.calls.map((call) => {
+        const init = call[1] as RequestInit;
+        const body = JSON.parse((init.body as string) ?? "{}");
+        return body.personalizations?.[0]?.to?.[0]?.email;
+      });
+      expect(recipients).toContain(newEmail);
+      expect(recipients).toContain(oldEmail);
+      // Adversarial-review M3 (2026-08-05): both sends draw from the same
+      // shared daily budget -- the OLD-address detection notice must go
+      // FIRST, so a budget that runs out mid-request drops the (harmless,
+      // delayable) confirm email rather than silently suppressing the
+      // (time-sensitive) warning to the real admin.
+      expect(recipients[0]).toBe(oldEmail);
+      expect(recipients[1]).toBe(newEmail);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("a second request invalidates the FIRST request's outstanding token -- only the latest address can be confirmed", async () => {
+    const email = `changeemail-super-${Date.now()}@example.com`;
+    const firstNewEmail = `changeemail-first-${Date.now()}@example.com`;
+    const secondNewEmail = `changeemail-second-${Date.now()}@example.com`;
+    const { firmId, cookie } = await createFirmWithSession("Change Email Supersede Firm", email);
+
+    const firstResp = await postChangeEmail(cookie, firstNewEmail, "203.0.113.267");
+    expect(firstResp.status).toBe(200);
+    const secondResp = await postChangeEmail(cookie, secondNewEmail, "203.0.113.268");
+    expect(secondResp.status).toBe(200);
+
+    const rows = await env.DB
+      .prepare("SELECT pending_new_email, used_at FROM firm_login_tokens WHERE firm_id = ?1 AND purpose = 'email_change' ORDER BY created_at ASC")
+      .bind(firmId)
+      .all<{ pending_new_email: string; used_at: string | null }>();
+    expect(rows.results.length).toBe(2);
+    expect(rows.results[0]!.pending_new_email).toBe(firstNewEmail);
+    expect(rows.results[0]!.used_at).not.toBeNull(); // invalidated
+    expect(rows.results[1]!.pending_new_email).toBe(secondNewEmail);
+    expect(rows.results[1]!.used_at).toBeNull(); // still redeemable
+  });
+
+  it("does NOT invalidate an unrelated outstanding LOGIN token -- only email_change-purpose tokens are superseded", async () => {
+    const email = `changeemail-scope-${Date.now()}@example.com`;
+    const { firmId, cookie } = await createFirmWithSession("Change Email Scope Firm", email);
+    const { rawToken: loginToken } = await store.createLoginToken(env.DB, firmId, "login");
+
+    const resp = await postChangeEmail(cookie, `changeemail-scopenew-${Date.now()}@example.com`, "203.0.113.269");
+    expect(resp.status).toBe(200);
+
+    const loginTokenHash = await store.hashToken(loginToken);
+    const row = await env.DB
+      .prepare("SELECT used_at FROM firm_login_tokens WHERE token_hash = ?1")
+      .bind(loginTokenHash)
+      .first<{ used_at: string | null }>();
+    expect(row?.used_at).toBeNull(); // untouched
+  });
+
+  it("rate-limits per firm (5/hour)", async () => {
+    const email = `changeemail-rl-${Date.now()}@example.com`;
+    const { cookie } = await createFirmWithSession("Change Email RL Firm", email);
+    let sawA429 = false;
+    for (let i = 0; i < 8; i++) {
+      const resp = await postChangeEmail(cookie, `changeemail-rl-target-${i}-${Date.now()}@example.com`, `203.0.113.${270 + i}`);
+      if (resp.status === 429) {
+        sawA429 = true;
+        break;
+      }
+      expect(resp.status).toBe(200);
+    }
+    expect(sawA429, "expected the 5/hour firm-keyed budget to exhaust within 8 calls").toBe(true);
+  });
+});
+
+describe("POST /firm/login/verify -- email_change redemption", () => {
+  // Adversarial-review M1 (2026-08-05): an email_change token satisfied the
+  // OLD "!== password_reset" gate on the optional inline password-set
+  // field, meaning a mistyped-address stranger who received the
+  // confirmation email could ALSO set a password on the account in the
+  // same click that confirmed the email swap -- a full takeover, not just
+  // a wrong-address annoyance. Both index.ts gates (render in
+  // actionConfirmPage, apply in handleFirmLoginVerify) were narrowed to
+  // exactly "login". This proves the APPLY side; the GET-render side is
+  // the same `tokenPurpose === "login"` condition, covered by inspection.
+  it("M1 regression: an email_change token must NOT be able to also set a password", async () => {
+    const oldEmail = `emailredeem-m1-old-${Date.now()}@example.com`;
+    const newEmail = `emailredeem-m1-new-${Date.now()}@example.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "M1 Firm", adminEmail: oldEmail });
+    const { rawToken } = await store.createLoginToken(env.DB, firmId, "email_change", newEmail);
+
+    const resp = await postFirmLoginVerify(rawToken, "203.0.113.290", "a-genuinely-strong-password");
+    expect(resp.status).toBe(302); // the sign-in / email-change itself must still succeed
+
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.admin_email).toBe(newEmail); // the email change DID apply
+    expect(firm?.password_hash).toBeNull(); // but no password was set
+  });
+
+  it("a token with a NULL pending_new_email (can't legitimately happen via the real request route, but must degrade safely) changes nothing and still signs in as a plain login", async () => {
+    const oldEmail = `emailredeem-null-${Date.now()}@example.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "Null Pending Firm", adminEmail: oldEmail });
+    // Same shape M2's fix now prevents an unauthenticated caller from
+    // reaching via /firm/login -- constructed directly here to prove the
+    // REDEMPTION side degrades safely regardless, defense-in-depth.
+    const { rawToken } = await store.createLoginToken(env.DB, firmId, "email_change", null);
+
+    const resp = await postFirmLoginVerify(rawToken, "203.0.113.291");
+    expect(resp.status).toBe(302);
+    expect(resp.headers.get("Location")).toBe("/firm-dashboard/"); // NOT the email_changed destination
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.admin_email).toBe(oldEmail); // unchanged
+  });
+
+  it("applies the pending email, signs in, and redirects with #account?email_changed=1", async () => {
+    const oldEmail = `emailredeem-old-${Date.now()}@example.com`;
+    const newEmail = `emailredeem-new-${Date.now()}@example.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "Redeem Firm", adminEmail: oldEmail });
+    const { rawToken } = await store.createLoginToken(env.DB, firmId, "email_change", newEmail);
+
+    const resp = await postFirmLoginVerify(rawToken, "203.0.113.280");
+    expect(resp.status).toBe(302);
+    expect(resp.headers.get("Location")).toBe("/firm-dashboard/#account?email_changed=1");
+    const setCookie = resp.headers.get("Set-Cookie");
+    expect(setCookie).toContain("dr_firm_session=");
+
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.admin_email).toBe(newEmail);
+
+    // The OLD address must no longer resolve to this firm at all.
+    expect(await store.findFirmByAdminEmail(env.DB, oldEmail)).toBeNull();
+    expect((await store.findFirmByAdminEmail(env.DB, newEmail))?.id).toBe(firmId);
+  });
+
+  it("a conflict at redemption time (address claimed by someone else in between) still signs in, but does NOT apply the change", async () => {
+    const oldEmail = `emailredeem-conflict-old-${Date.now()}@example.com`;
+    const contestedEmail = `emailredeem-contested-${Date.now()}@example.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "Conflict Firm", adminEmail: oldEmail });
+    const { rawToken } = await store.createLoginToken(env.DB, firmId, "email_change", contestedEmail);
+
+    // A DIFFERENT firm claims the contested address AFTER the token was
+    // issued but BEFORE it's redeemed -- the exact race updateFirmAdminEmail()
+    // exists to survive.
+    await store.createFirm(env.DB, { name: "Other Firm", adminEmail: contestedEmail });
+
+    const resp = await postFirmLoginVerify(rawToken, "203.0.113.281");
+    expect(resp.status).toBe(302);
+    expect(resp.headers.get("Location")).toBe("/firm-dashboard/#account?email_change_failed=conflict");
+    expect(resp.headers.get("Set-Cookie")).toContain("dr_firm_session="); // still signed in
+
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.admin_email).toBe(oldEmail); // unchanged, not silently overwritten or duplicated
+  });
+
+  it("full request-then-redeem round trip via the real emailed link", async () => {
+    const oldEmail = `emailflow-old-${Date.now()}@example.com`;
+    const newEmail = `emailflow-new-${Date.now()}@example.com`;
+    const { cookie } = await createFirmWithSession("Full Flow Firm", oldEmail);
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      return new Response(JSON.stringify({}), { status: 202 });
+    });
+    let capturedConfirmUrl: string | null = null;
+    try {
+      const worker = (await import("../src/index")).default;
+      const changeResp = await worker.fetch(
+        new Request("https://deadline-radar.com/firm/change-email", {
+          method: "POST",
+          headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.282", Cookie: cookie },
+          body: JSON.stringify({ new_email: newEmail }),
+        }),
+        { ...env, SENDGRID_API_KEY: "test-key-not-real" } as never,
+        testExecutionContext()
+      );
+      expect(changeResp.status).toBe(200);
+
+      const confirmCall = fetchSpy.mock.calls.find((call) => {
+        const init2 = call[1] as RequestInit;
+        const body = JSON.parse((init2.body as string) ?? "{}");
+        return body.personalizations?.[0]?.to?.[0]?.email === newEmail;
+      });
+      const confirmBody = JSON.parse(((confirmCall?.[1] as RequestInit).body as string) ?? "{}");
+      const htmlContent = (confirmBody.content ?? []).find((c: { type: string }) => c.type === "text/html")?.value ?? "";
+      const match = /href="([^"]*\/firm\/login\/verify\?token=[^"]+)"/.exec(htmlContent);
+      expect(match).toBeTruthy();
+      capturedConfirmUrl = match![1]!.replace(/&amp;/g, "&");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+
+    const rawToken = new URL(capturedConfirmUrl!).searchParams.get("token");
+    expect(rawToken).toBeTruthy();
+    const redeemResp = await postFirmLoginVerify(rawToken, "203.0.113.283");
+    expect(redeemResp.status).toBe(302);
+    expect(redeemResp.headers.get("Location")).toBe("/firm-dashboard/#account?email_changed=1");
+
+    // The real end-to-end effect: the old address no longer resolves to
+    // this firm at all, the new one does.
+    expect(await store.findFirmByAdminEmail(env.DB, oldEmail)).toBeNull();
+    expect((await store.findFirmByAdminEmail(env.DB, newEmail))?.admin_email).toBe(newEmail);
   });
 });
 

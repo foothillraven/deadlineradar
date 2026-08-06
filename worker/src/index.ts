@@ -62,6 +62,7 @@ import {
   RATE_LIMIT_FIRM_PASSWORD_LOGIN,
   RATE_LIMIT_FIRM_BILLING_CANCEL,
   RATE_LIMIT_FIRM_SIGNOUT_OTHER,
+  RATE_LIMIT_FIRM_CHANGE_EMAIL,
   RATE_LIMIT_FIRM_PASSWORD_SET,
   RATE_LIMIT_OAUTH_START,
   RATE_LIMIT_CPE_ENTRY_CREATE,
@@ -115,6 +116,8 @@ import {
   buildStaffCpeReminderEmail,
   buildFirmPasswordChangedEmail,
   buildFirmSessionsEndedEmail,
+  buildFirmEmailChangeConfirmEmail,
+  buildFirmEmailChangeRequestedNoticeEmail,
   buildFirmOauthLinkedEmail,
   buildFirmStaffAddedEmail,
   buildStopConfirmationEmail,
@@ -426,8 +429,18 @@ async function actionConfirmPage(pathname: string, token: string, env: Env): Pro
   const passwordEligibility =
     pathname === "/firm/login/verify" ? await store.peekLoginTokenPasswordEligibility(env.DB, token) : null;
   const tokenPurpose = passwordEligibility?.purpose ?? null;
+  // AuditLab/adversarial-review M1 (2026-08-05, Task #29): was
+  // `tokenPurpose !== "password_reset"` -- true for BOTH "login" and the
+  // new "email_change" purpose, so an email-change confirmation link
+  // (which can land in a STRANGER's inbox if the admin mistypes the new
+  // address) also rendered an offer to set a password on the account,
+  // wired to actually apply it below. A typo victim could then both
+  // confirm the email swap and set a password in the same click -- a full
+  // account takeover, not just a wrong-address annoyance. Narrowed to
+  // exactly "login": password_reset already has its own dedicated flow,
+  // and email_change gets nothing extra here now, matching the same posture.
   const passwordFieldHtml =
-    pathname === "/firm/login/verify" && tokenPurpose !== "password_reset" && passwordEligibility?.firmHasPassword === false
+    pathname === "/firm/login/verify" && tokenPurpose === "login" && passwordEligibility?.firmHasPassword === false
       ? `<div style="margin:0 0 1rem;">` +
         `<label for="dr-optional-password">` +
         `Optional: set a password now, so you can skip this email next time</label>` +
@@ -1462,7 +1475,22 @@ async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<
   // link. What they must never be able to do is flip the meaning of a token
   // at REDEMPTION time, which is why the purpose is stored, not passed
   // through the URL. See migration 0013.
-  const purpose = store.normalizeLoginTokenPurpose(form.intent);
+  //
+  // M2 (adversarial review, 2026-08-05, Task #29): store.normalizeLoginTokenPurpose()
+  // widened to also accept "email_change" for POST /firm/change-email's own
+  // use -- but THIS is an unauthenticated, pre-session form, and
+  // "email_change" is a privileged purpose that's only ever supposed to be
+  // mintable by an already-signed-in admin who supplied a real target
+  // address. Letting this form pass "email_change" through would let
+  // anyone mint one (with pending_new_email left NULL, since this form has
+  // no such field) for ANY existing firm's email -- harmless today only
+  // because handleFirmLoginVerify()'s apply branch happens to also check
+  // `result.pendingNewEmail`, which is one future edit away from being the
+  // only thing standing between "unauthenticated request" and "privileged
+  // token minted." Restricted to exactly the two intents this form can
+  // legitimately produce, independent of whatever normalizeLoginTokenPurpose()
+  // accepts elsewhere.
+  const purpose = form.intent === "password_reset" ? "password_reset" : "login";
 
   const existing = await store.findFirmByAdminEmail(env.DB, email);
   // AuditLab re-verify follow-up, 2026-08-03: a suspended firm's magic link
@@ -1536,8 +1564,47 @@ async function handleFirmLoginVerify(
   if (!firm || firm.status !== "active") {
     return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
   }
+  // Task #29: the token PROVED control of the new inbox by arriving there at
+  // all -- applying the change here, not on a separate page, since (unlike
+  // password_reset) there is no follow-up form to fill in first. `newEmail`
+  // comes only from the TOKEN row (pendingNewEmail), never from anything
+  // this request supplied -- same "intent lives on the token" rule as
+  // purpose itself. updateFirmAdminEmail() returns false rather than
+  // throwing on the real, expected race where someone else claimed that
+  // exact address between when this link was issued and clicked; either
+  // way the click still signs the admin in (they proved a real inbox),
+  // just without the swap applying, and the destination query string says
+  // which happened so the dashboard can show the right banner.
+  let emailChangeOutcome: "applied" | "conflict" | null = null;
+  if (result.purpose === "email_change" && result.pendingNewEmail) {
+    const applied = await store.updateFirmAdminEmail(env.DB, firm.id, result.pendingNewEmail);
+    emailChangeOutcome = applied ? "applied" : "conflict";
+    if (applied) {
+      firm.admin_email = result.pendingNewEmail;
+      // Adversarial-review L3 (2026-08-05): any OTHER unused login/reset
+      // link was minted to and sits in the OLD address's inbox. If that
+      // inbox outlives the account's association with it (a departing
+      // employee, a shared address later reassigned), a still-live link
+      // there could otherwise sign in to THIS account after the email
+      // supposedly moved away from it. This token is already consumed
+      // (verifyAndConsumeLoginToken) so the WHERE used_at IS NULL below
+      // cannot touch it. Deliberately does NOT also end other SESSIONS
+      // here (unlike a password change) -- unlike a password, no existing
+      // session's authentication becomes invalid just because the sign-in
+      // ADDRESS changed, and the old-address notice email is the intended
+      // remediation path if this wasn't the real admin, same as it is for
+      // every other account-security email in this file.
+      await store.invalidateOutstandingLoginTokens(env.DB, firm.id);
+    }
+  }
+  // M1 (see actionConfirmPage's matching comment): narrowed from
+  // `!== "password_reset"` to `=== "login"` so an email_change token can
+  // never ALSO set a password -- the apply-side half of that fix. Without
+  // this, actionConfirmPage's own gate would be the only thing stopping a
+  // mistyped-address stranger from a full takeover; defense-in-depth means
+  // this side must independently refuse it too, not just trust the render.
   if (
-    result.purpose !== "password_reset" &&
+    result.purpose === "login" &&
     typeof optionalNewPassword === "string" &&
     optionalNewPassword.length > 0 &&
     validatePasswordStrength(optionalNewPassword).ok &&
@@ -1566,7 +1633,9 @@ async function handleFirmLoginVerify(
   // request. A password-reset link lands directly on "Choose a password"
   // instead of the dashboard -- the whole point of the fix, since the old
   // flow signed you in and then silently forgot you had asked to reset.
-  const destination = result.purpose === "password_reset" ? "/set-password/" : "/firm-dashboard/";
+  let destination = result.purpose === "password_reset" ? "/set-password/" : "/firm-dashboard/";
+  if (emailChangeOutcome === "applied") destination = "/firm-dashboard/#account?email_changed=1";
+  else if (emailChangeOutcome === "conflict") destination = "/firm-dashboard/#account?email_change_failed=conflict";
   return new Response(null, {
     status: 302,
     headers: {
@@ -2600,6 +2669,11 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
   return jsonResponse(200, {
     licenses: items,
     firm_name: session.firm.name ?? null,
+    // Task #29 (2026-08-05): the Account tab's email-change form needs to
+    // show what it's changing FROM. Safe to include -- this is the
+    // session's own firm, the same trust boundary firm_name above already
+    // crosses.
+    admin_email: session.firm.admin_email,
     data_as_of: freshness.as_of_date,
     data_stale: freshness.stale,
     seat_cap: seatCapForFirmTier(session.firm.plan_tier),
@@ -3731,6 +3805,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
       }
 
+      if (url.pathname === "/firm/change-email") {
+        try {
+          return await handleFirmChangeEmailRequest(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
       if (url.pathname === "/firm/mobility/check") {
         try {
           return await handleMobilityCheck(request, env, ip);
@@ -4358,6 +4440,130 @@ async function handleFirmSignOutOtherDevices(request: Request, env: Env): Promis
   }
 
   return jsonResponse(200, { ok: true, other_sessions_ended: endedSessions });
+}
+
+/**
+ * POST /firm/change-email -- Task #29 (2026-08-05). Requests a change to the
+ * firm's sign-in email. Deliberately does NOT change anything itself --
+ * same "confirm-before-it-takes-effect" pattern as password reset, but
+ * stronger here: an unverified instant swap would let a stolen session
+ * silently hand the account to an address the attacker controls, with no
+ * proof the requester can actually receive mail there at all. Two emails
+ * go out: a confirm link to the NEW address (the proof-of-control step;
+ * nothing changes until that link is clicked), and a notice to the CURRENT
+ * address (the detection control -- see buildFirmEmailChangeRequestedNoticeEmail's
+ * own comment for why it can't wait until confirmation).
+ *
+ * Session-gated only, not entitlement-gated -- same reasoning as password
+ * set and sign-out-other-devices: this is account security, not a paid
+ * feature.
+ */
+async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_change_email", RATE_LIMIT_FIRM_CHANGE_EMAIL);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  // CSRF defense-in-depth -- see readFirmLicenseJsonBody()'s own comment.
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().startsWith("application/json")) {
+    return jsonResponse(400, { error: "Expected a JSON request body." });
+  }
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return jsonResponse(400, { error: "Request too large or empty." });
+  }
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  const newEmailRaw = typeof body.new_email === "string" ? body.new_email.trim() : "";
+  if (!isValidEmail(newEmailRaw)) {
+    return jsonResponse(400, { error: "That doesn't look like a valid email address." });
+  }
+
+  const firm = await store.getFirmById(env.DB, session.firmId);
+  if (!firm) return jsonResponse(404, { error: "Not found." });
+
+  // Same LOWER(TRIM()) normalization findFirmByAdminEmail()/the migration
+  // 0015 unique index use, so this comparison agrees with what the actual
+  // constraint will enforce at redemption time.
+  if (newEmailRaw.trim().toLowerCase() === firm.admin_email.trim().toLowerCase()) {
+    return jsonResponse(400, { error: "That's already your email address." });
+  }
+  // Adversarial-review L2 (2026-08-05): this IS an account-existence oracle
+  // for an arbitrary address, the same shape handleFirmSignup()/handleFirmLogin()
+  // deliberately avoid pre-auth. Kept anyway, deliberately: unlike those,
+  // the caller here is ALREADY an authenticated firm admin (requireFirmSession()
+  // above), not an anonymous visitor -- and a silent failure at redemption
+  // time (the alternative) would be strictly worse UX for zero real
+  // anti-enumeration benefit, since redemption's own "conflict" outcome
+  // (updateFirmAdminEmail()) already confirms the same fact one click
+  // later regardless.
+  const conflicting = await store.findFirmByAdminEmail(env.DB, newEmailRaw);
+  if (conflicting) {
+    return jsonResponse(400, { error: "That email address is already in use." });
+  }
+
+  // Only the LATEST requested address should ever be confirmable -- see
+  // invalidateOutstandingEmailChangeTokens()'s own comment.
+  await store.invalidateOutstandingEmailChangeTokens(env.DB, session.firmId);
+  const { rawToken } = await store.createLoginToken(env.DB, session.firmId, "email_change", newEmailRaw);
+
+  if (env.SENDGRID_API_KEY) {
+    try {
+      // Adversarial-review M3 (2026-08-05): the detection notice to the OLD
+      // address goes FIRST now, not second. Both sends draw from the same
+      // shared daily cap, so at exactly one send of remaining budget the
+      // ORIGINAL ordering let the confirm email through and silently
+      // dropped the notice -- the change would proceed with zero warning
+      // to the real admin if this was a stolen-session request. Sending
+      // the notice first means a starved budget instead drops the confirm
+      // email, which just delays the (harmless, reversible) change rather
+      // than suppressing the (time-sensitive) warning.
+      const noticeUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      if (noticeUnderCap) {
+        const noticeEmail = buildFirmEmailChangeRequestedNoticeEmail(
+          firm.name,
+          newEmailRaw,
+          new Date().toISOString(),
+          firm.admin_name
+        );
+        await sendViaSendGrid(env.SENDGRID_API_KEY, firm.admin_email, noticeEmail, env.EMAIL_ALLOWLIST);
+      }
+      // Independent send, independent cap check -- this is a SECOND real
+      // email (to a different address, for a different purpose), not a
+      // retry of the first.
+      const confirmUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      if (confirmUnderCap) {
+        const confirmUrl = `${actionBaseUrl(env)}/firm/login/verify?token=${encodeURIComponent(rawToken)}`;
+        const confirmEmail = buildFirmEmailChangeConfirmEmail(confirmUrl, firm.admin_name);
+        await sendViaSendGrid(env.SENDGRID_API_KEY, newEmailRaw, confirmEmail, env.EMAIL_ALLOWLIST);
+      }
+    } catch {
+      // Intentionally swallowed -- same posture as every other best-effort
+      // send in this file. The token already exists in the DB either way;
+      // a mail outage must not turn into a confusing error for the request
+      // itself, and there is nothing sensitive to protect by failing loud.
+    }
+  }
+
+  return jsonResponse(200, { ok: true });
 }
 
 /**

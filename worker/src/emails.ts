@@ -516,6 +516,112 @@ export function buildFirmLoginEmail(loginUrl: string, isPasswordReset = false, a
 }
 
 /**
+ * Task #29 (2026-08-05), self-serve admin-email change. Sent to the NEW
+ * address only -- this email's existence in that inbox IS the proof of
+ * control the change relies on, so it deliberately does not go anywhere
+ * else. Modeled on buildFirmLoginEmail() (same 15-minute single-use link
+ * mechanics) but the copy is unambiguous about what clicking it DOES:
+ * changes the sign-in address on an existing account, not "sign in."
+ */
+export function buildFirmEmailChangeConfirmEmail(confirmUrl: string, adminName: string | null = null): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `Confirm your new ${SITE_NAME} email address`;
+
+  const textBody =
+    `${textGreeting(adminName)}\n\n` +
+    `Someone requested to change the sign-in email on a ${SITE_NAME} firm account to this address. ` +
+    `Click below to confirm and finish the change:\n\n` +
+    `${confirmUrl}\n\n` +
+    `This link expires in 15 minutes and can only be used once. Clicking it will also sign you in.\n\n` +
+    `If you didn't request this -- or don't recognize the account -- you can safely ignore this ` +
+    `email. Nothing changes unless you click the link above.\n\n` +
+    `---\n${SENDER_LINE}\n${addr}`;
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `Confirm your new email address</h1>` +
+      p(htmlGreeting(adminName)) +
+      p(
+        `Someone requested to change the sign-in email on a ${esc(SITE_NAME)} firm account to this ` +
+          `address. Click below to confirm and finish the change.`
+      ) +
+      `<p style="margin:0 0 20px;">${button(confirmUrl, "Confirm this email address")}</p>` +
+      p(
+        "This link expires in 15 minutes and can only be used once. Clicking it will also sign you in.",
+        13,
+        LIGHT.muted
+      ) +
+      p(
+        "If you didn't request this -- or don't recognize the account -- you can safely ignore this " +
+          "email. Nothing changes unless you click the link above.",
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
+ * Task #29 companion to buildFirmEmailChangeConfirmEmail() -- sent to the
+ * OLD (current) address at REQUEST time, not at confirmation time. Same
+ * detection-control reasoning as buildFirmSessionsEndedEmail() (Task #18)
+ * and buildFirmPasswordChangedEmail(): if the request came from a stolen
+ * session rather than the real admin, this is the only signal the real
+ * admin gets, and it has to arrive BEFORE the new address could be
+ * confirmed, not after -- there is no "undo" once someone else's inbox has
+ * proven control and signed in as this firm. Never claims the change is
+ * final (it is not, until the new address confirms) and gives no way to
+ * cancel from the email itself -- the account's own Account tab, reached
+ * by a real sign-in, is the only place with the authority to act.
+ */
+export function buildFirmEmailChangeRequestedNoticeEmail(
+  firmName: string,
+  requestedNewEmail: string,
+  whenIso: string,
+  adminName: string | null = null
+): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `An email change was requested on your ${SITE_NAME} account`;
+
+  const textBody =
+    `${textGreeting(adminName)}\n\n` +
+    `A request was just made to change the sign-in email for ${firmName} on ${SITE_NAME} to ` +
+    `${requestedNewEmail} (${whenIso}). Nothing has changed yet -- the new address still has to be ` +
+    `confirmed before this takes effect.\n\n` +
+    `If this was you, no action is needed.\n\n` +
+    `IF THIS WAS NOT YOU, sign in with your current email and change your password from the ` +
+    `Account tab as soon as possible.\n\n` +
+    `---\n${SENDER_LINE}\n${addr}`;
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `An email change was requested</h1>` +
+      p(htmlGreeting(adminName)) +
+      p(
+        `A request was just made to change the sign-in email for ${esc(firmName)} on ${esc(SITE_NAME)} ` +
+          `to <strong>${esc(requestedNewEmail)}</strong> (${esc(whenIso)}). Nothing has changed yet -- ` +
+          `the new address still has to be confirmed before this takes effect.`
+      ) +
+      p("If this was you, no action is needed.", 13, LIGHT.muted) +
+      p(
+        "<strong>If this was not you</strong>, sign in with your current email and change your " +
+          "password from the Account tab as soon as possible.",
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
  * The FREE-TIER individual's sign-in link (2026-07-31, migration 0012).
  *
  * Separate from buildFirmLoginEmail() rather than parameterised, because the

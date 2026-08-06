@@ -735,6 +735,70 @@ export function buildStaffCpeReminderEmail(loginUrl: string, firmName: string, s
 }
 
 /**
+ * Admin-triggered rule-change notice (2026-08-06, live request off the
+ * Calendar's rule-change badges: "notify staff in that state"). Sent to
+ * every roster staffer licensed in the affected state -- content (summary,
+ * effective date, citation, confidence) is passed in from the SAME
+ * DR_RULE_CHANGE_EVENTS data the badge/modal already renders publicly on
+ * the dashboard, not a second source of truth. Every field is escaped and
+ * length-capped by the caller before reaching here (see
+ * handleFirmRuleChangeNotify's own comment) -- treated as untrusted
+ * display text, same as any other admin-supplied string that ends up in an
+ * email body. No magic link: this is informational, not a credential, and
+ * the citation URL (when we have one) is the authoritative source anyway.
+ */
+export function buildRuleChangeNotificationEmail(
+  firmName: string,
+  jurisdiction: string,
+  stateName: string,
+  summary: string,
+  effectiveDateLabel: string,
+  citationUrl: string | null
+): BuiltEmail {
+  const addr = mailingAddress();
+  const safeFirmName = firmName.replace(/[\r\n]+/g, " ");
+  const subject = `${jurisdiction} mobility rule change -- ${safeFirmName}`;
+
+  const citationLine = citationUrl
+    ? `Source: ${citationUrl}\n\n`
+    : "";
+  const textBody =
+    `${safeFirmName} flagged an upcoming practice-privilege rule change in ${jurisdiction} that may ` +
+    `affect you.\n\n` +
+    `Effective ${effectiveDateLabel}:\n${summary}\n\n` +
+    citationLine +
+    `This is informational only, not a determination about your own situation -- check Practice ` +
+    `Privilege Check or confirm directly with the ${stateName} board of accountancy.\n\n` +
+    `If this doesn't apply to you, you can safely ignore this email.\n\n` +
+    `---\n${SENDER_LINE}\n${addr}`;
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `${esc(jurisdiction)} mobility rule change</h1>` +
+      p(
+        `${esc(safeFirmName)} flagged an upcoming practice-privilege rule change in ` +
+          `${esc(jurisdiction)} that may affect you.`
+      ) +
+      p(`<strong>Effective ${esc(effectiveDateLabel)}:</strong> ${esc(summary)}`) +
+      (citationUrl
+        ? `<p style="margin:0 0 20px;">${button(citationUrl, "See the source")}</p>`
+        : "") +
+      p(
+        `This is informational only, not a determination about your own situation -- check Practice ` +
+          `Privilege Check or confirm directly with the ${esc(stateName)} board of accountancy.`,
+        13,
+        LIGHT.muted
+      ) +
+      p("If this doesn't apply to you, you can safely ignore this email.", 13, LIGHT.muted),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
  * Sent whenever a firm's password is set or changed (2026-07-30, from the
  * security review).
  *

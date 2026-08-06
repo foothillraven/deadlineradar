@@ -71,6 +71,7 @@ import {
   RATE_LIMIT_CPE_ENTRY_CREATE,
   RATE_LIMIT_SUBSCRIBER_CPE_CREATE,
   RATE_LIMIT_FIRM_STAFF_CPE_REMINDER,
+  RATE_LIMIT_FIRM_RULE_CHANGE_NOTIFY,
   RATE_LIMIT_FIRM_LEAD,
   RATE_LIMIT_MOBILITY_CHECK,
   RATE_LIMIT_MOBILITY_CHECK_BATCH,
@@ -120,6 +121,7 @@ import {
   buildFirmLoginEmail,
   buildSubscriberLoginEmail,
   buildStaffCpeReminderEmail,
+  buildRuleChangeNotificationEmail,
   buildFirmPasswordChangedEmail,
   buildFirmSessionsEndedEmail,
   buildFirmEmailChangeConfirmEmail,
@@ -2799,6 +2801,116 @@ function firmLicenseStatus(row: store.SubscriberRow): "active" | "pending" | "op
   return "needs-attention";
 }
 
+const MAX_RULE_CHANGE_FIELD_LEN = 2000;
+const MAX_RULE_CHANGE_SHORT_FIELD_LEN = 200;
+
+/**
+ * POST /firm/rule-change/notify -- live request off the Calendar's
+ * rule-change badges (2026-08-06): "notify staff in that state." Body:
+ * `state_slug`, `jurisdiction`, `summary`, `effective_date_label`,
+ * `citation_url` (optional). Every field is content the client already
+ * renders publicly in the rule-change modal (DR_RULE_CHANGE_EVENTS, baked
+ * into the page at build time) -- there is no separate server-side copy of
+ * this data to look up by id, so the client passes the specific event's own
+ * fields through rather than duplicating a whole data-sync pipeline for a
+ * single admin-triggered action. Treated as untrusted display text
+ * regardless (length-capped, control-char-checked) -- the same posture
+ * every other admin-supplied string in an email gets, not a new exception.
+ *
+ * Emails every roster staffer licensed in state_slug who hasn't opted out
+ * (firmLicenseStatus() !== "opted_out") -- pending/needs-attention staff
+ * still get it, since a rule change isn't about their own deadline status.
+ * One click can reach the whole state at once, so the rate limit bounds
+ * CLICKS (RATE_LIMIT_FIRM_RULE_CHANGE_NOTIFY's own comment), and each send
+ * still goes through the SAME suppression list and daily send cap as any
+ * other outbound mail this file sends.
+ */
+async function handleFirmRuleChangeNotify(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_rule_change_notify", RATE_LIMIT_FIRM_RULE_CHANGE_NOTIFY);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many notifications sent today. Please try again tomorrow." });
+  }
+
+  const parsed = await readFirmLicenseJsonBody(request);
+  if (parsed instanceof Response) return parsed;
+  const form = stringFieldsOf(parsed);
+
+  const stateSlug = (form.state_slug ?? "").trim();
+  const jurisdiction = (form.jurisdiction ?? "").trim();
+  const summary = (form.summary ?? "").trim();
+  const effectiveDateLabel = (form.effective_date_label ?? "").trim();
+  const citationUrlRaw = (form.citation_url ?? "").trim();
+
+  if (!stateSlug || !jurisdiction || !summary || !effectiveDateLabel) {
+    return jsonResponse(400, { error: "Missing rule-change details." });
+  }
+  for (const [value, maxLen] of [
+    [stateSlug, MAX_RULE_CHANGE_SHORT_FIELD_LEN],
+    [jurisdiction, MAX_RULE_CHANGE_SHORT_FIELD_LEN],
+    [summary, MAX_RULE_CHANGE_FIELD_LEN],
+    [effectiveDateLabel, MAX_RULE_CHANGE_SHORT_FIELD_LEN],
+    [citationUrlRaw, MAX_RULE_CHANGE_FIELD_LEN],
+  ] as const) {
+    if (hasControlChars(value) || value.length > maxLen) {
+      return jsonResponse(400, { error: "Invalid rule-change details." });
+    }
+  }
+  // Belt-and-suspenders: only ever actually link a citation that looks like
+  // a real http(s) URL, never whatever a tampered client sent through as
+  // citation_url (mailto:/javascript:/plain text, etc.) -- see button()'s
+  // own href handling in emails.ts, which trusts this value verbatim.
+  const citationUrl = /^https:\/\//.test(citationUrlRaw) ? citationUrlRaw : null;
+
+  const roster = await store.listFirmLicenses(env.DB, session.firmId);
+  const targets = roster.filter(
+    (row) => row.state_slug === stateSlug && firmLicenseStatus(row) !== "opted_out"
+  );
+
+  let sent = 0;
+  let skipped = 0;
+  if (targets.length > 0 && env.SENDGRID_API_KEY) {
+    const stateName = stateNameFromSlug(stateSlug);
+    const built = buildRuleChangeNotificationEmail(
+      session.firm.name ?? "Your firm",
+      jurisdiction,
+      stateName,
+      summary,
+      effectiveDateLabel,
+      citationUrl
+    );
+    for (const target of targets) {
+      if (await store.isPermanentlySuppressed(env.DB, target.email)) {
+        skipped++;
+        continue;
+      }
+      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      if (!underCap) {
+        skipped += targets.length - sent - skipped;
+        break;
+      }
+      const ok = await sendViaSendGrid(env.SENDGRID_API_KEY, target.email, built, env.EMAIL_ALLOWLIST);
+      if (ok) sent++;
+      else skipped++;
+    }
+  } else {
+    skipped = targets.length;
+  }
+
+  return jsonResponse(200, {
+    sent,
+    skipped,
+    total: targets.length,
+    reason: !env.SENDGRID_API_KEY ? "Email sending isn't configured." : null,
+  });
+}
+
 /** Reuses deadline.ts's own computeSubscriberDeadline() -- never
  * re-implements the date math, per this build's own instructions. */
 function firmLicenseNextDeadline(row: store.SubscriberRow, asOf: Date): string | null {
@@ -4268,6 +4380,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/staff-cpe-reminder") {
         try {
           return await handleFirmStaffCpeReminder(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/rule-change/notify") {
+        try {
+          return await handleFirmRuleChangeNotify(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }

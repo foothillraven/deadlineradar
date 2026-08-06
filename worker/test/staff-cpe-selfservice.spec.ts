@@ -312,3 +312,101 @@ describe("POST /firm/staff-cpe-reminder", () => {
     expect(body.reason).toMatch(/unsubscribed/i);
   });
 });
+
+// POST /firm/rule-change/notify (2026-08-06, live request off the
+// Calendar's rule-change badges: "notify staff in that state"). Content
+// comes from the client (the same DR_RULE_CHANGE_EVENTS data already
+// rendered publicly in the modal), not a server-side lookup -- see that
+// handler's own docstring for why.
+describe("POST /firm/rule-change/notify", () => {
+  const validBody = {
+    state_slug: "georgia",
+    jurisdiction: "Georgia",
+    summary: "Georgia's CPA mobility rule is changing to state-level substantial equivalence.",
+    effective_date_label: "October 1, 2026",
+    citation_url: "https://rules.sos.ga.gov/gac/20-11",
+  };
+
+  it("401s with no firm session", async () => {
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/rule-change/notify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(validBody),
+    });
+    expect(resp.status).toBe(401);
+  });
+
+  it("400s when required fields are missing", async () => {
+    const { cookie } = await createFirmWithSession("Notify Missing Firm", `notifymissing-${Date.now()}@example.com`);
+    const resp = await workerFetch(
+      new Request("https://deadline-radar.com/firm/rule-change/notify", {
+        method: "POST",
+        headers: { "content-type": "application/json", Cookie: cookie },
+        body: JSON.stringify({ state_slug: "georgia" }),
+      }),
+      { SENDGRID_API_KEY: "test-key-not-real" }
+    );
+    expect(resp.status).toBe(400);
+  });
+
+  it("emails every roster staffer in that state and nobody else", async () => {
+    const { cookie } = await createFirmWithSession("Notify Firm", `notify-${Date.now()}@example.com`);
+    const gaEmail = `notify-ga-${Date.now()}@example.com`;
+    const alEmail = `notify-al-${Date.now()}@example.com`;
+    await addStaff(cookie, { staff_label: "GA Staffer", email: gaEmail, state_slug: "georgia", license_type_id: "ga-individual" });
+    await addStaff(cookie, { staff_label: "AL Staffer", email: alEmail, state_slug: "alabama", license_type_id: "al-all" });
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(okResponse());
+    try {
+      const resp = await workerFetch(
+        new Request("https://deadline-radar.com/firm/rule-change/notify", {
+          method: "POST",
+          headers: { "content-type": "application/json", Cookie: cookie },
+          body: JSON.stringify(validBody),
+        }),
+        { SENDGRID_API_KEY: "test-key-not-real" }
+      );
+      expect(resp.status).toBe(200);
+      const body = (await resp.json()) as { sent: number; skipped: number; total: number };
+      expect(body.total).toBe(1);
+      expect(body.sent).toBe(1);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [, sendGridCallInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      const sentBody = JSON.parse(String(sendGridCallInit.body));
+      expect(sentBody.personalizations[0].to[0].email).toBe(gaEmail);
+      expect(sentBody.subject).toContain("Georgia");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("skips a staffer who has opted out, and reports total:0 for a state with no staff", async () => {
+    const { cookie } = await createFirmWithSession("Notify Opt Firm", `notifyopt-${Date.now()}@example.com`);
+    const staff = await addStaff(cookie, {
+      staff_label: "Opted Out Staffer",
+      email: `notifyopt-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    const tokenRow = await env.DB.prepare("SELECT unsubscribe_token FROM subscribers WHERE id = ?1").bind(staff.id).first<{ unsubscribe_token: string }>();
+    await store.stop(env.DB, tokenRow!.unsubscribe_token, "unsubscribed");
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(okResponse());
+    try {
+      const resp = await workerFetch(
+        new Request("https://deadline-radar.com/firm/rule-change/notify", {
+          method: "POST",
+          headers: { "content-type": "application/json", Cookie: cookie },
+          body: JSON.stringify(validBody),
+        }),
+        { SENDGRID_API_KEY: "test-key-not-real" }
+      );
+      expect(resp.status).toBe(200);
+      const body = (await resp.json()) as { sent: number; total: number };
+      expect(body.total).toBe(0);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});

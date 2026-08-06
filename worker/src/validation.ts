@@ -526,6 +526,14 @@ export const RATE_LIMIT_SUBSCRIBER_CPE_CREATE: RateLimit = { max: 20, windowSeco
 // day" (a firm reasonably re-sending after someone missed the first one).
 export const RATE_LIMIT_FIRM_STAFF_CPE_REMINDER: RateLimit = { max: 50, windowSeconds: 86400 };
 
+// POST /firm/rule-change/notify (2026-08-06) -- one click can email every
+// roster staffer in a single state at once (unlike the per-staff CPE
+// reminder above), so this bounds CLICKS, not individual emails sent. Real
+// rule changes are rare -- a handful a year, at most -- so 20/day per firm
+// is generous headroom for legitimate re-sends while still bounding a
+// compromised session from mail-bombing the whole roster repeatedly.
+export const RATE_LIMIT_FIRM_RULE_CHANGE_NOTIFY: RateLimit = { max: 20, windowSeconds: 86400 };
+
 // POST/DELETE /firm/mobility/completions (2026-08-04) -- same reasoning and
 // same 100/day ceiling as RATE_LIMIT_CPE_ENTRY_CREATE/DELETE: an
 // already-authenticated, firm-scoped mutation, bounded against a

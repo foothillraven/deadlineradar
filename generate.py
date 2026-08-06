@@ -1313,6 +1313,7 @@ PAGE_CSS = """
     padding: 0.5rem 1rem; font-size: 0.9rem;
   }
   .dr-modal-actions .dr-btn-save:hover { opacity: 0.9; }
+  .dr-modal-actions .dr-btn-save:disabled { opacity: 0.6; cursor: default; }
   .dr-modal-actions .dr-btn-cancel {
     background: transparent; color: var(--muted);
     border: 1px solid var(--border-strong); border-radius: 5px; cursor: pointer;
@@ -6156,6 +6157,7 @@ var drLicenses = [];
 var drEditModalId = null;
 var drEditModalTriggerBtn = null;
 var drRuleChangeModalTriggerBtn = null;
+var drRuleChangeModalCurrentEvent = null;
 // GET /firm/licenses's own seat_cap (worker/src/validation.ts's
 // SELF_SERVE_SEAT_CAP) -- null until the first successful load, same "don't
 // show a number we haven't actually gotten from the server yet" posture as
@@ -6861,6 +6863,7 @@ function drOpenRuleChangeModal(event, triggerBtn) {
   var modal = document.getElementById('dr-rule-change-modal');
   if (!modal || !event) return;
   drRuleChangeModalTriggerBtn = triggerBtn || null;
+  drRuleChangeModalCurrentEvent = event;
   document.getElementById('dr-rule-change-modal-title').textContent = event.jurisdiction;
   document.getElementById('dr-rule-change-modal-date').innerHTML =
     '<strong>Effective ' + drEscapeHtml(drFormatDeadline(event.effective_date)) + '</strong> &mdash; not yet in force.';
@@ -6870,6 +6873,10 @@ function drOpenRuleChangeModal(event, triggerBtn) {
   citeLink.textContent = event.citation || 'Primary source';
   document.getElementById('dr-rule-change-modal-confidence').textContent =
     ' · confidence: ' + (event.confidence || 'unverified');
+  var notifyBtn = document.getElementById('dr-rule-change-notify-btn');
+  if (notifyBtn) notifyBtn.disabled = false;
+  var notifyResult = document.getElementById('dr-rule-change-notify-result');
+  if (notifyResult) { notifyResult.hidden = true; notifyResult.textContent = ''; }
   modal.hidden = false;
   document.getElementById('dr-rule-change-modal-close').focus();
 }
@@ -6881,6 +6888,56 @@ function drCloseRuleChangeModal() {
     drRuleChangeModalTriggerBtn.focus();
   }
   drRuleChangeModalTriggerBtn = null;
+  drRuleChangeModalCurrentEvent = null;
+}
+
+// "Notify staff in this state" (2026-08-06, live request off the Calendar's
+// rule-change badges) -- POST /firm/rule-change/notify emails every roster
+// staffer licensed in jurisdiction_slug who hasn't opted out. Sends the
+// event's own already-public fields (same data the modal above already
+// rendered) rather than re-deriving them server-side -- see that route's
+// own docstring for why there's no separate server-side copy of this data.
+function drNotifyRuleChangeStaff() {
+  var event = drRuleChangeModalCurrentEvent;
+  var btn = document.getElementById('dr-rule-change-notify-btn');
+  var resultEl = document.getElementById('dr-rule-change-notify-result');
+  if (!event || !btn) return;
+  btn.disabled = true;
+  if (resultEl) { resultEl.hidden = true; resultEl.textContent = ''; }
+  fetch('/api/firm/rule-change/notify', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      state_slug: event.jurisdiction_slug,
+      jurisdiction: event.jurisdiction,
+      summary: event.summary,
+      effective_date_label: drFormatDeadline(event.effective_date),
+      citation_url: event.citation_url || ''
+    })
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    btn.disabled = false;
+    return drReadJsonSafe(res).then(function(data) {
+      if (!resultEl) return;
+      resultEl.hidden = false;
+      if (!res.ok) {
+        resultEl.textContent = (data && data.error) || 'Something went wrong. Please try again.';
+        return;
+      }
+      if (data.total === 0) {
+        resultEl.textContent = 'Nobody on your roster is licensed in this state.';
+      } else if (data.sent > 0) {
+        resultEl.textContent = 'Notified ' + data.sent + ' of ' + data.total + ' staff member' +
+          (data.total === 1 ? '' : 's') + (data.skipped > 0 ? ' (' + data.skipped + ' skipped -- unsubscribed or over today’s email limit).' : '.');
+      } else {
+        resultEl.textContent = data.reason || 'Nobody was notified -- everyone on the list has unsubscribed or today’s email limit was reached.';
+      }
+    });
+  }).catch(function() {
+    btn.disabled = false;
+    if (resultEl) { resultEl.hidden = false; resultEl.textContent = 'Something went wrong. Please try again.'; }
+  });
 }
 
 function drRenderCalendar() {
@@ -8270,6 +8327,8 @@ document.addEventListener('DOMContentLoaded', function() {
   var ruleChangeModal = document.getElementById('dr-rule-change-modal');
   var ruleChangeModalCloseBtn = document.getElementById('dr-rule-change-modal-close');
   if (ruleChangeModalCloseBtn) ruleChangeModalCloseBtn.addEventListener('click', drCloseRuleChangeModal);
+  var ruleChangeNotifyBtn = document.getElementById('dr-rule-change-notify-btn');
+  if (ruleChangeNotifyBtn) ruleChangeNotifyBtn.addEventListener('click', drNotifyRuleChangeStaff);
   if (ruleChangeModal) {
     ruleChangeModal.addEventListener('click', function(ev) {
       if (ev.target === ruleChangeModal) drCloseRuleChangeModal();
@@ -9430,7 +9489,9 @@ def build_firm_dashboard_page(
       <a id="dr-rule-change-modal-citation-link" target="_blank" rel="noopener"></a>
       <span class="rc-conf" id="dr-rule-change-modal-confidence"></span>
     </p>
+    <p id="dr-rule-change-notify-result" class="dr-account-ok" hidden></p>
     <div class="dr-modal-actions">
+      <button type="button" class="dr-btn-save" id="dr-rule-change-notify-btn">Notify staff in this state</button>
       <button type="button" class="dr-btn-cancel" id="dr-rule-change-modal-close">Close</button>
     </div>
   </div>

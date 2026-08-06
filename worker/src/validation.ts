@@ -435,6 +435,18 @@ export const RATE_LIMIT_FIRM_LOGIN: RateLimit = { max: 5, windowSeconds: 600 };
 // non-subscriber cannot spend it at all.
 export const RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT: RateLimit = { max: 5, windowSeconds: 3600 };
 
+// AuditLab RL-6/RL-7 (2026-08-06): POST /firm/login and POST /firm/signup
+// both fire the identical issueAndSendFirmLoginLink() primitive with the
+// same relaxed-Turnstile (login) or strict-but-real-token (signup) gate as
+// /api/subscriber/login, but had no per-recipient bucket -- an attacker
+// spread across many IPs could mail-bomb a single firm admin's inbox
+// unthrottled. Same shape/rationale as RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT;
+// separate constants (not shared) for the same "a burst on one endpoint
+// can't consume the other's allowance" reason RATE_LIMIT_FIRM_SIGNUP and
+// RATE_LIMIT_FIRM_LOGIN are already separate.
+export const RATE_LIMIT_FIRM_LOGIN_ACCOUNT: RateLimit = { max: 5, windowSeconds: 3600 };
+export const RATE_LIMIT_FIRM_SIGNUP_ACCOUNT: RateLimit = { max: 5, windowSeconds: 3600 };
+
 // POST /firm/licenses (add a staff license, firm-dashboard MVP) -- deliberately
 // keyed on the AUTHENTICATED FIRM ID, not the caller's IP, when this is
 // checked (see index.ts's handleFirmLicenseCreate()): the requester already
@@ -529,6 +541,13 @@ export const RATE_LIMIT_FIRM_PASSWORD_SET: RateLimit = { max: 10, windowSeconds:
 /** Cancel/resume are authenticated + rate-limited the same as password set
  * -- no legitimate admin needs more than a handful of toggles a day. */
 export const RATE_LIMIT_FIRM_BILLING_CANCEL: RateLimit = { max: 10, windowSeconds: 3600 };
+
+/** AuditLab RL-5 (2026-08-06): checkout had no bucket at all, unlike its
+ * sibling cancel/resume above -- each call is a live Stripe API request
+ * under the one shared secret key, so an unbounded client (compromised
+ * session, retry-looping bug) risks Stripe-side throttling of that key for
+ * every firm, not just the abusive one. Same shape as the cancel bucket. */
+export const RATE_LIMIT_FIRM_BILLING_CHECKOUT: RateLimit = { max: 10, windowSeconds: 3600 };
 
 /** Task #18 (2026-08-05): same reasoning as RATE_LIMIT_FIRM_PASSWORD_SET --
  * already authenticated, this only stops a compromised session being reused

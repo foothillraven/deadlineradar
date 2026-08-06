@@ -82,7 +82,10 @@ import {
   RATE_LIMIT_DEBUG_REMINDER_PASS,
   RATE_LIMIT_FIRM_LOGIN,
   RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT,
+  RATE_LIMIT_FIRM_LOGIN_ACCOUNT,
   RATE_LIMIT_FIRM_SIGNUP,
+  RATE_LIMIT_FIRM_SIGNUP_ACCOUNT,
+  RATE_LIMIT_FIRM_BILLING_CHECKOUT,
   RATE_LIMIT_SUBSCRIBE,
   checkRateLimit,
   checkSignupDomainGate,
@@ -1417,6 +1420,22 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
     }
   }
 
+  // AuditLab RL-7 (2026-08-06): second bucket keyed on the RECIPIENT, same
+  // shape as RL-6's fix on /firm/login just above. Unlike that route, this
+  // one always sends on every non-blocked, Turnstile-passed submission (no
+  // anti-enumeration branch to piggyback on -- the domain gate above already
+  // distinguishes "has an account" from "doesn't" for blocked domains), so
+  // the bucket is charged unconditionally right before the send.
+  const signupAccountAllowed = await checkRateLimit(
+    env.DB,
+    `account:${store.normalizeEmail(email)}`,
+    "firm_signup_account",
+    RATE_LIMIT_FIRM_SIGNUP_ACCOUNT
+  );
+  if (!signupAccountAllowed) {
+    return errorPage(429, "Too many requests for this account. Please try again later.");
+  }
+
   await issueAndSendFirmLoginLink(env, firmId, email, undefined, resolvedAdminName);
 
   return htmlResponse(200, firmLoginSentPage(env));
@@ -1508,11 +1527,26 @@ async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<
   // firm for this email" either way, so this does not introduce a new
   // enumeration signal.
   if (existing && existing.status === "active") {
-    await issueAndSendFirmLoginLink(env, existing.id, email, purpose, existing.admin_name);
+    // AuditLab RL-6 (2026-08-06): second bucket keyed on the RECIPIENT, same
+    // rationale/shape as handleSubscriberLoginRequest()'s account bucket --
+    // the per-IP bucket above cannot see a distributed mail-bomb aimed at
+    // one firm admin. Charged only on this branch (a send would actually
+    // fire), so an attacker probing addresses with no active firm cannot
+    // spend it, and the response below stays identical either way -- no new
+    // enumeration signal.
+    const accountAllowed = await checkRateLimit(
+      env.DB,
+      `account:${store.normalizeEmail(email)}`,
+      "firm_login_account",
+      RATE_LIMIT_FIRM_LOGIN_ACCOUNT
+    );
+    if (accountAllowed) {
+      await issueAndSendFirmLoginLink(env, existing.id, email, purpose, existing.admin_name);
+    }
   }
-  // No firm for this email, or an inactive one: fall through to the SAME
-  // response, sending nothing -- this is the anti-enumeration branch this
-  // handler exists for.
+  // No firm for this email, an inactive one, or the account bucket above was
+  // exhausted: fall through to the SAME response, sending nothing -- this is
+  // the anti-enumeration branch this handler exists for.
 
   return htmlResponse(200, firmLoginSentPage(env));
 }
@@ -1795,6 +1829,14 @@ async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Re
 
   if (!env.STRIPE_SECRET_KEY) {
     return jsonResponse(503, { error: "Billing isn't set up yet. Get in touch and we'll sort it out." });
+  }
+
+  // AuditLab RL-5 (2026-08-06): sibling cancel/resume toggle below already
+  // rate-limits on the authenticated firm ID before touching Stripe; this
+  // route hit CreateCheckoutSession with no equivalent guard.
+  const billingCheckoutAllowed = await checkRateLimit(env.DB, session.firmId, "firm_billing_checkout", RATE_LIMIT_FIRM_BILLING_CHECKOUT);
+  if (!billingCheckoutAllowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
   }
 
   // CSRF defense-in-depth -- see readFirmLicenseJsonBody()'s own comment.

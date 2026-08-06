@@ -4526,16 +4526,19 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
     return jsonResponse(404, { error: "Not found." });
   }
 
-  // Task #27 (2026-08-06): a demo_locked firm's shared password can still
-  // be rotated by whoever controls its registered inbox, via the normal
-  // password-RESET flow (passwordResetAuthorized below) -- just not by
-  // anyone who merely knows the current shared password. Checked BEFORE
-  // that exemption's own currentPassword check, so a demo visitor who
-  // happens to know the current password still can't use it to set a new
-  // one.
-  if (firm.demo_locked && !session.passwordResetAuthorized) {
+  // Task #27 (2026-08-06, Devin's explicit call): unconditional, no
+  // exception for a password-RESET-authorized session either. An earlier
+  // version of this gate left that path open (redeeming a reset link
+  // proves control of the account's registered inbox) -- Devin explicitly
+  // didn't want "Forgot password" to work for this account AT ALL, not
+  // even for someone who genuinely controls the inbox, so there is no
+  // self-serve rotation path left for a demo_locked firm by design.
+  // Rotating the password is now an operator action only (ask
+  // AssetLab/orchestrator to do it directly), never something reachable
+  // from the public site.
+  if (firm.demo_locked) {
     return jsonResponse(403, {
-      error: "This is a shared demo account. Password changes aren't available this way -- use \"Forgot password\" instead.",
+      error: "This is a shared demo account. Password changes aren't available for this account.",
     });
   }
 

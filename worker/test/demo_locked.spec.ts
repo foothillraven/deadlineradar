@@ -1,8 +1,11 @@
 /**
  * Task #27 (2026-08-06): demo_locked firms (migration 0024). Covers the
- * self-serve password-set gate end to end -- see index.ts's own comment on
- * handleFirmPasswordSet for why the password-RESET path stays open while
- * the "I know the current password" path is blocked.
+ * self-serve password-set gate end to end -- BOTH paths are blocked
+ * unconditionally, including the emailed password-RESET path (Devin's
+ * explicit, final call: he did not want "Forgot password" to work for this
+ * account even though it proves control of the registered inbox). Rotating
+ * the password is an operator action only now -- see index.ts's own
+ * comment on handleFirmPasswordSet.
  *
  * The SSO-linking half of this feature (handleOauthCallback) is NOT
  * covered here: exercising a real successful callback needs a validly
@@ -83,8 +86,8 @@ describe("demo_locked firms -- self-serve password change", () => {
     expect(resp.status).toBe(200);
   });
 
-  it("the emailed password-RESET path still works on a demo_locked firm, and ends other sessions", async () => {
-    const { id, cookie: staleCookie } = await newFirmWithPassword("demo-reset-ok", "the original passphrase 5");
+  it("the emailed password-RESET path is ALSO refused on a demo_locked firm -- no self-serve rotation at all", async () => {
+    const { id } = await newFirmWithPassword("demo-reset-blocked", "the original passphrase 5");
     await setDemoLocked(id, true);
 
     const { rawToken } = await store.createLoginToken(env.DB, id, "password_reset");
@@ -96,11 +99,19 @@ describe("demo_locked firms -- self-serve password change", () => {
       headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.222", Cookie: resetCookie },
       body: JSON.stringify({ new_password: "a rotated passphrase 6" }),
     });
-    expect(setResp.status).toBe(200);
+    expect(setResp.status).toBe(403);
+  });
 
-    // the pre-rotation session (the "stale" credential everyone else was
-    // using) is now dead -- this is the actual lockout Devin asked for.
-    const staleCheck = await SELF.fetch(`${BASE}/firm/licenses`, { headers: { Cookie: staleCookie } });
-    expect(staleCheck.status).toBe(401);
+  it("a non-demo firm's password-RESET path is unaffected", async () => {
+    const { id } = await newFirmWithPassword("demo-reset-control", "the original passphrase 7");
+
+    const { rawToken } = await store.createLoginToken(env.DB, id, "password_reset");
+    const resetCookie = await redeemResetLink(rawToken, "203.0.113.223");
+    const setResp = await SELF.fetch(`${BASE}/firm/password`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.223", Cookie: resetCookie },
+      body: JSON.stringify({ new_password: "a rotated passphrase 8" }),
+    });
+    expect(setResp.status).toBe(200);
   });
 });

@@ -534,18 +534,35 @@ export async function confirmIfPending(
  * reach STOPPED/renewed (and, via rearm() below, all the way to
  * STOPPED->CONFIRMED) without a real `/confirm` ever happening.
  * reason="unsubscribed" is honored regardless of confirmed_at.
+ *
+ * Idempotent as of AuditLab UNSUB-1 (2026-08-06, MEDIUM): unsubscribe_token
+ * is a stable, never-rotated, never-expiring link by design (the SELECT
+ * above matches it regardless of current status) -- so this function has
+ * always been re-visitable indefinitely, and that was harmless right up
+ * until Task #10 hung a real outbound email off every call. A repeat visit
+ * (corporate email-security scanners routinely pre-fetch/re-scan
+ * unsubscribe links, sometimes more than once) now SKIPS the write
+ * entirely rather than re-stamping `stopped_at`/`stop_reason` to "now" --
+ * both because there's nothing left to change, and because overwriting the
+ * real original stop time on every scanner re-visit was its own silent
+ * data-integrity bug AuditLab caught in passing. `alreadyStopped` on the
+ * returned row is what callers use to skip a repeat-triggered notification
+ * email without needing a second query.
  */
 export async function stop(
   db: D1Database,
   token: string,
   reason: "unsubscribed" | "renewed"
-): Promise<SubscriberRow | null> {
+): Promise<(SubscriberRow & { alreadyStopped: boolean }) | null> {
   const row = await db
     .prepare("SELECT * FROM subscribers WHERE unsubscribe_token = ?1 OR renewed_token = ?1")
     .bind(token)
     .first<SubscriberRow>();
   if (!row) return null;
   if (reason === "renewed" && !row.confirmed_at) return null;
+  if (row.status === STATUS_STOPPED) {
+    return { ...row, alreadyStopped: true };
+  }
   const stoppedAt = nowIso();
   await db
     .prepare("UPDATE subscribers SET status = ?1, stopped_at = ?2, stop_reason = ?3 WHERE id = ?4")
@@ -554,7 +571,7 @@ export async function stop(
   row.status = STATUS_STOPPED;
   row.stopped_at = stoppedAt;
   row.stop_reason = reason;
-  return row;
+  return { ...row, alreadyStopped: false };
 }
 
 /**

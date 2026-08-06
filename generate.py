@@ -2067,6 +2067,22 @@ CONTACT_EMAIL = "support@deadline-radar.com"
 # password here is safe BECAUSE that flag exists, not despite it. On a
 # paid tier server-side so it can actually demonstrate Map/Practice
 # Privilege Check, the two features this account exists to show off.
+#
+# AuditLab DEMO-2 (2026-08-06, LOW): these two constants are the ONLY
+# place in the repo tying the static site's advertised login to the live
+# demo@deadline-radar.com account's real credential -- no migration seeds
+# password_hash from this value, nothing verifies the two stay in sync.
+# Rotating the demo password is a manual, out-of-repo action (an operator
+# acting directly against D1 -- see the rotation note in
+# `passive_income_register.md` / `HANDOFF.md`'s own DeadlineRadar entries)
+# with nothing forcing that rotation to also update this constant and
+# regenerate the site. If they ever diverge, the public "Try the live
+# demo" link silently starts auto-filling a WRONG password -- not a
+# security issue (this credential is intentionally public), but every
+# prospect who clicks it gets a same-page login failure with no
+# explanation. WHOEVER ROTATES demo@deadline-radar.com's PASSWORD MUST
+# UPDATE DEMO_FIRM_PASSWORD BELOW AND REGENERATE THE SITE IN THE SAME
+# STEP -- there is no automated check that catches a mismatch.
 DEMO_FIRM_EMAIL = "demo@deadline-radar.com"
 DEMO_FIRM_PASSWORD = "ZcWxv-5BbcS-Xjbcv-ASPi0"
 
@@ -6407,6 +6423,7 @@ var DR_STATUS_CLASSES = {
 var drLicenses = [];
 var drEditModalId = null;
 var drEditModalTriggerBtn = null;
+var drDeleteAccountModalTriggerBtn = null;
 var drRuleChangeModalTriggerBtn = null;
 var drRuleChangeModalCurrentEvent = null;
 // GET /firm/licenses's own seat_cap (worker/src/validation.ts's
@@ -8326,9 +8343,18 @@ function drSkipQuestionnaire() {
 // name to confirm" gate (drCheckDeleteConfirmName) is the REAL "are you
 // sure" -- deliberately not a second click/window.confirm(), which is too
 // easy to reflexively dismiss for something this irreversible-in-effect.
-function drOpenDeleteAccountModal() {
+//
+// AuditLab DELMODAL-1 (2026-08-06, LOW): this was the only modal of the
+// three on the dashboard with no focus management -- a keyboard user
+// activating "Delete account..." landed with focus stuck behind the now-
+// open modal, and closing it never returned focus to the trigger either.
+// Mirrors drOpenEditModal()/drCloseEditModal()'s exact pattern (store the
+// trigger button, focus the first real control on open, restore focus on
+// close) rather than inventing a new one.
+function drOpenDeleteAccountModal(triggerBtn) {
   var modal = document.getElementById('dr-delete-account-modal');
   if (!modal) return;
+  drDeleteAccountModalTriggerBtn = triggerBtn || null;
   var nameEl = document.getElementById('dr-firm-name');
   var firmName = nameEl ? nameEl.textContent : '';
   var targetEl = document.getElementById('dr-delete-confirm-name-target');
@@ -8340,10 +8366,16 @@ function drOpenDeleteAccountModal() {
   var errEl = document.getElementById('dr-delete-account-error');
   if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
   modal.hidden = false;
+  var reasonEl = document.getElementById('dr-delete-reason');
+  if (reasonEl) reasonEl.focus();
 }
 function drCloseDeleteAccountModal() {
   var modal = document.getElementById('dr-delete-account-modal');
   if (modal) modal.hidden = true;
+  if (drDeleteAccountModalTriggerBtn && document.body.contains(drDeleteAccountModalTriggerBtn)) {
+    drDeleteAccountModalTriggerBtn.focus();
+  }
+  drDeleteAccountModalTriggerBtn = null;
 }
 function drCheckDeleteConfirmName() {
   var input = document.getElementById('dr-delete-confirm-name');
@@ -8361,12 +8393,14 @@ function drSubmitDeleteAccount(ev) {
   if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
   var reasonEl = document.getElementById('dr-delete-reason');
   var detailEl = document.getElementById('dr-delete-detail');
+  var currentPasswordEl = document.getElementById('dr-delete-current-password');
   fetch('/api/firm/account/delete', {
     method: 'POST', credentials: 'include',
     headers: {'content-type': 'application/json'},
     body: JSON.stringify({
       reason: reasonEl ? reasonEl.value : '',
-      detail: detailEl ? detailEl.value : ''
+      detail: detailEl ? detailEl.value : '',
+      current_password: currentPasswordEl ? currentPasswordEl.value : ''
     })
   }).then(function(res) {
     if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
@@ -8872,7 +8906,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   var deleteAccountOpenBtn = document.getElementById('dr-delete-account-open-btn');
-  if (deleteAccountOpenBtn) deleteAccountOpenBtn.addEventListener('click', drOpenDeleteAccountModal);
+  if (deleteAccountOpenBtn) deleteAccountOpenBtn.addEventListener('click', function(ev) { drOpenDeleteAccountModal(ev.currentTarget); });
   var deleteAccountModal = document.getElementById('dr-delete-account-modal');
   var deleteAccountForm = document.getElementById('dr-delete-account-form');
   var deleteAccountCancelBtn = document.getElementById('dr-delete-account-cancel');
@@ -9926,6 +9960,17 @@ def build_firm_dashboard_page(
       <label for="dr-delete-confirm-name" style="margin-top:0.9rem;">Type your firm's name
       (<strong id="dr-delete-confirm-name-target"></strong>) to confirm</label>
       <input type="text" id="dr-delete-confirm-name" autocomplete="off">
+
+      <!-- AuditLab DELETE-1 (HIGH, 2026-08-06): a session cookie alone used
+           to be sufficient to delete the account, cancel billing, and
+           trigger a real refund -- no proof of credential possession
+           required. Mirrors the Password panel's own "leave blank if
+           you've never set one" convention, since a magic-link-only firm
+           genuinely has nothing to enter here (the backend skips the check
+           entirely in that case). -->
+      <label for="dr-delete-current-password" style="margin-top:0.9rem;">Current password
+      <span class="field-hint">(leave blank if you've never set one)</span></label>
+      <input type="password" id="dr-delete-current-password" autocomplete="current-password">
 
       <div class="dr-modal-actions">
         <button type="submit" class="dr-btn-danger" id="dr-delete-account-submit-btn" disabled>Permanently delete</button>

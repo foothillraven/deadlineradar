@@ -11,6 +11,7 @@
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 import * as store from "../src/store";
+import { hashPassword } from "../src/password";
 
 const BASE = "https://deadline-radar.com";
 
@@ -106,6 +107,50 @@ describe("POST /firm/account/delete", () => {
     expect(resp.status).toBe(200);
     const firm = await store.getFirmById(env.DB, firmId);
     expect(firm?.deletion_survey_reason).toBeNull();
+  });
+
+  // AuditLab DELETE-1 (HIGH, 2026-08-06): a session cookie alone used to be
+  // sufficient to delete the account -- no proof of credential possession
+  // required. Mirrors handleFirmPasswordSet's own step-up gate.
+  it("400s a firm WITH a password when current_password is missing or wrong", async () => {
+    const email = `deletepwwrong-${Date.now()}@example.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "Delete Password Firm", adminEmail: email });
+    await store.setFirmPassword(env.DB, firmId, await hashPassword("the-real-password"));
+    const { rawSessionToken } = await store.createSession(env.DB, firmId);
+    const cookie = `dr_firm_session=${rawSessionToken}`;
+
+    const missing = await deleteAccount(cookie);
+    expect(missing.status).toBe(400);
+    const wrong = await deleteAccount(cookie, { current_password: "definitely-not-it" });
+    expect(wrong.status).toBe(400);
+
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.status).not.toBe(store.FIRM_STATUS_DELETED);
+  });
+
+  it("deletes successfully for a firm WITH a password when current_password is correct", async () => {
+    const email = `deletepwright-${Date.now()}@example.com`;
+    const { id: firmId } = await store.createFirm(env.DB, { name: "Delete Password Right Firm", adminEmail: email });
+    await store.setFirmPassword(env.DB, firmId, await hashPassword("the-real-password"));
+    const { rawSessionToken } = await store.createSession(env.DB, firmId);
+    const cookie = `dr_firm_session=${rawSessionToken}`;
+
+    const resp = await deleteAccount(cookie, { current_password: "the-real-password" });
+    expect(resp.status).toBe(200);
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.status).toBe(store.FIRM_STATUS_DELETED);
+  });
+
+  it("skips the step-up check for a magic-link-only firm with no password set", async () => {
+    // Every OTHER test in this file already exercises this path implicitly
+    // (createFirmWithSession() never sets a password) -- this one just
+    // says so explicitly, so the exemption itself has a named test rather
+    // than being an accidental side effect of every other test's setup.
+    const { firmId, cookie } = await createFirmWithSession("No Password Delete LLC", `nopassworddelete-${Date.now()}@example.com`);
+    const resp = await deleteAccount(cookie);
+    expect(resp.status).toBe(200);
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.status).toBe(store.FIRM_STATUS_DELETED);
   });
 
   it("the survey is entirely optional -- an empty body still deletes cleanly", async () => {

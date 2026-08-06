@@ -2050,6 +2050,7 @@ async function handleFirmAccountDelete(request: Request, env: Env): Promise<Resp
   const reasonRaw = typeof body.reason === "string" ? body.reason : null;
   const reason = reasonRaw && DELETION_SURVEY_REASONS.has(reasonRaw) ? reasonRaw : null;
   const detail = sanitizeFreeText(typeof body.detail === "string" ? body.detail : null, MAX_DELETION_SURVEY_DETAIL_LEN);
+  const currentPassword = typeof body.current_password === "string" ? body.current_password : "";
 
   const firm = await store.getFirmById(env.DB, session.firmId);
   if (!firm) {
@@ -2072,6 +2073,34 @@ async function handleFirmAccountDelete(request: Request, env: Env): Promise<Resp
     // requireFirmSession() itself already 403s once status has actually
     // flipped, same as any other route on an inactive firm.
     return jsonResponse(200, { ok: true });
+  }
+
+  // AuditLab DELETE-1 (HIGH, 2026-08-06): this route used to have ZERO
+  // step-up check -- a bare session cookie alone triggered immediate
+  // full-firm lockout, an immediate Stripe refund + subscription
+  // cancellation, and an eventual irreversible data wipe, with no proof of
+  // credential possession required. The demo_locked check above only ever
+  // protected the one shared public demo account; every real firm was
+  // still exposed. Mirrors handleFirmPasswordSet's own gate exactly (same
+  // exemptions: a magic-link-only firm with no password has nothing to
+  // verify against, and a session that just redeemed a password-RESET
+  // link already proved control of the account's own inbox -- stronger
+  // evidence than the password this check would otherwise demand).
+  if (firm.password_hash && !session.passwordResetAuthorized) {
+    const currentOk = await verifyPassword(
+      currentPassword,
+      {
+        algo: firm.password_algo ?? undefined,
+        salt: firm.password_salt ?? undefined,
+        iterations: firm.password_iterations ?? undefined,
+        rounds: firm.password_rounds ?? undefined,
+        hash: firm.password_hash,
+      },
+      env.PASSWORD_PEPPER
+    );
+    if (!currentOk) {
+      return jsonResponse(400, { error: "That current password isn't right." });
+    }
   }
 
   await store.requestFirmDeletion(env.DB, session.firmId, { reason, detail });
@@ -4025,10 +4054,16 @@ async function handleUnsubscribe(env: Env, token: string | null): Promise<Respon
   const subscriber = await store.stop(env.DB, token, "unsubscribed");
   if (!subscriber) return errorPage(404, "That link is invalid.");
 
-  // Task #26 (2026-08-06): only firm-scoped rows have a Recent Activity
-  // panel to feed -- a free-tier individual unsubscribing has no firm_id
-  // and nothing on the other end to show it to.
-  if (subscriber.firm_id) {
+  // AuditLab UNSUB-1 (2026-08-06, MEDIUM): unsubscribe_token never expires
+  // or rotates BY DESIGN (store.stop()'s own docstring) -- corporate email
+  // scanners routinely pre-fetch/re-scan a message's links, sometimes more
+  // than once, so this route has always been re-visitable indefinitely.
+  // That was harmless before the Activity entry + admin-notify email
+  // below existed; now a repeat hit must log/send NEITHER, or a single
+  // real unsubscribe turns into an unbounded stream of duplicate "Alex
+  // unsubscribed" events and emails every time a scanner revisits the
+  // link. store.stop() itself already skips the now-redundant DB write.
+  if (subscriber.firm_id && !subscriber.alreadyStopped) {
     try {
       await store.logActivity(env.DB, {
         firmId: subscriber.firm_id,
@@ -4093,7 +4128,12 @@ async function handleRenewed(env: Env, token: string | null): Promise<Response> 
   // entirely"), so dangling a still-open re-arm offer here would contradict
   // the choice they just made -- exactly the "no email offering a choice
   // that's already been made" rule this build's task called out.
-  if (env.SENDGRID_API_KEY) {
+  //
+  // AuditLab UNSUB-1 (2026-08-06, same fix applied here too): this route
+  // has the identical repeat-visit shape /unsubscribe does -- the token
+  // never expires, so a scanner re-fetch would otherwise re-send this
+  // confirmation every time. subscriber.alreadyStopped gates it the same way.
+  if (env.SENDGRID_API_KEY && !subscriber.alreadyStopped) {
     try {
       const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
       if (underCap) {

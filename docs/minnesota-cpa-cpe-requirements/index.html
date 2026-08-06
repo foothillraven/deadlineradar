@@ -706,49 +706,50 @@
   .dr-roster-panel .dr-deadline-overdue { color: #c33737; font-weight: 700; }
 
   
-  .dr-roster-panel .dr-edit-label,
-  .dr-roster-panel .dr-edit-email {
-    width: 100%; box-sizing: border-box; padding: 0.45rem 0.55rem;
-    border: 1px solid var(--border-strong); border-radius: 6px;
-    background: var(--bg); color: var(--fg); font-size: inherit; font-family: inherit;
-  }
-  .dr-roster-panel .dr-edit-label:focus, .dr-roster-panel .dr-edit-email:focus {
-    outline: none; border-color: var(--accent-deep); box-shadow: 0 0 0 3px var(--accent-bg);
-  }
-  .dr-roster-panel .dr-edit-email { margin-top: 0.35rem; }
-  
-  .dr-roster-panel:has(.dr-edit-email) th:nth-child(1),
-  .dr-roster-panel:has(.dr-edit-email) td:nth-child(1) {
-    width: 17rem;
-  }
-  
-  .dr-roster-panel:has(.dr-edit-email) table {
-    min-width: 59rem;
-  }
-  
-  .dr-roster-panel tr.dr-roster-editing td {
-    background: var(--accent-bg) !important;
-    box-shadow: inset 3px 0 0 var(--accent-deep);
-  }
-
-  
   .dr-roster-panel td.dr-actions { background: var(--card-bg); }
   .dr-roster-panel tbody tr:nth-child(even) td.dr-actions { background: var(--row-alt); }
   .dr-roster-panel th.dr-actions-head { background: var(--accent); color: var(--on-accent); }
 
   
   .dr-roster-panel td.dr-actions button { padding: 0.22rem 0.5rem; font-size: 0.76rem; white-space: nowrap; }
+
   
-  .dr-roster-panel td.dr-actions button.dr-btn-save {
+  .dr-modal-overlay {
+    position: fixed; inset: 0; background: rgba(10, 14, 20, 0.55);
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem; z-index: 50;
+  }
+  .dr-modal-overlay[hidden] { display: none; }
+  .dr-modal {
+    background: var(--card-bg); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.4rem 1.5rem; width: 100%; max-width: 26rem;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+  }
+  .dr-modal h2 { margin: 0 0 1rem; font-size: 1.1rem; font-family: var(--font-display); }
+  .dr-modal label { display: block; font-weight: 600; font-size: 0.85rem; margin: 0.9rem 0 0.3rem; }
+  .dr-modal label:first-of-type { margin-top: 0; }
+  .dr-modal input[type="text"], .dr-modal input[type="email"] {
+    width: 100%; box-sizing: border-box; padding: 0.55rem 0.65rem;
+    border: 1px solid var(--border-strong); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: inherit; font-family: inherit;
+  }
+  .dr-modal input:focus {
+    outline: none; border-color: var(--accent-deep); box-shadow: 0 0 0 3px var(--accent-bg);
+  }
+  .dr-modal-actions { display: flex; gap: 0.6rem; margin-top: 1.3rem; }
+  
+  .dr-modal-actions .dr-btn-save {
     background: var(--accent); color: var(--on-accent);
     border: 1px solid var(--accent); border-radius: 5px; font-weight: 700; cursor: pointer;
+    padding: 0.5rem 1rem; font-size: 0.9rem;
   }
-  .dr-roster-panel td.dr-actions button.dr-btn-save:hover { opacity: 0.9; }
-  .dr-roster-panel td.dr-actions button.dr-btn-cancel {
+  .dr-modal-actions .dr-btn-save:hover { opacity: 0.9; }
+  .dr-modal-actions .dr-btn-cancel {
     background: transparent; color: var(--muted);
     border: 1px solid var(--border-strong); border-radius: 5px; cursor: pointer;
+    padding: 0.5rem 1rem; font-size: 0.9rem;
   }
-  .dr-roster-panel td.dr-actions button.dr-btn-cancel:hover { color: var(--fg); border-color: var(--fg); }
+  .dr-modal-actions .dr-btn-cancel:hover { color: var(--fg); border-color: var(--fg); }
 
   
   .dr-paywall-tiers {

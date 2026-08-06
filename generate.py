@@ -1200,105 +1200,77 @@ PAGE_CSS = """
      dashboard (Staff-at-risk list, Coverage donut, /my/ cards). */
   .dr-roster-panel .dr-deadline-overdue { color: #c33737; font-weight: 700; }
 
-  /* Reported directly ("this is overlapped when editing", 2026-08-04): the
-     edit-mode Name/Email <input> elements had no width rule at all, so they
-     rendered at the browser's own default input size (natively wider than
-     this table's now-narrower Staff/Email columns) and overflowed their
-     cell instead of respecting table-layout: fixed's column width the way
-     plain text already does. box-sizing: border-box matters here as much as
-     width: 100% -- without it the input's own padding/border would add on
-     top of 100% and overflow by that amount anyway. */
-  .dr-roster-panel .dr-edit-label,
-  .dr-roster-panel .dr-edit-email {
-    width: 100%; box-sizing: border-box; padding: 0.45rem 0.55rem;
-    border: 1px solid var(--border-strong); border-radius: 6px;
-    background: var(--bg); color: var(--fg); font-size: inherit; font-family: inherit;
-  }
-  .dr-roster-panel .dr-edit-label:focus, .dr-roster-panel .dr-edit-email:focus {
-    outline: none; border-color: var(--accent-deep); box-shadow: 0 0 0 3px var(--accent-bg);
-  }
-  .dr-roster-panel .dr-edit-email { margin-top: 0.35rem; }
-  /* Reported directly, 2026-08-05: the Staff column's 11rem read-mode width
-     (tuned for truncate-with-tooltip text, see the column-width comment
-     above) left an edit-mode <input> too narrow to show a normal email
-     without cutting it off mid-string, with no ellipsis to signal there
-     was more. table-layout: fixed means every row shares one column width,
-     so this widens the WHOLE column for every row while ANY row is being
-     edited (:has() -- only one row can ever be mid-edit at a time, per
-     drEditingId), rather than fighting the fixed layout with an absolutely-
-     positioned overlay input for one row alone. .table-wrap's existing
-     overflow-x:auto absorbs the extra width the same way it already does
-     for any table wider than its container. */
-  .dr-roster-panel:has(.dr-edit-email) th:nth-child(1),
-  .dr-roster-panel:has(.dr-edit-email) td:nth-child(1) {
-    width: 17rem;
-  }
-  /* Task #13 (2026-08-05, reported directly: "Next Deadline is cut off when
-     editing it", screenshot showed just "N"). Same bug class as the
-     2026-08-04 "no Status or expiration column" fix above, re-introduced
-     here: the Staff column's edit-mode width (11rem -> 17rem, rule above)
-     grows the column sum from 53rem to 59rem, but the table's own
-     min-width (line ~1159) stayed locked at 53rem -- table-layout: fixed
-     then treats every explicit width as a PROPORTIONAL WEIGHT within that
-     locked 53rem again, squeezing the already-narrow Status/Next-deadline
-     columns down to near nothing. Bumping min-width to match, scoped to the
-     same :has(.dr-edit-email) selector, is the fix that already worked for
-     the static case -- just never carried over to this edit-mode variant. */
-  .dr-roster-panel:has(.dr-edit-email) table {
-    min-width: 59rem;
-  }
-  /* No visual signal a row was mid-edit -- it silently swapped text for
-     input boxes with nothing marking which row. A left accent stripe +
-     tinted background (same accent-bg/accent-deep pair every focus ring
-     on this page already uses) makes the editing row unambiguous at a
-     glance, including once the inputs themselves lose focus. */
-  .dr-roster-panel tr.dr-roster-editing td {
-    background: var(--accent-bg) !important;
-    box-shadow: inset 3px 0 0 var(--accent-deep);
-  }
-
   /* Actions used to be `position: sticky; right: 0` so it stayed reachable
      without scrolling. Reverted (2026-08-06, reported live + reproduced):
      a sticky td doesn't push table content out of the way, it paints over
-     it -- any time the table's own content width exceeded its container
-     (confirmed to happen just from ONE row entering edit mode, which widens
-     the whole table via the :has(.dr-edit-email) rule below, at container
-     widths as common as ~900px), the sticky column rendered 80+px to the
-     LEFT of its natural position to stay on-screen, silently covering the
-     right portion of Next-deadline for EVERY row, not just the one being
-     edited -- "Jan 1, 2026" read as just "Ja". Measured and reproduced
-     exactly (deadlineRect vs actionsRect overlap == table.scrollWidth -
-     wrap.clientWidth) before reverting; obscuring real data is worse than
-     the original "have to scroll right to reach Actions" annoyance sticky
-     was added to fix, and .table-wrap's own overflow-x:auto still makes
-     Actions reachable, just no longer glued over its neighbor. */
+     it -- the table's own content width exceeded its container (a common
+     ~900px), so the sticky column rendered 80+px to the LEFT of its natural
+     position to stay on-screen, silently covering the right portion of
+     Next-deadline for every row -- "Jan 1, 2026" read as just "Ja".
+     Measured and reproduced exactly (deadlineRect vs actionsRect overlap ==
+     table.scrollWidth - wrap.clientWidth) before reverting; obscuring real
+     data is worse than the original "have to scroll right to reach
+     Actions" annoyance sticky was added to fix, and .table-wrap's own
+     overflow-x:auto still makes Actions reachable, just no longer glued
+     over its neighbor. */
   .dr-roster-panel td.dr-actions { background: var(--card-bg); }
   .dr-roster-panel tbody tr:nth-child(even) td.dr-actions { background: var(--row-alt); }
   .dr-roster-panel th.dr-actions-head { background: var(--accent); color: var(--on-accent); }
 
-  /* Tighter action buttons so the sticky column costs less width. */
+  /* Keeps Edit/Mark renewed/Remove compact within the Actions column's own
+     width budget. */
   .dr-roster-panel td.dr-actions button { padding: 0.22rem 0.5rem; font-size: 0.76rem; white-space: nowrap; }
-  /* Reported directly, 2026-08-05: Save/Cancel rendered identically to
-     Edit/Mark renewed/Remove (same flat neutral button) -- no hierarchy at
-     all between "confirm this edit" and every other action. Save gets the
-     same accent/on-accent pairing every primary CTA on this site already
-     uses (.signup-form button); Cancel stays visually secondary
-     (outlined, not filled) so the two read as a clear pair rather than
-     two more buttons in a row of five identical ones.
-     Scoped to exactly these two classes -- Edit/Mark renewed/Remove keep
-     their existing (unstyled, native dark-mode UA default) look
-     untouched; this is additive, not a re-theme of the whole Actions
-     column. */
-  .dr-roster-panel td.dr-actions button.dr-btn-save {
+
+  /* Edit-staff modal (2026-08-06) -- replaces the old inline in-row edit
+     entirely. Inline edit squeezed two <input>s into the already-narrow
+     Staff cell, which forced the WHOLE table wider (table-layout: fixed
+     shares one column width across every row) just to fit an editable
+     email -- that width blowout is what caused the Next-deadline/Actions
+     overlap the sticky-removal comment above describes, and it kept
+     regressing (Task #13, then again live 2026-08-06) because the table's
+     own column budget and its container's real width were two different
+     numbers that had to be hand-kept in sync. A fixed-position overlay has
+     no such coupling: it isn't part of the table's layout at all, so
+     editing never changes the table's width on any viewport, and there's
+     no separate mobile-stacked-card variant to maintain either. */
+  .dr-modal-overlay {
+    position: fixed; inset: 0; background: rgba(10, 14, 20, 0.55);
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem; z-index: 50;
+  }
+  .dr-modal-overlay[hidden] { display: none; }
+  .dr-modal {
+    background: var(--card-bg); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.4rem 1.5rem; width: 100%; max-width: 26rem;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+  }
+  .dr-modal h2 { margin: 0 0 1rem; font-size: 1.1rem; font-family: var(--font-display); }
+  .dr-modal label { display: block; font-weight: 600; font-size: 0.85rem; margin: 0.9rem 0 0.3rem; }
+  .dr-modal label:first-of-type { margin-top: 0; }
+  .dr-modal input[type="text"], .dr-modal input[type="email"] {
+    width: 100%; box-sizing: border-box; padding: 0.55rem 0.65rem;
+    border: 1px solid var(--border-strong); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: inherit; font-family: inherit;
+  }
+  .dr-modal input:focus {
+    outline: none; border-color: var(--accent-deep); box-shadow: 0 0 0 3px var(--accent-bg);
+  }
+  .dr-modal-actions { display: flex; gap: 0.6rem; margin-top: 1.3rem; }
+  /* Same accent/on-accent pairing every primary CTA on this site already
+     uses (.signup-form button); Cancel stays visually secondary (outlined,
+     not filled) so the two read as a clear pair. */
+  .dr-modal-actions .dr-btn-save {
     background: var(--accent); color: var(--on-accent);
     border: 1px solid var(--accent); border-radius: 5px; font-weight: 700; cursor: pointer;
+    padding: 0.5rem 1rem; font-size: 0.9rem;
   }
-  .dr-roster-panel td.dr-actions button.dr-btn-save:hover { opacity: 0.9; }
-  .dr-roster-panel td.dr-actions button.dr-btn-cancel {
+  .dr-modal-actions .dr-btn-save:hover { opacity: 0.9; }
+  .dr-modal-actions .dr-btn-cancel {
     background: transparent; color: var(--muted);
     border: 1px solid var(--border-strong); border-radius: 5px; cursor: pointer;
+    padding: 0.5rem 1rem; font-size: 0.9rem;
   }
-  .dr-roster-panel td.dr-actions button.dr-btn-cancel:hover { color: var(--fg); border-color: var(--fg); }
+  .dr-modal-actions .dr-btn-cancel:hover { color: var(--fg); border-color: var(--fg); }
 
   /* Paid-tiers paywall panel (2026-08-05) -- shown in place of every tab's
      content once checkPremiumAccess() denies a lapsed pilot/inactive
@@ -5854,7 +5826,8 @@ var DR_STATUS_CLASSES = {
 };
 
 var drLicenses = [];
-var drEditingId = null;
+var drEditModalId = null;
+var drEditModalTriggerBtn = null;
 // GET /firm/licenses's own seat_cap (worker/src/validation.ts's
 // SELF_SERVE_SEAT_CAP) -- null until the first successful load, same "don't
 // show a number we haven't actually gotten from the server yet" posture as
@@ -6048,41 +6021,19 @@ function drRenderRow(item) {
   // used everywhere else on this page) fixes that without changing the
   // visible label.
   var whoAttr = drEscapeHtml(item.staff_label || item.email);
-  var staffCell, actionsCell;
   // Staff + Email merged into one stacked cell (2026-08-04, second attempt
   // -- see the CSS comment on .dr-roster-panel table for why the first
   // attempt, wrapping each onto multiple lines in separate columns, looked
-  // worse rather than just narrower). Edit mode stacks the two inputs the
-  // same way the display mode stacks the two text lines.
-  if (drEditingId === item.id) {
-    // Reported directly, 2026-08-05 ("wasn't attractive at all"): the edit
-    // inputs used the plain narrow styling below with no `title`, so a
-    // value longer than the (deliberately narrow, see the column-width
-    // comment above) Staff cell just cut off with no way to read the rest
-    // short of clicking in and scrolling the input's own text. `title`
-    // gives the same hover-tooltip affordance the read-mode text already
-    // has; the CSS widening on .dr-roster-panel:has(.dr-edit-email) (below)
-    // is the real fix -- it grows the Staff column while ANY row is being
-    // edited, same table-wide-column-width constraint table-layout:fixed
-    // already implies, and the tooltip is the fallback for values still
-    // too long even at the wider size.
-    staffCell =
-      '<input type="text" class="dr-edit-label" maxlength="120" placeholder="Name or label" title="' + drEscapeHtml(item.staff_label || '') + '" value="' + drEscapeHtml(item.staff_label || '') + '"><br>' +
-      '<input type="email" class="dr-edit-email" title="' + drEscapeHtml(item.email) + '" value="' + drEscapeHtml(item.email) + '">';
-    actionsCell =
-      '<button type="button" class="dr-btn-save" data-id="' + idAttr + '" aria-label="Save ' + whoAttr + '">Save</button> ' +
-      '<button type="button" class="dr-btn-cancel" data-id="' + idAttr + '" aria-label="Cancel editing ' + whoAttr + '">Cancel</button>';
-  } else {
-    var nameTitle = item.staff_label ? ' title="' + drEscapeHtml(item.staff_label) + '"' : '';
-    var nameLine = item.staff_label
-      ? '<span class="dr-roster-name"' + nameTitle + '>' + drEscapeHtml(item.staff_label) + '</span>'
-      : '<span class="dr-roster-name" style="color:var(--muted)">\\u2014</span>';
-    staffCell = nameLine + '<span class="dr-roster-email" title="' + drEscapeHtml(item.email) + '">' + drEscapeHtml(item.email) + '</span>';
-    actionsCell =
-      '<button type="button" class="dr-btn-edit" data-id="' + idAttr + '" aria-label="Edit ' + whoAttr + '">Edit</button> ' +
-      '<button type="button" class="dr-btn-renew" data-id="' + idAttr + '" aria-label="Mark ' + whoAttr + ' renewed">Mark renewed</button> ' +
-      '<button type="button" class="dr-btn-remove" data-id="' + idAttr + '" aria-label="Remove ' + whoAttr + '">Remove</button>';
-  }
+  // worse rather than just narrower).
+  var nameTitle = item.staff_label ? ' title="' + drEscapeHtml(item.staff_label) + '"' : '';
+  var nameLine = item.staff_label
+    ? '<span class="dr-roster-name"' + nameTitle + '>' + drEscapeHtml(item.staff_label) + '</span>'
+    : '<span class="dr-roster-name" style="color:var(--muted)">\\u2014</span>';
+  var staffCell = nameLine + '<span class="dr-roster-email" title="' + drEscapeHtml(item.email) + '">' + drEscapeHtml(item.email) + '</span>';
+  var actionsCell =
+    '<button type="button" class="dr-btn-edit" data-id="' + idAttr + '" aria-label="Edit ' + whoAttr + '">Edit</button> ' +
+    '<button type="button" class="dr-btn-renew" data-id="' + idAttr + '" aria-label="Mark ' + whoAttr + ' renewed">Mark renewed</button> ' +
+    '<button type="button" class="dr-btn-remove" data-id="' + idAttr + '" aria-label="Remove ' + whoAttr + '">Remove</button>';
   // data-label drives the stacked card layout under 860px (CSS renders it
   // via ::before), so the header row can be hidden without losing meaning.
   var stateTitle = item.state_name ? ' title="' + drEscapeHtml(item.state_name) + '"' : '';
@@ -6092,8 +6043,7 @@ function drRenderRow(item) {
   // why) -- display-only, never sent back to the server, never overrides a
   // real stored license_type_id.
   var licenseTypeIdForDisplay = item.license_type_id || DR_DEFAULT_LICENSE_TYPE_ID[item.state_slug];
-  var rowClass = drEditingId === item.id ? ' class="dr-roster-editing"' : '';
-  return '<tr data-id="' + idAttr + '"' + rowClass + '>' +
+  return '<tr data-id="' + idAttr + '">' +
     '<td data-label="Staff">' + staffCell + '</td>' +
     '<td data-label="State"' + stateTitle + '>' + drEscapeHtml(item.state_name || '') + '</td>' +
     '<td data-label="License type">' + drEscapeHtml(drPrettyLicenseType(licenseTypeIdForDisplay)) + '</td>' +
@@ -7735,14 +7685,49 @@ function drRemoveLicense(id, label) {
     .catch(function() { drShowError('Something went wrong, please try again.'); });
 }
 
-function drSaveEdit(id, tr) {
+// Edit-staff modal (2026-08-06, replaced inline in-row edit -- see the CSS
+// comment on .dr-modal-overlay for why). drEditModalTriggerBtn is the Edit
+// button that opened the modal, so closing it (Cancel, Escape, backdrop
+// click, or a successful Save) returns focus there instead of dropping it
+// to <body>, same as any well-behaved modal.
+function drOpenEditModal(item, triggerBtn) {
+  var modal = document.getElementById('dr-edit-modal');
+  var labelInput = document.getElementById('dr-edit-modal-label');
+  var emailInput = document.getElementById('dr-edit-modal-email');
+  var title = document.getElementById('dr-edit-modal-title');
+  if (!modal || !labelInput || !emailInput) return;
+  drEditModalId = item.id;
+  drEditModalTriggerBtn = triggerBtn || null;
+  labelInput.value = item.staff_label || '';
+  emailInput.value = item.email || '';
+  if (title) title.textContent = 'Edit ' + (item.staff_label || item.email);
   drClearError();
   drClearWarning();
-  var labelInput = tr.querySelector('.dr-edit-label');
-  var emailInput = tr.querySelector('.dr-edit-email');
+  modal.hidden = false;
+  labelInput.focus();
+}
+
+function drCloseEditModal() {
+  var modal = document.getElementById('dr-edit-modal');
+  if (modal) modal.hidden = true;
+  drEditModalId = null;
+  if (drEditModalTriggerBtn && document.body.contains(drEditModalTriggerBtn)) {
+    drEditModalTriggerBtn.focus();
+  }
+  drEditModalTriggerBtn = null;
+}
+
+function drSubmitEditModal(ev) {
+  if (ev) ev.preventDefault();
+  if (!drEditModalId) return;
+  drClearError();
+  drClearWarning();
+  var labelInput = document.getElementById('dr-edit-modal-label');
+  var emailInput = document.getElementById('dr-edit-modal-email');
   var email = emailInput ? emailInput.value.trim() : '';
   if (!email) { drShowError('Email is required.'); return; }
   var body = {staff_label: labelInput ? labelInput.value.trim() : '', email: email};
+  var id = drEditModalId;
   fetch('/api/firm/licenses/' + encodeURIComponent(id), {
     method: 'PATCH', credentials: 'include',
     headers: {'Content-Type': 'application/json'},
@@ -7754,9 +7739,9 @@ function drSaveEdit(id, tr) {
         drShowError(data && data.error ? data.error : 'Something went wrong, please try again.');
         return;
       }
-      drEditingId = null;
       if (data && data.duplicate_email_warning) { drShowWarning(data.duplicate_email_warning); }
       drShowSuccess((body.staff_label || body.email) + ' updated.');
+      drCloseEditModal();
       drLoadLicenses();
     });
   }).catch(function() { drShowError('Something went wrong, please try again.'); });
@@ -7768,6 +7753,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
   drLoadLicenses();
   drWireMapTooltip();
+
+  var editModal = document.getElementById('dr-edit-modal');
+  var editModalForm = document.getElementById('dr-edit-modal-form');
+  var editModalCancelBtn = document.getElementById('dr-edit-modal-cancel');
+  if (editModalForm) editModalForm.addEventListener('submit', drSubmitEditModal);
+  if (editModalCancelBtn) editModalCancelBtn.addEventListener('click', drCloseEditModal);
+  if (editModal) {
+    editModal.addEventListener('click', function(ev) {
+      if (ev.target === editModal) drCloseEditModal();
+    });
+    document.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Escape' && !editModal.hidden) drCloseEditModal();
+    });
+  }
 
   var mapStaffSelect = document.getElementById('dr-map-staff-select');
   if (mapStaffSelect) {
@@ -7963,13 +7962,11 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!btn) return;
       var id = btn.getAttribute('data-id');
       if (btn.classList.contains('dr-btn-edit')) {
-        drEditingId = id;
-        drRenderTable();
-      } else if (btn.classList.contains('dr-btn-cancel')) {
-        drEditingId = null;
-        drRenderTable();
-      } else if (btn.classList.contains('dr-btn-save')) {
-        drSaveEdit(id, btn.closest('tr'));
+        var editItem = null;
+        for (var k = 0; k < drLicenses.length; k++) {
+          if (drLicenses[k].id === id) { editItem = drLicenses[k]; break; }
+        }
+        if (editItem) drOpenEditModal(editItem, btn);
       } else if (btn.classList.contains('dr-btn-renew')) {
         var renewItem = null;
         for (var j = 0; j < drLicenses.length; j++) {
@@ -8661,6 +8658,22 @@ def build_firm_dashboard_page(
           <tr><td colspan="6">Loading your roster...</td></tr>
         </tbody>
       </table>
+      </div>
+    </div>
+
+    <div id="dr-edit-modal" class="dr-modal-overlay" hidden>
+      <div class="dr-modal" role="dialog" aria-modal="true" aria-labelledby="dr-edit-modal-title">
+        <h2 id="dr-edit-modal-title">Edit staff member</h2>
+        <form id="dr-edit-modal-form">
+          <label for="dr-edit-modal-label">Name or label</label>
+          <input type="text" id="dr-edit-modal-label" maxlength="120" placeholder="Name or label">
+          <label for="dr-edit-modal-email">Email</label>
+          <input type="email" id="dr-edit-modal-email" required>
+          <div class="dr-modal-actions">
+            <button type="submit" class="dr-btn-save">Save</button>
+            <button type="button" class="dr-btn-cancel" id="dr-edit-modal-cancel">Cancel</button>
+          </div>
+        </form>
       </div>
     </div>
 

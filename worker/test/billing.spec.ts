@@ -197,8 +197,8 @@ describe("POST /firm/billing/checkout", () => {
       });
       expect(created.status).toBe(201);
     }
-    // 6 staff exceeds Starter's 5-seat cap -- checkout for Starter must be
-    // refused even though the caller can technically pay for it.
+    // 6 staff exceeds Essentials' 5-seat cap -- checkout for Essentials must
+    // be refused even though the caller can technically pay for it.
     const resp = await workerFetch(
       new Request("https://deadline-radar.com/firm/billing/checkout", {
         method: "POST",
@@ -209,7 +209,7 @@ describe("POST /firm/billing/checkout", () => {
     );
     expect(resp.status).toBe(400);
     const body = (await resp.json()) as { error: string };
-    expect(body.error).toMatch(/growth/i);
+    expect(body.error).toMatch(/professional/i);
   });
 
   it("happy path: creates a real Checkout Session (Stripe mocked) with firm_id/target_plan_tier metadata", async () => {

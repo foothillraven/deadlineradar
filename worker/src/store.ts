@@ -1133,6 +1133,34 @@ export async function peekLoginTokenPasswordEligibility(
  * accepted: the cost of a rare duplicate internal notification is far lower
  * than the complexity of locking this, and it is not a security boundary.
  */
+/**
+ * Task #7 (2026-08-06): operator-managed block, separate from validation.ts's
+ * compiled-in DISPOSABLE_EMAIL_DOMAINS/COMPETITOR_EMAIL_DOMAINS (migration
+ * 0023's own docstring explains the split). Domain matching reuses the exact
+ * same "exact match or real subdomain" semantics as validation.ts's
+ * matchesBlockedDomain() -- done in JS after a plain SELECT rather than a SQL
+ * LIKE, since a domain containing `%`/`_` (SQL wildcard chars) could
+ * otherwise match more than intended. The domain-pattern list is expected to
+ * stay small (a curated, manually-managed blocklist), so fetching all of it
+ * per check is cheap.
+ */
+export async function isEmailBlocklisted(db: D1Database, email: string): Promise<boolean> {
+  const emailLower = email.toLowerCase();
+  const domain = emailLower.slice(emailLower.lastIndexOf("@") + 1);
+
+  const exactHit = await db
+    .prepare(`SELECT 1 FROM signup_blocklist WHERE pattern_type = 'email' AND pattern = ?1 LIMIT 1`)
+    .bind(emailLower)
+    .first();
+  if (exactHit) return true;
+  if (!domain) return false;
+
+  const { results } = await db
+    .prepare(`SELECT pattern FROM signup_blocklist WHERE pattern_type = 'domain'`)
+    .all<{ pattern: string }>();
+  return (results ?? []).some((r) => domain === r.pattern || domain.endsWith(`.${r.pattern}`));
+}
+
 export async function hasAnyFirmSession(db: D1Database, firmId: string): Promise<boolean> {
   const row = await db.prepare(`SELECT 1 FROM firm_sessions WHERE firm_id = ?1 LIMIT 1`).bind(firmId).first();
   return row !== null;

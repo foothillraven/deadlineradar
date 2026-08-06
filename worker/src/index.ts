@@ -842,6 +842,14 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
   if (!isValidEmail(email)) {
     return errorPage(400, "That doesn't look like a valid email address.");
   }
+  // Task #7 (2026-08-06): operator-managed blocklist, unconditional (unlike
+  // checkSignupDomainGate's existing-account exemption below in
+  // handleFirmSignup) -- an entry here means an operator specifically
+  // decided to block this address/domain, so it applies every time, not
+  // just to brand-new signups.
+  if (await store.isEmailBlocklisted(env.DB, email)) {
+    return errorPage(400, "We're not able to add that address right now.");
+  }
   if (!SUPPORTED_STATE_SLUGS.has(stateSlug)) {
     return errorPage(400, "Unsupported or missing state.");
   }
@@ -1309,6 +1317,12 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
   const email = (form.admin_email ?? "").trim();
   if (!isValidEmail(email)) {
     return errorPage(400, "That doesn't look like a valid email address.");
+  }
+  // Task #7 (2026-08-06): see handleSubscribe()'s own comment on this same
+  // check for why it's unconditional, ahead of the existing-account
+  // exemption the disposable/competitor domain gate below still has.
+  if (await store.isEmailBlocklisted(env.DB, email)) {
+    return errorPage(400, "We're not able to add that address right now.");
   }
   const nameRaw = (form.name ?? "").trim().slice(0, MAX_FIRM_NAME_LEN);
   if (nameRaw.length === 0) {
@@ -1787,7 +1801,7 @@ async function requireFirmSessionAndEntitlement(
   if (!access.allowed) {
     // current_staff_count (2026-08-05, Devin's Gate-1 UX note): the
     // dashboard paywall showed all 3 tiers regardless of roster size, so a
-    // 20-staff firm could click Starter and get a clean-but-avoidable
+    // 20-staff firm could click Essentials and get a clean-but-avoidable
     // rejection. checkout already computes this same live count to
     // validate a tier choice server-side (the authoritative check); surfacing
     // it here too lets the paywall pre-filter to only the tiers that fit,
@@ -2848,6 +2862,13 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
   const email = (form.email ?? "").trim();
   if (!isValidEmail(email)) {
     return jsonResponse(400, { error: "That doesn't look like a valid email address." });
+  }
+  // Task #7 (2026-08-06): same operator blocklist as the two public signup
+  // routes -- see handleSubscribe()'s own comment. Firm staff-roster adds
+  // are session-authenticated (not anonymous), but the blocklist is about
+  // the ADDRESS being blocked, not who's submitting it.
+  if (await store.isEmailBlocklisted(env.DB, email)) {
+    return jsonResponse(400, { error: "That address can't be added right now." });
   }
 
   const stateSlug = (form.state_slug ?? "").trim();

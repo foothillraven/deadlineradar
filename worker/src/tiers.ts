@@ -23,10 +23,14 @@ export interface FirmTierDef {
 
 // Ordered ascending by seat cap -- firmTierForSeatCount() below depends on
 // that order to find the cheapest tier a given headcount qualifies for.
+// Labels renamed 2026-08-06 (Devin's pick) -- planTier slugs (firm_starter/
+// firm_growth/firm_standard) are internal identifiers, stored in D1 and read
+// by stripePriceIdForTier()'s switch below; they stay as-is, only `label`
+// (the customer-facing name) changed.
 export const FIRM_TIERS: FirmTierDef[] = [
-  { planTier: "firm_starter", label: "Starter", priceUsd: 199, seatCap: 5 },
-  { planTier: "firm_growth", label: "Growth", priceUsd: 349, seatCap: 15 },
-  { planTier: "firm_standard", label: "Standard", priceUsd: 500, seatCap: 25 },
+  { planTier: "firm_starter", label: "Essentials", priceUsd: 199, seatCap: 5 },
+  { planTier: "firm_growth", label: "Professional", priceUsd: 349, seatCap: 15 },
+  { planTier: "firm_standard", label: "Enterprise", priceUsd: 500, seatCap: 25 },
 ];
 
 export const INDIVIDUAL_TIER = { planTier: "individual", label: "Individual", priceUsd: 39 } as const;

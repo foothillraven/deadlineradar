@@ -161,6 +161,7 @@ import {
   StripeApiError,
   type StripeWebhookEvent,
 } from "./stripe";
+import { buildIcs, type IcsEvent } from "./ics";
 
 const SITE_NAME_FOR_WORKER = "DeadlineRadar";
 
@@ -2734,6 +2735,49 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
   });
 }
 
+/** GET /firm/calendar.ics -- static, one-time roster export (2026-08-06,
+ * off Devin's live Calendar-feature feedback). Deliberately NOT a live
+ * webcal:// subscription -- see ics.ts's own docstring for why that's a
+ * separate, deliberately-deferred feature. Same read-gate
+ * handleFirmLicensesList uses -- a lapsed/pilot-expired firm shouldn't get a
+ * working export either. */
+async function handleFirmCalendarIcs(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionAndEntitlement(request, env, false);
+  if (session instanceof Response) return session;
+
+  const rows = await store.listFirmLicenses(env.DB, session.firmId);
+  const asOf = new Date();
+  const events: IcsEvent[] = [];
+  for (const row of rows) {
+    // Same filter drLicensesByDate() already applies client-side (opted-out
+    // staff and unresolvable deadlines don't get a calendar day) -- just
+    // server-side this time, since there's no client JS to filter here.
+    if (firmLicenseStatus(row) === "opted_out") continue;
+    const nextDeadline = firmLicenseNextDeadline(row, asOf);
+    if (!nextDeadline) continue;
+    const stateName = stateNameForSlug(row.state_slug) ?? row.state_slug;
+    events.push({
+      uid: row.id,
+      summary: `${row.staff_label || row.email} — ${stateName} license renewal`,
+      dateIso: nextDeadline,
+    });
+  }
+
+  const filenameSlug =
+    (session.firm.name ?? "deadlineradar")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "deadlineradar";
+
+  return new Response(buildIcs(events, asOf), {
+    status: 200,
+    headers: {
+      "Content-Type": "text/calendar; charset=utf-8",
+      "Content-Disposition": `attachment; filename="deadlineradar-${filenameSlug}.ics"`,
+    },
+  });
+}
+
 /**
  * POST /firm/licenses -- adds a staff member to the firm's roster.
  *
@@ -3620,6 +3664,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/licenses") {
         try {
           return await handleFirmLicensesList(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/calendar.ics") {
+        try {
+          return await handleFirmCalendarIcs(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }

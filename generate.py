@@ -1370,12 +1370,21 @@ PAGE_CSS = """
   .dr-cal-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
   .dr-cal-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.9rem; }
   .dr-cal-header h2 { font-size: 1.05rem; margin: 0; font-family: var(--font-display); }
-  .dr-cal-nav { display: flex; gap: 0.4rem; }
+  .dr-cal-nav { display: flex; align-items: center; gap: 0.4rem; }
   .dr-cal-nav button {
     border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--fg);
     border-radius: 6px; padding: 0.3rem 0.6rem; cursor: pointer; font-family: inherit; font-size: 0.85rem;
   }
   .dr-cal-nav button:hover { background: var(--row-alt); }
+  /* Static one-time export, same visual weight as the Prev/Today/Next
+     buttons but a plain <a> (2026-08-06) -- a normal same-site anchor click
+     already carries the session cookie, so no JS fetch/blob dance needed. */
+  .dr-cal-export {
+    border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--fg);
+    border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.85rem; text-decoration: none;
+    margin-left: 0.4rem;
+  }
+  .dr-cal-export:hover { background: var(--row-alt); }
   .dr-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.35rem; }
   .dr-cal-dow { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); text-align: center; padding-bottom: 0.3rem; }
   .dr-cal-day {
@@ -6632,7 +6641,16 @@ function drRenderCalendar() {
     var cellItems = items.slice(0, 3).map(function(item) {
       var days = drDaysUntil(item.next_deadline);
       var soon = days !== null && days <= 7;
-      return '<div class="dr-cal-item' + (soon ? ' dr-cal-item--soon' : '') + '">' +
+      // Richer hover detail (2026-08-06, Devin's live-test feedback: "what
+      // else could go into a calendar cell?") -- every field is already on
+      // drLicenses (fetched once, already in memory), no new endpoint. Same
+      // hover-tooltip pattern the Staff/Email roster columns already use
+      // (.dr-roster-name/.dr-roster-email's own title attrs); desktop-hover
+      // only, the sub-640px layout already collapses this cell to a dot.
+      var licenseTypeIdForDisplay = item.license_type_id || DR_DEFAULT_LICENSE_TYPE_ID[item.state_slug];
+      var daysLabel = days === null ? '' : days < 0 ? 'Overdue' : days === 0 ? 'Due today' : 'in ' + days + ' day' + (days === 1 ? '' : 's');
+      var itemTitle = [item.state_name, drPrettyLicenseType(licenseTypeIdForDisplay), daysLabel].filter(Boolean).join(' — ');
+      return '<div class="dr-cal-item' + (soon ? ' dr-cal-item--soon' : '') + '" title="' + drEscapeHtml(itemTitle) + '">' +
         drEscapeHtml(item.staff_label || item.email) + '</div>';
     }).join('');
     if (items.length > 3) {
@@ -8899,6 +8917,7 @@ def build_firm_dashboard_page(
             <button type="button" id="dr-cal-prev" aria-label="Previous month">&larr;</button>
             <button type="button" id="dr-cal-today">Today</button>
             <button type="button" id="dr-cal-next" aria-label="Next month">&rarr;</button>
+            <a class="dr-cal-export" href="{REMINDER_BACKEND_BASE_URL}/firm/calendar.ics" title="Downloads a one-time snapshot -- it will not stay in sync with future roster changes">Download .ics</a>
           </div>
         </div>
         <div class="dr-cal-grid" id="dr-cal-grid"></div>

@@ -781,6 +781,20 @@
   .dr-paywall-tier-btn span { display: block; font-weight: 500; font-size: 0.82rem; opacity: 0.9; }
   .dr-paywall-tier-btn:hover { opacity: 0.9; }
   .dr-paywall-tier-btn:disabled { opacity: 0.6; cursor: default; }
+  
+  .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin: 1.4rem 0; }
+  .pricing-card {
+    background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
+    padding: 1.2rem 1.1rem; display: flex; flex-direction: column; gap: 0.6rem;
+  }
+  .pricing-card h2 { font-size: 1.05rem; margin: 0; font-family: var(--font-display); }
+  .pricing-card .price { font-size: 1.6rem; font-weight: 700; margin: 0; color: var(--fg); }
+  .pricing-card .price span { font-size: 0.85rem; font-weight: 500; color: var(--muted); }
+  .pricing-card p.detail { color: var(--muted); font-size: 0.87rem; flex: 1; margin: 0; }
+  .pricing-card .dr-paywall-tier-btn, .pricing-card a.dr-paywall-tier-btn {
+    text-decoration: none; display: block; flex: 0 0 auto; margin-top: auto;
+  }
+  .pricing-card--wide { grid-column: 1 / -1; text-align: center; }
 
   @media (max-width: 860px) {
     
@@ -1543,8 +1557,8 @@ current deadlines for these states, computed the same way as every free page on 
 the real product design, not a mockup of a different one.</p>
   <p class="how-it-works"><strong>Firm plans from $199/year</strong> (up to 5 staff) to $500/year (up to
   25 staff) &mdash; every tier has the identical feature set, gated only by staff count. Starting with a
-  free 30-day pilot, no card required. <a href="for-firms/" style="font-weight:600;">See full pricing and
-  details &rarr;</a></p>
+  free 30-day pilot, no card required. <a href="for-firms/" style="font-weight:600;">See the firm overview
+  &rarr;</a> &middot; <a href="pricing/">Full pricing (incl. individual) &rarr;</a></p>
 </section>
 <p class="how-it-works">How it works: each state page shows the actual next renewal deadline
 (or, where the rule depends on your birth month, a full lookup table) computed from the
@@ -1875,6 +1889,7 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
       <a href="/methodology/">How We Verify</a>
       <a href="/rule-changes/">Mobility Rule Changes</a>
       <a href="/blog/">Guides</a>
+      <a href="/pricing/">Pricing</a>
       <a href="/privacy/">Privacy</a>
       <a href="/terms/">Terms</a>
       <a href="/contact/">Contact</a>

@@ -780,6 +780,20 @@
   .dr-paywall-tier-btn span { display: block; font-weight: 500; font-size: 0.82rem; opacity: 0.9; }
   .dr-paywall-tier-btn:hover { opacity: 0.9; }
   .dr-paywall-tier-btn:disabled { opacity: 0.6; cursor: default; }
+  
+  .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin: 1.4rem 0; }
+  .pricing-card {
+    background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
+    padding: 1.2rem 1.1rem; display: flex; flex-direction: column; gap: 0.6rem;
+  }
+  .pricing-card h2 { font-size: 1.05rem; margin: 0; font-family: var(--font-display); }
+  .pricing-card .price { font-size: 1.6rem; font-weight: 700; margin: 0; color: var(--fg); }
+  .pricing-card .price span { font-size: 0.85rem; font-weight: 500; color: var(--muted); }
+  .pricing-card p.detail { color: var(--muted); font-size: 0.87rem; flex: 1; margin: 0; }
+  .pricing-card .dr-paywall-tier-btn, .pricing-card a.dr-paywall-tier-btn {
+    text-decoration: none; display: block; flex: 0 0 auto; margin-top: auto;
+  }
+  .pricing-card--wide { grid-column: 1 / -1; text-align: center; }
 
   @media (max-width: 860px) {
     
@@ -1155,7 +1169,7 @@ firm accounts start with a <strong>free 30-day pilot</strong>, also with no card
 charged unless and until you choose to convert to a paid firm plan.</p>
 
 <h2>4. Paid firm plans and billing</h2>
-<p>Paid firm plans (Starter, Growth, and Standard, priced by staff-count capacity &mdash; every tier has
+<p>Paid firm plans (Essentials, Professional, and Enterprise, priced by staff-count capacity &mdash; every tier has
 the identical feature set) are billed annually in advance through Stripe. We never see or store your card
 number; Stripe processes payment directly. By subscribing to a paid plan, you authorize us to charge your
 payment method on file for each renewal period until you cancel. An Individual plan is also available for
@@ -1241,6 +1255,7 @@ href="/privacy/">Privacy Policy</a>.</p>
       <a href="/methodology/">How We Verify</a>
       <a href="/rule-changes/">Mobility Rule Changes</a>
       <a href="/blog/">Guides</a>
+      <a href="/pricing/">Pricing</a>
       <a href="/privacy/">Privacy</a>
       <a href="/terms/">Terms</a>
       <a href="/contact/">Contact</a>

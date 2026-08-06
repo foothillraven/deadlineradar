@@ -1316,6 +1316,25 @@ PAGE_CSS = """
   .dr-paywall-tier-btn span { display: block; font-weight: 500; font-size: 0.82rem; opacity: 0.9; }
   .dr-paywall-tier-btn:hover { opacity: 0.9; }
   .dr-paywall-tier-btn:disabled { opacity: 0.6; cursor: default; }
+  /* Task #8 (2026-08-06) -- reuses .dr-paywall-tier-btn's own button styling
+     (var(--accent), already global) rather than the unscoped .cta-button
+     class, which turns out to only actually be styled inside .remind-panel
+     (checked -- every OTHER standalone `<a class="cta-button">` on this site
+     is unintentionally plain-text; not this page's bug to fix, but not one
+     to copy either). */
+  .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin: 1.4rem 0; }
+  .pricing-card {
+    background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
+    padding: 1.2rem 1.1rem; display: flex; flex-direction: column; gap: 0.6rem;
+  }
+  .pricing-card h2 { font-size: 1.05rem; margin: 0; font-family: var(--font-display); }
+  .pricing-card .price { font-size: 1.6rem; font-weight: 700; margin: 0; color: var(--fg); }
+  .pricing-card .price span { font-size: 0.85rem; font-weight: 500; color: var(--muted); }
+  .pricing-card p.detail { color: var(--muted); font-size: 0.87rem; flex: 1; margin: 0; }
+  .pricing-card .dr-paywall-tier-btn, .pricing-card a.dr-paywall-tier-btn {
+    text-decoration: none; display: block; flex: 0 0 auto; margin-top: auto;
+  }
+  .pricing-card--wide { grid-column: 1 / -1; text-align: center; }
 
   @media (max-width: 860px) {
     /* Stacked cards. Each cell carries its own label via data-label, so the
@@ -1762,6 +1781,53 @@ _NAV_TOGGLE_JS_HTML = """<script>
 })();
 </script>"""
 
+# Task #8 (2026-08-06): every firm-tier button on /pricing/ always attempts
+# a REAL checkout first (Devin's explicit call) -- for a visitor who
+# already has a firm session (mid-pilot or past it), this is one click
+# straight into Stripe, identical to the dashboard's own paywall. For an
+# anonymous visitor, POST /firm/billing/checkout 401s (requireFirmSession
+# gates it) and this redirects to /firm-login/ to start the free pilot
+# first -- same fallback drStartCheckout() (the dashboard's own version of
+# this) already uses, just without that function's paywall-specific
+# seat-cap filtering, which doesn't apply to a visitor with no roster yet.
+_PRICING_CHECKOUT_JS_HTML = f"""<script>
+(function() {{
+  var buttons = document.querySelectorAll('.dr-pricing-tier-btn');
+  var errEl = document.getElementById('dr-pricing-error');
+  for (var i = 0; i < buttons.length; i++) {{
+    buttons[i].addEventListener('click', function(ev) {{
+      var btn = ev.currentTarget;
+      var tier = btn.getAttribute('data-tier');
+      if (errEl) {{ errEl.hidden = true; errEl.textContent = ''; }}
+      btn.disabled = true;
+      fetch('{REMINDER_BACKEND_BASE_URL}/firm/billing/checkout', {{
+        method: 'POST',
+        credentials: 'include',
+        headers: {{'content-type': 'application/json'}},
+        body: JSON.stringify({{tier: tier}})
+      }}).then(function(res) {{
+        if (res.status === 401) {{ window.location.href = '/firm-login/'; return null; }}
+        return res.json().catch(function() {{ return null; }}).then(function(data) {{
+          if (!res.ok) {{
+            if (errEl) {{
+              errEl.textContent = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+              errEl.hidden = false;
+            }}
+            btn.disabled = false;
+            return;
+          }}
+          if (data && data.checkout_url) {{ window.location.href = data.checkout_url; }}
+          else {{ btn.disabled = false; }}
+        }});
+      }}).catch(function() {{
+        if (errEl) {{ errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }}
+        btn.disabled = false;
+      }});
+    }});
+  }}
+}})();
+</script>"""
+
 _BRAND_GLYPH_SVG = """<svg class="brand-glyph" viewBox="0 0 32 32" fill="none" aria-hidden="true" width="26" height="26">
   <circle cx="16" cy="16" r="13.5" stroke="#1f3d54" stroke-width="1.6"/>
   <circle cx="16" cy="16" r="8" stroke="#c8d2db" stroke-width="1.2"/>
@@ -1868,6 +1934,7 @@ def site_footer() -> str:
       <a href="/methodology/">How We Verify</a>
       <a href="/rule-changes/">Mobility Rule Changes</a>
       <a href="/blog/">Guides</a>
+      <a href="/pricing/">Pricing</a>
       <a href="/privacy/">Privacy</a>
       <a href="/terms/">Terms</a>
       <a href="/contact/">Contact</a>
@@ -3749,8 +3816,8 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   {_firm_dashboard_mockup_html(by_slug, as_of)}
   <p class="how-it-works"><strong>Firm plans from $199/year</strong> (up to 5 staff) to $500/year (up to
   25 staff) &mdash; every tier has the identical feature set, gated only by staff count. Starting with a
-  free 30-day pilot, no card required. <a href="for-firms/" style="font-weight:600;">See full pricing and
-  details &rarr;</a></p>
+  free 30-day pilot, no card required. <a href="for-firms/" style="font-weight:600;">See the firm overview
+  &rarr;</a> &middot; <a href="pricing/">Full pricing (incl. individual) &rarr;</a></p>
 </section>"""
 
     body = f"""{hero_html}
@@ -3828,7 +3895,7 @@ firm accounts start with a <strong>free 30-day pilot</strong>, also with no card
 charged unless and until you choose to convert to a paid firm plan.</p>
 
 <h2>4. Paid firm plans and billing</h2>
-<p>Paid firm plans (Starter, Growth, and Standard, priced by staff-count capacity &mdash; every tier has
+<p>Paid firm plans (Essentials, Professional, and Enterprise, priced by staff-count capacity &mdash; every tier has
 the identical feature set) are billed annually in advance through Stripe. We never see or store your card
 number; Stripe processes payment directly. By subscribing to a paid plan, you authorize us to charge your
 payment method on file for each renewal period until you cancel. An Individual plan is also available for
@@ -3903,6 +3970,83 @@ href="/privacy/">Privacy Policy</a>.</p>
         home_href="../",
         canonical_path="/terms/",
     )
+
+
+def build_pricing_page() -> str:
+    """Task #8 (2026-08-06): a dedicated /pricing/ page. Devin's rationale (the
+    task's own record): an individual visitor may never click into
+    /for-firms/, so today they never see ANY pricing, including the $39/yr
+    Individual tier that's relevant to them specifically. This is the one
+    canonical pricing surface with all 4 rows -- /for-firms/'s own pricing
+    list stays as-is (that sub-question wasn't part of what Devin decided,
+    only that firm-tier buttons should go straight into real checkout), but
+    now links here too instead of being the only place pricing lives.
+
+    Firm-tier buttons always attempt a REAL Stripe checkout first (Devin's
+    explicit call, see _PRICING_CHECKOUT_JS_HTML's own comment for the
+    anonymous-visitor fallback). The Individual tier stays lead-capture only
+    -- its own checkout was never built (same fact build_terms_page()
+    deliberately avoids promising terms for), so this page doesn't imply a
+    working purchase flow that doesn't exist.
+    """
+    body = f"""<h1>Pricing</h1>
+<p class="intro">One plan for individual CPAs, three for firms &mdash; every firm tier has the
+<strong>identical feature set</strong> (Roster, Calendar, Map, CPE Hours, Practice Privilege Check).
+The only difference between firm tiers is how many staff it covers; nothing is held back on a cheaper
+plan.</p>
+
+<p id="dr-pricing-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
+
+<div class="pricing-grid">
+  <div class="pricing-card">
+    <h2>Individual</h2>
+    <p class="price">$39<span>/year</span></p>
+    <p class="detail">Your own CPE-hour tracking and Practice Privilege Check. Checkout for this tier
+    isn't live yet.</p>
+    <a class="dr-paywall-tier-btn" href="mailto:{esc(CONTACT_EMAIL)}">Get in touch</a>
+    <p class="detail">Just want free renewal reminders? <a href="/#remind">Sign up free</a> &mdash; no
+    account needed.</p>
+  </div>
+  <div class="pricing-card">
+    <h2>Essentials</h2>
+    <p class="price">$199<span>/year</span></p>
+    <p class="detail">Up to 5 staff.</p>
+    <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_starter">Start free pilot</button>
+  </div>
+  <div class="pricing-card">
+    <h2>Professional</h2>
+    <p class="price">$349<span>/year</span></p>
+    <p class="detail">Up to 15 staff.</p>
+    <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_growth">Start free pilot</button>
+  </div>
+  <div class="pricing-card">
+    <h2>Enterprise</h2>
+    <p class="price">$500<span>/year</span></p>
+    <p class="detail">Up to 25 staff.</p>
+    <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_standard">Start free pilot</button>
+  </div>
+  <div class="pricing-card pricing-card--wide">
+    <h2>More than 25 staff?</h2>
+    <p class="detail"><a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a> &mdash; no formula, we'll work out what fits.</p>
+  </div>
+</div>
+
+<p>Every firm account starts with a <strong>free 30-day pilot</strong>, no card required. "Start free
+pilot" above begins that trial if you don't already have a firm account; if you're already signed in,
+it goes straight to checkout for that tier, same as the dashboard's own upgrade panel.</p>
+
+<p class="backlink">See exactly <a href="/methodology/">how we verify every deadline</a>, or read the
+<a href="/for-firms/">full firm-tier breakdown</a>.</p>
+"""
+    return page_shell(
+        f"Pricing — {SITE_NAME}",
+        "DeadlineRadar pricing: free individual reminders, a $39/year Individual plan, and firm plans "
+        "from $199/year for up to 5 staff. Every firm tier has the identical feature set.",
+        body,
+        home_href="../",
+        canonical_path="/pricing/",
+        has_remind_anchor=False,
+    ) + _PRICING_CHECKOUT_JS_HTML
 
 
 def build_privacy_page(updated: date) -> str:
@@ -4553,8 +4697,8 @@ _FIRM_FAQ = [
     ),
     (
         "Which plan should my firm pick?",
-        "Whatever covers your current staff count &mdash; Starter (up to 5), Growth (up to 15), or "
-        "Standard (up to 25). Every tier has the exact same feature set (Roster, Calendar, Map, CPE "
+        "Whatever covers your current staff count &mdash; Essentials (up to 5), Professional (up to 15), or "
+        "Enterprise (up to 25). Every tier has the exact same feature set (Roster, Calendar, Map, CPE "
         "Hours, Practice Privilege Check); the only thing that changes between tiers is how many "
         "staff it covers, never what it can do. Outgrowing your plan later just means moving up a "
         "tier, not losing anything.",
@@ -4670,11 +4814,12 @@ sourced dates staying visibly distinct is the whole reason to trust this site.</
 Hours, Practice Privilege Check, all of it. The only difference between tiers is how many staff it
 covers; nothing is held back on a cheaper plan.</p>
 <ul class="firm-pricing-list">
-  <li><strong>Starter</strong> &mdash; $199/year, up to 5 staff</li>
-  <li><strong>Growth</strong> &mdash; $349/year, up to 15 staff</li>
-  <li><strong>Standard</strong> &mdash; $500/year, up to 25 staff</li>
+  <li><strong>Essentials</strong> &mdash; $199/year, up to 5 staff</li>
+  <li><strong>Professional</strong> &mdash; $349/year, up to 15 staff</li>
+  <li><strong>Enterprise</strong> &mdash; $500/year, up to 25 staff</li>
   <li><strong>More than 25 staff?</strong> <a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a>.</li>
 </ul>
+<p><a href="/pricing/">See full pricing, including the individual plan &rarr;</a></p>
 <p><strong>Tracking just your own license, not a firm roster?</strong> The free individual reminders
 on our homepage already cover that at no cost, unchanged. There's also a <strong>$39/year Individual
 plan</strong> for a single CPA's own CPE tracking and Practice Privilege Check &mdash;
@@ -5917,7 +6062,7 @@ var drSeatCap = null;
 // the first real load" posture as drSeatCap above.
 var drBilling = null;
 var DR_PLAN_TIER_LABELS = {
-  firm_starter: 'Starter', firm_growth: 'Growth', firm_standard: 'Standard'
+  firm_starter: 'Essentials', firm_growth: 'Professional', firm_standard: 'Enterprise'
 };
 
 // Task #14 (2026-08-05, reported directly: "why would nothing happen when
@@ -6454,9 +6599,9 @@ function drRenderBillingPanel() {
     // checkout re-checks the real roster count server-side either way).
     var seatCount = drLicenses.length;
     var tiersHtml = '<div class="dr-paywall-tiers" id="dr-billing-upgrade-tiers">' +
-      '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_starter" data-seat-cap="5" ' + (seatCount > 5 ? 'hidden' : '') + '>Starter<br><span>$199/year &middot; up to 5 staff</span></button>' +
-      '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_growth" data-seat-cap="15" ' + (seatCount > 15 ? 'hidden' : '') + '>Growth<br><span>$349/year &middot; up to 15 staff</span></button>' +
-      '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_standard" data-seat-cap="25" ' + (seatCount > 25 ? 'hidden' : '') + '>Standard<br><span>$500/year &middot; up to 25 staff</span></button>' +
+      '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_starter" data-seat-cap="5" ' + (seatCount > 5 ? 'hidden' : '') + '>Essentials<br><span>$199/year &middot; up to 5 staff</span></button>' +
+      '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_growth" data-seat-cap="15" ' + (seatCount > 15 ? 'hidden' : '') + '>Professional<br><span>$349/year &middot; up to 15 staff</span></button>' +
+      '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_standard" data-seat-cap="25" ' + (seatCount > 25 ? 'hidden' : '') + '>Enterprise<br><span>$500/year &middot; up to 25 staff</span></button>' +
       '</div>';
     // AuditLab PAYNOW-1 (2026-08-05, caught pre-deploy): the lapsed-pilot
     // paywall this panel is modeled on has this exact same fallback for a
@@ -8858,9 +9003,9 @@ def build_firm_dashboard_page(
       <h2>Continue with a paid plan</h2>
       <p id="dr-paywall-message" class="subhead"></p>
       <div class="dr-paywall-tiers" id="dr-paywall-tiers">
-        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_starter" data-seat-cap="5">Starter<br><span>$199/year &middot; up to 5 staff</span></button>
-        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_growth" data-seat-cap="15">Growth<br><span>$349/year &middot; up to 15 staff</span></button>
-        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_standard" data-seat-cap="25">Standard<br><span>$500/year &middot; up to 25 staff</span></button>
+        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_starter" data-seat-cap="5">Essentials<br><span>$199/year &middot; up to 5 staff</span></button>
+        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_growth" data-seat-cap="15">Professional<br><span>$349/year &middot; up to 15 staff</span></button>
+        <button type="button" class="dr-paywall-tier-btn" data-tier="firm_standard" data-seat-cap="25">Enterprise<br><span>$500/year &middot; up to 25 staff</span></button>
       </div>
       <p style="font-size:0.88rem; color:var(--muted); margin-top:0.9rem;">Every tier has the identical
       feature set &mdash; the only difference is staff count. More than 25 staff?
@@ -10113,6 +10258,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/for-firms/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/pricing/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/firm-login/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
@@ -10334,6 +10482,11 @@ def main() -> None:
     terms_dir.mkdir(parents=True, exist_ok=True)
     (terms_dir / "index.html").write_text(build_terms_page(real_today), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/terms/index.html")
+
+    pricing_dir = SITE_DIR / "pricing"
+    pricing_dir.mkdir(parents=True, exist_ok=True)
+    (pricing_dir / "index.html").write_text(build_pricing_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/pricing/index.html")
 
     contact_dir = SITE_DIR / "contact"
     contact_dir.mkdir(parents=True, exist_ok=True)

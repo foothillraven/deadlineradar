@@ -742,12 +742,14 @@
   .dr-modal h2 { margin: 0 0 1rem; font-size: 1.1rem; font-family: var(--font-display); }
   .dr-modal label { display: block; font-weight: 600; font-size: 0.85rem; margin: 0.9rem 0 0.3rem; }
   .dr-modal label:first-of-type { margin-top: 0; }
-  .dr-modal input[type="text"], .dr-modal input[type="email"], .dr-modal input[type="date"] {
+  .dr-modal input[type="text"], .dr-modal input[type="email"], .dr-modal input[type="date"],
+  .dr-modal select, .dr-modal textarea {
     width: 100%; box-sizing: border-box; padding: 0.55rem 0.65rem;
     border: 1px solid var(--border-strong); border-radius: 6px;
     background: var(--bg); color: var(--fg); font-size: inherit; font-family: inherit;
   }
-  .dr-modal input:focus {
+  .dr-modal textarea { resize: vertical; }
+  .dr-modal input:focus, .dr-modal select:focus, .dr-modal textarea:focus {
     outline: none; border-color: var(--accent-deep); box-shadow: 0 0 0 3px var(--accent-bg);
   }
   
@@ -985,6 +987,15 @@
   .dr-account-panel h2 { font-size: 1.05rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
   .dr-account-ok { color: #1f9e5c; font-size: 0.85rem; margin-top: 0.6rem; }
   .dr-account-err { color: #c33737; font-size: 0.85rem; margin-top: 0.6rem; }
+  
+  .dr-danger-zone { border-color: rgba(200, 55, 55, 0.4); }
+  .dr-danger-zone h2 { color: #c33737; }
+  .dr-btn-danger {
+    background: transparent; color: #c33737; border: 1px solid #c33737; border-radius: 6px;
+    font-weight: 600; cursor: pointer; padding: 0.5rem 1rem; font-size: 0.88rem; font-family: inherit;
+  }
+  .dr-btn-danger:hover:not(:disabled) { background: rgba(200, 55, 55, 0.1); }
+  .dr-btn-danger:disabled { opacity: 0.45; cursor: default; }
 
   
   .signin-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; margin: 1.4rem 0 1.8rem; }
@@ -1145,6 +1156,8 @@
 <div class="dr-auth-view" id="dr-view-signin">
   <h1>Sign in</h1>
   <p class="subhead">One roster for every staff CPA's license renewal.</p>
+  <p class="dr-account-ok" id="dr-account-deleted-notice" hidden>Your account has been deleted. It's
+  deactivated immediately; the data is permanently erased in 30 days.</p>
 
   <div class="dr-sso-block dr-sso-top">
     <a class="dr-sso-button" href="/api/firm/auth/google/start">
@@ -1249,7 +1262,7 @@
 <p class="how-it-works">Not a firm &mdash; just tracking your own license?
 <a href="/signin/">Sign in here</a>.</p>
 
-<script>(function(){var views=["dr-view-signin","dr-view-signup","dr-view-magic"];function show(id){for(var i=0;i<views.length;i++){var el=document.getElementById(views[i]);if(el)el.hidden=views[i]!==id}var target=document.getElementById(id);if(target){var first=target.querySelector("input:not([type=hidden]):not([tabindex='-1'])");if(first)first.focus()}}function fromHash(){var h=(window.location.hash||"").replace("#","");return views.indexOf(h)!==-1?h:"dr-view-signin"}function setIntent(intent){var field=document.getElementById("dr-magic-intent");var heading=document.getElementById("dr-magic-heading");var sub=document.getElementById("dr-magic-sub");var submit=document.getElementById("dr-magic-submit");var reset=intent==="password_reset";if(field)field.value=reset?"password_reset":"login";if(heading)heading.textContent=reset?"Set a new password":"Email me a sign-in link";if(sub){sub.textContent=reset?"We'll email you a link. Click it and we'll take you straight to a page where you can choose a new password.":"Works whether or not you've set a password."}if(submit)submit.textContent=reset?"Email me a password-reset link":"Email me a sign-in link"}document.addEventListener("click",function(e){var a=e.target.closest?e.target.closest(".dr-auth-switch"):null;if(!a)return;e.preventDefault();var target=a.getAttribute("data-target");if(target==="dr-view-magic")setIntent(a.getAttribute("data-intent")||"login");if(window.history&&window.history.replaceState){window.history.replaceState(null,"","#"+target)}show(target)});window.addEventListener("hashchange",function(){show(fromHash())});show(fromHash());function firstParagraphText(html){var match=/<p>([\s\S]*?)<\/p>/.exec(html);if(!match)return"Something went wrong. Please try again.";var div=document.createElement("div");div.innerHTML=match[1];return div.textContent||div.innerText||"Something went wrong. Please try again."}function recoverThenReenable(submitBtn){if(window.drTurnstileRecover){window.drTurnstileRecover(function(){if(submitBtn)submitBtn.disabled=false})}else if(submitBtn){submitBtn.disabled=false}}function ajaxifyForm(formId,errorId,onSuccess){var form=document.getElementById(formId);var errEl=errorId?document.getElementById(errorId):null;if(!form)return;form.addEventListener("submit",function(e){e.preventDefault();if(errEl){errEl.hidden=true;errEl.textContent=""}var submitBtn=form.querySelector('button[type="submit"]');if(submitBtn)submitBtn.disabled=true;fetch(form.getAttribute("action"),{method:"POST",credentials:"include",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams(new FormData(form)).toString()}).then(function(resp){if(resp.redirected){onSuccess(true);return}return resp.text().then(function(html){if(resp.ok){onSuccess(false,html);return}if(errEl){errEl.textContent=firstParagraphText(html);errEl.hidden=false}recoverThenReenable(submitBtn)})}).catch(function(){if(errEl){errEl.textContent="Something went wrong. Please try again.";errEl.hidden=false}recoverThenReenable(submitBtn)})})}ajaxifyForm("dr-firmlogin-signin-form","dr-firmlogin-signin-error",function(){window.location.href="/firm-dashboard/"});ajaxifyForm("dr-firmlogin-signup-form","dr-firmlogin-signup-error",function(){var form=document.getElementById("dr-firmlogin-signup-form");var hint=document.getElementById("dr-firmlogin-signup-hint");var ok=document.getElementById("dr-firmlogin-signup-ok");if(form)form.hidden=true;if(hint)hint.hidden=true;if(ok)ok.hidden=false});ajaxifyForm("dr-magic-form","dr-magic-error",function(){var form=document.getElementById("dr-magic-form");var ok=document.getElementById("dr-magic-ok");if(form)form.hidden=true;if(ok)ok.hidden=false})})();</script>
+<script>(function(){var views=["dr-view-signin","dr-view-signup","dr-view-magic"];function show(id){for(var i=0;i<views.length;i++){var el=document.getElementById(views[i]);if(el)el.hidden=views[i]!==id}var target=document.getElementById(id);if(target){var first=target.querySelector("input:not([type=hidden]):not([tabindex='-1'])");if(first)first.focus()}}function fromHash(){var h=(window.location.hash||"").replace("#","");return views.indexOf(h)!==-1?h:"dr-view-signin"}function setIntent(intent){var field=document.getElementById("dr-magic-intent");var heading=document.getElementById("dr-magic-heading");var sub=document.getElementById("dr-magic-sub");var submit=document.getElementById("dr-magic-submit");var reset=intent==="password_reset";if(field)field.value=reset?"password_reset":"login";if(heading)heading.textContent=reset?"Set a new password":"Email me a sign-in link";if(sub){sub.textContent=reset?"We'll email you a link. Click it and we'll take you straight to a page where you can choose a new password.":"Works whether or not you've set a password."}if(submit)submit.textContent=reset?"Email me a password-reset link":"Email me a sign-in link"}document.addEventListener("click",function(e){var a=e.target.closest?e.target.closest(".dr-auth-switch"):null;if(!a)return;e.preventDefault();var target=a.getAttribute("data-target");if(target==="dr-view-magic")setIntent(a.getAttribute("data-intent")||"login");if(window.history&&window.history.replaceState){window.history.replaceState(null,"","#"+target)}show(target)});window.addEventListener("hashchange",function(){show(fromHash())});show(fromHash());if(new URLSearchParams(window.location.search).get("account-deleted")==="1"){var deletedNotice=document.getElementById("dr-account-deleted-notice");if(deletedNotice)deletedNotice.hidden=false}function firstParagraphText(html){var match=/<p>([\s\S]*?)<\/p>/.exec(html);if(!match)return"Something went wrong. Please try again.";var div=document.createElement("div");div.innerHTML=match[1];return div.textContent||div.innerText||"Something went wrong. Please try again."}function recoverThenReenable(submitBtn){if(window.drTurnstileRecover){window.drTurnstileRecover(function(){if(submitBtn)submitBtn.disabled=false})}else if(submitBtn){submitBtn.disabled=false}}function ajaxifyForm(formId,errorId,onSuccess){var form=document.getElementById(formId);var errEl=errorId?document.getElementById(errorId):null;if(!form)return;form.addEventListener("submit",function(e){e.preventDefault();if(errEl){errEl.hidden=true;errEl.textContent=""}var submitBtn=form.querySelector('button[type="submit"]');if(submitBtn)submitBtn.disabled=true;fetch(form.getAttribute("action"),{method:"POST",credentials:"include",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams(new FormData(form)).toString()}).then(function(resp){if(resp.redirected){onSuccess(true);return}return resp.text().then(function(html){if(resp.ok){onSuccess(false,html);return}if(errEl){errEl.textContent=firstParagraphText(html);errEl.hidden=false}recoverThenReenable(submitBtn)})}).catch(function(){if(errEl){errEl.textContent="Something went wrong. Please try again.";errEl.hidden=false}recoverThenReenable(submitBtn)})})}ajaxifyForm("dr-firmlogin-signin-form","dr-firmlogin-signin-error",function(){window.location.href="/firm-dashboard/"});ajaxifyForm("dr-firmlogin-signup-form","dr-firmlogin-signup-error",function(){var form=document.getElementById("dr-firmlogin-signup-form");var hint=document.getElementById("dr-firmlogin-signup-hint");var ok=document.getElementById("dr-firmlogin-signup-ok");if(form)form.hidden=true;if(hint)hint.hidden=true;if(ok)ok.hidden=false});ajaxifyForm("dr-magic-form","dr-magic-error",function(){var form=document.getElementById("dr-magic-form");var ok=document.getElementById("dr-magic-ok");if(form)form.hidden=true;if(ok)ok.hidden=false})})();</script>
 
 </div>
 <footer class="site-footer">

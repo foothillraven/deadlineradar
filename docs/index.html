@@ -743,12 +743,14 @@
   .dr-modal h2 { margin: 0 0 1rem; font-size: 1.1rem; font-family: var(--font-display); }
   .dr-modal label { display: block; font-weight: 600; font-size: 0.85rem; margin: 0.9rem 0 0.3rem; }
   .dr-modal label:first-of-type { margin-top: 0; }
-  .dr-modal input[type="text"], .dr-modal input[type="email"], .dr-modal input[type="date"] {
+  .dr-modal input[type="text"], .dr-modal input[type="email"], .dr-modal input[type="date"],
+  .dr-modal select, .dr-modal textarea {
     width: 100%; box-sizing: border-box; padding: 0.55rem 0.65rem;
     border: 1px solid var(--border-strong); border-radius: 6px;
     background: var(--bg); color: var(--fg); font-size: inherit; font-family: inherit;
   }
-  .dr-modal input:focus {
+  .dr-modal textarea { resize: vertical; }
+  .dr-modal input:focus, .dr-modal select:focus, .dr-modal textarea:focus {
     outline: none; border-color: var(--accent-deep); box-shadow: 0 0 0 3px var(--accent-bg);
   }
   
@@ -986,6 +988,15 @@
   .dr-account-panel h2 { font-size: 1.05rem; margin: 0 0 0.6rem; font-family: var(--font-display); }
   .dr-account-ok { color: #1f9e5c; font-size: 0.85rem; margin-top: 0.6rem; }
   .dr-account-err { color: #c33737; font-size: 0.85rem; margin-top: 0.6rem; }
+  
+  .dr-danger-zone { border-color: rgba(200, 55, 55, 0.4); }
+  .dr-danger-zone h2 { color: #c33737; }
+  .dr-btn-danger {
+    background: transparent; color: #c33737; border: 1px solid #c33737; border-radius: 6px;
+    font-weight: 600; cursor: pointer; padding: 0.5rem 1rem; font-size: 0.88rem; font-family: inherit;
+  }
+  .dr-btn-danger:hover:not(:disabled) { background: rgba(200, 55, 55, 0.1); }
+  .dr-btn-danger:disabled { opacity: 0.45; cursor: default; }
 
   
   .signin-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; margin: 1.4rem 0 1.8rem; }

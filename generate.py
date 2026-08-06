@@ -6810,26 +6810,42 @@ function drApplyAggregateCoverageOverlay(byState, gen) {
     Promise.all(slugs.slice(1).map(fetchForHome)).then(function(rest) {
       if (gen !== drMapSelectionGen) return;
       var all = [first].concat(rest);
-      var coverage = {}; // target slug -> [staff names whose home state clears it]
+      var coverage = {}; // target slug -> {names: [...], fluxNote: bool}
       all.forEach(function(entry, i) {
         if (!entry || entry.denied || !entry.results) return;
         var homeSlug = slugs[i];
         entry.results.forEach(function(r) {
           if (r.overall !== 'clear' || byState[r.target_state_slug]) return;
-          if (!coverage[r.target_state_slug]) coverage[r.target_state_slug] = [];
+          if (!coverage[r.target_state_slug]) {
+            // AuditLab MOB-2 follow-up (2026-08-06, LOW): this overlay
+            // builds its own tooltip from staff names only and never reads
+            // r.individual.summary at all -- so unlike the per-person Map
+            // view (drApplyMobilityResults, fixed separately), a settled-
+            // flux target state showed zero "rule recently changed" signal
+            // here. mobility.ts's applyRecentChangeCaveat() appends that
+            // caveat to summary as "...(This state's rule changed on
+            // DATE.)" -- detected by substring rather than re-parsing the
+            // date, since this view only needs to know THAT it applies, not
+            // repeat the exact date (which the per-person view / Practice
+            // Privilege Check page already state precisely).
+            var fluxNote = !!(r.individual && r.individual.summary &&
+              r.individual.summary.indexOf("rule changed on") !== -1);
+            coverage[r.target_state_slug] = {names: [], fluxNote: fluxNote};
+          }
           homeStates[homeSlug].forEach(function(name) {
-            if (coverage[r.target_state_slug].indexOf(name) === -1) coverage[r.target_state_slug].push(name);
+            if (coverage[r.target_state_slug].names.indexOf(name) === -1) coverage[r.target_state_slug].names.push(name);
           });
         });
       });
       var anyCoverage = Object.keys(coverage).length > 0;
       if (legendItem) legendItem.hidden = !anyCoverage;
       document.querySelectorAll('.dr-map-link').forEach(function(link) {
-        var names = coverage[link.getAttribute('data-state-slug')];
-        if (!names) return;
+        var cov = coverage[link.getAttribute('data-state-slug')];
+        if (!cov) return;
         link.querySelector('path').classList.add('dr-map-state--coverage');
-        var tip = 'No staff licensed here directly, but practice privilege is clear for: ' + names.join(', ') +
+        var tip = 'No staff licensed here directly, but practice privilege is clear for: ' + cov.names.join(', ') +
           ' (assumes good standing + substantial equivalence).';
+        if (cov.fluxNote) tip += ' This state’s rule recently changed — see Practice Privilege Check for details.';
         link.setAttribute('data-tip', tip);
         link.setAttribute('aria-label', tip);
         link.setAttribute('data-has-staff', 'true');

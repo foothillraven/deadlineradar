@@ -1257,26 +1257,24 @@ PAGE_CSS = """
     box-shadow: inset 3px 0 0 var(--accent-deep);
   }
 
-  /* Sticky Actions. The background is opaque and matches the row so the
-     scrolled-under content does not bleed through, and the left shadow
-     signals there is more table behind it. */
-  .dr-roster-panel th.dr-actions-head,
-  .dr-roster-panel td.dr-actions {
-    position: sticky; right: 0; z-index: 2;
-    box-shadow: -6px 0 6px -6px rgba(0,0,0,0.18);
-  }
-  /* Body cells match their row's own background -- card-bg / row-alt. */
+  /* Actions used to be `position: sticky; right: 0` so it stayed reachable
+     without scrolling. Reverted (2026-08-06, reported live + reproduced):
+     a sticky td doesn't push table content out of the way, it paints over
+     it -- any time the table's own content width exceeded its container
+     (confirmed to happen just from ONE row entering edit mode, which widens
+     the whole table via the :has(.dr-edit-email) rule below, at container
+     widths as common as ~900px), the sticky column rendered 80+px to the
+     LEFT of its natural position to stay on-screen, silently covering the
+     right portion of Next-deadline for EVERY row, not just the one being
+     edited -- "Jan 1, 2026" read as just "Ja". Measured and reproduced
+     exactly (deadlineRect vs actionsRect overlap == table.scrollWidth -
+     wrap.clientWidth) before reverting; obscuring real data is worse than
+     the original "have to scroll right to reach Actions" annoyance sticky
+     was added to fix, and .table-wrap's own overflow-x:auto still makes
+     Actions reachable, just no longer glued over its neighbor. */
   .dr-roster-panel td.dr-actions { background: var(--card-bg); }
   .dr-roster-panel tbody tr:nth-child(even) td.dr-actions { background: var(--row-alt); }
-  /* The header row is NOT a body row -- it's dark accent with light text
-     (the general `th` rule, line ~433), not card-bg. Reusing card-bg here
-     (2026-08-03 bug, reported as "Actions header looks greyed out/
-     unreadable"): the background flipped to near-white while `color`
-     stayed inherited as the header's light `#eaf1f7`, so the sticky
-     Actions header rendered near-white text on a near-white background --
-     readable nowhere, not just "greyed." Match the header's own colors
-     explicitly instead of assuming one shared background serves both. */
-  .dr-roster-panel th.dr-actions-head { background: var(--accent); color: var(--on-accent); z-index: 3; }
+  .dr-roster-panel th.dr-actions-head { background: var(--accent); color: var(--on-accent); }
 
   /* Tighter action buttons so the sticky column costs less width. */
   .dr-roster-panel td.dr-actions button { padding: 0.22rem 0.5rem; font-size: 0.76rem; white-space: nowrap; }

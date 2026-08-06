@@ -671,6 +671,21 @@ describe("POST /firm/signup -- firm account creation + login-link send", () => {
     expect(sixth.status).toBe(429);
   });
 
+  // AuditLab RL-7 (2026-08-06, MEDIUM): same per-recipient gap as RL-6 on
+  // /firm/login, but this route always sends on every accepted submission
+  // (repeat signups for an existing email just resend the login link) --
+  // no anti-enumeration branch to hide behind, so the 6th request for the
+  // SAME email returns 429 directly, even from a fresh IP each time.
+  it("RL-7: blocks the 6th request for the SAME email even across different IPs (per-recipient bucket)", async () => {
+    const email = `firmsignup-acct-rl7-${Date.now()}@example.com`;
+    for (let i = 0; i < 5; i++) {
+      const resp = await postFirmSignup({ name: "Account RL7 Firm", admin_email: email }, `203.0.113.${250 + i}`);
+      expect(resp.status).not.toBe(429);
+    }
+    const sixth = await postFirmSignup({ name: "Account RL7 Firm", admin_email: email }, "203.0.113.255");
+    expect(sixth.status).toBe(429);
+  });
+
   // AuditLab F-4, 2026-08-02 (LOW): `firms.admin_email` had no UNIQUE
   // constraint. Two rows could hold the same email (reproduced via two
   // concurrent POST /firm/signup from the same IP -- the rate-limit bucket
@@ -1053,6 +1068,40 @@ describe("POST /firm/login -- login-link resend for an existing firm", () => {
     }
     const sixth = await postFirmLogin({ admin_email: `firmlogin-rl-6-${Date.now()}@example.com` }, ip);
     expect(sixth.status).toBe(429);
+  });
+
+  // AuditLab RL-6 (2026-08-06, HIGH): the IP bucket above cannot see a
+  // distributed mail-bomb aimed at one recipient -- an attacker spread
+  // across many IPs could exhaust a single firm admin's inbox. This asserts
+  // the SEND itself (via the firm_login_tokens row count) stops once the
+  // per-recipient bucket is exhausted, even though every response stays a
+  // byte-identical 200 -- the response can never reveal the account bucket
+  // tripped, only the token count proves it (same anti-enumeration posture
+  // as the rest of this handler).
+  it("RL-6: throttles the SEND per RECIPIENT even across different IPs, while every response stays 200 (anti-enumeration preserved)", async () => {
+    const email = `firmlogin-acct-rl6-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Account RL6 Firm", admin_email: email }, "203.0.113.230");
+    const firm = await firmByAdminEmail(email);
+    const before = await env.DB
+      .prepare("SELECT COUNT(*) as c FROM firm_login_tokens WHERE firm_id = ?1")
+      .bind(firm?.id)
+      .first<{ c: number }>();
+
+    // Signup's own send uses a SEPARATE bucket (firm_signup_account, RL-7) --
+    // doesn't touch this one. The firm_login_account bucket allows 5
+    // sends/hour; each of these 6 requests comes from a FRESH IP so only the
+    // account-keyed bucket can possibly throttle them.
+    for (let i = 0; i < 6; i++) {
+      const resp = await postFirmLogin({ admin_email: email }, `203.0.113.${240 + i}`);
+      expect(resp.status).toBe(200); // never 429 -- anti-enumeration response never changes
+    }
+
+    const after = await env.DB
+      .prepare("SELECT COUNT(*) as c FROM firm_login_tokens WHERE firm_id = ?1")
+      .bind(firm?.id)
+      .first<{ c: number }>();
+    // 6 login attempts, but only 5 sends allowed by the account bucket.
+    expect(after?.c).toBe((before?.c ?? 0) + 5);
   });
 });
 

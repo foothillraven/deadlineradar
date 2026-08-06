@@ -241,6 +241,33 @@ describe("POST /firm/billing/checkout", () => {
       fetchSpy.mockRestore();
     }
   });
+
+  // AuditLab RL-5 (2026-08-06, MEDIUM): this route had ZERO checkRateLimit
+  // calls -- unlike its sibling cancel/resume below, an unbounded client
+  // (compromised session, retry-looping bug) could hit Stripe under the one
+  // shared secret key with no limit. Body is an unrecognised tier (400
+  // before the fix, if the request ever got that far) so no Stripe call is
+  // ever made -- the rate-limit check now sits before body parsing entirely.
+  it("RL-5: rate-limited per firm (was completely unbounded)", async () => {
+    const { cookie } = await createFirmWithSession("Checkout RL Firm", `checkout-rl-${Date.now()}@example.com`);
+    let sawA429 = false;
+    for (let i = 0; i < 15; i++) {
+      const resp = await workerFetch(
+        new Request("https://deadline-radar.com/firm/billing/checkout", {
+          method: "POST",
+          headers: { "content-type": "application/json", Cookie: cookie },
+          body: JSON.stringify({ tier: "enterprise" }),
+        }),
+        { STRIPE_SECRET_KEY: "sk_test_x", STRIPE_PRICE_FIRM_STARTER: "price_x" }
+      );
+      if (resp.status === 429) {
+        sawA429 = true;
+        break;
+      }
+      expect(resp.status).toBe(400);
+    }
+    expect(sawA429, "expected a 429 within the RATE_LIMIT_FIRM_BILLING_CHECKOUT ceiling (10/hour) -- got none in 15 requests").toBe(true);
+  });
 });
 
 describe("POST /firm/billing/cancel and /firm/billing/resume (2026-08-05, self-serve cancellation)", () => {

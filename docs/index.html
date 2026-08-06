@@ -102,6 +102,20 @@
   }
   .nav-links a:hover { color: var(--fg); }
   .nav-links a.cta { color: var(--accent); font-weight: 600; }
+  
+  .nav-toggle {
+    display: none; border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--fg);
+    border-radius: 6px; font-size: 1.15rem; line-height: 1; cursor: pointer; padding: 0.35rem 0.6rem;
+  }
+  @media (max-width: 680px) {
+    .nav-toggle { display: block; }
+    .nav-links {
+      display: none; flex-direction: column; align-items: stretch; gap: 0;
+      width: 100%; order: 3; border-top: 1px solid var(--border); margin-top: 0.5rem;
+    }
+    .nav-links.dr-nav-open { display: flex; }
+    .nav-links a { padding: 0.75rem 0.1rem; border-bottom: 1px solid var(--border); }
+  }
   .stat-strip {
     margin: 1.1rem -1.25rem 1.75rem; background: var(--card-bg); border-top: 1px solid var(--border);
     border-bottom: 1px solid var(--border); padding: 0.65rem 1.25rem; font-size: 0.8rem; color: var(--muted);
@@ -1097,7 +1111,8 @@
 </svg>
       <span class="wordmark">DeadlineRadar</span>
     </a>
-    <div class="nav-links">
+    <button type="button" class="nav-toggle" id="dr-nav-toggle" aria-expanded="false" aria-controls="dr-nav-links" aria-label="Menu">&#9776;</button>
+    <div class="nav-links" id="dr-nav-links">
       <a href="/#all-states">Browse States</a>
       <a href="/methodology/">How We Verify</a>
       <a href="/blog/">Guides</a>
@@ -1108,6 +1123,7 @@
   </div>
 </nav>
 <script>(function(){var link=document.getElementById("dr-nav-signin");if(!link)return;fetch("/api/firm/licenses",{credentials:"include"}).then(function(r){if(r.ok){link.textContent="Dashboard";link.href="/firm-dashboard/"}}).catch(function(){})})();</script>
+<script>(function(){var btn=document.getElementById("dr-nav-toggle");var links=document.getElementById("dr-nav-links");if(!btn||!links)return;btn.addEventListener("click",function(){var open=links.classList.toggle("dr-nav-open");btn.setAttribute("aria-expanded",open?"true":"false")});links.addEventListener("click",function(ev){if(ev.target.tagName==="A"){links.classList.remove("dr-nav-open");btn.setAttribute("aria-expanded","false")}})})();</script>
 <div class="wrap">
 <header class="site-header">
   <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>

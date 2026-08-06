@@ -471,6 +471,23 @@ PAGE_CSS = """
   }
   .nav-links a:hover { color: var(--fg); }
   .nav-links a.cta { color: var(--accent); font-weight: 600; }
+  /* Hamburger nav (2026-08-06) -- below ~680px, 6 nav items wrapped onto
+     2-3 stacked rows above the fold (.nav-links's own flex-wrap was the
+     entire mobile strategy). Hidden by default; the media query below is
+     the only place that shows it, so desktop never renders a dead button. */
+  .nav-toggle {
+    display: none; border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--fg);
+    border-radius: 6px; font-size: 1.15rem; line-height: 1; cursor: pointer; padding: 0.35rem 0.6rem;
+  }
+  @media (max-width: 680px) {
+    .nav-toggle { display: block; }
+    .nav-links {
+      display: none; flex-direction: column; align-items: stretch; gap: 0;
+      width: 100%; order: 3; border-top: 1px solid var(--border); margin-top: 0.5rem;
+    }
+    .nav-links.dr-nav-open { display: flex; }
+    .nav-links a { padding: 0.75rem 0.1rem; border-bottom: 1px solid var(--border); }
+  }
   .stat-strip {
     margin: 1.1rem -1.25rem 1.75rem; background: var(--card-bg); border-top: 1px solid var(--border);
     border-bottom: 1px solid var(--border); padding: 0.65rem 1.25rem; font-size: 0.8rem; color: var(--muted);
@@ -1721,6 +1738,30 @@ PAGE_CSS = """
 """
 
 
+# Task #20 (2026-08-06): the hamburger button above ~680px does nothing on
+# its own -- this toggles .dr-nav-open (shown/hidden by the media query on
+# .nav-links) and keeps aria-expanded honest for screen readers. Closes on
+# a link click too, so navigating away doesn't leave the menu open behind
+# the new page. Present on every page (not conditional like the sign-in
+# swap script above it) since every page has the same nav markup.
+_NAV_TOGGLE_JS_HTML = """<script>
+(function() {
+  var btn = document.getElementById('dr-nav-toggle');
+  var links = document.getElementById('dr-nav-links');
+  if (!btn || !links) return;
+  btn.addEventListener('click', function() {
+    var open = links.classList.toggle('dr-nav-open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  links.addEventListener('click', function(ev) {
+    if (ev.target.tagName === 'A') {
+      links.classList.remove('dr-nav-open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+})();
+</script>"""
+
 _BRAND_GLYPH_SVG = """<svg class="brand-glyph" viewBox="0 0 32 32" fill="none" aria-hidden="true" width="26" height="26">
   <circle cx="16" cy="16" r="13.5" stroke="#1f3d54" stroke-width="1.6"/>
   <circle cx="16" cy="16" r="8" stroke="#c8d2db" stroke-width="1.2"/>
@@ -1795,7 +1836,8 @@ def site_header(
       {_BRAND_GLYPH_SVG}
       <span class="wordmark">{esc(SITE_NAME)}</span>
     </a>
-    <div class="nav-links">
+    <button type="button" class="nav-toggle" id="dr-nav-toggle" aria-expanded="false" aria-controls="dr-nav-links" aria-label="Menu">&#9776;</button>
+    <div class="nav-links" id="dr-nav-links">
       <a href="/#all-states">Browse States</a>
       <a href="/methodology/">How We Verify</a>
       <a href="/blog/">Guides</a>
@@ -1805,6 +1847,7 @@ def site_header(
   </div>
 </nav>
 {signin_swap_js_html}
+{_NAV_TOGGLE_JS_HTML}
 <div class="wrap">
 <header class="site-header">
   <div class="tagline">{esc(SITE_TAGLINE)}</div>

@@ -1959,6 +1959,16 @@ async function handleFirmBillingCancellationToggle(request: Request, env: Env, c
     return jsonResponse(429, { error: "Too many attempts. Please try again later." });
   }
 
+  // Task #27 follow-up (2026-08-06, reported live): see
+  // handleFirmChangeEmailRequest's identical comment -- a demo visitor could
+  // otherwise cancel the plan the shared demo account exists to showcase for
+  // the next visitor.
+  if (session.firm.demo_locked) {
+    return jsonResponse(403, {
+      error: "This is a shared demo account. Billing changes aren't available for this account.",
+    });
+  }
+
   if (!session.firm.stripe_subscription_id) {
     return jsonResponse(400, { error: "No active subscription to update." });
   }
@@ -2029,6 +2039,15 @@ async function handleFirmAccountDelete(request: Request, env: Env): Promise<Resp
   const firm = await store.getFirmById(env.DB, session.firmId);
   if (!firm) {
     return jsonResponse(404, { error: "Not found." });
+  }
+  // Task #27 follow-up (2026-08-06, reported live): see
+  // handleFirmChangeEmailRequest's identical comment -- the shared demo
+  // account existing at all depends on nobody being able to delete it out
+  // from under the next visitor.
+  if (firm.demo_locked) {
+    return jsonResponse(403, {
+      error: "This is a shared demo account. Account deletion isn't available for this account.",
+    });
   }
   if (firm.status === store.FIRM_STATUS_DELETED) {
     // Guards the narrow concurrent-request race: two delete calls close
@@ -2889,6 +2908,11 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     plan_tier: session.firm.plan_tier,
     cancel_at_period_end: Boolean(session.firm.cancel_at_period_end),
     current_period_end: session.firm.current_period_end,
+    // Account-tab lockdown (2026-08-06, reported live against the newly
+    // public demo): the frontend needs this to grey out email/password/
+    // billing/delete controls up front, rather than letting a demo visitor
+    // fill out a form and only find out it's refused on submit.
+    demo_locked: Boolean(session.firm.demo_locked),
   });
 }
 
@@ -4883,6 +4907,20 @@ async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise
 
   const firm = await store.getFirmById(env.DB, session.firmId);
   if (!firm) return jsonResponse(404, { error: "Not found." });
+
+  // Task #27 follow-up (2026-08-06, reported live): this route, the billing
+  // cancellation toggle, and account deletion were the three Account-tab
+  // mutations demo_locked never actually covered -- handleFirmPasswordSet
+  // and SSO-linking already refuse a demo_locked firm (see their own
+  // comments), but a visitor to the now-public demo could still repoint the
+  // shared account's own sign-in email, cancel the plan the demo exists to
+  // showcase, or delete the account outright. Same message shape as the
+  // password-set refusal.
+  if (firm.demo_locked) {
+    return jsonResponse(403, {
+      error: "This is a shared demo account. Email changes aren't available for this account.",
+    });
+  }
 
   // AuditLab EMAILCHG-1 (2026-08-05, MEDIUM): a session cookie alone used to
   // be enough to REQUEST an email change, unlike handleFirmPasswordSet's own

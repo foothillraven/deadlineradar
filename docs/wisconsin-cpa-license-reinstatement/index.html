@@ -1029,6 +1029,10 @@
   .dr-account-panel #dr-billing-body button:hover, .dr-account-panel #dr-signout-other-btn:hover { border-color: var(--fg); }
   .dr-account-panel #dr-billing-body button:disabled, .dr-account-panel #dr-signout-other-btn:disabled { opacity: 0.6; cursor: default; }
   
+  .dr-account-panel input:disabled, .dr-account-panel select:disabled, .dr-account-panel button:disabled {
+    opacity: 0.55; cursor: not-allowed; background: var(--row-alt);
+  }
+  
   .dr-pw-wrap { position: relative; display: block; }
   .dr-pw-wrap input { padding-right: 3.4rem !important; }
   .dr-pw-toggle {

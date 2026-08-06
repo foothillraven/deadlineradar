@@ -1640,6 +1640,12 @@ PAGE_CSS = """
   .dr-account-panel #dr-billing-body button, .dr-account-panel #dr-signout-other-btn { font-family: inherit; font-size: 0.85rem; font-weight: 600; padding: 0.4rem 0.9rem; border: 1px solid var(--border-strong); border-radius: 7px; background: transparent; color: inherit; cursor: pointer; margin-top: 0.4rem; }
   .dr-account-panel #dr-billing-body button:hover, .dr-account-panel #dr-signout-other-btn:hover { border-color: var(--fg); }
   .dr-account-panel #dr-billing-body button:disabled, .dr-account-panel #dr-signout-other-btn:disabled { opacity: 0.6; cursor: default; }
+  /* Demo-account lockdown (2026-08-06): input:disabled has no useful default
+     look in most browsers -- still full-contrast text, no visual signal it's
+     inert. Scoped to .dr-account-panel forms only, the two this ever hits. */
+  .dr-account-panel input:disabled, .dr-account-panel select:disabled, .dr-account-panel button:disabled {
+    opacity: 0.55; cursor: not-allowed; background: var(--row-alt);
+  }
   /* Show/hide-password toggle (2026-08-04, reported directly) -- generic,
      not scoped to any one form: _SHOW_PASSWORD_TOGGLE_HTML wraps every
      input[type=password] on every page in this span, wherever it lives.
@@ -6643,6 +6649,29 @@ function drRenderCurrentEmail(email) {
   if (el && email) el.textContent = email;
 }
 
+// Demo-account Account-tab lockdown (2026-08-06, reported live against the
+// newly public demo). The backend already refuses email/password/billing/
+// delete-account changes for a demo_locked firm (403, see those handlers'
+// own comments) -- this greys the controls out up front instead of letting
+// a visitor fill out a form and only find out it's refused on submit.
+// Disables by disabling every real input/button rather than hiding the
+// panels outright, so a demo visitor can still see exactly what the Account
+// tab looks like, just can't submit anything from it.
+function drRenderAccountLockdown() {
+  var locked = !!(drBilling && drBilling.demoLocked);
+  var banner = document.getElementById('dr-account-demo-lockdown-banner');
+  if (banner) banner.hidden = !locked;
+  ['dr-change-email-form', 'dr-password-form'].forEach(function(formId) {
+    var form = document.getElementById(formId);
+    if (!form) return;
+    form.querySelectorAll('input, button, select, textarea').forEach(function(el) { el.disabled = locked; });
+  });
+  var signoutBtn = document.getElementById('dr-signout-other-btn');
+  if (signoutBtn) signoutBtn.disabled = locked;
+  var deleteBtn = document.getElementById('dr-delete-account-open-btn');
+  if (deleteBtn) deleteBtn.disabled = locked;
+}
+
 // Self-serve cancellation (2026-08-05, Devin's decision: build self-serve
 // cancel now; no refunds, access continues to the current period's end).
 // drBilling.cancelAtPeriodEnd is a SCHEDULING flag, not an access change --
@@ -6677,6 +6706,7 @@ function drRenderBillingPanel() {
       'More than 25 staff? <a href="/for-firms/">Contact us</a>.</p>';
     body.innerHTML = '<p class="dr-panel-empty">You are on the free tier. Upgrade any time for the ' +
       'map and Practice Privilege Check.</p>' + tiersHtml + moreThan25Html;
+    if (drBilling.demoLocked) body.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
     return;
   }
   if (drBilling.cancelAtPeriodEnd && drBilling.currentPeriodEnd) {
@@ -6686,12 +6716,18 @@ function drRenderBillingPanel() {
       'the current period.</p>' +
       '<button type="button" id="dr-billing-resume-btn">Resume subscription</button>';
     var resumeBtn = document.getElementById('dr-billing-resume-btn');
-    if (resumeBtn) resumeBtn.addEventListener('click', function() { drToggleCancellation(false, resumeBtn); });
+    if (resumeBtn) {
+      resumeBtn.disabled = drBilling.demoLocked;
+      resumeBtn.addEventListener('click', function() { drToggleCancellation(false, resumeBtn); });
+    }
   } else {
     body.innerHTML = '<p><strong>' + drEscapeHtml(tierDef) + ' plan</strong> &mdash; active.</p>' +
       '<button type="button" id="dr-billing-cancel-btn">Cancel subscription</button>';
     var cancelBtn = document.getElementById('dr-billing-cancel-btn');
-    if (cancelBtn) cancelBtn.addEventListener('click', function() { drToggleCancellation(true, cancelBtn); });
+    if (cancelBtn) {
+      cancelBtn.disabled = drBilling.demoLocked;
+      cancelBtn.addEventListener('click', function() { drToggleCancellation(true, cancelBtn); });
+    }
   }
 }
 
@@ -7156,6 +7192,20 @@ function drApplyAggregateCoverageOverlay(byState, gen) {
       });
       var anyCoverage = Object.keys(coverage).length > 0;
       if (legendItem) legendItem.hidden = !anyCoverage;
+      // Reported live, 2026-08-06: this tooltip lists every covering staff
+      // member by name, easily 100+ characters, but rendered as one
+      // unbroken nowrap line stretching off past the legend instead of
+      // wrapping inside the box. Deliberately NOT drSetMapTooltipWrap(true)
+      // here -- that function also swaps #dr-map-legend-staff for
+      // #dr-map-legend-mobility, which is correct for the per-person
+      // mobility view (drApplyMobilityResults, its only other caller) but
+      // wrong here: this is still the aggregate "All staff" view, which
+      // uses #dr-map-legend-staff (with its own nested coverage-item row,
+      // toggled just above) the whole time. Setting the wrap CLASS directly
+      // gets the same safe-for-any-length tooltip behavior without
+      // swapping in the wrong legend.
+      var tipEl = document.getElementById('dr-map-tooltip');
+      if (anyCoverage && tipEl) tipEl.classList.add('dr-map-tooltip--wrap');
       document.querySelectorAll('.dr-map-link').forEach(function(link) {
         var cov = coverage[link.getAttribute('data-state-slug')];
         if (!cov) return;
@@ -8016,11 +8066,13 @@ function drLoadLicenses() {
       drBilling = {
         planTier: data.plan_tier || 'free',
         cancelAtPeriodEnd: Boolean(data.cancel_at_period_end),
-        currentPeriodEnd: data.current_period_end || null
+        currentPeriodEnd: data.current_period_end || null,
+        demoLocked: Boolean(data.demo_locked)
       };
       drRenderFirmName(data.firm_name);
       drRenderCurrentEmail(data.admin_email);
       drRenderStalenessBanner(data.data_as_of, data.data_stale);
+      drRenderAccountLockdown();
       drRenderBillingPanel();
       drRenderTable();
       drRenderStats();
@@ -9274,6 +9326,10 @@ def build_firm_dashboard_page(
     </div>
 
     <div id="dr-view-account" class="dr-view" role="tabpanel" hidden>
+      <div class="callout" id="dr-account-demo-lockdown-banner" style="border-left-color:#b8860b;" hidden>
+      This is a shared demo account &mdash; email, password, billing, and delete-account changes are
+      disabled here so one visitor can't break the demo for the next one.</div>
+
       <div class="dr-account-panel" id="dr-billing-panel">
         <h2>Billing</h2>
         <div id="dr-billing-body"><p class="dr-panel-empty">Loading&hellip;</p></div>

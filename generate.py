@@ -9183,7 +9183,11 @@ function drRenderCpeStaffProgress() {
   if (!el) return;
   var active = drLicenses.filter(function(item) { return item.status !== 'opted_out'; });
   if (active.length === 0) {
-    el.innerHTML = '<p class="dr-panel-empty">No staff on your roster yet.</p>';
+    // Roadmap #43: was a dead-end message -- a[data-view] is already
+    // delegated at DOMContentLoaded time (drSwitchView on click), so this
+    // link works with no extra wiring.
+    el.innerHTML = '<p class="dr-panel-empty">No staff on your roster yet -- ' +
+      '<a href="#" data-view="roster">add staff</a> to start tracking CPE hours.</p>';
     return;
   }
   el.innerHTML = active.map(function(item) {
@@ -9303,7 +9307,8 @@ function drRenderReport() {
   });
 
   if (total === 0) {
-    el.innerHTML = '<p class="dr-panel-empty">Add staff to your roster to generate a report.</p>';
+    el.innerHTML = '<p class="dr-panel-empty"><a href="#" data-view="roster">Add staff to your ' +
+      'roster</a> to generate a report.</p>';
     return;
   }
 

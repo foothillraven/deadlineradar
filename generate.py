@@ -7066,6 +7066,8 @@ def _firm_dashboard_add_staff_form_html(by_slug: dict[str, list[dict]], as_of: d
   <code>renewal_fee</code>, <code>office_tag</code> -- same fields the form above accepts, so a state
   needing more than email/state (about a third of them do) needs the matching column filled in or
   that row will be skipped with the same reason the single Add Staff form would show.</p>
+  <p class="signup-microcopy">Starting from an existing spreadsheet? <button type="button" class="dr-link-btn" id="dr-csv-template-btn">Download a blank template</button>
+  with the exact column headers below, then copy your staff into it -- safer than retyping headers by hand.</p>
   <label for="dr-csv-import-file">CSV file</label>
   <input type="file" id="dr-csv-import-file" accept=".csv,text/csv">
   <button type="button" id="dr-csv-preview-btn">Preview</button>
@@ -9773,6 +9775,23 @@ function drCsvField(value) {
   return s;
 }
 
+// Shared by drDownloadRosterCsv() and drDownloadCsvTemplate() -- `lines` is
+// already-CSV-escaped rows (each a joined, comma-separated string). A
+// leading BOM (matches drParseCsv()'s own strip-on-read) so Excel opens the
+// file as UTF-8 instead of guessing the system codepage and mangling any
+// non-ASCII staff name.
+function drTriggerCsvDownload(filename, lines) {
+  var blob = new Blob(['﻿' + lines.join('\\r\\n') + '\\r\\n'], {type: 'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function drDownloadRosterCsv() {
   var headers = ['Staff', 'Email', 'State', 'License type', 'Status', 'Next deadline',
     'Renewal fee', 'Office/department', 'CPE carryover hours', 'CPE total logged', 'CPE total required',
@@ -9792,19 +9811,27 @@ function drDownloadRosterCsv() {
     ];
     lines.push(row.map(drCsvField).join(','));
   });
-  // A leading BOM (matches drParseCsv()'s own strip-on-read) so Excel opens
-  // the file as UTF-8 instead of guessing the system codepage and mangling
-  // any non-ASCII staff name.
-  var blob = new Blob(['﻿' + lines.join('\\r\\n') + '\\r\\n'], {type: 'text/csv;charset=utf-8;'});
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
   var today = new Date().toISOString().slice(0, 10);
-  a.href = url;
-  a.download = 'deadlineradar-roster-' + today + '.csv';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  drTriggerCsvDownload('deadlineradar-roster-' + today + '.csv', lines);
+}
+
+// Requested live 2026-08-07: a firm starting from an existing spreadsheet
+// wants to see the EXACT column layout Import expects rather than retyping
+// header names by hand and hoping they match. Headers come straight from
+// DR_CSV_KNOWN_COLUMNS (plus 'state', which drPreviewCsvImport() also
+// accepts in place of state_slug) so this can never drift from what Import
+// actually reads. One example row shows the always-safe fields
+// (email/state/staff_label/renewal_fee/office_tag); the state-specific
+// columns (license_type_id, birth_month, birth_year, cohort_group,
+// license_expiration_date) are left blank in the example rather than
+// guessing a value that would only be correct for some states -- the
+// Import panel's own copy already explains when those are needed.
+function drDownloadCsvTemplate() {
+  var headers = ['email', 'state', 'staff_label', 'license_type_id', 'birth_month',
+    'birth_year', 'cohort_group', 'license_expiration_date', 'renewal_fee', 'office_tag'];
+  var exampleRow = ['jane.doe@example.com', 'Georgia', 'Jane Doe', '', '', '', '', '', '199.00', 'Downtown office'];
+  var lines = [headers.map(drCsvField).join(','), exampleRow.map(drCsvField).join(',')];
+  drTriggerCsvDownload('deadlineradar-import-template.csv', lines);
 }
 
 // ---------------------------------------------------------------------------
@@ -11644,6 +11671,8 @@ document.addEventListener('DOMContentLoaded', function() {
   if (csvPreviewBtn) csvPreviewBtn.addEventListener('click', drPreviewCsvImport);
   var csvImportBtn = document.getElementById('dr-csv-import-btn');
   if (csvImportBtn) csvImportBtn.addEventListener('click', drImportCsvRows);
+  var csvTemplateBtn = document.getElementById('dr-csv-template-btn');
+  if (csvTemplateBtn) csvTemplateBtn.addEventListener('click', drDownloadCsvTemplate);
   // Reported live 2026-08-07: Export wasn't discoverable next to Import --
   // reuses the same drDownloadRosterCsv() the Reports tab's "Download CSV"
   // button already calls rather than a second implementation.

@@ -929,6 +929,11 @@ PAGE_CSS = """
     border-style: dashed;
   }
   .state-card--variable .state-hint { font-style: italic; }
+  /* Roadmap #50 (2026-08-07): shown only on the exception -- see the call
+     site's own comment for why the majority case isn't repeated here. */
+  .state-card .state-confidence {
+    margin-top: 0.3rem; font-size: 0.72rem; color: var(--gold); font-weight: 600;
+  }
   .state-search {
     margin: 1.6rem 0 0; max-width: 30rem;
   }
@@ -4021,12 +4026,31 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
     sorted_states = sorted(states, key=lambda s: s["state"])
     cards = []
     for s in sorted_states:
-        hint = state_hint(by_slug[s["state_slug"]])
+        state_records = by_slug[s["state_slug"]]
+        hint = state_hint(state_records)
         variable_class = " state-card--variable" if _hint_is_variable(hint) else ""
+        # Roadmap #50 (2026-08-07): "confidence scoring shown to visitors,"
+        # scoped to the SAME discrete, already-verified fact each state's own
+        # page already discloses via trust_line() -- never a fabricated
+        # numeric score. Deliberately shown ONLY on the exception (a record
+        # sourced from the board's own page but not independently confirmed
+        # against codified law) -- the majority-case "fully verified" state
+        # isn't repeated on all ~33 cards, matching how data_gap_note/
+        # state-card--variable already flag exceptions rather than the
+        # default here.
+        fully_cited = all(_record_fully_cited(r) for r in state_records)
+        confidence_html = (
+            ""
+            if fully_cited
+            else '<div class="state-confidence" title="Sourced from the state board\'s own page; '
+            'not independently confirmed against codified statute or rule text -- see this state\'s '
+            'own page for the full disclosure.">Board-page sourced only</div>'
+        )
         cards.append(
             f'<a class="state-card{variable_class}" href="{esc(s["state_slug"])}/" data-state-name="{esc(s["state"])}">'
             f'<div class="state-name">{esc(s["state"])}</div>'
-            f'<div class="state-hint">{esc(hint)}</div></a>'
+            f'<div class="state-hint">{esc(hint)}</div>'
+            f'{confidence_html}</a>'
         )
 
     # name + slug baked into the page for the search box's JS -- generated from the same

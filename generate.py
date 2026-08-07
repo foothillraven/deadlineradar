@@ -9079,7 +9079,8 @@ function drPopulateMapStaffSelect() {
   var sel = document.getElementById('dr-map-staff-select');
   if (!sel) return;
   var prevValue = sel.value;
-  var active = drLicenses.filter(function(item) { return item.status !== 'opted_out'; });
+  // AuditLab SAMPLE-1 (LOW): same !is_sample filter as drRenderCpeStaffSelect().
+  var active = drLicenses.filter(function(item) { return item.status !== 'opted_out' && !item.is_sample; });
   var options = ['<option value="">All staff (home-state licensing)</option>'].concat(
     active.map(function(item) {
       var label = item.staff_label || item.email;
@@ -9576,7 +9577,11 @@ function drRenderCpeStaffSelect() {
   var sel = document.getElementById('dr-cpe-staff-select');
   if (!sel) return;
   var current = sel.value;
-  var active = drLicenses.filter(function(item) { return item.status !== 'opted_out'; });
+  // AuditLab SAMPLE-1 (LOW): sample rows were selectable here, so a form
+  // submit against a fake id hit the server's ownership 404 -- confusing,
+  // if harmless (the backstop always fires). Same !is_sample filter the
+  // roster's Actions buttons already use.
+  var active = drLicenses.filter(function(item) { return item.status !== 'opted_out' && !item.is_sample; });
   sel.innerHTML = '<option value="">Select staff member</option>' + active.map(function(item) {
     return '<option value="' + drEscapeHtml(item.id) + '">' + drEscapeHtml(item.staff_label || item.email) + '</option>';
   }).join('');
@@ -12290,7 +12295,17 @@ def build_firm_dashboard_page(
             "topic": e.get("topic") or "",
             "summary": e.get("summary_public") or "",
             "citation": e.get("citation") or "",
-            "citation_url": e.get("citation_url"),
+            # AuditLab XSS-1 (LOW, 2026-08-06): the ONE data-file-sourced
+            # href in the codebase that skipped a scheme guard -- the JS
+            # assigns this straight to citeLink.href, where esc() (and
+            # therefore http_href(), which esc()es) is the wrong tool: this
+            # value travels via json.dumps, so the guard is the scheme
+            # check alone, not entity escaping. None (not "#") on refusal --
+            # the JS's `event.citation_url || '#'` fallback already handles
+            # it.
+            "citation_url": e["citation_url"]
+            if isinstance(e.get("citation_url"), str) and e["citation_url"].startswith(("http://", "https://"))
+            else None,
             "confidence": e.get("confidence") or "",
         }
         for e in _reg_change_raw.get("events", [])

@@ -1704,12 +1704,20 @@ async function handleFirmLoginVerify(
   // this, actionConfirmPage's own gate would be the only thing stopping a
   // mistyped-address stranger from a full takeover; defense-in-depth means
   // this side must independently refuse it too, not just trust the render.
+  // AuditLab DEMO-1 (LOW, 2026-08-06): the demo_locked tightening pass gated
+  // setFirmPassword's other two call sites but missed this one. Inert today
+  // (a demo firm has a password by the nature of the feature, so
+  // !firm.password_hash is false) -- but demo_locked is a raw DB column with
+  // no ordering guarantee against password_hash, and the invariant Devin
+  // stated ("no self-serve password path AT ALL, even inbox-proving ones")
+  // applies identically here.
   if (
     result.purpose === "login" &&
     typeof optionalNewPassword === "string" &&
     optionalNewPassword.length > 0 &&
     validatePasswordStrength(optionalNewPassword).ok &&
-    !firm.password_hash
+    !firm.password_hash &&
+    !firm.demo_locked
   ) {
     try {
       await store.setFirmPassword(env.DB, firm.id, await hashPassword(optionalNewPassword, env.PASSWORD_PEPPER));
@@ -3412,6 +3420,15 @@ async function handleFirmQuestionnaireSubmit(request: Request, env: Env): Promis
     return jsonResponse(429, { error: "Too many attempts. Please try again later." });
   }
 
+  // AuditLab DEMO-3 (LOW, 2026-08-06): a demo visitor's submit/dismiss must
+  // never persist to the SHARED demo row (one visitor's action degrading
+  // the next visitor's experience -- and a demo submit would be fake
+  // feature-request data anyway). ok:true, not 403: the visitor's own modal
+  // still closes normally for their visit; the write just never lands.
+  if (session.firm.demo_locked) {
+    return jsonResponse(200, { ok: true });
+  }
+
   const parsed = await readFirmLicenseJsonBody(request);
   if (parsed instanceof Response) return parsed;
   const body = parsed as Record<string, unknown>;
@@ -3450,6 +3467,11 @@ async function handleFirmQuestionnaireDismiss(request: Request, env: Env): Promi
     return jsonResponse(429, { error: "Too many attempts. Please try again later." });
   }
 
+  // AuditLab DEMO-3 -- see handleFirmQuestionnaireSubmit's own comment.
+  if (session.firm.demo_locked) {
+    return jsonResponse(200, { ok: true });
+  }
+
   await store.dismissFeatureQuestionnaire(env.DB, session.firmId);
   return jsonResponse(200, { ok: true });
 }
@@ -3470,6 +3492,11 @@ async function handleOnboardingChecklistDismiss(request: Request, env: Env): Pro
     return jsonResponse(429, { error: "Too many attempts. Please try again later." });
   }
 
+  // AuditLab DEMO-3 -- see handleFirmQuestionnaireSubmit's own comment.
+  if (session.firm.demo_locked) {
+    return jsonResponse(200, { ok: true });
+  }
+
   await store.dismissOnboardingChecklist(env.DB, session.firmId);
   return jsonResponse(200, { ok: true });
 }
@@ -3488,6 +3515,11 @@ async function handleProductTourDismiss(request: Request, env: Env): Promise<Res
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_product_tour_dismiss", RATE_LIMIT_FIRM_DISMISS);
   if (!allowed) {
     return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  // AuditLab DEMO-3 -- see handleFirmQuestionnaireSubmit's own comment.
+  if (session.firm.demo_locked) {
+    return jsonResponse(200, { ok: true });
   }
 
   await store.dismissProductTour(env.DB, session.firmId);
@@ -3654,6 +3686,14 @@ async function handleNpsResponse(request: Request, env: Env): Promise<Response> 
     return jsonResponse(400, { error: "Please choose a score from 0 to 10." });
   }
 
+  // AuditLab DEMO-3 class (2026-08-07): nps_prompt_due already suppresses
+  // the PROMPT for demo firms, but a direct POST could still record a demo
+  // visitor's score -- the exact data pollution that suppression exists to
+  // prevent. Same silent-ok posture as the dismiss endpoints.
+  if (session.firm.demo_locked) {
+    return jsonResponse(200, { ok: true });
+  }
+
   await store.recordNpsResponse(env.DB, session.firmId, score);
   return jsonResponse(200, { ok: true });
 }
@@ -3671,6 +3711,11 @@ async function handleNpsDismiss(request: Request, env: Env): Promise<Response> {
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_nps_dismiss", RATE_LIMIT_FIRM_NPS);
   if (!allowed) {
     return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  // AuditLab DEMO-3 class -- see handleNpsResponse's own comment.
+  if (session.firm.demo_locked) {
+    return jsonResponse(200, { ok: true });
   }
 
   await store.recordNpsPromptDismissed(env.DB, session.firmId);
@@ -3712,6 +3757,12 @@ async function handleTestimonialSubmit(request: Request, env: Env): Promise<Resp
     return jsonResponse(400, { error: "Please enter a quote before submitting." });
   }
   const canPublish = body.can_publish === true;
+
+  // AuditLab DEMO-3 class -- a demo visitor's "testimonial" is not a real
+  // firm's quote; see handleNpsResponse's own comment.
+  if (session.firm.demo_locked) {
+    return jsonResponse(200, { ok: true });
+  }
 
   await store.recordTestimonial(env.DB, session.firmId, quoteText, canPublish);
   return jsonResponse(200, { ok: true });

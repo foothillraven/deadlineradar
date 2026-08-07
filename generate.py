@@ -3074,10 +3074,21 @@ def _verified_badge_html(record: dict) -> str:
     """Small 'Verified' badge on a callout -- shown ONLY when the record has a real
     citation to codified law (same gate _source_cite_html already uses), never on a
     data-gap/unverified record. `.callout` needs `position: relative` for this badge's
-    absolute positioning, set once in PAGE_CSS rather than per call site."""
+    absolute positioning, set once in PAGE_CSS rather than per call site.
+
+    Roadmap #47/#302 (2026-08-07, same underlying ask -- #302's own text: "show the
+    actual verified date... right on the badge itself, so it reads as 'we checked this
+    specific fact on this specific date' rather than a generic trust icon anyone could
+    fake"): the date is folded directly into the badge text rather than left to a
+    separate stamp/line elsewhere on the page -- this specific badge (used on the
+    firm-renewal page) had no adjacent date element at all before this, unlike the
+    richer .sheet/.frow fact-sheet cards (render_simple_deadline_records) which already
+    show a "Last verified" stamp alongside their own verified checkmark."""
     if not record.get("citation"):
         return ""
-    return '<span class="verified-badge">Verified</span>'
+    last_verified = record.get("last_verified")
+    label = f"Verified {esc(last_verified)}" if last_verified else "Verified"
+    return f'<span class="verified-badge">{label}</span>'
 
 
 _CITE_ICON_SVG = (
@@ -12272,7 +12283,11 @@ def build_cpe_hours_page(
     # for them, so they keep showing "Verified" exactly as before; nothing
     # about their own trust signal changes.
     data_gap_note = cpe_record.get("data_gap_note")
-    verified_badge_html = "" if data_gap_note else '<span class="verified-badge">Verified</span>'
+    # Roadmap #47/#302: date folded into the badge itself -- see
+    # _verified_badge_html()'s own docstring for the full rationale.
+    cpe_verified_date = cpe_record.get("verified_date")
+    verified_badge_label = f"Verified {esc(cpe_verified_date)}" if cpe_verified_date else "Verified"
+    verified_badge_html = "" if data_gap_note else f'<span class="verified-badge">{verified_badge_label}</span>'
     sourcing_note_html = (
         f'<p class="disclosure">Sourcing note: {esc(data_gap_note)}</p>' if data_gap_note else ""
     )
@@ -12439,7 +12454,11 @@ def build_reinstatement_page(record: dict, renewal_records: list[dict], cpe_reco
     # The codified-rule citation below is still real either way; this only gates the
     # badge and surfaces the gap itself, it never hides or invents a number.
     data_gap_note = record.get("data_gap_note")
-    verified_badge_html = "" if data_gap_note else '<span class="verified-badge">Verified</span>'
+    # Roadmap #47/#302: date folded into the badge itself -- see
+    # _verified_badge_html()'s own docstring for the full rationale.
+    reinstatement_verified_date = record.get("last_verified")
+    verified_badge_label = f"Verified {esc(reinstatement_verified_date)}" if reinstatement_verified_date else "Verified"
+    verified_badge_html = "" if data_gap_note else f'<span class="verified-badge">{verified_badge_label}</span>'
     sourcing_note_html = (
         f'<p class="disclosure">Sourcing note: {esc(data_gap_note)}</p>' if data_gap_note else ""
     )

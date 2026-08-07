@@ -1,0 +1,194 @@
+/**
+ * Roadmap #26 (2026-08-07): reminder snooze / self-service "remind me
+ * again in X days". Fixed 14-day snooze (SNOOZE_DAYS) via the subscriber's
+ * existing renewed_token -- see migration 0040's own docstring for why not
+ * an arbitrary day-count picker.
+ */
+import { env, SELF } from "cloudflare:test";
+import { describe, expect, it } from "vitest";
+import * as store from "../src/store";
+import { SNOOZE_DAYS } from "../src/emails";
+import type { SubscriberRow } from "../src/store";
+
+const BASE = "https://deadline-radar.com";
+
+async function postAction(pathAndQuery: string, ip = "203.0.113.1"): Promise<Response> {
+  const u = new URL(`${BASE}${pathAndQuery}`);
+  const token = u.searchParams.get("token") ?? "";
+  return SELF.fetch(`${BASE}${u.pathname}`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": ip },
+    body: new URLSearchParams({ token }).toString(),
+  });
+}
+
+describe("buildReminderEmail() snooze CTA", () => {
+  it("includes the snooze CTA on a non-final tier", async () => {
+    const { buildReminderEmail } = await import("../src/emails");
+    const built = buildReminderEmail(
+      "Georgia", "2027-01-01", 30, 30,
+      "https://example.com/next", "https://example.com/stop", "https://example.com/unsub",
+      "Alex", null, "https://example.com/snooze"
+    );
+    expect(built.textBody).toContain("https://example.com/snooze");
+    expect(built.htmlBody).toContain("https://example.com/snooze");
+    expect(built.textBody).toContain(`${SNOOZE_DAYS} days`);
+  });
+
+  it("withholds the snooze CTA on the final (1-day) tier", async () => {
+    const { buildReminderEmail } = await import("../src/emails");
+    const built = buildReminderEmail(
+      "Georgia", "2027-01-01", 1, 1,
+      "https://example.com/next", "https://example.com/stop", "https://example.com/unsub",
+      "Alex", null, "https://example.com/snooze"
+    );
+    expect(built.textBody).not.toContain("https://example.com/snooze");
+    expect(built.htmlBody).not.toContain("https://example.com/snooze");
+  });
+
+  it("omits the CTA entirely when no snoozeUrl is given (backward compatible)", async () => {
+    const { buildReminderEmail } = await import("../src/emails");
+    const built = buildReminderEmail(
+      "Georgia", "2027-01-01", 30, 30,
+      "https://example.com/next", "https://example.com/stop", "https://example.com/unsub",
+      "Alex"
+    );
+    expect(built.textBody).not.toContain("Remind me again");
+  });
+});
+
+describe("store.snoozeByToken()", () => {
+  it("sets snoozed_until to today + days", async () => {
+    const email = `snoozestore-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, { email, stateSlug: "texas", deadlineFields: { birth_month: "7" }, firstName: null });
+    await store.confirm(env.DB, rec.confirm_token);
+    const confirmed = (await store.findActiveOrPending(env.DB, email, "texas"))!;
+
+    const updated = await store.snoozeByToken(env.DB, confirmed.renewed_token, 14);
+    expect(updated).not.toBeNull();
+    const expected = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
+    expect(updated?.snoozed_until).toBe(expected);
+  });
+
+  it("returns null for an invalid token", async () => {
+    expect(await store.snoozeByToken(env.DB, "not-a-real-token", 14)).toBeNull();
+  });
+
+  it("returns null for an unconfirmed subscriber", async () => {
+    const email = `snoozeunconfirmed-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, { email, stateSlug: "texas", deadlineFields: { birth_month: "7" }, firstName: null });
+    expect(await store.snoozeByToken(env.DB, rec.renewed_token, 14)).toBeNull();
+  });
+
+  it("returns null for an already-stopped subscriber", async () => {
+    const email = `snoozestopped-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, { email, stateSlug: "texas", deadlineFields: { birth_month: "7" }, firstName: null });
+    await store.confirm(env.DB, rec.confirm_token);
+    const confirmed = (await store.findActiveOrPending(env.DB, email, "texas"))!;
+    await store.stop(env.DB, confirmed.renewed_token, "renewed");
+    expect(await store.snoozeByToken(env.DB, confirmed.renewed_token, 14)).toBeNull();
+  });
+});
+
+describe("applyRenewAndRearm clears a stale snooze", () => {
+  it("renewAndRearmByToken() resets snoozed_until to null", async () => {
+    const email = `snoozerearm-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, { email, stateSlug: "texas", deadlineFields: { birth_month: "7" }, firstName: null });
+    await store.confirm(env.DB, rec.confirm_token);
+    const confirmed = (await store.findActiveOrPending(env.DB, email, "texas"))!;
+    await store.snoozeByToken(env.DB, confirmed.renewed_token, 14);
+
+    const rearmed = await store.renewAndRearmByToken(env.DB, confirmed.renewed_token);
+    expect(rearmed?.snoozed_until).toBeNull();
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(rec.id).first<SubscriberRow>();
+    expect(row?.snoozed_until).toBeNull();
+  });
+});
+
+describe("GET/POST /snooze -- end-to-end via the real cron pass", () => {
+  it("the actual scheduler-built reminder email contains the snooze link, and clicking it stops sends until it expires", async () => {
+    const { runReminderPass } = await import("../src/scheduler");
+    const email = `snoozecta-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, { email, stateSlug: "texas", deadlineFields: { birth_month: "7" }, firstName: "Tester" });
+    await store.confirm(env.DB, rec.confirm_token);
+
+    // Deadline is July 31 (TX, birth_month=7). Snoozing at the 30-day tier
+    // (not a tighter one) leaves enough pre-deadline runway to verify
+    // "resumes after the snooze expires" without also wandering into
+    // grace-period territory -- a real constraint this test hit and fixed:
+    // snoozing at the 7-day tier and checking 15 days later lands PAST the
+    // deadline by then, a different code path than what this test means to
+    // cover.
+    let capturedHtml = "";
+    await runReminderPass(env, {
+      asOf: new Date(Date.UTC(2026, 6, 1)), // 30 days out -> tier 30
+      send: async (to, built) => {
+        if (to === email) capturedHtml = built.htmlBody;
+        return true;
+      },
+    });
+    expect(capturedHtml).toMatch(/\/api\/snooze\?token=/);
+
+    const match = /snooze\?token=([^"&\s]+)/.exec(capturedHtml);
+    const token = decodeURIComponent(match![1] as string);
+
+    const resp = await postAction(`/snooze?token=${encodeURIComponent(token)}`, "203.0.113.230");
+    expect(resp.status).toBe(200);
+    expect((await resp.text()).toLowerCase()).toContain("paused");
+
+    // A second pass the same day must NOT send -- the subscriber is snoozed.
+    let sentAgain = false;
+    const summary = await runReminderPass(env, {
+      asOf: new Date(Date.UTC(2026, 6, 1)),
+      send: async (to) => {
+        if (to === email) sentAgain = true;
+        return true;
+      },
+    });
+    expect(sentAgain).toBe(false);
+    expect(summary.skipped_snoozed).toBeGreaterThan(0);
+
+    // store.snoozeByToken() correctly anchors to the REAL wall clock
+    // (Date.now()) -- right for an actual user click, but that means the
+    // POST above set snoozed_until relative to whatever today really is,
+    // not to this test's simulated July-2026 calendar. Simulating "16
+    // simulated days later, still real-world before that real snooze
+    // date" would test nothing meaningful; instead, directly back-date the
+    // stored value to simulate "the snooze has already expired" on the
+    // scheduler's own simulated timeline, then confirm it reads/respects
+    // that correctly.
+    await env.DB.prepare("UPDATE subscribers SET snoozed_until = ?1 WHERE id = ?2")
+      .bind("2026-07-01", rec.id)
+      .run();
+    let sentAfterExpiry = false;
+    await runReminderPass(env, {
+      asOf: new Date(Date.UTC(2026, 6, 1 + 16)), // 14 days remaining -> tier 14
+      send: async (to) => {
+        if (to === email) sentAfterExpiry = true;
+        return true;
+      },
+    });
+    expect(sentAfterExpiry).toBe(true);
+  });
+
+  it("GET /api/snooze renders a confirm page WITHOUT changing state (prefetch-safe)", async () => {
+    const email = `snoozerender-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, { email, stateSlug: "texas", deadlineFields: { birth_month: "7" }, firstName: null });
+    await store.confirm(env.DB, rec.confirm_token);
+    const confirmed = (await store.findActiveOrPending(env.DB, email, "texas"))!;
+
+    const getResp = await SELF.fetch(`${BASE}/api/snooze?token=${confirmed.renewed_token}`, {
+      headers: { "cf-connecting-ip": "203.0.113.231" },
+    });
+    expect(getResp.status).toBe(200);
+    expect(await getResp.text()).toContain(`Remind me again in ${SNOOZE_DAYS} days`);
+
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(rec.id).first<SubscriberRow>();
+    expect(row?.snoozed_until).toBeNull();
+  });
+
+  it("404s on a stale/reused token", async () => {
+    const resp = await postAction("/snooze?token=totally-bogus-token", "203.0.113.232");
+    expect(resp.status).toBe(404);
+  });
+});

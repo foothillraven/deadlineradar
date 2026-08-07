@@ -145,6 +145,7 @@ import {
   buildSignupNotificationEmail,
   buildAccountDeletionNotificationEmail,
   fmtDate,
+  SNOOZE_DAYS,
 } from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountActionSend, isEmailAllowlisted, sendViaSendGrid } from "./sender";
 import { StaleDataError as SchedulerStaleDataError, runReminderPass } from "./scheduler";
@@ -281,6 +282,13 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
     heading: "Turn reminders back on",
     intro: "Click below to get reminders again for your next renewal cycle.",
     button: "Yes, remind me next cycle",
+  },
+  // Roadmap #26 (2026-08-07). SNOOZE_DAYS interpolated so this copy can
+  // never drift from the actual duration store.snoozeByToken() applies.
+  "/snooze": {
+    heading: "Remind me again later",
+    intro: `Click below to pause this reminder for ${SNOOZE_DAYS} days. We'll pick up right where we left off after that -- nothing else changes.`,
+    button: `Remind me again in ${SNOOZE_DAYS} days`,
   },
   "/firm/login/verify": {
     heading: "Sign in to DeadlineRadar",
@@ -3187,6 +3195,11 @@ function toFirmLicenseJson(row: store.SubscriberRow, asOf: Date): Record<string,
     carryover_hours: row.carryover_hours,
     // Roadmap #16: office/department tag -- see migration 0037's own docstring.
     office_tag: row.office_tag,
+    // Roadmap #26: self-service snooze the subscriber set themselves from
+    // a reminder email -- surfaced so the admin isn't left guessing why
+    // someone stopped getting reminders. Read-only from the dashboard's
+    // side; only the subscriber's own link (or a renewal) can change it.
+    snoozed_until: row.snoozed_until,
   };
 }
 
@@ -4713,6 +4726,33 @@ async function handleRenewedNextCycle(env: Env, token: string | null): Promise<R
   );
 }
 
+/** GET-render/POST-act action link for roadmap #26 (self-service snooze,
+ * migration 0040) -- same shared-token, prefetch-safe pattern as every
+ * action link in this file (see ACTION_PAGES["/snooze"] for the GET-render
+ * copy). store.snoozeByToken() refuses an unconfirmed or already-stopped
+ * row -- the stopped case gets its own tailored message since "nothing to
+ * snooze, you already stopped these" is a genuinely different situation
+ * than a bad/reused link. */
+async function handleSnooze(env: Env, token: string | null): Promise<Response> {
+  if (!token) return errorPage(400, "Missing link.");
+  const updated = await store.snoozeByToken(env.DB, token, SNOOZE_DAYS);
+  if (!updated) {
+    return errorPage(
+      404,
+      "That link is invalid or already used, or this subscriber isn't currently eligible to snooze " +
+        "(already stopped, or never confirmed)."
+    );
+  }
+  return htmlResponse(
+    200,
+    htmlPage(
+      "You're all set",
+      `<h1>Reminder paused</h1><p>We'll pick this back up in ${SNOOZE_DAYS} days. Nothing else changes -- ` +
+        `if you renew before then, use the link in your original reminder email to mark it done early.</p>`
+    )
+  );
+}
+
 async function handleRearm(env: Env, token: string | null): Promise<Response> {
   if (!token) return errorPage(400, "Missing link.");
   const subscriber = await store.rearm(env.DB, token);
@@ -5386,6 +5426,8 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
               return await handleRenewedNextCycle(env, token);
             case "/rearm":
               return await handleRearm(env, token);
+            case "/snooze":
+              return await handleSnooze(env, token);
             case "/firm/login/verify":
               return await handleFirmLoginVerify(env, token, optionalNewPassword);
             case "/subscriber/login/verify":

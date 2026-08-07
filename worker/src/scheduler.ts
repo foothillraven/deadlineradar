@@ -36,7 +36,7 @@ import type { Env } from "./env";
 import type { BuiltEmail } from "./emails";
 import * as store from "./store";
 import { StaleDataError, checkDataFreshness, computeSubscriberDeadline, stateNameForSlug } from "./deadline";
-import { buildReminderEmail, fmtDate } from "./emails";
+import { buildReminderEmail, fmtDate, SNOOZE_DAYS } from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, sendViaSendGrid } from "./sender";
 
 // scheduler.py: store.ESCALATION_THRESHOLDS_DAYS.
@@ -90,8 +90,15 @@ export interface ReminderSummary {
   sent: number;
   skipped_no_deadline: number;
   skipped_grace_period: number;
+  // Roadmap #26: a subscriber whose self-service snooze hasn't expired yet.
+  skipped_snoozed: number;
   errors: { subscriber_id: string; error: string }[];
 }
+
+// Roadmap #26 (migration 0040): re-exported so callers/tests can import the
+// fixed snooze duration from either module -- see the top-of-file import
+// for why it's actually DEFINED in emails.ts, not here.
+export { SNOOZE_DAYS };
 
 // Roadmap #19: optional 3rd param, added after every existing caller/mock
 // was already written with 1-2 params -- safe by TS's own function-type
@@ -155,12 +162,23 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
     sent: 0,
     skipped_no_deadline: 0,
     skipped_grace_period: 0,
+    skipped_snoozed: 0,
     errors: [],
   };
+
+  const todayIso = asOfDay.toISOString().slice(0, 10);
 
   const subscribers = await store.allConfirmedActive(env.DB);
   for (const sub of subscribers) {
     summary.checked += 1;
+
+    // Roadmap #26: checked before any deadline/threshold work -- a snoozed
+    // subscriber gets NO evaluation at all this pass, same as a not-yet-due
+    // one, rather than a suppressed-at-send-time special case.
+    if (sub.snoozed_until && sub.snoozed_until >= todayIso) {
+      summary.skipped_snoozed += 1;
+      continue;
+    }
 
     let deadline: Date | null;
     let fields: Record<string, string>;
@@ -257,6 +275,8 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
       const renewedNextCycleUrl = `${actionBaseUrl(env)}/renewed-next-cycle?token=${encodeURIComponent(sub.renewed_token)}`;
       const renewedUrl = `${actionBaseUrl(env)}/renewed?token=${encodeURIComponent(sub.renewed_token)}`;
       const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(sub.unsubscribe_token)}`;
+      // Roadmap #26: same shared-token reasoning as the two links above.
+      const snoozeUrl = `${actionBaseUrl(env)}/snooze?token=${encodeURIComponent(sub.renewed_token)}`;
       let built: BuiltEmail;
       try {
         built = buildReminderEmail(
@@ -268,7 +288,8 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
           renewedUrl,
           unsubscribeUrl,
           sub.first_name,
-          firmInfo?.name ?? null
+          firmInfo?.name ?? null,
+          snoozeUrl
         );
       } catch (err) {
         summary.errors.push({ subscriber_id: sub.id, error: `email build failed: ${String(err)}` });

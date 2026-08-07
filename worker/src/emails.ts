@@ -28,6 +28,13 @@ export const SITE_NAME = "DeadlineRadar";
 export const BRAND_NAME = "Moose & Raven LLC";
 export const SENDER_LINE = `${SITE_NAME} (a ${BRAND_NAME} project)`;
 
+// Roadmap #26 (migration 0040): the one fixed self-service snooze
+// duration -- see that migration's own docstring for why this isn't a
+// configurable day-count. Defined here (not scheduler.ts) since
+// buildReminderEmail() below needs it for its own copy, and scheduler.ts
+// already imports from this module -- keeping the dependency one-directional.
+export const SNOOZE_DAYS = 14;
+
 // CAN-SPAM requires a valid physical postal address in every commercial email.
 // This is Moose & Raven LLC's real mail-receiving address (Anytime Mailbox, Aurora CO).
 // Kept as a constant, not fabricated -- buildConfirmationEmail() asserts it is
@@ -322,7 +329,12 @@ export function buildReminderEmail(
   // a free-tier individual's reminder is byte-identical to before this
   // parameter existed. Shown as a plain attribution line, never replacing
   // DeadlineRadar's own identity/footer (that stays exactly as-is below).
-  firmName: string | null = null
+  firmName: string | null = null,
+  // Roadmap #26 (2026-08-07): self-service snooze link. Optional/defaulted
+  // like firmName above -- every existing caller that doesn't pass one
+  // renders byte-identical to before this parameter existed (no snooze CTA
+  // shown). scheduler.ts always passes a real value.
+  snoozeUrl: string | null = null
 ): BuiltEmail {
   const lead = URGENCY_LEAD[threshold];
   if (lead === undefined) {
@@ -346,7 +358,18 @@ export function buildReminderEmail(
     whenPhrase = `${-actualDaysRemaining} day${actualDaysRemaining !== -1 ? "s" : ""} ago`;
   }
 
+  // Roadmap #26: withheld on the final (1-day) tier specifically -- that
+  // reminder IS the safety net for someone who hasn't renewed yet, and a
+  // 14-day snooze from there would push well past most real deadlines.
+  // Every earlier tier still gets another escalation before the 1-day one,
+  // so snoozing there is a genuine "not yet, ask me later" rather than
+  // walking away from the deadline entirely.
+  const showSnooze = snoozeUrl !== null && threshold !== 1;
+
   const firmAttribution = firmName ? `This reminder is sent by ${firmName} via DeadlineRadar.\n\n` : "";
+  const snoozeTextCta = showSnooze
+    ? `Not ready to deal with this yet? Remind me again in ${SNOOZE_DAYS} days instead:\n${snoozeUrl}\n\n`
+    : "";
   const textBody =
     `${textGreeting(firstName)}\n\n` +
     firmAttribution +
@@ -355,6 +378,7 @@ export function buildReminderEmail(
     `${renewedNextCycleUrl}\n\n` +
     `Renewed and don't want any more reminders for this deadline at all? Stop them entirely instead:\n` +
     `${renewedUrl}\n\n` +
+    snoozeTextCta +
     `Nothing to do yet? We'll remind you again as it gets closer, right up through the day before.` +
     `${textFooter(unsubscribeUrl, addr)}`;
 
@@ -376,6 +400,13 @@ export function buildReminderEmail(
       ) +
       `<p style="margin:0 0 12px;">${button(renewedUrl, "Stop reminders entirely")}</p>` +
       p("Use this instead if you don't want any more reminders for this deadline at all.", 13, LIGHT.muted) +
+      (showSnooze
+        ? p(
+            `Not ready yet? <a href="${esc(snoozeUrl)}" style="color:${LIGHT.accent};">Remind me again in ${SNOOZE_DAYS} days</a> instead.`,
+            13,
+            LIGHT.muted
+          )
+        : "") +
       p(
         "Nothing to do yet? We'll remind you again as it gets closer, right up through the day before.",
         13,

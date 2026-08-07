@@ -6966,7 +6966,17 @@ function drRenderRow(item) {
   // than a new table column -- keeps the roster table's existing width/
   // scroll behavior unchanged on every page this shared row renderer feeds.
   var officeLine = item.office_tag ? '<span class="dr-roster-office">' + drEscapeHtml(item.office_tag) + '</span>' : '';
-  var staffCell = nameLine + '<span class="dr-roster-email" title="' + drEscapeHtml(item.email) + '">' + drEscapeHtml(item.email) + '</span>' + officeLine;
+  // Roadmap #26: self-service snooze, admin-visible so nobody's left
+  // guessing why a staffer's reminders went quiet -- see toFirmLicenseJson()
+  // for why this is read-only from here (only the subscriber's own link, or
+  // a renewal, can change it). Only shown while genuinely still in effect --
+  // a past date is stale data the scheduler already ignores, not something
+  // to keep displaying as if it still applies.
+  var isSnoozed = item.snoozed_until && item.snoozed_until >= drIsoDateFromNow(0);
+  var snoozeLine = isSnoozed
+    ? '<span class="dr-roster-office">Snoozed until ' + drEscapeHtml(drFormatDeadline(item.snoozed_until)) + '</span>'
+    : '';
+  var staffCell = nameLine + '<span class="dr-roster-email" title="' + drEscapeHtml(item.email) + '">' + drEscapeHtml(item.email) + '</span>' + officeLine + snoozeLine;
   // Roadmap #29: a sample row's id ('sample-1' etc.) matches nothing on the
   // server, so Edit/Mark renewed/Remove would either 404 or -- far worse if
   // ids ever collided -- silently act on a real record. No functional

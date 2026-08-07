@@ -1,0 +1,13 @@
+-- Roadmap #26 (2026-08-07): reminder snooze / self-service "remind me again in X days".
+--
+-- Fixed 14-day snooze, not an arbitrary day-count picker -- reuses the exact same one-click GET-
+-- render/POST-act action-link pattern every other reminder CTA already uses (renewedNextCycleUrl/
+-- renewedUrl/unsubscribeUrl, all single-button links, no form). A precise day-count picker would
+-- need a genuinely different UI (a real form) for a feature whose real value is "push this back a
+-- couple weeks," not exact day-level control -- same "don't invent new UI machinery for a modest
+-- win" posture #23's subset-only cadence scoping already took.
+--
+-- NULL = not snoozed (the default, and the state after any renewal path -- see
+-- applyRenewAndRearm()'s own comment for why a stale snooze date from a PRIOR cycle must never
+-- suppress the NEXT cycle's reminders).
+ALTER TABLE subscribers ADD COLUMN snoozed_until TEXT;

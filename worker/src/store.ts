@@ -122,6 +122,11 @@ export interface SubscriberRow {
   // same free-text, no-implied-structure posture as staff_label. NULL means
   // untagged.
   office_tag: string | null;
+  // migration 0040 (roadmap #26). ISO YYYY-MM-DD or null. Self-service,
+  // fixed 14-day snooze -- see that migration's own docstring. scheduler.ts
+  // skips threshold evaluation entirely while this is today-or-later;
+  // applyRenewAndRearm() always clears it back to null on any renewal path.
+  snoozed_until: string | null;
 }
 
 function nowIso(): string {
@@ -395,6 +400,9 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     // actually elapsed), so AddPendingInput has no corresponding field.
     carryover_hours: null,
     office_tag: sanitizeFreeText(input.officeTag, MAX_OFFICE_TAG_LEN),
+    // Roadmap #26: a new staffer starts un-snoozed, same as every other
+    // brand-new record.
+    snoozed_until: null,
   };
   await db
     .prepare(
@@ -1881,7 +1889,8 @@ async function applyRenewAndRearm(db: D1Database, row: SubscriberRow): Promise<S
     .prepare(
       `UPDATE subscribers
        SET status = ?1, stopped_at = NULL, stop_reason = NULL, reminders_sent = '[]',
-           cycle = cycle + 1, unsubscribe_token = ?2, renewed_token = ?3, renewed_at = ?4
+           cycle = cycle + 1, unsubscribe_token = ?2, renewed_token = ?3, renewed_at = ?4,
+           snoozed_until = NULL
        WHERE id = ?5`
     )
     .bind(STATUS_CONFIRMED, newUnsubscribeToken, newRenewedToken, renewedAt, row.id)
@@ -1896,7 +1905,30 @@ async function applyRenewAndRearm(db: D1Database, row: SubscriberRow): Promise<S
     unsubscribe_token: newUnsubscribeToken,
     renewed_token: newRenewedToken,
     renewed_at: renewedAt,
+    // Roadmap #26: a snooze from the PRIOR cycle must never suppress the
+    // NEW cycle's reminders -- see migration 0040's own docstring.
+    snoozed_until: null,
   };
+}
+
+/** Roadmap #26 (migration 0040). Self-service, fixed-duration snooze via
+ * the subscriber's existing renewed_token/unsubscribe_token -- same lookup
+ * and eligibility posture as renewAndRearmByToken() above (must be
+ * confirmed; a stopped subscription has nothing to snooze). Returns null
+ * for an invalid token, an unconfirmed row, or a stopped row -- the caller
+ * (handleSnooze) gives a specific reason for the stopped case since that's
+ * the one genuinely different from "bad link." */
+export async function snoozeByToken(db: D1Database, token: string, days: number): Promise<SubscriberRow | null> {
+  const row = await db
+    .prepare(`SELECT * FROM subscribers WHERE unsubscribe_token = ?1 OR renewed_token = ?1`)
+    .bind(token)
+    .first<SubscriberRow>();
+  if (!row) return null;
+  if (!row.confirmed_at) return null;
+  if (row.status === STATUS_STOPPED) return null;
+  const snoozedUntil = new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+  await db.prepare(`UPDATE subscribers SET snoozed_until = ?1 WHERE id = ?2`).bind(snoozedUntil, row.id).run();
+  return { ...row, snoozed_until: snoozedUntil };
 }
 
 /**

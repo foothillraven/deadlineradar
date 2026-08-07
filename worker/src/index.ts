@@ -1308,9 +1308,16 @@ async function issueAndSendFirmLoginLink(
   firmId: string,
   adminEmail: string,
   purpose: store.LoginTokenPurpose = "login",
-  adminName: string | null = null
+  adminName: string | null = null,
+  /** migration 0045: WHICH member this link is for -- optional (defaults
+   * to the firm's primary_member_id inside createLoginToken()), but every
+   * caller that has already resolved a SPECIFIC member (e.g. a
+   * non-primary member requesting their own "email me a sign-in link")
+   * must pass it explicitly, or the token would silently default to the
+   * primary contact regardless of who actually asked. */
+  memberId?: string
 ): Promise<void> {
-  const { rawToken } = await store.createLoginToken(env.DB, firmId, purpose);
+  const { rawToken } = await store.createLoginToken(env.DB, firmId, purpose, undefined, memberId);
   if (!env.SENDGRID_API_KEY) return;
   try {
     const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
@@ -1422,7 +1429,12 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
   // set in production -- see sender.ts's isEmailAllowlisted docstring) so a
   // real tester can still stand up a preview firm under their own personal
   // address, same posture as the rest of this Worker's EMAIL_ALLOWLIST gate.
-  const existing = await store.findFirmByAdminEmail(env.DB, email);
+  // migration 0045: findFirmMemberByEmail(), not findFirmByAdminEmail() --
+  // the member table is the authoritative "does this email already have
+  // firm access anywhere" answer now (a firm's admin_email is a mirror of
+  // its PRIMARY member's email, which is not necessarily every member's
+  // email).
+  const existing = await store.findFirmMemberByEmail(env.DB, email);
   if (!existing && !isEmailAllowlisted(env.EMAIL_ALLOWLIST, email)) {
     const domainGate = checkSignupDomainGate(email);
     if (domainGate.blocked) {
@@ -1477,30 +1489,33 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
   // concurrent winner is not an error condition for THIS request, it's the
   // expected outcome of the exact race this migration exists to survive.
   let firmId: string;
-  // Existing firm's own stored admin_name (if any) wins on a resend -- this
+  let memberId: string;
+  // Existing member's own stored name (if any) wins on a resend -- this
   // request's adminName field only ever applies to a BRAND NEW firm; a
   // repeat /firm/signup submission must not silently overwrite a name the
-  // admin already has on file (or blank it out, if this attempt left the
+  // member already has on file (or blank it out, if this attempt left the
   // field empty).
   let resolvedAdminName = adminName;
   if (existing) {
-    firmId = existing.id;
-    resolvedAdminName = existing.admin_name;
+    firmId = existing.firm_id;
+    memberId = existing.id;
+    resolvedAdminName = existing.name;
   } else {
     try {
-      firmId = (
-        await store.createFirm(env.DB, {
-          name: nameRaw,
-          adminEmail: email,
-          adminName,
-          tosAcceptedVersion: TERMS_VERSION,
-        })
-      ).id;
+      const created = await store.createFirm(env.DB, {
+        name: nameRaw,
+        adminEmail: email,
+        adminName,
+        tosAcceptedVersion: TERMS_VERSION,
+      });
+      firmId = created.id;
+      memberId = created.memberId;
     } catch {
-      const raced = await store.findFirmByAdminEmail(env.DB, email);
+      const raced = await store.findFirmMemberByEmail(env.DB, email);
       if (!raced) throw new Error("firm signup: insert failed and no concurrent winner found");
-      firmId = raced.id;
-      resolvedAdminName = raced.admin_name;
+      firmId = raced.firm_id;
+      memberId = raced.id;
+      resolvedAdminName = raced.name;
     }
   }
 
@@ -1520,7 +1535,7 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
     return errorPage(429, "Too many requests for this account. Please try again later.");
   }
 
-  await issueAndSendFirmLoginLink(env, firmId, email, undefined, resolvedAdminName);
+  await issueAndSendFirmLoginLink(env, firmId, email, undefined, resolvedAdminName, memberId);
 
   return htmlResponse(200, firmLoginSentPage(env));
 }
@@ -1600,17 +1615,21 @@ async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<
   // accepts elsewhere.
   const purpose = form.intent === "password_reset" ? "password_reset" : "login";
 
-  const existing = await store.findFirmByAdminEmail(env.DB, email);
+  // migration 0045: findFirmMemberByEmail(), not findFirmByAdminEmail() --
+  // resolves the SPECIFIC member requesting a link, which may not be the
+  // firm's primary contact.
+  const existingMember = await store.findFirmMemberByEmail(env.DB, email);
+  const existingFirm = existingMember ? await store.getFirmById(env.DB, existingMember.firm_id) : null;
   // AuditLab re-verify follow-up, 2026-08-03: a suspended firm's magic link
   // still redeems to a 403 (requireFirmSession()/handleFirmLoginVerify()
   // both check status), so this was never an access gap -- but sending the
   // email at all spends one send from the GLOBAL daily cap shared with the
   // real reminder cron, and mails an account that's been cut off for a
-  // reason. `existing.status === "active"` added to the SAME condition
+  // reason. `existingFirm.status === "active"` added to the SAME condition
   // (not a separate branch) -- the response stays byte-identical to "no
   // firm for this email" either way, so this does not introduce a new
   // enumeration signal.
-  if (existing && existing.status === "active") {
+  if (existingMember && existingFirm && existingFirm.status === "active") {
     // AuditLab RL-6 (2026-08-06): second bucket keyed on the RECIPIENT, same
     // rationale/shape as handleSubscriberLoginRequest()'s account bucket --
     // the per-IP bucket above cannot see a distributed mail-bomb aimed at
@@ -1625,7 +1644,7 @@ async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<
       RATE_LIMIT_FIRM_LOGIN_ACCOUNT
     );
     if (accountAllowed) {
-      await issueAndSendFirmLoginLink(env, existing.id, email, purpose, existing.admin_name);
+      await issueAndSendFirmLoginLink(env, existingMember.firm_id, email, purpose, existingMember.name, existingMember.id);
     }
   }
   // No firm for this email, an inactive one, or the account bucket above was
@@ -1687,6 +1706,13 @@ async function handleFirmLoginVerify(
   if (!firm || firm.status !== "active") {
     return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
   }
+  // migration 0045: the specific member this token is FOR -- a removed
+  // member's still-outstanding token must not be able to sign back in
+  // (getFirmMemberById already excludes removed_at rows).
+  const member = await store.getFirmMemberById(env.DB, result.memberId);
+  if (!member) {
+    return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
+  }
   // Task #29: the token PROVED control of the new inbox by arriving there at
   // all -- applying the change here, not on a separate page, since (unlike
   // password_reset) there is no follow-up form to fill in first. `newEmail`
@@ -1700,10 +1726,20 @@ async function handleFirmLoginVerify(
   // which happened so the dashboard can show the right banner.
   let emailChangeOutcome: "applied" | "conflict" | null = null;
   if (result.purpose === "email_change" && result.pendingNewEmail) {
-    const applied = await store.updateFirmAdminEmail(env.DB, firm.id, result.pendingNewEmail);
-    emailChangeOutcome = applied ? "applied" : "conflict";
+    // migration 0045: applies to the MEMBER's own login email first (the
+    // real source of truth going forward) -- if they're also the firm's
+    // primary contact, firms.admin_email is kept as a mirror of that same
+    // update so every existing billing/Stripe/outbound-email call site
+    // that still reads it directly keeps working unchanged.
+    const applied = await store.setFirmMemberEmail(env.DB, member.id, result.pendingNewEmail);
+    const alsoMirrored =
+      applied && firm.primary_member_id === member.id
+        ? await store.updateFirmAdminEmail(env.DB, firm.id, result.pendingNewEmail)
+        : true;
+    emailChangeOutcome = applied && alsoMirrored ? "applied" : "conflict";
     if (applied) {
-      firm.admin_email = result.pendingNewEmail;
+      member.email = result.pendingNewEmail;
+      if (firm.primary_member_id === member.id) firm.admin_email = result.pendingNewEmail;
       // Adversarial-review L3 (2026-08-05): any OTHER unused login/reset
       // link was minted to and sits in the OLD address's inbox. If that
       // inbox outlives the account's association with it (a departing
@@ -1717,7 +1753,7 @@ async function handleFirmLoginVerify(
       // ADDRESS changed, and the old-address notice email is the intended
       // remediation path if this wasn't the real admin, same as it is for
       // every other account-security email in this file.
-      await store.invalidateOutstandingLoginTokens(env.DB, firm.id);
+      await store.invalidateOutstandingLoginTokensForMember(env.DB, member.id);
     }
   }
   // M1 (see actionConfirmPage's matching comment): narrowed from
@@ -1738,11 +1774,11 @@ async function handleFirmLoginVerify(
     typeof optionalNewPassword === "string" &&
     optionalNewPassword.length > 0 &&
     validatePasswordStrength(optionalNewPassword).ok &&
-    !firm.password_hash &&
+    !member.password_hash &&
     !firm.demo_locked
   ) {
     try {
-      await store.setFirmPassword(env.DB, firm.id, await hashPassword(optionalNewPassword, env.PASSWORD_PEPPER));
+      await store.setFirmMemberPassword(env.DB, member.id, await hashPassword(optionalNewPassword, env.PASSWORD_PEPPER));
     } catch {
       // Never let a failed opportunistic password-set fail the sign-in
       // itself -- same posture as handleFirmPasswordLogin's rehash step.
@@ -1751,12 +1787,24 @@ async function handleFirmLoginVerify(
   // Checked BEFORE createSession() inserts the new row -- see
   // hasAnyFirmSession()'s own docstring for why this is the signal for
   // "the firm's first-ever successful login," not account creation.
+  // Deliberately still keyed on the whole FIRM, not this one member --
+  // this notification means "a brand-new firm just completed signup,"
+  // which is a one-time firm-level event regardless of which member (the
+  // founder, today; an invited member accepting their very first invite
+  // in the future) happens to be the one triggering it.
   const isFirstEverSession = !(await store.hasAnyFirmSession(env.DB, result.firmId));
   const { rawSessionToken } = await store.createSession(
     env.DB,
     result.firmId,
+    member.id,
     result.purpose === "password_reset"
   );
+  // migration 0045: marks THIS member as having completed a real login --
+  // independent of the firm-wide notification above, this is what lets a
+  // "Team" panel show an invited member's status as accepted rather than
+  // still-pending. No-op if already set (the founder's very first login
+  // sets it once; every login after that is a no-op UPDATE).
+  await store.markFirmMemberJoined(env.DB, member.id);
   if (isFirstEverSession) {
     await sendSignupNotification(env, "firm", { email: firm.admin_email, firmName: firm.name, adminName: firm.admin_name });
   }
@@ -1824,7 +1872,10 @@ async function handleFirmLogout(request: Request, env: Env, ip: string): Promise
 export async function requireFirmSession(
   request: Request,
   env: Env
-): Promise<{ firmId: string; sessionId: string; passwordResetAuthorized: boolean } | Response> {
+): Promise<
+  | { firmId: string; sessionId: string; memberId: string; role: store.FirmMemberRole; passwordResetAuthorized: boolean }
+  | Response
+> {
   // Orchestrator abuse-test pass (2026-08-05, side note): every caller of
   // this function is a JSON API handler (jsonResponse() on every success
   // path) -- errorPage() returning a full HTML page here (2,921 bytes) was
@@ -1867,12 +1918,40 @@ export async function requireFirmSession(
 async function requireFirmSessionWithFirm(
   request: Request,
   env: Env
-): Promise<{ firmId: string; sessionId: string; passwordResetAuthorized: boolean; firm: store.FirmRow } | Response> {
+): Promise<
+  | { firmId: string; sessionId: string; memberId: string; role: store.FirmMemberRole; passwordResetAuthorized: boolean; firm: store.FirmRow }
+  | Response
+> {
   const session = await requireFirmSession(request, env);
   if (session instanceof Response) return session;
   const firm = await store.getFirmById(env.DB, session.firmId);
   if (!firm) return jsonResponse(404, { error: "Not found." });
   return { ...session, firm };
+}
+
+/**
+ * migration 0045 (roadmap #11/#13/#14): requireFirmSessionWithFirm() plus a
+ * role check. Billing, account deletion, and member management are
+ * Partner-only per the role table this feature shipped with; every other
+ * roster/CPE/calendar/report route stays open to all three roles for
+ * reads, with a narrower Staff-write-gate applied separately at each
+ * mutating route (Staff is read-only there, not locked out entirely the
+ * way this function's callers are for non-listed roles).
+ */
+async function requireFirmRole(
+  request: Request,
+  env: Env,
+  ...allowedRoles: store.FirmMemberRole[]
+): Promise<
+  | { firmId: string; sessionId: string; memberId: string; role: store.FirmMemberRole; passwordResetAuthorized: boolean; firm: store.FirmRow }
+  | Response
+> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+  if (!allowedRoles.includes(session.role)) {
+    return jsonResponse(403, { error: "You don't have permission to do that." });
+  }
+  return session;
 }
 
 /**
@@ -1887,7 +1966,10 @@ async function requireFirmSessionWithFirm(
 async function requireFirmSessionAndPaidTier(
   request: Request,
   env: Env
-): Promise<{ firmId: string; sessionId: string; passwordResetAuthorized: boolean; firm: store.FirmRow } | Response> {
+): Promise<
+  | { firmId: string; sessionId: string; memberId: string; role: store.FirmMemberRole; passwordResetAuthorized: boolean; firm: store.FirmRow }
+  | Response
+> {
   const session = await requireFirmSession(request, env);
   if (session instanceof Response) return session;
 
@@ -1920,7 +2002,8 @@ async function requireFirmSessionAndPaidTier(
  * the free-tier firms this route exists to convert.
  */
 async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSession(request, env);
+  // migration 0045 (roadmap #11/#13/#14): billing is Partner-only.
+  const session = await requireFirmRole(request, env, "partner");
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -2018,7 +2101,8 @@ async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Re
  * plain 400 below for a missing stripe_subscription_id).
  */
 async function handleFirmBillingCancellationToggle(request: Request, env: Env, cancelAtPeriodEnd: boolean): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // migration 0045 (roadmap #11/#13/#14): billing is Partner-only.
+  const session = await requireFirmRole(request, env, "partner");
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -2080,7 +2164,10 @@ async function handleFirmBillingCancellationToggle(request: Request, env: Env, c
  * fail; the survey is a courtesy on top of it).
  */
 async function handleFirmAccountDelete(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSession(request, env);
+  // migration 0045 (roadmap #11/#13/#14): deleting the whole firm is
+  // Partner-only -- an Office Manager or Staff member must never be able
+  // to delete the account out from under every other member.
+  const session = await requireFirmRole(request, env, "partner");
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -5905,9 +5992,11 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
     return errorPage(429, "Too many sign-in attempts for this account. Please try again later.");
   }
 
-  const firm = await store.findFirmByAdminEmail(env.DB, email);
+  // migration 0045: findFirmMemberByEmail(), not findFirmByAdminEmail() --
+  // a password login authenticates a SPECIFIC member, not "the firm."
+  const member = await store.findFirmMemberByEmail(env.DB, email);
 
-  if (!firm || !firm.password_hash) {
+  if (!member || !member.password_hash) {
     // No account, or an account that has never set a password (SSO-only or
     // magic-link-only). Burn comparable work so this branch is not
     // distinguishable by timing, then fail identically.
@@ -5918,11 +6007,11 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
   const ok = await verifyPassword(
     password,
     {
-      algo: firm.password_algo ?? undefined,
-      salt: firm.password_salt ?? undefined,
-      iterations: firm.password_iterations ?? undefined,
-      rounds: firm.password_rounds ?? undefined,
-      hash: firm.password_hash,
+      algo: member.password_algo ?? undefined,
+      salt: member.password_salt ?? undefined,
+      iterations: member.password_iterations ?? undefined,
+      rounds: member.password_rounds ?? undefined,
+      hash: member.password_hash,
     },
     env.PASSWORD_PEPPER
   );
@@ -5935,7 +6024,8 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
   // by response, handing an attacker free account-status enumeration on top
   // of a correct guess. Once they've proven they hold the real password,
   // revealing suspension is no longer a new leak. (AuditLab F-1, 2026-08-02.)
-  if (firm.status !== "active") {
+  const firm = await store.getFirmById(env.DB, member.firm_id);
+  if (!firm || firm.status !== "active") {
     return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
   }
 
@@ -5945,16 +6035,16 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
   if (
     needsRehash(
       {
-        algo: firm.password_algo ?? undefined,
-        iterations: firm.password_iterations ?? undefined,
-        rounds: firm.password_rounds ?? undefined,
-        hash: firm.password_hash,
+        algo: member.password_algo ?? undefined,
+        iterations: member.password_iterations ?? undefined,
+        rounds: member.password_rounds ?? undefined,
+        hash: member.password_hash,
       },
       env.PASSWORD_PEPPER
     )
   ) {
     try {
-      await store.setFirmPassword(env.DB, firm.id, await hashPassword(password, env.PASSWORD_PEPPER));
+      await store.setFirmMemberPassword(env.DB, member.id, await hashPassword(password, env.PASSWORD_PEPPER));
     } catch {
       // A failed opportunistic upgrade must never fail the login itself.
     }
@@ -5964,7 +6054,8 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
   // caller-supplied identifier) is what makes session fixation impossible
   // here: there is no way to pre-plant a session id and have it become
   // authenticated.
-  const { rawSessionToken } = await store.createSession(env.DB, firm.id);
+  const { rawSessionToken } = await store.createSession(env.DB, firm.id, member.id);
+  await store.markFirmMemberJoined(env.DB, member.id);
   return new Response(null, {
     status: 302,
     headers: {
@@ -6096,6 +6187,13 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
   if (!firm) {
     return jsonResponse(404, { error: "Not found." });
   }
+  // migration 0045: a password is now set on the SIGNED-IN MEMBER, not the
+  // firm -- every check below (current-password proof, the hash itself)
+  // reads/writes session.memberId's own firm_members row.
+  const member = await store.getFirmMemberById(env.DB, session.memberId);
+  if (!member) {
+    return jsonResponse(404, { error: "Not found." });
+  }
 
   // Task #27 (2026-08-06, Devin's explicit call): unconditional, no
   // exception for a password-RESET-authorized session either. An earlier
@@ -6121,15 +6219,15 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
   // the account's own inbox -- stronger evidence than the cookie the
   // prove-the-old-password rule guards against -- and it is spent below, so
   // one emailed link authorises exactly one password set.
-  if (firm.password_hash && !session.passwordResetAuthorized) {
+  if (member.password_hash && !session.passwordResetAuthorized) {
     const currentOk = await verifyPassword(
       currentPassword,
       {
-        algo: firm.password_algo ?? undefined,
-        salt: firm.password_salt ?? undefined,
-        iterations: firm.password_iterations ?? undefined,
-        rounds: firm.password_rounds ?? undefined,
-        hash: firm.password_hash,
+        algo: member.password_algo ?? undefined,
+        salt: member.password_salt ?? undefined,
+        iterations: member.password_iterations ?? undefined,
+        rounds: member.password_rounds ?? undefined,
+        hash: member.password_hash,
       },
       env.PASSWORD_PEPPER
     );
@@ -6138,14 +6236,17 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
     }
   }
 
-  await store.setFirmPassword(env.DB, firm.id, await hashPassword(newPassword, env.PASSWORD_PEPPER));
+  await store.setFirmMemberPassword(env.DB, member.id, await hashPassword(newPassword, env.PASSWORD_PEPPER));
 
   // Changing a password must end every OTHER session. If the reason for
   // the change is that a session was stolen, leaving that session alive
   // makes the change cosmetic -- the attacker just keeps using the cookie
   // they already hold. The caller's own session survives so they aren't
   // logged out of the tab they're sitting in.
-  const endedSessions = await store.deleteOtherSessionsForFirm(env.DB, firm.id, session.sessionId);
+  // migration 0045: scoped to THIS member's own other sessions, not every
+  // member of the firm -- see deleteOtherSessionsForMember()'s own
+  // docstring for why the firm-wide version would be a real bug here.
+  const endedSessions = await store.deleteOtherSessionsForMember(env.DB, member.id, session.sessionId);
 
   // ...and every UNUSED sign-in / reset link (2026-07-31). Same reasoning one
   // step earlier in the chain: an outstanding emailed link is a live bearer
@@ -6153,7 +6254,7 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
   // links redeemable would make the reset only half-true. Cheap, and it also
   // tidies up the duplicates people generate by clicking "email me a link"
   // several times when the first is slow to arrive.
-  await store.invalidateOutstandingLoginTokens(env.DB, firm.id);
+  await store.invalidateOutstandingLoginTokensForMember(env.DB, member.id);
 
   // Spend the one-shot reset authority. Left set, it would sit on a 30-day
   // session and allow unlimited future password rewrites without the old
@@ -6181,8 +6282,12 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
     try {
       const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
       if (underCap) {
-        const built = buildFirmPasswordChangedEmail(firm.name, new Date().toISOString(), firm.admin_name);
-        await sendViaSendGrid(env.SENDGRID_API_KEY, firm.admin_email, built, env.EMAIL_ALLOWLIST);
+        // migration 0045: notifies the MEMBER whose password actually
+        // changed, not the firm's primary contact -- a teammate's password
+        // change is that teammate's own security event, not necessarily
+        // something every other member should be emailed about.
+        const built = buildFirmPasswordChangedEmail(firm.name, new Date().toISOString(), member.name);
+        await sendViaSendGrid(env.SENDGRID_API_KEY, member.email, built, env.EMAIL_ALLOWLIST);
       }
     } catch {
       // Intentionally swallowed -- see above.
@@ -6227,27 +6332,32 @@ async function handleFirmSignOutOtherDevices(request: Request, env: Env): Promis
     return jsonResponse(429, { error: "Too many attempts. Please try again later." });
   }
 
-  const endedSessions = await store.deleteOtherSessionsForFirm(env.DB, session.firmId, session.sessionId);
+  // migration 0045: this member's own other sessions only -- see
+  // deleteOtherSessionsForMember()'s own docstring for why the firm-wide
+  // version would wrongly sign out teammates who did nothing.
+  const endedSessions = await store.deleteOtherSessionsForMember(env.DB, session.memberId, session.sessionId);
 
   if (endedSessions > 0) {
     // Same reasoning as handleFirmPasswordSet's own token sweep: an
     // outstanding emailed link is a live bearer credential too, so ending
     // every session but leaving a still-redeemable link would only close
     // part of the door.
-    await store.invalidateOutstandingLoginTokens(env.DB, session.firmId);
+    await store.invalidateOutstandingLoginTokensForMember(env.DB, session.memberId);
 
     const firm = await store.getFirmById(env.DB, session.firmId);
+    const member = await store.getFirmMemberById(env.DB, session.memberId);
     // Best-effort and never allowed to fail the request -- see
     // handleFirmPasswordSet's own comment on the identical pattern. This is
     // the DETECTION control: if the click that triggered this came from a
-    // stolen session rather than the real admin, this email is the only
-    // signal the real admin ever gets.
-    if (firm && env.SENDGRID_API_KEY) {
+    // stolen session rather than the real member, this email is the only
+    // signal they ever get. Sent to the MEMBER whose own sessions were
+    // ended, not the firm's primary contact.
+    if (firm && member && env.SENDGRID_API_KEY) {
       try {
         const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
         if (underCap) {
-          const built = buildFirmSessionsEndedEmail(firm.name, new Date().toISOString(), endedSessions, firm.admin_name);
-          await sendViaSendGrid(env.SENDGRID_API_KEY, firm.admin_email, built, env.EMAIL_ALLOWLIST);
+          const built = buildFirmSessionsEndedEmail(firm.name, new Date().toISOString(), endedSessions, member.name);
+          await sendViaSendGrid(env.SENDGRID_API_KEY, member.email, built, env.EMAIL_ALLOWLIST);
         }
       } catch {
         // Intentionally swallowed -- see above.
@@ -6325,6 +6435,12 @@ async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise
 
   const firm = await store.getFirmById(env.DB, session.firmId);
   if (!firm) return jsonResponse(404, { error: "Not found." });
+  // migration 0045: this route now changes the SIGNED-IN MEMBER's own
+  // login email, not the firm's admin_email directly (though the mirror
+  // update still applies if they happen to be the primary contact -- see
+  // handleFirmLoginVerify()'s own comment on that mirroring).
+  const member = await store.getFirmMemberById(env.DB, session.memberId);
+  if (!member) return jsonResponse(404, { error: "Not found." });
 
   // Task #27 follow-up (2026-08-06, reported live): this route, the billing
   // cancellation toggle, and account deletion were the three Account-tab
@@ -6353,15 +6469,15 @@ async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise
   // the firm has no password yet (a magic-link-only firm must still be able
   // to use this feature) or the session itself is passwordResetAuthorized
   // (already proved control of the current inbox via a fresh reset link).
-  if (firm.password_hash && !session.passwordResetAuthorized) {
+  if (member.password_hash && !session.passwordResetAuthorized) {
     const currentOk = await verifyPassword(
       currentPassword,
       {
-        algo: firm.password_algo ?? undefined,
-        salt: firm.password_salt ?? undefined,
-        iterations: firm.password_iterations ?? undefined,
-        rounds: firm.password_rounds ?? undefined,
-        hash: firm.password_hash,
+        algo: member.password_algo ?? undefined,
+        salt: member.password_salt ?? undefined,
+        iterations: member.password_iterations ?? undefined,
+        rounds: member.password_rounds ?? undefined,
+        hash: member.password_hash,
       },
       env.PASSWORD_PEPPER
     );
@@ -6370,10 +6486,10 @@ async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise
     }
   }
 
-  // Same LOWER(TRIM()) normalization findFirmByAdminEmail()/the migration
-  // 0015 unique index use, so this comparison agrees with what the actual
+  // Same LOWER(TRIM()) normalization findFirmMemberByEmail()/the migration
+  // 0045 unique index use, so this comparison agrees with what the actual
   // constraint will enforce at redemption time.
-  if (newEmailRaw.trim().toLowerCase() === firm.admin_email.trim().toLowerCase()) {
+  if (newEmailRaw.trim().toLowerCase() === member.email.trim().toLowerCase()) {
     return jsonResponse(400, { error: "That's already your email address." });
   }
   // Adversarial-review L2 (2026-08-05): this IS an account-existence oracle
@@ -6384,16 +6500,19 @@ async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise
   // time (the alternative) would be strictly worse UX for zero real
   // anti-enumeration benefit, since redemption's own "conflict" outcome
   // (updateFirmAdminEmail()) already confirms the same fact one click
-  // later regardless.
-  const conflicting = await store.findFirmByAdminEmail(env.DB, newEmailRaw);
+  // later regardless. migration 0045: findFirmMemberByEmail(), checking
+  // against every member across every firm, not just each firm's primary.
+  const conflicting = await store.findFirmMemberByEmail(env.DB, newEmailRaw);
   if (conflicting) {
     return jsonResponse(400, { error: "That email address is already in use." });
   }
 
   // Only the LATEST requested address should ever be confirmable -- see
-  // invalidateOutstandingEmailChangeTokens()'s own comment.
-  await store.invalidateOutstandingEmailChangeTokens(env.DB, session.firmId);
-  const { rawToken } = await store.createLoginToken(env.DB, session.firmId, "email_change", newEmailRaw);
+  // invalidateOutstandingEmailChangeTokensForMember()'s own comment. Scoped
+  // to THIS member -- a teammate's own outstanding email-change request
+  // must not be silently invalidated by someone else's request.
+  await store.invalidateOutstandingEmailChangeTokensForMember(env.DB, member.id);
+  const { rawToken } = await store.createLoginToken(env.DB, session.firmId, "email_change", newEmailRaw, member.id);
 
   if (env.SENDGRID_API_KEY) {
     try {
@@ -6408,13 +6527,16 @@ async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise
       // than suppressing the (time-sensitive) warning.
       const noticeUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
       if (noticeUnderCap) {
+        // migration 0045: notice goes to the MEMBER's own current (OLD)
+        // address -- the person actually being warned, not necessarily
+        // the firm's primary contact.
         const noticeEmail = buildFirmEmailChangeRequestedNoticeEmail(
           firm.name,
           newEmailRaw,
           new Date().toISOString(),
-          firm.admin_name
+          member.name
         );
-        await sendViaSendGrid(env.SENDGRID_API_KEY, firm.admin_email, noticeEmail, env.EMAIL_ALLOWLIST);
+        await sendViaSendGrid(env.SENDGRID_API_KEY, member.email, noticeEmail, env.EMAIL_ALLOWLIST);
       }
       // Independent send, independent cap check -- this is a SECOND real
       // email (to a different address, for a different purpose), not a
@@ -6422,7 +6544,7 @@ async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise
       const confirmUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
       if (confirmUnderCap) {
         const confirmUrl = `${actionBaseUrl(env)}/firm/login/verify?token=${encodeURIComponent(rawToken)}`;
-        const confirmEmail = buildFirmEmailChangeConfirmEmail(confirmUrl, firm.admin_name);
+        const confirmEmail = buildFirmEmailChangeConfirmEmail(confirmUrl, member.name);
         await sendViaSendGrid(env.SENDGRID_API_KEY, newEmailRaw, confirmEmail, env.EMAIL_ALLOWLIST);
       }
     } catch {
@@ -6572,13 +6694,26 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
     return errorPage(400, SSO_UNVERIFIED_EMAIL_MESSAGE, ssoSigninLink(env));
   }
 
-  const firm = await store.findFirmByAdminEmail(env.DB, claims.email);
-  if (!firm) {
+  // migration 0045: findFirmMemberByEmail(), not findFirmByAdminEmail() --
+  // "does an account already exist for this verified email" must find a
+  // non-primary member's own address too, not just the firm's primary
+  // contact. KNOWN SCOPE LIMIT (not fixed in this pass): the OAuth link
+  // itself (firm_oauth_identities) still has no member_id column, so the
+  // session this mints below still resolves to the firm's PRIMARY member
+  // via createSession()'s own default, regardless of which member's email
+  // actually matched here. True per-member SSO linking is a real follow-up,
+  // not silently forgotten -- flagged in this pass's own final report.
+  const memberForEmail = await store.findFirmMemberByEmail(env.DB, claims.email);
+  if (!memberForEmail) {
     // Deliberately NOT auto-creating a firm here. Signup runs a domain
     // gate (checkSignupDomainGate: disposable domains and competitor
     // domains are refused a trial), and minting an account through the
     // SSO callback would route straight around it. SSO connects to an
     // account that already exists; it is not a second signup door.
+    return errorPage(400, SSO_NO_ACCOUNT_MESSAGE, ssoSigninLink(env));
+  }
+  const firm = await store.getFirmById(env.DB, memberForEmail.firm_id);
+  if (!firm) {
     return errorPage(400, SSO_NO_ACCOUNT_MESSAGE, ssoSigninLink(env));
   }
   // AuditLab F-1, 2026-08-02: a suspended firm must not be able to LINK a
@@ -6712,7 +6847,9 @@ async function handleOauthIdentityDelete(request: Request, env: Env, id: string)
 async function handleFirmSessionsList(request: Request, env: Env): Promise<Response> {
   const session = await requireFirmSession(request, env);
   if (session instanceof Response) return session;
-  const rows = await store.listSessionsForFirm(env.DB, session.firmId);
+  // migration 0045: this member's own sessions only -- see
+  // listSessionsForMember()'s own docstring.
+  const rows = await store.listSessionsForMember(env.DB, session.memberId);
   return jsonResponse(200, {
     sessions: rows.map((r) => ({
       id: r.id,
@@ -6748,7 +6885,8 @@ async function handleFirmSessionRevoke(request: Request, env: Env, id: string): 
     return jsonResponse(429, { error: "Too many attempts. Please try again later." });
   }
 
-  const removed = await store.deleteSessionByIdForFirm(env.DB, session.firmId, id);
+  // migration 0045: this member's own sessions only.
+  const removed = await store.deleteSessionByIdForMember(env.DB, session.memberId, id);
   if (!removed) return jsonResponse(404, { error: "Not found." });
   return jsonResponse(200, { ok: true });
 }

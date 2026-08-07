@@ -922,6 +922,10 @@ export interface FirmRow {
   // for every firm created before this migration, or created via a path
   // that didn't pass it (e.g. a test helper) -- no fabricated backfill.
   tos_accepted_version: string | null;
+  // migration 0045 (roadmap #11/#13/#14/#51). The firm's current primary/
+  // billing contact -- a firm_members.id. Transferring ownership (#51)
+  // updates this pointer; nothing about the member row itself changes.
+  primary_member_id: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -931,6 +935,10 @@ export interface FirmLoginTokenRow {
   created_at: string;
   expires_at: string;
   used_at: string | null;
+  /** migration 0045; absent on rows written before it. Every token issued
+   * going forward always sets this -- see createLoginToken()'s own
+   * comment. */
+  member_id?: string | null;
   /** migration 0013. Optional on the TYPE because rows written before that
    * migration predate the column; normalizeLoginTokenPurpose() turns any
    * absent/unrecognised value into the safe "login" default. */
@@ -949,6 +957,176 @@ export interface FirmSessionRow {
   created_at: string;
   expires_at: string;
   last_seen_at: string;
+  /** migration 0045. Nullable on the TYPE only for pre-0045 rows the
+   * migration's own backfill already resolved -- every row read through
+   * verifySession() is required to have one (see that function's INNER
+   * JOIN on firm_members). */
+  member_id?: string | null;
+}
+
+/**
+ * migration 0045 (roadmap #11/#13/#14/#51): one row per person who can sign
+ * into a firm, each with their own credentials and a role. See that
+ * migration's own docstring for the full "why" -- firms.admin_email/
+ * password_* stay in place for backward compatibility (billing/Stripe
+ * correspondence, every existing outbound-email call site) but a session
+ * is now attributed to a SPECIFIC member, not just a firm.
+ */
+export type FirmMemberRole = "partner" | "office_manager" | "staff";
+
+export interface FirmMemberRow {
+  id: string;
+  firm_id: string;
+  email: string;
+  name: string | null;
+  role: FirmMemberRole;
+  password_hash: string | null;
+  password_salt: string | null;
+  password_algo: string | null;
+  password_iterations: number | null;
+  password_rounds: number | null;
+  password_updated_at: string | null;
+  invited_at: string;
+  invited_by_member_id: string | null;
+  joined_at: string | null;
+  removed_at: string | null;
+  created_at: string;
+}
+
+export interface CreateFirmMemberInput {
+  firmId: string;
+  email: string;
+  name?: string | null;
+  role: FirmMemberRole;
+  invitedByMemberId?: string | null;
+  /** Set only for the very first (backfilled/signup-created) partner, who
+   * is active from the moment the firm exists -- every INVITED member
+   * starts with joined_at unset (an outstanding invite) until they
+   * actually sign in once. */
+  alreadyJoined?: boolean;
+}
+
+/** Re-sanitizes name independently of the request-layer validation in
+ * index.ts, same defense-in-depth posture as createFirm()'s own re-call of
+ * sanitizeFreeText() above. */
+export async function createFirmMember(db: D1Database, input: CreateFirmMemberInput): Promise<{ id: string }> {
+  const id = newToken();
+  const name = sanitizeFreeText(input.name ?? null, MAX_ADMIN_NAME_LEN);
+  const now = nowIso();
+  await db
+    .prepare(
+      `INSERT INTO firm_members (id, firm_id, email, name, role, invited_at, invited_by_member_id, joined_at, created_at)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)`
+    )
+    .bind(
+      id,
+      input.firmId,
+      input.email.trim(),
+      name,
+      input.role,
+      now,
+      input.invitedByMemberId ?? null,
+      input.alreadyJoined ? now : null,
+      now
+    )
+    .run();
+  return { id };
+}
+
+/** Mirrors findFirmByAdminEmail()'s own normalization/no-index reasoning --
+ * firm_members is expected to stay just as small as firms itself. Excludes
+ * soft-removed members, same as the migration's own partial unique index. */
+export async function findFirmMemberByEmail(db: D1Database, email: string): Promise<FirmMemberRow | null> {
+  const normalized = normalizeEmail(email);
+  const row = await db
+    .prepare(`SELECT * FROM firm_members WHERE LOWER(TRIM(email)) = ?1 AND removed_at IS NULL LIMIT 1`)
+    .bind(normalized)
+    .first<FirmMemberRow>();
+  return row ?? null;
+}
+
+export async function getFirmMemberById(db: D1Database, memberId: string): Promise<FirmMemberRow | null> {
+  const row = await db
+    .prepare(`SELECT * FROM firm_members WHERE id = ?1 AND removed_at IS NULL`)
+    .bind(memberId)
+    .first<FirmMemberRow>();
+  return row ?? null;
+}
+
+/** Active (non-removed) members for a firm's own "Team" panel, ordered so a
+ * newly-invited member reads naturally at the bottom of the list. */
+export async function listFirmMembers(db: D1Database, firmId: string): Promise<FirmMemberRow[]> {
+  const { results } = await db
+    .prepare(`SELECT * FROM firm_members WHERE firm_id = ?1 AND removed_at IS NULL ORDER BY created_at ASC`)
+    .bind(firmId)
+    .all<FirmMemberRow>();
+  return results;
+}
+
+/** How many ACTIVE partners a firm has -- the guard every role-change/
+ * removal call site uses to refuse leaving a firm with zero partners (the
+ * same "can't lock yourself out" posture the single-admin model has always
+ * had implicitly, made explicit now that a firm can have more than one
+ * person and one of them could otherwise demote/remove the last one). */
+export async function countActivePartners(db: D1Database, firmId: string): Promise<number> {
+  const row = await db
+    .prepare(`SELECT COUNT(*) AS n FROM firm_members WHERE firm_id = ?1 AND role = 'partner' AND removed_at IS NULL`)
+    .bind(firmId)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+export async function updateFirmMemberRole(db: D1Database, memberId: string, role: FirmMemberRole): Promise<void> {
+  await db.prepare(`UPDATE firm_members SET role = ?1 WHERE id = ?2`).bind(role, memberId).run();
+}
+
+/** Soft-delete only -- keeps history for #51's "transfer keeps history"
+ * requirement, matching this codebase's existing soft-delete convention
+ * (cpe_entries.deleted_at etc.). Callers MUST check countActivePartners()
+ * first if this could remove the firm's last partner; this function does
+ * not re-check (same "caller validates, store executes" split as
+ * setFirmPassword() above). */
+export async function removeFirmMember(db: D1Database, memberId: string): Promise<void> {
+  await db.prepare(`UPDATE firm_members SET removed_at = ?1 WHERE id = ?2`).bind(nowIso(), memberId).run();
+}
+
+export async function setFirmMemberEmail(db: D1Database, memberId: string, newEmail: string): Promise<boolean> {
+  try {
+    await db.prepare(`UPDATE firm_members SET email = ?1 WHERE id = ?2`).bind(newEmail.trim(), memberId).run();
+    return true;
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("idx_firm_members_email_unique")) {
+      return false;
+    }
+    throw err;
+  }
+}
+
+export async function setFirmMemberPassword(
+  db: D1Database,
+  memberId: string,
+  record: { algo: string; salt: string; iterations: number; rounds: number; hash: string }
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE firm_members
+          SET password_hash = ?1, password_salt = ?2, password_algo = ?3,
+              password_iterations = ?4, password_rounds = ?5, password_updated_at = ?6
+        WHERE id = ?7`
+    )
+    .bind(record.hash, record.salt, record.algo, record.iterations, record.rounds, nowIso(), memberId)
+    .run();
+}
+
+/** Marks a joined_at on first-ever successful login -- mirrors
+ * hasAnyFirmSession()'s "first-ever session" signal, but per-member (an
+ * invited member's FIRST successful sign-in is when the invite is
+ * genuinely accepted, not just issued). No-op if already set. */
+export async function markFirmMemberJoined(db: D1Database, memberId: string): Promise<void> {
+  await db
+    .prepare(`UPDATE firm_members SET joined_at = ?1 WHERE id = ?2 AND joined_at IS NULL`)
+    .bind(nowIso(), memberId)
+    .run();
 }
 
 // A login link is a one-shot bearer credential emailed in plaintext -- kept
@@ -993,7 +1171,7 @@ export interface CreateFirmInput {
  * nothing; index.ts's own validation should never let that input through in
  * the first place.
  */
-export async function createFirm(db: D1Database, input: CreateFirmInput): Promise<{ id: string }> {
+export async function createFirm(db: D1Database, input: CreateFirmInput): Promise<{ id: string; memberId: string }> {
   const id = newToken();
   const name = sanitizeFreeText(input.name, MAX_FIRM_NAME_LEN) ?? "";
   const adminName = sanitizeFreeText(input.adminName ?? null, MAX_ADMIN_NAME_LEN);
@@ -1004,7 +1182,37 @@ export async function createFirm(db: D1Database, input: CreateFirmInput): Promis
     )
     .bind(id, name, input.adminEmail, adminName, nowIso(), input.tosAcceptedVersion ?? null)
     .run();
-  return { id };
+  // migration 0045 (roadmap #11/#13/#14/#51): every firm now needs a
+  // firm_members row from the moment it exists, not just from the next
+  // migration's backfill -- this IS the "backfill" for every firm created
+  // from here on. Deliberately joined_at = NULL (NOT alreadyJoined) even
+  // though this is the founding partner -- hasAnyFirmSession()'s "first
+  // login fires the internal signup notification" signal is being ported
+  // to member.joined_at (see handleFirmLoginVerify()), and that has to
+  // stay NULL until their actual first login or the notification would
+  // never fire for a brand-new firm. primary_member_id is set in the SAME
+  // call (not a separate UPDATE) so a firm can never exist, even
+  // momentarily, without a resolvable primary contact.
+  //
+  // D1 has no cross-statement transaction here (three separate .run()
+  // calls, not a .batch()) -- if the member insert fails (its own
+  // idx_firm_members_email_unique conflict: this exact email is already
+  // an active member of a DIFFERENT firm, a distinct race from the
+  // firms.admin_email one the caller already handles), the firms row
+  // above has already committed. Deleted here rather than left as an
+  // orphan with no primary_member_id, which every downstream caller
+  // assumes is always resolvable.
+  let founderMemberId: string;
+  try {
+    founderMemberId = (
+      await createFirmMember(db, { firmId: id, email: input.adminEmail, name: adminName, role: "partner" })
+    ).id;
+  } catch (err) {
+    await db.prepare(`DELETE FROM firms WHERE id = ?1`).bind(id).run();
+    throw err;
+  }
+  await db.prepare(`UPDATE firms SET primary_member_id = ?1 WHERE id = ?2`).bind(founderMemberId, id).run();
+  return { id, memberId: founderMemberId };
 }
 
 /**
@@ -1113,6 +1321,12 @@ export const FIRM_SCOPED_TABLES = [
   "reminder_log",
   "firm_nps_responses",
   "firm_testimonials",
+  // migration 0045 (roadmap #11/#13/#14/#51): a firm's members are exactly
+  // as firm-scoped as every table above -- AuditLab RETAIN-1's own
+  // "permanently erased" promise applies here too, and this table's hard
+  // gate (check_retention_coverage in preship_gate.py) would have caught
+  // this omission at ship time regardless.
+  "firm_members",
 ] as const;
 
 export async function hardDeleteExpiredFirms(db: D1Database, bucket: R2Bucket, asOf: Date, graceDays = 30): Promise<string[]> {
@@ -1146,6 +1360,14 @@ export async function hardDeleteExpiredFirms(db: D1Database, bucket: R2Bucket, a
         // other best-effort side-effect in this codebase.
       }
     }
+    // migration 0045: firms.primary_member_id is a foreign key INTO
+    // firm_members, which is itself firm-scoped and about to be deleted
+    // by the loop below (firm_members.firm_id -> firms.id, the other
+    // direction) -- a genuine circular reference between the two tables.
+    // Cleared here, before either delete, or the firm_members DELETE
+    // below fails its FK constraint while firms.primary_member_id still
+    // points at the row being removed.
+    await db.prepare(`UPDATE firms SET primary_member_id = NULL WHERE id = ?1`).bind(firmId).run();
     for (const table of FIRM_SCOPED_TABLES) {
       await db.prepare(`DELETE FROM ${table} WHERE firm_id = ?1`).bind(firmId).run();
     }
@@ -1245,20 +1467,43 @@ export async function createLoginToken(
   db: D1Database,
   firmId: string,
   purpose: LoginTokenPurpose = "login",
-  pendingNewEmail: string | null = null
+  pendingNewEmail: string | null = null,
+  /** migration 0045. OPTIONAL and placed LAST (not inserted earlier in
+   * this list) deliberately -- this function has dozens of existing
+   * positional call sites across the test suite that pass `purpose`/
+   * `pendingNewEmail` positionally (e.g. `createLoginToken(db, id,
+   * "password_reset")`); inserting memberId any earlier would have
+   * silently reinterpreted a purpose STRING as memberId and silently
+   * defaulted purpose back to "login" everywhere -- a real, serious
+   * near-miss caught by re-reading every call site before running
+   * anything, not by a type error (both params are string-shaped).
+   * Resolved to the firm's primary_member_id when omitted, same
+   * reasoning as createSession()'s own memberId param. */
+  memberId?: string
 ): Promise<{ rawToken: string }> {
+  let resolvedMemberId = memberId;
+  if (!resolvedMemberId) {
+    const firm = await db.prepare(`SELECT primary_member_id FROM firms WHERE id = ?1`).bind(firmId).first<{
+      primary_member_id: string | null;
+    }>();
+    if (!firm?.primary_member_id) {
+      throw new Error(`createLoginToken: firm ${firmId} has no primary_member_id and no memberId was given`);
+    }
+    resolvedMemberId = firm.primary_member_id;
+  }
   const rawToken = newToken();
   const tokenHash = await hashToken(rawToken);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + LOGIN_TOKEN_TTL_MINUTES * 60_000).toISOString();
   await db
     .prepare(
-      `INSERT INTO firm_login_tokens (id, firm_id, token_hash, created_at, expires_at, used_at, purpose, pending_new_email)
-       VALUES (?1,?2,?3,?4,?5,NULL,?6,?7)`
+      `INSERT INTO firm_login_tokens (id, firm_id, member_id, token_hash, created_at, expires_at, used_at, purpose, pending_new_email)
+       VALUES (?1,?2,?3,?4,?5,?6,NULL,?7,?8)`
     )
     .bind(
       newToken(),
       firmId,
+      resolvedMemberId,
       tokenHash,
       now.toISOString(),
       expiresAt,
@@ -1286,6 +1531,19 @@ export async function invalidateOutstandingLoginTokens(db: D1Database, firmId: s
   return result.meta.changes ?? 0;
 }
 
+/** migration 0045: same intent as invalidateOutstandingLoginTokens() above,
+ * scoped to ONE member instead of every member of the firm -- a firm can
+ * now have more than one person, and invalidating the whole firm's
+ * outstanding tokens on ONE member's email change would silently burn a
+ * completely unrelated member's pending invite or password-reset link. */
+export async function invalidateOutstandingLoginTokensForMember(db: D1Database, memberId: string): Promise<number> {
+  const result = await db
+    .prepare(`UPDATE firm_login_tokens SET used_at = ?1 WHERE member_id = ?2 AND used_at IS NULL`)
+    .bind(nowIso(), memberId)
+    .run();
+  return result.meta.changes ?? 0;
+}
+
 /**
  * Task #29 (2026-08-05). Narrower than invalidateOutstandingLoginTokens() --
  * scoped to purpose = 'email_change' only, so requesting a second email
@@ -1298,6 +1556,17 @@ export async function invalidateOutstandingEmailChangeTokens(db: D1Database, fir
   const result = await db
     .prepare(`UPDATE firm_login_tokens SET used_at = ?1 WHERE firm_id = ?2 AND purpose = 'email_change' AND used_at IS NULL`)
     .bind(nowIso(), firmId)
+    .run();
+  return result.meta.changes ?? 0;
+}
+
+/** migration 0045: scoped to ONE member instead of the whole firm -- same
+ * "don't burn a completely unrelated member's pending request" reasoning
+ * as invalidateOutstandingLoginTokensForMember() above. */
+export async function invalidateOutstandingEmailChangeTokensForMember(db: D1Database, memberId: string): Promise<number> {
+  const result = await db
+    .prepare(`UPDATE firm_login_tokens SET used_at = ?1 WHERE member_id = ?2 AND purpose = 'email_change' AND used_at IS NULL`)
+    .bind(nowIso(), memberId)
     .run();
   return result.meta.changes ?? 0;
 }
@@ -1316,7 +1585,7 @@ export async function invalidateOutstandingEmailChangeTokens(db: D1Database, fir
 export async function verifyAndConsumeLoginToken(
   db: D1Database,
   rawToken: string
-): Promise<{ firmId: string; purpose: LoginTokenPurpose; pendingNewEmail: string | null } | null> {
+): Promise<{ firmId: string; memberId: string; purpose: LoginTokenPurpose; pendingNewEmail: string | null } | null> {
   const tokenHash = await hashToken(rawToken);
   const row = await db
     .prepare(`SELECT * FROM firm_login_tokens WHERE token_hash = ?1`)
@@ -1325,6 +1594,10 @@ export async function verifyAndConsumeLoginToken(
   if (!row) return null;
   if (row.used_at) return null;
   if (Date.parse(row.expires_at) <= Date.now()) return null;
+  // A pre-0045 token (member_id NULL) can genuinely still be outstanding
+  // right at migration time (15-minute TTL) -- treat as invalid rather
+  // than crash; it expires on its own within minutes either way.
+  if (!row.member_id) return null;
   // Conditional on used_at IS NULL so two concurrent redemptions of one
   // emailed link cannot both succeed (the same shape as the subscriber
   // token; this route previously used an unconditional UPDATE).
@@ -1339,6 +1612,7 @@ export async function verifyAndConsumeLoginToken(
   const purpose = normalizeLoginTokenPurpose(row.purpose);
   return {
     firmId: row.firm_id,
+    memberId: row.member_id,
     purpose,
     pendingNewEmail: purpose === "email_change" ? row.pending_new_email ?? null : null,
   };
@@ -1365,10 +1639,16 @@ export async function peekLoginTokenPasswordEligibility(
   rawToken: string
 ): Promise<{ purpose: LoginTokenPurpose; firmHasPassword: boolean } | null> {
   const tokenHash = await hashToken(rawToken);
+  // migration 0045: joined to firm_members (the specific member this token
+  // is FOR), not firms -- "does this member already have a password" is
+  // the question that actually matters now that more than one person can
+  // exist per firm. Field name kept as firmHasPassword (not renamed to
+  // memberHasPassword) since every caller of this function still reads it
+  // that way; renaming is cosmetic churn with no behavior change.
   const row = await db
     .prepare(
-      `SELECT t.used_at, t.expires_at, t.purpose, f.password_hash
-       FROM firm_login_tokens t JOIN firms f ON f.id = t.firm_id
+      `SELECT t.used_at, t.expires_at, t.purpose, m.password_hash
+       FROM firm_login_tokens t JOIN firm_members m ON m.id = t.member_id
        WHERE t.token_hash = ?1`
     )
     .bind(tokenHash)
@@ -1431,23 +1711,44 @@ export async function hasAnyFirmSession(db: D1Database, firmId: string): Promise
 export async function createSession(
   db: D1Database,
   firmId: string,
+  /** migration 0045. WHICH person this session belongs to -- see
+   * firm_members' own docstring. OPTIONAL and resolved to the firm's own
+   * primary_member_id when omitted -- this is what keeps every existing
+   * caller (production login handlers passed through their own resolved
+   * member below, but the many test-suite helpers across this codebase
+   * that call `createSession(env.DB, firm.id)` directly, bypassing the
+   * real login handlers for setup speed) working unchanged: a freshly
+   * createFirm()-ed test firm always has exactly one partner, so
+   * resolving "the firm's primary member" is exactly correct for that
+   * single-partner case, with zero call-site changes required. */
+  memberId?: string,
   /** migration 0014. TRUE only when this session was minted by redeeming a
    * password-RESET token, which proves control of the account's email inbox
    * and is therefore allowed to set a password without knowing the old one.
    * Derived from the token row, never from anything a client sends. */
   passwordResetAuthorized = false
 ): Promise<{ rawSessionToken: string }> {
+  let resolvedMemberId = memberId;
+  if (!resolvedMemberId) {
+    const firm = await db.prepare(`SELECT primary_member_id FROM firms WHERE id = ?1`).bind(firmId).first<{
+      primary_member_id: string | null;
+    }>();
+    if (!firm?.primary_member_id) {
+      throw new Error(`createSession: firm ${firmId} has no primary_member_id and no memberId was given`);
+    }
+    resolvedMemberId = firm.primary_member_id;
+  }
   const rawSessionToken = newToken();
   const sessionTokenHash = await hashToken(rawSessionToken);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + SESSION_TTL_DAYS * 86_400_000).toISOString();
   await db
     .prepare(
-      `INSERT INTO firm_sessions (id, firm_id, session_token_hash, created_at, expires_at, last_seen_at, password_reset_authorized)
-       VALUES (?1,?2,?3,?4,?5,?6,?7)`
+      `INSERT INTO firm_sessions (id, firm_id, member_id, session_token_hash, created_at, expires_at, last_seen_at, password_reset_authorized)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8)`
     )
     .bind(
-      newToken(), firmId, sessionTokenHash, now.toISOString(), expiresAt, now.toISOString(),
+      newToken(), firmId, resolvedMemberId, sessionTokenHash, now.toISOString(), expiresAt, now.toISOString(),
       passwordResetAuthorized ? 1 : 0
     )
     .run();
@@ -1483,7 +1784,10 @@ export async function clearSessionResetAuthorization(db: D1Database, sessionId: 
 export async function verifySession(
   db: D1Database,
   rawSessionToken: string
-): Promise<{ firmId: string; sessionId: string; passwordResetAuthorized: boolean; firmStatus: string } | null> {
+): Promise<
+  | { firmId: string; sessionId: string; memberId: string; role: FirmMemberRole; passwordResetAuthorized: boolean; firmStatus: string }
+  | null
+> {
   const sessionTokenHash = await hashToken(rawSessionToken);
   // JOIN firms so the caller learns the firm's CURRENT status in the same
   // query, not a second round trip -- a suspended firm's session must stop
@@ -1491,15 +1795,23 @@ export async function verifySession(
   // (AuditLab F-1, 2026-08-02: `firms.status` was previously enforced on 2
   // of 12+ firm routes; requireFirmSession() is the one gate every one of
   // them already calls, so fixing it here fixes all of them at once.)
+  //
+  // migration 0045: INNER JOIN firm_members, requiring removed_at IS NULL
+  // -- same posture as the firm_status check right above it. A member who
+  // was removed from a firm must stop working the moment they're removed,
+  // not just at their session's natural 30-day expiry; a plain JOIN (not
+  // LEFT JOIN) makes a removed member's lingering session simply not
+  // resolve, the same "fail closed" shape firm_status already uses.
   const row = await db
     .prepare(
-      `SELECT s.*, f.status AS firm_status
+      `SELECT s.*, f.status AS firm_status, m.role AS member_role
          FROM firm_sessions s
          JOIN firms f ON f.id = s.firm_id
+         JOIN firm_members m ON m.id = s.member_id AND m.removed_at IS NULL
         WHERE s.session_token_hash = ?1`
     )
     .bind(sessionTokenHash)
-    .first<FirmSessionRow & { firm_status: string }>();
+    .first<FirmSessionRow & { firm_status: string; member_role: FirmMemberRole }>();
   if (!row) return null;
   if (Date.parse(row.expires_at) <= Date.now()) return null;
   await db.prepare(`UPDATE firm_sessions SET last_seen_at = ?1 WHERE id = ?2`).bind(nowIso(), row.id).run();
@@ -1510,6 +1822,8 @@ export async function verifySession(
   return {
     firmId: row.firm_id,
     sessionId: row.id,
+    memberId: row.member_id as string,
+    role: row.member_role,
     // Strict truthiness on 1 -- a NULL from a pre-0014 row, or anything
     // unexpected, must read as NOT authorized. The permissive direction is
     // the dangerous one here.
@@ -2578,6 +2892,17 @@ export async function removeMobilityCompletion(db: D1Database, firmId: string, i
  * function deliberately does not, because it is also the target of the
  * transparent re-hash path, where the plaintext already passed validation
  * at set time. */
+/** migration 0045: production code no longer reads firms.password_hash for
+ * LOGIN purposes (every real login handler checks the signed-in/resolved
+ * MEMBER's own password now -- see setFirmMemberPassword()) -- this
+ * write is kept only so the column stays a truthful "does this firm have
+ * a password at all" snapshot for any remaining incidental reader, and so
+ * every existing test-suite call site (there are several, all setting up
+ * a single-partner test firm's password the pre-0045 way) keeps working
+ * unchanged: also resolves and writes the firm's PRIMARY member's own
+ * password_* columns in the same call, which is what actually gets
+ * checked at login now. Direct callers that already know the specific
+ * memberId should prefer setFirmMemberPassword() instead. */
 export async function setFirmPassword(
   db: D1Database,
   firmId: string,
@@ -2592,6 +2917,12 @@ export async function setFirmPassword(
     )
     .bind(record.hash, record.salt, record.algo, record.iterations, record.rounds, nowIso(), firmId)
     .run();
+  const firm = await db.prepare(`SELECT primary_member_id FROM firms WHERE id = ?1`).bind(firmId).first<{
+    primary_member_id: string | null;
+  }>();
+  if (firm?.primary_member_id) {
+    await setFirmMemberPassword(db, firm.primary_member_id, record);
+  }
 }
 
 export interface FirmOauthIdentityRow {
@@ -2854,6 +3185,25 @@ export async function deleteOtherSessionsForFirm(
   return result.meta.changes ?? 0;
 }
 
+/** migration 0045: scoped to ONE member instead of the whole firm -- a
+ * firm can now have more than one person, and a password change is a
+ * per-PERSON credential rotation. Ending every OTHER member's sessions
+ * too (the firm-wide version above) would sign out people who did
+ * nothing wrong and whose own credential was never touched. Used by
+ * handleFirmPasswordSet(); deleteOtherSessionsForFirm() stays in use for
+ * genuinely firm-wide actions (account deletion, suspension). */
+export async function deleteOtherSessionsForMember(
+  db: D1Database,
+  memberId: string,
+  keepSessionId: string
+): Promise<number> {
+  const result = await db
+    .prepare(`DELETE FROM firm_sessions WHERE member_id = ?1 AND id != ?2`)
+    .bind(memberId, keepSessionId)
+    .run();
+  return result.meta.changes ?? 0;
+}
+
 /** Task #3 (2026-08-06): account deletion ends EVERY session, including the
  * caller's own -- unlike deleteOtherSessionsForFirm() above, there's no
  * session worth preserving once the account itself is gone. */
@@ -2900,6 +3250,23 @@ export async function listSessionsForFirm(db: D1Database, firmId: string): Promi
   return result.results ?? [];
 }
 
+/** migration 0045: a member's OWN sessions only -- the Account tab's
+ * "where you're signed in" list is deliberately scoped per-person, not
+ * firm-wide. A firm can now have more than one person, and showing a
+ * Staff member (or anyone) every OTHER member's login activity/devices
+ * would be a real, unrequested privacy exposure -- "you can always see
+ * and manage your own sessions" is the baseline this ships instead,
+ * regardless of role. listSessionsForFirm() above stays available for a
+ * genuinely firm-wide security-audit view if that's ever built as its
+ * own explicit, separately-considered feature -- not implied by this one. */
+export async function listSessionsForMember(db: D1Database, memberId: string): Promise<FirmSessionListRow[]> {
+  const result = await db
+    .prepare(`SELECT id, created_at, last_seen_at, expires_at FROM firm_sessions WHERE member_id = ?1 ORDER BY last_seen_at DESC`)
+    .bind(memberId)
+    .all<FirmSessionListRow>();
+  return result.results ?? [];
+}
+
 /** Ownership-scoped: only ever deletes a row that belongs to firmId, same
  * pattern as deleteOtherSessionsForFirm() above. Returns false if the id
  * didn't exist or belonged to a different firm, so the handler can 404. */
@@ -2907,6 +3274,16 @@ export async function deleteSessionByIdForFirm(db: D1Database, firmId: string, s
   const result = await db
     .prepare(`DELETE FROM firm_sessions WHERE firm_id = ?1 AND id = ?2`)
     .bind(firmId, sessionId)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+/** migration 0045: member-scoped counterpart to deleteSessionByIdForFirm()
+ * above, same reasoning as listSessionsForMember(). */
+export async function deleteSessionByIdForMember(db: D1Database, memberId: string, sessionId: string): Promise<boolean> {
+  const result = await db
+    .prepare(`DELETE FROM firm_sessions WHERE member_id = ?1 AND id = ?2`)
+    .bind(memberId, sessionId)
     .run();
   return (result.meta.changes ?? 0) > 0;
 }

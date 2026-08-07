@@ -860,6 +860,19 @@ describe("POST /firm/signup -- trial gate (disposable + competitor domains)", ()
       )
       .bind(firmId, "Preexisting Gmail Firm", email)
       .run();
+    // migration 0045: a raw firms INSERT (bypassing store.createFirm())
+    // has no matching firm_members row -- real firms always do, backfilled
+    // by the migration itself, so a matching insert here is what makes
+    // this accurately simulate "an existing account," not an artifact of
+    // the test skipping real setup.
+    const memberId = crypto.randomUUID();
+    await env.DB
+      .prepare(
+        "INSERT INTO firm_members (id, firm_id, email, role, invited_at, joined_at, created_at) VALUES (?1, ?2, ?3, 'partner', datetime('now'), datetime('now'), datetime('now'))"
+      )
+      .bind(memberId, firmId, email)
+      .run();
+    await env.DB.prepare("UPDATE firms SET primary_member_id = ?1 WHERE id = ?2").bind(memberId, firmId).run();
 
     const resp = await postFirmSignup({ name: "Preexisting Gmail Firm", admin_email: email }, "203.0.113.178");
     expect(resp.status).toBe(200);
@@ -904,6 +917,16 @@ describe("POST /firm/signup -- trial gate (disposable + competitor domains)", ()
       )
       .bind(firmId, "Preexisting Gmail Firm", email)
       .run();
+    // migration 0045: see the identical comment on the sibling test above --
+    // a real existing firm always has a matching firm_members row.
+    const memberId = crypto.randomUUID();
+    await env.DB
+      .prepare(
+        "INSERT INTO firm_members (id, firm_id, email, role, invited_at, joined_at, created_at) VALUES (?1, ?2, ?3, 'partner', datetime('now'), datetime('now'), datetime('now'))"
+      )
+      .bind(memberId, firmId, email)
+      .run();
+    await env.DB.prepare("UPDATE firms SET primary_member_id = ?1 WHERE id = ?2").bind(memberId, firmId).run();
 
     const before = await env.DB
       .prepare("SELECT COUNT(*) as c FROM firm_login_tokens WHERE firm_id = ?1")
@@ -1215,14 +1238,19 @@ describe("POST /firm/login/verify -- optional inline password-set", () => {
     const email = `firmverify-setpw-${Date.now()}@example.com`;
     await postFirmSignup({ name: "New Password Firm", admin_email: email }, "203.0.113.190");
     const firm = await firmByAdminEmail(email);
-    expect(firm?.password_hash).toBeNull();
+    // migration 0045: a password is set on the founding partner's OWN
+    // firm_members row now, not firms.password_hash directly (which stays
+    // null unless store.setFirmPassword()'s own backward-compat mirror is
+    // used -- see that function's docstring).
+    const memberBefore = await store.findFirmMemberByEmail(env.DB, email);
+    expect(memberBefore?.password_hash).toBeNull();
     const { rawToken } = await store.createLoginToken(env.DB, firm!.id);
 
     const resp = await postFirmLoginVerify(rawToken, "203.0.113.191", "a-genuinely-strong-password");
     expect(resp.status).toBe(302);
     expect(resp.headers.get("Location")).toBe("/firm-dashboard/");
 
-    const after = await firmByAdminEmail(email);
+    const after = await store.findFirmMemberByEmail(env.DB, email);
     expect(after?.password_hash).not.toBeNull();
     const ok = await verifyPassword(
       "a-genuinely-strong-password",

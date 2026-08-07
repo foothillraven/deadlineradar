@@ -4782,15 +4782,46 @@ href="/terms/">Terms of Service</a>.</p>
     )
 
 
-def build_methodology_page() -> str:
+def build_methodology_page(records: list[dict], real_today: date) -> str:
     """How-we-verify-our-data page (2026-07-15, per the orchestrator's 'press the
     validated bet' steer: apply the CPA-trust design lens by surfacing the sourcing
     method itself as a first-class trust asset, the way established compliance/legal
     reference sites do -- not by inventing any new claim, just making the standard
     already enforced everywhere else in this file (citation + citation_url on every
     record, honest null/gap-note when unverifiable) legible to a skeptical CPA
-    visitor in one place instead of leaving it implicit."""
+    visitor in one place instead of leaving it implicit.
+
+    Roadmap #46 (2026-08-07): added a live, computed freshness statistic (how many of
+    the N citations were individually re-verified within the last 30 days, AS OF THIS
+    BUILD) rather than only the prose promise above -- same last_verified data and same
+    STALENESS_THRESHOLD_DAYS bar scripts/cpa_deadlines_staleness_check.py (roadmap #45)
+    now checks on every pre-ship run, so this number can never silently drift from what
+    that check would actually report."""
+    verified_recent = 0
+    for r in records:
+        lv = r.get("last_verified")
+        if not lv:
+            continue
+        try:
+            age_days = (real_today - date.fromisoformat(lv)).days
+        except ValueError:
+            continue
+        if age_days <= STALENESS_THRESHOLD_DAYS:
+            verified_recent += 1
+    # Reuses the site's existing .callout box (no new CSS) -- same visual
+    # treatment already used for the per-state "Verified" callouts, so this
+    # rolled-up site-wide stat reads as the same kind of trust signal, not a
+    # bespoke one-off.
+    freshness_stat_html = (
+        f'<div class="callout"><p><strong>{verified_recent} of {len(records)}</strong> '
+        f"citations on this site were individually re-checked against their source within the last "
+        f"{STALENESS_THRESHOLD_DAYS} days, as of this page's last build ({real_today.isoformat()}). "
+        f"Every state page's own \"Last verified\" line shows that specific citation's own date &mdash; "
+        f"this is the same fact, rolled up across the whole site."
+        f"</p></div>"
+    )
     body = f"""<h1>How We Verify Every Deadline</h1>
+{freshness_stat_html}
 <p class="intro">CPAs are trained to be skeptical of unverified sources &mdash; so here is exactly how
 this site's dates are sourced, checked, and kept current. Nothing below is aspirational; it describes
 the actual standard already applied to every state page.</p>
@@ -13199,7 +13230,7 @@ def main() -> None:
 
     methodology_dir = SITE_DIR / "methodology"
     methodology_dir.mkdir(parents=True, exist_ok=True)
-    (methodology_dir / "index.html").write_text(build_methodology_page(), encoding="utf-8")
+    (methodology_dir / "index.html").write_text(build_methodology_page(records, real_today), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/methodology/index.html")
 
     rule_changes_dir = SITE_DIR / "rule-changes"

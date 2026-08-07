@@ -7072,6 +7072,15 @@ def _firm_dashboard_add_staff_form_html(by_slug: dict[str, list[dict]], as_of: d
   <div id="dr-csv-preview-body"></div>
   <button type="button" id="dr-csv-import-btn" hidden>Import staff</button>
   <p class="dr-modal-hint" id="dr-csv-import-status"></p>
+</div>
+
+<div class="signup-form dr-csv-import-panel" id="dr-csv-export">
+  <h2>Export staff (CSV)</h2>
+  <p class="signup-microcopy">Download your full roster as a CSV -- every field this page tracks,
+  plus current CPE progress. A read-only report for backups or spreadsheets, not formatted for
+  re-import (it uses display labels like state name and license type name, not the raw
+  state_slug/license_type_id codes Import above expects).</p>
+  <button type="button" id="dr-csv-export-btn">Export staff</button>
 </div>"""
 
 
@@ -11622,6 +11631,11 @@ document.addEventListener('DOMContentLoaded', function() {
   if (csvPreviewBtn) csvPreviewBtn.addEventListener('click', drPreviewCsvImport);
   var csvImportBtn = document.getElementById('dr-csv-import-btn');
   if (csvImportBtn) csvImportBtn.addEventListener('click', drImportCsvRows);
+  // Reported live 2026-08-07: Export wasn't discoverable next to Import --
+  // reuses the same drDownloadRosterCsv() the Reports tab's "Download CSV"
+  // button already calls rather than a second implementation.
+  var csvExportBtn = document.getElementById('dr-csv-export-btn');
+  if (csvExportBtn) csvExportBtn.addEventListener('click', drDownloadRosterCsv);
   // Anchored via getBoundingClientRect() against a live nav item -- has to
   // be recomputed if the viewport (and so the sidebar's on-screen position)
   // changes while the tour is open.

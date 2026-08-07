@@ -1233,6 +1233,14 @@ PAGE_CSS = """
   }
   .dr-bulk-tag-panel button:hover { opacity: 0.92; }
   .dr-bulk-tag-panel #dr-bulk-tag-status { margin: 0.6rem 0 0; }
+  /* Roadmap #38 (2026-08-07): saved-view list rows, inside the same
+     .dr-bulk-tag-panel <details> box as the bulk-tag panel above. */
+  .dr-saved-view-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+    padding: 0.4rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem;
+  }
+  .dr-saved-view-item:last-child { border-bottom: none; }
+  .dr-saved-view-item button { font-size: 0.78rem; padding: 0.25rem 0.6rem; }
   /* Roadmap #17 (2026-08-07): CSV bulk import preview/results table. */
   .dr-csv-import-panel code { background: var(--bg); border-radius: 3px; padding: 0.05rem 0.3rem; font-size: 0.85em; }
   .dr-csv-preview-table { width: 100%; border-collapse: collapse; margin-top: 0.9rem; font-size: 0.85rem; }
@@ -7175,6 +7183,10 @@ function drRenderRow(item) {
 // filter doesn't silently reset every time the roster refreshes.
 var drOfficeGroupFilter = '';
 
+// Roadmap #38 (2026-08-07): "due within N days" quick filter, part of the
+// same saved-view combination as the search/office/sort state below.
+var drDueWithinDays = '';
+
 // Roadmap #37 (2026-08-07): roster column sorting/filtering. Search is a
 // substring match on name+email (same instant-filter posture #15's audit-
 // trail search already established); sort is a single active column +
@@ -7250,12 +7262,100 @@ function drRenderTable() {
         (item.email || '').toLowerCase().indexOf(q) !== -1;
     });
   }
+  if (drDueWithinDays) {
+    var maxDays = Number(drDueWithinDays);
+    visible = visible.filter(function(item) {
+      var days = drDaysUntil(item.next_deadline);
+      // An unresolved/unknown deadline never qualifies as "due within N
+      // days" -- there's no date to compare, and silently INCLUDING it
+      // would misrepresent an unknown as urgent.
+      return days !== null && days <= maxDays;
+    });
+  }
   visible = drApplyRosterSort(visible);
   if (visible.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6">No staff match the current search or filter.</td></tr>';
     return;
   }
   tbody.innerHTML = visible.map(drRenderRow).join('');
+}
+
+// Roadmap #38 (2026-08-07): saved custom views. Stored in THIS browser's
+// localStorage only -- a personal shortcut for the admin using this
+// browser, not firm data another admin or device needs to see, so no new
+// backend endpoint. A malformed/cleared localStorage value degrades to "no
+// saved views" rather than breaking the roster itself.
+var DR_SAVED_VIEWS_KEY = 'dr_saved_roster_views';
+
+function drGetSavedViews() {
+  try {
+    var raw = window.localStorage.getItem(DR_SAVED_VIEWS_KEY);
+    var parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function drSetSavedViews(views) {
+  try {
+    window.localStorage.setItem(DR_SAVED_VIEWS_KEY, JSON.stringify(views));
+  } catch (e) {
+    // Private-browsing/storage-full -- the view still applied for this
+    // session, it just won't persist. Not worth surfacing as an error for
+    // a convenience feature.
+  }
+}
+
+function drRenderSavedViewsList() {
+  var el = document.getElementById('dr-saved-views-list');
+  if (!el) return;
+  var views = drGetSavedViews();
+  if (views.length === 0) {
+    el.innerHTML = '<p class="dr-panel-empty">No saved views yet.</p>';
+    return;
+  }
+  el.innerHTML = views.map(function(v, i) {
+    return '<div class="dr-saved-view-item"><span>' + drEscapeHtml(v.name) + '</span><span>' +
+      '<button type="button" class="dr-link-btn" data-apply-view="' + i + '">Apply</button> ' +
+      '<button type="button" class="dr-link-btn" data-delete-view="' + i + '">Delete</button></span></div>';
+  }).join('');
+}
+
+function drSaveCurrentView(name) {
+  var views = drGetSavedViews();
+  views.push({
+    name: name,
+    officeTag: drOfficeGroupFilter,
+    dueWithinDays: drDueWithinDays,
+    search: drRosterSearchQuery,
+    sortColumn: drRosterSortColumn,
+    sortDir: drRosterSortDir
+  });
+  drSetSavedViews(views);
+  drRenderSavedViewsList();
+}
+
+function drApplySavedView(view) {
+  drOfficeGroupFilter = view.officeTag || '';
+  drDueWithinDays = view.dueWithinDays || '';
+  drRosterSearchQuery = view.search || '';
+  drRosterSortColumn = view.sortColumn || null;
+  drRosterSortDir = view.sortDir || 'asc';
+  var officeSel = document.getElementById('dr-office-group-filter');
+  if (officeSel) officeSel.value = drOfficeGroupFilter;
+  var dueSel = document.getElementById('dr-due-within-filter');
+  if (dueSel) dueSel.value = drDueWithinDays;
+  var searchInput = document.getElementById('dr-roster-search');
+  if (searchInput) searchInput.value = drRosterSearchQuery;
+  drRenderTable();
+}
+
+function drDeleteSavedView(index) {
+  var views = drGetSavedViews();
+  views.splice(index, 1);
+  drSetSavedViews(views);
+  drRenderSavedViewsList();
 }
 
 // Roadmap #16: distinct office_tag values currently on the roster, sorted --
@@ -10848,6 +10948,43 @@ document.addEventListener('DOMContentLoaded', function() {
       drRenderTable();
     });
   }
+
+  // Roadmap #38.
+  var dueWithinFilter = document.getElementById('dr-due-within-filter');
+  if (dueWithinFilter) {
+    dueWithinFilter.addEventListener('change', function() {
+      drDueWithinDays = dueWithinFilter.value;
+      drRenderTable();
+    });
+  }
+  drRenderSavedViewsList();
+  var saveViewBtn = document.getElementById('dr-save-view-btn');
+  if (saveViewBtn) {
+    saveViewBtn.addEventListener('click', function() {
+      var nameInput = document.getElementById('dr-saved-view-name');
+      var name = nameInput ? nameInput.value.trim() : '';
+      if (!name) return;
+      drSaveCurrentView(name);
+      if (nameInput) nameInput.value = '';
+    });
+  }
+  var savedViewsList = document.getElementById('dr-saved-views-list');
+  if (savedViewsList) {
+    savedViewsList.addEventListener('click', function(ev) {
+      var applyBtn = ev.target.closest('[data-apply-view]');
+      if (applyBtn) {
+        var views = drGetSavedViews();
+        var view = views[Number(applyBtn.getAttribute('data-apply-view'))];
+        if (view) drApplySavedView(view);
+        return;
+      }
+      var deleteBtn = ev.target.closest('[data-delete-view]');
+      if (deleteBtn) {
+        drDeleteSavedView(Number(deleteBtn.getAttribute('data-delete-view')));
+      }
+    });
+  }
+
   var reportCsvBtn = document.getElementById('dr-report-csv-btn');
   if (reportCsvBtn) reportCsvBtn.addEventListener('click', drDownloadRosterCsv);
   // Roadmap #15: purely client-side, re-filters the rows already fetched by
@@ -11764,6 +11901,12 @@ def build_firm_dashboard_page(
         <select id="dr-office-group-filter" aria-label="Group roster by office or department">
           <option value="">All offices/departments</option>
         </select>
+        <select id="dr-due-within-filter" aria-label="Filter roster by deadline window">
+          <option value="">Any time</option>
+          <option value="30">Due within 30 days</option>
+          <option value="90">Due within 90 days (this quarter)</option>
+          <option value="365">Due within 1 year</option>
+        </select>
       </div>
       <details class="dr-bulk-tag-panel">
         <summary>Bulk-tag staff</summary>
@@ -11777,6 +11920,19 @@ def build_firm_dashboard_page(
       <div class="dr-audit-filter">
         <input type="text" id="dr-roster-search" placeholder="Search by name or email&hellip;" aria-label="Search roster by name or email">
       </div>
+      <!-- Roadmap #38: saved custom views (e.g. "staff expiring this
+           quarter") -- captures the CURRENT search/office-tag/due-within/
+           sort combination under a name, stored in this browser only
+           (localStorage, no new backend endpoint for what's fundamentally a
+           personal shortcut, not firm data other admins or devices need to
+           see). -->
+      <details class="dr-bulk-tag-panel">
+        <summary>Saved views</summary>
+        <label for="dr-saved-view-name">Save the current search/filter/sort as</label>
+        <input type="text" id="dr-saved-view-name" maxlength="60" placeholder="e.g. Staff expiring this quarter">
+        <button type="button" id="dr-save-view-btn">Save view</button>
+        <div id="dr-saved-views-list"></div>
+      </details>
       <div class="table-wrap" role="status" aria-live="polite">
       <table>
         <caption class="dr-visually-hidden">Your firm's tracked CPA staff and their license renewal status</caption>

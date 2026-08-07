@@ -1017,6 +1017,28 @@ PAGE_CSS = """
     font-family: var(--font-display); font-size: 1.02rem; font-weight: 600; color: #fff;
     padding: 0 0.4rem 1rem; border-bottom: 1px solid rgba(255,255,255,.14); margin-bottom: 0.9rem; word-break: break-word;
   }
+  /* Roadmap #25 (2026-08-07): in-app notification center. */
+  .dr-notif-bell {
+    position: relative; display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; margin: -0.3rem 0 0.6rem; border: none; border-radius: 8px;
+    background: transparent; color: #b9cad9; cursor: pointer;
+  }
+  .dr-notif-bell:hover { background: rgba(255,255,255,.08); color: #fff; }
+  .dr-notif-bell svg { width: 18px; height: 18px; }
+  .dr-notif-badge {
+    position: absolute; top: 2px; right: 2px; min-width: 15px; height: 15px; padding: 0 3px;
+    border-radius: 999px; background: #c33737; color: #fff; font-size: 0.62rem; font-weight: 700;
+    line-height: 15px; text-align: center;
+  }
+  .dr-notif-panel {
+    position: absolute; z-index: 20; left: 1rem; top: 3.6rem; width: 300px; max-width: calc(100vw - 2rem);
+    background: var(--card-bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25); max-height: 60vh; overflow-y: auto; padding: 0.6rem;
+  }
+  .dr-notif-item { display: block; padding: 0.55rem 0.6rem; border-radius: 6px; font-size: 0.85rem; line-height: 1.4; }
+  .dr-notif-item + .dr-notif-item { margin-top: 0.15rem; }
+  .dr-notif-item:hover { background: var(--row-alt); }
+  .dr-notif-item-sub { display: block; color: var(--muted); font-size: 0.78rem; margin-top: 0.1rem; }
   .dr-nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
   .dr-nav a, .dr-nav-soon {
     display: flex; align-items: center; gap: 0.55rem; padding: 0.55rem 0.6rem; border-radius: 7px;
@@ -6889,6 +6911,7 @@ function drRenderAllViews() {
   drRenderStats();
   drRenderRenewalFeeRollup();
   drRenderAtRisk();
+  drRenderNotifications();
   drRenderCalendar();
   drRenderAgenda();
   drPopulateMapStaffSelect();
@@ -9661,6 +9684,61 @@ function drSubmitReminderCadence(form) {
   });
 }
 
+// Roadmap #25 (2026-08-07): in-app notification center. Purely a more
+// portable way to surface what "Staff at risk" (drRenderAtRisk) and the CPE
+// Hours tab's own behind-on-hours flag already compute -- same 30-day-or-
+// unresolved definition drRenderStats()/drRenderAtRisk() already use for
+// "at risk" (deliberately not a THIRD threshold), reachable from a bell
+// icon in the sidebar rather than only from the Roster overview tab.
+function drComputeNotifications() {
+  var items = [];
+  drLicenses.forEach(function(item) {
+    if (item.status === 'opted_out') return;
+    var days = drDaysUntil(item.next_deadline);
+    if (days === null || days <= 30) {
+      var daysLabel = days === null ? 'Unresolved deadline' : days < 0 ? 'Overdue' : days === 0 ? 'Due today' : 'Due in ' + days + 'd';
+      items.push({
+        view: 'roster',
+        title: (item.staff_label || item.email) + ' — ' + daysLabel,
+        sub: item.state_name || ''
+      });
+    }
+    var p = drCpeProgressForSubscriber(item);
+    if (p.hasRequirement && p.behind) {
+      items.push({
+        view: 'cpe',
+        title: (item.staff_label || item.email) + ' — behind on CPE hours',
+        sub: item.state_name || ''
+      });
+    }
+  });
+  return items;
+}
+
+function drRenderNotifications() {
+  var badge = document.getElementById('dr-notif-badge');
+  var body = document.getElementById('dr-notif-panel-body');
+  if (!badge || !body) return;
+  var items = drComputeNotifications();
+  badge.textContent = String(items.length);
+  badge.hidden = items.length === 0;
+  if (items.length === 0) {
+    body.innerHTML = '<p class="dr-panel-empty">Nothing needs your attention right now.</p>';
+    return;
+  }
+  body.innerHTML = items.map(function(n) {
+    return '<a href="#" class="dr-notif-item" data-view="' + n.view + '">' + drEscapeHtml(n.title) +
+      (n.sub ? '<span class="dr-notif-item-sub">' + drEscapeHtml(n.sub) + '</span>' : '') + '</a>';
+  }).join('');
+}
+
+function drCloseNotifications() {
+  var panel = document.getElementById('dr-notif-panel');
+  var btn = document.getElementById('dr-notif-bell-btn');
+  if (panel) panel.hidden = true;
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
 function drLoadLicenses() {
   drClearError();
   fetch('/api/firm/licenses', {credentials: 'include'})
@@ -9732,6 +9810,7 @@ function drLoadLicenses() {
       drRenderStats();
       drRenderRenewalFeeRollup();
       drRenderAtRisk();
+      drRenderNotifications();
       drRenderCalendar();
       drRenderAgenda();
       drPopulateMapStaffSelect();
@@ -10296,6 +10375,39 @@ document.addEventListener('DOMContentLoaded', function() {
       drSwitchView(a.getAttribute('data-view'));
     });
   });
+
+  // Roadmap #25: the panel's own items are rendered dynamically (after this
+  // DOMContentLoaded block already ran), so they can't be caught by the
+  // one-time querySelectorAll wiring above -- delegated on the panel body
+  // instead, same pattern as the peer-review/documents-list panels already
+  // use for their own dynamically-rendered content.
+  var notifBellBtn = document.getElementById('dr-notif-bell-btn');
+  var notifPanel = document.getElementById('dr-notif-panel');
+  var notifPanelBody = document.getElementById('dr-notif-panel-body');
+  if (notifBellBtn && notifPanel) {
+    notifBellBtn.addEventListener('click', function() {
+      var willOpen = notifPanel.hidden;
+      notifPanel.hidden = !willOpen;
+      notifBellBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    });
+    document.addEventListener('click', function(ev) {
+      if (notifPanel.hidden) return;
+      if (notifPanel.contains(ev.target) || notifBellBtn.contains(ev.target)) return;
+      drCloseNotifications();
+    });
+    document.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Escape' && !notifPanel.hidden) drCloseNotifications();
+    });
+  }
+  if (notifPanelBody) {
+    notifPanelBody.addEventListener('click', function(ev) {
+      var link = ev.target.closest('[data-view]');
+      if (!link) return;
+      ev.preventDefault();
+      drSwitchView(link.getAttribute('data-view'));
+      drCloseNotifications();
+    });
+  }
 
   // Reported directly, 2026-08-05: every /firm-mobility/ sidebar link
   // (Calendar, Map, CPE Hours, Account) pointed at a bare /firm-dashboard/
@@ -10939,8 +11051,27 @@ def _dashboard_sidebar_html(active: str, tabs_live_here: bool) -> str:
         if tabs_live_here
         else '<div class="dr-firm-name" id="dr-firm-name-static">Dashboard</div>'
     )
+    # Roadmap #25 (2026-08-07): in-app notification center. Only rendered on
+    # the real dashboard page (tabs_live_here) -- drLicenses, the data this
+    # reads, is never loaded on /firm-mobility/'s own separate JS bundle, so
+    # a bell there would have nothing to compute from. Pure client-side,
+    # same "reuse data already fetched" posture as #15/#16 -- no new
+    # endpoint, no read/unread persistence (a live, always-current computed
+    # list, not a durable notification log).
+    notification_bell_html = (
+        """<button type="button" class="dr-notif-bell" id="dr-notif-bell-btn" aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2a4 4 0 0 0-4 4v2.5L2.5 11h11L12 8.5V6a4 4 0 0 0-4-4Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M6.3 13a1.8 1.8 0 0 0 3.4 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      <span class="dr-notif-badge" id="dr-notif-badge" hidden>0</span>
+    </button>
+    <div class="dr-notif-panel" id="dr-notif-panel" hidden role="region" aria-label="Notifications">
+      <div id="dr-notif-panel-body"></div>
+    </div>"""
+        if tabs_live_here
+        else ""
+    )
     return f"""<aside class="dr-sidebar">
     {firm_name_html}
+    {notification_bell_html}
     <ul class="dr-nav" role="tablist" aria-label="Dashboard views">
       {nav_items}
       {sidebar_nav_soon_items}

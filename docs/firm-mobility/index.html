@@ -603,6 +603,28 @@
     font-family: var(--font-display); font-size: 1.02rem; font-weight: 600; color: #fff;
     padding: 0 0.4rem 1rem; border-bottom: 1px solid rgba(255,255,255,.14); margin-bottom: 0.9rem; word-break: break-word;
   }
+  
+  .dr-notif-bell {
+    position: relative; display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; margin: -0.3rem 0 0.6rem; border: none; border-radius: 8px;
+    background: transparent; color: #b9cad9; cursor: pointer;
+  }
+  .dr-notif-bell:hover { background: rgba(255,255,255,.08); color: #fff; }
+  .dr-notif-bell svg { width: 18px; height: 18px; }
+  .dr-notif-badge {
+    position: absolute; top: 2px; right: 2px; min-width: 15px; height: 15px; padding: 0 3px;
+    border-radius: 999px; background: #c33737; color: #fff; font-size: 0.62rem; font-weight: 700;
+    line-height: 15px; text-align: center;
+  }
+  .dr-notif-panel {
+    position: absolute; z-index: 20; left: 1rem; top: 3.6rem; width: 300px; max-width: calc(100vw - 2rem);
+    background: var(--card-bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25); max-height: 60vh; overflow-y: auto; padding: 0.6rem;
+  }
+  .dr-notif-item { display: block; padding: 0.55rem 0.6rem; border-radius: 6px; font-size: 0.85rem; line-height: 1.4; }
+  .dr-notif-item + .dr-notif-item { margin-top: 0.15rem; }
+  .dr-notif-item:hover { background: var(--row-alt); }
+  .dr-notif-item-sub { display: block; color: var(--muted); font-size: 0.78rem; margin-top: 0.1rem; }
   .dr-nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
   .dr-nav a, .dr-nav-soon {
     display: flex; align-items: center; gap: 0.55rem; padding: 0.55rem 0.6rem; border-radius: 7px;
@@ -1334,6 +1356,7 @@
 <div class="dr-dash-shell">
   <aside class="dr-sidebar">
     <div class="dr-firm-name" id="dr-firm-name-static">Dashboard</div>
+    
     <ul class="dr-nav" role="tablist" aria-label="Dashboard views">
       <li><a href="/firm-dashboard/#roster">Roster</a></li>
       <li><a href="/firm-dashboard/#calendar">Calendar</a></li>

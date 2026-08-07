@@ -374,6 +374,22 @@ function isPrintableChar(ch: string): boolean {
  * independently at the storage layer even though the request layer already
  * validated" rationale as sanitizeFirstName()'s own docstring.
  */
+// AuditLab CSV-1 (LOW, 2026-08-07, filed the moment roadmap #18 -- a real
+// CSV export -- started, since that's the exact trigger that flips this from
+// theoretical to live): the standard CSV-formula-injection prefix set. A
+// value starting with any of these opens as a formula, not text, in
+// Excel/Sheets/etc. if it ever lands in an exported .csv a firm opens.
+// Guarded HERE (write time, every sanitizeFreeText() caller -- currently
+// staff_label and office_tag, both of which now flow into #18's export) so
+// a future export surface never has to remember to re-guard on the way out
+// -- same "guard at the point data enters, not just where it's used"
+// posture http_href() already documents for data-file-sourced links. A
+// leading tab is the fourth standard prefix in this list, but is already
+// unreachable here: isPrintableChar() strips every C0 control character
+// (tab included) before this check ever runs, so it can never survive as
+// the first character of `capped`.
+const CSV_FORMULA_INJECTION_PREFIXES = new Set(["=", "+", "-", "@"]);
+
 export function sanitizeFreeText(value: string | null | undefined, maxLen: number): string | null {
   if (!value) return null;
   const trimmed = value.trim();
@@ -382,7 +398,10 @@ export function sanitizeFreeText(value: string | null | undefined, maxLen: numbe
     if (isPrintableChar(ch)) out += ch;
     if (out.length >= maxLen) break;
   }
-  const capped = out.slice(0, maxLen);
+  let capped = out.slice(0, maxLen);
+  if (CSV_FORMULA_INJECTION_PREFIXES.has(capped.charAt(0))) {
+    capped = "'" + capped;
+  }
   return capped.length > 0 ? capped : null;
 }
 

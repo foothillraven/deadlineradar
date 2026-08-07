@@ -8971,6 +8971,53 @@ function drRenderReport() {
     '<tbody>' + rows + '</tbody></table></div>';
 }
 
+// Roadmap #18 (2026-08-07): CSV bulk export of roster + deadline data. Pure
+// client-side, built from the SAME drLicenses array every other roster view
+// already has -- no new endpoint, same "reuse what's already fetched"
+// posture as #15 (audit trail filtering). Wraps a field in quotes (doubling
+// any embedded quote) whenever it contains a comma/quote/newline -- the same
+// RFC4180-ish convention drParseCsv() (#17) reads back on the way in, so a
+// roster exported here re-imports cleanly through that same feature.
+function drCsvField(value) {
+  var s = (value == null) ? '' : String(value);
+  if (/[",\\n\\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function drDownloadRosterCsv() {
+  var headers = ['Staff', 'Email', 'State', 'License type', 'Status', 'Next deadline',
+    'Renewal fee', 'Office/department', 'CPE carryover hours', 'CPE total logged', 'CPE total required',
+    'CPE ethics logged', 'CPE ethics required'];
+  var lines = [headers.map(drCsvField).join(',')];
+  drLicenses.forEach(function(item) {
+    var licenseTypeIdForDisplay = item.license_type_id || DR_DEFAULT_LICENSE_TYPE_ID[item.state_slug];
+    var p = drCpeProgressForSubscriber(item);
+    var fee = (typeof item.renewal_fee_cents === 'number') ? (item.renewal_fee_cents / 100).toFixed(2) : '';
+    var row = [
+      item.staff_label || '', item.email, item.state_name || '',
+      drPrettyLicenseType(licenseTypeIdForDisplay), DR_STATUS_LABELS[item.status] || item.status,
+      item.next_deadline || '', fee, item.office_tag || '',
+      (typeof item.carryover_hours === 'number') ? item.carryover_hours : '',
+      p.hasRequirement ? p.totalLogged : '', p.hasRequirement && p.totalRequired !== null ? p.totalRequired : '',
+      p.hasRequirement ? p.ethicsLogged : '', p.hasRequirement && p.ethicsRequired !== null ? p.ethicsRequired : ''
+    ];
+    lines.push(row.map(drCsvField).join(','));
+  });
+  // A leading BOM (matches drParseCsv()'s own strip-on-read) so Excel opens
+  // the file as UTF-8 instead of guessing the system codepage and mangling
+  // any non-ASCII staff name.
+  var blob = new Blob(['﻿' + lines.join('\\r\\n') + '\\r\\n'], {type: 'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  var today = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = 'deadlineradar-roster-' + today + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 // ---------------------------------------------------------------------------
 // Roadmap #8 (2026-08-07): "'Reasonable process' audit trail export (dates
 // tracked, dates reminded)". Own fetch (GET /firm/audit-trail), own render
@@ -10314,6 +10361,8 @@ document.addEventListener('DOMContentLoaded', function() {
   if (productTourReplayBtn) productTourReplayBtn.addEventListener('click', drStartProductTour);
   var reportPrintBtn = document.getElementById('dr-report-print-btn');
   if (reportPrintBtn) reportPrintBtn.addEventListener('click', function() { window.print(); });
+  var reportCsvBtn = document.getElementById('dr-report-csv-btn');
+  if (reportCsvBtn) reportCsvBtn.addEventListener('click', drDownloadRosterCsv);
   // Roadmap #15: purely client-side, re-filters the rows already fetched by
   // drLoadAuditTrail() -- no re-fetch on every keystroke.
   var auditSearchInput = document.getElementById('dr-audit-search');
@@ -11385,6 +11434,7 @@ def build_firm_dashboard_page(
           leadership or your own records.</p>
         </div>
         <button type="button" class="dr-btn-edit" id="dr-report-print-btn">Print / Save as PDF</button>
+        <button type="button" class="dr-btn-edit" id="dr-report-csv-btn">Download CSV</button>
       </div>
       <div id="dr-report-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
 

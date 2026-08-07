@@ -7231,6 +7231,12 @@ function drRenderRosterSortHeaders() {
     var arrow = btn.querySelector('.dr-sort-arrow');
     if (arrow) arrow.textContent = active ? (drRosterSortDir === 'asc' ? '▲' : '▼') : '';
   });
+  // Roadmap #40: keep the mobile <select> in sync when a sort was set via
+  // header-button click (or a saved-view apply, or the initial no-sort state).
+  var sortSelect = document.getElementById('dr-roster-sort-select');
+  if (sortSelect) {
+    sortSelect.value = drRosterSortColumn ? (drRosterSortColumn + ':' + drRosterSortDir) : '';
+  }
 }
 
 function drRenderTable() {
@@ -10949,6 +10955,28 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // Roadmap #40: mobile-accessible equivalent of the header-button sort
+  // above -- the <thead> those buttons live in is moved off-screen at the
+  // mobile breakpoint (stacked-card layout), so this <select> is the only
+  // reachable sort control on a narrow viewport. Drives the exact same
+  // drRosterSortColumn/drRosterSortDir state and drApplyRosterSort(), kept
+  // in sync with header-button clicks by drRenderRosterSortHeaders().
+  var rosterSortSelect = document.getElementById('dr-roster-sort-select');
+  if (rosterSortSelect) {
+    rosterSortSelect.addEventListener('change', function() {
+      var val = rosterSortSelect.value;
+      if (!val) {
+        drRosterSortColumn = null;
+        drRosterSortDir = 'asc';
+      } else {
+        var parts = val.split(':');
+        drRosterSortColumn = parts[0];
+        drRosterSortDir = parts[1];
+      }
+      drRenderTable();
+    });
+  }
+
   // Roadmap #38.
   var dueWithinFilter = document.getElementById('dr-due-within-filter');
   if (dueWithinFilter) {
@@ -11919,6 +11947,33 @@ def build_firm_dashboard_page(
       </details>
       <div class="dr-audit-filter">
         <input type="text" id="dr-roster-search" placeholder="Search by name or email&hellip;" aria-label="Search roster by name or email">
+        <!-- Roadmap #40 (2026-08-07): the clickable column headers below the
+             table's own <thead> are the primary way to sort on desktop, but
+             the mobile stacked-card layout moves <thead> off-screen
+             (position:absolute; left:-9999px -- the existing card layout's
+             own long-standing fix for the OLD purely-informational header
+             row). That silently made #37's sort buttons unreachable on
+             mobile -- found by tracing through this exact CSS rule, since a
+             real narrow-viewport render wasn't available to test directly
+             in this session (noted honestly rather than claimed as visually
+             verified). This select uses the SAME drRosterSortColumn/
+             drRosterSortDir state and drApplyRosterSort() the header
+             buttons already drive, kept in sync both directions, and stays
+             visible at every width -- also a more standard accessible
+             pattern than click-only header sorting on its own. -->
+        <select id="dr-roster-sort-select" aria-label="Sort roster">
+          <option value="">Sort by&hellip;</option>
+          <option value="staff:asc">Staff (A-Z)</option>
+          <option value="staff:desc">Staff (Z-A)</option>
+          <option value="state:asc">State (A-Z)</option>
+          <option value="state:desc">State (Z-A)</option>
+          <option value="license_type:asc">License type (A-Z)</option>
+          <option value="license_type:desc">License type (Z-A)</option>
+          <option value="status:asc">Status (A-Z)</option>
+          <option value="status:desc">Status (Z-A)</option>
+          <option value="next_deadline:asc">Next deadline (soonest first)</option>
+          <option value="next_deadline:desc">Next deadline (latest first)</option>
+        </select>
       </div>
       <!-- Roadmap #38: saved custom views (e.g. "staff expiring this
            quarter") -- captures the CURRENT search/office-tag/due-within/

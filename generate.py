@@ -3675,6 +3675,94 @@ def _primary_individual_date(records: list[dict]) -> str | None:
     return None
 
 
+# Roadmap #65 (2026-08-07): "staff in TX? here's what CA also requires" --
+# genuine multi-state-practice discovery. Land-border adjacency between the
+# 48 contiguous states + DC, symmetric by construction (verified with a
+# standalone script before being pasted in here: every A-lists-B pair also
+# has B-lists-A). Deliberately geography, not an inferred "similar states"
+# heuristic like _related_states_html() below uses -- a firm's staff
+# realistically clusters across state LINES a firm actually operates near,
+# and a land border is simply a fact, never a judgment call that could be
+# wrong. Colorado/Arizona and Utah/New Mexico meet ONLY at the single
+# Four Corners point, not a real border line, and are deliberately NOT
+# listed as neighbors of each other for that reason. Alaska, Hawaii, and
+# the 4 territories (Guam, Puerto Rico, Northern Mariana Islands, US
+# Virgin Islands) have no bordering US state and are correctly absent
+# from this dict entirely -- not an oversight, and _nearby_states_html()
+# below renders nothing for them rather than an empty "0 nearby states"
+# section.
+US_STATE_ADJACENCY: dict[str, list[str]] = {
+    "alabama": ["florida", "georgia", "mississippi", "tennessee"],
+    "arizona": ["california", "nevada", "new-mexico", "utah"],
+    "arkansas": ["louisiana", "mississippi", "missouri", "oklahoma", "tennessee", "texas"],
+    "california": ["arizona", "nevada", "oregon"],
+    "colorado": ["kansas", "nebraska", "new-mexico", "oklahoma", "utah", "wyoming"],
+    "connecticut": ["massachusetts", "new-york", "rhode-island"],
+    "dc": ["maryland", "virginia"],
+    "delaware": ["maryland", "new-jersey", "pennsylvania"],
+    "florida": ["alabama", "georgia"],
+    "georgia": ["alabama", "florida", "north-carolina", "south-carolina", "tennessee"],
+    "idaho": ["montana", "nevada", "oregon", "utah", "washington", "wyoming"],
+    "illinois": ["indiana", "iowa", "kentucky", "missouri", "wisconsin"],
+    "indiana": ["illinois", "kentucky", "michigan", "ohio"],
+    "iowa": ["illinois", "minnesota", "missouri", "nebraska", "south-dakota", "wisconsin"],
+    "kansas": ["colorado", "missouri", "nebraska", "oklahoma"],
+    "kentucky": ["illinois", "indiana", "missouri", "ohio", "tennessee", "virginia", "west-virginia"],
+    "louisiana": ["arkansas", "mississippi", "texas"],
+    "maine": ["new-hampshire"],
+    "maryland": ["delaware", "pennsylvania", "virginia", "dc", "west-virginia"],
+    "massachusetts": ["connecticut", "new-hampshire", "new-york", "rhode-island", "vermont"],
+    "michigan": ["indiana", "ohio", "wisconsin"],
+    "minnesota": ["iowa", "north-dakota", "south-dakota", "wisconsin"],
+    "mississippi": ["alabama", "arkansas", "louisiana", "tennessee"],
+    "missouri": ["arkansas", "illinois", "iowa", "kansas", "kentucky", "nebraska", "oklahoma", "tennessee"],
+    "montana": ["idaho", "north-dakota", "south-dakota", "wyoming"],
+    "nebraska": ["colorado", "iowa", "kansas", "missouri", "south-dakota", "wyoming"],
+    "nevada": ["arizona", "california", "idaho", "oregon", "utah"],
+    "new-hampshire": ["maine", "massachusetts", "vermont"],
+    "new-jersey": ["delaware", "new-york", "pennsylvania"],
+    "new-mexico": ["arizona", "colorado", "oklahoma", "texas"],
+    "new-york": ["connecticut", "massachusetts", "new-jersey", "pennsylvania", "vermont"],
+    "north-carolina": ["georgia", "south-carolina", "tennessee", "virginia"],
+    "north-dakota": ["minnesota", "montana", "south-dakota"],
+    "ohio": ["indiana", "kentucky", "michigan", "pennsylvania", "west-virginia"],
+    "oklahoma": ["arkansas", "colorado", "kansas", "missouri", "new-mexico", "texas"],
+    "oregon": ["california", "idaho", "nevada", "washington"],
+    "pennsylvania": ["delaware", "maryland", "new-jersey", "new-york", "ohio", "west-virginia"],
+    "rhode-island": ["connecticut", "massachusetts"],
+    "south-carolina": ["georgia", "north-carolina"],
+    "south-dakota": ["iowa", "minnesota", "montana", "nebraska", "north-dakota", "wyoming"],
+    "tennessee": ["alabama", "arkansas", "georgia", "kentucky", "mississippi", "missouri", "north-carolina", "virginia"],
+    "texas": ["arkansas", "louisiana", "new-mexico", "oklahoma"],
+    "utah": ["arizona", "colorado", "idaho", "nevada", "wyoming"],
+    "vermont": ["massachusetts", "new-hampshire", "new-york"],
+    "virginia": ["dc", "kentucky", "maryland", "north-carolina", "tennessee", "west-virginia"],
+    "washington": ["idaho", "oregon"],
+    "west-virginia": ["kentucky", "maryland", "ohio", "pennsylvania", "virginia"],
+    "wisconsin": ["illinois", "iowa", "michigan", "minnesota"],
+    "wyoming": ["colorado", "idaho", "montana", "nebraska", "south-dakota", "utah"],
+}
+
+
+def _nearby_states_html(state_slug: str, by_slug: dict[str, list[dict]]) -> str:
+    """Renders nothing for a state with no bordering US state (Alaska,
+    Hawaii, the 4 territories -- all correctly absent from
+    US_STATE_ADJACENCY) or if every neighbor is somehow missing from
+    by_slug (defensive; every real neighbor has a page today)."""
+    neighbors = US_STATE_ADJACENCY.get(state_slug)
+    if not neighbors:
+        return ""
+    links = [
+        f'<a href="../{slug}/">{esc(by_slug[slug][0]["state"])}</a>'
+        for slug in neighbors
+        if slug in by_slug
+    ]
+    if not links:
+        return ""
+    return f"""<p class="how-it-works">Also tracking staff in a neighboring state?
+{" &middot; ".join(links)}</p>"""
+
+
 def _related_states_html(state_slug: str, records: list[dict], by_slug: dict[str, list[dict]]) -> str:
     """Honest, non-spammy internal linking: states that happen to share the exact
     same recurring month-day deadline as this one -- a real, verifiable similarity
@@ -3832,6 +3920,7 @@ def build_state_page(
             deadline_html += "\n" + render_data_gap_records(gapped)
 
     related_html = _related_states_html(state_slug, records, by_slug) if by_slug else ""
+    nearby_html = _nearby_states_html(state_slug, by_slug) if by_slug else ""
     cpe_hours_link_html = (
         _cpe_hours_reverse_link_html(state_slug, cpe_hours_by_slug) if cpe_hours_by_slug else ""
     )
@@ -3847,6 +3936,7 @@ def build_state_page(
 {signup_form_for_state(state_slug, state_name, records, as_of)}
 {_cpe_affiliate_html()}
 {related_html}
+{nearby_html}
 {cpe_hours_link_html}
 {reinstatement_link_html}
 {quick_search_html}

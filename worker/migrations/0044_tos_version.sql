@@ -1,0 +1,12 @@
+-- Roadmap #56 (2026-08-07): "Terms of Service version tracking per firm."
+-- Records which dated version of the Terms a firm accepted at signup, so a
+-- future material change can be attributed against a real baseline instead
+-- of a guess. NULL for every firm created before this migration -- there is
+-- no record of what they actually saw, and fabricating one would be exactly
+-- the kind of overclaim this site's own copy-hygiene rules exist to catch.
+-- The version string itself is a plain ISO date (generate.py's
+-- TERMS_LAST_CHANGED / worker/src's TERMS_VERSION, kept in sync by
+-- preship_gate.py's check_terms_version_sync()), not a foreign key -- there
+-- is no separate "terms versions" table, since the Terms page's own text is
+-- the source of truth for what a given date's version said.
+ALTER TABLE firms ADD COLUMN tos_accepted_version TEXT;

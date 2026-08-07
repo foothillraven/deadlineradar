@@ -917,6 +917,11 @@ export interface FirmRow {
   // the NPS prompt is SHOWN (answered or dismissed either way) -- see
   // shouldPromptNps()'s own docstring for the quarterly-cadence rule.
   nps_last_prompted_at: string | null;
+  // migration 0044 (roadmap #56). The ISO date (validation.ts's
+  // TERMS_VERSION) of the Terms text this firm accepted at signup. Null
+  // for every firm created before this migration, or created via a path
+  // that didn't pass it (e.g. a test helper) -- no fabricated backfill.
+  tos_accepted_version: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -968,6 +973,12 @@ export interface CreateFirmInput {
   adminEmail: string;
   // Optional, never required -- see FirmRow.admin_name's own comment.
   adminName?: string | null;
+  // Roadmap #56 (2026-08-07): optional so every existing test call site
+  // (and any future one that doesn't care) stays byte-identical -- only
+  // the REAL signup handler passes validation.ts's TERMS_VERSION. Absent
+  // or null means "no record of what version, if any, this firm saw,"
+  // which is the honest state for a synthetic/test-created firm.
+  tosAcceptedVersion?: string | null;
 }
 
 /**
@@ -988,10 +999,10 @@ export async function createFirm(db: D1Database, input: CreateFirmInput): Promis
   const adminName = sanitizeFreeText(input.adminName ?? null, MAX_ADMIN_NAME_LEN);
   await db
     .prepare(
-      `INSERT INTO firms (id, name, admin_email, admin_name, plan_tier, status, created_at)
-       VALUES (?1,?2,?3,?4,'free','active',?5)`
+      `INSERT INTO firms (id, name, admin_email, admin_name, plan_tier, status, created_at, tos_accepted_version)
+       VALUES (?1,?2,?3,?4,'free','active',?5,?6)`
     )
-    .bind(id, name, input.adminEmail, adminName, nowIso())
+    .bind(id, name, input.adminEmail, adminName, nowIso(), input.tosAcceptedVersion ?? null)
     .run();
   return { id };
 }

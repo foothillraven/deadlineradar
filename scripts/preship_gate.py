@@ -330,6 +330,44 @@ def check_deadline_currency(data_path: Path) -> list[str]:
     return errors
 
 
+def check_terms_version_sync(repo_root: Path) -> list[str]:
+    """Roadmap #56 (2026-08-07): generate.py's TERMS_LAST_CHANGED (the
+    "Last updated" date shown on /terms/) and worker/src/validation.ts's
+    TERMS_VERSION (the value written into firms.tos_accepted_version at
+    signup) are two copies of the same fact in two languages that can't
+    share a literal constant. A silent drift between them would mean a
+    firm's stored "version accepted" date doesn't match what the live
+    Terms page actually claims was last changed -- the exact kind of
+    hand-maintained-copy decay check_json_copies_identical() already
+    guards for the cpa_deadlines.json/mobility_rules.json pair, applied to
+    a single date string instead of a whole file."""
+    generate_py = repo_root / "generate.py"
+    validation_ts = repo_root / "worker" / "src" / "validation.ts"
+    if not validation_ts.exists():
+        print("  (skipping terms-version-sync check -- worker/ tree not present in this checkout)")
+        return []
+    py_text = generate_py.read_text(encoding="utf-8")
+    ts_text = validation_ts.read_text(encoding="utf-8")
+
+    py_match = re.search(r"TERMS_LAST_CHANGED\s*=\s*date\((\d+),\s*(\d+),\s*(\d+)\)", py_text)
+    if not py_match:
+        return ["[TERMS] generate.py's TERMS_LAST_CHANGED constant not found -- can't verify sync with worker/src"]
+    py_date = f"{int(py_match.group(1)):04d}-{int(py_match.group(2)):02d}-{int(py_match.group(3)):02d}"
+
+    ts_match = re.search(r'TERMS_VERSION\s*=\s*"([\d-]+)"', ts_text)
+    if not ts_match:
+        return ["[TERMS] worker/src/validation.ts's TERMS_VERSION constant not found -- can't verify sync with generate.py"]
+    ts_date = ts_match.group(1)
+
+    if py_date != ts_date:
+        return [
+            f"[TERMS] generate.py's TERMS_LAST_CHANGED ({py_date}) and worker/src/validation.ts's "
+            f"TERMS_VERSION ({ts_date}) have drifted -- update both together, at the same time the "
+            "Terms wording actually changes"
+        ]
+    return []
+
+
 def check_json_copies_identical(repo_root: Path) -> list[str]:
     a = repo_root / "data" / "cpa_deadlines.json"
     b = repo_root / "worker" / "src" / "cpa_deadlines.json"
@@ -873,6 +911,7 @@ def main():
     all_errors += check_data_manifest_consistency(data_path, docs_dir)
     all_errors += check_deadline_currency(data_path)
     all_errors += check_json_copies_identical(repo_root)
+    all_errors += check_terms_version_sync(repo_root)
     all_errors += check_retention_coverage(repo_root)
     all_errors += check_sitemap_completeness(html_files, docs_dir)
     all_errors += check_demo_locked_email_coverage(repo_root)

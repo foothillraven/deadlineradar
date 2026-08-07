@@ -16,6 +16,7 @@ import {
   RATE_LIMIT_FIRM_LICENSE_CREATE,
   sanitizeFirstName,
   strictParseInt,
+  TERMS_VERSION,
 } from "../src/validation";
 import * as store from "../src/store";
 import { isUsFederalHoliday as isUsFederalHolidayForTest } from "../src/holidays";
@@ -574,6 +575,9 @@ describe("POST /firm/signup -- firm account creation + login-link send", () => {
     expect(firm?.name).toBe("Example CPA Firm");
     expect(firm?.plan_tier).toBe("free");
     expect(firm?.status).toBe("active");
+    // Roadmap #56: the real signup path records which Terms version was
+    // live at signup time (validation.ts's TERMS_VERSION).
+    expect(firm?.tos_accepted_version).toBe(TERMS_VERSION);
 
     const tokenRow = await env.DB
       .prepare("SELECT * FROM firm_login_tokens WHERE firm_id = ?1")
@@ -597,6 +601,8 @@ describe("POST /firm/signup -- firm account creation + login-link send", () => {
     const rows = await env.DB.prepare("SELECT * FROM firms WHERE admin_email = ?1").bind(email).all<FirmRow>();
     expect(rows.results.length).toBe(1);
     expect(rows.results[0]?.name).toBe("First Name"); // unchanged by the second attempt
+    // Roadmap #56: the ORIGINAL acceptance record, not re-stamped by the resend.
+    expect(rows.results[0]?.tos_accepted_version).toBe(TERMS_VERSION);
   });
 
   it("Task #11: stores an optional admin_name when provided", async () => {

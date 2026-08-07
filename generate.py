@@ -314,6 +314,24 @@ SITE_TAGLINE = "CPA license renewal deadlines by state — verified and kept cur
 BRAND_NAME = "Moose & Raven LLC"
 JURISDICTION_COUNT = 51  # overwritten in main() from the real record count once data is loaded
 
+# Roadmap #56 (2026-08-07): "Terms of Service version tracking per firm."
+# build_terms_page()/build_privacy_page() were previously called with
+# `real_today` -- the BUILD date, not the date the legal text actually last
+# changed, so the "Last updated" line on both pages claimed a change every
+# single day the site was regenerated, whether the wording moved or not.
+# That's a real dishonesty bug on its own (this site's whole posture is
+# "never claim more than what's true"), and it also made per-firm version
+# tracking meaningless -- there was no stable identifier to record. These
+# two constants are the real, git-verified dates each page's body text was
+# last actually edited (`git log -S "def build_terms_page"` /
+# "def build_privacy_page" -- confirmed no edits since). Bump BY HAND the
+# day the wording actually changes; do not wire this to "today" again.
+# worker/src/index.ts's TERMS_VERSION constant must be kept in sync with
+# TERMS_LAST_CHANGED -- enforced by preship_gate.py's
+# check_terms_version_sync().
+TERMS_LAST_CHANGED = date(2026, 8, 5)
+PRIVACY_LAST_CHANGED = date(2026, 8, 5)
+
 
 def esc(s: str) -> str:
     return html.escape(str(s), quote=True)
@@ -14590,12 +14608,12 @@ def main() -> None:
 
     privacy_dir = SITE_DIR / "privacy"
     privacy_dir.mkdir(parents=True, exist_ok=True)
-    (privacy_dir / "index.html").write_text(build_privacy_page(real_today), encoding="utf-8")
+    (privacy_dir / "index.html").write_text(build_privacy_page(PRIVACY_LAST_CHANGED), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/privacy/index.html")
 
     terms_dir = SITE_DIR / "terms"
     terms_dir.mkdir(parents=True, exist_ok=True)
-    (terms_dir / "index.html").write_text(build_terms_page(real_today), encoding="utf-8")
+    (terms_dir / "index.html").write_text(build_terms_page(TERMS_LAST_CHANGED), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/terms/index.html")
 
     security_dir = SITE_DIR / "security"

@@ -5,6 +5,17 @@
  * the logic forward, not the reasoning already documented there.
  */
 
+// Roadmap #56 (2026-08-07): the ISO date of the Terms of Service text a
+// newly-created firm accepted at signup (worker/src/store.ts's
+// createFirm() writes this into firms.tos_accepted_version). MUST match
+// generate.py's TERMS_LAST_CHANGED exactly -- enforced by
+// preship_gate.py's check_terms_version_sync(), a hard gate, since a
+// silent drift here would mean firms.tos_accepted_version records a date
+// that doesn't match what the live /terms/ page actually claims was last
+// changed. Bump BY HAND, at the same time as TERMS_LAST_CHANGED, the day
+// the Terms wording actually changes.
+export const TERMS_VERSION = "2026-08-05";
+
 // Must match the hidden field name generate.py renders in every signup form
 // (../reminders/server.py:87 HONEYPOT_FIELD_NAME).
 export const HONEYPOT_FIELD_NAME = "hp_website";

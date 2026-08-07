@@ -120,6 +120,7 @@ import {
   strictParseInt,
   parseStrictIsoDate,
   verifyTurnstile,
+  TERMS_VERSION,
 } from "./validation";
 import {
   StaleDataError,
@@ -1473,7 +1474,14 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
     resolvedAdminName = existing.admin_name;
   } else {
     try {
-      firmId = (await store.createFirm(env.DB, { name: nameRaw, adminEmail: email, adminName })).id;
+      firmId = (
+        await store.createFirm(env.DB, {
+          name: nameRaw,
+          adminEmail: email,
+          adminName,
+          tosAcceptedVersion: TERMS_VERSION,
+        })
+      ).id;
     } catch {
       const raced = await store.findFirmByAdminEmail(env.DB, email);
       if (!raced) throw new Error("firm signup: insert failed and no concurrent winner found");

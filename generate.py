@@ -1199,8 +1199,6 @@ PAGE_CSS = """
      simple inline row with the site's standard link color and a bit of
      breathing room reads as "quick links out of this view" rather than a
      second, competing tab strip. */
-  .dr-quicklinks { display: flex; flex-wrap: wrap; gap: 1.3rem; margin: -0.3rem 0 1.2rem; font-size: 0.88rem; }
-  .dr-quicklinks a { font-weight: 600; }
   /* Roadmap #28 (2026-08-06): guided onboarding checklist. */
   .dr-onboarding-checklist {
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 11px;
@@ -2100,7 +2098,7 @@ PAGE_CSS = """
       --trust-bg: #ffffff; --trust-border: #999999;
       --shadow: none;
     }
-    .mainnav, .site-footer, .signup-form, .remind-panel, .dr-quicklinks,
+    .mainnav, .site-footer, .signup-form, .remind-panel,
     .state-search-wrap, .dr-sso-block, button:not(.dr-sort-th), .cta-button {
       display: none !important;
     }
@@ -11308,9 +11306,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Dashboard-polish item #3 (2026-08-05): was scoped to just .dr-nav (the
-  // sidebar) -- widened to any [data-view] link so the new Coverage-overview
-  // quick-links (.dr-quicklinks) work through the exact same drSwitchView()
-  // call, not a second click-handling path.
+  // sidebar) -- widened to any [data-view] link so every other data-view
+  // link on the page (onboarding checklist, last-login banner, etc.) works
+  // through the exact same drSwitchView() call, not a second click-handling
+  // path.
   document.querySelectorAll('a[data-view]').forEach(function(a) {
     a.addEventListener('click', function(ev) {
       ev.preventDefault();
@@ -12600,12 +12599,6 @@ def build_firm_dashboard_page(
       </div>
       <div id="dr-renewal-fee-body"></div>
     </div>
-
-    <p class="dr-quicklinks">
-      <a href="#" data-view="calendar">View full calendar &rarr;</a>
-      <a href="#" data-view="map">View full map &rarr;</a>
-      <a href="#" data-view="cpe">View full CPE Hours &rarr;</a>
-    </p>
 
     <!-- Roadmap #66 (2026-08-07): "what changed since your last login" --
          previous_login_at comes from GET /firm/licenses (store.getPreviousLoginAt(),

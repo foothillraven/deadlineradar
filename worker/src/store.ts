@@ -14,6 +14,7 @@ import {
   MAX_STAFF_COUNT_HINT_LEN,
   MAX_STAFF_LABEL_LEN,
   MAX_OFFICE_TAG_LEN,
+  MAX_INTERNAL_NOTES_LEN,
   sanitizeFirstName,
   sanitizeFreeText,
 } from "./validation";
@@ -128,6 +129,11 @@ export interface SubscriberRow {
   // skips threshold evaluation entirely while this is today-or-later;
   // applyRenewAndRearm() always clears it back to null on any renewal path.
   snoozed_until: string | null;
+  // migration 0041 (roadmap #68). Admin's own free-text note about this
+  // staff member -- internal-only, never shown to the subscriber or in any
+  // email. NULL means no note. Edit-only, same as carryover_hours (no
+  // create-time field -- a brand-new roster entry has nothing to note yet).
+  internal_notes: string | null;
 }
 
 function nowIso(): string {
@@ -404,6 +410,9 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     // Roadmap #26: a new staffer starts un-snoozed, same as every other
     // brand-new record.
     snoozed_until: null,
+    // Roadmap #68: edit-only, same reasoning as carryover_hours above --
+    // not part of the INSERT column list either, same as that field.
+    internal_notes: null,
   };
   await db
     .prepare(
@@ -1738,6 +1747,9 @@ export interface UpdateFirmLicenseInput {
    * always-passed, re-sanitized-here-independently convention as
    * staffLabel above. */
   officeTag: string | null;
+  /** migration 0041 (roadmap #68). Internal-only note. Same always-passed,
+   * re-sanitized-here-independently convention as officeTag above. */
+  internalNotes: string | null;
 }
 
 /**
@@ -1762,6 +1774,7 @@ export async function updateFirmLicense(
   const newCooldownKey = cooldownKey(input.email);
   const newStaffLabel = sanitizeFreeText(input.staffLabel, MAX_STAFF_LABEL_LEN);
   const newOfficeTag = sanitizeFreeText(input.officeTag, MAX_OFFICE_TAG_LEN);
+  const newInternalNotes = sanitizeFreeText(input.internalNotes, MAX_INTERNAL_NOTES_LEN);
 
   let status = existing.status;
   let confirmedAt = existing.confirmed_at;
@@ -1787,8 +1800,8 @@ export async function updateFirmLicense(
        SET email = ?1, cooldown_key = ?2, staff_label = ?3, state_slug = ?4, deadline_fields = ?5,
            deadline_source = ?6, user_deadline = ?7, status = ?8, confirmed_at = ?9, confirm_token = ?10,
            stopped_at = ?11, stop_reason = ?12, reminders_sent = ?13, last_edited_at = ?14, renewal_fee_cents = ?15,
-           carryover_hours = ?16, office_tag = ?17
-       WHERE id = ?18 AND firm_id = ?19`
+           carryover_hours = ?16, office_tag = ?17, internal_notes = ?18
+       WHERE id = ?19 AND firm_id = ?20`
     )
     .bind(
       input.email,
@@ -1808,6 +1821,7 @@ export async function updateFirmLicense(
       input.renewalFeeCents,
       input.carryoverHours,
       newOfficeTag,
+      newInternalNotes,
       id,
       firmId
     )
@@ -1832,6 +1846,7 @@ export async function updateFirmLicense(
     renewal_fee_cents: input.renewalFeeCents,
     carryover_hours: input.carryoverHours,
     office_tag: newOfficeTag,
+    internal_notes: newInternalNotes,
   };
 }
 
@@ -2785,6 +2800,23 @@ export async function deleteOtherSessionsForFirm(
 export async function deleteAllSessionsForFirm(db: D1Database, firmId: string): Promise<number> {
   const result = await db.prepare(`DELETE FROM firm_sessions WHERE firm_id = ?1`).bind(firmId).run();
   return result.meta.changes ?? 0;
+}
+
+/**
+ * Roadmap #66 (2026-08-07): "what changed since your last login" banner.
+ * Reuses firm_sessions (no new column/migration needed) -- the most recent
+ * OTHER session's created_at IS the previous login, by definition. Excludes
+ * currentSessionId explicitly rather than assuming "most recent row" is the
+ * current one, since a firm can have several concurrent sessions and the
+ * one making this request isn't necessarily the newest of them. Returns
+ * null for a firm's very first-ever session (nothing to compare against).
+ */
+export async function getPreviousLoginAt(db: D1Database, firmId: string, currentSessionId: string): Promise<string | null> {
+  const row = await db
+    .prepare(`SELECT created_at FROM firm_sessions WHERE firm_id = ?1 AND id != ?2 ORDER BY created_at DESC LIMIT 1`)
+    .bind(firmId, currentSessionId)
+    .first<{ created_at: string }>();
+  return row?.created_at ?? null;
 }
 
 /** Subset of FirmSessionRow (above) returned to the client -- deliberately

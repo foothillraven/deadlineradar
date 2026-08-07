@@ -48,6 +48,13 @@ export const MAX_STAFF_LABEL_LEN = 120;
 // 0037's own docstring for why this is a plain string, not a normalized table.
 export const MAX_OFFICE_TAG_LEN = 60;
 
+// Roadmap #68 (2026-08-07): internal-only notes per staff member -- longer
+// than a tag since it's meant for a genuine sentence or two ("out on leave
+// through March", "handles the audit clients"), same cap as the deletion
+// survey's own free-text field (MAX_DELETION_SURVEY_DETAIL_LEN) for the
+// same "generous enough for real prose, not a support-ticket body" reason.
+export const MAX_INTERNAL_NOTES_LEN = 500;
+
 // BILL-1 (2026-08-04, Devin's decision): the advertised self-serve plan is
 // "$500/year flat, up to 25 staff -- more than 25? Contact us"
 // (generate.py's /for-firms/ and homepage pricing copy). Must match that

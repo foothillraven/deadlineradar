@@ -59,6 +59,7 @@ import {
   MAX_STAFF_COUNT_HINT_LEN,
   MAX_STAFF_LABEL_LEN,
   MAX_OFFICE_TAG_LEN,
+  MAX_INTERNAL_NOTES_LEN,
   RATE_LIMIT_ACTION,
   RATE_LIMIT_FIRM_PASSWORD_LOGIN,
   RATE_LIMIT_FIRM_BILLING_CANCEL,
@@ -150,6 +151,7 @@ import {
 } from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountActionSend, isEmailAllowlisted, sendViaSendGrid } from "./sender";
 import { StaleDataError as SchedulerStaleDataError, runReminderPass } from "./scheduler";
+import { isUsFederalHoliday } from "./holidays";
 import {
   MAX_PASSWORD_LEN,
   hashPassword,
@@ -3196,6 +3198,8 @@ function toFirmLicenseJson(row: store.SubscriberRow, asOf: Date): Record<string,
     carryover_hours: row.carryover_hours,
     // Roadmap #16: office/department tag -- see migration 0037's own docstring.
     office_tag: row.office_tag,
+    // Roadmap #68: internal-only note -- see migration 0041's own docstring.
+    internal_notes: row.internal_notes,
     // Roadmap #26: self-service snooze the subscriber set themselves from
     // a reminder email -- surfaced so the admin isn't left guessing why
     // someone stopped getting reminders. Read-only from the dashboard's
@@ -3214,6 +3218,10 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
   const rows = await store.listFirmLicenses(env.DB, session.firmId);
   const asOf = new Date();
   const items = rows.map((r) => toFirmLicenseJson(r, asOf));
+  // Roadmap #66: "what changed since your last login" -- computed here
+  // rather than a separate endpoint since this is already the one call the
+  // dashboard makes on every load.
+  const previousLoginAt = await store.getPreviousLoginAt(env.DB, session.firmId, session.sessionId);
   items.sort((a, b) => {
     const ad = a.next_deadline as string | null;
     const bd = b.next_deadline as string | null;
@@ -3238,6 +3246,7 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
   // not a second hardcoded number, so the two can never drift apart.
   return jsonResponse(200, {
     licenses: items,
+    previous_login_at: previousLoginAt,
     firm_name: session.firm.name ?? null,
     // Task #29 (2026-08-05): the Account tab's email-change form needs to
     // show what it's changing FROM. Safe to include -- this is the
@@ -3912,6 +3921,15 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
     officeTag = trimmed.length > 0 ? trimmed.slice(0, MAX_OFFICE_TAG_LEN) : null;
   }
 
+  // Roadmap #68 (2026-08-07): internal-only note. Same present-but-empty-
+  // clears / absent-leaves-untouched partial-update semantics as office_tag
+  // above.
+  let internalNotes = existing.internal_notes;
+  if (typeof parsed.internal_notes === "string") {
+    const trimmed = parsed.internal_notes.trim();
+    internalNotes = trimmed.length > 0 ? trimmed.slice(0, MAX_INTERNAL_NOTES_LEN) : null;
+  }
+
   // Roadmap #7 (2026-08-07): self-reported, optional. Present-but-empty
   // explicitly clears it (matches staff_label's own empty-string-clears
   // convention above); absent from the body leaves the existing value
@@ -4034,6 +4052,7 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
     renewalFeeCents,
     carryoverHours,
     officeTag,
+    internalNotes,
     resetConfirmation: emailChanged,
   });
   if (!updated) return jsonResponse(404, { error: "Not found." });
@@ -6770,6 +6789,13 @@ export default {
     );
 
     if (!env.SENDGRID_API_KEY) return;
+    // Roadmap #70: skipped entirely on a recognized US federal holiday --
+    // see holidays.ts's own docstring for why this never loses a reminder,
+    // only delays that day's newly-due sends by up to 24h.
+    if (isUsFederalHoliday(new Date())) {
+      console.log(`[reminder-cron] skipped -- US federal holiday`);
+      return;
+    }
     ctx.waitUntil(
       (async () => {
         try {

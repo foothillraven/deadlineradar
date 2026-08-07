@@ -18,6 +18,7 @@ import {
   strictParseInt,
 } from "../src/validation";
 import * as store from "../src/store";
+import { isUsFederalHoliday as isUsFederalHolidayForTest } from "../src/holidays";
 import { hashPassword, verifyPassword } from "../src/password";
 import type { CpeEntryRow, FirmLeadRow, FirmRow, SubscriberRow } from "../src/store";
 
@@ -2211,6 +2212,7 @@ describe("Cross-firm ownership -- the single most important test in this build",
         renewalFeeCents: null,
         carryoverHours: null,
         officeTag: null,
+        internalNotes: null,
         resetConfirmation: false,
       })
     ).toBeNull();
@@ -3404,8 +3406,23 @@ describe("Staleness guard -- real HTTP + cron code paths, not just checkDataFres
   // AT the threshold, not past it, since checkDataFreshness() uses strict
   // `>`). Deriving it keeps these tests correct forever regardless of how
   // often the data gets re-verified.
-  const STALE_MOCK_DATE = new Date(
-    Date.parse(`${cpaDeadlinesData.as_of_date}T00:00:00Z`) + (STALENESS_THRESHOLD_DAYS + 1) * 86_400_000
+  // Roadmap #70 (2026-08-07): scheduled()'s holiday-skip check (isUsFederalHoliday())
+  // now runs BEFORE runReminderPass() -- if a derived STALE_MOCK_DATE ever
+  // happened to land exactly on one of the 11 recognized holidays, the
+  // "scheduled() ... swallows the stale-data pause" test below would break
+  // for a completely unrelated reason (the holiday check would return early
+  // and runReminderPass() would never even be called). Nudged forward a day
+  // at a time past any such collision, same "derive it, don't let it go
+  // silently wrong later" reasoning as the rest of this comment block.
+  function firstNonHolidayOnOrAfter(d: Date): Date {
+    let candidate = d;
+    while (isUsFederalHolidayForTest(candidate)) {
+      candidate = new Date(candidate.getTime() + 86_400_000);
+    }
+    return candidate;
+  }
+  const STALE_MOCK_DATE = firstNonHolidayOnOrAfter(
+    new Date(Date.parse(`${cpaDeadlinesData.as_of_date}T00:00:00Z`) + (STALENESS_THRESHOLD_DAYS + 1) * 86_400_000)
   );
 
   it("POST /subscribe returns 503 'temporarily paused' once as_of_date is more than 30 days old", async () => {

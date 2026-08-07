@@ -7248,6 +7248,13 @@ function drRenderRow(item) {
   // than a new table column -- keeps the roster table's existing width/
   // scroll behavior unchanged on every page this shared row renderer feeds.
   var officeLine = item.office_tag ? '<span class="dr-roster-office">' + drEscapeHtml(item.office_tag) + '</span>' : '';
+  // Roadmap #68: same small-subtitle treatment as office_tag above, but the
+  // full note only shows on hover (title attribute) -- unlike a short office
+  // tag, a note can run up to 500 characters and would otherwise dominate
+  // the row.
+  var notesLine = item.internal_notes
+    ? '<span class="dr-roster-office" title="' + drEscapeHtml(item.internal_notes) + '">Note</span>'
+    : '';
   // Roadmap #26: self-service snooze, admin-visible so nobody's left
   // guessing why a staffer's reminders went quiet -- see toFirmLicenseJson()
   // for why this is read-only from here (only the subscriber's own link, or
@@ -7258,7 +7265,7 @@ function drRenderRow(item) {
   var snoozeLine = isSnoozed
     ? '<span class="dr-roster-office">Snoozed until ' + drEscapeHtml(drFormatDeadline(item.snoozed_until)) + '</span>'
     : '';
-  var staffCell = nameLine + '<span class="dr-roster-email" title="' + drEscapeHtml(item.email) + '">' + drEscapeHtml(item.email) + '</span>' + officeLine + snoozeLine;
+  var staffCell = nameLine + '<span class="dr-roster-email" title="' + drEscapeHtml(item.email) + '">' + drEscapeHtml(item.email) + '</span>' + officeLine + notesLine + snoozeLine;
   // Roadmap #29: a sample row's id ('sample-1' etc.) matches nothing on the
   // server, so Edit/Mark renewed/Remove would either 404 or -- far worse if
   // ids ever collided -- silently act on a real record. No functional
@@ -8214,6 +8221,27 @@ function drRenderAccountLockdown() {
 // "free") right up until that date. current_period_end is a full ISO
 // datetime from Stripe; drFormatDeadline() expects a plain date, hence the
 // slice(0, 10).
+// Roadmap #66: null until the load response sets it (never re-derived
+// client-side -- it's a server fact, when the previous session logged in).
+var drPreviousLoginAt = null;
+
+function drRenderLastLoginBanner() {
+  var el = document.getElementById('dr-last-login-banner');
+  if (!el) return;
+  if (!drPreviousLoginAt) { el.hidden = true; return; }
+  var changed = drLicenses.filter(function(item) {
+    return item.last_edited_at && item.last_edited_at > drPreviousLoginAt;
+  }).length;
+  if (changed === 0) { el.hidden = true; return; }
+  var textEl = document.getElementById('dr-last-login-banner-text');
+  if (textEl) {
+    var when = drFormatDeadline(String(drPreviousLoginAt).slice(0, 10));
+    textEl.textContent = changed + ' roster change' + (changed === 1 ? '' : 's') +
+      ' since you were last here (' + when + ') -- see Recent activity below for what changed.';
+  }
+  el.hidden = false;
+}
+
 // Roadmap #42: shown only while the firm has no paid tier -- same
 // DR_PLAN_TIER_LABELS[planTier] truthiness check drRenderBillingPanel()
 // itself uses just below to decide "is this firm on the free tier".
@@ -10278,6 +10306,7 @@ function drLoadLicenses() {
         if (sampleBanner) sampleBanner.hidden = true;
       }
       drLicenses = data.licenses || [];
+      drPreviousLoginAt = data.previous_login_at || null;
       drSeatCap = typeof data.seat_cap === 'number' ? data.seat_cap : null;
       drBilling = {
         planTier: data.plan_tier || 'free',
@@ -10308,6 +10337,7 @@ function drLoadLicenses() {
       drRenderOnboardingChecklist();
       drRenderBillingPanel();
       drRenderMapValueCallout();
+      drRenderLastLoginBanner();
       // Roadmap #6: firm-level, so this comes from the same /firm/licenses
       // response but isn't part of drLicenses/drRenderStats at all.
       drPeerReviewDueDate = data.peer_review_due_date || null;
@@ -10455,6 +10485,8 @@ function drOpenEditModal(item, triggerBtn) {
   }
   var officeInput = document.getElementById('dr-edit-modal-office');
   if (officeInput) officeInput.value = item.office_tag || '';
+  var notesInput = document.getElementById('dr-edit-modal-notes');
+  if (notesInput) notesInput.value = item.internal_notes || '';
   if (title) title.textContent = 'Edit ' + (item.staff_label || item.email);
   drClearError();
   drClearWarning();
@@ -10505,6 +10537,9 @@ function drSubmitEditModal(ev) {
   var officeInput = document.getElementById('dr-edit-modal-office');
   // Roadmap #16: same always-sent, empty-string-clears convention.
   body.office_tag = officeInput ? officeInput.value.trim() : '';
+  var notesInput = document.getElementById('dr-edit-modal-notes');
+  // Roadmap #68: same always-sent, empty-string-clears convention.
+  body.internal_notes = notesInput ? notesInput.value.trim() : '';
   var id = drEditModalId;
   fetch('/api/firm/licenses/' + encodeURIComponent(id), {
     method: 'PATCH', credentials: 'include',
@@ -11170,6 +11205,14 @@ document.addEventListener('DOMContentLoaded', function() {
   // reachable sort control on a narrow viewport. Drives the exact same
   // drRosterSortColumn/drRosterSortDir state and drApplyRosterSort(), kept
   // in sync with header-button clicks by drRenderRosterSortHeaders().
+  var lastLoginDismissBtn = document.getElementById('dr-last-login-banner-dismiss');
+  if (lastLoginDismissBtn) {
+    lastLoginDismissBtn.addEventListener('click', function() {
+      var el = document.getElementById('dr-last-login-banner');
+      if (el) el.hidden = true;
+    });
+  }
+
   var rosterSortSelect = document.getElementById('dr-roster-sort-select');
   if (rosterSortSelect) {
     rosterSortSelect.addEventListener('change', function() {
@@ -12121,6 +12164,16 @@ def build_firm_dashboard_page(
       <a href="#" data-view="cpe">View full CPE Hours &rarr;</a>
     </p>
 
+    <!-- Roadmap #66 (2026-08-07): "what changed since your last login" --
+         previous_login_at comes from GET /firm/licenses (store.getPreviousLoginAt(),
+         the most recent OTHER firm_sessions row -- no new migration). Counted
+         against drLicenses' own last_edited_at client-side, since that data's
+         already loaded for this same view; no second fetch. -->
+    <div class="callout" id="dr-last-login-banner" hidden>
+      <p><span id="dr-last-login-banner-text"></span>
+      <button type="button" class="dr-link-btn" id="dr-last-login-banner-dismiss">Dismiss</button></p>
+    </div>
+
     <div class="dr-panel-row">
       <div class="dr-panel">
         <h2>Staff at risk</h2>
@@ -12246,6 +12299,9 @@ def build_firm_dashboard_page(
           <label for="dr-edit-modal-office">Office / department (optional)</label>
           <input type="text" id="dr-edit-modal-office" maxlength="60" placeholder="e.g. Downtown office">
           <p class="dr-modal-hint">Your own label for grouping staff -- shown on the roster, used by the bulk-tag tool below it. Leave blank if you don't need groups.</p>
+          <label for="dr-edit-modal-notes">Internal notes (optional)</label>
+          <textarea id="dr-edit-modal-notes" maxlength="500" rows="2" placeholder="e.g. Out on leave through March"></textarea>
+          <p class="dr-modal-hint">For your own reference only -- never shown to this person or in any email they receive.</p>
           <div class="dr-modal-actions">
             <button type="submit" class="dr-btn-save">Save</button>
             <button type="button" class="dr-btn-cancel" id="dr-edit-modal-cancel">Cancel</button>

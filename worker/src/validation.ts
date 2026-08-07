@@ -726,6 +726,20 @@ export const RATE_LIMIT_FIRM_NPS: RateLimit = { max: 10, windowSeconds: 3600 };
 /** Roadmap #312: submitting a testimonial, same shape as RATE_LIMIT_FIRM_NPS. */
 export const RATE_LIMIT_FIRM_TESTIMONIAL: RateLimit = { max: 10, windowSeconds: 3600 };
 
+/** AuditLab SEC-1 (2026-08-07): every write endpoint should be rate-limited
+ * per the /security/ page's own claim -- these 7 shipped without one.
+ * Generous, since none of the seven have a meaningful abuse profile beyond
+ * bounded DB write noise (a dismiss-once flag, deleting the caller's own
+ * document, or the caller's own session) -- this closes the literal gap,
+ * not a tight abuse-specific bound the way login/signup buckets are.
+ * Dismiss/delete endpoints are already session-gated (per-firm); the two
+ * logout endpoints have no verified session yet at the point they'd need
+ * to rate-limit (they only ever act on whatever session the cookie names,
+ * valid or not), so those are keyed on IP instead, same as every other
+ * pre-session bucket in this file. */
+export const RATE_LIMIT_FIRM_DISMISS: RateLimit = { max: 30, windowSeconds: 3600 };
+export const RATE_LIMIT_LOGOUT: RateLimit = { max: 30, windowSeconds: 3600 };
+
 /** Roadmap #312: a real quote, generous enough for a genuine sentence or
  * two -- same "cosmetic-only free text" cap category as
  * MAX_DELETION_SURVEY_DETAIL_LEN/MAX_INTERNAL_NOTES_LEN above. */

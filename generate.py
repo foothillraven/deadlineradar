@@ -5042,8 +5042,10 @@ be interpreted as an inline webpage by a browser.</p>
 successful XSS payload), <code>Secure</code> (HTTPS-only transmission), and scoped with
 <code>SameSite</code>. Every request that changes data -- adding staff, editing a record, changing a
 password -- is checked against the Origin header the browser itself sends, rejecting cross-site
-forgery attempts before they reach the database. Every write endpoint is rate-limited per account, so
-a compromised session or a scripting bug can't be abused to hammer the system. We send a Content-
+forgery attempts before they reach the database. Every write endpoint is rate-limited -- keyed to your
+account where one's already established, or to your IP address for the handful of actions (like
+signing out) that happen before a session exists to key on -- so a compromised session or a scripting
+bug can't be abused to hammer the system. We send a Content-
 Security-Policy, X-Frame-Options, and X-Content-Type-Options header on every response as additional,
 independent layers against the same class of attack.</p>
 

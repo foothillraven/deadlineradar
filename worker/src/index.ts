@@ -71,6 +71,8 @@ import {
   RATE_LIMIT_FIRM_NPS,
   RATE_LIMIT_FIRM_TESTIMONIAL,
   MAX_TESTIMONIAL_LEN,
+  RATE_LIMIT_FIRM_DISMISS,
+  RATE_LIMIT_LOGOUT,
   RATE_LIMIT_FIRM_CHANGE_EMAIL,
   RATE_LIMIT_FIRM_PASSWORD_SET,
   RATE_LIMIT_OAUTH_START,
@@ -1748,10 +1750,17 @@ async function handleFirmLoginVerify(
  * matching session row (a no-op if there wasn't one), and clears the
  * cookie. Always succeeds from the caller's perspective -- there is no
  * meaningful "logout failed" state to report. */
-async function handleFirmLogout(request: Request, env: Env): Promise<Response> {
-  const raw = getCookie(request, FIRM_SESSION_COOKIE_NAME);
-  if (raw) {
-    await store.deleteSession(env.DB, raw);
+async function handleFirmLogout(request: Request, env: Env, ip: string): Promise<Response> {
+  // AuditLab SEC-1 (2026-08-07): no rate limit at all before this -- keyed
+  // on IP, not firmId, since there's no verified session at this point
+  // (the raw cookie may not even name a real session) -- same posture as
+  // every other pre-session bucket in this file.
+  const allowed = await checkRateLimit(env.DB, ip, "firm_logout", RATE_LIMIT_LOGOUT);
+  if (allowed) {
+    const raw = getCookie(request, FIRM_SESSION_COOKIE_NAME);
+    if (raw) {
+      await store.deleteSession(env.DB, raw);
+    }
   }
   return new Response(null, {
     status: 302,
@@ -2503,10 +2512,15 @@ async function handleSubscriberLoginVerify(env: Env, token: string | null): Prom
 /** POST /subscriber/logout -- deletes the session row (no-op if there wasn't
  * one) and clears the cookie. Never reports failure; there is no useful
  * "logout failed" state. */
-async function handleSubscriberLogout(request: Request, env: Env): Promise<Response> {
-  const raw = getCookie(request, SUBSCRIBER_SESSION_COOKIE_NAME);
-  if (raw) {
-    await store.deleteSubscriberSession(env.DB, raw);
+async function handleSubscriberLogout(request: Request, env: Env, ip: string): Promise<Response> {
+  // AuditLab SEC-1 (2026-08-07): same fix/reasoning as handleFirmLogout()'s
+  // own comment above (IP-keyed, no verified session at this point).
+  const allowed = await checkRateLimit(env.DB, ip, "subscriber_logout", RATE_LIMIT_LOGOUT);
+  if (allowed) {
+    const raw = getCookie(request, SUBSCRIBER_SESSION_COOKIE_NAME);
+    if (raw) {
+      await store.deleteSubscriberSession(env.DB, raw);
+    }
   }
   return new Response(null, {
     status: 302,
@@ -3387,6 +3401,13 @@ async function handleFirmQuestionnaireSubmit(request: Request, env: Env): Promis
     return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
   }
 
+  // AuditLab SEC-1 (2026-08-07): was missing on this and 6 sibling
+  // endpoints, contradicting the /security/ page's own claim.
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_questionnaire_submit", RATE_LIMIT_FIRM_DISMISS);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
   const parsed = await readFirmLicenseJsonBody(request);
   if (parsed instanceof Response) return parsed;
   const body = parsed as Record<string, unknown>;
@@ -3419,6 +3440,12 @@ async function handleFirmQuestionnaireDismiss(request: Request, env: Env): Promi
     return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
   }
 
+  // AuditLab SEC-1 (2026-08-07).
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_questionnaire_dismiss", RATE_LIMIT_FIRM_DISMISS);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
   await store.dismissFeatureQuestionnaire(env.DB, session.firmId);
   return jsonResponse(200, { ok: true });
 }
@@ -3433,6 +3460,12 @@ async function handleOnboardingChecklistDismiss(request: Request, env: Env): Pro
     return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
   }
 
+  // AuditLab SEC-1 (2026-08-07).
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_onboarding_checklist_dismiss", RATE_LIMIT_FIRM_DISMISS);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
   await store.dismissOnboardingChecklist(env.DB, session.firmId);
   return jsonResponse(200, { ok: true });
 }
@@ -3445,6 +3478,12 @@ async function handleProductTourDismiss(request: Request, env: Env): Promise<Res
 
   if (!originAllowed(request, env)) {
     return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  // AuditLab SEC-1 (2026-08-07).
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_product_tour_dismiss", RATE_LIMIT_FIRM_DISMISS);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
   }
 
   await store.dismissProductTour(env.DB, session.firmId);
@@ -4658,6 +4697,13 @@ async function handleDocumentDelete(request: Request, env: Env, id: string): Pro
     return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
   }
 
+  // AuditLab SEC-1 (2026-08-07): the original finding -- this endpoint had
+  // no rate limit at all, contradicting the /security/ page's own claim.
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_document_delete", RATE_LIMIT_FIRM_DISMISS);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
   const removed = await store.removeDocument(env.DB, session.firmId, id);
   if (!removed) return jsonResponse(404, { error: "Not found." });
 
@@ -5421,7 +5467,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
 
       if (url.pathname === "/firm/logout") {
         try {
-          return await handleFirmLogout(request, env);
+          return await handleFirmLogout(request, env, ip);
         } catch {
           return errorPage(400, "Something went wrong processing that request.");
         }
@@ -5437,7 +5483,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
 
       if (url.pathname === "/subscriber/logout") {
         try {
-          return await handleSubscriberLogout(request, env);
+          return await handleSubscriberLogout(request, env, ip);
         } catch {
           return errorPage(400, "Something went wrong processing that request.");
         }

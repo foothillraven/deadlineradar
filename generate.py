@@ -542,6 +542,11 @@ PAGE_CSS = """
   th { background: var(--accent); color: var(--on-accent); font-weight: 700; }
   tbody tr:nth-child(even) { background: var(--row-alt); }
   tbody tr:last-child td { border-bottom: none; }
+  /* Roadmap #33 (2026-08-07): /compare/ page. Overrides the base table's
+     white-space: nowrap -- these cells hold full sentences, not short
+     values like the state data tables this base style was built for. */
+  .compare-table td, .compare-table th { white-space: normal; }
+  .compare-table td:first-child { font-weight: 600; }
   .trust-line {
     border: 1px solid var(--trust-border); background: var(--trust-bg); border-radius: 8px;
     padding: 0.9rem 1.1rem; margin: 1.75rem 0; font-size: 0.92rem;
@@ -2103,6 +2108,7 @@ def site_footer() -> str:
       <a href="/rule-changes/">Mobility Rule Changes</a>
       <a href="/blog/">Guides</a>
       <a href="/pricing/">Pricing</a>
+      <a href="/compare/">Compare</a>
       <a href="/roadmap/">Roadmap</a>
       <a href="/privacy/">Privacy</a>
       <a href="/terms/">Terms</a>
@@ -4253,6 +4259,105 @@ for that tier, same as the dashboard's own upgrade panel.</p>
         canonical_path="/pricing/",
         has_remind_anchor=False,
     ) + _PRICING_CHECKOUT_JS_HTML
+
+
+def build_compare_page() -> str:
+    """Roadmap #33 (2026-08-07, roadmap_items table, IMMEDIATE RELEASE):
+    "Comparison page (DeadlineRadar vs. spreadsheet vs. competitor)."
+
+    Deliberately does NOT name or characterize any specific real competitor
+    product -- this file has no verified, current facts about any named
+    third party's actual pricing or feature set, and publishing unverified
+    claims about a real business is both a false-advertising risk and flatly
+    against this site's own two-source-verification standard (see
+    build_methodology_page() -- the same "we do not guess or infer a claim
+    we can't back up" rule applies to marketing copy, not just deadline
+    dates). "Competitor" in the roadmap item's own phrasing becomes a
+    generic, unnamed "subscription-tracking tool" category instead --
+    everything below is either a fact about DeadlineRadar's own actually-
+    shipped feature set (verifiable in this repo) or a self-evident, widely
+    true statement about spreadsheets/generic tools that names no one.
+    """
+    rows = [
+        (
+            "Sourced, cited renewal dates for all 55 U.S. jurisdictions",
+            "Yes &mdash; every date traces to codified law, not a summary (see How We Verify).",
+            "You research and maintain this yourself, state by state.",
+            "Usually generic scheduling, not built around real CPA renewal rules.",
+        ),
+        (
+            "Automated email reminders before a deadline",
+            "Yes, out of the box.",
+            "Only if you build your own reminder system on top of it.",
+            "Varies by tool; rarely tuned to a CPA renewal cycle specifically.",
+        ),
+        (
+            "Multistate practice-privilege / mobility check",
+            "Yes &mdash; Map view plus a per-person Practice Privilege Check.",
+            "No, you would have to research each state's mobility rule yourself.",
+            "Not CPA-specific, so this generally does not exist.",
+        ),
+        (
+            "CPE-hour tracking against the real requirement for each state",
+            "Yes, with a data-gap note whenever a state's rule is not yet codified.",
+            "Manual, and easy to lose track of across a whole roster.",
+            "Usually a generic hour counter, not tied to actual state CPE rules.",
+        ),
+        (
+            "Setup effort",
+            "Minutes &mdash; add a staff member and their state, done.",
+            "Hours of your own research, plus ongoing upkeep as rules change.",
+            "Some setup, but you still have to supply the CPA-specific rules yourself.",
+        ),
+        (
+            "Cost",
+            "Roster, calendar, and CPE-hour tracking are free for any firm. Paid tiers add the map and "
+            "Practice Privilege Check.",
+            "Free license cost, but your own time is the real cost.",
+            "Varies; often priced for general use, not firm-specific compliance tracking.",
+        ),
+    ]
+    table_rows_html = "\n".join(
+        f"  <tr><td>{esc(label)}</td><td>{dr_cell}</td><td>{esc(spreadsheet_cell)}</td><td>{esc(generic_cell)}</td></tr>"
+        for label, dr_cell, spreadsheet_cell, generic_cell in rows
+    )
+    body = f"""<h1>DeadlineRadar vs. a Spreadsheet vs. a Generic Tracker</h1>
+<p class="intro">An honest, feature-by-feature look at the three ways firms actually track CPA license
+renewals today. This page does not name or characterize any specific competing product &mdash; we have
+no verified, current facts about any one company's pricing or features, and this site does not publish
+claims it cannot back up (see <a href="/methodology/">How We Verify</a> for the same standard applied to
+every renewal date).</p>
+
+<div class="table-wrap">
+<table class="compare-table">
+  <caption class="dr-visually-hidden">Feature comparison: DeadlineRadar, a spreadsheet, and a generic tracking tool</caption>
+  <thead>
+    <tr><th scope="col">Feature</th><th scope="col">DeadlineRadar</th><th scope="col">A spreadsheet</th><th scope="col">A generic tracking tool</th></tr>
+  </thead>
+  <tbody>
+{table_rows_html}
+  </tbody>
+</table>
+</div>
+
+<h2>Where a spreadsheet is genuinely fine</h2>
+<p>If your firm has one or two staff and someone is already diligent about checking renewal dates by
+hand, a spreadsheet works. It gets harder as headcount grows, as staff move between states, and as CPE
+requirements pile up per person &mdash; the failure mode is never a dramatic one, it is a single missed
+renewal on a spreadsheet no one opened that week.</p>
+
+<p class="backlink">See <a href="/pricing/">pricing</a>, or <a href="/for-firms/">the full firm-tier
+breakdown</a>.</p>
+"""
+    return page_shell(
+        f"DeadlineRadar vs. a Spreadsheet — {SITE_NAME}",
+        "An honest, feature-by-feature comparison of DeadlineRadar against a spreadsheet and generic "
+        "tracking tools for CPA license renewal management.",
+        body,
+        home_href="../",
+        canonical_path="/compare/",
+        has_remind_anchor=False,
+    )
 
 
 def build_roadmap_page() -> str:
@@ -11355,6 +11460,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/pricing/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/compare/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/firm-login/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
@@ -11581,6 +11689,11 @@ def main() -> None:
     pricing_dir.mkdir(parents=True, exist_ok=True)
     (pricing_dir / "index.html").write_text(build_pricing_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/pricing/index.html")
+
+    compare_dir = SITE_DIR / "compare"
+    compare_dir.mkdir(parents=True, exist_ok=True)
+    (compare_dir / "index.html").write_text(build_compare_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/compare/index.html")
 
     roadmap_dir = SITE_DIR / "roadmap"
     roadmap_dir.mkdir(parents=True, exist_ok=True)

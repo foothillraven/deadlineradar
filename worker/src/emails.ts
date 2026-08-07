@@ -316,7 +316,13 @@ export function buildReminderEmail(
   renewedNextCycleUrl: string,
   renewedUrl: string,
   unsubscribeUrl: string,
-  firstName: string | null = null
+  firstName: string | null = null,
+  // Roadmap #19 (2026-08-07): lightweight white-label. Non-null only for a
+  // firm-tracked subscriber whose firm exists (scheduler.ts looks this up) --
+  // a free-tier individual's reminder is byte-identical to before this
+  // parameter existed. Shown as a plain attribution line, never replacing
+  // DeadlineRadar's own identity/footer (that stays exactly as-is below).
+  firmName: string | null = null
 ): BuiltEmail {
   const lead = URGENCY_LEAD[threshold];
   if (lead === undefined) {
@@ -340,8 +346,10 @@ export function buildReminderEmail(
     whenPhrase = `${-actualDaysRemaining} day${actualDaysRemaining !== -1 ? "s" : ""} ago`;
   }
 
+  const firmAttribution = firmName ? `This reminder is sent by ${firmName} via DeadlineRadar.\n\n` : "";
   const textBody =
     `${textGreeting(firstName)}\n\n` +
+    firmAttribution +
     `${lead} -- your ${stateName} CPA license renewal is due ${deadlineDateStr} (${whenPhrase}).\n\n` +
     `Already renewed? One click confirms it and keeps your reminders going for next cycle:\n` +
     `${renewedNextCycleUrl}\n\n` +
@@ -356,6 +364,7 @@ export function buildReminderEmail(
       `${esc(lead)}</h1>` +
       p(
         `${htmlGreeting(firstName)}<br><br>` +
+          (firmName ? `This reminder is sent by <strong>${esc(firmName)}</strong> via DeadlineRadar.<br><br>` : "") +
           `Your ${esc(stateName)} CPA license renewal is due <strong>${esc(deadlineDateStr)}</strong> ` +
           `(${esc(whenPhrase)}).`
       ) +

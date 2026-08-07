@@ -82,7 +82,11 @@ export interface ReminderSummary {
   errors: { subscriber_id: string; error: string }[];
 }
 
-export type ReminderSendFn = (toEmail: string, email: BuiltEmail) => Promise<boolean>;
+// Roadmap #19: optional 3rd param, added after every existing caller/mock
+// was already written with 1-2 params -- safe by TS's own function-type
+// compatibility rules (a function accepting fewer params satisfies a type
+// expecting more), so no existing test mock needed updating for this.
+export type ReminderSendFn = (toEmail: string, email: BuiltEmail, replyTo?: string) => Promise<boolean>;
 
 export interface RunReminderOptions {
   /** Scheduling clock. Defaults to now. A test can advance it without waiting
@@ -125,10 +129,14 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
 
   const send: ReminderSendFn =
     opts.send ??
-    ((to, built) => {
+    ((to, built, replyTo) => {
       if (!env.SENDGRID_API_KEY) return Promise.resolve(false);
-      return sendViaSendGrid(env.SENDGRID_API_KEY, to, built, env.EMAIL_ALLOWLIST);
+      return sendViaSendGrid(env.SENDGRID_API_KEY, to, built, env.EMAIL_ALLOWLIST, replyTo);
     });
+
+  // Roadmap #19: one query, not one per subscriber -- see
+  // store.listAllFirmsBasicInfo()'s own docstring for why.
+  const firmsById = new Map((await store.listAllFirmsBasicInfo(env.DB)).map((f) => [f.id, f]));
 
   const cap = dailySendCap(env);
   const summary: ReminderSummary = {
@@ -220,6 +228,11 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
       const renewedNextCycleUrl = `${actionBaseUrl(env)}/renewed-next-cycle?token=${encodeURIComponent(sub.renewed_token)}`;
       const renewedUrl = `${actionBaseUrl(env)}/renewed?token=${encodeURIComponent(sub.renewed_token)}`;
       const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(sub.unsubscribe_token)}`;
+      // Roadmap #19: null for a free-tier individual (sub.firm_id is null)
+      // or, defensively, if the firm_id somehow doesn't resolve -- either
+      // way buildReminderEmail() treats null exactly like before this
+      // parameter existed.
+      const firmInfo = sub.firm_id ? firmsById.get(sub.firm_id) ?? null : null;
       let built: BuiltEmail;
       try {
         built = buildReminderEmail(
@@ -230,7 +243,8 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
           renewedNextCycleUrl,
           renewedUrl,
           unsubscribeUrl,
-          sub.first_name
+          sub.first_name,
+          firmInfo?.name ?? null
         );
       } catch (err) {
         summary.errors.push({ subscriber_id: sub.id, error: `email build failed: ${String(err)}` });
@@ -256,7 +270,7 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
         break;
       }
 
-      const ok = await send(sub.email, built);
+      const ok = await send(sub.email, built, firmInfo?.reply_to_email ?? undefined);
       if (ok) {
         summary.sent += 1;
         // Roadmap #8: the "dates reminded" half of the audit-trail export --

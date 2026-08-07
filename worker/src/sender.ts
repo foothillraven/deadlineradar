@@ -126,7 +126,13 @@ export async function sendViaSendGrid(
   apiKey: string,
   toEmail: string,
   email: BuiltEmail,
-  emailAllowlist?: string
+  emailAllowlist?: string,
+  // Roadmap #19 (2026-08-07): lightweight white-label. Deliberately does NOT
+  // change `from` -- every send still originates from FROM_EMAIL/FROM_NAME
+  // above, so SendGrid's own domain authentication (SPF/DKIM) is untouched
+  // and DeadlineRadar remains the sender of record for CAN-SPAM purposes.
+  // Only where a REPLY goes changes.
+  replyTo?: string
 ): Promise<boolean> {
   const allowlist = parseAllowlist(emailAllowlist);
   // Preview/staging visibility (2026-07-28): whenever the allowlist gate is
@@ -153,6 +159,7 @@ export async function sendViaSendGrid(
   const payload = {
     personalizations: [personalization],
     from: { email: FROM_EMAIL, name: FROM_NAME },
+    ...(replyTo ? { reply_to: { email: replyTo } } : {}),
     subject: email.subject,
     content: [
       { type: "text/plain", value: email.textBody },

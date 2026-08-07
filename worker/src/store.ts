@@ -886,6 +886,10 @@ export interface FirmRow {
   // migration 0033 (roadmap #6). Firm-level (not per-staff) -- the firm's
   // own next peer-review due date, admin-entered. Null = not tracked yet.
   peer_review_due_date: string | null;
+  // migration 0038 (roadmap #19). Self-reported, optional -- routes a
+  // recipient's reply to the firm instead of DeadlineRadar. Null = every
+  // reminder email keeps its existing (no explicit Reply-To) behavior.
+  reply_to_email: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -3097,6 +3101,32 @@ export async function dismissProductTour(db: D1Database, firmId: string): Promis
  * way every other single-column setter in this file does. */
 export async function setPeerReviewDueDate(db: D1Database, firmId: string, dueDate: string | null): Promise<void> {
   await db.prepare(`UPDATE firms SET peer_review_due_date = ?1 WHERE id = ?2`).bind(dueDate, firmId).run();
+}
+
+/** Roadmap #19 (migration 0038). `email` is `null` to clear or an address
+ * validated by the CALLER (index.ts's own isValidEmail()) before this is
+ * ever called -- same trust-the-caller posture as setPeerReviewDueDate()
+ * above. */
+export async function setReplyToEmail(db: D1Database, firmId: string, email: string | null): Promise<void> {
+  await db.prepare(`UPDATE firms SET reply_to_email = ?1 WHERE id = ?2`).bind(email, firmId).run();
+}
+
+/** Roadmap #19: one query for scheduler.ts's own per-subscriber loop to
+ * build a { firm_id -> {name, reply_to_email} } lookup from, rather than a
+ * per-subscriber firm fetch (N+1) inside a pass that can process a real
+ * cohort of subscribers across every firm. Unfiltered -- this product's
+ * `firms` table is small by design (unlike `subscribers`, which this
+ * codebase is deliberately careful about NOT loading unbounded elsewhere),
+ * so one full read is simpler and cheaper than a dynamic IN-clause. */
+export interface FirmBasicInfo {
+  id: string;
+  name: string;
+  reply_to_email: string | null;
+}
+
+export async function listAllFirmsBasicInfo(db: D1Database): Promise<FirmBasicInfo[]> {
+  const { results } = await db.prepare(`SELECT id, name, reply_to_email FROM firms`).all<FirmBasicInfo>();
+  return results;
 }
 
 /**

@@ -569,6 +569,10 @@ export const RATE_LIMIT_FIRM_DOCUMENT_UPLOAD: RateLimit = { max: 60, windowSecon
 // setters on this list (not a mail primitive, not a bulk-write path).
 export const RATE_LIMIT_FIRM_PEER_REVIEW_SET: RateLimit = { max: 30, windowSeconds: 86400 };
 
+// PATCH /firm/reply-to (roadmap #19, 2026-08-07) -- same shape and same
+// modest cap as RATE_LIMIT_FIRM_PEER_REVIEW_SET above.
+export const RATE_LIMIT_FIRM_REPLY_TO_SET: RateLimit = { max: 30, windowSeconds: 86400 };
+
 // AuditLab S-3, 2026-08-03: these four authenticated state-changing routes
 // had no bucket at all -- not a mail primitive like F-2/RATE_LIMIT_FIRM_LICENSE_PATCH
 // (none of them sends email), but still unbounded D1 write amplification from

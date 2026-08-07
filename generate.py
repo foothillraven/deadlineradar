@@ -1498,7 +1498,20 @@ PAGE_CSS = """
 
   /* Keeps Edit/Mark renewed/Remove compact within the Actions column's own
      width budget. */
-  .dr-roster-panel td.dr-actions button { padding: 0.22rem 0.5rem; font-size: 0.76rem; white-space: nowrap; }
+  .dr-roster-panel td.dr-actions button { padding: 0.22rem 0.5rem; font-size: 0.76rem; white-space: nowrap; margin: 0.1rem 0; }
+  /* 2026-08-07, reported live (Devin's screenshot: "The Documents part is
+     getting cut off"): the Actions cell gained a 4th button (Documents,
+     with the document-storage feature) but the 15rem column budget above
+     was measured for the original 3 -- with the global td nowrap rule the
+     button row's natural width (~310px) overflowed the table's fixed
+     budget by ~67px (measured live: scrollWidth 926 vs clientWidth 859),
+     clipping the Documents button off-screen. Fix: let the buttons WRAP
+     within the cell (each button stays nowrap internally). Widening the
+     column to fit 4-in-a-row instead would push min-width past the
+     container and reintroduce the always-horizontal-scroll problem the
+     53rem budget exists to avoid -- a second row of buttons costs a
+     little row height, hides nothing, works at every width. */
+  .dr-roster-panel td.dr-actions { white-space: normal; }
 
   /* Edit-staff modal (2026-08-06) -- replaces the old inline in-row edit
      entirely. Inline edit squeezed two <input>s into the already-narrow

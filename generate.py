@@ -4497,6 +4497,9 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
 (or, where the rule depends on your birth month, a full lookup table) computed from the
 verified renewal rule, with a link back to the official source and a "last verified" date.</p>
 <p class="how-it-works">Also see our <a href="blog/">guides</a>: <a href="blog/cpe-vs-license-renewal/">CPE requirements vs. license renewal</a>, <a href="blog/common-cpa-renewal-mistakes/">common CPA renewal mistakes</a>, and the <a href="blog/missouri-cpa-license-renewal-guide/">Missouri renewal guide</a>.</p>
+<section class="band-section">
+{_individual_faq_html()}
+</section>
 {signup_form_homepage(by_slug, as_of)}
 <script>
 var DR_STATES = {json.dumps(state_options)};
@@ -4510,7 +4513,7 @@ var DR_STATES = {json.dumps(state_options)};
         body,
         home_href="./",
         canonical_path="/",
-        json_ld=[_organization_schema(), _website_schema()],
+        json_ld=[_organization_schema(), _website_schema(), _individual_faq_schema()],
         has_remind_anchor=True,
     )
 
@@ -5769,6 +5772,85 @@ def _firm_dashboard_mockup_html(by_slug: dict[str, list[dict]], as_of: date) -> 
 <p class="mock-caption">Illustrative example &mdash; not a real firm. Dates shown are the actual
 current deadlines for these states, computed the same way as every free page on this site. This is
 the real product design, not a mockup of a different one.</p>"""
+
+
+# Roadmap #58 (2026-08-07): the homepage (the free individual funnel --
+# this site's primary distribution surface) had no FAQ at all; only
+# /for-firms/ did. Every answer below restates a fact already established
+# and shipped elsewhere on the site (methodology page, the remind-panel's
+# own trust bullets, the unsubscribe flow, the standing non-affiliation
+# disclaimer) rather than asserting anything new -- same discipline
+# _FIRM_FAQ below already holds itself to.
+_INDIVIDUAL_FAQ = [
+    (
+        "Is this actually free?",
+        "Yes. Individual reminders are free, no card required, no time limit. There's also a paid "
+        "firm tier for a firm tracking multiple staff CPAs, and a $39/year individual plan with CPE "
+        "tracking and a Practice Privilege Check for a single CPA who wants more than reminders -- "
+        "but the reminder service itself, for anyone, stays free.",
+    ),
+    (
+        "How do you actually verify the dates?",
+        "Every renewal date is sourced to the codified statute or board rule, cited, and rechecked on "
+        "a regular freshness cadence -- never guessed or estimated. <a href=\"methodology/\">See "
+        "exactly how, state by state.</a>",
+    ),
+    (
+        "Will you sell my email or spam me?",
+        "No. We only email you deadline reminders. We never sell or share your address, and "
+        "unsubscribing is one click, anytime, with no account or login required.",
+    ),
+    (
+        "My state's rule depends on my birth month (or I already know my exact date) -- can you still track it?",
+        "Yes. Some states compute your deadline from your birth month automatically; others let you "
+        "enter your own known renewal or expiration date directly (\"bring your own date\"). Either "
+        "way it shows up as one tracked deadline with the same escalating reminders.",
+    ),
+    (
+        "Are you affiliated with my state board of accountancy?",
+        "No. DeadlineRadar is an independent reminder and license-tracking service, not affiliated "
+        "with, endorsed by, or connected to any state board of accountancy, NASBA, or the AICPA. "
+        "Always confirm your exact renewal date with your own board if you're ever unsure.",
+    ),
+    (
+        "I'm tracking a whole firm's staff, not just my own license -- is there something for that?",
+        "Yes -- see the <a href=\"for-firms/\">firm overview</a>. Roster, calendar, and CPE tracking "
+        "are free there too; paid tiers add a multistate map and Practice Privilege Check.",
+    ),
+]
+
+
+def _individual_faq_schema() -> dict:
+    """FAQPage structured data for the homepage FAQ -- schema.org's
+    plain-text convention for acceptedAnswer.text, so the 2 answers above
+    with an inline <a> link get their markup stripped here rather than
+    emitting raw HTML into JSON-LD."""
+    return {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": q,
+                "acceptedAnswer": {"@type": "Answer", "text": re.sub(r"<[^>]+>", "", a)},
+            }
+            for q, a in _INDIVIDUAL_FAQ
+        ],
+    }
+
+
+def _individual_faq_html() -> str:
+    items = "\n".join(
+        f"""<details class="faq-item">
+  <summary>{esc(q)}</summary>
+  <p>{a}</p>
+</details>"""
+        for q, a in _INDIVIDUAL_FAQ
+    )
+    return f"""<h2>Questions people ask before signing up</h2>
+<div class="faq-list">
+{items}
+</div>"""
 
 
 _FIRM_FAQ = [

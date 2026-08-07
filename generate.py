@@ -9670,6 +9670,55 @@ function drRenderIdentities(items) {
   }).join('');
 }
 
+// Roadmap #52 (2026-08-07): self-service active-session view. Same
+// load/render/action shape as drLoadIdentities()/drRenderIdentities()/
+// drRemoveIdentity() just below -- the sibling security panel on this same
+// Account tab.
+function drRenderSessions(items) {
+  var el = document.getElementById('dr-sessions-list');
+  if (!el) return;
+  if (!items || items.length === 0) {
+    el.innerHTML = '<p class="dr-panel-empty">No active sessions.</p>';
+    return;
+  }
+  el.innerHTML = items.map(function(s) {
+    var signedIn = drEscapeHtml(drFormatDeadline(String(s.created_at).slice(0, 10)));
+    var lastActive = drEscapeHtml(drFormatDeadline(String(s.last_seen_at).slice(0, 10)));
+    var thisDevice = s.is_current
+      ? '<span class="dr-agenda-date" style="display:block;">This device</span>'
+      : '<button type="button" class="dr-cpe-recent-remove" data-session-id="' + drEscapeHtml(s.id) + '">Revoke</button>';
+    return '<div class="dr-cpe-recent-item"><span><b>Signed in ' + signedIn + '</b>' +
+      '<span class="dr-agenda-date" style="display:block;">Last active ' + lastActive + '</span></span>' +
+      thisDevice + '</div>';
+  }).join('');
+}
+
+function drLoadSessions() {
+  return fetch('/api/firm/sessions', {credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      if (!res.ok) return null;
+      return res.json();
+    })
+    .then(function(data) { drRenderSessions(data && data.sessions); })
+    .catch(function() {});
+}
+
+function drRevokeSession(id) {
+  if (!window.confirm('End this session? That device or tab will be signed out immediately.')) return;
+  var errEl = document.getElementById('dr-session-revoke-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  fetch('/api/firm/sessions/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return; }
+      if (res.ok) { drLoadSessions(); return; }
+      if (errEl) { errEl.textContent = 'Could not end that session. Please try again.'; errEl.hidden = false; }
+    })
+    .catch(function() {
+      if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+    });
+}
+
 function drLoadIdentities() {
   return fetch('/api/firm/oauth-identities', {credentials: 'include'})
     .then(function(res) {
@@ -9766,6 +9815,7 @@ function drSignOutOtherDevices(btn) {
           : 'No other sessions were active.';
         okEl.hidden = false;
       }
+      if (ended > 0) drLoadSessions();
     });
   }).catch(function() {
     if (btn) btn.disabled = false;
@@ -10941,6 +10991,16 @@ document.addEventListener('DOMContentLoaded', function() {
       var btn = ev.target.closest ? ev.target.closest('[data-identity-id]') : null;
       if (!btn) return;
       drRemoveIdentity(btn.getAttribute('data-identity-id'), btn.getAttribute('data-identity-label'));
+    });
+  }
+
+  var sessionsList = document.getElementById('dr-sessions-list');
+  if (sessionsList) {
+    drLoadSessions();
+    sessionsList.addEventListener('click', function(ev) {
+      var btn = ev.target.closest ? ev.target.closest('[data-session-id]') : null;
+      if (!btn) return;
+      drRevokeSession(btn.getAttribute('data-session-id'));
     });
   }
 
@@ -12380,8 +12440,13 @@ def build_firm_dashboard_page(
 
       <div class="dr-account-panel">
         <h2>Sessions</h2>
-        <p class="signup-microcopy">Signed in somewhere you shouldn't be &mdash; a shared computer, an
-        old device? End every OTHER session right now. This browser stays signed in.</p>
+        <p class="signup-microcopy">Where you're currently signed in. This can only show WHEN each
+        session signed in and was last active -- not device or location, which DeadlineRadar has
+        never recorded.</p>
+        <div id="dr-sessions-list"><p class="dr-panel-empty">Loading&hellip;</p></div>
+        <p id="dr-session-revoke-error" role="alert" class="dr-account-err" hidden></p>
+        <p class="signup-microcopy">Signed in somewhere you shouldn't be and don't recognize which row
+        above it is? End every OTHER session at once instead.</p>
         <button type="button" id="dr-signout-other-btn">Sign out other devices</button>
         <p id="dr-signout-other-ok" class="dr-account-ok" hidden></p>
         <p id="dr-signout-other-error" role="alert" class="dr-account-err" hidden></p>

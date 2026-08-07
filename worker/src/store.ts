@@ -2787,6 +2787,38 @@ export async function deleteAllSessionsForFirm(db: D1Database, firmId: string): 
   return result.meta.changes ?? 0;
 }
 
+/** Subset of FirmSessionRow (above) returned to the client -- deliberately
+ * excludes session_token_hash/password_reset_authorized. */
+export interface FirmSessionListRow {
+  id: string;
+  created_at: string;
+  last_seen_at: string;
+  expires_at: string;
+}
+
+/** Roadmap #52: self-service session listing. firm_sessions never captured
+ * user-agent/IP (see migration 0008's own comment -- only timestamps), so
+ * this can only show WHEN each session was created/last used, not device or
+ * location -- an honest scope limit, not an oversight. */
+export async function listSessionsForFirm(db: D1Database, firmId: string): Promise<FirmSessionListRow[]> {
+  const result = await db
+    .prepare(`SELECT id, created_at, last_seen_at, expires_at FROM firm_sessions WHERE firm_id = ?1 ORDER BY last_seen_at DESC`)
+    .bind(firmId)
+    .all<FirmSessionListRow>();
+  return result.results ?? [];
+}
+
+/** Ownership-scoped: only ever deletes a row that belongs to firmId, same
+ * pattern as deleteOtherSessionsForFirm() above. Returns false if the id
+ * didn't exist or belonged to a different firm, so the handler can 404. */
+export async function deleteSessionByIdForFirm(db: D1Database, firmId: string, sessionId: string): Promise<boolean> {
+  const result = await db
+    .prepare(`DELETE FROM firm_sessions WHERE firm_id = ?1 AND id = ?2`)
+    .bind(firmId, sessionId)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
 // ---------------------------------------------------------------------------
 // Free-tier individual sign-in (2026-07-31, migration 0012).
 //

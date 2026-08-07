@@ -66,6 +66,7 @@ import {
   DELETION_SURVEY_REASONS,
   MAX_DELETION_SURVEY_DETAIL_LEN,
   RATE_LIMIT_FIRM_SIGNOUT_OTHER,
+  RATE_LIMIT_FIRM_SESSION_REVOKE,
   RATE_LIMIT_FIRM_CHANGE_EMAIL,
   RATE_LIMIT_FIRM_PASSWORD_SET,
   RATE_LIMIT_OAUTH_START,
@@ -4887,6 +4888,9 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
     const documentDownloadMatch = /^\/firm\/documents\/([^/]+)\/download$/.exec(url.pathname);
     const documentIdMatch = /^\/firm\/documents\/([^/]+)$/.exec(url.pathname);
 
+    // /firm/sessions/:id -- roadmap #52 (2026-08-07), same up-front parsing pattern.
+    const firmSessionIdMatch = /^\/firm\/sessions\/([^/]+)$/.exec(url.pathname);
+
     // GET on an action path renders a confirmation PAGE only -- it never
     // changes state. Email providers (Gmail, corporate filters) automatically
     // GET the links in a message to scan them; if the action fired on GET, a
@@ -4949,6 +4953,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/oauth-identities") {
         try {
           return await handleOauthIdentitiesList(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/sessions") {
+        try {
+          return await handleFirmSessionsList(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -5076,6 +5087,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (mobilityCompletionIdMatch) {
         try {
           return await handleMobilityCompletionDelete(request, env, mobilityCompletionIdMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (firmSessionIdMatch) {
+        try {
+          return await handleFirmSessionRevoke(request, env, firmSessionIdMatch[1] as string);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -6365,6 +6383,55 @@ async function handleOauthIdentityDelete(request: Request, env: Env, id: string)
   }
 
   const removed = await store.unlinkOauthIdentity(env.DB, session.firmId, id);
+  if (!removed) return jsonResponse(404, { error: "Not found." });
+  return jsonResponse(200, { ok: true });
+}
+
+/**
+ * GET /firm/sessions -- roadmap #52, self-service active-session view.
+ * Same shape as handleOauthIdentitiesList just above. is_current lets the
+ * frontend mark/skip the caller's own session without a second round trip.
+ */
+async function handleFirmSessionsList(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+  const rows = await store.listSessionsForFirm(env.DB, session.firmId);
+  return jsonResponse(200, {
+    sessions: rows.map((r) => ({
+      id: r.id,
+      created_at: r.created_at,
+      last_seen_at: r.last_seen_at,
+      is_current: r.id === session.sessionId,
+    })),
+  });
+}
+
+/**
+ * DELETE /firm/sessions/:id -- revoke one specific OTHER session. The
+ * caller's own current session is deliberately excluded (400, not a
+ * silent no-op) -- ending your own session mid-request is what the
+ * existing Log out button already does explicitly; this route is only
+ * for the "some other tab/device I don't recognize" case sign-out-other-
+ * devices previously made all-or-nothing.
+ */
+async function handleFirmSessionRevoke(request: Request, env: Env, id: string): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  if (id === session.sessionId) {
+    return jsonResponse(400, { error: "Use Log out to end your own current session." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_session_revoke", RATE_LIMIT_FIRM_SESSION_REVOKE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  const removed = await store.deleteSessionByIdForFirm(env.DB, session.firmId, id);
   if (!removed) return jsonResponse(404, { error: "Not found." });
   return jsonResponse(200, { ok: true });
 }

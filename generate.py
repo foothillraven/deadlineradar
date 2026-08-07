@@ -10750,6 +10750,8 @@ document.addEventListener('DOMContentLoaded', function() {
   if (productTourReplayBtn) productTourReplayBtn.addEventListener('click', drStartProductTour);
   var reportPrintBtn = document.getElementById('dr-report-print-btn');
   if (reportPrintBtn) reportPrintBtn.addEventListener('click', function() { window.print(); });
+  var rosterPrintBtn = document.getElementById('dr-roster-print-btn');
+  if (rosterPrintBtn) rosterPrintBtn.addEventListener('click', function() { window.print(); });
   var reportCsvBtn = document.getElementById('dr-report-csv-btn');
   if (reportCsvBtn) reportCsvBtn.addEventListener('click', drDownloadRosterCsv);
   // Roadmap #15: purely client-side, re-filters the rows already fetched by
@@ -11599,8 +11601,20 @@ def build_firm_dashboard_page(
     </div>
 
     <div id="dr-view-roster" class="dr-view" role="tabpanel">
-    <h1>Coverage overview</h1>
-    <p class="subhead">Every CPA license you're tracking for your firm, at a glance.</p>
+    <div class="dr-report-toolbar">
+      <div>
+        <h1>Coverage overview</h1>
+        <p class="subhead">Every CPA license you're tracking for your firm, at a glance.</p>
+      </div>
+      <!-- Roadmap #36: the same @media print rule the Reports tab's print
+           button already uses is scoped globally, not per-tab -- this makes
+           it discoverable from Roster too. Same label as that button
+           (not "Print roster" specifically) since this prints the whole
+           visible Coverage overview -- stat cards and panels included, not
+           just the table -- and the button shouldn't claim narrower scope
+           than what actually comes out of the printer. -->
+      <button type="button" class="dr-btn-edit" id="dr-roster-print-btn">Print / Save as PDF</button>
+    </div>
 
     <div class="dr-onboarding-checklist" id="dr-onboarding-checklist" hidden>
       <div class="dr-onboarding-checklist-head">

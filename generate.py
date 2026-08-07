@@ -1159,6 +1159,11 @@ PAGE_CSS = """
        banner instead of chasing a nav item that may no longer be visible. */
     .dr-product-tour { position: fixed; top: 12px !important; left: 12px !important; right: 12px; width: auto; }
   }
+  /* Roadmap #3 (2026-08-07): Reports tab (compliance-summary printable). */
+  .dr-report-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .dr-report-generated { color: var(--muted); font-size: 0.88rem; margin: 0 0 0.9rem; }
+  .dr-report-summary { list-style: none; margin: 0 0 1.3rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem 1.6rem; font-size: 0.92rem; }
+  .dr-report-table td, .dr-report-table th { white-space: normal; }
   .dr-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.2rem; }
   @media (max-width: 860px) { .dr-panel-row { grid-template-columns: 1fr; } }
   .dr-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; }
@@ -1884,6 +1889,18 @@ PAGE_CSS = """
     .state-search-wrap, .dr-sso-block, button, .cta-button {
       display: none !important;
     }
+    /* Roadmap #3 (2026-08-07): printing the Reports tab (the only view with a
+       print button, so the only one reachable via window.print()) should show
+       just the report -- none of the dashboard's own chrome around it. Each
+       selector below shares a line with a leading . or non-# token so none of
+       these lines can ever be mistaken for a leaked Python comment (this
+       file's own preship gate flags any shipped CSS line starting with #). */
+    .dr-sidebar, .dr-onboarding-checklist, .dr-sample-mode-banner, .dr-product-tour,
+    .dr-dash-shell #dr-dash-error, .dr-dash-shell #dr-dash-success,
+    .dr-dash-shell #dr-dash-warning, .dr-dash-shell #dr-staleness-banner {
+      display: none !important;
+    }
+    .dr-dash-shell { display: block; }
     body { padding: 0; }
     .wrap { max-width: none; }
     .sheet { box-shadow: none; border: 1px solid #999999; break-inside: avoid; }
@@ -6806,6 +6823,7 @@ function drRenderAllViews() {
   drRenderCpeStaffProgress();
   drRenderCpeStaffSelect();
   drRenderCpeRecent();
+  drRenderReport();
 }
 
 function drEnterSampleMode() {
@@ -8450,6 +8468,88 @@ function drRenderCpeRecent() {
   }).join('');
 }
 
+// ---------------------------------------------------------------------------
+// Roadmap #3 (2026-08-07): "Reports: exportable compliance-summary PDF for
+// firm leadership." No new endpoint, no PDF library -- a printable HTML
+// summary of data already in memory (drLicenses/drCpeEntries, the SAME
+// arrays every other view already renders from), plus a plain
+// window.print() button. Every modern OS's print dialog already offers
+// "Save as PDF" as a destination, so this delivers exactly what the roadmap
+// item asks for (an exportable PDF) with zero new backend surface and zero
+// new dependency -- a real PDF-generation library in a Worker (no native
+// canvas/font rendering available in that runtime) would be a materially
+// bigger, riskier lift for the same end result. .dr-report-print-only CSS
+// (see PAGE_CSS's @media print block) hides the sidebar/banners/buttons so
+// the printed page is just this content, not a screenshot of the whole
+// dashboard shell.
+// ---------------------------------------------------------------------------
+function drRenderReport() {
+  var el = document.getElementById('dr-report-body');
+  if (!el) return;
+  var now = new Date();
+  var generatedOn = now.toLocaleDateString('en-US', {year: 'numeric', month: 'long', day: 'numeric'});
+  var firmNameEl = document.getElementById('dr-firm-name');
+  var firmName = firmNameEl ? firmNameEl.textContent : 'Your firm';
+
+  var total = drLicenses.length;
+  var atRisk = drLicenses.filter(function(item) {
+    var days = drDaysUntil(item.next_deadline);
+    return days === null || days <= 30;
+  }).length;
+  var cpeBehind = 0, cpeTracked = 0;
+  drLicenses.forEach(function(item) {
+    if (item.status === 'opted_out') return;
+    var p = drCpeProgressForSubscriber(item);
+    if (!p.hasRequirement) return;
+    cpeTracked++;
+    if (p.behind) cpeBehind++;
+  });
+
+  if (total === 0) {
+    el.innerHTML = '<p class="dr-panel-empty">Add staff to your roster to generate a report.</p>';
+    return;
+  }
+
+  var summaryHtml = '<p class="dr-report-generated">Generated for <strong>' + drEscapeHtml(firmName) +
+    '</strong> on ' + drEscapeHtml(generatedOn) + '.</p>' +
+    '<ul class="dr-report-summary">' +
+    '<li><strong>' + total + '</strong> staff tracked</li>' +
+    '<li><strong>' + atRisk + '</strong> due within 30 days or unresolved</li>' +
+    '<li><strong>' + cpeBehind + '</strong> of ' + cpeTracked + ' behind on CPE hours</li>' +
+    '</ul>';
+
+  var rows = drLicenses.slice().sort(function(a, b) {
+    var da = drDaysUntil(a.next_deadline), db = drDaysUntil(b.next_deadline);
+    if (da === null) return 1;
+    if (db === null) return -1;
+    return da - db;
+  }).map(function(item) {
+    var name = drEscapeHtml(item.staff_label || item.email);
+    var state = drEscapeHtml(item.state_name || '');
+    var licenseTypeIdForDisplay = item.license_type_id || DR_DEFAULT_LICENSE_TYPE_ID[item.state_slug];
+    var licenseType = drEscapeHtml(drPrettyLicenseType(licenseTypeIdForDisplay));
+    var statusLabel = drEscapeHtml(DR_STATUS_LABELS[item.status] || item.status);
+    var deadline = drEscapeHtml(drFormatDeadline(item.next_deadline));
+    var p = drCpeProgressForSubscriber(item);
+    var cpeCell;
+    if (!p.hasRequirement) {
+      cpeCell = 'Not tracked';
+    } else {
+      var totalPart = p.totalRequired !== null ? p.totalLogged + ' / ' + p.totalRequired + ' hrs' + (p.totalBehind ? ' (behind)' : '') : '';
+      var ethicsPart = p.ethicsRequired !== null ? p.ethicsLogged + ' / ' + p.ethicsRequired + ' ethics hrs' + (p.ethicsBehind ? ' (behind)' : '') : '';
+      cpeCell = drEscapeHtml([totalPart, ethicsPart].filter(Boolean).join(', '));
+    }
+    return '<tr><td>' + name + '</td><td>' + state + '</td><td>' + licenseType + '</td><td>' +
+      statusLabel + '</td><td>' + deadline + '</td><td>' + cpeCell + '</td></tr>';
+  }).join('');
+
+  el.innerHTML = summaryHtml +
+    '<div class="table-wrap"><table class="dr-report-table">' +
+    '<thead><tr><th scope="col">Staff</th><th scope="col">State</th><th scope="col">License type</th>' +
+    '<th scope="col">Status</th><th scope="col">Next deadline</th><th scope="col">CPE progress</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody></table></div>';
+}
+
 function drLoadCpeEntries() {
   return fetch('/api/firm/cpe', {credentials: 'include'})
     .then(function(res) {
@@ -8463,6 +8563,7 @@ function drLoadCpeEntries() {
       drRenderCpeSummary();
       drRenderCpeStaffProgress();
       drRenderCpeRecent();
+      drRenderReport();
     })
     .catch(function() {});
 }
@@ -9313,6 +9414,8 @@ document.addEventListener('DOMContentLoaded', function() {
   if (productTourSkipBtn) productTourSkipBtn.addEventListener('click', drEndProductTour);
   var productTourReplayBtn = document.getElementById('dr-product-tour-replay-btn');
   if (productTourReplayBtn) productTourReplayBtn.addEventListener('click', drStartProductTour);
+  var reportPrintBtn = document.getElementById('dr-report-print-btn');
+  if (reportPrintBtn) reportPrintBtn.addEventListener('click', function() { window.print(); });
   // Anchored via getBoundingClientRect() against a live nav item -- has to
   // be recomputed if the viewport (and so the sidebar's on-screen position)
   // changes while the tour is open.
@@ -9722,13 +9825,16 @@ def _dashboard_sidebar_html(active: str, tabs_live_here: bool) -> str:
             ("calendar", "Calendar"),
             ("map", "Map"),
             ("cpe", "CPE Hours"),
+            ("reports", "Reports"),
             ("mobility", "Practice Privilege Check"),
             ("account", "Account"),
         )
     )
+    # Roadmap #3 (2026-08-07): Reports is a real tab now -- Documents (#1/#2)
+    # stays "Soon" until R2 is enabled (blocked, see HANDOFF.md).
     sidebar_nav_soon_items = "\n    ".join(
         f'<li><span class="dr-nav-soon">{esc(label)}<span class="dr-soon-badge">Soon</span></span></li>'
-        for label in ("Reports", "Documents")
+        for label in ("Documents",)
     )
     firm_name_html = (
         '<div class="dr-firm-name" id="dr-firm-name">Dashboard</div>'
@@ -10257,6 +10363,18 @@ def build_firm_dashboard_page(
         <h2>Recently logged</h2>
         <div id="dr-cpe-recent-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
       </div>
+    </div>
+
+    <div id="dr-view-reports" class="dr-view" role="tabpanel" hidden>
+      <div class="dr-report-toolbar">
+        <div>
+          <h1>Compliance Summary</h1>
+          <p class="subhead">A printable snapshot of your firm's renewal and CPE status, for
+          leadership or your own records.</p>
+        </div>
+        <button type="button" class="dr-btn-edit" id="dr-report-print-btn">Print / Save as PDF</button>
+      </div>
+      <div id="dr-report-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
     </div>
 
     <div id="dr-view-account" class="dr-view" role="tabpanel" hidden>

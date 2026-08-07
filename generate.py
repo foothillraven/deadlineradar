@@ -1192,6 +1192,15 @@ PAGE_CSS = """
   }
   .dr-bulk-tag-panel button:hover { opacity: 0.92; }
   .dr-bulk-tag-panel #dr-bulk-tag-status { margin: 0.6rem 0 0; }
+  /* Roadmap #17 (2026-08-07): CSV bulk import preview/results table. */
+  .dr-csv-import-panel code { background: var(--bg); border-radius: 3px; padding: 0.05rem 0.3rem; font-size: 0.85em; }
+  .dr-csv-preview-table { width: 100%; border-collapse: collapse; margin-top: 0.9rem; font-size: 0.85rem; }
+  .dr-csv-preview-table th, .dr-csv-preview-table td {
+    text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border);
+  }
+  .dr-csv-row-ready { color: var(--muted); }
+  .dr-csv-row-error { color: #c33737; }
+  .dr-csv-row-added { color: #2e8b57; }
   .dr-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.2rem; }
   @media (max-width: 860px) { .dr-panel-row { grid-template-columns: 1fr; } }
   .dr-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; }
@@ -6608,6 +6617,22 @@ def _firm_dashboard_add_staff_form_html(by_slug: dict[str, list[dict]], as_of: d
     <button type="submit">Add staff</button>
   </form>
   <p id="dr-add-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
+</div>
+
+<div class="signup-form dr-csv-import-panel" id="dr-csv-import">
+  <h2>Import staff (CSV)</h2>
+  <p class="signup-microcopy">One row per staff member. First row must be column headers -- at
+  minimum <code>email</code> and <code>state</code> (or <code>state_slug</code>). Optional columns:
+  <code>staff_label</code>, <code>license_type_id</code>, <code>birth_month</code>,
+  <code>birth_year</code>, <code>cohort_group</code>, <code>license_expiration_date</code>,
+  <code>renewal_fee</code>, <code>office_tag</code> -- same fields the form above accepts, so a state
+  needing more than email/state (about a third of them do) needs the matching column filled in or
+  that row will be skipped with the same reason the single Add Staff form would show.</p>
+  <input type="file" id="dr-csv-import-file" accept=".csv,text/csv">
+  <button type="button" id="dr-csv-preview-btn">Preview</button>
+  <div id="dr-csv-preview-body"></div>
+  <button type="button" id="dr-csv-import-btn" hidden>Import staff</button>
+  <p class="dr-modal-hint" id="dr-csv-import-status"></p>
 </div>"""
 
 
@@ -7052,6 +7077,205 @@ function drApplyBulkTag() {
     drLoadLicenses();
   }).catch(function() {
     if (statusEl) statusEl.textContent = 'Something went wrong, please try again.';
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Roadmap #17 (2026-08-07): CSV bulk import of staff roster. Deliberately no
+// new backend endpoint or duplicated validation logic -- parses the file
+// client-side, then submits each row through the EXACT SAME POST
+// /firm/licenses the single Add Staff form already uses (same email/state
+// validation, same seat-cap/dedupe checks, same transparency email per row).
+// A row missing a field its state actually needs (about a third of states
+// need more than email/state -- license_type_id, birth_month, etc.) gets the
+// SAME error message a manual single add would get; this importer never
+// guesses a value to make a row "succeed."
+// ---------------------------------------------------------------------------
+
+// Known column names, matching POST /firm/licenses' own body keys exactly
+// (index.ts's `form` object reads these by name regardless of whether they
+// came from a real <form> submission or here).
+var DR_CSV_KNOWN_COLUMNS = [
+  'email', 'staff_label', 'license_type_id', 'birth_month', 'birth_year',
+  'cohort_group', 'license_expiration_date', 'renewal_fee', 'office_tag'
+];
+
+// Minimal RFC4180-ish CSV parser -- handles quoted fields (embedded commas,
+// embedded "" as an escaped quote, embedded newlines inside quotes). Not a
+// full spec implementation (e.g. no BOM handling beyond a plain strip), but
+// covers what a real spreadsheet export (Excel/Sheets/Numbers) produces.
+function drParseCsv(text) {
+  var rows = [];
+  var row = [];
+  var field = '';
+  var inQuotes = false;
+  var i = 0;
+  text = text.replace(/^\\uFEFF/, '');
+  while (i < text.length) {
+    var ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += ch; i++; continue;
+    }
+    if (ch === '"') { inQuotes = true; i++; continue; }
+    if (ch === ',') { row.push(field); field = ''; i++; continue; }
+    if (ch === '\\r') { i++; continue; }
+    if (ch === '\\n') { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+    field += ch; i++;
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  return rows.filter(function(r) { return !(r.length === 1 && r[0].trim() === ''); });
+}
+
+// Roadmap #17: lets a CSV say "California" instead of requiring the exact
+// internal slug -- built from the live Add Staff state <select>'s own
+// options, so it can never drift from the real supported-state list.
+function drStateNameToSlugMap() {
+  var map = {};
+  var stateSelect = document.getElementById('dr-add-state');
+  if (!stateSelect) return map;
+  Array.from(stateSelect.options).forEach(function(o) {
+    if (!o.value) return;
+    map[o.value.toLowerCase()] = o.value;
+    map[o.textContent.trim().toLowerCase()] = o.value;
+  });
+  return map;
+}
+
+var drCsvRows = [];
+
+function drPreviewCsvImport() {
+  var fileInput = document.getElementById('dr-csv-import-file');
+  var statusEl = document.getElementById('dr-csv-import-status');
+  var file = fileInput && fileInput.files && fileInput.files[0];
+  if (!file) {
+    if (statusEl) statusEl.textContent = 'Choose a CSV file first.';
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function() {
+    var parsed = drParseCsv(String(reader.result));
+    if (parsed.length < 2) {
+      if (statusEl) statusEl.textContent = 'That file has no data rows (just a header, or empty).';
+      drCsvRows = [];
+      drRenderCsvPreview();
+      return;
+    }
+    var headers = parsed[0].map(function(h) { return h.trim().toLowerCase(); });
+    var stateMap = drStateNameToSlugMap();
+    // Roadmap #17: capped -- a CSV this large is almost certainly a mistake
+    // (25-staff seat cap on the self-serve plan), and an unbounded preview
+    // table would be its own UX problem.
+    var dataRows = parsed.slice(1, 201);
+    drCsvRows = dataRows.map(function(cells) {
+      var fields = {};
+      headers.forEach(function(h, idx) {
+        var value = (cells[idx] || '').trim();
+        if (!value) return;
+        if (h === 'state' || h === 'state_slug') { fields.__state_raw = value; return; }
+        if (DR_CSV_KNOWN_COLUMNS.indexOf(h) !== -1) fields[h] = value;
+      });
+      var reason = null;
+      if (!fields.email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(fields.email)) {
+        reason = 'missing or invalid email';
+      } else if (!fields.__state_raw) {
+        reason = 'missing state';
+      } else {
+        var slug = stateMap[fields.__state_raw.toLowerCase()];
+        if (!slug) {
+          reason = 'unrecognized state "' + fields.__state_raw + '"';
+        } else {
+          fields.state_slug = slug;
+        }
+      }
+      delete fields.__state_raw;
+      return {fields: fields, valid: !reason, reason: reason, result: null};
+    });
+    drRenderCsvPreview();
+  };
+  reader.onerror = function() {
+    if (statusEl) statusEl.textContent = 'Could not read that file.';
+  };
+  reader.readAsText(file);
+}
+
+function drRenderCsvPreview() {
+  var el = document.getElementById('dr-csv-preview-body');
+  var importBtn = document.getElementById('dr-csv-import-btn');
+  var statusEl = document.getElementById('dr-csv-import-status');
+  if (!el) return;
+  if (drCsvRows.length === 0) {
+    el.innerHTML = '';
+    if (importBtn) importBtn.hidden = true;
+    return;
+  }
+  var validCount = drCsvRows.filter(function(r) { return r.valid; }).length;
+  var rowsHtml = drCsvRows.map(function(r) {
+    var statusText = r.result === 'added' ? 'Added'
+      : r.result === 'failed' ? ('Failed: ' + r.resultReason)
+      : r.valid ? 'Ready'
+      : ('Skipped: ' + r.reason);
+    var statusClass = r.result === 'added' ? 'dr-csv-row-added'
+      : (r.result === 'failed' || !r.valid) ? 'dr-csv-row-error' : 'dr-csv-row-ready';
+    return '<tr><td>' + drEscapeHtml(r.fields.staff_label || '') + '</td><td>' +
+      drEscapeHtml(r.fields.email || '') + '</td><td>' + drEscapeHtml(r.fields.state_slug || '') + '</td>' +
+      '<td class="' + statusClass + '">' + drEscapeHtml(statusText) + '</td></tr>';
+  }).join('');
+  el.innerHTML = '<table class="dr-csv-preview-table"><thead><tr><th scope="col">Name</th>' +
+    '<th scope="col">Email</th><th scope="col">State</th><th scope="col">Status</th></tr></thead>' +
+    '<tbody>' + rowsHtml + '</tbody></table>';
+  if (importBtn) importBtn.hidden = validCount === 0;
+  if (statusEl) statusEl.textContent = validCount + ' of ' + drCsvRows.length + ' row' +
+    (drCsvRows.length === 1 ? '' : 's') + ' ready to import.';
+}
+
+function drImportCsvRows() {
+  var statusEl = document.getElementById('dr-csv-import-status');
+  var importBtn = document.getElementById('dr-csv-import-btn');
+  var toImport = drCsvRows.filter(function(r) { return r.valid && r.result === null; });
+  if (toImport.length === 0) return;
+  if (importBtn) importBtn.disabled = true;
+  var done = 0;
+  var addOne = function(row) {
+    return fetch('/api/firm/licenses', {
+      method: 'POST', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(row.fields)
+    }).then(function(res) {
+      return drReadJsonSafe(res).then(function(data) {
+        row.result = res.ok ? 'added' : 'failed';
+        row.resultReason = res.ok ? null : ((data && data.error) || ('HTTP ' + res.status));
+        done++;
+        if (statusEl) statusEl.textContent = 'Importing\\u2026 ' + done + ' of ' + toImport.length;
+        drRenderCsvPreview();
+      });
+    }).catch(function() {
+      row.result = 'failed';
+      row.resultReason = 'network error';
+      done++;
+      drRenderCsvPreview();
+    });
+  };
+  // Sequential, not Promise.all -- each row is a real write (+ a real email
+  // send), same "don't hammer the endpoint" posture as a human clicking Add
+  // staff N times in a row, not a parallel burst.
+  var chain = Promise.resolve();
+  toImport.forEach(function(row) {
+    chain = chain.then(function() { return addOne(row); });
+  });
+  chain.then(function() {
+    var added = drCsvRows.filter(function(r) { return r.result === 'added'; }).length;
+    var failed = drCsvRows.filter(function(r) { return r.result === 'failed'; }).length;
+    if (statusEl) {
+      statusEl.textContent = 'Imported ' + added + ' staff member' + (added === 1 ? '' : 's') +
+        (failed > 0 ? ('; ' + failed + ' failed (see table).') : '.');
+    }
+    if (importBtn) importBtn.disabled = false;
+    drRenderCsvPreview();
+    drLoadLicenses();
   });
 }
 
@@ -10092,6 +10316,11 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   var bulkTagApplyBtn = document.getElementById('dr-bulk-tag-apply-btn');
   if (bulkTagApplyBtn) bulkTagApplyBtn.addEventListener('click', drApplyBulkTag);
+  // Roadmap #17.
+  var csvPreviewBtn = document.getElementById('dr-csv-preview-btn');
+  if (csvPreviewBtn) csvPreviewBtn.addEventListener('click', drPreviewCsvImport);
+  var csvImportBtn = document.getElementById('dr-csv-import-btn');
+  if (csvImportBtn) csvImportBtn.addEventListener('click', drImportCsvRows);
   // Anchored via getBoundingClientRect() against a live nav item -- has to
   // be recomputed if the viewport (and so the sidebar's on-screen position)
   // changes while the tour is open.

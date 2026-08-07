@@ -758,6 +758,15 @@
   }
   .dr-bulk-tag-panel button:hover { opacity: 0.92; }
   .dr-bulk-tag-panel #dr-bulk-tag-status { margin: 0.6rem 0 0; }
+  
+  .dr-csv-import-panel code { background: var(--bg); border-radius: 3px; padding: 0.05rem 0.3rem; font-size: 0.85em; }
+  .dr-csv-preview-table { width: 100%; border-collapse: collapse; margin-top: 0.9rem; font-size: 0.85rem; }
+  .dr-csv-preview-table th, .dr-csv-preview-table td {
+    text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border);
+  }
+  .dr-csv-row-ready { color: var(--muted); }
+  .dr-csv-row-error { color: #c33737; }
+  .dr-csv-row-added { color: #2e8b57; }
   .dr-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.2rem; }
   @media (max-width: 860px) { .dr-panel-row { grid-template-columns: 1fr; } }
   .dr-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; }

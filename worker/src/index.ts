@@ -2759,7 +2759,17 @@ async function handleFirmStaffCpeReminder(request: Request, env: Env): Promise<R
 
   let sent = false;
   let reason: string | null = null;
-  if (!env.SENDGRID_API_KEY) {
+  // AuditLab DEMO-4 (MEDIUM, 2026-08-07): a demo visitor can set a roster
+  // row's email to ANY address and this handler mints and mails a real
+  // subscriber login token to it -- an email-arbitrary-third-parties
+  // primitive reachable from a password published on our own site,
+  // drawing on the shared daily send cap. Gate the SEND, not the request
+  // itself -- the demo stays fully interactive, no third party ever hears
+  // from us. Same "gate the send, not the edit" line DEMO-3 already draws
+  // for the dismiss-endpoint class of finding.
+  if (session.firm.demo_locked) {
+    reason = "This is a shared demo account -- emails aren't sent from it.";
+  } else if (!env.SENDGRID_API_KEY) {
     reason = "Email sending isn't configured.";
   } else if (await store.isPermanentlySuppressed(env.DB, staffRow.email)) {
     reason = "This person has unsubscribed from all emails, so we can't reach them.";
@@ -2959,9 +2969,15 @@ async function handleFirmRuleChangeNotify(request: Request, env: Env): Promise<R
     (row) => row.state_slug === stateSlug && firmLicenseStatus(row) !== "opted_out"
   );
 
+  // AuditLab DEMO-4 (MEDIUM, 2026-08-07): fans out to every roster staffer
+  // in the state -- see handleFirmStaffCpeReminder's own comment for the
+  // "gate the send, not the edit" reasoning.
+  const demoLocked = session.firm.demo_locked;
   let sent = 0;
   let skipped = 0;
-  if (targets.length > 0 && env.SENDGRID_API_KEY) {
+  if (demoLocked) {
+    skipped = targets.length;
+  } else if (targets.length > 0 && env.SENDGRID_API_KEY) {
     const stateName = stateNameFromSlug(stateSlug);
     const built = buildRuleChangeNotificationEmail(
       session.firm.name ?? "Your firm",
@@ -2993,7 +3009,11 @@ async function handleFirmRuleChangeNotify(request: Request, env: Env): Promise<R
     sent,
     skipped,
     total: targets.length,
-    reason: !env.SENDGRID_API_KEY ? "Email sending isn't configured." : null,
+    reason: demoLocked
+      ? "This is a shared demo account -- emails aren't sent from it."
+      : !env.SENDGRID_API_KEY
+        ? "Email sending isn't configured."
+        : null,
   });
 }
 
@@ -4020,7 +4040,12 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
     // Non-fatal -- the roster add already succeeded regardless.
   }
 
-  if (env.SENDGRID_API_KEY) {
+  // AuditLab DEMO-4 (MEDIUM, 2026-08-07): the sharpest path of the four --
+  // no PATCH, no reminder click, just Add Staff with skipConfirmation:
+  // true. A demo visitor types any address here and our servers email it
+  // in one step. See handleFirmStaffCpeReminder's own comment for the
+  // "gate the send, not the edit" reasoning.
+  if (env.SENDGRID_API_KEY && !session.firm.demo_locked) {
     try {
       const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
       if (underCap) {
@@ -4270,7 +4295,11 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
   // inbox -- see UpdateFirmLicenseInput.resetConfirmation's own doc. Send
   // that new address its own fresh confirm email, same best-effort posture
   // as every other send in this file.
-  if (emailChanged && env.SENDGRID_API_KEY) {
+  // AuditLab DEMO-4 (MEDIUM, 2026-08-07): same "gate the send, not the
+  // edit" reasoning as handleFirmLicenseCreate's own comment -- the PATCH
+  // (including the email swap itself) still succeeds normally for a demo
+  // visitor, only the outbound email to the new address is skipped.
+  if (emailChanged && env.SENDGRID_API_KEY && !session.firm.demo_locked) {
     try {
       const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
       if (underCap) {

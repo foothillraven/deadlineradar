@@ -393,6 +393,84 @@ def check_sitemap_completeness(html_files: list[Path], docs_dir: Path) -> list[s
     return errors
 
 
+def check_demo_locked_email_coverage(repo_root: Path) -> list[str]:
+    """AuditLab DEMO-4 (MEDIUM, 2026-08-07): the 4th sibling-decay in ~24
+    hours -- an invariant (session-authenticated handlers that email a
+    roster-controlled/attacker-suppliable address must skip the send for
+    demo_locked firms) enforced ad hoc, nothing asserting it. Without this,
+    "one new roster-email feature away from reopening" per AuditLab's own
+    framing, since roster-email features have shipped several times a day
+    this session.
+
+    Source-scans worker/src/index.ts (balanced-brace parse of each `async
+    function handle*` body, same source-of-truth-not-import approach every
+    sibling guard in this file uses) for functions calling sendViaSendGrid(),
+    and requires each to also reference demo_locked -- UNLESS explicitly
+    allowlisted below with the reason it's safe. The allowlist is the
+    opt-out AuditLab itself asked for; every entry names why the recipient
+    isn't attacker-controlled, not just "already reviewed"."""
+    index_ts = repo_root / "worker" / "src" / "index.ts"
+    if not index_ts.exists():
+        print("  (skipping demo-locked-email-coverage check -- worker/ tree not present in this checkout)")
+        return []
+    text = index_ts.read_text(encoding="utf-8")
+
+    # name -> reason the recipient is NOT attacker/demo-visitor-controlled.
+    allowlisted = {
+        "handleSubscribe": "public /subscribe form -- no firm session exists at all (anonymous signup)",
+        "handleRoadmapNotifySignup": "public /roadmap/ voting page -- no firm session exists at all (anonymous)",
+        "handleUnsubscribe": "sends only to firm.admin_email (the firm's own address), not an attacker-suppliable one",
+        "handleRenewed": "sends only to the subscriber's OWN address, keyed by a token minted for that same address",
+        "handleFirmSignOutOtherDevices": "sends only to firm.admin_email (the firm's own address)",
+        "handleOauthCallback": "sends only to firm.admin_email on a genuine new-signup notification",
+        "handleFirmChangeEmailRequest": "already demo_locked-gated for the whole request (403), not just the send",
+        "handleFirmPasswordSet": "already demo_locked-gated for the whole request (403), not just the send",
+        "handleFirmAccountDelete": "already demo_locked-gated for the whole request (403), not just the send",
+    }
+
+    errors = []
+    for m in re.finditer(r"async function (handle\w+)\s*\([^)]*\)[^{]*\{", text):
+        name = m.group(1)
+        start = m.end() - 1
+        depth = 0
+        i = start
+        while i < len(text):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        body = text[start : i + 1]
+        if "sendViaSendGrid(" not in body:
+            continue
+        if "demo_locked" in body:
+            continue
+        if name in allowlisted:
+            continue
+        errors.append(
+            f"[DEMO-EMAIL] {name}() calls sendViaSendGrid() but has no demo_locked check and isn't "
+            "in check_demo_locked_email_coverage()'s allowlist -- either gate the send for a demo_locked "
+            "firm, or add it to the allowlist with the reason its recipient is never attacker-controlled"
+        )
+
+    # Reverse direction: an allowlist entry for a function that no longer
+    # exists, or that NOW has demo_locked (so the entry is stale/redundant),
+    # should be trimmed -- same "both directions" discipline the sitemap and
+    # retention guards apply.
+    found_names = {
+        m.group(1)
+        for m in re.finditer(r"async function (handle\w+)\s*\([^)]*\)[^{]*\{", text)
+    }
+    stale_allowlist = sorted(set(allowlisted) - found_names)
+    if stale_allowlist:
+        errors.append(
+            f"[DEMO-EMAIL] allowlist entry for function(s) that no longer exist: {', '.join(stale_allowlist)}"
+        )
+    return errors
+
+
 def check_retention_coverage(repo_root: Path) -> list[str]:
     """AuditLab RETAIN-1 (MEDIUM, 2026-08-07): store.hardDeleteExpiredFirms()'s
     table list is hand-maintained with nothing enforcing it -- 5 firm-scoped
@@ -661,6 +739,7 @@ def main():
     all_errors += check_json_copies_identical(repo_root)
     all_errors += check_retention_coverage(repo_root)
     all_errors += check_sitemap_completeness(html_files, docs_dir)
+    all_errors += check_demo_locked_email_coverage(repo_root)
 
     print(f"Pre-ship gate: scanned {len(html_files)} rendered pages, {len(state_dirs)} state dirs.")
     if all_errors:

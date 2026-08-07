@@ -5163,10 +5163,9 @@ def _firm_dashboard_mockup_html(by_slug: dict[str, list[dict]], as_of: date) -> 
         <li><a href="#" tabindex="-1">Calendar</a></li>
         <li><a href="#" tabindex="-1">Map</a></li>
         <li><a href="#" tabindex="-1">CPE Hours</a></li>
+        <li><a href="#" tabindex="-1">Reports</a></li>
         <li><a href="/firm-mobility/">Practice Privilege Check</a></li>
         <li><a href="#" tabindex="-1">Account</a></li>
-        <li><span class="dr-nav-soon">Reports<span class="dr-soon-badge">Soon</span></span></li>
-        <li><span class="dr-nav-soon">Documents<span class="dr-soon-badge">Soon</span></span></li>
       </ul>
     </aside>
     <div class="dr-main">
@@ -10019,11 +10018,16 @@ def _dashboard_sidebar_html(active: str, tabs_live_here: bool) -> str:
             ("account", "Account"),
         )
     )
-    # Roadmap #3 (2026-08-07): Reports is a real tab now -- Documents (#1/#2)
-    # stays "Soon" until R2 is enabled (blocked, see HANDOFF.md).
+    # Roadmap #3 (2026-08-07) then #1/#2 (2026-08-07): Reports and Documents
+    # are both real now -- Documents is reached per-staff-member (a
+    # "Documents" button on each roster row opens that person's upload/list
+    # modal), not a dedicated sidebar tab of its own, so there's nothing left
+    # to list here as "Soon". Kept as a tuple (not deleted outright) since a
+    # FUTURE firm-wide document library view is a real, separate possibility
+    # this placeholder mechanism can pick back up.
     sidebar_nav_soon_items = "\n    ".join(
         f'<li><span class="dr-nav-soon">{esc(label)}<span class="dr-soon-badge">Soon</span></span></li>'
-        for label in ("Documents",)
+        for label in ()
     )
     firm_name_html = (
         '<div class="dr-firm-name" id="dr-firm-name">Dashboard</div>'

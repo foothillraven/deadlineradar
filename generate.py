@@ -546,6 +546,28 @@ PAGE_CSS = """
   .dr-cadence-fieldset {
     border: 0; margin: 0; padding: 0;
   }
+  /* Roadmap #44: skeleton placeholder for the two Coverage-overview panels
+     that are guaranteed visible during real network latency (the landing
+     tab, shown before drLoadLicenses()'s first fetch resolves) -- other
+     "Loading..." panels sit behind a tab click that in practice usually
+     happens after that same fetch has already resolved, so they weren't
+     worth the same treatment. Border-based gradient (not a literal color)
+     so it tracks light/dark theme automatically via the existing vars. */
+  .dr-skeleton-line {
+    height: 0.85rem; border-radius: 4px; margin: 0.5rem 0;
+    background: linear-gradient(90deg, var(--border) 25%, var(--border-strong) 50%, var(--border) 75%);
+    background-size: 200% 100%;
+    animation: dr-skeleton-shimmer 1.4s ease-in-out infinite;
+  }
+  .dr-skeleton-line:nth-child(2) { width: 80%; }
+  .dr-skeleton-line:nth-child(3) { width: 60%; }
+  @keyframes dr-skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dr-skeleton-line { animation: none; }
+  }
   .table-wrap {
     overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
     -webkit-overflow-scrolling: touch;
@@ -11962,11 +11984,17 @@ def build_firm_dashboard_page(
     <div class="dr-panel-row">
       <div class="dr-panel">
         <h2>Staff at risk</h2>
-        <ul class="dr-at-risk-list" id="dr-at-risk-list" role="status" aria-live="polite"><li class="dr-panel-empty">Loading&hellip;</li></ul>
+        <ul class="dr-at-risk-list" id="dr-at-risk-list" role="status" aria-live="polite">
+          <li class="dr-visually-hidden">Loading&hellip;</li>
+          <li aria-hidden="true"><div class="dr-skeleton-line"></div><div class="dr-skeleton-line"></div><div class="dr-skeleton-line"></div></li>
+        </ul>
       </div>
       <div class="dr-panel">
         <h2>Recent activity</h2>
-        <ul class="dr-activity-list" id="dr-activity-list"><li class="dr-panel-empty">Loading&hellip;</li></ul>
+        <ul class="dr-activity-list" id="dr-activity-list">
+          <li class="dr-visually-hidden">Loading&hellip;</li>
+          <li aria-hidden="true"><div class="dr-skeleton-line"></div><div class="dr-skeleton-line"></div><div class="dr-skeleton-line"></div></li>
+        </ul>
       </div>
     </div>
 

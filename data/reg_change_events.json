@@ -1,16 +1,16 @@
 {
   "_meta": {
     "purpose": "Publishable rule-change events for the public changes feed.",
-    "generated_from": "worker/src/mobility_rules.json (batch research) + automated day-to-day source monitoring (2 currently promoted).",
+    "generated_from": "worker/src/mobility_rules.json (batch research) + automated day-to-day source monitoring (3 currently promoted).",
     "separable": "Deliberately independent of the mobility determination engine (AuditLab MON-2, 2026-08-06: the engine shipped to production 2026-07-30 -- /firm/mobility/check, /firm/mobility/check-batch, /firm/mobility/coverage, and the /firm-mobility/ Practice Privilege Check UI are all live; this note previously said HELD, which stopped being true and would have misled a future maintainer about what's deployed). This feed publishes change facts + citations only and stays architecturally independent of that engine either way -- a change fact does not require or imply a mobility determination for the same state.",
     "status_derivation": "Structured fields ONLY (rule_changes_on presence + direction, or the monitoring pipeline's own classified status). Status is NOT inferred from prose: 27 of 55 mobility records match enacted/proposed/rule signals simultaneously, so a regex label would be a guess. Records whose status cannot be established from structure are not emitted.",
     "reverification_rule": "needs_reverification=true means the effective date has passed and we have NOT re-checked. The page must say 'effective [date]; we re-verify on/after that date' -- never 'is now in effect'.",
-    "as_of": "2026-08-06",
-    "changes_published": 12,
+    "as_of": "2026-08-07",
+    "changes_published": 13,
     "changes_upcoming": 11,
-    "changes_recent": 1,
+    "changes_recent": 2,
     "source_conflicts_published": 7,
-    "live_monitoring_count": 2
+    "live_monitoring_count": 3
   },
   "events": [
     {
@@ -79,7 +79,7 @@
       "citation_url": "https://revisor.mo.gov/main/OneSection.aspx?section=326.289",
       "secondary_url": "https://pr.mo.gov/accountancy.asp",
       "verified_date": "2026-08-05",
-      "confidence": "single_source",
+      "confidence": "dual_source",
       "summary_public": "A new enactment of the CPA firm permit issuance-and-renewal statute takes effect, replacing the version in effect since 2020. The board may grant or renew permits to practice as a certified public accounting firm to applicants meeting the qualifications in this chapter.",
       "kind": "rule_change",
       "effective_date": "2026-08-28",
@@ -99,7 +99,7 @@
       "citation_url": "https://revisor.mo.gov/main/OneSection.aspx?section=326.283",
       "secondary_url": "https://pr.mo.gov/accountancy.asp",
       "verified_date": "2026-08-05",
-      "confidence": "single_source",
+      "confidence": "dual_source",
       "summary_public": "A new enactment of the individual out-of-state CPA reciprocity/practice-privilege statute takes effect, replacing the version in effect since 2017. Under the new version, an individual with a valid, unrestricted CPA license from any state may practice in Missouri without obtaining a Missouri license, notifying the board, or paying a fee, provided the individual met qualifying education/experience requirements at initial licensure (or held qualifying practice privileges as of 2024-12-31 under a grandfather provision).",
       "kind": "rule_change",
       "effective_date": "2026-08-28",
@@ -354,6 +354,26 @@
       "effective_date": null,
       "status": "SOURCE_CONFLICT",
       "needs_reverification": false
+    },
+    {
+      "event_id": "idaho-regwatch-3189d3f2b9ba",
+      "jurisdiction_slug": "idaho",
+      "jurisdiction": "Idaho",
+      "topic": "CPA regulatory/statutory change",
+      "citation": "IDAPA 24.30.01 (Idaho Accountancy Rules), Docket No. 24-3001-2601",
+      "citation_url": "https://dopl.idaho.gov/boa/boa-statutes-rules-and-guidance/",
+      "secondary_url": "https://proddfmmainsa.blob.core.windows.net/dfm-admin-website/bulletin/2026/08.pdf",
+      "verified_date": "2026-08-07",
+      "confidence": "dual_source",
+      "summary_public": "A proposed rulemaking would: (1) create a new pathway to licensure for candidates and make minor adjustments to accommodate statutory changes in line with HB 563 from 2026; (2) transition renewal dates from a fixed June 30 date to birthdate-based renewals with an expanded window to accommodate peak tax season; and (3) remove outdated rule language. Outcome is not yet settled -- a public hearing is scheduled, not yet adopted.",
+      "kind": "rule_change",
+      "effective_date": null,
+      "status": "PROPOSED",
+      "status_evidence": "NOTICE OF RULEMAKING -- PROPOSED RULE ... This contemplated rulemaking: (1) facilitates a new pathway to licensure for candidates and makes minor adjustments to accommodate for statutory changes in line with HB 563 from 2026; (2) transitions from June 30 to birthdate-based renewals with an expanded window to accommodate peak tax season; and (3) removes outdated language.",
+      "status_source_url": "https://dopl.idaho.gov/boa/boa-statutes-rules-and-guidance/",
+      "upcoming": false,
+      "needs_reverification": false,
+      "source": "difflab_reg_change_engine"
     }
   ]
 }

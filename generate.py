@@ -2714,12 +2714,76 @@ def _turnstile_head_html() -> str:
     return '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>'
 
 
+def _upcoming_change_events_by_state() -> dict[str, list[dict]]:
+    """Same kind=='rule_change' AND upcoming filter build_firm_dashboard_page()
+    already uses for its own rule-change surface, and the exact set
+    build_rule_changes_page()'s "Upcoming changes" section publishes -- so a
+    per-state page can never show something that page itself wouldn't stand
+    behind. Grouped by jurisdiction_slug and computed once at module load
+    (not per page) since the source feed is small and identical for every
+    caller this build. Sorted soonest-first per state."""
+    raw = json.loads(REG_CHANGE_EVENTS_PATH.read_text(encoding="utf-8"))
+    by_state: dict[str, list[dict]] = {}
+    for e in raw.get("events", []):
+        if e.get("kind") != "rule_change" or not e.get("upcoming") or not e.get("effective_date"):
+            continue
+        slug = e.get("jurisdiction_slug")
+        if not slug:
+            continue
+        by_state.setdefault(slug, []).append(e)
+    for events in by_state.values():
+        events.sort(key=lambda ev: ev["effective_date"])
+    return by_state
+
+
+_UPCOMING_CHANGE_EVENTS_BY_STATE = _upcoming_change_events_by_state()
+
+
+def _upcoming_change_callout_html(state_slug: str) -> str:
+    """Devin, 2026-08-07: "if someone does a reminder, say hey are you aware
+    of this change coming up." Shown ABOVE the signup form (not only after
+    submitting) rather than personalizing worker/src/index.ts's
+    SUBSCRIBE_SUCCESS_PAGE -- that page is deliberately the SAME generic
+    response across several different backend code paths (real success,
+    honeypot, a couple of early-return cases) as an anti-enumeration
+    measure, and differentiating it per state would need real backend work
+    to thread state-specific content through only the genuine-success path
+    without weakening that. Showing it before signup sidesteps that
+    entirely, needs no backend/worker change, and arguably serves the
+    visitor better anyway -- they see it before deciding to sign up, not as
+    a surprise after. Empty string (renders nothing) for the ~46 states
+    with no real upcoming event on file -- no "nothing to report" filler."""
+    events = _UPCOMING_CHANGE_EVENTS_BY_STATE.get(state_slug)
+    if not events:
+        return ""
+    e = events[0]
+    # Same scheme guard as rule_change_events_json's own citation_url field
+    # (AuditLab XSS-1) -- this one goes through esc() into a plain href
+    # attribute (not JSON), so entity-escaping IS the right guard here, but
+    # the underlying "never trust a data-file URL without a scheme check"
+    # rule is identical.
+    citation_url = e.get("citation_url")
+    safe_citation_url = (
+        citation_url if isinstance(citation_url, str) and citation_url.startswith(("http://", "https://")) else None
+    )
+    citation_link_html = f' <a href="{esc(safe_citation_url)}">See the citation</a>.' if safe_citation_url else ""
+    topic = e.get("topic") or "regulatory"
+    jurisdiction = e.get("jurisdiction") or state_slug
+    summary = e.get("summary_public") or ""
+    return f"""<div class="callout" style="border-left-color:var(--gold);">
+  <p class="label">Heads up</p>
+  <p>A {esc(topic)} change is coming to {esc(jurisdiction)}, effective {esc(e["effective_date"])}.
+  {esc(summary)}{citation_link_html}</p>
+</div>"""
+
+
 def signup_form_for_state(state_slug: str, state_name: str, records: list[dict], as_of: date) -> str:
     # "Bring your own date" (2026-07-05): the form always renders now -- see
     # _extra_fields_html()'s own docstring for how it picks the right field(s)
     # per state. Every state can collect a signup, computed or user-provided.
     # Two-column dark treatment (2026-07-17), matching the approved concept's .remind panel.
-    return f"""<div class="remind-panel" id="remind">
+    return f"""{_upcoming_change_callout_html(state_slug)}
+<div class="remind-panel" id="remind">
   <div>
     <h2>One email before it matters.</h2>
     <p class="remind-copy">We'll remind you ahead of your {esc(state_name)} renewal deadline &mdash;

@@ -789,6 +789,8 @@
   .dr-sample-mode-banner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
   .dr-sample-mode-banner[hidden] { display: none; }
   .dr-sample-mode-banner .dr-link-btn { white-space: nowrap; font-weight: 600; }
+  
+  .dr-print-sample-notice { display: none; }
   .dr-sample-tag {
     display: inline-block; color: var(--muted); font-size: 0.78rem; font-style: italic;
     padding: 0.2rem 0;
@@ -1381,6 +1383,11 @@
     .dr-dash-shell #dr-dash-error, .dr-dash-shell #dr-dash-success,
     .dr-dash-shell #dr-dash-warning, .dr-dash-shell #dr-staleness-banner {
       display: none !important;
+    }
+    
+    .dr-print-sample-notice:not([hidden]) {
+      display: block; font-weight: 700; font-size: 1.05rem; border: 2px solid #000000;
+      padding: 0.5rem 0.8rem; margin: 0 0 1rem;
     }
     .dr-dash-shell { display: block; }
     body { padding: 0; }

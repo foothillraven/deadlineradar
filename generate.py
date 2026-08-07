@@ -1231,6 +1231,10 @@ PAGE_CSS = """
   .dr-sample-mode-banner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
   .dr-sample-mode-banner[hidden] { display: none; }
   .dr-sample-mode-banner .dr-link-btn { white-space: nowrap; font-weight: 600; }
+  /* AuditLab SAMPLE-2: print-only counterpart to the on-screen sample
+     banner -- never visible on screen, loud in print (see the @media print
+     block for the print-side rule). */
+  .dr-print-sample-notice { display: none; }
   .dr-sample-tag {
     display: inline-block; color: var(--muted); font-size: 0.78rem; font-style: italic;
     padding: 0.2rem 0;
@@ -2086,6 +2090,15 @@ PAGE_CSS = """
     .dr-dash-shell #dr-dash-error, .dr-dash-shell #dr-dash-success,
     .dr-dash-shell #dr-dash-warning, .dr-dash-shell #dr-staleness-banner {
       display: none !important;
+    }
+    /* AuditLab SAMPLE-2: hiding the sample banner above is right for real
+       data (it's chrome) but left a sample-mode printout with zero
+       indication its rows are fabricated. This print-only notice fills
+       that hole -- [hidden] (real-data mode) still wins, so it only ever
+       prints while sample mode is genuinely active. */
+    .dr-print-sample-notice:not([hidden]) {
+      display: block; font-weight: 700; font-size: 1.05rem; border: 2px solid #000000;
+      padding: 0.5rem 0.8rem; margin: 0 0 1rem;
     }
     .dr-dash-shell { display: block; }
     body { padding: 0; }
@@ -7305,6 +7318,11 @@ function drEnterSampleMode() {
   drCpeEntries = drBuildSampleCpeEntries();
   var banner = document.getElementById('dr-sample-mode-banner');
   if (banner) banner.hidden = false;
+  // AuditLab SAMPLE-2: print-only counterpart (the print stylesheet hides
+  // the banner above by design) -- toggled in lockstep everywhere sample
+  // mode changes so a Ctrl+P mid-sample always prints the notice.
+  var printNotice = document.getElementById('dr-print-sample-notice');
+  if (printNotice) printNotice.hidden = false;
   drRenderAllViews();
 }
 
@@ -7314,6 +7332,8 @@ function drExitSampleMode() {
   drCpeEntries = [];
   var banner = document.getElementById('dr-sample-mode-banner');
   if (banner) banner.hidden = true;
+  var printNotice = document.getElementById('dr-print-sample-notice');
+  if (printNotice) printNotice.hidden = true;
   drRenderAllViews();
 }
 
@@ -9608,6 +9628,18 @@ function drRenderCpeRecent() {
 function drRenderReport() {
   var el = document.getElementById('dr-report-body');
   if (!el) return;
+  // AuditLab SAMPLE-2 (MEDIUM, 2026-08-06): with no check here, sample mode
+  // produced a dated, firm-named, print-ready "compliance summary" built
+  // entirely from the 5 fabricated preview staffers, with the one on-screen
+  // sample banner explicitly hidden by the print stylesheet. Refusing to
+  // render the report from sample data at all (AuditLab's own suggested
+  // fix) is safer than labeling -- a portable document of record built on
+  // fiction shouldn't exist, labeled or not.
+  if (drSampleModeActive) {
+    el.innerHTML = '<p class="dr-panel-empty">You\\u2019re viewing sample data \\u2014 ' +
+      '<a href="#" data-view="roster">add real staff</a> to generate a report.</p>';
+    return;
+  }
   var now = new Date();
   var generatedOn = now.toLocaleDateString('en-US', {year: 'numeric', month: 'long', day: 'numeric'});
   var firmNameEl = document.getElementById('dr-firm-name');
@@ -10495,6 +10527,8 @@ function drLoadLicenses() {
         drSampleModeActive = false;
         var sampleBanner = document.getElementById('dr-sample-mode-banner');
         if (sampleBanner) sampleBanner.hidden = true;
+        var samplePrintNotice = document.getElementById('dr-print-sample-notice');
+        if (samplePrintNotice) samplePrintNotice.hidden = true;
       }
       drLicenses = data.licenses || [];
       drPreviousLoginAt = data.previous_login_at || null;
@@ -12342,6 +12376,15 @@ def build_firm_dashboard_page(
       You&rsquo;re viewing sample data &mdash; nothing here is real, and no reminders will be sent for it.
       <button type="button" class="dr-link-btn" id="dr-sample-mode-exit-btn">Exit sample view</button>
     </div>
+    <!-- AuditLab SAMPLE-2 (2026-08-07 follow-up): the print stylesheet hides
+         the sample banner above by design (dashboard chrome), which left a
+         printed page with NO indication its rows are fabricated. This
+         notice is the inverse: invisible on screen, shown ONLY in print,
+         toggled with the same sample-mode state as the banner. Covers
+         every print path at once -- the Reports button, #36's Roster
+         button, and a plain Ctrl+P no button-gating could catch. -->
+    <p class="dr-print-sample-notice" id="dr-print-sample-notice" hidden>SAMPLE DATA &mdash; every
+    person and date on this page is fictional preview content, not this firm&rsquo;s real roster.</p>
 
     <div id="dr-view-roster" class="dr-view" role="tabpanel">
     <div class="dr-report-toolbar">

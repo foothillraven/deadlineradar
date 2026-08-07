@@ -568,6 +568,22 @@ PAGE_CSS = """
   @media (prefers-reduced-motion: reduce) {
     .dr-skeleton-line { animation: none; }
   }
+  /* Roadmap #57: fixed bottom bar, deliberately unobtrusive (no overlay,
+     doesn't block page content) since it's a notice, not a blocking gate. */
+  .dr-cookie-notice {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    background: var(--fg); color: var(--bg);
+    padding: 0.75rem 1.2rem; display: flex; align-items: center; justify-content: center;
+    gap: 1rem; flex-wrap: wrap; font-size: 0.85rem;
+  }
+  .dr-cookie-notice p { margin: 0; max-width: 46rem; }
+  .dr-cookie-notice a { color: inherit; }
+  .dr-cookie-notice button {
+    font-family: inherit; font-size: 0.82rem; font-weight: 600; padding: 0.35rem 0.9rem;
+    border: 1px solid var(--bg); border-radius: 6px; background: transparent; color: inherit;
+    cursor: pointer; flex-shrink: 0;
+  }
+  .dr-cookie-notice button:hover { opacity: 0.85; }
   .table-wrap {
     overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
     -webkit-overflow-scrolling: touch;
@@ -2920,6 +2936,39 @@ _SHOW_PASSWORD_TOGGLE_HTML = """<script>
 })();
 </script>"""
 
+# Roadmap #57 (2026-08-07): a cookie NOTICE, not a consent-with-reject-
+# button flow -- the Privacy page (see "Cookies and analytics" section)
+# already discloses that this site uses only strictly-necessary session
+# cookies and (at most) cookie-less analytics, no advertising/tracking
+# cookies. Strictly-necessary cookies don't legally require opt-in consent
+# under GDPR/ePrivacy, only disclosure, which the Privacy page already
+# provides -- building a full accept/reject consent flow here would imply
+# non-essential cookies exist when they don't. This is purely a trust/
+# expectation-setting notice, dismissed once via localStorage, mirrored
+# exactly against what Privacy actually says so it can't drift out of sync.
+_COOKIE_NOTICE_HTML = """<div class="dr-cookie-notice" id="dr-cookie-notice" hidden>
+  <p>We use only the strictly-necessary cookies described in our <a href="/privacy/">Privacy
+  Policy</a> to keep you signed in &mdash; no ads, no trackers.</p>
+  <button type="button" id="dr-cookie-notice-dismiss">Got it</button>
+</div>
+<script>
+(function () {
+  try {
+    if (window.localStorage.getItem('dr_cookie_notice_dismissed')) return;
+  } catch (e) { return; }
+  var el = document.getElementById('dr-cookie-notice');
+  if (!el) return;
+  el.hidden = false;
+  var btn = document.getElementById('dr-cookie-notice-dismiss');
+  if (btn) {
+    btn.addEventListener('click', function () {
+      el.hidden = true;
+      try { window.localStorage.setItem('dr_cookie_notice_dismissed', '1'); } catch (e) {}
+    });
+  }
+})();
+</script>"""
+
 
 def page_shell(
     title: str,
@@ -2967,6 +3016,7 @@ def page_shell(
 {body}
 {site_footer()}
 {_SHOW_PASSWORD_TOGGLE_HTML}
+{_COOKIE_NOTICE_HTML}
 </body>
 </html>
 """
@@ -3496,6 +3546,34 @@ def _related_states_html(state_slug: str, records: list[dict], by_slug: dict[str
 {links}</p>"""
 
 
+def _state_quick_search_html(by_slug: dict[str, list[dict]]) -> str:
+    """Roadmap #64 (2026-08-07): the homepage's own "Find your state" search
+    box (state-search-input, drGoToState() etc. in _STATE_SEARCH_JS) never
+    reached the individual state pages themselves -- getting from Illinois to
+    Texas meant a detour back through "Back to all states" first. Reuses the
+    exact same JS/CSS as the homepage widget (same element ids/classes, same
+    drGoToState() navigation-by-slug), just rendered smaller and generated
+    fresh from by_slug/each page's own build call rather than threaded
+    through page_shell for every page type."""
+    state_options = [{"name": recs[0]["state"], "slug": slug} for slug, recs in sorted(by_slug.items(), key=lambda kv: kv[1][0]["state"])]
+    return f"""<div class="state-search">
+  <label for="state-search-input">Jump to another state</label>
+  <form id="state-search-form" role="search" onsubmit="return drGoToState(event)" autocomplete="off">
+    <div class="state-search-field">
+      <input type="text" id="state-search-input" name="state" placeholder="e.g. Texas, Illinois, Ohio…"
+        autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list"
+        aria-controls="state-search-dropdown">
+      <div class="state-search-dropdown" id="state-search-dropdown" role="listbox"></div>
+    </div>
+    <button type="submit" class="state-search-submit">Go</button>
+  </form>
+</div>
+<script>
+var DR_STATES = {json.dumps(state_options)};
+{_STATE_SEARCH_JS}
+</script>"""
+
+
 def _flag_wrong_html(state_name: str, state_slug: str) -> str:
     """Roadmap #48 (2026-08-07): a user-flaggable 'this looks wrong' link on
     every state page. Deliberately a plain mailto: link, not a new backend
@@ -3605,6 +3683,7 @@ def build_state_page(
     reinstatement_link_html = (
         _reinstatement_reverse_link_html(state_slug, reinstatement_by_slug) if reinstatement_by_slug else ""
     )
+    quick_search_html = _state_quick_search_html(by_slug) if by_slug else ""
     body = f"""<h1>{esc(title)}</h1>
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
 {deadline_html}
@@ -3615,6 +3694,7 @@ def build_state_page(
 {related_html}
 {cpe_hours_link_html}
 {reinstatement_link_html}
+{quick_search_html}
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 """
     json_ld = [_breadcrumb_schema(state_name, state_slug)]

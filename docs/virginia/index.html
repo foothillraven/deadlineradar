@@ -176,6 +176,21 @@
   @media (prefers-reduced-motion: reduce) {
     .dr-skeleton-line { animation: none; }
   }
+  
+  .dr-cookie-notice {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    background: var(--fg); color: var(--bg);
+    padding: 0.75rem 1.2rem; display: flex; align-items: center; justify-content: center;
+    gap: 1rem; flex-wrap: wrap; font-size: 0.85rem;
+  }
+  .dr-cookie-notice p { margin: 0; max-width: 46rem; }
+  .dr-cookie-notice a { color: inherit; }
+  .dr-cookie-notice button {
+    font-family: inherit; font-size: 0.82rem; font-weight: 600; padding: 0.35rem 0.9rem;
+    border: 1px solid var(--bg); border-radius: 6px; background: transparent; color: inherit;
+    cursor: pointer; flex-shrink: 0;
+  }
+  .dr-cookie-notice button:hover { opacity: 0.85; }
   .table-wrap {
     overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
     -webkit-overflow-scrolling: touch;
@@ -1483,6 +1498,19 @@
 <a href="../west-virginia/">West Virginia</a></p>
 <p class="backlink-cross"><a href="../virginia-cpa-cpe-requirements/">How many CPE hours does Virginia require? &rarr;</a></p>
 <p class="backlink-cross"><a href="../virginia-cpa-license-reinstatement/">What does it cost to reinstate a lapsed Virginia license? &rarr;</a></p>
+<div class="state-search">
+  <label for="state-search-input">Jump to another state</label>
+  <form id="state-search-form" role="search" onsubmit="return drGoToState(event)" autocomplete="off">
+    <div class="state-search-field">
+      <input type="text" id="state-search-input" name="state" placeholder="e.g. Texas, Illinois, Ohio…"
+        autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list"
+        aria-controls="state-search-dropdown">
+      <div class="state-search-dropdown" id="state-search-dropdown" role="listbox"></div>
+    </div>
+    <button type="submit" class="state-search-submit">Go</button>
+  </form>
+</div>
+<script>var DR_STATES=[{name:"Alabama",slug:"alabama"},{name:"Alaska",slug:"alaska"},{name:"Arizona",slug:"arizona"},{name:"Arkansas",slug:"arkansas"},{name:"California",slug:"california"},{name:"Colorado",slug:"colorado"},{name:"Connecticut",slug:"connecticut"},{name:"Delaware",slug:"delaware"},{name:"District of Columbia",slug:"dc"},{name:"Florida",slug:"florida"},{name:"Georgia",slug:"georgia"},{name:"Guam",slug:"guam"},{name:"Hawaii",slug:"hawaii"},{name:"Idaho",slug:"idaho"},{name:"Illinois",slug:"illinois"},{name:"Indiana",slug:"indiana"},{name:"Iowa",slug:"iowa"},{name:"Kansas",slug:"kansas"},{name:"Kentucky",slug:"kentucky"},{name:"Louisiana",slug:"louisiana"},{name:"Maine",slug:"maine"},{name:"Maryland",slug:"maryland"},{name:"Massachusetts",slug:"massachusetts"},{name:"Michigan",slug:"michigan"},{name:"Minnesota",slug:"minnesota"},{name:"Mississippi",slug:"mississippi"},{name:"Missouri",slug:"missouri"},{name:"Montana",slug:"montana"},{name:"Nebraska",slug:"nebraska"},{name:"Nevada",slug:"nevada"},{name:"New Hampshire",slug:"new-hampshire"},{name:"New Jersey",slug:"new-jersey"},{name:"New Mexico",slug:"new-mexico"},{name:"New York",slug:"new-york"},{name:"North Carolina",slug:"north-carolina"},{name:"North Dakota",slug:"north-dakota"},{name:"Northern Mariana Islands",slug:"northern-mariana-islands"},{name:"Ohio",slug:"ohio"},{name:"Oklahoma",slug:"oklahoma"},{name:"Oregon",slug:"oregon"},{name:"Pennsylvania",slug:"pennsylvania"},{name:"Puerto Rico",slug:"puerto-rico"},{name:"Rhode Island",slug:"rhode-island"},{name:"South Carolina",slug:"south-carolina"},{name:"South Dakota",slug:"south-dakota"},{name:"Tennessee",slug:"tennessee"},{name:"Texas",slug:"texas"},{name:"U.S. Virgin Islands",slug:"us-virgin-islands"},{name:"Utah",slug:"utah"},{name:"Vermont",slug:"vermont"},{name:"Virginia",slug:"virginia"},{name:"Washington",slug:"washington"},{name:"West Virginia",slug:"west-virginia"},{name:"Wisconsin",slug:"wisconsin"},{name:"Wyoming",slug:"wyoming"}];function drNormalize(s){return s.trim().toLowerCase()}function drMatches(typed){var norm=drNormalize(typed);if(!norm)return[];var starts=[],contains=[];DR_STATES.forEach(function(s){var n=drNormalize(s.name);if(n.indexOf(norm)===0)starts.push(s);else if(n.indexOf(norm)!==-1)contains.push(s)});return starts.concat(contains)}function drExactOrSingleMatch(typed){var norm=drNormalize(typed);if(!norm)return null;var exact=null;DR_STATES.forEach(function(s){if(drNormalize(s.name)===norm)exact=s});if(exact)return exact.slug;var matches=drMatches(typed);return matches.length===1?matches[0].slug:null}function drGoToState(event){if(event)event.preventDefault();var input=document.getElementById("state-search-input");var slug=drExactOrSingleMatch(input.value);if(slug){window.location.href="/"+slug+"/"}return false}function drFilterGrid(){var typed=drNormalize(document.getElementById("state-search-input").value);document.querySelectorAll(".state-card").forEach(function(card){var name=drNormalize(card.getAttribute("data-state-name"));var match=!typed||name.indexOf(typed)!==-1;card.classList.toggle("state-card--dimmed",!match)})}var drActiveIndex=-1;function drCloseDropdown(){var dropdown=document.getElementById("state-search-dropdown");var input=document.getElementById("state-search-input");dropdown.innerHTML="";dropdown.classList.remove("is-open");input.setAttribute("aria-expanded","false");drActiveIndex=-1}function drRenderDropdown(){var input=document.getElementById("state-search-input");var dropdown=document.getElementById("state-search-dropdown");var typed=input.value;if(!typed.trim()){drCloseDropdown();return}var matches=drMatches(typed);drActiveIndex=-1;if(matches.length===0){dropdown.innerHTML='<div class="state-search-empty">No matching state</div>';dropdown.classList.add("is-open");input.setAttribute("aria-expanded","true");return}dropdown.innerHTML=matches.map(function(s,i){return'<button type="button" class="state-search-option" data-slug="'+s.slug+'" data-index="'+i+'" role="option">'+s.name+"</button>"}).join("");dropdown.classList.add("is-open");input.setAttribute("aria-expanded","true")}function drSetActive(index){var options=document.querySelectorAll(".state-search-option");options.forEach(function(opt){opt.classList.remove("is-active")});if(index>=0&&index<options.length){options[index].classList.add("is-active");options[index].scrollIntoView({block:"nearest"})}drActiveIndex=index}document.addEventListener("DOMContentLoaded",function(){var input=document.getElementById("state-search-input");var dropdown=document.getElementById("state-search-dropdown");if(!input||!dropdown)return;input.addEventListener("input",function(){drRenderDropdown();drFilterGrid()});input.addEventListener("keydown",function(event){var options=document.querySelectorAll(".state-search-option");if(event.key==="ArrowDown"){event.preventDefault();if(options.length)drSetActive((drActiveIndex+1)%options.length)}else if(event.key==="ArrowUp"){event.preventDefault();if(options.length)drSetActive((drActiveIndex-1+options.length)%options.length)}else if(event.key==="Enter"){if(drActiveIndex>=0&&options[drActiveIndex]){event.preventDefault();window.location.href="/"+options[drActiveIndex].getAttribute("data-slug")+"/"}}else if(event.key==="Escape"){drCloseDropdown()}});dropdown.addEventListener("click",function(event){var opt=event.target.closest(".state-search-option");if(opt){window.location.href="/"+opt.getAttribute("data-slug")+"/"}});document.addEventListener("click",function(event){if(event.target!==input&&!dropdown.contains(event.target))drCloseDropdown()})});</script>
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 
 </div>
@@ -1521,5 +1549,11 @@
   </div>
 </footer>
 <script>(function(){document.querySelectorAll('input[type="password"]').forEach(function(input){var wrap=document.createElement("span");wrap.className="dr-pw-wrap";input.parentNode.insertBefore(wrap,input);wrap.appendChild(input);var btn=document.createElement("button");btn.type="button";btn.className="dr-pw-toggle";btn.textContent="Show";btn.setAttribute("aria-label","Show password");btn.addEventListener("click",function(){var revealed=input.type==="text";input.type=revealed?"password":"text";btn.textContent=revealed?"Show":"Hide";btn.setAttribute("aria-label",revealed?"Show password":"Hide password")});wrap.appendChild(btn)})})();</script>
+<div class="dr-cookie-notice" id="dr-cookie-notice" hidden>
+  <p>We use only the strictly-necessary cookies described in our <a href="/privacy/">Privacy
+  Policy</a> to keep you signed in &mdash; no ads, no trackers.</p>
+  <button type="button" id="dr-cookie-notice-dismiss">Got it</button>
+</div>
+<script>(function(){try{if(window.localStorage.getItem("dr_cookie_notice_dismissed"))return}catch(e){return}var el=document.getElementById("dr-cookie-notice");if(!el)return;el.hidden=false;var btn=document.getElementById("dr-cookie-notice-dismiss");if(btn){btn.addEventListener("click",function(){el.hidden=true;try{window.localStorage.setItem("dr_cookie_notice_dismissed","1")}catch(e){}})}})();</script>
 </body>
 </html>

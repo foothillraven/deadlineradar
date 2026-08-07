@@ -176,6 +176,21 @@
   @media (prefers-reduced-motion: reduce) {
     .dr-skeleton-line { animation: none; }
   }
+  
+  .dr-cookie-notice {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    background: var(--fg); color: var(--bg);
+    padding: 0.75rem 1.2rem; display: flex; align-items: center; justify-content: center;
+    gap: 1rem; flex-wrap: wrap; font-size: 0.85rem;
+  }
+  .dr-cookie-notice p { margin: 0; max-width: 46rem; }
+  .dr-cookie-notice a { color: inherit; }
+  .dr-cookie-notice button {
+    font-family: inherit; font-size: 0.82rem; font-weight: 600; padding: 0.35rem 0.9rem;
+    border: 1px solid var(--bg); border-radius: 6px; background: transparent; color: inherit;
+    cursor: pointer; flex-shrink: 0;
+  }
+  .dr-cookie-notice button:hover { opacity: 0.85; }
   .table-wrap {
     overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
     -webkit-overflow-scrolling: touch;
@@ -1555,5 +1570,11 @@ href="/terms/">Terms of Service</a>.</p>
   </div>
 </footer>
 <script>(function(){document.querySelectorAll('input[type="password"]').forEach(function(input){var wrap=document.createElement("span");wrap.className="dr-pw-wrap";input.parentNode.insertBefore(wrap,input);wrap.appendChild(input);var btn=document.createElement("button");btn.type="button";btn.className="dr-pw-toggle";btn.textContent="Show";btn.setAttribute("aria-label","Show password");btn.addEventListener("click",function(){var revealed=input.type==="text";input.type=revealed?"password":"text";btn.textContent=revealed?"Show":"Hide";btn.setAttribute("aria-label",revealed?"Show password":"Hide password")});wrap.appendChild(btn)})})();</script>
+<div class="dr-cookie-notice" id="dr-cookie-notice" hidden>
+  <p>We use only the strictly-necessary cookies described in our <a href="/privacy/">Privacy
+  Policy</a> to keep you signed in &mdash; no ads, no trackers.</p>
+  <button type="button" id="dr-cookie-notice-dismiss">Got it</button>
+</div>
+<script>(function(){try{if(window.localStorage.getItem("dr_cookie_notice_dismissed"))return}catch(e){return}var el=document.getElementById("dr-cookie-notice");if(!el)return;el.hidden=false;var btn=document.getElementById("dr-cookie-notice-dismiss");if(btn){btn.addEventListener("click",function(){el.hidden=true;try{window.localStorage.setItem("dr_cookie_notice_dismissed","1")}catch(e){}})}})();</script>
 </body>
 </html>

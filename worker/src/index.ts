@@ -547,8 +547,22 @@ function jsonResponse(status: number, obj: unknown): Response {
 // off a screenshot of the reused-login-link case. Optional so every
 // existing call site (most of which have no obvious next step to offer)
 // is unaffected.
+// Roadmap #61 (2026-08-07): sitewide error-message quality pass. Audited
+// every distinct errorPage() message in this file -- the single biggest
+// finding was structural, not wording: 23+ call sites (mostly defensive
+// request-parsing catches that fire on a genuinely rare malformed/dropped
+// request, not a normal validation failure) render with NO `link` param
+// at all, leaving a visitor with nothing but the header logo to click
+// back to the homepage -- no "try again," no way to get real help. Rather
+// than hand-writing a bespoke link for 23 different call sites (many of
+// which a generic "try again" would be actively WRONG for -- a permanently
+// expired token retrying does nothing), fixed it at the one choke point
+// every errorPage() call already passes through: an unset `link` now
+// falls back to a real, always-correct-regardless-of-cause escape hatch
+// instead of silently rendering nothing.
 function errorPage(status: number, message: string, link?: { href: string; text: string }): Response {
-  const linkHtml = link ? `<p><a href="${escapeHtml(link.href)}">${escapeHtml(link.text)}</a></p>` : "";
+  const resolvedLink = link ?? { href: "/contact/", text: "If this keeps happening, let us know." };
+  const linkHtml = `<p><a href="${escapeHtml(resolvedLink.href)}">${escapeHtml(resolvedLink.text)}</a></p>`;
   return htmlResponse(status, htmlPage("Error", `<p>${escapeHtml(message)}</p>${linkHtml}`));
 }
 

@@ -115,4 +115,11 @@ export interface Env {
   STRIPE_PRICE_FIRM_STARTER?: string;
   STRIPE_PRICE_FIRM_GROWTH?: string;
   STRIPE_PRICE_FIRM_STANDARD?: string;
+  /**
+   * Roadmap #1/#2 (2026-08-07, document storage). R2 bucket bound in
+   * wrangler.toml (bucket `deadlineradar-documents`) -- holds the actual
+   * uploaded file bytes for license/CPE certificates. D1's `documents`
+   * table (migration 0032) holds only metadata + this bucket's object key.
+   */
+  DOCUMENTS: R2Bucket;
 }

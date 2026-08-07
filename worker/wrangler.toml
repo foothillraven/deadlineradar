@@ -23,6 +23,16 @@ database_name = "deadlineradar"
 # command is run, and not before.
 database_id = "678e7b5a-e627-4c19-ab6f-2e249c0d7e1f"
 
+[[r2_buckets]]
+# Roadmap #1/#2 (2026-08-07): document storage (license/CPE certificates).
+# Bucket created via `wrangler r2 bucket create deadlineradar-documents`
+# after Devin enabled R2 for this account in the Cloudflare Dashboard (a
+# one-time manual step -- see HANDOFF.md's own record of that decision).
+# D1 holds only metadata (worker/migrations/0032_documents.sql); R2 holds
+# the actual file bytes.
+binding = "DOCUMENTS"
+bucket_name = "deadlineradar-documents"
+
 [[routes]]
 # NOT ACTIVE until `wrangler deploy` is actually run against a real
 # Cloudflare account with this zone configured. Declaring the route here is

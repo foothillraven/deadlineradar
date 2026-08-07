@@ -11,5 +11,9 @@ declare namespace Cloudflare {
     DB: D1Database;
     TURNSTILE_SECRET_KEY?: string;
     TEST_MIGRATIONS: import("cloudflare:test").D1Migration[];
+    // Mirrors wrangler.toml's [[r2_buckets]] binding (roadmap #1/#2,
+    // 2026-08-07, document storage) -- same hand-written-mirror convention
+    // as DB above.
+    DOCUMENTS: R2Bucket;
   }
 }

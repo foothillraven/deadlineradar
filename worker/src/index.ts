@@ -69,6 +69,7 @@ import {
   RATE_LIMIT_FIRM_PASSWORD_SET,
   RATE_LIMIT_OAUTH_START,
   RATE_LIMIT_CPE_ENTRY_CREATE,
+  RATE_LIMIT_FIRM_DOCUMENT_UPLOAD,
   RATE_LIMIT_SUBSCRIBER_CPE_CREATE,
   RATE_LIMIT_FIRM_STAFF_CPE_REMINDER,
   RATE_LIMIT_FIRM_RULE_CHANGE_NOTIFY,
@@ -3939,6 +3940,7 @@ function toCpeEntryJson(row: store.CpeEntryRow): Record<string, unknown> {
     hours: row.hours,
     category: row.category,
     description: row.description,
+    certificate_document_id: row.certificate_document_id,
     entered_by_actor_type: row.entered_by_actor_type,
   };
 }
@@ -4026,6 +4028,21 @@ async function handleCpeEntryCreate(request: Request, env: Env): Promise<Respons
   const descriptionRaw = (form.description ?? "").trim();
   const description = descriptionRaw.length > 0 ? sanitizeFreeText(descriptionRaw, MAX_CPE_DESCRIPTION_LEN) : null;
 
+  // Roadmap #1/#2 (2026-08-07): optional link to a supporting certificate
+  // already uploaded for this SAME subscriber -- re-checked here (not just
+  // trusted from the client) so a crafted document_id belonging to a
+  // different staff member (or a different firm entirely) can never get
+  // silently attached to someone else's CPE entry.
+  const documentIdRaw = (form.document_id ?? "").trim();
+  let certificateDocumentId: string | null = null;
+  if (documentIdRaw) {
+    const doc = await store.getDocumentForFirm(env.DB, session.firmId, documentIdRaw);
+    if (!doc || doc.subscriber_id !== subscriberId) {
+      return jsonResponse(400, { error: "That certificate doesn't belong to this staff member." });
+    }
+    certificateDocumentId = doc.id;
+  }
+
   const created = await store.addCpeEntry(env.DB, {
     firmId: session.firmId,
     subscriberId,
@@ -4033,6 +4050,7 @@ async function handleCpeEntryCreate(request: Request, env: Env): Promise<Respons
     hours,
     category: categoryRaw,
     description,
+    certificateDocumentId,
     enteredByFirmSessionId: session.sessionId,
     enteredByActorType: "admin",
   });
@@ -4061,6 +4079,188 @@ async function handleCpeEntryDelete(request: Request, env: Env, id: string): Pro
 
   const removed = await store.removeCpeEntry(env.DB, session.firmId, id);
   if (!removed) return jsonResponse(404, { error: "Not found." });
+  return jsonResponse(200, { id, status: "removed" });
+}
+
+// ---------------------------------------------------------------------------
+// Document storage (2026-08-07, roadmap #1/#2). D1 (store.ts's `documents`
+// table) holds only metadata; env.DOCUMENTS (R2) holds the actual bytes,
+// keyed by an opaque r2_key minted here, independent of the D1 row's own id
+// -- the two are correlated only through that stored key, never assumed to
+// match.
+// ---------------------------------------------------------------------------
+
+function toDocumentJson(row: store.DocumentRow): Record<string, unknown> {
+  return {
+    id: row.id,
+    subscriber_id: row.subscriber_id,
+    kind: row.kind,
+    filename: row.filename,
+    content_type: row.content_type,
+    size_bytes: row.size_bytes,
+    uploaded_at: row.uploaded_at,
+  };
+}
+
+// Strips path separators/control chars and caps length -- this value is
+// echoed back into a Content-Disposition header on download, so it must
+// never contain anything that could break out of that header's own quoted
+// filename or smuggle a path. Falls back to a generic name if nothing
+// printable survives, rather than ever storing/serving an empty filename.
+function sanitizeDocumentFilename(raw: string): string {
+  const stripped = raw
+    .replace(/[\\/]/g, "-")
+    .split("")
+    .filter((ch) => !hasControlChars(ch))
+    .join("")
+    .trim()
+    .slice(0, 150);
+  return stripped.length > 0 ? stripped : "document";
+}
+
+/** POST /firm/licenses/:id/documents -- upload a license or CPE certificate
+ * for one staff member. multipart/form-data: `file` (the upload) + `kind`
+ * ("license" | "cpe"). Ownership of the subscriber is checked up front
+ * (existing lookup, 404 if it doesn't belong to this firm) and again inside
+ * store.createDocument()'s own WHERE clause, same double-check convention
+ * as handleFirmLicensePatch. The R2 write happens BEFORE the D1 insert, and
+ * is cleaned up if the D1 insert is ever refused -- an orphaned R2 object
+ * with no D1 row is just unreferenced storage; a D1 row pointing at a
+ * missing R2 object would break every future download of it. */
+async function handleDocumentUpload(request: Request, env: Env, subscriberId: string): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const uploadAllowed = await checkRateLimit(env.DB, session.firmId, "firm_document_upload", RATE_LIMIT_FIRM_DOCUMENT_UPLOAD);
+  if (!uploadAllowed) {
+    return jsonResponse(429, { error: "Too many uploads. Please try again later." });
+  }
+
+  const existing = await store.getFirmLicense(env.DB, session.firmId, subscriberId);
+  if (!existing) return jsonResponse(404, { error: "Not found." });
+
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return jsonResponse(400, { error: "Couldn't read that upload. Please try again." });
+  }
+
+  // This version of @cloudflare/workers-types types FormData.get() as
+  // always returning `string | null`, missing the real File case entirely
+  // -- a real multipart upload DOES hand back a genuine File at runtime, the
+  // TYPE just doesn't say so, which makes `instanceof File` fail to type-
+  // check (a `string | null` isn't an object type). typeof narrows first
+  // (true only for the real File case, false for a plain text field), then
+  // the cast through `unknown` is honest about working around the package's
+  // gap rather than pretending it's correct.
+  const rawFile = formData.get("file");
+  if (typeof rawFile !== "object" || rawFile === null) {
+    return jsonResponse(400, { error: "No file was attached." });
+  }
+  const file = rawFile as unknown as File;
+
+  const kindRaw = formData.get("kind");
+  const kind =
+    typeof kindRaw === "string" && (store.DOCUMENT_KINDS as string[]).includes(kindRaw) ? (kindRaw as store.DocumentKind) : null;
+  if (!kind) {
+    return jsonResponse(400, { error: "Missing or invalid document kind." });
+  }
+
+  if (!store.DOCUMENT_ALLOWED_CONTENT_TYPES.includes(file.type)) {
+    return jsonResponse(400, { error: "Only PDF, JPG, or PNG files are supported." });
+  }
+
+  if (file.size <= 0 || file.size > store.DOCUMENT_MAX_FILE_BYTES) {
+    return jsonResponse(400, { error: "That file is too large -- the limit is 2MB." });
+  }
+
+  const currentTotal = await store.sumFirmDocumentBytes(env.DB, session.firmId);
+  if (currentTotal + file.size > store.DOCUMENT_MAX_FIRM_TOTAL_BYTES) {
+    return jsonResponse(400, { error: "Your firm has reached its document storage limit. Remove an old document before adding a new one." });
+  }
+
+  const filename = sanitizeDocumentFilename(file.name || "document");
+  const r2Key = `${session.firmId}/${subscriberId}/${store.newToken()}`;
+  const bytes = await file.arrayBuffer();
+  await env.DOCUMENTS.put(r2Key, bytes, { httpMetadata: { contentType: file.type } });
+
+  const doc = await store.createDocument(env.DB, {
+    firmId: session.firmId,
+    subscriberId,
+    kind,
+    r2Key,
+    filename,
+    contentType: file.type,
+    sizeBytes: file.size,
+  });
+  if (!doc) {
+    await env.DOCUMENTS.delete(r2Key);
+    return jsonResponse(404, { error: "Not found." });
+  }
+
+  return jsonResponse(201, { document: toDocumentJson(doc) });
+}
+
+/** GET /firm/licenses/:id/documents -- metadata only (never the bytes) for
+ * every non-deleted document attached to one staff member. */
+async function handleDocumentList(request: Request, env: Env, subscriberId: string): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+
+  const existing = await store.getFirmLicense(env.DB, session.firmId, subscriberId);
+  if (!existing) return jsonResponse(404, { error: "Not found." });
+
+  const documents = await store.listDocumentsForSubscriber(env.DB, session.firmId, subscriberId);
+  return jsonResponse(200, { documents: documents.map(toDocumentJson) });
+}
+
+/** GET /firm/documents/:id/download -- streams the R2 object. firm_id-bound
+ * ownership check (store.getDocumentForFirm) before anything else -- a
+ * document id alone is never enough to read it. Content-Disposition:
+ * attachment + X-Content-Type-Options: nosniff on every response: a
+ * maliciously crafted upload must never be interpretable as inline HTML/JS
+ * by a browser, regardless of what content-type made it past the upload
+ * allowlist (defense-in-depth, not a substitute for that allowlist). */
+async function handleDocumentDownload(request: Request, env: Env, id: string): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+
+  const doc = await store.getDocumentForFirm(env.DB, session.firmId, id);
+  if (!doc) return jsonResponse(404, { error: "Not found." });
+
+  const object = await env.DOCUMENTS.get(doc.r2_key);
+  if (!object) return jsonResponse(404, { error: "Not found." });
+
+  const headers = new Headers();
+  headers.set("Content-Type", doc.content_type);
+  headers.set("Content-Disposition", `attachment; filename="${doc.filename.replace(/"/g, "'")}"`);
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("Content-Length", String(doc.size_bytes));
+  return new Response(object.body, { status: 200, headers });
+}
+
+/** DELETE /firm/documents/:id -- soft-deletes the D1 row, then deletes the
+ * matching R2 object. Order matters: if the D1 soft-delete succeeds but the
+ * R2 delete somehow fails, the object is merely orphaned (unreferenced,
+ * harmless) rather than the reverse (a "deleted" document whose bytes a
+ * still-live r2_key could somehow still be reached through). */
+async function handleDocumentDelete(request: Request, env: Env, id: string): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const removed = await store.removeDocument(env.DB, session.firmId, id);
+  if (!removed) return jsonResponse(404, { error: "Not found." });
+
+  await env.DOCUMENTS.delete(removed.r2_key);
   return jsonResponse(200, { id, status: "removed" });
 }
 
@@ -4373,6 +4573,15 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
     // 2026-08-04, practice-privilege completion tracking (migration 0016).
     const mobilityCompletionIdMatch = /^\/firm\/mobility\/completions\/([^/]+)$/.exec(url.pathname);
 
+    // /firm/licenses/:id/documents (upload/list) and /firm/documents/:id
+    // (download/delete) -- roadmap #1/#2 (2026-08-07), same up-front
+    // parsing pattern as every route above. Structurally distinct from
+    // firmLicenseIdMatch/firmLicenseRenewMatch (a trailing /documents or a
+    // different path prefix), so no ambiguity between them.
+    const subscriberDocumentsMatch = /^\/firm\/licenses\/([^/]+)\/documents$/.exec(url.pathname);
+    const documentDownloadMatch = /^\/firm\/documents\/([^/]+)\/download$/.exec(url.pathname);
+    const documentIdMatch = /^\/firm\/documents\/([^/]+)$/.exec(url.pathname);
+
     // GET on an action path renders a confirmation PAGE only -- it never
     // changes state. Email providers (Gmail, corporate filters) automatically
     // GET the links in a message to scan them; if the action fired on GET, a
@@ -4453,6 +4662,20 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
       }
+      if (subscriberDocumentsMatch) {
+        try {
+          return await handleDocumentList(request, env, subscriberDocumentsMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (documentDownloadMatch) {
+        try {
+          return await handleDocumentDownload(request, env, documentDownloadMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
       // SSO (2026-07-30). The provider id is constrained by the pattern
       // itself, and getConfiguredProvider() 404s anything unknown or
       // unconfigured -- so an unregistered provider cannot be reached by
@@ -4524,6 +4747,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
       }
+      if (documentIdMatch) {
+        try {
+          return await handleDocumentDelete(request, env, documentIdMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
       return errorPage(404, "Not found.");
     }
 
@@ -4547,6 +4777,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/cpe") {
         try {
           return await handleCpeEntryCreate(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (subscriberDocumentsMatch) {
+        try {
+          return await handleDocumentUpload(request, env, subscriberDocumentsMatch[1] as string);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }

@@ -497,6 +497,13 @@ export const RATE_LIMIT_FIRM_LICENSE_PATCH: RateLimit = { max: 50, windowSeconds
 // conference), tight enough to bound a runaway script.
 export const RATE_LIMIT_CPE_ENTRY_CREATE: RateLimit = { max: 100, windowSeconds: 86400 };
 
+// POST /firm/licenses/:id/documents (upload a certificate, roadmap #1/#2,
+// 2026-08-07) -- keyed on firm id, same reasoning as RATE_LIMIT_CPE_ENTRY_
+// CREATE above. Tighter than that one (uploads are bigger writes -- an R2
+// PUT plus a D1 insert, not just a D1 insert) but still generous enough for
+// a firm uploading a full roster's worth of certificates in one sitting.
+export const RATE_LIMIT_FIRM_DOCUMENT_UPLOAD: RateLimit = { max: 60, windowSeconds: 86400 };
+
 // AuditLab S-3, 2026-08-03: these four authenticated state-changing routes
 // had no bucket at all -- not a mail primitive like F-2/RATE_LIMIT_FIRM_LICENSE_PATCH
 // (none of them sends email), but still unbounded D1 write amplification from

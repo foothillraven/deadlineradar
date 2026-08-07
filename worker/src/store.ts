@@ -1901,6 +1901,14 @@ export interface AddCpeEntryInput {
    * inferring actor type FROM null-ness of the session id, so a future
    * caller can't accidentally mislabel one by leaving a field unset. */
   enteredByActorType: "admin" | "staff";
+  /** Roadmap #1/#2 (2026-08-07): optional link to a supporting certificate
+   * already uploaded for this same subscriber. The CALLER (handleCpeEntry
+   * Create) is responsible for verifying the document actually belongs to
+   * both this firm AND this subscriber before passing it in -- this
+   * function trusts its input the same way it already trusts firmId/
+   * subscriberId's OWN ownership check (the query below) to have been the
+   * real gate. */
+  certificateDocumentId: string | null;
 }
 
 /**
@@ -1925,7 +1933,7 @@ export async function addCpeEntry(db: D1Database, input: AddCpeEntryInput): Prom
       `INSERT INTO cpe_entries
        (id, firm_id, subscriber_id, entry_date, hours, category, description,
         certificate_document_id, entered_by_actor_type, entered_by_firm_session_id, created_at)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,NULL,?8,?9,?10)`
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)`
     )
     .bind(
       id,
@@ -1935,6 +1943,7 @@ export async function addCpeEntry(db: D1Database, input: AddCpeEntryInput): Prom
       input.hours,
       input.category,
       input.description,
+      input.certificateDocumentId,
       input.enteredByActorType,
       input.enteredByFirmSessionId,
       createdAt
@@ -1949,7 +1958,7 @@ export async function addCpeEntry(db: D1Database, input: AddCpeEntryInput): Prom
     hours: input.hours,
     category: input.category,
     description: input.description,
-    certificate_document_id: null,
+    certificate_document_id: input.certificateDocumentId,
     entered_by_actor_type: input.enteredByActorType,
     entered_by_firm_session_id: input.enteredByFirmSessionId,
     created_at: createdAt,
@@ -1987,6 +1996,9 @@ export async function addCpeEntryForSubscriber(
     hours: input.hours,
     category: input.category,
     description: input.description,
+    // Self-service staff CPE entries have no upload UI yet -- attaching a
+    // certificate stays an admin-side-only capability for this first pass.
+    certificateDocumentId: null,
     enteredByFirmSessionId: null,
     enteredByActorType: "staff",
   });
@@ -2035,6 +2047,141 @@ export async function removeCpeEntry(db: D1Database, firmId: string, id: string)
     .bind(nowIso(), id, firmId)
     .run();
   return (result.meta.changes ?? 0) > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Document storage (2026-08-07, roadmap #1/#2, migration 0032). D1 holds
+// only metadata; the R2 bucket (env.DOCUMENTS, see env.ts) holds the actual
+// file bytes, keyed by r2_key. Same one-to-many-per-subscriber shape and
+// firm_id-bound-in-every-query convention as cpe_entries just above.
+// ---------------------------------------------------------------------------
+
+export type DocumentKind = "license" | "cpe";
+export const DOCUMENT_KINDS: DocumentKind[] = ["license", "cpe"];
+
+// Deliberately narrow -- these are the only content types a real scanned/
+// photographed certificate needs, and every entry here is something a
+// browser can safely display as a plain download (never inline-rendered as
+// HTML/script, see handleDocumentDownload's own Content-Disposition +
+// X-Content-Type-Options headers for the second half of that guarantee).
+export const DOCUMENT_ALLOWED_CONTENT_TYPES = ["application/pdf", "image/jpeg", "image/png"];
+
+// 2MB -- comfortable headroom over a typical compressed scan/photo of a
+// one-page certificate, well under D1's unrelated 2,000,000-byte column-
+// value ceiling (moot here anyway, since the bytes never touch D1).
+export const DOCUMENT_MAX_FILE_BYTES = 2 * 1024 * 1024;
+
+// 50MB per firm -- generous for a free-tier feature at this product's
+// actual scale (a firm with 25 staff, a handful of documents each, is
+// nowhere close), while still being a real, enforced ceiling rather than
+// no cap at all.
+export const DOCUMENT_MAX_FIRM_TOTAL_BYTES = 50 * 1024 * 1024;
+
+export interface DocumentRow {
+  id: string;
+  firm_id: string;
+  subscriber_id: string;
+  kind: DocumentKind;
+  r2_key: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  uploaded_at: string;
+  deleted_at: string | null;
+}
+
+/** Sum of size_bytes across every non-deleted document a firm has -- the
+ * per-firm storage quota check reads this BEFORE an upload is accepted. */
+export async function sumFirmDocumentBytes(db: D1Database, firmId: string): Promise<number> {
+  const row = await db
+    .prepare(`SELECT COALESCE(SUM(size_bytes), 0) as total FROM documents WHERE firm_id = ?1 AND deleted_at IS NULL`)
+    .bind(firmId)
+    .first<{ total: number }>();
+  return row?.total ?? 0;
+}
+
+/** Ownership-checks the subscriber belongs to firmId before inserting --
+ * same guard addCpeEntry() already uses. Returns null (never throws) on a
+ * failed ownership check so the caller can return a clean 404, matching
+ * addCpeEntry()'s own contract. Does NOT enforce the size/quota caps itself
+ * -- those are checked by the caller (handleDocumentUpload) before this is
+ * ever called, using the SAME size_bytes value passed in here. */
+export async function createDocument(
+  db: D1Database,
+  input: {
+    firmId: string;
+    subscriberId: string;
+    kind: DocumentKind;
+    r2Key: string;
+    filename: string;
+    contentType: string;
+    sizeBytes: number;
+  }
+): Promise<DocumentRow | null> {
+  const owns = await db
+    .prepare(`SELECT id FROM subscribers WHERE id = ?1 AND firm_id = ?2`)
+    .bind(input.subscriberId, input.firmId)
+    .first<{ id: string }>();
+  if (!owns) return null;
+
+  const id = newToken();
+  const uploadedAt = nowIso();
+  await db
+    .prepare(
+      `INSERT INTO documents (id, firm_id, subscriber_id, kind, r2_key, filename, content_type, size_bytes, uploaded_at)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)`
+    )
+    .bind(id, input.firmId, input.subscriberId, input.kind, input.r2Key, input.filename, input.contentType, input.sizeBytes, uploadedAt)
+    .run();
+
+  return {
+    id,
+    firm_id: input.firmId,
+    subscriber_id: input.subscriberId,
+    kind: input.kind,
+    r2_key: input.r2Key,
+    filename: input.filename,
+    content_type: input.contentType,
+    size_bytes: input.sizeBytes,
+    uploaded_at: uploadedAt,
+    deleted_at: null,
+  };
+}
+
+export async function listDocumentsForSubscriber(db: D1Database, firmId: string, subscriberId: string): Promise<DocumentRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT * FROM documents WHERE firm_id = ?1 AND subscriber_id = ?2 AND deleted_at IS NULL ORDER BY uploaded_at DESC`
+    )
+    .bind(firmId, subscriberId)
+    .all<DocumentRow>();
+  return results;
+}
+
+/** firm_id-bound -- a document id alone is never enough to read it, same
+ * defense-in-depth every other per-firm lookup in this file already uses.
+ * Returns the full row (including r2_key) so the caller can fetch/delete
+ * the matching R2 object without a second query. */
+export async function getDocumentForFirm(db: D1Database, firmId: string, id: string): Promise<DocumentRow | null> {
+  return db
+    .prepare(`SELECT * FROM documents WHERE id = ?1 AND firm_id = ?2 AND deleted_at IS NULL`)
+    .bind(id, firmId)
+    .first<DocumentRow>();
+}
+
+/** Soft-delete only (deleted_at), same convention as removeCpeEntry() --
+ * the caller is responsible for ALSO deleting the R2 object (this function
+ * only returns the row so the caller has r2_key to do that with; it does
+ * not touch R2 itself, keeping this file's own dependency surface D1-only
+ * like every other function here). */
+export async function removeDocument(db: D1Database, firmId: string, id: string): Promise<DocumentRow | null> {
+  const row = await getDocumentForFirm(db, firmId, id);
+  if (!row) return null;
+  await db
+    .prepare(`UPDATE documents SET deleted_at = ?1 WHERE id = ?2 AND firm_id = ?3 AND deleted_at IS NULL`)
+    .bind(nowIso(), id, firmId)
+    .run();
+  return row;
 }
 
 // ---------------------------------------------------------------------------

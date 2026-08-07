@@ -1715,6 +1715,15 @@ PAGE_CSS = """
   .dr-cpe-recent-remove { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 6px; padding: 0.2rem 0.55rem; cursor: pointer; font-family: inherit; font-size: 0.78rem; }
   .dr-cpe-recent-remove:hover { background: var(--row-alt); color: #c33737; }
 
+  /* Roadmap #1/#2 (2026-08-07): documents modal list items -- same shape as
+     .dr-cpe-recent-item just above. */
+  .dr-document-item { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; font-size: 0.85rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+  .dr-document-item:last-child { border-bottom: none; }
+  .dr-document-item a { font-weight: 600; }
+  .dr-document-remove { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 6px; padding: 0.2rem 0.55rem; cursor: pointer; font-family: inherit; font-size: 0.78rem; margin-left: 0.5rem; }
+  .dr-document-remove:hover { background: var(--row-alt); color: #c33737; }
+  .dr-modal #dr-documents-list { margin: 1rem 0; }
+
   /* ---- SSO sign-in button + account settings (2026-07-30, auth suite) ---- */
   .dr-sso-block { margin-top: 1rem; }
   .dr-sso-divider { display: flex; align-items: center; gap: 0.75rem; color: var(--faint); font-size: 0.8rem; margin: 0.9rem 0; }
@@ -6874,7 +6883,9 @@ function drRenderRow(item) {
     ? '<span class="dr-sample-tag">Sample</span>'
     : '<button type="button" class="dr-btn-edit" data-id="' + idAttr + '" aria-label="Edit ' + whoAttr + '">Edit</button> ' +
       '<button type="button" class="dr-btn-renew" data-id="' + idAttr + '" aria-label="Mark ' + whoAttr + ' renewed">Mark renewed</button> ' +
-      '<button type="button" class="dr-btn-remove" data-id="' + idAttr + '" aria-label="Remove ' + whoAttr + '">Remove</button>';
+      '<button type="button" class="dr-btn-remove" data-id="' + idAttr + '" aria-label="Remove ' + whoAttr + '">Remove</button> ' +
+      // Roadmap #1/#2 (2026-08-07): document storage.
+      '<button type="button" class="dr-btn-documents" data-id="' + idAttr + '" data-who="' + whoAttr + '" aria-label="Documents for ' + whoAttr + '">Documents</button>';
   // data-label drives the stacked card layout under 860px (CSS renders it
   // via ::before), so the header row can be hidden without losing meaning.
   var stateTitle = item.state_name ? ' title="' + drEscapeHtml(item.state_name) + '"' : '';
@@ -8612,12 +8623,48 @@ function drSubmitCpeEntry(form) {
   if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
   var fd = new FormData(form);
   var body = {};
+  // #dr-cpe-certificate has no `name` attribute (deliberately), so it never
+  // appears in this loop -- a File value ending up in `body` and then
+  // through JSON.stringify would serialize as "{}", not the file. Handled
+  // as its own separate upload step below instead.
   fd.forEach(function(v, k) { body[k] = v; });
-  fetch('/api/firm/cpe', {
-    method: 'POST', credentials: 'include',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body)
+
+  var certificateInput = document.getElementById('dr-cpe-certificate');
+  var certificateFile = certificateInput && certificateInput.files ? certificateInput.files[0] : null;
+
+  // Roadmap #1/#2 (2026-08-07): if a certificate was attached, upload it
+  // FIRST (as a 'cpe' document for the same staff member) and link the
+  // resulting document_id into the CPE entry -- if the upload itself fails,
+  // the whole submission is blocked with a clear error rather than silently
+  // creating an entry with no certificate the user explicitly attached one for.
+  var uploadStep = certificateFile
+    ? (function() {
+        var uploadForm = new FormData();
+        uploadForm.append('file', certificateFile);
+        uploadForm.append('kind', 'cpe');
+        return fetch('/api/firm/licenses/' + encodeURIComponent(body.subscriber_id) + '/documents', {
+          method: 'POST', credentials: 'include', body: uploadForm
+        }).then(function(res) {
+          if (res.status === 401) { window.location.href = '/firm-login/'; return Promise.reject(new Error('redirecting')); }
+          return drReadJsonSafe(res).then(function(data) {
+            if (!res.ok) {
+              throw new Error((data && data.error) ? data.error : 'Could not upload the certificate.');
+            }
+            return data && data.document ? data.document.id : null;
+          });
+        });
+      })()
+    : Promise.resolve(null);
+
+  uploadStep.then(function(documentId) {
+    if (documentId) body.document_id = documentId;
+    return fetch('/api/firm/cpe', {
+      method: 'POST', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
   }).then(function(res) {
+    if (!res) return null; // redirecting to login
     if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
     return drReadJsonSafe(res).then(function(data) {
       if (!res.ok) {
@@ -8633,8 +8680,8 @@ function drSubmitCpeEntry(form) {
       if (submitBtn) submitBtn.disabled = false;
       drLoadCpeEntries();
     });
-  }).catch(function() {
-    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  }).catch(function(err) {
+    if (errEl) { errEl.textContent = (err && err.message) ? err.message : 'Something went wrong, please try again.'; errEl.hidden = false; }
     if (submitBtn) submitBtn.disabled = false;
   });
 }
@@ -9196,6 +9243,123 @@ function drSubmitEditModal(ev) {
   }).catch(function() { drShowError('Something went wrong, please try again.'); });
 }
 
+// ---------------------------------------------------------------------------
+// Document storage (2026-08-07, roadmap #1/#2). Same modal open/close/
+// focus-restore pattern as drOpenEditModal/drCloseEditModal above.
+// ---------------------------------------------------------------------------
+var drDocumentsModalSubscriberId = null;
+var drDocumentsModalTriggerBtn = null;
+
+function drOpenDocumentsModal(subscriberId, who, triggerBtn) {
+  var modal = document.getElementById('dr-documents-modal');
+  var title = document.getElementById('dr-documents-modal-title');
+  var errEl = document.getElementById('dr-documents-error');
+  var fileInput = document.getElementById('dr-documents-file');
+  if (!modal) return;
+  drDocumentsModalSubscriberId = subscriberId;
+  drDocumentsModalTriggerBtn = triggerBtn || null;
+  if (title) title.textContent = 'Documents for ' + who;
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  if (fileInput) fileInput.value = '';
+  modal.hidden = false;
+  drLoadDocumentsList();
+  var kindSelect = document.getElementById('dr-documents-kind');
+  if (kindSelect) kindSelect.focus();
+}
+
+function drCloseDocumentsModal() {
+  var modal = document.getElementById('dr-documents-modal');
+  if (modal) modal.hidden = true;
+  drDocumentsModalSubscriberId = null;
+  if (drDocumentsModalTriggerBtn && document.body.contains(drDocumentsModalTriggerBtn)) {
+    drDocumentsModalTriggerBtn.focus();
+  }
+  drDocumentsModalTriggerBtn = null;
+}
+
+function drRenderDocumentsList(documents) {
+  var el = document.getElementById('dr-documents-list');
+  if (!el) return;
+  if (documents.length === 0) {
+    el.innerHTML = '<p class="dr-panel-empty">No documents uploaded yet.</p>';
+    return;
+  }
+  el.innerHTML = documents.map(function(doc) {
+    var kindLabel = doc.kind === 'cpe' ? 'CPE certificate' : 'License certificate';
+    var sizeKb = Math.max(1, Math.round(doc.size_bytes / 1024));
+    var uploadedDate = drEscapeHtml(drFormatDeadline(String(doc.uploaded_at).slice(0, 10)));
+    return '<div class="dr-document-item"><span><b>' + drEscapeHtml(doc.filename) + '</b> &mdash; ' +
+      drEscapeHtml(kindLabel) + ', ' + sizeKb + 'KB' +
+      '<span class="dr-agenda-date" style="display:block;">' + uploadedDate + '</span></span>' +
+      '<span><a href="/api/firm/documents/' + encodeURIComponent(doc.id) + '/download" target="_blank" rel="noopener">Download</a> ' +
+      '<button type="button" class="dr-document-remove" data-id="' + drEscapeHtml(doc.id) + '" data-label="' + drEscapeHtml(doc.filename) + '">Remove</button></span></div>';
+  }).join('');
+}
+
+function drLoadDocumentsList() {
+  var el = document.getElementById('dr-documents-list');
+  if (!drDocumentsModalSubscriberId) return;
+  if (el) el.innerHTML = '<p class="dr-panel-empty">Loading&hellip;</p>';
+  fetch('/api/firm/licenses/' + encodeURIComponent(drDocumentsModalSubscriberId) + '/documents', {credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      if (!res.ok) return null;
+      return res.json();
+    })
+    .then(function(data) {
+      drRenderDocumentsList((data && data.documents) || []);
+    })
+    .catch(function() {
+      if (el) el.innerHTML = '<p class="dr-panel-empty">Something went wrong loading documents.</p>';
+    });
+}
+
+function drSubmitDocumentUpload(ev) {
+  if (ev) ev.preventDefault();
+  if (!drDocumentsModalSubscriberId) return;
+  var errEl = document.getElementById('dr-documents-error');
+  var fileInput = document.getElementById('dr-documents-file');
+  var kindSelect = document.getElementById('dr-documents-kind');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  var file = fileInput && fileInput.files ? fileInput.files[0] : null;
+  if (!file) {
+    if (errEl) { errEl.textContent = 'Choose a file first.'; errEl.hidden = false; }
+    return;
+  }
+  var formData = new FormData();
+  formData.append('file', file);
+  formData.append('kind', kindSelect ? kindSelect.value : 'license');
+  var submitBtn = document.querySelector('#dr-documents-upload-form button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
+  fetch('/api/firm/licenses/' + encodeURIComponent(drDocumentsModalSubscriberId) + '/documents', {
+    method: 'POST', credentials: 'include', body: formData
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        if (errEl) { errEl.textContent = (data && data.error) ? data.error : 'Something went wrong, please try again.'; errEl.hidden = false; }
+        return;
+      }
+      if (fileInput) fileInput.value = '';
+      drLoadDocumentsList();
+    });
+  }).catch(function() {
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  }).finally(function() {
+    if (submitBtn) submitBtn.disabled = false;
+  });
+}
+
+function drRemoveDocument(id, label) {
+  if (!window.confirm('Remove "' + label + '"? This cannot be undone.')) return;
+  fetch('/api/firm/documents/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return; }
+      drLoadDocumentsList();
+    })
+    .catch(function() {});
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var stateSel = document.getElementById('dr-add-state');
   drUpdateFields(stateSel ? stateSel.value : '');
@@ -9214,6 +9378,29 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     document.addEventListener('keydown', function(ev) {
       if (ev.key === 'Escape' && !editModal.hidden) drCloseEditModal();
+    });
+  }
+
+  var documentsModal = document.getElementById('dr-documents-modal');
+  var documentsUploadForm = document.getElementById('dr-documents-upload-form');
+  var documentsModalCloseBtn = document.getElementById('dr-documents-modal-close');
+  var documentsList = document.getElementById('dr-documents-list');
+  if (documentsUploadForm) documentsUploadForm.addEventListener('submit', drSubmitDocumentUpload);
+  if (documentsModalCloseBtn) documentsModalCloseBtn.addEventListener('click', drCloseDocumentsModal);
+  if (documentsList) {
+    documentsList.addEventListener('click', function(ev) {
+      var btn = ev.target.closest ? ev.target.closest('.dr-document-remove') : null;
+      if (!btn) return;
+      var id = btn.getAttribute('data-id');
+      if (id) drRemoveDocument(id, btn.getAttribute('data-label'));
+    });
+  }
+  if (documentsModal) {
+    documentsModal.addEventListener('click', function(ev) {
+      if (ev.target === documentsModal) drCloseDocumentsModal();
+    });
+    document.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Escape' && !documentsModal.hidden) drCloseDocumentsModal();
     });
   }
 
@@ -9503,6 +9690,8 @@ document.addEventListener('DOMContentLoaded', function() {
           if (drLicenses[i].id === id) { item = drLicenses[i]; break; }
         }
         drRemoveLicense(id, item ? (item.staff_label || item.email) : null);
+      } else if (btn.classList.contains('dr-btn-documents')) {
+        drOpenDocumentsModal(id, btn.getAttribute('data-who') || id, btn);
       }
     });
   }
@@ -10276,6 +10465,30 @@ def build_firm_dashboard_page(
       </div>
     </div>
 
+    <div id="dr-documents-modal" class="dr-modal-overlay" hidden>
+      <div class="dr-modal" role="dialog" aria-modal="true" aria-labelledby="dr-documents-modal-title">
+        <h2 id="dr-documents-modal-title">Documents</h2>
+        <p class="dr-modal-hint">PDF, JPG, or PNG, up to 2MB per file.</p>
+        <form id="dr-documents-upload-form">
+          <label for="dr-documents-kind">Document type</label>
+          <select id="dr-documents-kind" required>
+            <option value="license">License certificate</option>
+            <option value="cpe">CPE completion certificate</option>
+          </select>
+          <label for="dr-documents-file">File</label>
+          <input type="file" id="dr-documents-file" accept="application/pdf,image/jpeg,image/png" required>
+          <div class="dr-modal-actions">
+            <button type="submit" class="dr-btn-save">Upload</button>
+          </div>
+        </form>
+        <p id="dr-documents-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
+        <div id="dr-documents-list"><p class="dr-panel-empty">Loading&hellip;</p></div>
+        <div class="dr-modal-actions">
+          <button type="button" class="dr-btn-cancel" id="dr-documents-modal-close">Close</button>
+        </div>
+      </div>
+    </div>
+
     {add_staff_html}
     </div>
 
@@ -10354,6 +10567,9 @@ def build_firm_dashboard_page(
           </select>
           <label for="dr-cpe-description">Course/provider (optional)</label>
           <input type="text" id="dr-cpe-description" name="description" maxlength="200" placeholder="e.g. AICPA ethics update">
+          <label for="dr-cpe-certificate">Completion certificate (optional)</label>
+          <input type="file" id="dr-cpe-certificate" accept="application/pdf,image/jpeg,image/png">
+          <p class="field-hint">PDF, JPG, or PNG, up to 2MB. Saved to this staff member&rsquo;s Documents.</p>
           <button type="submit">Log hours</button>
         </form>
         <p id="dr-cpe-log-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>

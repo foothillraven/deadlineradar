@@ -538,6 +538,14 @@ PAGE_CSS = """
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
   }
+  /* Roadmap #41: programmatic grouping for the reminder-cadence checkboxes
+     via <fieldset>/<legend> (the legend itself is visually-hidden -- the
+     panel's own <h2> already labels it for sighted users). Reset default
+     UA fieldset chrome so it doesn't introduce a visible border/box the
+     rest of the panel doesn't have. */
+  .dr-cadence-fieldset {
+    border: 0; margin: 0; padding: 0;
+  }
   .table-wrap {
     overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
     -webkit-overflow-scrolling: touch;
@@ -6821,6 +6829,7 @@ def _firm_dashboard_add_staff_form_html(by_slug: dict[str, list[dict]], as_of: d
   <code>renewal_fee</code>, <code>office_tag</code> -- same fields the form above accepts, so a state
   needing more than email/state (about a third of them do) needs the matching column filled in or
   that row will be skipped with the same reason the single Add Staff form would show.</p>
+  <label for="dr-csv-import-file">CSV file</label>
   <input type="file" id="dr-csv-import-file" accept=".csv,text/csv">
   <button type="button" id="dr-csv-preview-btn">Preview</button>
   <div id="dr-csv-preview-body"></div>
@@ -7322,9 +7331,10 @@ function drRenderSavedViewsList() {
     return;
   }
   el.innerHTML = views.map(function(v, i) {
-    return '<div class="dr-saved-view-item"><span>' + drEscapeHtml(v.name) + '</span><span>' +
-      '<button type="button" class="dr-link-btn" data-apply-view="' + i + '">Apply</button> ' +
-      '<button type="button" class="dr-link-btn" data-delete-view="' + i + '">Delete</button></span></div>';
+    var name = drEscapeHtml(v.name);
+    return '<div class="dr-saved-view-item"><span>' + name + '</span><span>' +
+      '<button type="button" class="dr-link-btn" data-apply-view="' + i + '" aria-label="Apply view \\'' + name + '\\'">Apply</button> ' +
+      '<button type="button" class="dr-link-btn" data-delete-view="' + i + '" aria-label="Delete view \\'' + name + '\\'">Delete</button></span></div>';
   }).join('');
 }
 
@@ -10397,7 +10407,7 @@ function drRenderDocumentsList(documents) {
       drEscapeHtml(kindLabel) + ', ' + sizeKb + 'KB' +
       '<span class="dr-agenda-date" style="display:block;">' + uploadedDate + '</span></span>' +
       '<span><a href="/api/firm/documents/' + encodeURIComponent(doc.id) + '/download" target="_blank" rel="noopener">Download</a> ' +
-      '<button type="button" class="dr-document-remove" data-id="' + drEscapeHtml(doc.id) + '" data-label="' + drEscapeHtml(doc.filename) + '">Remove</button></span></div>';
+      '<button type="button" class="dr-document-remove" data-id="' + drEscapeHtml(doc.id) + '" data-label="' + drEscapeHtml(doc.filename) + '" aria-label="Remove ' + drEscapeHtml(doc.filename) + '">Remove</button></span></div>';
   }).join('');
 }
 
@@ -10636,6 +10646,28 @@ document.addEventListener('DOMContentLoaded', function() {
       if (ev.key === 'Escape' && !editModal.hidden) drCloseEditModal();
     });
   }
+
+  // Roadmap #41 (accessibility audit): all six .dr-modal-overlay dialogs
+  // already set role="dialog"/aria-modal and close on Escape, but none
+  // trapped Tab -- a keyboard user could Tab straight out into background
+  // content while a modal was open. One shared listener (keyed off
+  // whichever .dr-modal-overlay is currently visible) covers every modal
+  // instead of duplicating trap logic per modal.
+  document.addEventListener('keydown', function(ev) {
+    if (ev.key !== 'Tab') return;
+    var openModal = document.querySelector('.dr-modal-overlay:not([hidden])');
+    if (!openModal) return;
+    var focusable = openModal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    if (!focusable.length) return;
+    var first = focusable[0], last = focusable[focusable.length - 1];
+    if (ev.shiftKey && document.activeElement === first) {
+      ev.preventDefault();
+      last.focus();
+    } else if (!ev.shiftKey && document.activeElement === last) {
+      ev.preventDefault();
+      first.focus();
+    }
+  });
 
   var documentsModal = document.getElementById('dr-documents-modal');
   var documentsUploadForm = document.getElementById('dr-documents-upload-form');
@@ -12194,6 +12226,7 @@ def build_firm_dashboard_page(
     </div>
 
     <div id="dr-view-account" class="dr-view" role="tabpanel" hidden>
+      <h1>Account</h1>
       <div class="callout" id="dr-account-demo-lockdown-banner" style="border-left-color:#b8860b;" hidden>
       This is a shared demo account &mdash; email, password, billing, and delete-account changes are
       disabled here so one visitor can't break the demo for the next one.</div>
@@ -12248,12 +12281,15 @@ def build_firm_dashboard_page(
         receive. At least one must stay checked -- leave them all checked (the default) for the
         full escalating schedule.</p>
         <form id="dr-reminder-cadence-form">
-          <label><input type="checkbox" name="cadence" value="60"> 60 days out</label>
-          <label><input type="checkbox" name="cadence" value="30"> 30 days out</label>
-          <label><input type="checkbox" name="cadence" value="14"> 14 days out</label>
-          <label><input type="checkbox" name="cadence" value="7"> 7 days out</label>
-          <label><input type="checkbox" name="cadence" value="3"> 3 days out</label>
-          <label><input type="checkbox" name="cadence" value="1"> 1 day out (final reminder)</label>
+          <fieldset class="dr-cadence-fieldset">
+            <legend class="dr-visually-hidden">Reminder timing</legend>
+            <label><input type="checkbox" name="cadence" value="60"> 60 days out</label>
+            <label><input type="checkbox" name="cadence" value="30"> 30 days out</label>
+            <label><input type="checkbox" name="cadence" value="14"> 14 days out</label>
+            <label><input type="checkbox" name="cadence" value="7"> 7 days out</label>
+            <label><input type="checkbox" name="cadence" value="3"> 3 days out</label>
+            <label><input type="checkbox" name="cadence" value="1"> 1 day out (final reminder)</label>
+          </fieldset>
           <button type="submit">Save</button>
         </form>
         <p id="dr-reminder-cadence-ok" class="dr-account-ok" hidden></p>

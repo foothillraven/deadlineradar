@@ -7025,7 +7025,7 @@ export default {
     ctx.waitUntil(
       (async () => {
         try {
-          const deletedFirmIds = await store.hardDeleteExpiredFirms(env.DB, new Date());
+          const deletedFirmIds = await store.hardDeleteExpiredFirms(env.DB, env.DOCUMENTS, new Date());
           if (deletedFirmIds.length > 0) {
             console.log(`[account-deletion-cron] hard-deleted ${deletedFirmIds.length} firm(s): ${deletedFirmIds.join(", ")}`);
           }

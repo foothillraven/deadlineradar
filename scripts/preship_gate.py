@@ -344,6 +344,116 @@ def check_json_copies_identical(repo_root: Path) -> list[str]:
     return []
 
 
+SITE_BASE_URL_RE = re.compile(r'<loc>(https?://[^<]+)</loc>')
+
+
+def check_sitemap_completeness(html_files: list[Path], docs_dir: Path) -> list[str]:
+    """AuditLab CRAWL-2 (LOW, 2026-08-07): the third hand-maintained-list
+    decay found in ~24 hours (after CRAWL-1's /terms/ omission and RETAIN-1's
+    deletion-loop gap) -- build_sitemap() adds each new standalone page from
+    a hardcoded literal list, and /roadmap/ was forgotten the same way
+    /terms/ was. Same fix shape as RETAIN-1: don't just add the one missing
+    entry, assert the invariant so the NEXT omission fails the gate instead
+    of waiting for another live audit to find it.
+
+    Checks both directions: every built page without a noindex meta tag
+    must appear in sitemap.xml (a page nobody can find via the sitemap is
+    an SEO gap), and every sitemap.xml entry must resolve to a real built
+    page (a dead sitemap entry wastes crawl budget on a 404)."""
+    sitemap_path = docs_dir / "sitemap.xml"
+    if not sitemap_path.exists():
+        return ["[SITEMAP] docs/sitemap.xml not found -- did generate.py run?"]
+
+    sitemap_urls = set(SITE_BASE_URL_RE.findall(sitemap_path.read_text(encoding="utf-8")))
+    # /path/ from a URL like https://deadline-radar.com/path/
+    sitemap_paths = {re.sub(r"^https?://[^/]+", "", u) for u in sitemap_urls}
+
+    indexable_paths: set[str] = set()
+    for f in html_files:
+        if f.name != "index.html":
+            continue
+        text = f.read_text(encoding="utf-8")
+        if 'name="robots" content="noindex"' in text:
+            continue
+        rel = f.relative_to(docs_dir).parent.as_posix()
+        indexable_paths.add("/" if rel == "." else f"/{rel}/")
+
+    missing = sorted(indexable_paths - sitemap_paths)
+    dead = sorted(sitemap_paths - indexable_paths)
+
+    errors = []
+    if missing:
+        errors.append(
+            f"[SITEMAP] {len(missing)} indexable page(s) built but missing from sitemap.xml: {', '.join(missing)}"
+        )
+    if dead:
+        errors.append(
+            f"[SITEMAP] {len(dead)} sitemap.xml entr(y/ies) point at no built page: {', '.join(dead)}"
+        )
+    return errors
+
+
+def check_retention_coverage(repo_root: Path) -> list[str]:
+    """AuditLab RETAIN-1 (MEDIUM, 2026-08-07): store.hardDeleteExpiredFirms()'s
+    table list is hand-maintained with nothing enforcing it -- 5 firm-scoped
+    tables (documents, feature_questionnaire_responses, reminder_log,
+    firm_nps_responses, firm_testimonials) were added across migrations
+    0029-0043 and none was added to the deletion loop, silently breaking the
+    "permanently erased" promise the Terms of Service and delete-account
+    modal both make. This is a HARD gate check, not an advisory -- a
+    data-retention promise silently going unkept is worse than a broken page
+    render, and the fix is always a one-line addition, never a judgment call
+    that needs a human to weigh in before the gate can pass.
+
+    Parses worker/migrations/*.sql directly (the same source of truth a
+    human would check) for every CREATE TABLE with a firm_id column, and
+    worker/src/store.ts's FIRM_SCOPED_TABLES array -- source-scanned rather
+    than imported, same pattern guide_review_staleness_check.py already uses
+    on generate.py, so this runs without a TypeScript toolchain."""
+    migrations_dir = repo_root / "worker" / "migrations"
+    store_ts = repo_root / "worker" / "src" / "store.ts"
+    if not migrations_dir.exists() or not store_ts.exists():
+        print("  (skipping retention-coverage check -- worker/ tree not present in this checkout)")
+        return []
+
+    # firms: the root row itself, deleted last, not "firm-scoped data".
+    # subscribers: deleted via its own dedicated DELETE line (children of a
+    #   firm's roster, not a flat firm-id-keyed log table).
+    # stripe_webhook_events: migration 0018's own comment -- a raw Stripe
+    #   idempotency/audit log; erasing it could let a late-redelivered
+    #   webhook for this firm_id be reprocessed as new.
+    deliberately_excluded = {"firms", "subscribers", "stripe_webhook_events"}
+
+    table_block_re = re.compile(r"CREATE TABLE(?:\s+IF NOT EXISTS)?\s+(\w+)\s*\(([\s\S]*?)\n\);")
+    in_migrations: set[str] = set()
+    for sql_file in sorted(migrations_dir.glob("*.sql")):
+        text = sql_file.read_text(encoding="utf-8")
+        for name, body in table_block_re.findall(text):
+            if re.search(r"\bfirm_id\b", body):
+                in_migrations.add(name)
+
+    store_src = store_ts.read_text(encoding="utf-8")
+    m = re.search(r"FIRM_SCOPED_TABLES\s*=\s*\[([\s\S]*?)\]", store_src)
+    if not m:
+        return ["[RETAIN] store.ts's FIRM_SCOPED_TABLES array not found -- hardDeleteExpiredFirms()'s table list can't be verified"]
+    covered = set(re.findall(r'"(\w+)"', m.group(1)))
+
+    missing = sorted(in_migrations - covered - deliberately_excluded)
+    stale = sorted(covered - in_migrations)
+
+    errors = []
+    if missing:
+        errors.append(
+            "[RETAIN] firm-scoped table(s) NOT in store.ts's FIRM_SCOPED_TABLES and not "
+            f"deliberately excluded -- a deleted firm's rows here survive forever: {', '.join(missing)}"
+        )
+    if stale:
+        errors.append(
+            f"[RETAIN] store.ts's FIRM_SCOPED_TABLES lists table(s) no migration creates: {', '.join(stale)}"
+        )
+    return errors
+
+
 TITLE_RE = re.compile(r"<title>(.*?)</title>", re.DOTALL)
 META_DESCRIPTION_RE = re.compile(r'<meta name="description" content="(.*?)">', re.DOTALL)
 SEO_TITLE_MAX = 60
@@ -549,6 +659,8 @@ def main():
     all_errors += check_data_manifest_consistency(data_path, docs_dir)
     all_errors += check_deadline_currency(data_path)
     all_errors += check_json_copies_identical(repo_root)
+    all_errors += check_retention_coverage(repo_root)
+    all_errors += check_sitemap_completeness(html_files, docs_dir)
 
     print(f"Pre-ship gate: scanned {len(html_files)} rendered pages, {len(state_dirs)} state dirs.")
     if all_errors:

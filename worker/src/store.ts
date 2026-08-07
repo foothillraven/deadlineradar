@@ -1078,7 +1078,33 @@ export async function recordFirmDeletionRefund(db: D1Database, firmId: string, r
  * Returns the ids actually deleted, so the caller can log a real count
  * instead of a silent no-op either way.
  */
-export async function hardDeleteExpiredFirms(db: D1Database, asOf: Date, graceDays = 30): Promise<string[]> {
+/**
+ * AuditLab RETAIN-1 (MEDIUM, 2026-08-07): every firm-scoped table with a
+ * firm_id column MUST be listed here explicitly -- see this function's own
+ * comment above for why (no ON DELETE CASCADE in this schema). Migrations
+ * 0029/0032/0035/0042/0043 added five firm-scoped tables after this
+ * function was last touched and none was added here, silently breaking the
+ * "permanently erased" promise the Terms of Service and the delete-account
+ * modal both make. scripts/preship_gate.py's check_retention_coverage()
+ * asserts every firm_id table in worker/migrations/ appears in this list,
+ * so a sixth omission fails the gate instead of decaying quietly like
+ * these five did.
+ */
+export const FIRM_SCOPED_TABLES = [
+  "firm_login_tokens",
+  "firm_sessions",
+  "cpe_entries",
+  "firm_oauth_identities",
+  "mobility_completions",
+  "activity_log",
+  "documents",
+  "feature_questionnaire_responses",
+  "reminder_log",
+  "firm_nps_responses",
+  "firm_testimonials",
+] as const;
+
+export async function hardDeleteExpiredFirms(db: D1Database, bucket: R2Bucket, asOf: Date, graceDays = 30): Promise<string[]> {
   const cutoff = new Date(asOf.getTime() - graceDays * 86_400_000).toISOString();
   const { results } = await db
     .prepare(`SELECT id FROM firms WHERE status = ?1 AND deletion_requested_at IS NOT NULL AND deletion_requested_at <= ?2`)
@@ -1087,12 +1113,31 @@ export async function hardDeleteExpiredFirms(db: D1Database, asOf: Date, graceDa
 
   const ids = results.map((r) => r.id);
   for (const firmId of ids) {
-    await db.prepare(`DELETE FROM firm_login_tokens WHERE firm_id = ?1`).bind(firmId).run();
-    await db.prepare(`DELETE FROM firm_sessions WHERE firm_id = ?1`).bind(firmId).run();
-    await db.prepare(`DELETE FROM cpe_entries WHERE firm_id = ?1`).bind(firmId).run();
-    await db.prepare(`DELETE FROM firm_oauth_identities WHERE firm_id = ?1`).bind(firmId).run();
-    await db.prepare(`DELETE FROM mobility_completions WHERE firm_id = ?1`).bind(firmId).run();
-    await db.prepare(`DELETE FROM activity_log WHERE firm_id = ?1`).bind(firmId).run();
+    // Delete the R2 objects BEFORE the D1 rows that name them -- if this
+    // worker instance dies mid-loop, an orphaned documents row (pointing
+    // at an R2 object not yet deleted) is recoverable on the next cron
+    // pass; an orphaned R2 object with no row left to find it is not.
+    // Queried without a deleted_at filter -- a soft-deleted row's object
+    // should already be gone via removeDocument()'s own caller, but this
+    // is the LAST chance to catch one that wasn't, and a redundant delete
+    // on an already-gone key is a harmless no-op.
+    const { results: docs } = await db
+      .prepare(`SELECT r2_key FROM documents WHERE firm_id = ?1`)
+      .bind(firmId)
+      .all<{ r2_key: string }>();
+    for (const doc of docs) {
+      try {
+        await bucket.delete(doc.r2_key);
+      } catch {
+        // Best-effort: an R2 delete failure must never abort the D1
+        // cleanup for this firm (leaving them stuck un-deletable forever
+        // is worse than one orphaned object) -- same posture as every
+        // other best-effort side-effect in this codebase.
+      }
+    }
+    for (const table of FIRM_SCOPED_TABLES) {
+      await db.prepare(`DELETE FROM ${table} WHERE firm_id = ?1`).bind(firmId).run();
+    }
     await db.prepare(`DELETE FROM subscribers WHERE firm_id = ?1`).bind(firmId).run();
     await db.prepare(`DELETE FROM firms WHERE id = ?1`).bind(firmId).run();
   }

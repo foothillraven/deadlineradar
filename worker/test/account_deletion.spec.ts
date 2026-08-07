@@ -306,7 +306,7 @@ describe("store.hardDeleteExpiredFirms", () => {
 
   it("leaves a firm inside its grace period alone", async () => {
     const firmId = await deletedFirm(10);
-    const deleted = await store.hardDeleteExpiredFirms(env.DB, new Date());
+    const deleted = await store.hardDeleteExpiredFirms(env.DB, env.DOCUMENTS, new Date());
     expect(deleted).not.toContain(firmId);
     expect(await store.getFirmById(env.DB, firmId)).not.toBeNull();
   });
@@ -326,7 +326,7 @@ describe("store.hardDeleteExpiredFirms", () => {
     });
     await store.logActivity(env.DB, { firmId, subscriberId: staffId, staffLabel: "Doomed Staffer", email: "x@example.com", eventType: "added" });
 
-    const deleted = await store.hardDeleteExpiredFirms(env.DB, new Date());
+    const deleted = await store.hardDeleteExpiredFirms(env.DB, env.DOCUMENTS, new Date());
     expect(deleted).toContain(firmId);
 
     expect(await store.getFirmById(env.DB, firmId)).toBeNull();
@@ -336,9 +336,76 @@ describe("store.hardDeleteExpiredFirms", () => {
     expect(activityRows).toBeNull();
   });
 
+  // AuditLab RETAIN-1 (MEDIUM, 2026-08-07): 5 firm-scoped tables added
+  // after this function was last touched (documents,
+  // feature_questionnaire_responses, reminder_log, firm_nps_responses,
+  // firm_testimonials) were never added to the deletion loop, and no R2
+  // object was ever deleted -- a deleted firm's uploaded license/CPE
+  // certificates persisted in R2 forever, contradicting the "permanently
+  // erased" promise. This proves all five tables AND the R2 object are
+  // actually gone, not just that the function runs without error.
+  it("hard-deletes all 5 previously-missing tables and the R2 object behind a document row", async () => {
+    const firmId = await deletedFirm(31);
+    const { id: staffId } = await store.addPending(env.DB, {
+      email: `retain1-staff-${Date.now()}@example.com`,
+      stateSlug: "georgia",
+      deadlineFields: {},
+      firstName: null,
+      deadlineSource: store.DEADLINE_SOURCE_USER,
+      userDeadline: "2027-01-01",
+      firmId,
+      staffLabel: "Retain1 Staffer",
+      skipConfirmation: true,
+    });
+
+    const r2Key = `retain1-test/${firmId}/${Date.now()}.pdf`;
+    await env.DOCUMENTS.put(r2Key, new Uint8Array([1, 2, 3]));
+    await store.createDocument(env.DB, {
+      firmId,
+      subscriberId: staffId,
+      kind: "license",
+      r2Key,
+      filename: "license.pdf",
+      contentType: "application/pdf",
+      sizeBytes: 3,
+    });
+    await store.submitFeatureQuestionnaire(env.DB, firmId, ["API access"], "please");
+    await store.logReminderSent(env.DB, firmId, staffId, 30);
+    await store.recordNpsResponse(env.DB, firmId, 9);
+    await store.recordTestimonial(env.DB, firmId, "Great product", true);
+
+    // Sanity: everything actually landed before deletion runs, so a false
+    // PASS below can't be explained by the rows never existing.
+    expect(await env.DOCUMENTS.get(r2Key)).not.toBeNull();
+    for (const [table] of [
+      ["documents"],
+      ["feature_questionnaire_responses"],
+      ["reminder_log"],
+      ["firm_nps_responses"],
+      ["firm_testimonials"],
+    ] as const) {
+      const row = await env.DB.prepare(`SELECT 1 FROM ${table} WHERE firm_id = ?1`).bind(firmId).first();
+      expect(row, `expected a ${table} row to exist before deletion`).not.toBeNull();
+    }
+
+    await store.hardDeleteExpiredFirms(env.DB, env.DOCUMENTS, new Date());
+
+    expect(await env.DOCUMENTS.get(r2Key)).toBeNull();
+    for (const [table] of [
+      ["documents"],
+      ["feature_questionnaire_responses"],
+      ["reminder_log"],
+      ["firm_nps_responses"],
+      ["firm_testimonials"],
+    ] as const) {
+      const row = await env.DB.prepare(`SELECT 1 FROM ${table} WHERE firm_id = ?1`).bind(firmId).first();
+      expect(row, `expected ${table} to be empty after deletion`).toBeNull();
+    }
+  });
+
   it("never touches a firm that hasn't been deleted at all", async () => {
     const { id: firmId } = await store.createFirm(env.DB, { name: "Untouched LLC", adminEmail: `untouched-${Date.now()}@example.com` });
-    const deleted = await store.hardDeleteExpiredFirms(env.DB, new Date());
+    const deleted = await store.hardDeleteExpiredFirms(env.DB, env.DOCUMENTS, new Date());
     expect(deleted).not.toContain(firmId);
     expect(await store.getFirmById(env.DB, firmId)).not.toBeNull();
   });

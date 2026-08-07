@@ -8112,6 +8112,15 @@ function drRenderAccountLockdown() {
 // "free") right up until that date. current_period_end is a full ISO
 // datetime from Stripe; drFormatDeadline() expects a plain date, hence the
 // slice(0, 10).
+// Roadmap #42: shown only while the firm has no paid tier -- same
+// DR_PLAN_TIER_LABELS[planTier] truthiness check drRenderBillingPanel()
+// itself uses just below to decide "is this firm on the free tier".
+function drRenderMapValueCallout() {
+  var el = document.getElementById('dr-map-value-callout');
+  if (!el || !drBilling) return;
+  el.hidden = !!DR_PLAN_TIER_LABELS[drBilling.planTier];
+}
+
 function drRenderBillingPanel() {
   var body = document.getElementById('dr-billing-body');
   if (!body || !drBilling) return;
@@ -10141,6 +10150,7 @@ function drLoadLicenses() {
       drOnboardingChecklistPending = Boolean(data.onboarding_checklist_pending);
       drRenderOnboardingChecklist();
       drRenderBillingPanel();
+      drRenderMapValueCallout();
       // Roadmap #6: firm-level, so this comes from the same /firm/licenses
       // response but isn't part of drLicenses/drRenderStats at all.
       drPeerReviewDueDate = data.peer_review_due_date || null;
@@ -12130,6 +12140,20 @@ def build_firm_dashboard_page(
     <div id="dr-view-map" class="dr-view" role="tabpanel" hidden>
       <h1>Map</h1>
       <p class="subhead">Where your firm has staff licensed, and who's at risk.</p>
+      <!-- Roadmap #42: a free-tier firm previously only learned Map/Practice
+           Privilege Check were paid by clicking in and hitting a denial
+           (#dr-map-mobility-note's "part of the paid firm plan" text below,
+           which still fires -- Task #12's 2026-08-05 design intentionally
+           kept that as the reactive explanation). This adds the proactive
+           "why you'd want this" framing before that point, shown/hidden by
+           drRenderMapValueCallout() once billing status is known. -->
+      <div class="callout" id="dr-map-value-callout" hidden>
+        <p><strong>What upgrading unlocks:</strong> a color-coded map of exactly which states your
+        team can practice in today without a local license, plus Practice Privilege Check to confirm
+        one person's eligibility for one state and service before they take on the work. Roster,
+        calendar, and CPE-hour tracking stay free either way.
+        <a href="#" data-view="account">See plans</a>.</p>
+      </div>
       <div class="dr-map-controls">
         <label for="dr-map-staff-select">Show</label>
         <select id="dr-map-staff-select">

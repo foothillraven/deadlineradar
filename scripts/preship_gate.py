@@ -393,6 +393,24 @@ def check_sitemap_completeness(html_files: list[Path], docs_dir: Path) -> list[s
     return errors
 
 
+def _strip_ts_comments(text: str) -> str:
+    """Best-effort TS/JS comment stripper for the source-scanning guards in
+    this file -- NOT a real parser (doesn't understand `//`/`/* */` inside
+    a string literal), but catches the real failure mode a positive-control
+    mutation test on check_write_endpoint_rate_limits() surfaced 2026-08-07:
+    a naive `"checkRateLimit(" in body` substring search is fooled by a
+    COMMENT that mentions the function by name in prose (e.g. "...see
+    RATE_LIMIT_X's own comment for why checkRateLimit()'s `ip` parameter is
+    deliberately reused..." reads as a real call to a substring search) --
+    the guard passed clean with the actual call deleted, exactly the
+    "guard exists vs guard fires" gap this whole file exists to prevent.
+    Block comments stripped first, then `//` line comments -- `(?<!:)`
+    avoids treating a `://` inside a URL string as a comment opener."""
+    text = re.sub(r"/\*[\s\S]*?\*/", "", text)
+    text = re.sub(r"(?<!:)//.*", "", text)
+    return text
+
+
 def check_demo_locked_email_coverage(repo_root: Path) -> list[str]:
     """AuditLab DEMO-4 (MEDIUM, 2026-08-07): the 4th sibling-decay in ~24
     hours -- an invariant (session-authenticated handlers that email a
@@ -442,7 +460,7 @@ def check_demo_locked_email_coverage(repo_root: Path) -> list[str]:
                 if depth == 0:
                     break
             i += 1
-        body = text[start : i + 1]
+        body = _strip_ts_comments(text[start : i + 1])
         if "sendViaSendGrid(" not in body:
             continue
         if "demo_locked" in body:
@@ -528,6 +546,110 @@ def check_retention_coverage(repo_root: Path) -> list[str]:
     if stale:
         errors.append(
             f"[RETAIN] store.ts's FIRM_SCOPED_TABLES lists table(s) no migration creates: {', '.join(stale)}"
+        )
+    return errors
+
+
+def _balanced_brace_function_bodies(text: str, name_pattern: str) -> list[tuple[str, str]]:
+    """Balanced-brace parse: for every `(export )?(async )?function <name>(...)`
+    whose name matches `name_pattern`, returns (name, full body text
+    including the outer braces). Source-scanned, not imported -- same
+    posture every sibling guard in this file uses so it runs without a
+    TypeScript toolchain."""
+    results = []
+    for m in re.finditer(rf"(?:export )?(?:async )?function ({name_pattern})\s*\([^)]*\)[^{{]*\{{", text):
+        name = m.group(1)
+        start = m.end() - 1
+        depth = 0
+        i = start
+        while i < len(text):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        results.append((name, text[start : i + 1]))
+    return results
+
+
+def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
+    """AuditLab SEC-2 (LOW, 2026-08-07): the third hand-maintained-list
+    decay found in ~24 hours, and the one sibling of the pattern that
+    hadn't landed a hard gate yet -- SEC-1 fixed 7 write endpoints that
+    shipped with no rate limit (4 of them from copying a sibling's
+    session+CSRF shape without the checkRateLimit line), but nothing
+    asserted new write endpoints keep the pattern. /security/'s own claim
+    ("Every write endpoint is rate-limited...") only stays true if
+    something enforces it.
+
+    A handle* function in index.ts is "write" if it calls a store.ts
+    function whose OWN SQL contains INSERT/UPDATE/DELETE -- derived from
+    store.ts's actual .prepare() calls, not guessed from the handler or
+    store function's name (a store function like `rearm` or `stop` doesn't
+    obviously read as a write verb), same "source of truth, not
+    convention" posture check_retention_coverage already uses against
+    store.ts. Every such handler must reference checkRateLimit(, unless
+    allowlisted below with the reason a rate limit doesn't apply there."""
+    index_ts = repo_root / "worker" / "src" / "index.ts"
+    store_ts = repo_root / "worker" / "src" / "store.ts"
+    if not index_ts.exists() or not store_ts.exists():
+        print("  (skipping write-endpoint-rate-limit check -- worker/ tree not present in this checkout)")
+        return []
+
+    store_src = store_ts.read_text(encoding="utf-8")
+    mutating_fns = set()
+    for name, body in _balanced_brace_function_bodies(store_src, r"\w+"):
+        body = _strip_ts_comments(body)
+        if re.search(r"\.prepare\(\s*[`\"'][^`\"']*?\b(?:INSERT|UPDATE|DELETE)\b", body, re.IGNORECASE):
+            mutating_fns.add(name)
+
+    index_src = index_ts.read_text(encoding="utf-8")
+
+    # name -> reason a per-caller rate limit doesn't apply here. Every entry
+    # names why, same discipline check_demo_locked_email_coverage's
+    # allowlist already established.
+    allowlisted = {
+        "handleStripeWebhook": "Stripe-signed (verified via webhook secret) server-to-server callback, not a "
+        "client-reachable form -- rate-limiting it risks dropping legitimate billing events "
+        "under a burst, and the signature check is the real access control here",
+        # Token-keyed action links (AuditLab's own suggested exception
+        # category): each takes a large random unguessable `token` as its
+        # actual identifier, so the token's own entropy -- not a per-IP/
+        # global counter -- is the real access control. Confirmed each
+        # genuinely requires `token: string | null` before doing anything,
+        # not just named like one.
+        "handleFirmLoginVerify": "consumes a firm login/magic-link token (store.verifyAndConsumeLoginToken) -- "
+        "the token's entropy is the access control, not a counter",
+        "handleSubscriberLoginVerify": "consumes a subscriber login/magic-link token (store.verifyAndConsumeSubscriberLoginToken)",
+        "handleRoadmapNotifyConfirm": "consumes a roadmap-notify confirmation token",
+        "handleUnsubscribe": "consumes a subscriber's own unsubscribe token -- the one-click, no-login unsubscribe promise means this can't require a session, and the token itself is the only credential by design",
+        "handleSnooze": "consumes a subscriber's own snooze token (store.snoozeByToken)",
+        "handleRearm": "consumes a subscriber's own rearm token (store.renewAndRearmByToken)",
+    }
+
+    errors = []
+    found_names = set()
+    for name, body in _balanced_brace_function_bodies(index_src, r"handle\w+"):
+        found_names.add(name)
+        body = _strip_ts_comments(body)
+        if not any(f"store.{fn}(" in body for fn in mutating_fns):
+            continue
+        if "checkRateLimit(" in body:
+            continue
+        if name in allowlisted:
+            continue
+        errors.append(
+            f"[RATELIMIT] {name}() calls a mutating store.* function but has no checkRateLimit() "
+            "and isn't in check_write_endpoint_rate_limits()'s allowlist -- either add a rate limit, "
+            "or add it to the allowlist with the reason one doesn't apply"
+        )
+
+    stale_allowlist = sorted(set(allowlisted) - found_names)
+    if stale_allowlist:
+        errors.append(
+            f"[RATELIMIT] allowlist entry for function(s) that no longer exist: {', '.join(stale_allowlist)}"
         )
     return errors
 
@@ -740,6 +862,7 @@ def main():
     all_errors += check_retention_coverage(repo_root)
     all_errors += check_sitemap_completeness(html_files, docs_dir)
     all_errors += check_demo_locked_email_coverage(repo_root)
+    all_errors += check_write_endpoint_rate_limits(repo_root)
 
     print(f"Pre-ship gate: scanned {len(html_files)} rendered pages, {len(state_dirs)} state dirs.")
     if all_errors:

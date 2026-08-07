@@ -735,6 +735,13 @@
   .dr-report-generated { color: var(--muted); font-size: 0.88rem; margin: 0 0 0.9rem; }
   .dr-report-summary { list-style: none; margin: 0 0 1.3rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem 1.6rem; font-size: 0.92rem; }
   .dr-report-table td, .dr-report-table th { white-space: normal; }
+  
+  .dr-audit-filter { display: flex; flex-wrap: wrap; gap: 0.7rem; margin: 0.9rem 0; }
+  .dr-audit-filter input, .dr-audit-filter select {
+    padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: 0.9rem; font-family: inherit;
+  }
+  .dr-audit-filter input { flex: 1 1 220px; min-width: 160px; }
   .dr-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.2rem; }
   @media (max-width: 860px) { .dr-panel-row { grid-template-columns: 1fr; } }
   .dr-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; }

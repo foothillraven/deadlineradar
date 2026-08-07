@@ -1164,6 +1164,15 @@ PAGE_CSS = """
   .dr-report-generated { color: var(--muted); font-size: 0.88rem; margin: 0 0 0.9rem; }
   .dr-report-summary { list-style: none; margin: 0 0 1.3rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem 1.6rem; font-size: 0.92rem; }
   .dr-report-table td, .dr-report-table th { white-space: normal; }
+  /* Roadmap #15 (2026-08-07): Audit trail filtering/search -- purely
+     client-side over the same GET /firm/audit-trail response #8 already
+     fetches, no new endpoint. */
+  .dr-audit-filter { display: flex; flex-wrap: wrap; gap: 0.7rem; margin: 0.9rem 0; }
+  .dr-audit-filter input, .dr-audit-filter select {
+    padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: 0.9rem; font-family: inherit;
+  }
+  .dr-audit-filter input { flex: 1 1 220px; min-width: 160px; }
   .dr-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.2rem; }
   @media (max-width: 860px) { .dr-panel-row { grid-template-columns: 1fr; } }
   .dr-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; }
@@ -8630,10 +8639,16 @@ function drLoadAuditTrail() {
     });
 }
 
+// Roadmap #15 (2026-08-07): the full, unfiltered row set drApplyAuditTrailFilter()
+// re-filters against on every keystroke/select change -- populated once per
+// drLoadAuditTrail() fetch, not re-derived from the DOM.
+var drAuditTrailRows = [];
+
 function drRenderAuditTrail(data) {
   var el = document.getElementById('dr-audit-trail-body');
   if (!el) return;
   if (!data) {
+    drAuditTrailRows = [];
     el.innerHTML = '<p class="dr-panel-empty">Could not load the audit trail right now.</p>';
     return;
   }
@@ -8642,22 +8657,47 @@ function drRenderAuditTrail(data) {
     rows.push({
       when: e.created_at,
       who: e.staff_label || e.email,
-      what: DR_ACTIVITY_LABELS[e.event_type] || e.event_type
+      what: DR_ACTIVITY_LABELS[e.event_type] || e.event_type,
+      // Filter value -- deliberately the raw event_type, not the
+      // human-readable `what` label, so filtering survives a future label
+      // wording change.
+      kind: e.event_type
     });
   });
   (data.reminders || []).forEach(function(r) {
     rows.push({
       when: r.sent_at,
       who: r.staff_label,
-      what: 'reminded (' + r.threshold_days + '-day notice)'
+      what: 'reminded (' + r.threshold_days + '-day notice)',
+      kind: 'reminded'
     });
   });
-  if (rows.length === 0) {
+  rows.sort(function(a, b) { return a.when < b.when ? -1 : a.when > b.when ? 1 : 0; });
+  drAuditTrailRows = rows;
+  drApplyAuditTrailFilter();
+}
+
+function drApplyAuditTrailFilter() {
+  var el = document.getElementById('dr-audit-trail-body');
+  if (!el) return;
+  if (drAuditTrailRows.length === 0) {
     el.innerHTML = '<p class="dr-panel-empty">Nothing tracked yet.</p>';
     return;
   }
-  rows.sort(function(a, b) { return a.when < b.when ? -1 : a.when > b.when ? 1 : 0; });
-  var tableRows = rows.map(function(r) {
+  var searchInput = document.getElementById('dr-audit-search');
+  var eventSelect = document.getElementById('dr-audit-event-filter');
+  var search = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  var kind = eventSelect ? eventSelect.value : '';
+  var filtered = drAuditTrailRows.filter(function(r) {
+    if (kind && r.kind !== kind) return false;
+    if (search && r.who.toLowerCase().indexOf(search) === -1) return false;
+    return true;
+  });
+  if (filtered.length === 0) {
+    el.innerHTML = '<p class="dr-panel-empty">No matching events.</p>';
+    return;
+  }
+  var tableRows = filtered.map(function(r) {
     return '<tr><td>' + drEscapeHtml(drFormatDeadline(String(r.when).slice(0, 10))) + '</td><td>' +
       drEscapeHtml(r.who) + '</td><td>' + drEscapeHtml(r.what) + '</td></tr>';
   }).join('');
@@ -9913,6 +9953,12 @@ document.addEventListener('DOMContentLoaded', function() {
   if (productTourReplayBtn) productTourReplayBtn.addEventListener('click', drStartProductTour);
   var reportPrintBtn = document.getElementById('dr-report-print-btn');
   if (reportPrintBtn) reportPrintBtn.addEventListener('click', function() { window.print(); });
+  // Roadmap #15: purely client-side, re-filters the rows already fetched by
+  // drLoadAuditTrail() -- no re-fetch on every keystroke.
+  var auditSearchInput = document.getElementById('dr-audit-search');
+  if (auditSearchInput) auditSearchInput.addEventListener('input', drApplyAuditTrailFilter);
+  var auditEventFilter = document.getElementById('dr-audit-event-filter');
+  if (auditEventFilter) auditEventFilter.addEventListener('change', drApplyAuditTrailFilter);
   // Anchored via getBoundingClientRect() against a live nav item -- has to
   // be recomputed if the viewport (and so the sidebar's on-screen position)
   // changes while the tour is open.
@@ -10954,6 +11000,18 @@ def build_firm_dashboard_page(
       <h2>Audit trail</h2>
       <p class="subhead">A dated record of every roster change and reminder actually sent -- evidence
       of a reasonable process, for a board inquiry or your own file.</p>
+      <div class="dr-audit-filter">
+        <input type="text" id="dr-audit-search" placeholder="Search by staff name&hellip;" aria-label="Search audit trail by staff name">
+        <select id="dr-audit-event-filter" aria-label="Filter audit trail by event type">
+          <option value="">All events</option>
+          <option value="added">Added to roster</option>
+          <option value="edited">Record updated</option>
+          <option value="renewed">Marked renewed</option>
+          <option value="opted_out">Opted out</option>
+          <option value="removed">Removed from roster</option>
+          <option value="reminded">Reminder sent</option>
+        </select>
+      </div>
       <div id="dr-audit-trail-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
     </div>
 

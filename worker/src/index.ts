@@ -3235,6 +3235,11 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     // until the firm explicitly dismisses it (it does NOT auto-dismiss on
     // completion; see migration 0030's own docstring for why).
     onboarding_checklist_pending: session.firm.onboarding_checklist_dismissed_at === null,
+    // Roadmap #30: drives the auto-shown in-app product tour -- true until
+    // the firm skips it or finishes the last step, never shown again after
+    // either. A voluntary replay from the Account tab is client-side only
+    // and never touches this flag.
+    product_tour_pending: session.firm.product_tour_dismissed_at === null,
   });
 }
 
@@ -3326,6 +3331,20 @@ async function handleOnboardingChecklistDismiss(request: Request, env: Env): Pro
   }
 
   await store.dismissOnboardingChecklist(env.DB, session.firmId);
+  return jsonResponse(200, { ok: true });
+}
+
+/** POST /firm/product-tour/dismiss -- roadmap #30. Same shape as
+ * handleOnboardingChecklistDismiss just above (idempotent, session-gated). */
+async function handleProductTourDismiss(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  await store.dismissProductTour(env.DB, session.firmId);
   return jsonResponse(200, { ok: true });
 }
 
@@ -4733,6 +4752,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/onboarding-checklist/dismiss") {
         try {
           return await handleOnboardingChecklistDismiss(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/product-tour/dismiss") {
+        try {
+          return await handleProductTourDismiss(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }

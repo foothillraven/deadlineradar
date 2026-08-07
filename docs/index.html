@@ -713,6 +713,20 @@
     display: inline-block; color: var(--muted); font-size: 0.78rem; font-style: italic;
     padding: 0.2rem 0;
   }
+  
+  .dr-product-tour {
+    position: fixed; z-index: 40; width: 260px; background: var(--card-bg);
+    border: 1px solid var(--accent); border-radius: 10px; padding: 1rem 1.1rem;
+    box-shadow: var(--shadow);
+  }
+  .dr-product-tour[hidden] { display: none; }
+  .dr-product-tour-step { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.4rem; }
+  .dr-product-tour p { font-size: 0.88rem; margin: 0 0 0.9rem; }
+  .dr-product-tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; }
+  @media (max-width: 860px) {
+    
+    .dr-product-tour { position: fixed; top: 12px !important; left: 12px !important; right: 12px; width: auto; }
+  }
   .dr-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.2rem; }
   @media (max-width: 860px) { .dr-panel-row { grid-template-columns: 1fr; } }
   .dr-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; }

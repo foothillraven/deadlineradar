@@ -848,6 +848,10 @@ export interface FirmRow {
   // migration 0030 (roadmap #28). Null = still show the guided onboarding
   // checklist; set (explicit dismiss) = never show it again for this firm.
   onboarding_checklist_dismissed_at: string | null;
+  // migration 0031 (roadmap #30). Null = still auto-show the product tour on
+  // next load; set (skip or finish) = never auto-show again. A voluntary
+  // replay from the Account tab is client-side only and doesn't touch this.
+  product_tour_dismissed_at: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -2820,6 +2824,17 @@ export async function dismissFeatureQuestionnaire(db: D1Database, firmId: string
 export async function dismissOnboardingChecklist(db: D1Database, firmId: string): Promise<void> {
   await db
     .prepare(`UPDATE firms SET onboarding_checklist_dismissed_at = ?1 WHERE id = ?2 AND onboarding_checklist_dismissed_at IS NULL`)
+    .bind(nowIso(), firmId)
+    .run();
+}
+
+/** Roadmap #30 (migration 0031). Same idempotent-dismiss shape as
+ * dismissOnboardingChecklist() just above. Called on "Skip tour" AND on
+ * finishing the last step -- both mean "don't auto-show this again",
+ * matching how the onboarding checklist's own single dismiss action works. */
+export async function dismissProductTour(db: D1Database, firmId: string): Promise<void> {
+  await db
+    .prepare(`UPDATE firms SET product_tour_dismissed_at = ?1 WHERE id = ?2 AND product_tour_dismissed_at IS NULL`)
     .bind(nowIso(), firmId)
     .run();
 }

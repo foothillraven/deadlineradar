@@ -1135,6 +1135,25 @@ PAGE_CSS = """
     display: inline-block; color: var(--muted); font-size: 0.78rem; font-style: italic;
     padding: 0.2rem 0;
   }
+  /* Roadmap #30 (2026-08-07): in-app product tour. position:fixed -- JS
+     computes top/left against a live sidebar nav item on every step change
+     and on resize (see drPositionProductTour()), not document flow. */
+  .dr-product-tour {
+    position: fixed; z-index: 40; width: 260px; background: var(--card-bg);
+    border: 1px solid var(--accent); border-radius: 10px; padding: 1rem 1.1rem;
+    box-shadow: var(--shadow);
+  }
+  .dr-product-tour[hidden] { display: none; }
+  .dr-product-tour-step { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.4rem; }
+  .dr-product-tour p { font-size: 0.88rem; margin: 0 0 0.9rem; }
+  .dr-product-tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; }
+  @media (max-width: 860px) {
+    /* The sidebar collapses/reflows under 860px (matches the site's other
+       responsive breakpoints) -- fixed-right-of-nav-item positioning stops
+       making sense there, so the tour anchors to a plain top-of-viewport
+       banner instead of chasing a nav item that may no longer be visible. */
+    .dr-product-tour { position: fixed; top: 12px !important; left: 12px !important; right: 12px; width: auto; }
+  }
   .dr-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.2rem; }
   @media (max-width: 860px) { .dr-panel-row { grid-template-columns: 1fr; } }
   .dr-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; }
@@ -7092,6 +7111,79 @@ function drDismissOnboardingChecklist() {
   fetch('/api/firm/onboarding-checklist/dismiss', {method: 'POST', credentials: 'include'}).catch(function() {});
 }
 
+// ---------------------------------------------------------------------------
+// Roadmap #30 (2026-08-07): in-app product tour. A 4-step sequence anchored
+// to the sidebar's own real nav items (data-view attrs it already has), one
+// tooltip at a time -- deliberately not a full-screen spotlight overlay
+// (a bigger UI investment this roadmap item doesn't call for) and
+// deliberately distinct content from the onboarding checklist just above:
+// the checklist says WHAT TO DO, this explains WHAT EACH SCREEN IS. Each
+// step actually switches the dashboard to that view (drSwitchView, already
+// defined) so the tour walks through real screens, not just nav labels.
+// ---------------------------------------------------------------------------
+var DR_PRODUCT_TOUR_STEPS = [
+  {view: 'roster', title: 'Roster', body: 'Your full staff list and renewal status, all in one place -- this is home base.'},
+  {view: 'calendar', title: 'Calendar', body: 'Every upcoming renewal deadline laid out by date, so nothing sneaks up on you.'},
+  {view: 'map', title: 'Map', body: 'See at a glance which states your firm is covered in, and where the gaps are.'},
+  {view: 'cpe', title: 'CPE Hours', body: 'Track continuing-education progress against the real requirement for each state.'}
+];
+var drProductTourStepIndex = 0;
+var drProductTourActive = false;
+
+function drPositionProductTour() {
+  var el = document.getElementById('dr-product-tour');
+  if (!el || el.hidden) return;
+  var step = DR_PRODUCT_TOUR_STEPS[drProductTourStepIndex];
+  var navEl = document.querySelector('.dr-nav a[data-view="' + step.view + '"]');
+  if (!navEl) return;
+  // position: fixed (see CSS) -- tracks the viewport, not document flow, so
+  // this only needs the nav item's current on-screen rect, recomputed on
+  // every step change and on resize (wired below).
+  var rect = navEl.getBoundingClientRect();
+  el.style.top = Math.max(12, rect.top + rect.height / 2 - el.offsetHeight / 2) + 'px';
+  el.style.left = (rect.right + 14) + 'px';
+}
+
+function drRenderProductTourStep() {
+  var step = DR_PRODUCT_TOUR_STEPS[drProductTourStepIndex];
+  var stepEl = document.getElementById('dr-product-tour-step');
+  var bodyEl = document.getElementById('dr-product-tour-body');
+  var nextBtn = document.getElementById('dr-product-tour-next-btn');
+  if (!stepEl || !bodyEl || !nextBtn) return;
+  stepEl.textContent = (drProductTourStepIndex + 1) + ' of ' + DR_PRODUCT_TOUR_STEPS.length;
+  bodyEl.innerHTML = '<b>' + drEscapeHtml(step.title) + '</b> &mdash; ' + drEscapeHtml(step.body);
+  nextBtn.textContent = (drProductTourStepIndex === DR_PRODUCT_TOUR_STEPS.length - 1) ? 'Done' : 'Next';
+  drSwitchView(step.view);
+  drPositionProductTour();
+}
+
+function drStartProductTour() {
+  drProductTourActive = true;
+  drProductTourStepIndex = 0;
+  var el = document.getElementById('dr-product-tour');
+  if (el) el.hidden = false;
+  drRenderProductTourStep();
+}
+
+function drAdvanceProductTour() {
+  if (drProductTourStepIndex < DR_PRODUCT_TOUR_STEPS.length - 1) {
+    drProductTourStepIndex++;
+    drRenderProductTourStep();
+    return;
+  }
+  drEndProductTour();
+}
+
+// Called by BOTH "Skip tour" and "Done" on the last step -- same single
+// dismiss action either way, matching dismissProductTour()'s own server-side
+// idempotent-once shape.
+function drEndProductTour() {
+  drProductTourActive = false;
+  var el = document.getElementById('dr-product-tour');
+  if (el) el.hidden = true;
+  fetch('/api/firm/product-tour/dismiss', {method: 'POST', credentials: 'include'}).catch(function() {});
+}
+
 // Demo-account Account-tab lockdown (2026-08-06, reported live against the
 // newly public demo). The backend already refuses email/password/billing/
 // delete-account changes for a demo_locked firm (403, see those handlers'
@@ -8714,6 +8806,12 @@ function drLoadLicenses() {
       // explicit skip -- a firm that closes the tab mid-decision sees it
       // again next time, same as it would have the first time.
       if (data.questionnaire_pending) drOpenQuestionnaireModal();
+      // Roadmap #30: only auto-starts once the questionnaire modal is no
+      // longer pending -- a brand-new firm's very first load would
+      // otherwise show the modal AND the tour's tooltip at once. The tour
+      // simply waits for the NEXT load (any later page visit) rather than
+      // fighting the modal for attention on this one.
+      if (!data.questionnaire_pending && data.product_tour_pending) drStartProductTour();
       // Roadmap #28: pending flag is server-side/durable, but the CPE step
       // needs drCpeEntries, not loaded yet at this point in the function --
       // rendered again once drLoadCpeEntries() resolves, below.
@@ -9103,6 +9201,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
   var sampleModeExitBtn = document.getElementById('dr-sample-mode-exit-btn');
   if (sampleModeExitBtn) sampleModeExitBtn.addEventListener('click', drExitSampleMode);
+
+  var productTourNextBtn = document.getElementById('dr-product-tour-next-btn');
+  if (productTourNextBtn) productTourNextBtn.addEventListener('click', drAdvanceProductTour);
+  var productTourSkipBtn = document.getElementById('dr-product-tour-skip-btn');
+  if (productTourSkipBtn) productTourSkipBtn.addEventListener('click', drEndProductTour);
+  var productTourReplayBtn = document.getElementById('dr-product-tour-replay-btn');
+  if (productTourReplayBtn) productTourReplayBtn.addEventListener('click', drStartProductTour);
+  // Anchored via getBoundingClientRect() against a live nav item -- has to
+  // be recomputed if the viewport (and so the sidebar's on-screen position)
+  // changes while the tour is open.
+  window.addEventListener('resize', function() {
+    if (drProductTourActive) drPositionProductTour();
+  });
 
   var questionnaireForm = document.getElementById('dr-questionnaire-form');
   var questionnaireSkipBtn = document.getElementById('dr-questionnaire-skip-btn');
@@ -9861,6 +9972,15 @@ def build_firm_dashboard_page(
     body = f"""<div class="dr-dash-shell">
   {sidebar_html}
 
+  <div class="dr-product-tour" id="dr-product-tour" hidden role="dialog" aria-label="Product tour" aria-describedby="dr-product-tour-body">
+    <div class="dr-product-tour-step" id="dr-product-tour-step"></div>
+    <p id="dr-product-tour-body"></p>
+    <div class="dr-product-tour-actions">
+      <button type="button" class="dr-link-btn" id="dr-product-tour-skip-btn">Skip tour</button>
+      <button type="button" class="dr-btn-edit" id="dr-product-tour-next-btn">Next</button>
+    </div>
+  </div>
+
   <div class="dr-main">
     <div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" role="alert" hidden></div>
     <div id="dr-dash-success" class="callout" style="border-left-color:var(--verified-green);" role="status" hidden></div>
@@ -10038,6 +10158,12 @@ def build_firm_dashboard_page(
       <div class="callout" id="dr-account-demo-lockdown-banner" style="border-left-color:#b8860b;" hidden>
       This is a shared demo account &mdash; email, password, billing, and delete-account changes are
       disabled here so one visitor can't break the demo for the next one.</div>
+
+      <div class="dr-account-panel">
+        <h2>Help</h2>
+        <p class="signup-microcopy">New here, or just want a refresher on what each part of the dashboard does?</p>
+        <button type="button" class="dr-btn-edit" id="dr-product-tour-replay-btn">Take the tour again</button>
+      </div>
 
       <div class="dr-account-panel" id="dr-billing-panel">
         <h2>Billing</h2>

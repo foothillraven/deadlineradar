@@ -262,6 +262,51 @@ describe("POST /firm/onboarding-checklist/dismiss", () => {
   });
 });
 
+// Roadmap #30 (2026-08-07, roadmap_items table): in-app product tour. Only
+// the server-side dismiss half is testable here -- the 4-step sequence and
+// its tooltip positioning are client-side only, same reasoning as #28's own
+// test comment just above.
+describe("POST /firm/product-tour/dismiss", () => {
+  it("401s with no session", async () => {
+    expect((await SELF.fetch(`${BASE}/firm/product-tour/dismiss`, { method: "POST" })).status).toBe(401);
+  });
+
+  it("GET /firm/licenses reports product_tour_pending:true for a brand-new firm, false after dismiss", async () => {
+    const { cookie } = await createFirmWithSession("Product Tour Firm", `producttour-${Date.now()}@example.com`);
+    const before = await SELF.fetch(`${BASE}/firm/licenses`, { headers: { Cookie: cookie } });
+    const beforeBody = (await before.json()) as { product_tour_pending: boolean };
+    expect(beforeBody.product_tour_pending).toBe(true);
+
+    const dismissResp = await SELF.fetch(`${BASE}/firm/product-tour/dismiss`, { method: "POST", headers: { Cookie: cookie } });
+    expect(dismissResp.status).toBe(200);
+
+    const after = await SELF.fetch(`${BASE}/firm/licenses`, { headers: { Cookie: cookie } });
+    const afterBody = (await after.json()) as { product_tour_pending: boolean };
+    expect(afterBody.product_tour_pending).toBe(false);
+  });
+
+  it("is independent of the onboarding checklist's own pending flag", async () => {
+    const { cookie } = await createFirmWithSession("Independent Tour Pending Firm", `independenttourpending-${Date.now()}@example.com`);
+    await SELF.fetch(`${BASE}/firm/product-tour/dismiss`, { method: "POST", headers: { Cookie: cookie } });
+    const resp = await SELF.fetch(`${BASE}/firm/licenses`, { headers: { Cookie: cookie } });
+    const body = (await resp.json()) as { product_tour_pending: boolean; onboarding_checklist_pending: boolean };
+    expect(body.product_tour_pending).toBe(false);
+    expect(body.onboarding_checklist_pending).toBe(true);
+  });
+
+  it("is idempotent -- a second dismiss doesn't move the timestamp", async () => {
+    const { cookie, firmId } = await createFirmWithSession("Idempotent Tour Dismiss Firm", `idempotenttour-${Date.now()}@example.com`);
+    await SELF.fetch(`${BASE}/firm/product-tour/dismiss`, { method: "POST", headers: { Cookie: cookie } });
+    const firmAfterFirst = await store.getFirmById(env.DB, firmId);
+    const firstTimestamp = firmAfterFirst?.product_tour_dismissed_at;
+    expect(firstTimestamp).toBeTruthy();
+
+    await SELF.fetch(`${BASE}/firm/product-tour/dismiss`, { method: "POST", headers: { Cookie: cookie } });
+    const firmAfterSecond = await store.getFirmById(env.DB, firmId);
+    expect(firmAfterSecond?.product_tour_dismissed_at).toBe(firstTimestamp);
+  });
+});
+
 describe("store.setFeatureIdeaStatus", () => {
   it("updates status and rejects an invalid value", async () => {
     const ok = await store.setFeatureIdeaStatus(env.DB, "idea-white-label", "in_progress");

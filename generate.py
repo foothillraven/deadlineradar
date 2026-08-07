@@ -13662,6 +13662,62 @@ least 20 hours are required in each half specifically.
 for you instead of sneaking up on you.</p>
 """,
     },
+    {
+        # 2026-08-07: standing weekly blog post, GSC-steered (Florida was the
+        # highest-impressions state page with no dedicated guide yet and a
+        # poor position -- see the 2026-08-07 GSC pull, 28-day window,
+        # 82 impressions/position ~18.1/0% CTR, ranked above every other
+        # uncovered state). Repackages fl-individual/fl-firm (data/cpa_deadlines.json)
+        # and fl-cpe (data/cpe_hours.json) -- zero new legal research, same
+        # process as every prior post in this series.
+        "slug": "florida-cpa-license-renewal-guide",
+        "title": "Florida CPA License Renewal: Why There's No Single Date to Give You",
+        "meta_description": (
+            "Florida CPA license renewal doesn't follow a public odd/even pattern for "
+            "individuals -- here's why, what actually determines your date, the firm-license "
+            "rule that IS fixed, and the 80-hour CPE requirement."
+        ),
+        "body_html": """
+<p class="intro">If you've searched for "Florida CPA renewal date" expecting a single answer the way
+Wisconsin or Illinois CPAs get one, here's the honest answer: for individual licenses, there isn't
+one &mdash; and that's worth understanding rather than guessing at.</p>
+
+<h2>Individual licenses: no public odd/even rule, despite what you might expect</h2>
+<p>Florida CPA license renewal used to be described here (and in a lot of secondary sources online) as
+following an odd/even-year cohort split, the same pattern many other states use. A 2026-07-05 data
+review found that framing was wrong: Florida's Department of Business and Professional Regulation
+(DBPR) runs individual CPA licenses on a rolling 2-year "reestablishment period" anchored to each
+CPA's own <em>original certificate date</em> &mdash; not a publicly stated calendar rule. Checked
+against DBPR's own live license-verification tool, real active licenses show both odd- and even-year
+expirations simultaneously, confirming there's no single date that applies to "Florida CPAs" as a
+group. <a href="../../florida/">Check your exact license status on Florida's own DBPR lookup, linked
+from our Florida page</a> &mdash; it's the only way to know your actual date.</p>
+
+<h2>Firm licenses: this part IS fixed &mdash; December 31 of odd-numbered years</h2>
+<p>Unlike the individual-license picture, Florida firm licenses are simple: a single cohort expiring
+December 31 of each odd-numbered year. This isn't a guess -- Florida's own public CPA license records
+(DBPR's published license-data file, reviewed 2026-07-30) show 4,932 of 4,933 active firm licenses
+sharing that same December 31, 2027 expiration, about as close to a universal rule as operational data
+gets. If you're a firm owner rather than tracking your own individual license, this is the date that
+actually applies to you.</p>
+
+<h2>CPE: 80 hours per 2-year period, including 4 ethics hours</h2>
+<p>Florida requires 80 CPE hours per 2-year re-establishment period (Fla. Admin. Code Ann. R.
+61H1-33.003): at least 8 hours in accounting/auditing, at least 4 hours of Board-approved ethics (a
+review of Chapters 455 and 473, Florida Statutes, and related rules), and no more than 20 hours in
+behavioral subjects. There's no separate annual minimum written into the rule itself -- the 80-hour
+count is checked against the full 2-year period. One date worth flagging separately from your license
+renewal itself: CPE reporting is due <strong>July 31</strong>, ahead of the biennial renewal, not on
+the renewal date itself.</p>
+
+<p><strong>Bottom line</strong>: if you're an individual Florida CPA, don't trust an odd/even guess --
+confirm your exact date on DBPR's own license lookup, since it's tied to your personal certificate
+date, not a public calendar rule. If you're tracking a firm license instead, December 31 of odd years
+is the real, confirmed date. Either way, your 80-hour/2-year CPE count (with its July 31 reporting
+deadline) runs on its own separate clock.
+<a href="../../florida/">See the full sourcing and set a reminder for your Florida deadline here</a>.</p>
+""",
+    },
 ]
 
 

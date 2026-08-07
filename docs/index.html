@@ -700,6 +700,19 @@
     content: ""; position: absolute; left: 0.28rem; top: 0.32rem; width: 0.4rem; height: 0.65rem;
     border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg);
   }
+  
+  .dr-link-btn {
+    background: transparent; border: none; padding: 0; margin: 0; color: var(--accent);
+    font: inherit; text-decoration: underline; cursor: pointer;
+  }
+  .dr-link-btn:hover { color: var(--accent-deep); }
+  .dr-sample-mode-banner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .dr-sample-mode-banner[hidden] { display: none; }
+  .dr-sample-mode-banner .dr-link-btn { white-space: nowrap; font-weight: 600; }
+  .dr-sample-tag {
+    display: inline-block; color: var(--muted); font-size: 0.78rem; font-style: italic;
+    padding: 0.2rem 0;
+  }
   .dr-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.2rem; }
   @media (max-width: 860px) { .dr-panel-row { grid-template-columns: 1fr; } }
   .dr-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; }

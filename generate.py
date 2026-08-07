@@ -1122,6 +1122,19 @@ PAGE_CSS = """
     content: ""; position: absolute; left: 0.28rem; top: 0.32rem; width: 0.4rem; height: 0.65rem;
     border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg);
   }
+  /* Roadmap #29 (2026-08-07): sample-data mode for brand-new accounts. */
+  .dr-link-btn {
+    background: transparent; border: none; padding: 0; margin: 0; color: var(--accent);
+    font: inherit; text-decoration: underline; cursor: pointer;
+  }
+  .dr-link-btn:hover { color: var(--accent-deep); }
+  .dr-sample-mode-banner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .dr-sample-mode-banner[hidden] { display: none; }
+  .dr-sample-mode-banner .dr-link-btn { white-space: nowrap; font-weight: 600; }
+  .dr-sample-tag {
+    display: inline-block; color: var(--muted); font-size: 0.78rem; font-style: italic;
+    padding: 0.2rem 0;
+  }
   .dr-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.2rem; }
   @media (max-width: 860px) { .dr-panel-row { grid-template-columns: 1fr; } }
   .dr-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; }
@@ -6607,6 +6620,88 @@ function drRosterDeadlineCellAttrs(iso) {
   return ' class="dr-deadline-overdue" title="Overdue"';
 }
 
+// ---------------------------------------------------------------------------
+// Roadmap #29 (2026-08-07): sample-data mode for brand-new accounts. Purely
+// client-side -- swaps the SAME drLicenses/drCpeEntries arrays every render
+// function above and below already reads, so Roster/Calendar/Map/CPE Hours
+// all show a consistent sample dashboard with zero new rendering logic.
+// Nothing here ever reaches the server: no new endpoint, no fake DB rows
+// that could leak into a real ICS export, an actual reminder email, or the
+// seat count. drLoadLicenses()'s success handler unconditionally exits
+// sample mode before applying its own result, so a stale sample view can
+// never survive past the moment real data exists (e.g. right after adding
+// a first real staff member re-triggers a load).
+// ---------------------------------------------------------------------------
+var drSampleModeActive = false;
+
+function drIsoDateFromNow(offsetDays) {
+  var d = new Date();
+  d.setUTCDate(d.getUTCDate() + offsetDays);
+  return d.toISOString().slice(0, 10);
+}
+
+// Same 5 state/license-type pairs the live public demo account
+// (demo@deadline-radar.com) already uses in production -- proven to render
+// cleanly everywhere, including the CPE Hours requirement lookup, rather
+// than guessing at slugs/ids that might hit a data gap. Deadlines are
+// computed relative to "now" (never a hardcoded ISO date) so the sample
+// spread never goes stale regardless of when a firm actually signs up, and
+// are deliberately mixed -- 2 comfortably active, 2 due soon, 1 overdue --
+// so the demo shows what an actual alert looks like, not just an empty
+// green screen.
+function drBuildSampleLicenses() {
+  return [
+    {id: 'sample-1', staff_label: 'Riley Chen', email: 'riley.chen@example.com', state_slug: 'georgia', state_name: 'Georgia', license_type_id: 'ga-individual', status: 'confirmed', next_deadline: drIsoDateFromNow(280), is_sample: true},
+    {id: 'sample-2', staff_label: 'Devon Park', email: 'devon.park@example.com', state_slug: 'alabama', state_name: 'Alabama', license_type_id: 'al-all', status: 'confirmed', next_deadline: drIsoDateFromNow(12), is_sample: true},
+    {id: 'sample-3', staff_label: 'Casey Nguyen', email: 'casey.nguyen@example.com', state_slug: 'missouri', state_name: 'Missouri', license_type_id: 'mo-individual', status: 'confirmed', next_deadline: drIsoDateFromNow(-6), is_sample: true},
+    {id: 'sample-4', staff_label: 'Jamie Torres', email: 'jamie.torres@example.com', state_slug: 'louisiana', state_name: 'Louisiana', license_type_id: 'la-firm', status: 'confirmed', next_deadline: drIsoDateFromNow(150), is_sample: true},
+    {id: 'sample-5', staff_label: 'Morgan Ellis', email: 'morgan.ellis@example.com', state_slug: 'illinois', state_name: 'Illinois', license_type_id: 'il-individual', status: 'confirmed', next_deadline: drIsoDateFromNow(25), is_sample: true}
+  ];
+}
+
+function drBuildSampleCpeEntries() {
+  return [
+    {id: 'sample-cpe-1', subscriber_id: 'sample-1', hours: 8, category: 'technical', description: 'Sample entry', entry_date: drIsoDateFromNow(-30)},
+    {id: 'sample-cpe-2', subscriber_id: 'sample-4', hours: 4, category: 'ethics', description: 'Sample entry', entry_date: drIsoDateFromNow(-60)}
+  ];
+}
+
+// Every view that reads drLicenses/drCpeEntries directly, in the same order
+// drLoadLicenses()'s own success handler renders them in -- entering or
+// exiting sample mode re-runs this exact sequence so no view is left
+// showing a stale mix of real and sample data.
+function drRenderAllViews() {
+  drRenderTable();
+  drRenderStats();
+  drRenderAtRisk();
+  drRenderCalendar();
+  drRenderAgenda();
+  drPopulateMapStaffSelect();
+  drRenderMapForSelection();
+  drRenderCpeSummary();
+  drRenderCpeStaffProgress();
+  drRenderCpeStaffSelect();
+  drRenderCpeRecent();
+}
+
+function drEnterSampleMode() {
+  drSampleModeActive = true;
+  drLicenses = drBuildSampleLicenses();
+  drCpeEntries = drBuildSampleCpeEntries();
+  var banner = document.getElementById('dr-sample-mode-banner');
+  if (banner) banner.hidden = false;
+  drRenderAllViews();
+}
+
+function drExitSampleMode() {
+  drSampleModeActive = false;
+  drLicenses = [];
+  drCpeEntries = [];
+  var banner = document.getElementById('dr-sample-mode-banner');
+  if (banner) banner.hidden = true;
+  drRenderAllViews();
+}
+
 function drRenderRow(item) {
   var statusClass = DR_STATUS_CLASSES[item.status] || 'mock-status--risk';
   var statusLabel = DR_STATUS_LABELS[item.status] || item.status;
@@ -6629,10 +6724,15 @@ function drRenderRow(item) {
     ? '<span class="dr-roster-name"' + nameTitle + '>' + drEscapeHtml(item.staff_label) + '</span>'
     : '<span class="dr-roster-name" style="color:var(--muted)">\\u2014</span>';
   var staffCell = nameLine + '<span class="dr-roster-email" title="' + drEscapeHtml(item.email) + '">' + drEscapeHtml(item.email) + '</span>';
-  var actionsCell =
-    '<button type="button" class="dr-btn-edit" data-id="' + idAttr + '" aria-label="Edit ' + whoAttr + '">Edit</button> ' +
-    '<button type="button" class="dr-btn-renew" data-id="' + idAttr + '" aria-label="Mark ' + whoAttr + ' renewed">Mark renewed</button> ' +
-    '<button type="button" class="dr-btn-remove" data-id="' + idAttr + '" aria-label="Remove ' + whoAttr + '">Remove</button>';
+  // Roadmap #29: a sample row's id ('sample-1' etc.) matches nothing on the
+  // server, so Edit/Mark renewed/Remove would either 404 or -- far worse if
+  // ids ever collided -- silently act on a real record. No functional
+  // buttons for a sample row, full stop; a plain badge instead.
+  var actionsCell = item.is_sample
+    ? '<span class="dr-sample-tag">Sample</span>'
+    : '<button type="button" class="dr-btn-edit" data-id="' + idAttr + '" aria-label="Edit ' + whoAttr + '">Edit</button> ' +
+      '<button type="button" class="dr-btn-renew" data-id="' + idAttr + '" aria-label="Mark ' + whoAttr + ' renewed">Mark renewed</button> ' +
+      '<button type="button" class="dr-btn-remove" data-id="' + idAttr + '" aria-label="Remove ' + whoAttr + '">Remove</button>';
   // data-label drives the stacked card layout under 860px (CSS renders it
   // via ::before), so the header row can be hidden without losing meaning.
   var stateTitle = item.state_name ? ' title="' + drEscapeHtml(item.state_name) + '"' : '';
@@ -6660,7 +6760,12 @@ function drRenderTable() {
   drRenderOnboardingChecklist();
   if (!tbody) return;
   if (drLicenses.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6">No staff on your roster yet -- add your first one below.</td></tr>';
+    // Roadmap #29: only reachable when the real roster is genuinely empty
+    // (sample mode fills drLicenses with 5 rows), so this is always the
+    // real "nothing added yet" state -- offer the sample-data preview here.
+    tbody.innerHTML = '<tr><td colspan="6">No staff on your roster yet -- add your first one below, or ' +
+      '<button type="button" class="dr-link-btn" id="dr-sample-mode-enter-btn">see a sample roster</button> ' +
+      'to preview what DeadlineRadar looks like once it&rsquo;s populated.</td></tr>';
     return;
   }
   tbody.innerHTML = drLicenses.map(drRenderRow).join('');
@@ -8573,6 +8678,14 @@ function drLoadLicenses() {
     })
     .then(function(data) {
       if (!data) return;
+      // Roadmap #29: real data always wins -- a stale sample view (e.g. a
+      // background tab left open) can never survive past the moment a real
+      // load resolves, even if the admin never clicked "Exit sample view".
+      if (drSampleModeActive) {
+        drSampleModeActive = false;
+        var sampleBanner = document.getElementById('dr-sample-mode-banner');
+        if (sampleBanner) sampleBanner.hidden = true;
+      }
       drLicenses = data.licenses || [];
       drSeatCap = typeof data.seat_cap === 'number' ? data.seat_cap : null;
       drBilling = {
@@ -8978,6 +9091,9 @@ document.addEventListener('DOMContentLoaded', function() {
   var onboardingDismissBtn = document.getElementById('dr-onboarding-dismiss-btn');
   if (onboardingDismissBtn) onboardingDismissBtn.addEventListener('click', drDismissOnboardingChecklist);
 
+  var sampleModeExitBtn = document.getElementById('dr-sample-mode-exit-btn');
+  if (sampleModeExitBtn) sampleModeExitBtn.addEventListener('click', drExitSampleMode);
+
   var questionnaireForm = document.getElementById('dr-questionnaire-form');
   var questionnaireSkipBtn = document.getElementById('dr-questionnaire-skip-btn');
   var questionnaireModal = document.getElementById('dr-questionnaire-modal');
@@ -9036,6 +9152,9 @@ document.addEventListener('DOMContentLoaded', function() {
     tbody.addEventListener('click', function(ev) {
       var btn = ev.target.closest ? ev.target.closest('button') : null;
       if (!btn) return;
+      // Roadmap #29: only present inside the empty-roster row (drRenderTable's
+      // own empty branch), so this always fires against an empty real roster.
+      if (btn.id === 'dr-sample-mode-enter-btn') { drEnterSampleMode(); return; }
       var id = btn.getAttribute('data-id');
       if (btn.classList.contains('dr-btn-edit')) {
         var editItem = null;
@@ -9737,6 +9856,10 @@ def build_firm_dashboard_page(
     <div id="dr-dash-success" class="callout" style="border-left-color:var(--verified-green);" role="status" hidden></div>
     <div id="dr-dash-warning" class="callout" style="border-left-color:var(--gold);" role="status" hidden></div>
     <div id="dr-staleness-banner" class="callout" style="border-left-color:#b8860b;" hidden></div>
+    <div id="dr-sample-mode-banner" class="callout dr-sample-mode-banner" style="border-left-color:var(--accent);" role="status" hidden>
+      You&rsquo;re viewing sample data &mdash; nothing here is real, and no reminders will be sent for it.
+      <button type="button" class="dr-link-btn" id="dr-sample-mode-exit-btn">Exit sample view</button>
+    </div>
 
     <div id="dr-view-roster" class="dr-view" role="tabpanel">
     <h1>Coverage overview</h1>

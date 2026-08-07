@@ -118,3 +118,69 @@ describe("blocklist enforcement across the three signup paths", () => {
     expect(resp.status).toBe(200);
   });
 });
+
+// AuditLab BLOCKLIST-1 (MEDIUM, 2026-08-06 -> fixed 2026-08-07): the
+// blocklist was enforced on the three SIGNUP paths but not on the two
+// routes that accept a NEW address for an EXISTING record --
+// /firm/change-email (AuditLab's finding) and PATCH /firm/licenses/:id's
+// email edit (found by grepping for the same defining behavior).
+describe("BLOCKLIST-1: existing-record email changes respect the blocklist too", () => {
+  it("POST /firm/change-email to a blocklisted address is refused", async () => {
+    const blocked = `changeemail-blocked-${Date.now()}@example.com`;
+    await addBlocklistEntry(blocked, "email");
+    const { cookie } = await createFirmWithSession("ChangeEmail Block Firm", `ce-owner-${Date.now()}@example.com`);
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/change-email", {
+      method: "POST",
+      headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.53", Cookie: cookie, Origin: "https://deadline-radar.com" },
+      body: JSON.stringify({ new_email: blocked, current_password: "" }),
+    });
+    expect(resp.status).toBe(400);
+    const body = (await resp.json()) as { error: string };
+    expect(body.error).toContain("not able to use that address");
+  });
+
+  it("PATCH /firm/licenses/:id email edit onto a blocklisted address is refused", async () => {
+    const blocked = `patch-blocked-${Date.now()}@example.com`;
+    await addBlocklistEntry(blocked, "email");
+    const { cookie } = await createFirmWithSession("Patch Block Firm", `pb-owner-${Date.now()}@example.com`);
+    const createResp = await postFirmLicense(cookie, {
+      staff_label: "Patch Target",
+      email: `patch-ok-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    const created = (await createResp.json()) as { id: string };
+    const resp = await SELF.fetch(`https://deadline-radar.com/firm/licenses/${created.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.54", Cookie: cookie, Origin: "https://deadline-radar.com" },
+      body: JSON.stringify({ email: blocked }),
+    });
+    expect(resp.status).toBe(400);
+  });
+
+  it("an unrelated PATCH on a row whose address was blocked AFTER it was added still succeeds", async () => {
+    const laterBlocked = `later-blocked-${Date.now()}@example.com`;
+    const { cookie } = await createFirmWithSession("Later Block Firm", `lb-owner-${Date.now()}@example.com`);
+    const createResp = await postFirmLicense(cookie, {
+      staff_label: "Grandfathered",
+      email: laterBlocked,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    const created = (await createResp.json()) as { id: string };
+    // Operator blocks the address only after it's already on the roster.
+    await addBlocklistEntry(laterBlocked, "email");
+    // The real edit modal always re-sends the row's email alongside any
+    // other field -- so this sends the UNCHANGED (now-blocked) address
+    // back, exercising the normalizeEmail same-address guard, not just
+    // the omitted-field path.
+    const resp = await SELF.fetch(`https://deadline-radar.com/firm/licenses/${created.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.55", Cookie: cookie, Origin: "https://deadline-radar.com" },
+      body: JSON.stringify({ staff_label: "Renamed, Address Untouched", email: laterBlocked }),
+    });
+    expect(resp.status).toBe(200);
+    const body = (await resp.json()) as { staff_label: string };
+    expect(body.staff_label).toBe("Renamed, Address Untouched");
+  });
+});

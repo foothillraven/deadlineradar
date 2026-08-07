@@ -78,6 +78,9 @@ RULE_CHANGE_COVERAGE_STATS_PATH = ROOT / "data" / "rule_change_coverage_stats.js
 # build_changelog_page()'s own docstring for why this is NOT generated from
 # raw git commit history.
 CHANGELOG_DATA_PATH = ROOT / "data" / "changelog.json"
+# AuditLab PROSE-1 (2026-08-07): per-guide fact-review registry -- see the
+# file's own schema_note and scripts/guide_review_staleness_check.py.
+GUIDE_REVIEWS_PATH = ROOT / "data" / "guide_reviews.json"
 # "docs" (not "site") deliberately -- this is the zero-config GitHub Pages
 # convention (Settings > Pages > Deploy from a branch > /docs), so this
 # directory becomes the deploy target as-is once a repo + Pages source exist.
@@ -14046,13 +14049,30 @@ deadline) runs on its own separate clock.
 
 
 def build_blog_article_page(article: dict) -> str:
+    # AuditLab PROSE-1 (2026-08-07): every guide's factual claims now carry a
+    # visible review date from data/guide_reviews.json -- the same registry
+    # scripts/guide_review_staleness_check.py ages via the preship gate, so
+    # this date can't quietly go stale without the gate surfacing it. A
+    # guide missing from the registry fails loudly here rather than
+    # rendering an unstamped page (the exact silent-gap failure mode
+    # PROSE-1 is about).
+    reviews = json.loads(GUIDE_REVIEWS_PATH.read_text(encoding="utf-8"))["guides"]
+    review_row = reviews.get(article["slug"])
+    if not review_row:
+        raise RuntimeError(
+            f"guide '{article['slug']}' has no row in data/guide_reviews.json -- "
+            "add one with a real review date before shipping it"
+        )
+    reviewed_on = fmt_date(date.fromisoformat(review_row["last_reviewed"]))
     body = f"""<h1>{esc(article['title'])}</h1>
 {article['body_html']}
 <div class="guide-disclosure">
 <p>This guide is general orientation, not a primary-source citation in itself &mdash; it draws on
-board rules and, where available, this site's own verified dataset. For the current renewal date or
-CPE figures your state actually enforces, use the state page linked above: those carry a direct link
-to the board page and codified rule, per our <a href="../../methodology/">verification standard</a>.</p>
+board rules and, where available, this site's own verified dataset. Its factual claims were last
+reviewed against those sources on <strong>{esc(reviewed_on)}</strong>. For the current renewal date
+or CPE figures your state actually enforces, use the state page linked above: those carry a direct
+link to the board page and codified rule, per our
+<a href="../../methodology/">verification standard</a>.</p>
 </div>
 <p class="backlink"><a href="../">&larr; Back to all guides</a></p>
 """

@@ -4049,6 +4049,17 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
     if (!isValidEmail(trimmed)) {
       return jsonResponse(400, { error: "That doesn't look like a valid email address." });
     }
+    // AuditLab BLOCKLIST-1 class fix (2026-08-07): AuditLab's finding named
+    // /firm/change-email; grepping for the same defining behavior (a route
+    // that accepts a NEW email address without the operator blocklist
+    // check) found this second instance -- a roster row's email could be
+    // PATCHed onto a blocked address even though CREATE checks it. Only
+    // checked when the address is actually changing, so an unrelated field
+    // edit on a row whose address was blocklisted AFTER it was added never
+    // bricks that edit.
+    if (store.normalizeEmail(trimmed) !== store.normalizeEmail(existing.email) && (await store.isEmailBlocklisted(env.DB, trimmed))) {
+      return jsonResponse(400, { error: "That address can't be added right now." });
+    }
     email = trimmed;
   }
 
@@ -6198,6 +6209,15 @@ async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise
   const newEmailRaw = typeof body.new_email === "string" ? body.new_email.trim() : "";
   if (!isValidEmail(newEmailRaw)) {
     return jsonResponse(400, { error: "That doesn't look like a valid email address." });
+  }
+  // AuditLab BLOCKLIST-1 (MEDIUM, 2026-08-06): the operator blocklist was
+  // enforced on all three SIGNUP paths but not here -- an existing firm
+  // could self-serve rotate its account onto an explicitly-blocked
+  // address/domain. The control was deliberately designed with no
+  // existing-account exemption (see store.isEmailBlocklisted's own
+  // comment), so this route skipping it contradicted its own design.
+  if (await store.isEmailBlocklisted(env.DB, newEmailRaw)) {
+    return jsonResponse(400, { error: "We're not able to use that address right now." });
   }
   const currentPassword = typeof body.current_password === "string" ? body.current_password : "";
 

@@ -507,6 +507,25 @@ def print_rule_change_monitoring_staleness_advisory(repo_root: Path) -> None:
         pass
 
 
+def print_guide_review_staleness_advisory(repo_root: Path) -> None:
+    """Surfaces guide_review_staleness_check.py (AuditLab PROSE-1, 2026-08-04
+    -> tripwire built 2026-08-07) as part of the normal pre-ship run, same
+    treatment as the four sibling advisories above -- printed, never affects
+    exit code. The blog guides' prose-only regulatory facts had no freshness
+    machinery of any kind before this; see the checker's own docstring."""
+    sys.path.insert(0, str(repo_root / "scripts"))
+    try:
+        import guide_review_staleness_check as grsc
+    except ImportError:
+        print("  (skipping guide-review-staleness advisory -- guide_review_staleness_check.py not importable)")
+        return
+    print("\n--- guide-review-staleness advisory (does not affect gate exit code) ---")
+    try:
+        grsc.main()
+    except SystemExit:
+        pass
+
+
 def main():
     repo_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent
     docs_dir = repo_root / "docs"
@@ -541,6 +560,7 @@ def main():
         print_cpe_hours_staleness_advisory(repo_root)
         print_reinstatement_staleness_advisory(repo_root)
         print_rule_change_monitoring_staleness_advisory(repo_root)
+        print_guide_review_staleness_advisory(repo_root)
         print_dual_credential_citation_advisory(repo_root)
         print_seo_length_drift_advisory(html_files)
         sys.exit(1)
@@ -550,6 +570,7 @@ def main():
     print_cpe_hours_staleness_advisory(repo_root)
     print_reinstatement_staleness_advisory(repo_root)
     print_rule_change_monitoring_staleness_advisory(repo_root)
+    print_guide_review_staleness_advisory(repo_root)
     print_dual_credential_citation_advisory(repo_root)
     print_seo_length_drift_advisory(html_files)
     sys.exit(0)

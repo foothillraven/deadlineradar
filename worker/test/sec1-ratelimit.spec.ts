@@ -20,79 +20,95 @@ async function createFirmWithSession(name: string, adminEmail: string): Promise<
   return { firmId: firm.id, cookie: `dr_firm_session=${rawSessionToken}` };
 }
 
-async function hammer(fn: () => Promise<Response>, tries: number): Promise<boolean> {
+// 2026-08-07 flake fix (observed same-day, under full-parallel suite runs
+// only): the first version asserted "a 429 appears within 35 tries" -- but
+// under whole-suite contention an individual request can fail with a D1
+// subrequest error, which the route wrapper converts to a 400 that never
+// consumes the bucket, so 35 tries could complete without EITHER 30
+// successes or a 429. The real security invariant is stronger and
+// contention-immune: the number of SUCCESSFUL (2xx) writes can never
+// exceed the bucket's max, no matter how many attempts are made. Interleaved
+// transient 400s can't break that assertion; a genuinely missing rate limit
+// still fails it loudly (40 attempts -> 40 successes > 30).
+const DISMISS_BUCKET_MAX = 30; // RATE_LIMIT_FIRM_DISMISS.max
+async function hammerAndCountSuccesses(fn: () => Promise<Response>, tries: number): Promise<number> {
+  let successes = 0;
   for (let i = 0; i < tries; i++) {
     const resp = await fn();
-    if (resp.status === 429) return true;
+    if (resp.ok) successes++;
   }
-  return false;
+  return successes;
 }
 
 describe("SEC-1: previously-unlimited write endpoints now rate-limit", () => {
   it("POST /firm/questionnaire/dismiss", async () => {
     const { cookie } = await createFirmWithSession("SEC1 Q Dismiss Firm", `sec1-qd-${Date.now()}@example.com`);
-    const hit429 = await hammer(
+    const successes = await hammerAndCountSuccesses(
       () =>
         SELF.fetch(`${BASE}/firm/questionnaire/dismiss`, {
           method: "POST",
           headers: { Cookie: cookie, Origin: "https://deadline-radar.com", "cf-connecting-ip": "203.0.113.40" },
         }),
-      35
+      40
     );
-    expect(hit429).toBe(true);
-  });
+    expect(successes).toBeLessThanOrEqual(DISMISS_BUCKET_MAX);
+  }, 20000);
 
   it("POST /firm/onboarding-checklist/dismiss", async () => {
     const { cookie } = await createFirmWithSession("SEC1 Onboarding Firm", `sec1-onb-${Date.now()}@example.com`);
-    const hit429 = await hammer(
+    const successes = await hammerAndCountSuccesses(
       () =>
         SELF.fetch(`${BASE}/firm/onboarding-checklist/dismiss`, {
           method: "POST",
           headers: { Cookie: cookie, Origin: "https://deadline-radar.com", "cf-connecting-ip": "203.0.113.41" },
         }),
-      35
+      40
     );
-    expect(hit429).toBe(true);
-  });
+    expect(successes).toBeLessThanOrEqual(DISMISS_BUCKET_MAX);
+  }, 20000);
 
   it("POST /firm/product-tour/dismiss", async () => {
     const { cookie } = await createFirmWithSession("SEC1 Tour Firm", `sec1-tour-${Date.now()}@example.com`);
-    const hit429 = await hammer(
+    const successes = await hammerAndCountSuccesses(
       () =>
         SELF.fetch(`${BASE}/firm/product-tour/dismiss`, {
           method: "POST",
           headers: { Cookie: cookie, Origin: "https://deadline-radar.com", "cf-connecting-ip": "203.0.113.42" },
         }),
-      35
+      40
     );
-    expect(hit429).toBe(true);
-  });
+    expect(successes).toBeLessThanOrEqual(DISMISS_BUCKET_MAX);
+  }, 20000);
 
   it("POST /firm/questionnaire (submit)", async () => {
     const { cookie } = await createFirmWithSession("SEC1 Q Submit Firm", `sec1-qs-${Date.now()}@example.com`);
-    const hit429 = await hammer(
+    const successes = await hammerAndCountSuccesses(
       () =>
         SELF.fetch(`${BASE}/firm/questionnaire`, {
           method: "POST",
           headers: { "content-type": "application/json", Cookie: cookie, Origin: "https://deadline-radar.com", "cf-connecting-ip": "203.0.113.43" },
           body: JSON.stringify({ selected_features: [] }),
         }),
-      35
+      40
     );
-    expect(hit429).toBe(true);
-  });
+    expect(successes).toBeLessThanOrEqual(DISMISS_BUCKET_MAX);
+  }, 20000);
 
-  it("DELETE /firm/documents/:id (nonexistent id still consumes the bucket)", async () => {
+  it("DELETE /firm/documents/:id -- a nonexistent id still consumes the bucket", async () => {
     const { cookie } = await createFirmWithSession("SEC1 Doc Firm", `sec1-doc-${Date.now()}@example.com`);
-    const hit429 = await hammer(
-      () =>
-        SELF.fetch(`${BASE}/firm/documents/does-not-exist`, {
-          method: "DELETE",
-          headers: { Cookie: cookie, Origin: "https://deadline-radar.com", "cf-connecting-ip": "203.0.113.44" },
-        }),
-      35
-    );
-    expect(hit429).toBe(true);
+    // This endpoint 404s (not 2xx) on the nonexistent id -- a 404 means the
+    // request got PAST the rate limit (and consumed the bucket), so 404s
+    // are this test's "successes". Transient contention 400s neither
+    // consume nor count, exactly like the 2xx-counting tests above.
+    let past = 0;
+    for (let i = 0; i < 40; i++) {
+      const resp = await SELF.fetch(`${BASE}/firm/documents/does-not-exist`, {
+        method: "DELETE",
+        headers: { Cookie: cookie, Origin: "https://deadline-radar.com", "cf-connecting-ip": "203.0.113.44" },
+      });
+      if (resp.status === 404) past++;
+    }
+    expect(past).toBeLessThanOrEqual(DISMISS_BUCKET_MAX);
   }, 20000);
 
   // handleFirmLogout/handleSubscriberLogout deliberately ALWAYS return 302 +

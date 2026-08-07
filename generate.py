@@ -2385,6 +2385,7 @@ def site_footer() -> str:
       <a href="/privacy/">Privacy</a>
       <a href="/terms/">Terms</a>
       <a href="/security/">Security</a>
+      <a href="/status/">Status</a>
       <a href="/contact/">Contact</a>
       <a href="/for-firms/">For Firms</a>
     </div>
@@ -5220,6 +5221,51 @@ it. A real person reads every message here -- see our <a href="/contact/">Contac
         body,
         home_href="../",
         canonical_path="/security/",
+    )
+
+
+def build_status_page() -> str:
+    """Roadmap #60 (2026-08-07): a public status page. Deliberately does NOT
+    claim a specific uptime percentage or ship a fabricated incident-history
+    log -- there is no live monitoring/paging pipeline behind this product
+    (a real status-page vendor would be a new external account, out of
+    scope for a build-now item), and inventing either would be exactly the
+    kind of overclaim build_security_page()'s own docstring already refuses
+    to make. What this page actually offers, honestly: what the site runs
+    on (so a visitor can check the PLATFORM's own status directly rather
+    than trust a claim from us about it), and where a real incident would
+    actually be posted if one happened."""
+    body = f"""<h1>Status</h1>
+<p class="intro">There is no live-updating dashboard on this page -- for a small, hands-on team, a
+fake "all systems operational" badge would be a claim we can't actually back with real monitoring
+data. Here's what's true instead.</p>
+
+<h2>What this runs on</h2>
+<p>{esc(SITE_NAME)} is served entirely on Cloudflare's own infrastructure -- Cloudflare Workers for
+the dynamic site (firm dashboard, sign-in, reminders) and Cloudflare Pages for every public page,
+including this one. That means the platform-level uptime that actually matters here is Cloudflare's,
+not a smaller vendor's -- check <a href="https://www.cloudflarestatus.com/" rel="noopener">Cloudflare's
+own public status page</a> directly for real-time platform incidents, rather than trust a summary of
+it from us.</p>
+
+<h2>If something on our side breaks</h2>
+<p>A code-level bug or a misconfiguration on our side (not Cloudflare's own platform) is possible like
+it is for any small team. If a material incident on our side ever affects your data or your reminders,
+we will tell affected firms directly, the same commitment our <a href="/security/">Security &amp;
+Trust</a> page already makes -- not bury it in a footnote here. Day-to-day shipped changes (not
+incidents) are tracked on our <a href="/changelog/">changelog</a>.</p>
+
+<h2>Something look wrong right now?</h2>
+<p>Email us directly at <a href="mailto:{esc(CONTACT_EMAIL)}">{esc(CONTACT_EMAIL)}</a> -- see our
+<a href="/contact/">Contact page</a> for more. A real person reads every message.</p>
+"""
+    return page_shell(
+        f"Status — {SITE_NAME}",
+        "What DeadlineRadar actually runs on, and where a real incident would be posted -- no "
+        "fabricated uptime percentage or fake status widget.",
+        body,
+        home_href="../",
+        canonical_path="/status/",
     )
 
 
@@ -14461,6 +14507,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/security/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/status/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/for-firms/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
@@ -14702,6 +14751,11 @@ def main() -> None:
     security_dir.mkdir(parents=True, exist_ok=True)
     (security_dir / "index.html").write_text(build_security_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/security/index.html")
+
+    status_dir = SITE_DIR / "status"
+    status_dir.mkdir(parents=True, exist_ok=True)
+    (status_dir / "index.html").write_text(build_status_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/status/index.html")
 
     pricing_dir = SITE_DIR / "pricing"
     pricing_dir.mkdir(parents=True, exist_ok=True)

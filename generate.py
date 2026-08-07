@@ -46,6 +46,7 @@ import pathlib
 import re
 import subprocess
 import tempfile
+import urllib.parse
 from datetime import date, timedelta
 
 # ---------------------------------------------------------------------------
@@ -847,6 +848,9 @@ PAGE_CSS = """
   .faq-item[open] summary::after { content: "\\2212"; }
   .faq-item p { margin: 0.7rem 0 0; color: var(--fg); }
   .backlink { display: inline-block; margin-top: 0.5rem; font-size: 0.92rem; }
+  /* Roadmap #48 (2026-08-07): user-flaggable "this looks wrong" link. */
+  .flag-wrong { margin: 0.4rem 0 0; font-size: 0.82rem; color: var(--muted); }
+  .flag-wrong a { color: inherit; }
   .how-it-works { color: var(--muted); font-size: 0.92rem; margin: 1.25rem 0 1.75rem; }
   .state-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
@@ -3422,6 +3426,33 @@ def _related_states_html(state_slug: str, records: list[dict], by_slug: dict[str
 {links}</p>"""
 
 
+def _flag_wrong_html(state_name: str, state_slug: str) -> str:
+    """Roadmap #48 (2026-08-07): a user-flaggable 'this looks wrong' link on
+    every state page. Deliberately a plain mailto: link, not a new backend
+    form/endpoint -- /contact/'s own existing copy already states the site's
+    real posture on corrections ("there's a real person on the other end,
+    not a support queue"; today ONLY reachable by navigating away to
+    /contact/). A backend-persisted flagging system would need its own
+    abuse-hardening (rate limiting, spam/Turnstile, a moderation surface)
+    for a report-a-typo feature that doesn't need any of that -- the
+    existing "email us" channel already has zero abuse surface, a real
+    human already reads it, and this just makes the SAME channel reachable
+    with one click, pre-filled with the exact state and page URL, directly
+    from the page where a visitor would actually notice something wrong,
+    instead of requiring a detour to /contact/ first."""
+    subject = urllib.parse.quote(f"Data correction: {state_name}")
+    body = urllib.parse.quote(
+        f"I think something on the {state_name} page looks wrong:\n"
+        f"{SITE_BASE_URL}/{state_slug}/\n\n"
+        f"What I'm seeing:\n"
+    )
+    mailto_href = f"mailto:{CONTACT_EMAIL}?subject={subject}&body={body}"
+    return (
+        f'<p class="flag-wrong"><a href="{esc(mailto_href)}">'
+        f"Something on this page look wrong? Flag it &rarr;</a></p>"
+    )
+
+
 def build_state_page(
     state_slug: str, records: list[dict], as_of: date, by_slug: dict[str, list[dict]] | None = None,
     cpe_hours_by_slug: dict[str, dict] | None = None, reinstatement_by_slug: dict[str, dict] | None = None,
@@ -3508,6 +3539,7 @@ def build_state_page(
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
 {deadline_html}
 {trust_line(last_verified, source_url, all(_record_fully_cited(r) for r in records))}
+{_flag_wrong_html(state_name, state_slug)}
 {signup_form_for_state(state_slug, state_name, records, as_of)}
 {_cpe_affiliate_html()}
 {related_html}

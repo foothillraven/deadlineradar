@@ -2210,6 +2210,7 @@ describe("Cross-firm ownership -- the single most important test in this build",
         userDeadline: null,
         renewalFeeCents: null,
         carryoverHours: null,
+        officeTag: null,
         resetConfirmation: false,
       })
     ).toBeNull();

@@ -13,6 +13,7 @@ import {
   MAX_FIRM_NAME_LEN,
   MAX_STAFF_COUNT_HINT_LEN,
   MAX_STAFF_LABEL_LEN,
+  MAX_OFFICE_TAG_LEN,
   sanitizeFirstName,
   sanitizeFreeText,
 } from "./validation";
@@ -117,6 +118,10 @@ export interface SubscriberRow {
   // Applied only to the TOTAL-hours progress calc, never ethics -- see
   // generate.py's drCpeProgressForSubscriber() comment for why.
   carryover_hours: number | null;
+  // migration 0037 (roadmap #16). Admin's own office/department label --
+  // same free-text, no-implied-structure posture as staff_label. NULL means
+  // untagged.
+  office_tag: string | null;
 }
 
 function nowIso(): string {
@@ -333,6 +338,9 @@ export interface AddPendingInput {
    * a fee rollup is a firm-dashboard concept, not something a free
    * individual reminder signup has any use for. */
   renewalFeeCents?: number | null;
+  /** migration 0037 (roadmap #16). Optional office/department label, same
+   * firm-dashboard-only posture as renewalFeeCents above. */
+  officeTag?: string | null;
 }
 
 /**
@@ -386,6 +394,7 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     // to enter yet -- that only becomes a real fact once a prior cycle has
     // actually elapsed), so AddPendingInput has no corresponding field.
     carryover_hours: null,
+    office_tag: sanitizeFreeText(input.officeTag, MAX_OFFICE_TAG_LEN),
   };
   await db
     .prepare(
@@ -393,8 +402,8 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
        (id, email, cooldown_key, state_slug, deadline_fields, first_name, status,
         confirm_token, unsubscribe_token, renewed_token, created_at, confirmed_at,
         stopped_at, stop_reason, reminders_sent, cycle, deadline_source, user_deadline,
-        last_resend_at, resend_count, firm_id, staff_label, renewal_fee_cents)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23)`
+        last_resend_at, resend_count, firm_id, staff_label, renewal_fee_cents, office_tag)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24)`
     )
     .bind(
       record.id,
@@ -419,7 +428,8 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
       record.resend_count,
       record.firm_id,
       record.staff_label,
-      record.renewal_fee_cents
+      record.renewal_fee_cents,
+      record.office_tag
     )
     .run();
   return record;
@@ -1706,6 +1716,10 @@ export interface UpdateFirmLicenseInput {
    * always-passed, HTTP-layer-partial-update convention as renewalFeeCents
    * above. */
   carryoverHours: number | null;
+  /** migration 0037 (roadmap #16). Office/department tag. Same
+   * always-passed, re-sanitized-here-independently convention as
+   * staffLabel above. */
+  officeTag: string | null;
 }
 
 /**
@@ -1729,6 +1743,7 @@ export async function updateFirmLicense(
 
   const newCooldownKey = cooldownKey(input.email);
   const newStaffLabel = sanitizeFreeText(input.staffLabel, MAX_STAFF_LABEL_LEN);
+  const newOfficeTag = sanitizeFreeText(input.officeTag, MAX_OFFICE_TAG_LEN);
 
   let status = existing.status;
   let confirmedAt = existing.confirmed_at;
@@ -1754,8 +1769,8 @@ export async function updateFirmLicense(
        SET email = ?1, cooldown_key = ?2, staff_label = ?3, state_slug = ?4, deadline_fields = ?5,
            deadline_source = ?6, user_deadline = ?7, status = ?8, confirmed_at = ?9, confirm_token = ?10,
            stopped_at = ?11, stop_reason = ?12, reminders_sent = ?13, last_edited_at = ?14, renewal_fee_cents = ?15,
-           carryover_hours = ?16
-       WHERE id = ?17 AND firm_id = ?18`
+           carryover_hours = ?16, office_tag = ?17
+       WHERE id = ?18 AND firm_id = ?19`
     )
     .bind(
       input.email,
@@ -1774,6 +1789,7 @@ export async function updateFirmLicense(
       lastEditedAt,
       input.renewalFeeCents,
       input.carryoverHours,
+      newOfficeTag,
       id,
       firmId
     )
@@ -1797,6 +1813,7 @@ export async function updateFirmLicense(
     last_edited_at: lastEditedAt,
     renewal_fee_cents: input.renewalFeeCents,
     carryover_hours: input.carryoverHours,
+    office_tag: newOfficeTag,
   };
 }
 

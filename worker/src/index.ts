@@ -58,6 +58,7 @@ import {
   MAX_FIRM_NAME_LEN,
   MAX_STAFF_COUNT_HINT_LEN,
   MAX_STAFF_LABEL_LEN,
+  MAX_OFFICE_TAG_LEN,
   RATE_LIMIT_ACTION,
   RATE_LIMIT_FIRM_PASSWORD_LOGIN,
   RATE_LIMIT_FIRM_BILLING_CANCEL,
@@ -3181,6 +3182,8 @@ function toFirmLicenseJson(row: store.SubscriberRow, asOf: Date): Record<string,
     // Roadmap #10: self-reported carryover hours -- see migration 0036's own
     // docstring for why this is never a state-asserted fact.
     carryover_hours: row.carryover_hours,
+    // Roadmap #16: office/department tag -- see migration 0037's own docstring.
+    office_tag: row.office_tag,
   };
 }
 
@@ -3577,6 +3580,11 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
   const staffLabelRaw = (form.staff_label ?? "").trim();
   const staffLabel = staffLabelRaw.length > 0 ? staffLabelRaw.slice(0, MAX_STAFF_LABEL_LEN) : null;
 
+  // Roadmap #16 (2026-08-07): office/department tag, same optional/empty-
+  // means-untagged posture as staffLabel above.
+  const officeTagRaw = (form.office_tag ?? "").trim();
+  const officeTag = officeTagRaw.length > 0 ? officeTagRaw.slice(0, MAX_OFFICE_TAG_LEN) : null;
+
   const resolved = resolveDeadlineInput(stateSlug, form);
   if (resolved instanceof Response) {
     // resolveDeadlineInput() returns an HTML errorPage() Response (shared
@@ -3661,6 +3669,7 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
     staffLabel,
     skipConfirmation: true,
     renewalFeeCents,
+    officeTag,
   });
 
   // AuditLab LC-1 (LOW, 2026-08-04): if this same person was previously
@@ -3780,6 +3789,16 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
   if (typeof parsed.staff_label === "string") {
     const trimmed = parsed.staff_label.trim();
     staffLabel = trimmed.length > 0 ? trimmed.slice(0, MAX_STAFF_LABEL_LEN) : null;
+  }
+
+  // Roadmap #16 (2026-08-07): office/department tag. Same present-but-empty-
+  // clears / absent-leaves-untouched semantics as staff_label above -- this
+  // is also what the bulk-tag UI relies on, sending only { office_tag } for
+  // each selected staffer rather than the full record.
+  let officeTag = existing.office_tag;
+  if (typeof parsed.office_tag === "string") {
+    const trimmed = parsed.office_tag.trim();
+    officeTag = trimmed.length > 0 ? trimmed.slice(0, MAX_OFFICE_TAG_LEN) : null;
   }
 
   // Roadmap #7 (2026-08-07): self-reported, optional. Present-but-empty
@@ -3903,6 +3922,7 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
     userDeadline,
     renewalFeeCents,
     carryoverHours,
+    officeTag,
     resetConfirmation: emailChanged,
   });
   if (!updated) return jsonResponse(404, { error: "Not found." });

@@ -1173,6 +1173,25 @@ PAGE_CSS = """
     background: var(--bg); color: var(--fg); font-size: 0.9rem; font-family: inherit;
   }
   .dr-audit-filter input { flex: 1 1 220px; min-width: 160px; }
+  /* Roadmap #16 (2026-08-07): bulk-tag panel -- collapsed by default
+     (<details>) so it doesn't compete with the roster table for attention
+     on a page an admin visits mostly to look, not to bulk-edit. */
+  .dr-bulk-tag-panel {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px;
+    padding: 0.9rem 1.1rem; margin: 0.9rem 0; font-size: 0.9rem;
+  }
+  .dr-bulk-tag-panel summary { cursor: pointer; font-weight: 600; }
+  .dr-bulk-tag-panel label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.75rem 0 0.3rem; }
+  .dr-bulk-tag-panel select, .dr-bulk-tag-panel input {
+    width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-size: 0.9rem; font-family: inherit;
+  }
+  .dr-bulk-tag-panel button {
+    margin-top: 0.8rem; padding: 0.55rem 1rem; border: none; border-radius: 6px;
+    background: var(--accent); color: var(--on-accent); font-size: 0.9rem; font-weight: 700; cursor: pointer;
+  }
+  .dr-bulk-tag-panel button:hover { opacity: 0.92; }
+  .dr-bulk-tag-panel #dr-bulk-tag-status { margin: 0.6rem 0 0; }
   .dr-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.2rem; }
   @media (max-width: 860px) { .dr-panel-row { grid-template-columns: 1fr; } }
   .dr-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; }
@@ -1318,6 +1337,14 @@ PAGE_CSS = """
   }
   .dr-roster-panel .dr-roster-name { font-weight: 600; }
   .dr-roster-panel .dr-roster-email { color: var(--muted); font-size: 0.82rem; margin-top: 0.1rem; }
+  /* Roadmap #16 (2026-08-07): office/department tag -- a small pill under
+     the email line, deliberately distinct from .dr-roster-email's plain
+     text treatment so it reads as a tag, not more identity info. */
+  .dr-roster-panel .dr-roster-office {
+    display: inline-block; margin-top: 0.3rem; font-size: 0.72rem; color: var(--muted);
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 999px;
+    padding: 0.08rem 0.55rem;
+  }
 
   /* Task #16 (2026-08-05, confirmed via live test): an overdue Next deadline
      read as a plain date with no visual difference from a comfortably-future
@@ -6576,6 +6603,8 @@ def _firm_dashboard_add_staff_form_html(by_slug: dict[str, list[dict]], as_of: d
     {field_groups}
     <label for="dr-add-fee">Renewal fee (optional)</label>
     <input type="text" inputmode="decimal" id="dr-add-fee" name="renewal_fee" placeholder="e.g. 199.00">
+    <label for="dr-add-office">Office / department (optional)</label>
+    <input type="text" id="dr-add-office" name="office_tag" maxlength="60" placeholder="e.g. Downtown office">
     <button type="submit">Add staff</button>
   </form>
   <p id="dr-add-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
@@ -6885,7 +6914,11 @@ function drRenderRow(item) {
   var nameLine = item.staff_label
     ? '<span class="dr-roster-name"' + nameTitle + '>' + drEscapeHtml(item.staff_label) + '</span>'
     : '<span class="dr-roster-name" style="color:var(--muted)">\\u2014</span>';
-  var staffCell = nameLine + '<span class="dr-roster-email" title="' + drEscapeHtml(item.email) + '">' + drEscapeHtml(item.email) + '</span>';
+  // Roadmap #16: office/department tag, shown as a small subtitle rather
+  // than a new table column -- keeps the roster table's existing width/
+  // scroll behavior unchanged on every page this shared row renderer feeds.
+  var officeLine = item.office_tag ? '<span class="dr-roster-office">' + drEscapeHtml(item.office_tag) + '</span>' : '';
+  var staffCell = nameLine + '<span class="dr-roster-email" title="' + drEscapeHtml(item.email) + '">' + drEscapeHtml(item.email) + '</span>' + officeLine;
   // Roadmap #29: a sample row's id ('sample-1' etc.) matches nothing on the
   // server, so Edit/Mark renewed/Remove would either 404 or -- far worse if
   // ids ever collided -- silently act on a real record. No functional
@@ -6916,12 +6949,19 @@ function drRenderRow(item) {
   '</tr>';
 }
 
+// Roadmap #16 (2026-08-07): current "group by" selection, persisted across
+// re-renders (add/edit/remove all funnel through drRenderTable()) so the
+// filter doesn't silently reset every time the roster refreshes.
+var drOfficeGroupFilter = '';
+
 function drRenderTable() {
   var tbody = document.getElementById('dr-roster-body');
   // Roadmap #28: re-checked on every roster render (add/edit/remove/renew
   // all funnel through here already) so the "add your first staff member"
   // checklist step updates live, not just on the next full page load.
   drRenderOnboardingChecklist();
+  drRenderOfficeGroupFilter();
+  drRenderBulkTagStaffSelect();
   if (!tbody) return;
   if (drLicenses.length === 0) {
     // Roadmap #29: only reachable when the real roster is genuinely empty
@@ -6932,7 +6972,87 @@ function drRenderTable() {
       'to preview what DeadlineRadar looks like once it&rsquo;s populated.</td></tr>';
     return;
   }
-  tbody.innerHTML = drLicenses.map(drRenderRow).join('');
+  var visible = drOfficeGroupFilter
+    ? drLicenses.filter(function(item) { return item.office_tag === drOfficeGroupFilter; })
+    : drLicenses;
+  if (visible.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6">No staff tagged &ldquo;' + drEscapeHtml(drOfficeGroupFilter) + '&rdquo;.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = visible.map(drRenderRow).join('');
+}
+
+// Roadmap #16: distinct office_tag values currently on the roster, sorted --
+// options rebuild on every render so a newly-applied tag shows up as a
+// filter choice immediately, not just after a full page reload.
+function drRenderOfficeGroupFilter() {
+  var sel = document.getElementById('dr-office-group-filter');
+  if (!sel) return;
+  var current = sel.value;
+  var tags = [];
+  drLicenses.forEach(function(item) {
+    if (item.office_tag && tags.indexOf(item.office_tag) === -1) tags.push(item.office_tag);
+  });
+  tags.sort();
+  sel.innerHTML = '<option value="">All offices/departments</option>' + tags.map(function(t) {
+    return '<option value="' + drEscapeHtml(t) + '">' + drEscapeHtml(t) + '</option>';
+  }).join('');
+  // Preserve the selection across a re-render UNLESS that tag no longer
+  // exists on the roster (e.g. the last staffer wearing it was just
+  // re-tagged or removed) -- falls back to "All" rather than silently
+  // filtering on a value nothing matches.
+  sel.value = tags.indexOf(current) !== -1 ? current : '';
+  drOfficeGroupFilter = sel.value;
+}
+
+// Roadmap #16: staff options for the bulk-tag multi-select. Excludes sample
+// rows for the same reason drRenderRow() gives every sample row's Actions
+// cell no functional buttons -- a sample id matches nothing on the server,
+// so a PATCH against it would just 404.
+function drRenderBulkTagStaffSelect() {
+  var sel = document.getElementById('dr-bulk-tag-staff-select');
+  if (!sel) return;
+  var previouslyChecked = {};
+  Array.from(sel.selectedOptions || []).forEach(function(o) { previouslyChecked[o.value] = true; });
+  sel.innerHTML = drLicenses.filter(function(item) { return !item.is_sample; }).map(function(item) {
+    var label = (item.staff_label || item.email) + (item.office_tag ? ' (' + item.office_tag + ')' : '');
+    var selectedAttr = previouslyChecked[item.id] ? ' selected' : '';
+    return '<option value="' + drEscapeHtml(item.id) + '"' + selectedAttr + '>' + drEscapeHtml(label) + '</option>';
+  }).join('');
+}
+
+function drApplyBulkTag() {
+  var sel = document.getElementById('dr-bulk-tag-staff-select');
+  var valueInput = document.getElementById('dr-bulk-tag-value');
+  var statusEl = document.getElementById('dr-bulk-tag-status');
+  var ids = sel ? Array.from(sel.selectedOptions).map(function(o) { return o.value; }) : [];
+  if (ids.length === 0) {
+    if (statusEl) statusEl.textContent = 'Select at least one staff member first.';
+    return;
+  }
+  var tagValue = valueInput ? valueInput.value.trim() : '';
+  if (statusEl) statusEl.textContent = 'Applying to ' + ids.length + ' staff member' + (ids.length === 1 ? '' : 's') + '\\u2026';
+  // Sequential PATCH per id, reusing the existing single-record endpoint --
+  // firms are capped at 25 staff (SELF_SERVE_SEAT_CAP), so this is always a
+  // small, bounded number of requests, not worth a new bulk backend route.
+  var applyOne = function(id) {
+    return fetch('/api/firm/licenses/' + encodeURIComponent(id), {
+      method: 'PATCH', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({office_tag: tagValue})
+    }).then(function(res) { return res.ok; });
+  };
+  Promise.all(ids.map(applyOne)).then(function(results) {
+    var failed = results.filter(function(ok) { return !ok; }).length;
+    if (statusEl) {
+      statusEl.textContent = failed > 0
+        ? ('Tagged ' + (ids.length - failed) + ' of ' + ids.length + ' -- ' + failed + ' failed, please retry.')
+        : ('Tagged ' + ids.length + ' staff member' + (ids.length === 1 ? '' : 's') + '.');
+    }
+    drLoadLicenses();
+  }).catch(function() {
+    if (statusEl) statusEl.textContent = 'Something went wrong, please try again.';
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -9355,6 +9475,8 @@ function drOpenEditModal(item, triggerBtn) {
     carryoverNote.textContent = note ? ('This state: ' + note) : '';
     carryoverNote.hidden = !note;
   }
+  var officeInput = document.getElementById('dr-edit-modal-office');
+  if (officeInput) officeInput.value = item.office_tag || '';
   if (title) title.textContent = 'Edit ' + (item.staff_label || item.email);
   drClearError();
   drClearWarning();
@@ -9402,6 +9524,9 @@ function drSubmitEditModal(ev) {
   var carryoverInput = document.getElementById('dr-edit-modal-carryover');
   // Roadmap #10: same always-sent, empty-string-clears convention as renewal_fee above.
   body.carryover_hours = carryoverInput ? carryoverInput.value.trim() : '';
+  var officeInput = document.getElementById('dr-edit-modal-office');
+  // Roadmap #16: same always-sent, empty-string-clears convention.
+  body.office_tag = officeInput ? officeInput.value.trim() : '';
   var id = drEditModalId;
   fetch('/api/firm/licenses/' + encodeURIComponent(id), {
     method: 'PATCH', credentials: 'include',
@@ -9959,6 +10084,14 @@ document.addEventListener('DOMContentLoaded', function() {
   if (auditSearchInput) auditSearchInput.addEventListener('input', drApplyAuditTrailFilter);
   var auditEventFilter = document.getElementById('dr-audit-event-filter');
   if (auditEventFilter) auditEventFilter.addEventListener('change', drApplyAuditTrailFilter);
+  // Roadmap #16.
+  var officeGroupFilter = document.getElementById('dr-office-group-filter');
+  if (officeGroupFilter) officeGroupFilter.addEventListener('change', function() {
+    drOfficeGroupFilter = officeGroupFilter.value;
+    drRenderTable();
+  });
+  var bulkTagApplyBtn = document.getElementById('dr-bulk-tag-apply-btn');
+  if (bulkTagApplyBtn) bulkTagApplyBtn.addEventListener('click', drApplyBulkTag);
   // Anchored via getBoundingClientRect() against a live nav item -- has to
   // be recomputed if the viewport (and so the sidebar's on-screen position)
   // changes while the tour is open.
@@ -10819,6 +10952,20 @@ def build_firm_dashboard_page(
 
     <div class="dr-roster-panel">
       <h2>Full roster</h2>
+      <div class="dr-audit-filter">
+        <select id="dr-office-group-filter" aria-label="Group roster by office or department">
+          <option value="">All offices/departments</option>
+        </select>
+      </div>
+      <details class="dr-bulk-tag-panel">
+        <summary>Bulk-tag staff</summary>
+        <label for="dr-bulk-tag-staff-select">Staff to tag (select multiple)</label>
+        <select id="dr-bulk-tag-staff-select" multiple size="5"></select>
+        <label for="dr-bulk-tag-value">Office / department</label>
+        <input type="text" id="dr-bulk-tag-value" maxlength="60" placeholder="e.g. Downtown office &ndash; leave blank to clear">
+        <button type="button" id="dr-bulk-tag-apply-btn">Apply to selected</button>
+        <p class="dr-modal-hint" id="dr-bulk-tag-status"></p>
+      </details>
       <div class="table-wrap" role="status" aria-live="polite">
       <table>
         <caption class="dr-visually-hidden">Your firm's tracked CPA staff and their license renewal status</caption>
@@ -10854,6 +11001,9 @@ def build_firm_dashboard_page(
           <input type="text" inputmode="decimal" id="dr-edit-modal-carryover" placeholder="e.g. 10">
           <p class="dr-modal-hint">Hours carried over from a prior CPE cycle, if this state allows it. Self-reported -- applied to this cycle's total-hours progress only, not ethics. Leave blank if none.</p>
           <p class="dr-modal-hint" id="dr-edit-modal-carryover-note" hidden></p>
+          <label for="dr-edit-modal-office">Office / department (optional)</label>
+          <input type="text" id="dr-edit-modal-office" maxlength="60" placeholder="e.g. Downtown office">
+          <p class="dr-modal-hint">Your own label for grouping staff -- shown on the roster, used by the bulk-tag tool below it. Leave blank if you don't need groups.</p>
           <div class="dr-modal-actions">
             <button type="submit" class="dr-btn-save">Save</button>
             <button type="button" class="dr-btn-cancel" id="dr-edit-modal-cancel">Cancel</button>

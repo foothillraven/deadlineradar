@@ -43,6 +43,11 @@ export const MAX_ADMIN_NAME_LEN = 60;
 // cosmetic-only free text" category as the two constants above.
 export const MAX_STAFF_LABEL_LEN = 120;
 
+// Roadmap #16 (2026-08-07): office/department tag, same shape and same
+// sanitizeFreeText() treatment as MAX_STAFF_LABEL_LEN above -- see migration
+// 0037's own docstring for why this is a plain string, not a normalized table.
+export const MAX_OFFICE_TAG_LEN = 60;
+
 // BILL-1 (2026-08-04, Devin's decision): the advertised self-serve plan is
 // "$500/year flat, up to 25 staff -- more than 25? Contact us"
 // (generate.py's /for-firms/ and homepage pricing copy). Must match that

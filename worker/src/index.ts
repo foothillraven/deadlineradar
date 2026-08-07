@@ -3277,6 +3277,47 @@ async function handleFirmActivityList(request: Request, env: Env): Promise<Respo
   });
 }
 
+/** GET /firm/audit-trail -- roadmap #8, the full "reasonable process"
+ * export: EVERY roster event (activity_log, uncapped, unlike the small
+ * Recent Activity panel's own 20-item cap) plus every real reminder-send
+ * date (reminder_log, migration 0035). Same read-gate as GET /firm/licenses
+ * -- a lapsed/expired firm shouldn't get a working export either. Staff
+ * names are resolved from the CURRENT roster where possible (a removed
+ * staffer's activity_log rows already carry their own snapshot label/email,
+ * matching that table's own "outlive the row it describes" design). */
+async function handleAuditTrail(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+
+  const [activity, reminders, licenses] = await Promise.all([
+    store.listActivityLogForFirm(env.DB, session.firmId),
+    store.listReminderLogForFirm(env.DB, session.firmId),
+    store.listFirmLicenses(env.DB, session.firmId),
+  ]);
+
+  const staffById = new Map(licenses.map((l) => [l.id, l.staff_label || l.email]));
+
+  return jsonResponse(200, {
+    activity: activity.map((e) => ({
+      id: e.id,
+      staff_label: e.staff_label,
+      email: e.email,
+      event_type: e.event_type,
+      created_at: e.created_at,
+    })),
+    reminders: reminders.map((r) => ({
+      id: r.id,
+      subscriber_id: r.subscriber_id,
+      // Falls back to "Removed staff member" for a subscriber this firm no
+      // longer has active -- same fallback label drRenderCpeRecent() already
+      // uses client-side for the identical situation.
+      staff_label: staffById.get(r.subscriber_id) || "Removed staff member",
+      threshold_days: r.threshold_days,
+      sent_at: r.sent_at,
+    })),
+  });
+}
+
 const MAX_QUESTIONNAIRE_FEATURES = 20;
 const MAX_QUESTIONNAIRE_FEATURE_LEN = 100;
 const MAX_QUESTIONNAIRE_OTHER_LEN = 1000;
@@ -4714,6 +4755,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/activity") {
         try {
           return await handleFirmActivityList(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/audit-trail") {
+        try {
+          return await handleAuditTrail(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }

@@ -8591,6 +8591,66 @@ function drRenderReport() {
     '<tbody>' + rows + '</tbody></table></div>';
 }
 
+// ---------------------------------------------------------------------------
+// Roadmap #8 (2026-08-07): "'Reasonable process' audit trail export (dates
+// tracked, dates reminded)". Own fetch (GET /firm/audit-trail), own render
+// -- combines activity_log (every roster event, uncapped) and reminder_log
+// (every REAL reminder-send date, migration 0035) into one chronological
+// table. Both are durable logs independent of current roster membership,
+// same "outlive the row it describes" design as Recent Activity's own
+// smaller panel.
+// ---------------------------------------------------------------------------
+function drLoadAuditTrail() {
+  return fetch('/api/firm/audit-trail', {credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      if (!res.ok) return null;
+      return res.json();
+    })
+    .then(function(data) {
+      drRenderAuditTrail(data);
+    })
+    .catch(function() {
+      drRenderAuditTrail(null);
+    });
+}
+
+function drRenderAuditTrail(data) {
+  var el = document.getElementById('dr-audit-trail-body');
+  if (!el) return;
+  if (!data) {
+    el.innerHTML = '<p class="dr-panel-empty">Could not load the audit trail right now.</p>';
+    return;
+  }
+  var rows = [];
+  (data.activity || []).forEach(function(e) {
+    rows.push({
+      when: e.created_at,
+      who: e.staff_label || e.email,
+      what: DR_ACTIVITY_LABELS[e.event_type] || e.event_type
+    });
+  });
+  (data.reminders || []).forEach(function(r) {
+    rows.push({
+      when: r.sent_at,
+      who: r.staff_label,
+      what: 'reminded (' + r.threshold_days + '-day notice)'
+    });
+  });
+  if (rows.length === 0) {
+    el.innerHTML = '<p class="dr-panel-empty">Nothing tracked yet.</p>';
+    return;
+  }
+  rows.sort(function(a, b) { return a.when < b.when ? -1 : a.when > b.when ? 1 : 0; });
+  var tableRows = rows.map(function(r) {
+    return '<tr><td>' + drEscapeHtml(drFormatDeadline(String(r.when).slice(0, 10))) + '</td><td>' +
+      drEscapeHtml(r.who) + '</td><td>' + drEscapeHtml(r.what) + '</td></tr>';
+  }).join('');
+  el.innerHTML = '<div class="table-wrap"><table class="dr-report-table">' +
+    '<thead><tr><th scope="col">Date</th><th scope="col">Staff</th><th scope="col">Event</th></tr></thead>' +
+    '<tbody>' + tableRows + '</tbody></table></div>';
+}
+
 function drLoadCpeEntries() {
   return fetch('/api/firm/cpe', {credentials: 'include'})
     .then(function(res) {
@@ -9120,6 +9180,7 @@ function drLoadLicenses() {
       drLoadMobilityCompletions().then(drRenderMapForSelection);
       drLoadCpeEntries().then(drRenderOnboardingChecklist);
       drLoadActivity();
+      drLoadAuditTrail();
     })
     .catch(function() {
       drShowError('Something went wrong loading your roster. Please try again.');
@@ -10840,6 +10901,11 @@ def build_firm_dashboard_page(
         <button type="button" class="dr-btn-edit" id="dr-report-print-btn">Print / Save as PDF</button>
       </div>
       <div id="dr-report-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
+
+      <h2>Audit trail</h2>
+      <p class="subhead">A dated record of every roster change and reminder actually sent -- evidence
+      of a reasonable process, for a board inquiry or your own file.</p>
+      <div id="dr-audit-trail-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
     </div>
 
     <div id="dr-view-account" class="dr-view" role="tabpanel" hidden>

@@ -1491,6 +1491,54 @@ export async function listRecentActivity(db: D1Database, firmId: string, limit: 
   return results;
 }
 
+/** Roadmap #8 (2026-08-07): the "dates tracked" half of the audit-trail
+ * export -- every roster event, uncapped (unlike listRecentActivity()'s
+ * own small-panel cap above), oldest first (a chronological record reads
+ * more naturally start-to-end than newest-first for an export). */
+export async function listActivityLogForFirm(db: D1Database, firmId: string): Promise<ActivityLogRow[]> {
+  const { results } = await db
+    .prepare(`SELECT * FROM activity_log WHERE firm_id = ?1 ORDER BY created_at ASC`)
+    .bind(firmId)
+    .all<ActivityLogRow>();
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Reminder-send log (2026-08-07, roadmap #8, migration 0035). The "dates
+// reminded" half of the audit-trail export -- see that migration's own
+// docstring for why this is a NEW table rather than a reshaping of
+// subscribers.reminders_sent (which stays exactly as-is, still the atomic
+// claim/dedupe mechanism reminder delivery depends on).
+// ---------------------------------------------------------------------------
+
+export interface ReminderLogRow {
+  id: string;
+  firm_id: string;
+  subscriber_id: string;
+  threshold_days: number;
+  sent_at: string;
+}
+
+/** Called ONLY after a real, successful send (scheduler.ts, right where
+ * `summary.sent += 1` already fires) -- never on a claimed-but-failed or
+ * unclaimed attempt. Best-effort by the caller, same posture as every
+ * other non-critical logging call in this codebase: a logging failure
+ * must never affect whether the actual reminder delivery counts as sent. */
+export async function logReminderSent(db: D1Database, firmId: string, subscriberId: string, thresholdDays: number): Promise<void> {
+  await db
+    .prepare(`INSERT INTO reminder_log (id, firm_id, subscriber_id, threshold_days, sent_at) VALUES (?1,?2,?3,?4,?5)`)
+    .bind(newToken(), firmId, subscriberId, thresholdDays, nowIso())
+    .run();
+}
+
+export async function listReminderLogForFirm(db: D1Database, firmId: string): Promise<ReminderLogRow[]> {
+  const { results } = await db
+    .prepare(`SELECT * FROM reminder_log WHERE firm_id = ?1 ORDER BY sent_at ASC`)
+    .bind(firmId)
+    .all<ReminderLogRow>();
+  return results;
+}
+
 /**
  * Same "on the roster" definition as listFirmLicenses() (excludes only
  * admin-removed rows), but a COUNT instead of hydrating every row -- for the

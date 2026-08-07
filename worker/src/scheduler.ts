@@ -259,6 +259,14 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
       const ok = await send(sub.email, built);
       if (ok) {
         summary.sent += 1;
+        // Roadmap #8: the "dates reminded" half of the audit-trail export --
+        // only for firm-tracked subscribers (a free-tier individual has no
+        // dashboard to show this in), and only after send() genuinely
+        // reports success. Best-effort: a logging failure must never affect
+        // whether this reminder counts as sent.
+        if (sub.firm_id) {
+          await store.logReminderSent(env.DB, sub.firm_id, sub.id, threshold).catch(() => {});
+        }
       } else {
         await store.unclaimReminderThreshold(env.DB, sub.id, threshold);
         summary.errors.push({ subscriber_id: sub.id, error: "send returned false" });

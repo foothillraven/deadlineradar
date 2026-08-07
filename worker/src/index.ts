@@ -70,6 +70,7 @@ import {
   RATE_LIMIT_OAUTH_START,
   RATE_LIMIT_CPE_ENTRY_CREATE,
   RATE_LIMIT_FIRM_DOCUMENT_UPLOAD,
+  RATE_LIMIT_FIRM_PEER_REVIEW_SET,
   RATE_LIMIT_SUBSCRIBER_CPE_CREATE,
   RATE_LIMIT_FIRM_STAFF_CPE_REMINDER,
   RATE_LIMIT_FIRM_RULE_CHANGE_NOTIFY,
@@ -3241,6 +3242,10 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     // either. A voluntary replay from the Account tab is client-side only
     // and never touches this flag.
     product_tour_pending: session.firm.product_tour_dismissed_at === null,
+    // Roadmap #6: firm-level (not per-staff) peer-review due date, admin-
+    // entered. Null when not tracked yet -- the client shows a "set a date"
+    // prompt rather than a deadline in that case.
+    peer_review_due_date: session.firm.peer_review_due_date,
   });
 }
 
@@ -3347,6 +3352,48 @@ async function handleProductTourDismiss(request: Request, env: Env): Promise<Res
 
   await store.dismissProductTour(env.DB, session.firmId);
   return jsonResponse(200, { ok: true });
+}
+
+/** PATCH /firm/peer-review -- sets or clears the firm's own next peer-
+ * review due date (roadmap #6, migration 0033). Body: { due_date: "YYYY-
+ * MM-DD" | null }. Firm-level, not per-staff -- no subscriber id involved.
+ * Same strict-ISO-date validation every per-staff deadline field already
+ * uses (parseStrictIsoDate), so this can't silently store an unparseable
+ * string that would break drDaysUntil()/drFormatDeadline() downstream. */
+async function handlePeerReviewSet(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_peer_review_set", RATE_LIMIT_FIRM_PEER_REVIEW_SET);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return jsonResponse(400, { error: "Request too large." });
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  if (body.due_date === null) {
+    await store.setPeerReviewDueDate(env.DB, session.firmId, null);
+    return jsonResponse(200, { peer_review_due_date: null });
+  }
+
+  const dueDateRaw = typeof body.due_date === "string" ? body.due_date.trim() : "";
+  if (!parseStrictIsoDate(dueDateRaw)) {
+    return jsonResponse(400, { error: "Please enter a valid date." });
+  }
+
+  await store.setPeerReviewDueDate(env.DB, session.firmId, dueDateRaw);
+  return jsonResponse(200, { peer_review_due_date: dueDateRaw });
 }
 
 /** GET /firm/calendar.ics -- static, one-time roster export (2026-08-06,
@@ -4711,6 +4758,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (firmLicenseIdMatch) {
         try {
           return await handleFirmLicensePatch(request, env, firmLicenseIdMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/peer-review") {
+        try {
+          return await handlePeerReviewSet(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }

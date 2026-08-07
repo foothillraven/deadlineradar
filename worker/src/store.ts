@@ -852,6 +852,9 @@ export interface FirmRow {
   // next load; set (skip or finish) = never auto-show again. A voluntary
   // replay from the Account tab is client-side only and doesn't touch this.
   product_tour_dismissed_at: string | null;
+  // migration 0033 (roadmap #6). Firm-level (not per-staff) -- the firm's
+  // own next peer-review due date, admin-entered. Null = not tracked yet.
+  peer_review_due_date: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -2984,6 +2987,15 @@ export async function dismissProductTour(db: D1Database, firmId: string): Promis
     .prepare(`UPDATE firms SET product_tour_dismissed_at = ?1 WHERE id = ?2 AND product_tour_dismissed_at IS NULL`)
     .bind(nowIso(), firmId)
     .run();
+}
+
+/** Roadmap #6 (migration 0033). `dueDate` is `null` to clear (stop tracking)
+ * or an ISO YYYY-MM-DD string -- validated by the CALLER (index.ts's own
+ * strict-ISO-date parser, same one every per-staff deadline field already
+ * uses) before this is ever called; this function trusts its input the same
+ * way every other single-column setter in this file does. */
+export async function setPeerReviewDueDate(db: D1Database, firmId: string, dueDate: string | null): Promise<void> {
+  await db.prepare(`UPDATE firms SET peer_review_due_date = ?1 WHERE id = ?2`).bind(dueDate, firmId).run();
 }
 
 /**

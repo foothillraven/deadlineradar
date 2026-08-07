@@ -1,0 +1,15 @@
+-- Roadmap #6 (2026-08-07, roadmap_items table, IMMEDIATE RELEASE): "Peer
+-- review deadline tracking (firm-level, e.g. KRS 325.301(10)-style
+-- requirements)".
+--
+-- FIRM-level, not per-staff -- most states require the FIRM (not each
+-- individual CPA) to undergo an external peer review on some cadence, a
+-- structurally different thing from every deadline this product has
+-- tracked so far. Deliberately a single nullable "bring your own date"
+-- field, same posture the roster already uses for genuinely uncomputable
+-- state deadlines (deadline_source = 'user' on subscribers): peer-review
+-- cadence and exact next-due date vary by state/situation/AICPA-vs-state-
+-- society enrollment in ways this product does not attempt to compute or
+-- verify -- the firm knows its own real next-due date, this just tracks
+-- and surfaces it rather than deriving it.
+ALTER TABLE firms ADD COLUMN peer_review_due_date TEXT;

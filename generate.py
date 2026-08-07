@@ -9070,6 +9070,10 @@ function drLoadLicenses() {
       drOnboardingChecklistPending = Boolean(data.onboarding_checklist_pending);
       drRenderOnboardingChecklist();
       drRenderBillingPanel();
+      // Roadmap #6: firm-level, so this comes from the same /firm/licenses
+      // response but isn't part of drLicenses/drRenderStats at all.
+      drPeerReviewDueDate = data.peer_review_due_date || null;
+      drRenderPeerReview();
       drRenderTable();
       drRenderStats();
       drRenderAtRisk();
@@ -9444,6 +9448,72 @@ function drShowNewHireChecklist(record) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Roadmap #6 (2026-08-07): firm-level peer-review deadline tracking. A
+// single admin-entered "bring your own date" field (same posture as a
+// roster record with no computable state rule) -- this product does not
+// attempt to compute peer-review cadence, which varies too much by state/
+// situation to guess at safely.
+// ---------------------------------------------------------------------------
+var drPeerReviewDueDate = null;
+var drPeerReviewEditing = false;
+
+function drRenderPeerReview() {
+  var el = document.getElementById('dr-peer-review-body');
+  if (!el) return;
+  if (drPeerReviewEditing) {
+    el.innerHTML = '<label for="dr-peer-review-input" class="dr-visually-hidden">Peer review due date</label>' +
+      '<input type="date" id="dr-peer-review-input" value="' + drEscapeHtml(drPeerReviewDueDate || '') + '"> ' +
+      '<button type="button" class="dr-btn-edit" id="dr-peer-review-save-btn">Save</button> ' +
+      '<button type="button" class="dr-btn-cancel" id="dr-peer-review-cancel-btn">Cancel</button>' +
+      (drPeerReviewDueDate ? ' <button type="button" class="dr-btn-cancel" id="dr-peer-review-clear-btn">Clear</button>' : '');
+    return;
+  }
+  if (!drPeerReviewDueDate) {
+    el.innerHTML = '<p class="dr-panel-empty">Not tracked yet. <button type="button" class="dr-link-btn" id="dr-peer-review-edit-btn">Set a date</button></p>';
+    return;
+  }
+  var days = drDaysUntil(drPeerReviewDueDate);
+  var daysLabel = days === null ? '' : days < 0 ? 'Overdue' : days === 0 ? 'Due today' : 'in ' + days + 'd';
+  var soon = days !== null && days <= 60;
+  el.innerHTML = '<p>Due <strong>' + drEscapeHtml(drFormatDeadline(drPeerReviewDueDate)) + '</strong> ' +
+    '<span class="dr-at-risk-days' + (soon ? ' dr-at-risk-days--soon' : '') + '">' + drEscapeHtml(daysLabel) + '</span> ' +
+    '<button type="button" class="dr-link-btn" id="dr-peer-review-edit-btn">Edit</button></p>';
+}
+
+function drSavePeerReview() {
+  var input = document.getElementById('dr-peer-review-input');
+  var value = input ? input.value : '';
+  if (!value) return;
+  fetch('/api/firm/peer-review', {
+    method: 'PATCH', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({due_date: value})
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) { drShowError((data && data.error) ? data.error : 'Something went wrong, please try again.'); return; }
+      drPeerReviewDueDate = data.peer_review_due_date;
+      drPeerReviewEditing = false;
+      drRenderPeerReview();
+    });
+  }).catch(function() { drShowError('Something went wrong, please try again.'); });
+}
+
+function drClearPeerReview() {
+  if (!window.confirm('Stop tracking a peer review due date?')) return;
+  fetch('/api/firm/peer-review', {
+    method: 'PATCH', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({due_date: null})
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return; }
+    drPeerReviewDueDate = null;
+    drPeerReviewEditing = false;
+    drRenderPeerReview();
+  }).catch(function() {});
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var stateSel = document.getElementById('dr-add-state');
   drUpdateFields(stateSel ? stateSel.value : '');
@@ -9474,6 +9544,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
   var newHireChecklistDismissBtn = document.getElementById('dr-new-hire-checklist-dismiss');
   if (newHireChecklistDismissBtn) newHireChecklistDismissBtn.addEventListener('click', drDismissNewHireChecklist);
+
+  var peerReviewBody = document.getElementById('dr-peer-review-body');
+  if (peerReviewBody) {
+    peerReviewBody.addEventListener('click', function(ev) {
+      if (ev.target.id === 'dr-peer-review-edit-btn') {
+        drPeerReviewEditing = true;
+        drRenderPeerReview();
+      } else if (ev.target.id === 'dr-peer-review-cancel-btn') {
+        drPeerReviewEditing = false;
+        drRenderPeerReview();
+      } else if (ev.target.id === 'dr-peer-review-save-btn') {
+        drSavePeerReview();
+      } else if (ev.target.id === 'dr-peer-review-clear-btn') {
+        drClearPeerReview();
+      }
+    });
+  }
   if (documentsList) {
     documentsList.addEventListener('click', function(ev) {
       var btn = ev.target.closest ? ev.target.closest('.dr-document-remove') : null;
@@ -10505,6 +10592,13 @@ def build_firm_dashboard_page(
     </div>
 
     <div class="dr-stat-row" id="dr-stat-row"></div>
+
+    <div class="dr-panel" id="dr-peer-review-panel">
+      <div class="dr-onboarding-checklist-head">
+        <h2>Peer review</h2>
+      </div>
+      <div id="dr-peer-review-body"></div>
+    </div>
 
     <p class="dr-quicklinks">
       <a href="#" data-view="calendar">View full calendar &rarr;</a>

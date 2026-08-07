@@ -504,6 +504,11 @@ export const RATE_LIMIT_CPE_ENTRY_CREATE: RateLimit = { max: 100, windowSeconds:
 // a firm uploading a full roster's worth of certificates in one sitting.
 export const RATE_LIMIT_FIRM_DOCUMENT_UPLOAD: RateLimit = { max: 60, windowSeconds: 86400 };
 
+// PATCH /firm/peer-review (roadmap #6, 2026-08-07) -- a single admin-entered
+// firm-level date field, same modest cap as other low-risk single-field
+// setters on this list (not a mail primitive, not a bulk-write path).
+export const RATE_LIMIT_FIRM_PEER_REVIEW_SET: RateLimit = { max: 30, windowSeconds: 86400 };
+
 // AuditLab S-3, 2026-08-03: these four authenticated state-changing routes
 // had no bucket at all -- not a mail primitive like F-2/RATE_LIMIT_FIRM_LICENSE_PATCH
 // (none of them sends email), but still unbounded D1 write amplification from

@@ -1357,6 +1357,19 @@ PAGE_CSS = """
   .dr-roster-panel th:nth-child(5), .dr-roster-panel td:nth-child(5) { width: 7rem; }  /* Next deadline -- real rendered format is "Dec 31, 2026" (short month), needs only 6.83rem */
   .dr-roster-panel th:nth-child(6), .dr-roster-panel td:nth-child(6) { width: 15rem; } /* Actions -- UNCHANGED, matches the 3-button group's measured natural width (~237px); shrinking this specifically is what caused the original overlap bug */
 
+  /* Roadmap #37 (2026-08-07): sortable column headers. A <button> (not a
+     plain <th> click target) for the same reason data-view links use a
+     real <a> elsewhere on this page -- keyboard/screen-reader accessible
+     by default, no extra ARIA needed beyond aria-sort on the parent <th>
+     (set in JS). Styled to read as a header, not a button. */
+  .dr-sort-th {
+    background: none; border: none; padding: 0; margin: 0; font: inherit; color: inherit;
+    cursor: pointer; display: flex; align-items: center; gap: 0.3rem; width: 100%; text-align: left;
+  }
+  .dr-sort-th:hover { text-decoration: underline; }
+  .dr-sort-th .dr-sort-arrow { font-size: 0.7rem; opacity: 0.5; }
+  .dr-sort-th[data-active="true"] .dr-sort-arrow { opacity: 1; }
+
   /* Truncate with an ellipsis + title tooltip, not wrap -- see the comment
      above for why wrapping (the first attempt at this) looked worse, not
      just narrower. Name and email each truncate on their OWN line inside
@@ -1981,9 +1994,13 @@ PAGE_CSS = """
       --shadow: none;
     }
     .mainnav, .site-footer, .signup-form, .remind-panel, .dr-quicklinks,
-    .state-search-wrap, .dr-sso-block, button, .cta-button {
+    .state-search-wrap, .dr-sso-block, button:not(.dr-sort-th), .cta-button {
       display: none !important;
     }
+    /* Roadmap #37 (2026-08-07): sortable column-header buttons are table
+       structure, not an action -- keep them (as plain header text, not a
+       clickable control) when printing, unlike Edit/Remove/etc. */
+    .dr-sort-th { background: none !important; border: none !important; padding: 0 !important; color: inherit !important; }
     /* Roadmap #3 (2026-08-07): printing the Reports tab (the only view with a
        print button, so the only one reachable via window.print()) should show
        just the report -- none of the dashboard's own chrome around it. Each
@@ -7158,6 +7175,52 @@ function drRenderRow(item) {
 // filter doesn't silently reset every time the roster refreshes.
 var drOfficeGroupFilter = '';
 
+// Roadmap #37 (2026-08-07): roster column sorting/filtering. Search is a
+// substring match on name+email (same instant-filter posture #15's audit-
+// trail search already established); sort is a single active column +
+// direction, toggled by clicking a header again. Both are client-side over
+// the already-fetched drLicenses -- no new endpoint.
+var drRosterSearchQuery = '';
+var drRosterSortColumn = null;
+var drRosterSortDir = 'asc';
+
+var DR_ROSTER_SORT_KEYS = {
+  staff: function(item) { return (item.staff_label || item.email || '').toLowerCase(); },
+  state: function(item) { return (item.state_name || '').toLowerCase(); },
+  license_type: function(item) {
+    var licenseTypeIdForDisplay = item.license_type_id || DR_DEFAULT_LICENSE_TYPE_ID[item.state_slug];
+    return drPrettyLicenseType(licenseTypeIdForDisplay).toLowerCase();
+  },
+  status: function(item) { return (DR_STATUS_LABELS[item.status] || item.status || '').toLowerCase(); },
+  // Unresolved (null) deadlines sort last regardless of direction -- "no
+  // known date" isn't meaningfully "earliest" or "latest," and burying it
+  // at the bottom either way keeps real dates from being interrupted by it.
+  next_deadline: function(item) { return item.next_deadline || '9999-99-99'; }
+};
+
+function drApplyRosterSort(items) {
+  var keyFn = drRosterSortColumn && DR_ROSTER_SORT_KEYS[drRosterSortColumn];
+  if (!keyFn) return items;
+  return items.slice().sort(function(a, b) {
+    var ka = keyFn(a), kb = keyFn(b);
+    if (ka < kb) return drRosterSortDir === 'asc' ? -1 : 1;
+    if (ka > kb) return drRosterSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+
+function drRenderRosterSortHeaders() {
+  document.querySelectorAll('.dr-sort-th').forEach(function(btn) {
+    var col = btn.getAttribute('data-sort');
+    var active = col === drRosterSortColumn;
+    btn.setAttribute('data-active', active ? 'true' : 'false');
+    var th = btn.closest('th');
+    if (th) th.setAttribute('aria-sort', active ? (drRosterSortDir === 'asc' ? 'ascending' : 'descending') : 'none');
+    var arrow = btn.querySelector('.dr-sort-arrow');
+    if (arrow) arrow.textContent = active ? (drRosterSortDir === 'asc' ? '▲' : '▼') : '';
+  });
+}
+
 function drRenderTable() {
   var tbody = document.getElementById('dr-roster-body');
   // Roadmap #28: re-checked on every roster render (add/edit/remove/renew
@@ -7166,6 +7229,7 @@ function drRenderTable() {
   drRenderOnboardingChecklist();
   drRenderOfficeGroupFilter();
   drRenderBulkTagStaffSelect();
+  drRenderRosterSortHeaders();
   if (!tbody) return;
   if (drLicenses.length === 0) {
     // Roadmap #29: only reachable when the real roster is genuinely empty
@@ -7179,8 +7243,16 @@ function drRenderTable() {
   var visible = drOfficeGroupFilter
     ? drLicenses.filter(function(item) { return item.office_tag === drOfficeGroupFilter; })
     : drLicenses;
+  if (drRosterSearchQuery) {
+    var q = drRosterSearchQuery.toLowerCase();
+    visible = visible.filter(function(item) {
+      return (item.staff_label || '').toLowerCase().indexOf(q) !== -1 ||
+        (item.email || '').toLowerCase().indexOf(q) !== -1;
+    });
+  }
+  visible = drApplyRosterSort(visible);
   if (visible.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6">No staff tagged &ldquo;' + drEscapeHtml(drOfficeGroupFilter) + '&rdquo;.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6">No staff match the current search or filter.</td></tr>';
     return;
   }
   tbody.innerHTML = visible.map(drRenderRow).join('');
@@ -10752,6 +10824,30 @@ document.addEventListener('DOMContentLoaded', function() {
   if (reportPrintBtn) reportPrintBtn.addEventListener('click', function() { window.print(); });
   var rosterPrintBtn = document.getElementById('dr-roster-print-btn');
   if (rosterPrintBtn) rosterPrintBtn.addEventListener('click', function() { window.print(); });
+
+  // Roadmap #37.
+  var rosterSearchInput = document.getElementById('dr-roster-search');
+  if (rosterSearchInput) {
+    rosterSearchInput.addEventListener('input', function() {
+      drRosterSearchQuery = rosterSearchInput.value.trim();
+      drRenderTable();
+    });
+  }
+  var rosterThead = document.querySelector('.dr-roster-panel thead');
+  if (rosterThead) {
+    rosterThead.addEventListener('click', function(ev) {
+      var btn = ev.target.closest('.dr-sort-th');
+      if (!btn) return;
+      var col = btn.getAttribute('data-sort');
+      if (drRosterSortColumn === col) {
+        drRosterSortDir = drRosterSortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        drRosterSortColumn = col;
+        drRosterSortDir = 'asc';
+      }
+      drRenderTable();
+    });
+  }
   var reportCsvBtn = document.getElementById('dr-report-csv-btn');
   if (reportCsvBtn) reportCsvBtn.addEventListener('click', drDownloadRosterCsv);
   // Roadmap #15: purely client-side, re-filters the rows already fetched by
@@ -11678,12 +11774,20 @@ def build_firm_dashboard_page(
         <button type="button" id="dr-bulk-tag-apply-btn">Apply to selected</button>
         <p class="dr-modal-hint" id="dr-bulk-tag-status"></p>
       </details>
+      <div class="dr-audit-filter">
+        <input type="text" id="dr-roster-search" placeholder="Search by name or email&hellip;" aria-label="Search roster by name or email">
+      </div>
       <div class="table-wrap" role="status" aria-live="polite">
       <table>
         <caption class="dr-visually-hidden">Your firm's tracked CPA staff and their license renewal status</caption>
         <thead>
           <tr>
-            <th scope="col">Staff</th><th scope="col">State</th><th scope="col">License type</th><th scope="col">Status</th><th scope="col">Next deadline</th><th scope="col" class="dr-actions-head">Actions</th>
+            <th scope="col"><button type="button" class="dr-sort-th" data-sort="staff">Staff<span class="dr-sort-arrow" aria-hidden="true"></span></button></th>
+            <th scope="col"><button type="button" class="dr-sort-th" data-sort="state">State<span class="dr-sort-arrow" aria-hidden="true"></span></button></th>
+            <th scope="col"><button type="button" class="dr-sort-th" data-sort="license_type">License type<span class="dr-sort-arrow" aria-hidden="true"></span></button></th>
+            <th scope="col"><button type="button" class="dr-sort-th" data-sort="status">Status<span class="dr-sort-arrow" aria-hidden="true"></span></button></th>
+            <th scope="col"><button type="button" class="dr-sort-th" data-sort="next_deadline">Next deadline<span class="dr-sort-arrow" aria-hidden="true"></span></button></th>
+            <th scope="col" class="dr-actions-head">Actions</th>
           </tr>
         </thead>
         <tbody id="dr-roster-body">

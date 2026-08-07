@@ -847,6 +847,15 @@
   .dr-roster-panel th:nth-child(6), .dr-roster-panel td:nth-child(6) { width: 15rem; } 
 
   
+  .dr-sort-th {
+    background: none; border: none; padding: 0; margin: 0; font: inherit; color: inherit;
+    cursor: pointer; display: flex; align-items: center; gap: 0.3rem; width: 100%; text-align: left;
+  }
+  .dr-sort-th:hover { text-decoration: underline; }
+  .dr-sort-th .dr-sort-arrow { font-size: 0.7rem; opacity: 0.5; }
+  .dr-sort-th[data-active="true"] .dr-sort-arrow { opacity: 1; }
+
+  
   .dr-roster-panel .dr-roster-name,
   .dr-roster-panel .dr-roster-email {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block;
@@ -1311,9 +1320,11 @@
       --shadow: none;
     }
     .mainnav, .site-footer, .signup-form, .remind-panel, .dr-quicklinks,
-    .state-search-wrap, .dr-sso-block, button, .cta-button {
+    .state-search-wrap, .dr-sso-block, button:not(.dr-sort-th), .cta-button {
       display: none !important;
     }
+    
+    .dr-sort-th { background: none !important; border: none !important; padding: 0 !important; color: inherit !important; }
     
     .dr-sidebar, .dr-onboarding-checklist, .dr-sample-mode-banner, .dr-product-tour,
     .dr-dash-shell #dr-dash-error, .dr-dash-shell #dr-dash-success,

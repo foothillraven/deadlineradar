@@ -258,6 +258,24 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
     // moves on to the next subscriber instead of aborting the pass.
     let claimedThreshold = false;
     try {
+      // AuditLab DEMO-5 (MEDIUM, 2026-08-07): the shared public demo
+      // account's roster is deliberately still mutable (DEMO-3/DEMO-4's
+      // own "gate the send, not the mutation" line) -- a demo visitor's
+      // Add Staff row with an arbitrary email and a "bring your own date"
+      // deadline landing on a threshold day would otherwise reach this
+      // cron and get emailed for real, up to ~24h later. Checked before
+      // isPermanentlySuppressed (no DB call needed) and, per AuditLab's
+      // own framing, WITHOUT claiming the threshold -- claiming would mark
+      // it as sent when nothing was, silently breaking the demo's own
+      // "try the reminder feature" story for the next visitor.
+      if (firmInfo?.demo_locked) {
+        summary.errors.push({
+          subscriber_id: sub.id,
+          error: "SKIPPED: firm is demo_locked -- no email sent from the shared demo account.",
+        });
+        continue;
+      }
+
       // Defense-in-depth: allConfirmedActive() already filters to confirmed, but
       // a permanently-unsubscribed address must never be sent to even if a status
       // bug elsewhere left it confirmed. Re-check right before the send.

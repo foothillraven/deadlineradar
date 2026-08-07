@@ -420,18 +420,26 @@ def check_demo_locked_email_coverage(repo_root: Path) -> list[str]:
     framing, since roster-email features have shipped several times a day
     this session.
 
-    Source-scans worker/src/index.ts (balanced-brace parse of each `async
-    function handle*` body, same source-of-truth-not-import approach every
-    sibling guard in this file uses) for functions calling sendViaSendGrid(),
-    and requires each to also reference demo_locked -- UNLESS explicitly
-    allowlisted below with the reason it's safe. The allowlist is the
-    opt-out AuditLab itself asked for; every entry names why the recipient
-    isn't attacker-controlled, not just "already reviewed"."""
-    index_ts = repo_root / "worker" / "src" / "index.ts"
-    if not index_ts.exists():
+    AuditLab DEMO-5 (MEDIUM, 2026-08-07): this guard originally scanned
+    ONLY `async function handle*` in index.ts -- exactly the scope of the
+    finding it was built from, which is exactly how the four decay classes
+    in this file all started. The reminder cron (worker/src/scheduler.ts)
+    also calls sendViaSendGrid() with no demo_locked check and this guard
+    did not catch it. Broadened to every function (any name, async or not)
+    in every worker/src/*.ts file -- the invariant is "does this function
+    send to a roster-derived address," which has nothing to do with what
+    the function is named or which file it lives in.
+
+    Source-scanned (balanced-brace parse), not imported, same
+    source-of-truth-not-import approach every sibling guard in this file
+    uses. Requires each sender to also reference demo_locked -- UNLESS
+    explicitly allowlisted below with the reason it's safe. The allowlist
+    is the opt-out AuditLab itself asked for; every entry names why the
+    recipient isn't attacker-controlled, not just "already reviewed"."""
+    worker_src = repo_root / "worker" / "src"
+    if not worker_src.exists():
         print("  (skipping demo-locked-email-coverage check -- worker/ tree not present in this checkout)")
         return []
-    text = index_ts.read_text(encoding="utf-8")
 
     # name -> reason the recipient is NOT attacker/demo-visitor-controlled.
     allowlisted = {
@@ -444,43 +452,39 @@ def check_demo_locked_email_coverage(repo_root: Path) -> list[str]:
         "handleFirmChangeEmailRequest": "already demo_locked-gated for the whole request (403), not just the send",
         "handleFirmPasswordSet": "already demo_locked-gated for the whole request (403), not just the send",
         "handleFirmAccountDelete": "already demo_locked-gated for the whole request (403), not just the send",
+        # Surfaced by DEMO-5's broadened per-function (not just handle*)
+        # scan -- these are HELPERS the handle* functions above delegate
+        # the actual send to, so the old index.ts/handle*-only scope never
+        # looked inside them directly.
+        "sendSignupNotification": "sends to the hardcoded INTERNAL_NOTIFY_EMAIL operator address, never a roster/attacker-suppliable one",
+        "issueAndSendFirmLoginLink": "sends only to a firm's OWN admin_email -- callers pass either the just-typed signup email (self-referential, same category as handleSubscribe) or the email of an ALREADY-EXISTING firm looked up by store.findFirmByAdminEmail(), never an arbitrary third party",
+        "issueAndSendSubscriberLoginLink": "free-tier individual magic-link sign-in -- public, anonymous, no firm session exists at all (same category as handleSubscribe); demo_locked is a firm-scoped property and doesn't apply here",
     }
 
     errors = []
-    for m in re.finditer(r"async function (handle\w+)\s*\([^)]*\)[^{]*\{", text):
-        name = m.group(1)
-        start = m.end() - 1
-        depth = 0
-        i = start
-        while i < len(text):
-            if text[i] == "{":
-                depth += 1
-            elif text[i] == "}":
-                depth -= 1
-                if depth == 0:
-                    break
-            i += 1
-        body = _strip_ts_comments(text[start : i + 1])
-        if "sendViaSendGrid(" not in body:
-            continue
-        if "demo_locked" in body:
-            continue
-        if name in allowlisted:
-            continue
-        errors.append(
-            f"[DEMO-EMAIL] {name}() calls sendViaSendGrid() but has no demo_locked check and isn't "
-            "in check_demo_locked_email_coverage()'s allowlist -- either gate the send for a demo_locked "
-            "firm, or add it to the allowlist with the reason its recipient is never attacker-controlled"
-        )
+    found_names = set()
+    for ts_file in sorted(worker_src.glob("*.ts")):
+        text = ts_file.read_text(encoding="utf-8")
+        for name, body in _balanced_brace_function_bodies(text, r"\w+"):
+            found_names.add(name)
+            body = _strip_ts_comments(body)
+            if "sendViaSendGrid(" not in body:
+                continue
+            if "demo_locked" in body:
+                continue
+            if name in allowlisted:
+                continue
+            errors.append(
+                f"[DEMO-EMAIL] {name}() ({ts_file.name}) calls sendViaSendGrid() but has no demo_locked "
+                "check and isn't in check_demo_locked_email_coverage()'s allowlist -- either gate the "
+                "send for a demo_locked firm, or add it to the allowlist with the reason its recipient "
+                "is never attacker-controlled"
+            )
 
     # Reverse direction: an allowlist entry for a function that no longer
     # exists, or that NOW has demo_locked (so the entry is stale/redundant),
     # should be trimmed -- same "both directions" discipline the sitemap and
     # retention guards apply.
-    found_names = {
-        m.group(1)
-        for m in re.finditer(r"async function (handle\w+)\s*\([^)]*\)[^{]*\{", text)
-    }
     stale_allowlist = sorted(set(allowlisted) - found_names)
     if stale_allowlist:
         errors.append(
@@ -583,6 +587,16 @@ def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
     asserted new write endpoints keep the pattern. /security/'s own claim
     ("Every write endpoint is rate-limited...") only stays true if
     something enforces it.
+
+    Deliberately scoped to index.ts's handle* functions ONLY (unlike
+    check_demo_locked_email_coverage()'s DEMO-5 broadening to every
+    worker/src/*.ts function) -- AuditLab flagged this same index.ts-only
+    scoping assumption on that guard and it's worth being explicit here:
+    "rate limit" is a per-HTTP-request concept, and handle* functions are
+    the only HTTP-request-triggered code in this codebase. scheduler.ts's
+    cron isn't triggered by a request at all (no caller to rate-limit), so
+    broadening this guard the same way would be a category error, not
+    just extra work.
 
     A handle* function in index.ts is "write" if it calls a store.ts
     function whose OWN SQL contains INSERT/UPDATE/DELETE -- derived from

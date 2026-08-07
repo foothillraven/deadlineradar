@@ -3352,11 +3352,18 @@ export interface FirmBasicInfo {
   // itself (same "raw column value, caller decides" posture as every other
   // field here).
   reminder_thresholds: string | null;
+  // AuditLab DEMO-5 (MEDIUM, 2026-08-07): the reminder cron sends via this
+  // lookup and had no way to know a subscriber's firm was demo_locked --
+  // same "gate the send, not the mutation" line DEMO-3/DEMO-4 already
+  // drew, applied to the one send site those two missed (this file's
+  // scope was index.ts's handle* functions; the cron lives in
+  // scheduler.ts). 0/1 as returned by D1, coerced by the caller.
+  demo_locked: number;
 }
 
 export async function listAllFirmsBasicInfo(db: D1Database): Promise<FirmBasicInfo[]> {
   const { results } = await db
-    .prepare(`SELECT id, name, reply_to_email, reminder_thresholds FROM firms`)
+    .prepare(`SELECT id, name, reply_to_email, reminder_thresholds, demo_locked FROM firms`)
     .all<FirmBasicInfo>();
   return results;
 }

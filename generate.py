@@ -8184,8 +8184,12 @@ function drRenderCpeStaffProgress() {
     // Admin-triggered nudge (2026-08-05, staff self-service CPE entry):
     // lives on the CPE Hours tab, next to the exact progress it's about,
     // rather than the roster's already-crowded Actions column.
-    var reminderBtn = '<button type="button" class="dr-cpe-remind-btn" data-id="' + drEscapeHtml(item.id) +
-      '" aria-label="Email ' + name + ' a CPE-hours reminder">Email reminder</button>';
+    // Roadmap #29: same reasoning as drRenderRow's Actions cell -- a sample
+    // row's id matches nothing on the server, so no functional button.
+    var reminderBtn = item.is_sample
+      ? '<span class="dr-sample-tag">Sample</span>'
+      : '<button type="button" class="dr-cpe-remind-btn" data-id="' + drEscapeHtml(item.id) +
+        '" aria-label="Email ' + name + ' a CPE-hours reminder">Email reminder</button>';
     if (!p.hasRequirement) {
       var gapText = p.dataGapNote ? drEscapeHtml(p.dataGapNote) : 'Requirement not codified for this state &mdash; track manually.';
       return '<div class="dr-cpe-staff-card"><div class="dr-cpe-staff-head">' +
@@ -8235,11 +8239,17 @@ function drRenderCpeRecent() {
     var staffer = byId[e.subscriber_id];
     var name = staffer ? drEscapeHtml(staffer.staff_label || staffer.email) : 'Removed staff member';
     var desc = e.description ? ' &mdash; ' + drEscapeHtml(e.description) : '';
+    // Roadmap #29: a sample entry's id ('sample-cpe-1' etc.) matches nothing
+    // on the server -- same reasoning as drRenderRow's sample-row Actions
+    // cell, no functional Remove button for one.
+    var removeControl = (staffer && staffer.is_sample)
+      ? '<span class="dr-sample-tag">Sample</span>'
+      : '<button type="button" class="dr-cpe-recent-remove" data-id="' + drEscapeHtml(e.id) + '" data-label="' +
+        drEscapeHtml(String(e.hours) + 'h for ' + name) + '">Remove</button>';
     return '<div class="dr-cpe-recent-item"><span><b>' + name + '</b> logged ' + drEscapeHtml(String(e.hours)) +
       'h (' + drEscapeHtml(e.category) + ')' + desc +
       '<span class="dr-agenda-date" style="display:block;">' + drEscapeHtml(drFormatDeadline(e.entry_date)) + '</span></span>' +
-      '<button type="button" class="dr-cpe-recent-remove" data-id="' + drEscapeHtml(e.id) + '" data-label="' +
-      drEscapeHtml(String(e.hours) + 'h for ' + name) + '">Remove</button></div>';
+      removeControl + '</div>';
   }).join('');
 }
 

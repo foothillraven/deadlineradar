@@ -444,6 +444,30 @@ def print_cpe_hours_staleness_advisory(repo_root: Path) -> None:
         pass
 
 
+def print_cpa_deadlines_staleness_advisory(repo_root: Path) -> None:
+    """Surfaces cpa_deadlines_staleness_check.py (roadmap #45, 2026-08-07) as
+    part of the normal pre-ship run, same treatment as the CPE-hours/
+    reinstatement/rule-change-monitoring advisories -- printed, never affects
+    exit code. cpa_deadlines.json's 88 records each have their own
+    last_verified date; the Worker's runtime guard (checkDataFreshness())
+    only checks a single whole-dataset as_of_date, which is real but blind
+    to one state's citation quietly going stale while as_of_date looks fresh
+    because some other record was more recently touched. This is the only
+    place PER-CITATION staleness on the product's most important dataset
+    gets surfaced at all."""
+    sys.path.insert(0, str(repo_root / "scripts"))
+    try:
+        import cpa_deadlines_staleness_check as cdsc
+    except ImportError:
+        print("  (skipping cpa-deadlines-staleness advisory -- cpa_deadlines_staleness_check.py not importable)")
+        return
+    print("\n--- cpa-deadlines-staleness advisory (does not affect gate exit code) ---")
+    try:
+        cdsc.main()
+    except SystemExit:
+        pass
+
+
 def print_reinstatement_staleness_advisory(repo_root: Path) -> None:
     """Surfaces reinstatement_staleness_check.py (AuditLab REIN-1, 2026-08-05)
     as part of the normal pre-ship run, same treatment as the CPE-hours
@@ -513,6 +537,7 @@ def main():
         for e in all_errors:
             print(" ", e)
         print_worker_deploy_staleness_advisory(repo_root)
+        print_cpa_deadlines_staleness_advisory(repo_root)
         print_cpe_hours_staleness_advisory(repo_root)
         print_reinstatement_staleness_advisory(repo_root)
         print_rule_change_monitoring_staleness_advisory(repo_root)
@@ -521,6 +546,7 @@ def main():
         sys.exit(1)
     print("\nPASS -- no violations found.")
     print_worker_deploy_staleness_advisory(repo_root)
+    print_cpa_deadlines_staleness_advisory(repo_root)
     print_cpe_hours_staleness_advisory(repo_root)
     print_reinstatement_staleness_advisory(repo_root)
     print_rule_change_monitoring_staleness_advisory(repo_root)

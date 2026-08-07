@@ -4740,7 +4740,8 @@ async function handleSnooze(env: Env, token: string | null): Promise<Response> {
     return errorPage(
       404,
       "That link is invalid or already used, or this subscriber isn't currently eligible to snooze " +
-        "(already stopped, or never confirmed)."
+        "(already stopped, never confirmed, or too close to the actual deadline for any snooze link -- " +
+        "even an older one from a prior reminder -- to push it back further)."
     );
   }
   return htmlResponse(

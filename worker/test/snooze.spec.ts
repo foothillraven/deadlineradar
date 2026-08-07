@@ -88,6 +88,52 @@ describe("store.snoozeByToken()", () => {
     await store.stop(env.DB, confirmed.renewed_token, "renewed");
     expect(await store.snoozeByToken(env.DB, confirmed.renewed_token, 14)).toBeNull();
   });
+
+  // AuditLab SNOOZE-1 (LOW, 2026-08-07): the "no snooze on the final 1-day
+  // reminder" rule was previously enforced only by the email template
+  // omitting the CTA -- an OLDER 60/30/14-day email's snooze link still
+  // worked right up until the real deadline, since every tier's email
+  // reuses the same renewed_token. Fixed at the storage layer: refuse
+  // regardless of which email's link was used, based on the subscriber's
+  // REAL current deadline, not which specific email happened to be clicked.
+  it("returns null once the real deadline is 1 day away or less -- even via an old link", async () => {
+    const email = `snoozeclose-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, { email, stateSlug: "texas", deadlineFields: { birth_month: "7" }, firstName: null });
+    await store.confirm(env.DB, rec.confirm_token);
+    // "Bring your own date" lets this test control the real deadline
+    // directly (real wall-clock tomorrow) rather than depend on where TX's
+    // computed birth-month deadline happens to fall relative to whenever
+    // this test actually runs.
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    await env.DB.prepare("UPDATE subscribers SET deadline_source = 'user', user_deadline = ?1 WHERE id = ?2")
+      .bind(tomorrow, rec.id)
+      .run();
+    expect(await store.snoozeByToken(env.DB, rec.renewed_token, 14)).toBeNull();
+  });
+
+  it("still allows a snooze when the real deadline is comfortably far away", async () => {
+    const email = `snoozefar-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, { email, stateSlug: "texas", deadlineFields: { birth_month: "7" }, firstName: null });
+    await store.confirm(env.DB, rec.confirm_token);
+    const farOut = new Date(Date.now() + 90 * 86_400_000).toISOString().slice(0, 10);
+    await env.DB.prepare("UPDATE subscribers SET deadline_source = 'user', user_deadline = ?1 WHERE id = ?2")
+      .bind(farOut, rec.id)
+      .run();
+    expect(await store.snoozeByToken(env.DB, rec.renewed_token, 14)).not.toBeNull();
+  });
+
+  it("404s over HTTP with the same tailored message when too close to the deadline", async () => {
+    const email = `snoozeclosehttp-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, { email, stateSlug: "texas", deadlineFields: { birth_month: "7" }, firstName: null });
+    await store.confirm(env.DB, rec.confirm_token);
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    await env.DB.prepare("UPDATE subscribers SET deadline_source = 'user', user_deadline = ?1 WHERE id = ?2")
+      .bind(tomorrow, rec.id)
+      .run();
+    const resp = await postAction(`/snooze?token=${rec.renewed_token}`, "203.0.113.233");
+    expect(resp.status).toBe(404);
+    expect(await resp.text()).toContain("too close to the actual deadline");
+  });
 });
 
 describe("applyRenewAndRearm clears a stale snooze", () => {

@@ -17,6 +17,7 @@ import {
   sanitizeFirstName,
   sanitizeFreeText,
 } from "./validation";
+import { computeSubscriberDeadline } from "./deadline";
 
 export const STATUS_PENDING = "pending_confirmation";
 export const STATUS_CONFIRMED = "confirmed";
@@ -1911,13 +1912,38 @@ async function applyRenewAndRearm(db: D1Database, row: SubscriberRow): Promise<S
   };
 }
 
+// AuditLab SNOOZE-1 (LOW, 2026-08-07): "no snooze on the final 1-day
+// reminder" was previously enforced ONLY by buildReminderEmail() omitting
+// the CTA from that specific email -- but every reminder tier's email
+// reuses the SAME renewed_token (see the "shared token" comment on every
+// action-link build site), so an OLDER 60/30/14-day email still sitting in
+// an inbox has a snooze link that works exactly as well as a fresh one.
+// Self-defeat, not a security issue (nothing cross-subscriber): someone
+// could click a stale link 2 days before their real deadline and snooze
+// 14 days past it. Fixed at the STORAGE layer instead of re-relying on
+// which specific email happened to get clicked -- recomputes the
+// subscriber's REAL current deadline the same way scheduler.ts does and
+// refuses the snooze once they're inside the final-tier window, regardless
+// of which email's link was used.
+function daysUntilDeadlineForSnoozeCheck(row: SubscriberRow, now: Date): number | null {
+  const deadline =
+    row.deadline_source === DEADLINE_SOURCE_USER && row.user_deadline
+      ? new Date(`${row.user_deadline}T00:00:00Z`)
+      : computeSubscriberDeadline(row.state_slug, JSON.parse(row.deadline_fields || "{}"), now);
+  if (!deadline) return null;
+  const nowDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  return Math.round((deadline.getTime() - nowDay.getTime()) / 86_400_000);
+}
+
 /** Roadmap #26 (migration 0040). Self-service, fixed-duration snooze via
  * the subscriber's existing renewed_token/unsubscribe_token -- same lookup
  * and eligibility posture as renewAndRearmByToken() above (must be
  * confirmed; a stopped subscription has nothing to snooze). Returns null
- * for an invalid token, an unconfirmed row, or a stopped row -- the caller
- * (handleSnooze) gives a specific reason for the stopped case since that's
- * the one genuinely different from "bad link." */
+ * for an invalid token, an unconfirmed row, a stopped row, or (AuditLab
+ * SNOOZE-1) a subscriber already inside the final-reminder window
+ * regardless of which email's link was clicked -- the caller (handleSnooze)
+ * gives a specific reason for each case since they're genuinely different
+ * situations from "bad link." */
 export async function snoozeByToken(db: D1Database, token: string, days: number): Promise<SubscriberRow | null> {
   const row = await db
     .prepare(`SELECT * FROM subscribers WHERE unsubscribe_token = ?1 OR renewed_token = ?1`)
@@ -1926,6 +1952,8 @@ export async function snoozeByToken(db: D1Database, token: string, days: number)
   if (!row) return null;
   if (!row.confirmed_at) return null;
   if (row.status === STATUS_STOPPED) return null;
+  const daysRemaining = daysUntilDeadlineForSnoozeCheck(row, new Date());
+  if (daysRemaining !== null && daysRemaining <= 1) return null;
   const snoozedUntil = new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
   await db.prepare(`UPDATE subscribers SET snoozed_until = ?1 WHERE id = ?2`).bind(snoozedUntil, row.id).run();
   return { ...row, snoozed_until: snoozedUntil };

@@ -9607,6 +9607,60 @@ function drSubmitReplyTo(form) {
   });
 }
 
+// Roadmap #23 (2026-08-07): customizable reminder cadence, scoped to a
+// SUBSET of the 6 fixed escalation points -- see migration 0039's own
+// docstring for why not arbitrary day-offsets. `thresholds` is null (every
+// box checked) or an array of the values this firm currently uses.
+function drRenderReminderCadence(thresholds) {
+  var form = document.getElementById('dr-reminder-cadence-form');
+  if (!form) return;
+  var boxes = form.querySelectorAll('input[name="cadence"]');
+  boxes.forEach(function(box) {
+    box.checked = thresholds === null || thresholds.indexOf(Number(box.value)) !== -1;
+  });
+}
+
+function drSubmitReminderCadence(form) {
+  var okEl = document.getElementById('dr-reminder-cadence-ok');
+  var errEl = document.getElementById('dr-reminder-cadence-error');
+  if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+
+  var boxes = Array.from(form.querySelectorAll('input[name="cadence"]'));
+  var checked = boxes.filter(function(b) { return b.checked; }).map(function(b) { return Number(b.value); });
+  if (checked.length === 0) {
+    if (errEl) { errEl.textContent = 'Choose at least one reminder timing.'; errEl.hidden = false; }
+    return;
+  }
+  // Every box checked is the same as the default (null) -- send null so a
+  // firm that never touches this panel, or resets it back to everything,
+  // stores the same "no customization" value a brand-new firm has.
+  var allChecked = checked.length === boxes.length;
+  var submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
+
+  fetch('/api/firm/reminder-cadence', {
+    method: 'PATCH', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({thresholds: allChecked ? null : checked})
+  }).then(function(res) {
+    if (submitBtn) submitBtn.disabled = false;
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        return;
+      }
+      drRenderReminderCadence(data.reminder_thresholds);
+      if (okEl) { okEl.textContent = 'Saved.'; okEl.hidden = false; }
+    });
+  }).catch(function() {
+    if (submitBtn) submitBtn.disabled = false;
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
 function drLoadLicenses() {
   drClearError();
   fetch('/api/firm/licenses', {credentials: 'include'})
@@ -9672,6 +9726,8 @@ function drLoadLicenses() {
       // Roadmap #19: same "firm-level, comes from this same response" note
       // as peer_review_due_date above.
       drRenderReplyTo(data.reply_to_email || null);
+      // Roadmap #23: same note.
+      drRenderReminderCadence(data.reminder_thresholds || null);
       drRenderTable();
       drRenderStats();
       drRenderRenewalFeeRollup();
@@ -10386,6 +10442,14 @@ document.addEventListener('DOMContentLoaded', function() {
     replyToForm.addEventListener('submit', function(ev) {
       ev.preventDefault();
       drSubmitReplyTo(replyToForm);
+    });
+  }
+
+  var reminderCadenceForm = document.getElementById('dr-reminder-cadence-form');
+  if (reminderCadenceForm) {
+    reminderCadenceForm.addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      drSubmitReminderCadence(reminderCadenceForm);
     });
   }
 
@@ -11560,6 +11624,24 @@ def build_firm_dashboard_page(
         </form>
         <p id="dr-reply-to-ok" class="dr-account-ok" hidden></p>
         <p id="dr-reply-to-error" role="alert" class="dr-account-err" hidden></p>
+      </div>
+
+      <div class="dr-account-panel">
+        <h2>Reminder timing</h2>
+        <p class="signup-microcopy">Choose which of the standard reminder points your staff
+        receive. At least one must stay checked -- leave them all checked (the default) for the
+        full escalating schedule.</p>
+        <form id="dr-reminder-cadence-form">
+          <label><input type="checkbox" name="cadence" value="60"> 60 days out</label>
+          <label><input type="checkbox" name="cadence" value="30"> 30 days out</label>
+          <label><input type="checkbox" name="cadence" value="14"> 14 days out</label>
+          <label><input type="checkbox" name="cadence" value="7"> 7 days out</label>
+          <label><input type="checkbox" name="cadence" value="3"> 3 days out</label>
+          <label><input type="checkbox" name="cadence" value="1"> 1 day out (final reminder)</label>
+          <button type="submit">Save</button>
+        </form>
+        <p id="dr-reminder-cadence-ok" class="dr-account-ok" hidden></p>
+        <p id="dr-reminder-cadence-error" role="alert" class="dr-account-err" hidden></p>
       </div>
 
       <div class="dr-account-panel">

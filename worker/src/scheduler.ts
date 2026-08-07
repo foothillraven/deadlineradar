@@ -64,9 +64,20 @@ const MS_PER_DAY = 86_400_000;
  * threshold that's newly due, and NEVER a less-urgent tier than one already
  * sent (so a scheduler gap can't deliver reminders out of order).
  */
-export function nextDueThreshold(daysRemaining: number, alreadySent: number[]): number | null {
+// Roadmap #23: optional 3rd param, defaulting to the full fixed set --
+// every existing caller (including every test that doesn't pass one) is
+// byte-identical to before this parameter existed. `thresholds` is always
+// a SUBSET of ESCALATION_THRESHOLDS_DAYS by construction (validated at
+// write time, index.ts's parseReminderThresholds()) -- this function
+// doesn't re-validate that, same trust-the-caller posture as the rest of
+// this file.
+export function nextDueThreshold(
+  daysRemaining: number,
+  alreadySent: number[],
+  thresholds: number[] = ESCALATION_THRESHOLDS_DAYS
+): number | null {
   const mostUrgentSent = alreadySent.length > 0 ? Math.min(...alreadySent) : null;
-  for (const threshold of [...ESCALATION_THRESHOLDS_DAYS].sort((a, b) => a - b)) {
+  for (const threshold of [...thresholds].sort((a, b) => a - b)) {
     if (alreadySent.includes(threshold)) continue;
     if (mostUrgentSent !== null && threshold >= mostUrgentSent) continue;
     if (daysRemaining <= threshold) return threshold;
@@ -188,18 +199,36 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
     }
     const neverNotified = alreadySent.length === 0;
 
+    // Roadmap #19/#23: looked up once here (not per-use below) since both
+    // the catch-up tier and nextDueThreshold() need the firm's own
+    // threshold subset, not just the email-building step further down.
+    // null for a free-tier individual (sub.firm_id is null) or,
+    // defensively, if the firm_id somehow doesn't resolve.
+    const firmInfo = sub.firm_id ? firmsById.get(sub.firm_id) ?? null : null;
+    let thresholds: number[] = ESCALATION_THRESHOLDS_DAYS;
+    if (firmInfo?.reminder_thresholds) {
+      try {
+        const parsed = JSON.parse(firmInfo.reminder_thresholds);
+        if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+      } catch {
+        // Malformed value somehow reached storage -- fall back to the full
+        // default set rather than silently sending nothing.
+      }
+    }
+
     let threshold: number | null;
     if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
       if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
         // First-ever evaluation landed past-deadline -- one bounded catch-up at
-        // the most urgent tier rather than silent-forever.
-        threshold = Math.min(...ESCALATION_THRESHOLDS_DAYS);
+        // the most urgent tier this firm actually uses, rather than silent-
+        // forever OR a tier they've deliberately turned off.
+        threshold = Math.min(...thresholds);
       } else {
         summary.skipped_grace_period += 1;
         continue;
       }
     } else {
-      threshold = nextDueThreshold(daysRemaining, alreadySent);
+      threshold = nextDueThreshold(daysRemaining, alreadySent, thresholds);
       if (threshold === null) continue;
     }
 
@@ -228,11 +257,6 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
       const renewedNextCycleUrl = `${actionBaseUrl(env)}/renewed-next-cycle?token=${encodeURIComponent(sub.renewed_token)}`;
       const renewedUrl = `${actionBaseUrl(env)}/renewed?token=${encodeURIComponent(sub.renewed_token)}`;
       const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(sub.unsubscribe_token)}`;
-      // Roadmap #19: null for a free-tier individual (sub.firm_id is null)
-      // or, defensively, if the firm_id somehow doesn't resolve -- either
-      // way buildReminderEmail() treats null exactly like before this
-      // parameter existed.
-      const firmInfo = sub.firm_id ? firmsById.get(sub.firm_id) ?? null : null;
       let built: BuiltEmail;
       try {
         built = buildReminderEmail(

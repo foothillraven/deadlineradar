@@ -573,6 +573,35 @@ export const RATE_LIMIT_FIRM_PEER_REVIEW_SET: RateLimit = { max: 30, windowSecon
 // modest cap as RATE_LIMIT_FIRM_PEER_REVIEW_SET above.
 export const RATE_LIMIT_FIRM_REPLY_TO_SET: RateLimit = { max: 30, windowSeconds: 86400 };
 
+// PATCH /firm/reminder-cadence (roadmap #23, 2026-08-07) -- same shape and
+// same modest cap as the two above.
+export const RATE_LIMIT_FIRM_REMINDER_CADENCE_SET: RateLimit = { max: 30, windowSeconds: 86400 };
+
+// Roadmap #23: the ONLY values a firm may pick from -- see migration 0039's
+// own docstring for why this is a subset of the existing 6 escalation
+// points, not arbitrary day-offsets (each has bespoke, reviewed urgency
+// copy in emails.ts; an unreviewed value would either need invented copy
+// or hit buildReminderEmail()'s own throw). Duplicated here (not imported
+// from scheduler.ts) deliberately: worker/src/validation.ts has no existing
+// dependency on scheduler.ts, and this is a small, stable, rarely-changing
+// constant -- not worth introducing a new cross-module import for.
+export const ALLOWED_REMINDER_THRESHOLDS = new Set([60, 30, 14, 7, 3, 1]);
+
+/** Roadmap #23: `raw` is the PARSED JSON.parse() result of a request body's
+ * `thresholds` field (the caller does the JSON.parse -- this only validates
+ * shape/values). Returns the validated array (deduped, no particular order
+ * required -- nextDueThreshold() sorts internally) or null if anything
+ * about it is wrong, letting the caller 400 rather than store a bad value. */
+export function parseReminderThresholds(raw: unknown): number[] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const deduped = new Set<number>();
+  for (const v of raw) {
+    if (typeof v !== "number" || !ALLOWED_REMINDER_THRESHOLDS.has(v)) return null;
+    deduped.add(v);
+  }
+  return Array.from(deduped);
+}
+
 // AuditLab S-3, 2026-08-03: these four authenticated state-changing routes
 // had no bucket at all -- not a mail primitive like F-2/RATE_LIMIT_FIRM_LICENSE_PATCH
 // (none of them sends email), but still unbounded D1 write amplification from

@@ -890,6 +890,11 @@ export interface FirmRow {
   // recipient's reply to the firm instead of DeadlineRadar. Null = every
   // reminder email keeps its existing (no explicit Reply-To) behavior.
   reply_to_email: string | null;
+  // migration 0039 (roadmap #23). JSON array of a SUBSET of
+  // ESCALATION_THRESHOLDS_DAYS (scheduler.ts), or null for every threshold
+  // (today's fixed behavior). Validated server-side on write -- see that
+  // migration's own docstring for why this is a subset, not arbitrary values.
+  reminder_thresholds: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -3111,6 +3116,14 @@ export async function setReplyToEmail(db: D1Database, firmId: string, email: str
   await db.prepare(`UPDATE firms SET reply_to_email = ?1 WHERE id = ?2`).bind(email, firmId).run();
 }
 
+/** Roadmap #23 (migration 0039). `thresholdsJson` is `null` to clear (use
+ * every default threshold) or an already-validated JSON array string --
+ * validated by the CALLER (index.ts's own parseReminderThresholds()) before
+ * this is ever called, same trust-the-caller posture as the setters above. */
+export async function setReminderThresholds(db: D1Database, firmId: string, thresholdsJson: string | null): Promise<void> {
+  await db.prepare(`UPDATE firms SET reminder_thresholds = ?1 WHERE id = ?2`).bind(thresholdsJson, firmId).run();
+}
+
 /** Roadmap #19: one query for scheduler.ts's own per-subscriber loop to
  * build a { firm_id -> {name, reply_to_email} } lookup from, rather than a
  * per-subscriber firm fetch (N+1) inside a pass that can process a real
@@ -3122,10 +3135,16 @@ export interface FirmBasicInfo {
   id: string;
   name: string;
   reply_to_email: string | null;
+  // Roadmap #23: JSON array string or null -- scheduler.ts parses this
+  // itself (same "raw column value, caller decides" posture as every other
+  // field here).
+  reminder_thresholds: string | null;
 }
 
 export async function listAllFirmsBasicInfo(db: D1Database): Promise<FirmBasicInfo[]> {
-  const { results } = await db.prepare(`SELECT id, name, reply_to_email FROM firms`).all<FirmBasicInfo>();
+  const { results } = await db
+    .prepare(`SELECT id, name, reply_to_email, reminder_thresholds FROM firms`)
+    .all<FirmBasicInfo>();
   return results;
 }
 

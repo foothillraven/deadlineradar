@@ -73,6 +73,8 @@ import {
   RATE_LIMIT_FIRM_DOCUMENT_UPLOAD,
   RATE_LIMIT_FIRM_PEER_REVIEW_SET,
   RATE_LIMIT_FIRM_REPLY_TO_SET,
+  RATE_LIMIT_FIRM_REMINDER_CADENCE_SET,
+  parseReminderThresholds,
   RATE_LIMIT_SUBSCRIBER_CPE_CREATE,
   RATE_LIMIT_FIRM_STAFF_CPE_REMINDER,
   RATE_LIMIT_FIRM_RULE_CHANGE_NOTIFY,
@@ -3264,6 +3266,12 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     // firm's tracked staff. Null when not set -- reminders keep their
     // existing (no explicit Reply-To) behavior.
     reply_to_email: session.firm.reply_to_email,
+    // Roadmap #23: which of the 6 fixed escalation points this firm's
+    // tracked staff receive. Null (parsed here, not just passed through)
+    // means every threshold -- the client shouldn't have to know that a
+    // raw-null column value means "everything" versus re-deriving that
+    // itself.
+    reminder_thresholds: session.firm.reminder_thresholds ? JSON.parse(session.firm.reminder_thresholds) : null,
   });
 }
 
@@ -3496,6 +3504,47 @@ async function handleReplyToSet(request: Request, env: Env): Promise<Response> {
 
   await store.setReplyToEmail(env.DB, session.firmId, emailRaw);
   return jsonResponse(200, { reply_to_email: emailRaw });
+}
+
+/** PATCH /firm/reminder-cadence -- sets or clears which of the 6 fixed
+ * escalation points (roadmap #23, migration 0039) this firm's tracked staff
+ * receive. Body: { thresholds: number[] | null }. See migration 0039's own
+ * docstring for why this is a subset of a fixed set, not arbitrary values. */
+async function handleReminderCadenceSet(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_reminder_cadence_set", RATE_LIMIT_FIRM_REMINDER_CADENCE_SET);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return jsonResponse(400, { error: "Request too large." });
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  if (body.thresholds === null) {
+    await store.setReminderThresholds(env.DB, session.firmId, null);
+    return jsonResponse(200, { reminder_thresholds: null });
+  }
+
+  const parsed = parseReminderThresholds(body.thresholds);
+  if (!parsed) {
+    return jsonResponse(400, { error: "Please choose at least one valid reminder timing." });
+  }
+
+  const asJson = JSON.stringify(parsed);
+  await store.setReminderThresholds(env.DB, session.firmId, asJson);
+  return jsonResponse(200, { reminder_thresholds: parsed });
 }
 
 /** GET /firm/calendar.ics -- static, one-time roster export (2026-08-06,
@@ -4947,6 +4996,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/reply-to") {
         try {
           return await handleReplyToSet(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/reminder-cadence") {
+        try {
+          return await handleReminderCadenceSet(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }

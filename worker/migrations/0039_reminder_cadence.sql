@@ -1,0 +1,11 @@
+-- Roadmap #23 (2026-08-07): customizable reminder cadence, scoped to choosing a SUBSET of the
+-- existing 6 escalation points (60/30/14/7/3/1 days), not arbitrary day-offsets. Each of those 6
+-- has bespoke, hand-written urgency copy (emails.ts's URGENCY_LEAD) -- there is no reviewed lead
+-- phrase for an arbitrary custom value, and buildReminderEmail() already THROWS on any threshold
+-- outside that fixed set. Letting a firm turn individual escalation points on/off is a real,
+-- honest reading of "customizable cadence" that ships without inventing new, unreviewed prose.
+--
+-- NULL = every threshold (today's fixed behavior, byte-identical). A JSON array = exactly which
+-- of the 6 fixed values this firm's tracked staff receive -- validated server-side (index.ts) to
+-- only ever contain values from ESCALATION_THRESHOLDS_DAYS, never an arbitrary number.
+ALTER TABLE firms ADD COLUMN reminder_thresholds TEXT;

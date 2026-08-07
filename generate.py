@@ -1103,10 +1103,17 @@ PAGE_CSS = """
     background: var(--card-bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
     box-shadow: 0 8px 24px rgba(0,0,0,.25); max-height: 60vh; overflow-y: auto; padding: 0.6rem;
   }
-  .dr-notif-item { display: block; padding: 0.55rem 0.6rem; border-radius: 6px; font-size: 0.85rem; line-height: 1.4; }
-  .dr-notif-item + .dr-notif-item { margin-top: 0.15rem; }
+  .dr-notif-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 0.2rem 0.6rem 0.5rem; font-size: 0.78rem; color: var(--muted); }
+  .dr-notif-item-row { display: flex; align-items: flex-start; gap: 0.15rem; }
+  .dr-notif-item-row + .dr-notif-item-row { margin-top: 0.15rem; }
+  .dr-notif-item { display: block; flex: 1 1 auto; min-width: 0; padding: 0.55rem 0.6rem; border-radius: 6px; font-size: 0.85rem; line-height: 1.4; }
   .dr-notif-item:hover { background: var(--row-alt); }
   .dr-notif-item-sub { display: block; color: var(--muted); font-size: 0.78rem; margin-top: 0.1rem; }
+  .dr-notif-dismiss-btn {
+    flex: 0 0 auto; background: transparent; border: none; color: var(--muted); cursor: pointer;
+    font-size: 1rem; line-height: 1; padding: 0.55rem 0.4rem; border-radius: 6px; font-family: inherit;
+  }
+  .dr-notif-dismiss-btn:hover { color: var(--fg); background: var(--row-alt); }
   .dr-nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
   .dr-nav a, .dr-nav-soon {
     display: flex; align-items: center; gap: 0.55rem; padding: 0.55rem 0.6rem; border-radius: 7px;
@@ -10477,6 +10484,56 @@ function drSubmitReminderCadence(form) {
 // unresolved definition drRenderStats()/drRenderAtRisk() already use for
 // "at risk" (deliberately not a THIRD threshold), reachable from a bell
 // icon in the sidebar rather than only from the Roster overview tab.
+//
+// Reported live 2026-08-07: no way to clear/dismiss items -- the badge only
+// ever dropped by actually resolving the underlying condition (renew, log
+// CPE hours). Added a per-item, browser-local dismiss (localStorage, not
+// server-side -- this mirrors a live status, not a durable event log, so
+// there's nothing meaningful to sync across devices). Each item is keyed by
+// subscriber+type and stamped with a SIGNATURE of the value that would make
+// the dismissal stale: the exact next_deadline date for a deadline item,
+// hours-logged-so-far for a CPE item. Dismissing hides it until that
+// underlying value actually changes, not just until the next page load --
+// marking renewed changes next_deadline (a fresh signature, item
+// re-surfaces if still due soon under the new date); logging more CPE
+// hours changes the hours signature and re-surfaces the item only if still
+// behind after the new entry.
+var DR_NOTIF_DISMISS_KEY = 'dr_notif_dismissed';
+var drCurrentNotifItems = [];
+
+function drGetDismissedNotifs() {
+  try {
+    var raw = window.localStorage.getItem(DR_NOTIF_DISMISS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function drSetDismissedNotifs(map) {
+  try {
+    window.localStorage.setItem(DR_NOTIF_DISMISS_KEY, JSON.stringify(map));
+  } catch (e) {
+    // Storage unavailable (private browsing, quota) -- the dismissal just
+    // won't persist across reloads. Not worth surfacing as an error for a
+    // purely cosmetic feature.
+  }
+}
+
+function drDismissNotif(id, sig) {
+  var map = drGetDismissedNotifs();
+  map[id] = sig;
+  drSetDismissedNotifs(map);
+  drRenderNotifications();
+}
+
+function drDismissAllNotifs() {
+  var map = drGetDismissedNotifs();
+  drCurrentNotifItems.forEach(function(n) { map[n.id] = n.sig; });
+  drSetDismissedNotifs(map);
+  drRenderNotifications();
+}
+
 function drComputeNotifications() {
   var items = [];
   drLicenses.forEach(function(item) {
@@ -10485,6 +10542,8 @@ function drComputeNotifications() {
     if (days === null || days <= 30) {
       var daysLabel = days === null ? 'Unresolved deadline' : days < 0 ? 'Overdue' : days === 0 ? 'Due today' : 'Due in ' + days + 'd';
       items.push({
+        id: 'deadline:' + item.id,
+        sig: String(item.next_deadline),
         view: 'roster',
         title: (item.staff_label || item.email) + ' — ' + daysLabel,
         sub: item.state_name || ''
@@ -10493,6 +10552,8 @@ function drComputeNotifications() {
     var p = drCpeProgressForSubscriber(item);
     if (p.hasRequirement && p.behind) {
       items.push({
+        id: 'cpe:' + item.id,
+        sig: p.totalLogged + ':' + p.ethicsLogged,
         view: 'cpe',
         title: (item.staff_label || item.email) + ' — behind on CPE hours',
         sub: item.state_name || ''
@@ -10506,16 +10567,22 @@ function drRenderNotifications() {
   var badge = document.getElementById('dr-notif-badge');
   var body = document.getElementById('dr-notif-panel-body');
   if (!badge || !body) return;
-  var items = drComputeNotifications();
+  var dismissed = drGetDismissedNotifs();
+  var items = drComputeNotifications().filter(function(n) { return dismissed[n.id] !== n.sig; });
+  drCurrentNotifItems = items;
   badge.textContent = String(items.length);
   badge.hidden = items.length === 0;
   if (items.length === 0) {
     body.innerHTML = '<p class="dr-panel-empty">Nothing needs your attention right now.</p>';
     return;
   }
-  body.innerHTML = items.map(function(n) {
-    return '<a href="#" class="dr-notif-item" data-view="' + n.view + '">' + drEscapeHtml(n.title) +
-      (n.sub ? '<span class="dr-notif-item-sub">' + drEscapeHtml(n.sub) + '</span>' : '') + '</a>';
+  var headHtml = '<div class="dr-notif-panel-head"><span>' + items.length + ' item' + (items.length === 1 ? '' : 's') +
+    '</span><button type="button" class="dr-link-btn" id="dr-notif-dismiss-all-btn">Dismiss all</button></div>';
+  body.innerHTML = headHtml + items.map(function(n) {
+    return '<div class="dr-notif-item-row"><a href="#" class="dr-notif-item" data-view="' + n.view + '">' + drEscapeHtml(n.title) +
+      (n.sub ? '<span class="dr-notif-item-sub">' + drEscapeHtml(n.sub) + '</span>' : '') + '</a>' +
+      '<button type="button" class="dr-notif-dismiss-btn" data-notif-id="' + drEscapeHtml(n.id) + '" data-notif-sig="' + drEscapeHtml(n.sig) +
+      '" aria-label="Dismiss: ' + drEscapeHtml(n.title) + '">&times;</button></div>';
   }).join('');
 }
 
@@ -11227,6 +11294,17 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   if (notifPanelBody) {
     notifPanelBody.addEventListener('click', function(ev) {
+      var dismissBtn = ev.target.closest('.dr-notif-dismiss-btn');
+      if (dismissBtn) {
+        ev.preventDefault();
+        drDismissNotif(dismissBtn.getAttribute('data-notif-id'), dismissBtn.getAttribute('data-notif-sig'));
+        return;
+      }
+      if (ev.target.closest('#dr-notif-dismiss-all-btn')) {
+        ev.preventDefault();
+        drDismissAllNotifs();
+        return;
+      }
       var link = ev.target.closest('[data-view]');
       if (!link) return;
       ev.preventDefault();

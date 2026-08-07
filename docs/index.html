@@ -670,10 +670,17 @@
     background: var(--card-bg); color: var(--fg); border: 1px solid var(--border); border-radius: 10px;
     box-shadow: 0 8px 24px rgba(0,0,0,.25); max-height: 60vh; overflow-y: auto; padding: 0.6rem;
   }
-  .dr-notif-item { display: block; padding: 0.55rem 0.6rem; border-radius: 6px; font-size: 0.85rem; line-height: 1.4; }
-  .dr-notif-item + .dr-notif-item { margin-top: 0.15rem; }
+  .dr-notif-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 0.2rem 0.6rem 0.5rem; font-size: 0.78rem; color: var(--muted); }
+  .dr-notif-item-row { display: flex; align-items: flex-start; gap: 0.15rem; }
+  .dr-notif-item-row + .dr-notif-item-row { margin-top: 0.15rem; }
+  .dr-notif-item { display: block; flex: 1 1 auto; min-width: 0; padding: 0.55rem 0.6rem; border-radius: 6px; font-size: 0.85rem; line-height: 1.4; }
   .dr-notif-item:hover { background: var(--row-alt); }
   .dr-notif-item-sub { display: block; color: var(--muted); font-size: 0.78rem; margin-top: 0.1rem; }
+  .dr-notif-dismiss-btn {
+    flex: 0 0 auto; background: transparent; border: none; color: var(--muted); cursor: pointer;
+    font-size: 1rem; line-height: 1; padding: 0.55rem 0.4rem; border-radius: 6px; font-family: inherit;
+  }
+  .dr-notif-dismiss-btn:hover { color: var(--fg); background: var(--row-alt); }
   .dr-nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
   .dr-nav a, .dr-nav-soon {
     display: flex; align-items: center; gap: 0.55rem; padding: 0.55rem 0.6rem; border-radius: 7px;

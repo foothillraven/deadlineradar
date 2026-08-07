@@ -9359,6 +9359,91 @@ function drRemoveDocument(id, label) {
     .catch(function() {});
 }
 
+// ---------------------------------------------------------------------------
+// Roadmap #5 (2026-08-07): new-hire multi-state onboarding checklist. Shown
+// once, right after a successful add-staff submit, for that one person --
+// reuses the SAME already-reviewed mobility engine the Map/Practice
+// Privilege Check pages already call (POST /firm/mobility/check-batch), no
+// new legal-determination logic. Deliberately read-only and non-durable
+// (no dismiss flag persisted anywhere) -- this is a one-time nudge tied to
+// the moment of adding someone, not a standing dashboard fixture like the
+// onboarding checklist (#28) or product tour (#30).
+// ---------------------------------------------------------------------------
+function drDismissNewHireChecklist() {
+  var panel = document.getElementById('dr-new-hire-checklist');
+  if (panel) panel.hidden = true;
+}
+
+function drShowNewHireChecklist(record) {
+  var panel = document.getElementById('dr-new-hire-checklist');
+  var title = document.getElementById('dr-new-hire-checklist-title');
+  var body = document.getElementById('dr-new-hire-checklist-body');
+  if (!panel || !body || !record || !record.state_slug) return;
+  var who = record.staff_label || record.email;
+  if (title) title.textContent = 'Multi-state checklist for ' + who;
+  body.innerHTML = '<p class="dr-panel-empty">Checking multistate practice privilege&hellip;</p>';
+  panel.hidden = false;
+  drScrollBannerIntoView(panel);
+
+  fetch('/api/firm/mobility/check-batch', {
+    method: 'POST', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      home_state_slug: record.state_slug,
+      service_type: DR_MOBILITY_SERVICE_TYPE,
+      license_in_good_standing: true,
+      substantially_equivalent: true
+    })
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    if (res.status === 403) {
+      // Free tier -- same discoverability posture the Map already uses
+      // (still visible, plainly labeled as paid) rather than hiding this
+      // panel outright.
+      body.innerHTML = '<p class="dr-panel-empty">See where ' + drEscapeHtml(who) +
+        ' can already practice in other states without extra paperwork &mdash; that is part of the ' +
+        'paid plan. <a href="/pricing/">See plans</a>.</p>';
+      return null;
+    }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok || !data) {
+        body.innerHTML = '<p class="dr-panel-empty">Could not check multistate practice privilege right now.</p>';
+        return;
+      }
+      var clear = [], actionRequired = [];
+      (data.results || []).forEach(function(r) {
+        if (r.overall === 'clear') clear.push(r);
+        else if (r.overall === 'action_required') actionRequired.push(r);
+      });
+      if (clear.length === 0 && actionRequired.length === 0) {
+        body.innerHTML = '<p class="dr-panel-empty">No verified multistate practice-privilege data for ' +
+          drEscapeHtml(record.state_name || '') + ' yet.</p>';
+        return;
+      }
+      function stateLink(r) {
+        var href = '/firm-mobility/?home=' + encodeURIComponent(record.state_slug) +
+          '&target=' + encodeURIComponent(r.target_state_slug) +
+          '&service=' + encodeURIComponent(DR_MOBILITY_SERVICE_TYPE) +
+          '&staff=' + encodeURIComponent(record.id);
+        return '<a href="' + href + '">' + drEscapeHtml(r.target_state) + '</a>';
+      }
+      var html = '';
+      if (clear.length > 0) {
+        html += '<p><strong>Already clear to practice in ' + clear.length + ' other state' + (clear.length === 1 ? '' : 's') + ':</strong> ' +
+          clear.slice(0, 10).map(stateLink).join(', ') + (clear.length > 10 ? ', &hellip;' : '') + '</p>';
+      }
+      if (actionRequired.length > 0) {
+        html += '<p><strong>Needs a state-specific step first in ' + actionRequired.length + ' state' + (actionRequired.length === 1 ? '' : 's') + ':</strong> ' +
+          actionRequired.slice(0, 10).map(stateLink).join(', ') + (actionRequired.length > 10 ? ', &hellip;' : '') + '</p>';
+      }
+      html += '<p class="dr-panel-empty">Assumes an active license in good standing and substantial equivalence. Click a state for the exact requirement, or see the full <a href="/firm-mobility/">Practice Privilege Check</a>.</p>';
+      body.innerHTML = html;
+    });
+  }).catch(function() {
+    body.innerHTML = '<p class="dr-panel-empty">Could not check multistate practice privilege right now.</p>';
+  });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var stateSel = document.getElementById('dr-add-state');
   drUpdateFields(stateSel ? stateSel.value : '');
@@ -9386,6 +9471,9 @@ document.addEventListener('DOMContentLoaded', function() {
   var documentsList = document.getElementById('dr-documents-list');
   if (documentsUploadForm) documentsUploadForm.addEventListener('submit', drSubmitDocumentUpload);
   if (documentsModalCloseBtn) documentsModalCloseBtn.addEventListener('click', drCloseDocumentsModal);
+
+  var newHireChecklistDismissBtn = document.getElementById('dr-new-hire-checklist-dismiss');
+  if (newHireChecklistDismissBtn) newHireChecklistDismissBtn.addEventListener('click', drDismissNewHireChecklist);
   if (documentsList) {
     documentsList.addEventListener('click', function(ev) {
       var btn = ev.target.closest ? ev.target.closest('.dr-document-remove') : null;
@@ -9721,6 +9809,10 @@ document.addEventListener('DOMContentLoaded', function() {
           addForm.reset();
           drUpdateFields('');
           drLoadLicenses();
+          // Roadmap #5: one-time nudge for the person just added, not a
+          // standing fixture -- data is the new record itself (id/
+          // state_slug/staff_label/email), no extra fetch needed.
+          if (data) drShowNewHireChecklist(data);
         });
       }).catch(function() {
         var msg = 'Something went wrong, please try again.';
@@ -10494,6 +10586,14 @@ def build_firm_dashboard_page(
     </div>
 
     {add_staff_html}
+
+    <div class="dr-panel" id="dr-new-hire-checklist" hidden>
+      <div class="dr-onboarding-checklist-head">
+        <h2 id="dr-new-hire-checklist-title">Multi-state checklist</h2>
+        <button type="button" class="dr-onboarding-dismiss" id="dr-new-hire-checklist-dismiss" aria-label="Dismiss">&times;</button>
+      </div>
+      <div id="dr-new-hire-checklist-body"></div>
+    </div>
     </div>
 
     <div id="dr-view-calendar" class="dr-view" role="tabpanel" hidden>

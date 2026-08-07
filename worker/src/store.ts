@@ -3281,6 +3281,17 @@ export async function recordNpsResponse(db: D1Database, firmId: string, score: n
   await db.prepare(`UPDATE firms SET nps_last_prompted_at = ?1 WHERE id = ?2`).bind(now, firmId).run();
 }
 
+/** Roadmap #312 (2026-08-07): 1-click post-renewal review/testimonial
+ * capture, chained off a promoter-tier NPS score rather than its own
+ * cadence -- see migration 0043's own docstring. Never auto-published --
+ * this is a private submission a human reviews before any public use. */
+export async function recordTestimonial(db: D1Database, firmId: string, quoteText: string, canPublish: boolean): Promise<void> {
+  await db
+    .prepare(`INSERT INTO firm_testimonials (id, firm_id, quote_text, can_publish, submitted_at) VALUES (?1,?2,?3,?4,?5)`)
+    .bind(newToken(), firmId, quoteText, canPublish ? 1 : 0, nowIso())
+    .run();
+}
+
 /** Roadmap #19: one query for scheduler.ts's own per-subscriber loop to
  * build a { firm_id -> {name, reply_to_email} } lookup from, rather than a
  * per-subscriber firm fetch (N+1) inside a pass that can process a real

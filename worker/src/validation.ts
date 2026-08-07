@@ -723,6 +723,14 @@ export const RATE_LIMIT_FIRM_SESSION_REVOKE: RateLimit = { max: 10, windowSecond
  * defense-in-depth reasoning as every other authenticated-write bucket. */
 export const RATE_LIMIT_FIRM_NPS: RateLimit = { max: 10, windowSeconds: 3600 };
 
+/** Roadmap #312: submitting a testimonial, same shape as RATE_LIMIT_FIRM_NPS. */
+export const RATE_LIMIT_FIRM_TESTIMONIAL: RateLimit = { max: 10, windowSeconds: 3600 };
+
+/** Roadmap #312: a real quote, generous enough for a genuine sentence or
+ * two -- same "cosmetic-only free text" cap category as
+ * MAX_DELETION_SURVEY_DETAIL_LEN/MAX_INTERNAL_NOTES_LEN above. */
+export const MAX_TESTIMONIAL_LEN = 500;
+
 /** Task #29 (2026-08-05). Keyed per-firm like the others above, but this
  * route is a DIFFERENT risk shape than a password/session action: each call
  * sends real email to an address of the CALLER'S choosing, not to the

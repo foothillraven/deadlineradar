@@ -2303,6 +2303,7 @@ def site_footer() -> str:
       <a href="/roadmap/">Roadmap</a>
       <a href="/privacy/">Privacy</a>
       <a href="/terms/">Terms</a>
+      <a href="/security/">Security</a>
       <a href="/contact/">Contact</a>
       <a href="/for-firms/">For Firms</a>
     </div>
@@ -4999,6 +5000,76 @@ href="/terms/">Terms of Service</a>.</p>
         body,
         home_href="../",
         canonical_path="/privacy/",
+    )
+
+
+def build_security_page() -> str:
+    """Roadmap #311 (2026-08-07): a public security/trust page. Every claim
+    below describes real, shipped, checked behavior (cross-referenced against
+    index.ts's withSecurityHeaders()/handleDocumentDownload(), password.ts,
+    store.ts's hashToken(), and the CSRF/rate-limit pattern used across every
+    write route in this codebase), not aspirational security-theater copy --
+    same standard build_privacy_page() holds itself to. Deliberately does NOT
+    claim a formal certification (SOC 2, ISO 27001) or a bug-bounty program --
+    neither exists, and claiming either would be a false statement a small
+    team could not back up if asked."""
+    body = f"""<h1>Security &amp; Trust</h1>
+<p class="intro">What actually protects your firm's data on {esc(SITE_NAME)}, in plain language --
+not a compliance-theater checklist. Every claim on this page describes something actually shipped in
+this product's code, not a policy aspiration.</p>
+
+<h2>Data handling</h2>
+<p>We collect only what the reminder and license-tracking service actually needs to work -- see the
+full breakdown on our <a href="/privacy/">Privacy Policy</a>. A firm's roster data (staff names,
+emails, license states, CPE hours, any documents uploaded) is scoped strictly to that firm: every
+storage query used to read or write it is filtered by the requesting firm's own account id, not just
+checked once at the door. We do not sell or share your data with third parties, and we do not run
+advertising or cross-site tracking of any kind (see our <a href="/privacy/">cookie disclosure</a>).</p>
+
+<h2>Encryption</h2>
+<p>Every connection to {esc(SITE_NAME)} is HTTPS-only -- we send an HTTP Strict-Transport-Security
+header instructing browsers to never downgrade to plain HTTP, on every response. Passwords are never
+stored in plain text: they're hashed with PBKDF2-HMAC-SHA256 at 100,000 iterations per password, each
+with its own random salt, using the same standard the U.S. federal government's own NIST password
+guidance describes. Session and login tokens are stored as one-way SHA-256 hashes, not the raw value a
+stolen database dump could reuse to sign in. Uploaded documents (license and CPE certificates) are
+served back only with <code>Content-Disposition: attachment</code> and
+<code>X-Content-Type-Options: nosniff</code> on every response, so a maliciously crafted file can never
+be interpreted as an inline webpage by a browser.</p>
+
+<h2>Access control</h2>
+<p>Sign-in cookies are marked <code>HttpOnly</code> (invisible to any page script, including a
+successful XSS payload), <code>Secure</code> (HTTPS-only transmission), and scoped with
+<code>SameSite</code>. Every request that changes data -- adding staff, editing a record, changing a
+password -- is checked against the Origin header the browser itself sends, rejecting cross-site
+forgery attempts before they reach the database. Every write endpoint is rate-limited per account, so
+a compromised session or a scripting bug can't be abused to hammer the system. We send a Content-
+Security-Policy, X-Frame-Options, and X-Content-Type-Options header on every response as additional,
+independent layers against the same class of attack.</p>
+
+<h2>Incident response</h2>
+<p>We're a small, hands-on team, not a large enterprise with a dedicated security operations center --
+we won't claim otherwise. What that means in practice: a real person reviews this system regularly,
+security-relevant code changes go through the same scrutiny as everything else we ship, and if
+something ever goes wrong, we will tell affected firms directly and promptly, not bury it in a
+changelog. We do not currently hold a formal security certification (SOC 2, ISO 27001) or run a paid
+bug-bounty program -- if that changes, this page will say so, not before.</p>
+
+<h2>Found something?</h2>
+<p>If you believe you've found a security issue, email us directly at
+<a href="mailto:{esc(CONTACT_EMAIL)}">{esc(CONTACT_EMAIL)}</a> with what you found and how to reproduce
+it. A real person reads every message here -- see our <a href="/contact/">Contact page</a> for more.</p>
+
+<p class="how-it-works">See also our <a href="/privacy/">Privacy Policy</a> and
+<a href="/terms/">Terms of Service</a>.</p>
+"""
+    return page_shell(
+        f"Security & Trust — {SITE_NAME}",
+        "How DeadlineRadar protects your firm's data: encryption, access control, and incident "
+        "response, explained in plain language with no compliance-theater claims.",
+        body,
+        home_href="../",
+        canonical_path="/security/",
     )
 
 
@@ -8289,9 +8360,52 @@ function drSubmitNpsScore(score, btn) {
       return;
     }
     drCloseNpsModal();
+    // Roadmap #312: promoter-tier score (the standard NPS 9-10 "promoter"
+    // threshold) chains straight into the testimonial-capture modal --
+    // asking right after someone signals they'd recommend the product is
+    // exactly the moment review-capture best practice targets, and this
+    // way it never needs its own separate nag cadence.
+    if (score >= 9) drOpenTestimonialModal();
   }).catch(function() {
     drNpsPromptDue = false;
     drCloseNpsModal();
+  });
+}
+
+function drOpenTestimonialModal() {
+  var modal = document.getElementById('dr-testimonial-modal');
+  if (modal) modal.hidden = false;
+}
+
+function drCloseTestimonialModal() {
+  var modal = document.getElementById('dr-testimonial-modal');
+  if (modal) modal.hidden = true;
+}
+
+function drSubmitTestimonial(ev) {
+  if (ev) ev.preventDefault();
+  var textEl = document.getElementById('dr-testimonial-text');
+  var publishEl = document.getElementById('dr-testimonial-can-publish');
+  var okEl = document.getElementById('dr-testimonial-ok');
+  var errEl = document.getElementById('dr-testimonial-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  if (okEl) okEl.hidden = true;
+  var quote = textEl ? textEl.value.trim() : '';
+  if (!quote) { if (errEl) { errEl.textContent = 'Please enter a quote before submitting.'; errEl.hidden = false; } return; }
+  fetch('/api/firm/testimonial', {
+    method: 'POST', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({quote_text: quote, can_publish: publishEl ? publishEl.checked : false})
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return; }
+    if (!res.ok) {
+      if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+      return;
+    }
+    if (okEl) okEl.hidden = false;
+    window.setTimeout(drCloseTestimonialModal, 1500);
+  }).catch(function() {
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
   });
 }
 
@@ -11398,6 +11512,20 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  var testimonialForm = document.getElementById('dr-testimonial-form');
+  var testimonialSkipBtn = document.getElementById('dr-testimonial-skip-btn');
+  var testimonialModal = document.getElementById('dr-testimonial-modal');
+  if (testimonialForm) testimonialForm.addEventListener('submit', drSubmitTestimonial);
+  if (testimonialSkipBtn) testimonialSkipBtn.addEventListener('click', drCloseTestimonialModal);
+  if (testimonialModal) {
+    testimonialModal.addEventListener('click', function(ev) {
+      if (ev.target === testimonialModal) drCloseTestimonialModal();
+    });
+    document.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Escape' && !testimonialModal.hidden) drCloseTestimonialModal();
+    });
+  }
+
   var deleteAccountOpenBtn = document.getElementById('dr-delete-account-open-btn');
   if (deleteAccountOpenBtn) deleteAccountOpenBtn.addEventListener('click', function(ev) { drOpenDeleteAccountModal(ev.currentTarget); });
   var deleteAccountModal = document.getElementById('dr-delete-account-modal');
@@ -12776,6 +12904,31 @@ def build_firm_dashboard_page(
   </div>
 </div>
 
+<!-- Roadmap #312 (2026-08-07): chained after a promoter-tier (>=9) NPS
+     score, not its own separate quarterly prompt -- see
+     drSubmitNpsScore()'s own comment. Never auto-published; a human
+     reviews every submission before any public use. -->
+<div id="dr-testimonial-modal" class="dr-modal-overlay" hidden>
+  <div class="dr-modal" role="dialog" aria-modal="true" aria-labelledby="dr-testimonial-modal-title">
+    <h2 id="dr-testimonial-modal-title">Glad to hear it!</h2>
+    <p class="dr-modal-hint">Mind leaving a quick quote we could feature (with your permission)?
+    Totally optional -- nothing you write here is published without you opting in below.</p>
+    <form id="dr-testimonial-form">
+      <label for="dr-testimonial-text" class="dr-visually-hidden">Your quote</label>
+      <textarea id="dr-testimonial-text" maxlength="500" rows="3"
+      placeholder="What's DeadlineRadar done for your firm?"></textarea>
+      <label class="dr-questionnaire-check"><input type="checkbox" id="dr-testimonial-can-publish" checked>
+      You can quote me publicly, with my firm's name</label>
+      <div class="dr-modal-actions">
+        <button type="submit" class="dr-btn-save">Submit</button>
+        <button type="button" class="dr-btn-cancel" id="dr-testimonial-skip-btn">Not now</button>
+      </div>
+    </form>
+    <p id="dr-testimonial-ok" class="dr-account-ok" hidden>Thank you!</p>
+    <p id="dr-testimonial-error" role="alert" class="dr-account-err" hidden></p>
+  </div>
+</div>
+
 <div id="dr-delete-account-modal" class="dr-modal-overlay" hidden>
   <div class="dr-modal" role="dialog" aria-modal="true" aria-labelledby="dr-delete-account-modal-title">
     <h2 id="dr-delete-account-modal-title">Delete your account?</h2>
@@ -13892,6 +14045,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/terms/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/security/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/for-firms/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
@@ -14125,6 +14281,11 @@ def main() -> None:
     terms_dir.mkdir(parents=True, exist_ok=True)
     (terms_dir / "index.html").write_text(build_terms_page(real_today), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/terms/index.html")
+
+    security_dir = SITE_DIR / "security"
+    security_dir.mkdir(parents=True, exist_ok=True)
+    (security_dir / "index.html").write_text(build_security_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/security/index.html")
 
     pricing_dir = SITE_DIR / "pricing"
     pricing_dir.mkdir(parents=True, exist_ok=True)

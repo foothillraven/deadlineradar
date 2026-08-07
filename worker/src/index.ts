@@ -69,6 +69,8 @@ import {
   RATE_LIMIT_FIRM_SIGNOUT_OTHER,
   RATE_LIMIT_FIRM_SESSION_REVOKE,
   RATE_LIMIT_FIRM_NPS,
+  RATE_LIMIT_FIRM_TESTIMONIAL,
+  MAX_TESTIMONIAL_LEN,
   RATE_LIMIT_FIRM_CHANGE_EMAIL,
   RATE_LIMIT_FIRM_PASSWORD_SET,
   RATE_LIMIT_OAUTH_START,
@@ -3632,6 +3634,46 @@ async function handleNpsDismiss(request: Request, env: Env): Promise<Response> {
   return jsonResponse(200, { ok: true });
 }
 
+/**
+ * POST /firm/testimonial -- roadmap #312, chained off a promoter-tier NPS
+ * score client-side (the frontend only ever offers this after a >=9
+ * response -- server-side accepts it independent of that, same
+ * trust-the-caller posture as every other write route in this file, since
+ * there's no meaningful abuse vector in submitting a private quote).
+ * Never auto-published -- see store.recordTestimonial()'s own docstring.
+ */
+async function handleTestimonialSubmit(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_testimonial", RATE_LIMIT_FIRM_TESTIMONIAL);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return jsonResponse(400, { error: "Request too large." });
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  const quoteText = sanitizeFreeText(typeof body.quote_text === "string" ? body.quote_text : null, MAX_TESTIMONIAL_LEN);
+  if (!quoteText) {
+    return jsonResponse(400, { error: "Please enter a quote before submitting." });
+  }
+  const canPublish = body.can_publish === true;
+
+  await store.recordTestimonial(env.DB, session.firmId, quoteText, canPublish);
+  return jsonResponse(200, { ok: true });
+}
+
 /** GET /firm/calendar.ics -- static, one-time roster export (2026-08-06,
  * off Devin's live Calendar-feature feedback). Deliberately NOT a live
  * webcal:// subscription -- see ics.ts's own docstring for why that's a
@@ -5224,6 +5266,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/nps/dismiss") {
         try {
           return await handleNpsDismiss(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/testimonial") {
+        try {
+          return await handleTestimonialSubmit(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }

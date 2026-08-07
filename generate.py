@@ -7228,8 +7228,20 @@ function drRenderCsvPreview() {
     '<th scope="col">Email</th><th scope="col">State</th><th scope="col">Status</th></tr></thead>' +
     '<tbody>' + rowsHtml + '</tbody></table>';
   if (importBtn) importBtn.hidden = validCount === 0;
-  if (statusEl) statusEl.textContent = validCount + ' of ' + drCsvRows.length + ' row' +
-    (drCsvRows.length === 1 ? '' : 's') + ' ready to import.';
+  // Roadmap #17 bug fix (caught live-testing this same ship): drImportCsvRows()
+  // also calls this function on every row (to refresh the per-row Added/
+  // Failed cells) and again at the end (for the final summary) -- if this
+  // function unconditionally overwrote the status line every time, the
+  // "Importing... 2 of 3" progress and the final "Imported N; M failed"
+  // summary would each get immediately clobbered back to this "ready to
+  // import" count the instant they were set. Only own the status line
+  // BEFORE any row has actually been attempted; once import starts,
+  // drImportCsvRows() is the sole writer of statusEl.
+  var importStarted = drCsvRows.some(function(r) { return r.result !== null; });
+  if (statusEl && !importStarted) {
+    statusEl.textContent = validCount + ' of ' + drCsvRows.length + ' row' +
+      (drCsvRows.length === 1 ? '' : 's') + ' ready to import.';
+  }
 }
 
 function drImportCsvRows() {

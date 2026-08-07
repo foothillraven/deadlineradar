@@ -1570,20 +1570,38 @@ PAGE_CSS = """
   .dr-modal-actions { display: flex; gap: 0.6rem; margin-top: 1.3rem; }
   /* Same accent/on-accent pairing every primary CTA on this site already
      uses (.signup-form button); Cancel stays visually secondary (outlined,
-     not filled) so the two read as a clear pair. */
-  .dr-modal-actions .dr-btn-save {
+     not filled) so the two read as a clear pair. Unscoped (not
+     .dr-modal-actions-only) -- reported live 2026-08-07: .dr-btn-save/
+     .dr-btn-cancel/.dr-btn-edit are all reused OUTSIDE modals too (Account
+     page's tour-replay button, Reports' Print/CSV buttons, peer-review's
+     inline Save/Cancel/Clear), and outside a modal they picked up none of
+     this styling at all -- just the browser's bare default button chrome,
+     visibly out of place next to everything else on the page. .dr-btn-renew/
+     .dr-btn-remove/.dr-btn-documents get the same treatment so a roster
+     row's four Actions buttons stay a consistent set rather than Edit alone
+     looking different from its siblings. */
+  .dr-btn-save {
     background: var(--accent); color: var(--on-accent);
     border: 1px solid var(--accent); border-radius: 5px; font-weight: 700; cursor: pointer;
-    padding: 0.5rem 1rem; font-size: 0.9rem;
+    padding: 0.5rem 1rem; font-size: 0.9rem; font-family: inherit;
   }
-  .dr-modal-actions .dr-btn-save:hover { opacity: 0.9; }
-  .dr-modal-actions .dr-btn-save:disabled { opacity: 0.6; cursor: default; }
-  .dr-modal-actions .dr-btn-cancel {
+  .dr-btn-save:hover:not(:disabled) { opacity: 0.9; }
+  .dr-btn-save:disabled { opacity: 0.6; cursor: default; }
+  .dr-btn-cancel, .dr-btn-edit, .dr-btn-renew, .dr-btn-documents {
     background: transparent; color: var(--muted);
     border: 1px solid var(--border-strong); border-radius: 5px; cursor: pointer;
-    padding: 0.5rem 1rem; font-size: 0.9rem;
+    padding: 0.5rem 1rem; font-size: 0.9rem; font-family: inherit;
   }
-  .dr-modal-actions .dr-btn-cancel:hover { color: var(--fg); border-color: var(--fg); }
+  .dr-btn-cancel:hover, .dr-btn-edit:hover:not(:disabled),
+  .dr-btn-renew:hover:not(:disabled), .dr-btn-documents:hover:not(:disabled) { color: var(--fg); border-color: var(--fg); }
+  .dr-btn-edit:disabled, .dr-btn-renew:disabled, .dr-btn-documents:disabled { opacity: 0.6; cursor: default; }
+  .dr-btn-remove {
+    background: transparent; color: #c33737;
+    border: 1px solid #c33737; border-radius: 5px; cursor: pointer;
+    padding: 0.5rem 1rem; font-size: 0.9rem; font-family: inherit;
+  }
+  .dr-btn-remove:hover:not(:disabled) { background: rgba(200, 55, 55, 0.1); }
+  .dr-btn-remove:disabled { opacity: 0.45; cursor: default; }
 
   /* Paid-tier upgrade buttons -- shared by the pricing page, the /pricing/
      cards, and the dashboard's own billing-panel upgrade prompt (2026-08-06:

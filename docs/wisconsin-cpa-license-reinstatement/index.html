@@ -965,19 +965,28 @@
   .dr-modal-hint { font-size: 0.78rem; color: var(--muted); margin: 0.35rem 0 0; line-height: 1.4; }
   .dr-modal-actions { display: flex; gap: 0.6rem; margin-top: 1.3rem; }
   
-  .dr-modal-actions .dr-btn-save {
+  .dr-btn-save {
     background: var(--accent); color: var(--on-accent);
     border: 1px solid var(--accent); border-radius: 5px; font-weight: 700; cursor: pointer;
-    padding: 0.5rem 1rem; font-size: 0.9rem;
+    padding: 0.5rem 1rem; font-size: 0.9rem; font-family: inherit;
   }
-  .dr-modal-actions .dr-btn-save:hover { opacity: 0.9; }
-  .dr-modal-actions .dr-btn-save:disabled { opacity: 0.6; cursor: default; }
-  .dr-modal-actions .dr-btn-cancel {
+  .dr-btn-save:hover:not(:disabled) { opacity: 0.9; }
+  .dr-btn-save:disabled { opacity: 0.6; cursor: default; }
+  .dr-btn-cancel, .dr-btn-edit, .dr-btn-renew, .dr-btn-documents {
     background: transparent; color: var(--muted);
     border: 1px solid var(--border-strong); border-radius: 5px; cursor: pointer;
-    padding: 0.5rem 1rem; font-size: 0.9rem;
+    padding: 0.5rem 1rem; font-size: 0.9rem; font-family: inherit;
   }
-  .dr-modal-actions .dr-btn-cancel:hover { color: var(--fg); border-color: var(--fg); }
+  .dr-btn-cancel:hover, .dr-btn-edit:hover:not(:disabled),
+  .dr-btn-renew:hover:not(:disabled), .dr-btn-documents:hover:not(:disabled) { color: var(--fg); border-color: var(--fg); }
+  .dr-btn-edit:disabled, .dr-btn-renew:disabled, .dr-btn-documents:disabled { opacity: 0.6; cursor: default; }
+  .dr-btn-remove {
+    background: transparent; color: #c33737;
+    border: 1px solid #c33737; border-radius: 5px; cursor: pointer;
+    padding: 0.5rem 1rem; font-size: 0.9rem; font-family: inherit;
+  }
+  .dr-btn-remove:hover:not(:disabled) { background: rgba(200, 55, 55, 0.1); }
+  .dr-btn-remove:disabled { opacity: 0.45; cursor: default; }
 
   
   .dr-paywall-tiers {

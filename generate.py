@@ -9756,6 +9756,19 @@ function drRenderReport() {
 // roster exported here re-imports cleanly through that same feature.
 function drCsvField(value) {
   var s = (value == null) ? '' : String(value);
+  // AuditLab CSV-1/CSV-2 (2026-08-07): standard CSV-formula-injection
+  // prefix set -- the same characters worker/src/validation.ts's
+  // sanitizeFreeText() already guards at WRITE time for staff_label/
+  // office_tag, but every other exported column (email, state name,
+  // license type, etc.) reaches this function without ever passing
+  // through that guard. This is the one choke point every exported cell
+  // passes through regardless of which validator produced the value, so
+  // guarding here too (defense in depth, not a replacement for the
+  // write-time guard) can't decay the way a per-field guard does when a
+  // new column is added later. Must run BEFORE the quote-wrapping below --
+  // prefixing after would land the leading quote-char outside the
+  // wrapping quotes.
+  if (['=', '+', '-', '@', '\\t'].indexOf(s.charAt(0)) !== -1) s = "'" + s;
   if (/[",\\n\\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
   return s;
 }

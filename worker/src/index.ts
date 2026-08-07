@@ -104,6 +104,7 @@ import {
   isValidEmail,
   parseStrictCpeHours,
   parseStrictDollarsToCents,
+  parseStrictCarryoverHours,
   sanitizeFreeText,
   strictParseInt,
   parseStrictIsoDate,
@@ -3177,6 +3178,9 @@ function toFirmLicenseJson(row: store.SubscriberRow, asOf: Date): Record<string,
     // dashboard's own client-side roster sum (drRenderStats()) is the
     // rollup; no separate aggregate endpoint needed for it.
     renewal_fee_cents: row.renewal_fee_cents,
+    // Roadmap #10: self-reported carryover hours -- see migration 0036's own
+    // docstring for why this is never a state-asserted fact.
+    carryover_hours: row.carryover_hours,
   };
 }
 
@@ -3796,6 +3800,23 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
     }
   }
 
+  // Roadmap #10 (2026-08-07): self-reported, optional. Same present-but-
+  // empty-clears / absent-leaves-untouched partial-update semantics as
+  // renewal_fee above.
+  let carryoverHours = existing.carryover_hours;
+  if (typeof parsed.carryover_hours === "string") {
+    const trimmed = parsed.carryover_hours.trim();
+    if (trimmed.length === 0) {
+      carryoverHours = null;
+    } else {
+      const parsedHours = parseStrictCarryoverHours(trimmed);
+      if (parsedHours === null) {
+        return jsonResponse(400, { error: "Please enter a valid number of carryover hours." });
+      }
+      carryoverHours = parsedHours;
+    }
+  }
+
   let stateSlug = existing.state_slug;
   let deadlineFields: Record<string, string> = JSON.parse(existing.deadline_fields || "{}");
   let deadlineSource = existing.deadline_source;
@@ -3881,6 +3902,7 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
     deadlineSource,
     userDeadline,
     renewalFeeCents,
+    carryoverHours,
     resetConfirmation: emailChanged,
   });
   if (!updated) return jsonResponse(404, { error: "Not found." });

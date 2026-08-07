@@ -1,0 +1,17 @@
+-- Roadmap #10 (2026-08-07): CPE carryover-hours tracking.
+--
+-- Investigated before building: data/cpe_hours.json's `notes` field mentions carryover for only
+-- 12 of 50 records, in unstructured prose with real per-state nuance (e.g. Maryland caps carried
+-- ethics hours from counting toward a FUTURE ethics requirement, not just a flat hour cap) -- not
+-- a clean, verifiable structured fact for all 55 jurisdictions the way total_hours/ethics_hours
+-- are. Extracting/asserting a structured carryover_allowed/carryover_max_hours field per state
+-- would mean inventing an answer for the other 43 (silence there could mean "genuinely no
+-- carryover" OR "not yet researched" -- this dataset has no way to tell those apart today).
+--
+-- Same resolution as migration 0034 (renewal_fee_cents, roadmap #7) and 0033
+-- (peer_review_due_date, roadmap #6): self-reported by the admin, who knows their own state's
+-- rule and their own staffer's actual prior-cycle surplus, rather than this product asserting a
+-- state-level fact it can't fully verify. Deliberately a single combined field, not split into
+-- total/ethics carryover -- see store.ts's own comment on where this is applied for why ethics
+-- carryover specifically is excluded from the calculation this feeds.
+ALTER TABLE subscribers ADD COLUMN carryover_hours REAL;

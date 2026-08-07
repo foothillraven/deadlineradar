@@ -124,6 +124,24 @@ export function parseStrictDollarsToCents(value: string): number | null {
   return cents;
 }
 
+// Roadmap #10 (2026-08-07): self-reported CPE carryover hours (see migration
+// 0036's own docstring for why this is self-reported rather than a
+// state-asserted structured fact). Same "step=0.1" precision as a CPE entry's
+// own hours field, deliberately NOT the same regex as STRICT_MONEY_RE despite
+// looking similar -- this allows any number of decimal digits at the input
+// layer (Math.round below normalizes to tenths), matching parseStrictCpeHours'
+// own precision handling rather than money's fixed 2-decimal-place rule.
+export const MAX_CARRYOVER_HOURS = 100; // generous headroom over any real state's carryover cap (Maryland's own 80h, the highest found in data/cpe_hours.json, is well under this)
+
+export function parseStrictCarryoverHours(value: string): number | null {
+  const trimmed = value.trim();
+  if (!STRICT_DECIMAL_RE.test(trimmed)) return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n)) return null;
+  if (n < 0 || n > MAX_CARRYOVER_HOURS) return null;
+  return Math.round(n * 10) / 10;
+}
+
 // Deliberately stricter than "contains an @ and a dot" -- rejects
 // whitespace, control characters, multiple @ signs, and malformed domains
 // outright. Byte-for-byte the same pattern as server.py:160's `_EMAIL_RE`.

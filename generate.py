@@ -8335,6 +8335,17 @@ function drCpeProgressForSubscriber(item) {
     if (inTotalWindow) totalLoggedTenths += Math.round(e.hours * 10);
     if (e.category === 'ethics' && inEthicsWindow) ethicsLoggedTenths += Math.round(e.hours * 10);
   });
+  // Roadmap #10 (2026-08-07): self-reported carryover hours (migration
+  // 0036), added to the TOTAL track only -- deliberately never to ethics.
+  // At least one state's own rule (Maryland, per data/cpe_hours.json's
+  // notes) explicitly caps carried-over hours from satisfying a FUTURE
+  // ethics requirement even though they count toward the general total --
+  // applying carryover to ethics too would risk overstating ethics
+  // compliance in exactly the states where the real rule is narrower.
+  // Same "no cycle window, no count" exclusion as a dated entry above --
+  // a carryover figure is meaningless without a cycle to apply it to.
+  var carryoverHours = (typeof item.carryover_hours === 'number') ? item.carryover_hours : 0;
+  if (win && carryoverHours > 0) totalLoggedTenths += Math.round(carryoverHours * 10);
   var totalLogged = totalLoggedTenths / 10, ethicsLogged = ethicsLoggedTenths / 10;
   var totalShort = req.total_hours !== null && totalLoggedTenths < Math.round(req.total_hours * 10);
   var ethicsShort = req.ethics_hours !== null && ethicsLoggedTenths < Math.round(req.ethics_hours * 10);
@@ -8374,6 +8385,7 @@ function drCpeProgressForSubscriber(item) {
     noCycleDate: !win,
     excludedCount: excludedCount,
     cycleWindow: win,
+    carryoverHoursApplied: (win && carryoverHours > 0) ? carryoverHours : 0,
   };
 }
 
@@ -8454,6 +8466,9 @@ function drRenderCpeStaffProgress() {
     }
     var totalBar = p.totalRequired !== null ? drCpeBarHtml('Total', p.totalLogged, p.totalRequired, p.totalBehind) : '';
     var ethicsBar = p.ethicsRequired !== null ? drCpeBarHtml('Ethics', p.ethicsLogged, p.ethicsRequired, p.ethicsBehind) : '';
+    var carryoverNote = p.carryoverHoursApplied > 0
+      ? '<p class="dr-cpe-gap-note">Includes ' + p.carryoverHoursApplied + ' carried-over hour' + (p.carryoverHoursApplied === 1 ? '' : 's') + ' toward the total above.</p>'
+      : '';
     var cycleNote = p.noCycleDate
       ? '<p class="dr-cpe-gap-note">No renewal date on file &mdash; add one to track progress for this cycle.</p>'
       : (p.excludedCount > 0
@@ -8464,7 +8479,7 @@ function drRenderCpeStaffProgress() {
         : '');
     return '<div class="dr-cpe-staff-card"><div class="dr-cpe-staff-head">' +
       '<span class="dr-cpe-staff-name">' + name + '</span><span class="dr-cpe-staff-state">' + state + '</span>' + reminderBtn + '</div>' +
-      totalBar + ethicsBar + cycleNote + '</div>';
+      totalBar + ethicsBar + carryoverNote + cycleNote + '</div>';
   }).join('');
 }
 
@@ -9284,6 +9299,22 @@ function drOpenEditModal(item, triggerBtn) {
   if (feeInput) {
     feeInput.value = (typeof item.renewal_fee_cents === 'number') ? (item.renewal_fee_cents / 100).toFixed(2) : '';
   }
+  var carryoverInput = document.getElementById('dr-edit-modal-carryover');
+  if (carryoverInput) {
+    carryoverInput.value = (typeof item.carryover_hours === 'number') ? String(item.carryover_hours) : '';
+  }
+  var carryoverNote = document.getElementById('dr-edit-modal-carryover-note');
+  if (carryoverNote) {
+    // Roadmap #10: the state's own already-published carryover sentence
+    // (from data/cpe_hours.json's notes, republished verbatim -- see
+    // cpe_requirements_json's own comment for why this is safe to show
+    // without asserting a new structured claim), shown only when this
+    // state actually has one on file.
+    var req = DR_CPE_REQUIREMENTS[item.state_slug];
+    var note = req ? req.carryover_note : null;
+    carryoverNote.textContent = note ? ('This state: ' + note) : '';
+    carryoverNote.hidden = !note;
+  }
   if (title) title.textContent = 'Edit ' + (item.staff_label || item.email);
   drClearError();
   drClearWarning();
@@ -9328,6 +9359,9 @@ function drSubmitEditModal(ev) {
   // an empty string here is a real, meaningful "clear the fee" instruction
   // the PATCH handler already supports, not an omission to avoid.
   body.renewal_fee = feeInput ? feeInput.value.trim() : '';
+  var carryoverInput = document.getElementById('dr-edit-modal-carryover');
+  // Roadmap #10: same always-sent, empty-string-clears convention as renewal_fee above.
+  body.carryover_hours = carryoverInput ? carryoverInput.value.trim() : '';
   var id = drEditModalId;
   fetch('/api/firm/licenses/' + encodeURIComponent(id), {
     method: 'PATCH', credentials: 'include',
@@ -10618,6 +10652,17 @@ def build_firm_dashboard_page(
             "ethics_hours": rec.get("ethics_hours"),
             "ethics_period_years": rec.get("ethics_period_years"),
             "data_gap_note": rec.get("data_gap_note"),
+            # Roadmap #10 (2026-08-07): only 12 of 55 jurisdictions in
+            # cpe_hours.json mention carryover in their free-text `notes` at
+            # all -- not enough to assert a structured carryover_allowed/
+            # carryover_max_hours fact for every state (silence elsewhere
+            # could mean "genuinely none" or "not yet researched," and this
+            # dataset can't tell those apart). Surfacing the raw, already-
+            # published, already-cited sentence as a hint next to the
+            # self-reported carryover input is honest either way -- it's the
+            # SAME sentence the public CPE page for that state already shows,
+            # not a new claim.
+            "carryover_note": rec.get("notes") if rec.get("notes") and "carry" in rec.get("notes", "").lower() else None,
         }
         for slug, rec in cpe_hours_by_slug.items()
     }
@@ -10759,6 +10804,10 @@ def build_firm_dashboard_page(
           <label for="dr-edit-modal-fee">Renewal fee (optional)</label>
           <input type="text" inputmode="decimal" id="dr-edit-modal-fee" placeholder="e.g. 199.00">
           <p class="dr-modal-hint">Self-reported -- whatever you know this renewal actually costs. Leave blank if unknown.</p>
+          <label for="dr-edit-modal-carryover">CPE carryover hours (optional)</label>
+          <input type="text" inputmode="decimal" id="dr-edit-modal-carryover" placeholder="e.g. 10">
+          <p class="dr-modal-hint">Hours carried over from a prior CPE cycle, if this state allows it. Self-reported -- applied to this cycle's total-hours progress only, not ethics. Leave blank if none.</p>
+          <p class="dr-modal-hint" id="dr-edit-modal-carryover-note" hidden></p>
           <div class="dr-modal-actions">
             <button type="submit" class="dr-btn-save">Save</button>
             <button type="button" class="dr-btn-cancel" id="dr-edit-modal-cancel">Cancel</button>

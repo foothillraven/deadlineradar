@@ -111,6 +111,12 @@ export interface SubscriberRow {
   // migration's own docstring for why this is never a verified/sourced
   // fact. NULL means the admin hasn't entered a fee for this license.
   renewal_fee_cents: number | null;
+  // migration 0036 (roadmap #10). Self-reported hours carried over from a
+  // PRIOR CPE cycle -- see that migration's own docstring for why this is
+  // never a state-asserted fact. NULL means the admin hasn't entered any.
+  // Applied only to the TOTAL-hours progress calc, never ethics -- see
+  // generate.py's drCpeProgressForSubscriber() comment for why.
+  carryover_hours: number | null;
 }
 
 function nowIso(): string {
@@ -376,6 +382,10 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     last_edited_at: null,
     renewed_at: null,
     renewal_fee_cents: input.renewalFeeCents ?? null,
+    // Roadmap #10: edit-only field (a new staffer never has carryover hours
+    // to enter yet -- that only becomes a real fact once a prior cycle has
+    // actually elapsed), so AddPendingInput has no corresponding field.
+    carryover_hours: null,
   };
   await db
     .prepare(
@@ -1692,6 +1702,10 @@ export interface UpdateFirmLicenseInput {
    * update semantics live at the HTTP layer, same as every other field on
    * this interface despite none of them being optional here. */
   renewalFeeCents: number | null;
+  /** migration 0036 (roadmap #10). Self-reported carryover hours. Same
+   * always-passed, HTTP-layer-partial-update convention as renewalFeeCents
+   * above. */
+  carryoverHours: number | null;
 }
 
 /**
@@ -1739,8 +1753,9 @@ export async function updateFirmLicense(
       `UPDATE subscribers
        SET email = ?1, cooldown_key = ?2, staff_label = ?3, state_slug = ?4, deadline_fields = ?5,
            deadline_source = ?6, user_deadline = ?7, status = ?8, confirmed_at = ?9, confirm_token = ?10,
-           stopped_at = ?11, stop_reason = ?12, reminders_sent = ?13, last_edited_at = ?14, renewal_fee_cents = ?15
-       WHERE id = ?16 AND firm_id = ?17`
+           stopped_at = ?11, stop_reason = ?12, reminders_sent = ?13, last_edited_at = ?14, renewal_fee_cents = ?15,
+           carryover_hours = ?16
+       WHERE id = ?17 AND firm_id = ?18`
     )
     .bind(
       input.email,
@@ -1758,6 +1773,7 @@ export async function updateFirmLicense(
       remindersSent,
       lastEditedAt,
       input.renewalFeeCents,
+      input.carryoverHours,
       id,
       firmId
     )
@@ -1780,6 +1796,7 @@ export async function updateFirmLicense(
     reminders_sent: remindersSent,
     last_edited_at: lastEditedAt,
     renewal_fee_cents: input.renewalFeeCents,
+    carryover_hours: input.carryoverHours,
   };
 }
 

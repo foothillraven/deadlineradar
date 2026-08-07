@@ -62,6 +62,13 @@ describe("GET /firm/licenses -- nps_prompt_due", () => {
     const body = (await (await getLicenses(cookie)).json()) as { nps_prompt_due: boolean };
     expect(body.nps_prompt_due).toBe(false);
   });
+
+  it("is false for a demo-locked firm even when never prompted (caught live: demo visitors would pollute real NPS data)", async () => {
+    const { firmId, cookie } = await createFirmWithSession("NPS Demo Firm", `nps-demo-${Date.now()}@example.com`);
+    await env.DB.prepare(`UPDATE firms SET demo_locked = 1 WHERE id = ?1`).bind(firmId).run();
+    const body = (await (await getLicenses(cookie)).json()) as { nps_prompt_due: boolean };
+    expect(body.nps_prompt_due).toBe(false);
+  });
 });
 
 describe("POST /firm/nps", () => {

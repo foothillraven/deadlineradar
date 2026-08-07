@@ -3240,8 +3240,12 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
   // dashboard makes on every load.
   const previousLoginAt = await store.getPreviousLoginAt(env.DB, session.firmId, session.sessionId);
   // Roadmap #144: computed here (not a separate endpoint) since this is
-  // already the one call the dashboard makes on every load.
-  const npsPromptDue = store.shouldPromptNps(session.firm);
+  // already the one call the dashboard makes on every load. demo_locked
+  // firms are never prompted (caught live 2026-08-07, the prompt fired on
+  // the shared demo account minutes after #144 shipped): anonymous demo
+  // visitors answering NPS would pollute the only real product-feedback
+  // signal this survey exists to collect.
+  const npsPromptDue = !session.firm.demo_locked && store.shouldPromptNps(session.firm);
   items.sort((a, b) => {
     const ad = a.next_deadline as string | null;
     const bd = b.next_deadline as string | null;

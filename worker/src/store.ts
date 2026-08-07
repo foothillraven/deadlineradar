@@ -845,6 +845,9 @@ export interface FirmRow {
   // feature-request questionnaire; set (real submission or an explicit
   // skip) = never show it again for this firm.
   feature_questionnaire_dismissed_at: string | null;
+  // migration 0030 (roadmap #28). Null = still show the guided onboarding
+  // checklist; set (explicit dismiss) = never show it again for this firm.
+  onboarding_checklist_dismissed_at: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -2808,6 +2811,15 @@ export async function setFeatureIdeaStatus(db: D1Database, ideaId: string, statu
 export async function dismissFeatureQuestionnaire(db: D1Database, firmId: string): Promise<void> {
   await db
     .prepare(`UPDATE firms SET feature_questionnaire_dismissed_at = ?1 WHERE id = ?2 AND feature_questionnaire_dismissed_at IS NULL`)
+    .bind(nowIso(), firmId)
+    .run();
+}
+
+/** Roadmap #28 (migration 0030). Same idempotent-dismiss shape as
+ * dismissFeatureQuestionnaire() just above. */
+export async function dismissOnboardingChecklist(db: D1Database, firmId: string): Promise<void> {
+  await db
+    .prepare(`UPDATE firms SET onboarding_checklist_dismissed_at = ?1 WHERE id = ?2 AND onboarding_checklist_dismissed_at IS NULL`)
     .bind(nowIso(), firmId)
     .run();
 }

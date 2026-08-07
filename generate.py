@@ -1091,6 +1091,37 @@ PAGE_CSS = """
      second, competing tab strip. */
   .dr-quicklinks { display: flex; flex-wrap: wrap; gap: 1.3rem; margin: -0.3rem 0 1.2rem; font-size: 0.88rem; }
   .dr-quicklinks a { font-weight: 600; }
+  /* Roadmap #28 (2026-08-06): guided onboarding checklist. */
+  .dr-onboarding-checklist {
+    background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 11px;
+    padding: 1rem 1.2rem; margin-bottom: 1.2rem;
+  }
+  .dr-onboarding-checklist[hidden] { display: none; }
+  .dr-onboarding-checklist-head { display: flex; align-items: center; justify-content: space-between; }
+  .dr-onboarding-checklist-head h2 { font-size: 0.98rem; margin: 0; font-family: var(--font-display); }
+  .dr-onboarding-dismiss {
+    background: transparent; border: none; color: var(--muted); font-size: 1.3rem; line-height: 1;
+    cursor: pointer; padding: 0.1rem 0.3rem;
+  }
+  .dr-onboarding-dismiss:hover { color: var(--fg); }
+  .dr-onboarding-checklist ul { list-style: none; margin: 0.7rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; }
+  .dr-onboarding-step {
+    font-size: 0.85rem; color: var(--fg); position: relative; padding-left: 1.4rem;
+  }
+  .dr-onboarding-step a { color: inherit; text-decoration: underline; }
+  .dr-onboarding-step::before {
+    content: ""; position: absolute; left: 0; top: 0.15rem; width: 1rem; height: 1rem;
+    border: 1.5px solid var(--border-strong); border-radius: 4px; box-sizing: border-box;
+  }
+  .dr-onboarding-step--done { color: var(--muted); text-decoration: line-through; }
+  .dr-onboarding-step--done a { color: var(--muted); }
+  .dr-onboarding-step--done::before {
+    border-color: var(--verified-green); background: var(--verified-green);
+  }
+  .dr-onboarding-step--done::after {
+    content: ""; position: absolute; left: 0.28rem; top: 0.32rem; width: 0.4rem; height: 0.65rem;
+    border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg);
+  }
   .dr-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.2rem; }
   @media (max-width: 860px) { .dr-panel-row { grid-template-columns: 1fr; } }
   .dr-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; }
@@ -6623,6 +6654,10 @@ function drRenderRow(item) {
 
 function drRenderTable() {
   var tbody = document.getElementById('dr-roster-body');
+  // Roadmap #28: re-checked on every roster render (add/edit/remove/renew
+  // all funnel through here already) so the "add your first staff member"
+  // checklist step updates live, not just on the next full page load.
+  drRenderOnboardingChecklist();
   if (!tbody) return;
   if (drLicenses.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6">No staff on your roster yet -- add your first one below.</td></tr>';
@@ -6919,6 +6954,39 @@ function drRenderCurrentEmail(email) {
   if (el && email) el.textContent = email;
 }
 
+// Roadmap #28 (2026-08-06): guided onboarding checklist. drOnboardingChecklistPending
+// is set once from the /firm/licenses response, same pattern as the
+// questionnaire's own pending flag -- server-side dismissal (durable,
+// cross-device); the four step checkmarks themselves are computed live
+// from data already in memory (drLicenses/drCpeEntries) or a per-browser
+// localStorage flag (drMarkOnboardingVisit above), never a fifth round trip.
+var drOnboardingChecklistPending = false;
+function drRenderOnboardingChecklist() {
+  var panel = document.getElementById('dr-onboarding-checklist');
+  if (!panel) return;
+  if (!drOnboardingChecklistPending) { panel.hidden = true; return; }
+  panel.hidden = false;
+  var visitedCalendar = false, visitedMap = false;
+  try { visitedCalendar = localStorage.getItem(DR_ONBOARDING_VISIT_KEYS.calendar) === '1'; } catch (e) {}
+  try { visitedMap = localStorage.getItem(DR_ONBOARDING_VISIT_KEYS.map) === '1'; } catch (e) {}
+  var steps = [
+    {id: 'dr-onboarding-step-staff', done: drLicenses.length > 0},
+    {id: 'dr-onboarding-step-calendar', done: visitedCalendar},
+    {id: 'dr-onboarding-step-map', done: visitedMap},
+    {id: 'dr-onboarding-step-cpe', done: drCpeEntries.length > 0}
+  ];
+  steps.forEach(function(step) {
+    var el = document.getElementById(step.id);
+    if (el) el.classList.toggle('dr-onboarding-step--done', step.done);
+  });
+}
+
+function drDismissOnboardingChecklist() {
+  drOnboardingChecklistPending = false;
+  drRenderOnboardingChecklist();
+  fetch('/api/firm/onboarding-checklist/dismiss', {method: 'POST', credentials: 'include'}).catch(function() {});
+}
+
 // Demo-account Account-tab lockdown (2026-08-06, reported live against the
 // newly public demo). The backend already refuses email/password/billing/
 // delete-account changes for a demo_locked firm (403, see those handlers'
@@ -7060,7 +7128,22 @@ function drRenderStalenessBanner(dataAsOf, dataStale) {
 // no separate page load. Switching tabs never re-fetches.
 // ---------------------------------------------------------------------------
 
+// Roadmap #28 (2026-08-06): the guided onboarding checklist's "visited
+// Calendar"/"visited Map" steps are tracked client-side only, in
+// localStorage -- a UX nicety, not durable account data, so no new
+// server-side column/round trip for something this low-stakes. Keyed per
+// BROWSER, not per firm -- a courtesy for whoever's actually clicking
+// around, not a cross-device completion record.
+var DR_ONBOARDING_VISIT_KEYS = {calendar: 'dr_visited_calendar', map: 'dr_visited_map'};
+function drMarkOnboardingVisit(view) {
+  var key = DR_ONBOARDING_VISIT_KEYS[view];
+  if (!key) return;
+  try { localStorage.setItem(key, '1'); } catch (e) {}
+  drRenderOnboardingChecklist();
+}
+
 function drSwitchView(view) {
+  drMarkOnboardingVisit(view);
   document.querySelectorAll('.dr-view').forEach(function(el) {
     var isTarget = (el.id === 'dr-view-' + view);
     el.hidden = !isTarget;
@@ -8508,6 +8591,11 @@ function drLoadLicenses() {
       // explicit skip -- a firm that closes the tab mid-decision sees it
       // again next time, same as it would have the first time.
       if (data.questionnaire_pending) drOpenQuestionnaireModal();
+      // Roadmap #28: pending flag is server-side/durable, but the CPE step
+      // needs drCpeEntries, not loaded yet at this point in the function --
+      // rendered again once drLoadCpeEntries() resolves, below.
+      drOnboardingChecklistPending = Boolean(data.onboarding_checklist_pending);
+      drRenderOnboardingChecklist();
       drRenderBillingPanel();
       drRenderTable();
       drRenderStats();
@@ -8521,7 +8609,7 @@ function drLoadLicenses() {
       // Complete() doesn't need this ordering since drMobilityCompletions
       // is already populated by then.
       drLoadMobilityCompletions().then(drRenderMapForSelection);
-      drLoadCpeEntries();
+      drLoadCpeEntries().then(drRenderOnboardingChecklist);
       drLoadActivity();
     })
     .catch(function() {
@@ -8886,6 +8974,9 @@ document.addEventListener('DOMContentLoaded', function() {
       drSignOutOtherDevices(signOutOtherBtn);
     });
   }
+
+  var onboardingDismissBtn = document.getElementById('dr-onboarding-dismiss-btn');
+  if (onboardingDismissBtn) onboardingDismissBtn.addEventListener('click', drDismissOnboardingChecklist);
 
   var questionnaireForm = document.getElementById('dr-questionnaire-form');
   var questionnaireSkipBtn = document.getElementById('dr-questionnaire-skip-btn');
@@ -9650,6 +9741,19 @@ def build_firm_dashboard_page(
     <div id="dr-view-roster" class="dr-view" role="tabpanel">
     <h1>Coverage overview</h1>
     <p class="subhead">Every CPA license you're tracking for your firm, at a glance.</p>
+
+    <div class="dr-onboarding-checklist" id="dr-onboarding-checklist" hidden>
+      <div class="dr-onboarding-checklist-head">
+        <h2>Getting started</h2>
+        <button type="button" class="dr-onboarding-dismiss" id="dr-onboarding-dismiss-btn" aria-label="Dismiss checklist">&times;</button>
+      </div>
+      <ul>
+        <li id="dr-onboarding-step-staff" class="dr-onboarding-step">Add your first staff member</li>
+        <li id="dr-onboarding-step-calendar" class="dr-onboarding-step"><a href="#" data-view="calendar">Look at your Calendar</a></li>
+        <li id="dr-onboarding-step-map" class="dr-onboarding-step"><a href="#" data-view="map">Check the Map</a></li>
+        <li id="dr-onboarding-step-cpe" class="dr-onboarding-step"><a href="#" data-view="cpe">Log a CPE hour entry</a></li>
+      </ul>
+    </div>
 
     <div class="dr-stat-row" id="dr-stat-row"></div>
 

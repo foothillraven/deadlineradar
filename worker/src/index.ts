@@ -3231,6 +3231,10 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     // request questionnaire prompt -- true until the firm either submits
     // it or explicitly skips it, never shown again after either.
     questionnaire_pending: session.firm.feature_questionnaire_dismissed_at === null,
+    // Roadmap #28: drives the guided onboarding checklist panel -- true
+    // until the firm explicitly dismisses it (it does NOT auto-dismiss on
+    // completion; see migration 0030's own docstring for why).
+    onboarding_checklist_pending: session.firm.onboarding_checklist_dismissed_at === null,
   });
 }
 
@@ -3308,6 +3312,20 @@ async function handleFirmQuestionnaireDismiss(request: Request, env: Env): Promi
   }
 
   await store.dismissFeatureQuestionnaire(env.DB, session.firmId);
+  return jsonResponse(200, { ok: true });
+}
+
+/** POST /firm/onboarding-checklist/dismiss -- roadmap #28. Same shape as
+ * handleFirmQuestionnaireDismiss just above (idempotent, session-gated). */
+async function handleOnboardingChecklistDismiss(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  await store.dismissOnboardingChecklist(env.DB, session.firmId);
   return jsonResponse(200, { ok: true });
 }
 
@@ -4707,6 +4725,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/questionnaire/dismiss") {
         try {
           return await handleFirmQuestionnaireDismiss(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/onboarding-checklist/dismiss") {
+        try {
+          return await handleOnboardingChecklistDismiss(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }

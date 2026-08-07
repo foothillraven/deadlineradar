@@ -228,6 +228,40 @@ describe("POST /firm/questionnaire and /firm/questionnaire/dismiss", () => {
   });
 });
 
+// Roadmap #28 (2026-08-06, roadmap_items table): guided onboarding
+// checklist. Only the server-side dismiss half is testable here -- the
+// four step checkmarks themselves are computed client-side (roster/CPE
+// data already in memory, or a localStorage visit flag), not a separate
+// endpoint.
+describe("POST /firm/onboarding-checklist/dismiss", () => {
+  it("401s with no session", async () => {
+    expect((await SELF.fetch(`${BASE}/firm/onboarding-checklist/dismiss`, { method: "POST" })).status).toBe(401);
+  });
+
+  it("GET /firm/licenses reports onboarding_checklist_pending:true for a brand-new firm, false after dismiss", async () => {
+    const { cookie } = await createFirmWithSession("Onboarding Checklist Firm", `onboardingchecklist-${Date.now()}@example.com`);
+    const before = await SELF.fetch(`${BASE}/firm/licenses`, { headers: { Cookie: cookie } });
+    const beforeBody = (await before.json()) as { onboarding_checklist_pending: boolean };
+    expect(beforeBody.onboarding_checklist_pending).toBe(true);
+
+    const dismissResp = await SELF.fetch(`${BASE}/firm/onboarding-checklist/dismiss`, { method: "POST", headers: { Cookie: cookie } });
+    expect(dismissResp.status).toBe(200);
+
+    const after = await SELF.fetch(`${BASE}/firm/licenses`, { headers: { Cookie: cookie } });
+    const afterBody = (await after.json()) as { onboarding_checklist_pending: boolean };
+    expect(afterBody.onboarding_checklist_pending).toBe(false);
+  });
+
+  it("is independent of the feature-request questionnaire's own pending flag", async () => {
+    const { cookie } = await createFirmWithSession("Independent Pending Firm", `independentpending-${Date.now()}@example.com`);
+    await SELF.fetch(`${BASE}/firm/onboarding-checklist/dismiss`, { method: "POST", headers: { Cookie: cookie } });
+    const resp = await SELF.fetch(`${BASE}/firm/licenses`, { headers: { Cookie: cookie } });
+    const body = (await resp.json()) as { onboarding_checklist_pending: boolean; questionnaire_pending: boolean };
+    expect(body.onboarding_checklist_pending).toBe(false);
+    expect(body.questionnaire_pending).toBe(true);
+  });
+});
+
 describe("store.setFeatureIdeaStatus", () => {
   it("updates status and rejects an invalid value", async () => {
     const ok = await store.setFeatureIdeaStatus(env.DB, "idea-white-label", "in_progress");

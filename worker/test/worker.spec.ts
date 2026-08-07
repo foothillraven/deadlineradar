@@ -2208,6 +2208,7 @@ describe("Cross-firm ownership -- the single most important test in this build",
         deadlineFields: {},
         deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
         userDeadline: null,
+        renewalFeeCents: null,
         resetConfirmation: false,
       })
     ).toBeNull();

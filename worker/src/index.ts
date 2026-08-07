@@ -103,6 +103,7 @@ import {
   isValidCpeCategory,
   isValidEmail,
   parseStrictCpeHours,
+  parseStrictDollarsToCents,
   sanitizeFreeText,
   strictParseInt,
   parseStrictIsoDate,
@@ -3171,6 +3172,11 @@ function toFirmLicenseJson(row: store.SubscriberRow, asOf: Date): Record<string,
     stop_reason: row.stop_reason,
     last_edited_at: row.last_edited_at,
     renewed_at: row.renewed_at,
+    // Roadmap #7: self-reported, in cents -- see migration 0034's own
+    // docstring for why this is never a verified/sourced fact. The
+    // dashboard's own client-side roster sum (drRenderStats()) is the
+    // rollup; no separate aggregate endpoint needed for it.
+    renewal_fee_cents: row.renewal_fee_cents,
   };
 }
 
@@ -3588,6 +3594,17 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
           .join(", ")}. If this is a different state license for the same person, that's fine -- just double-check it isn't a typo of someone else.`
       : null;
 
+  // Roadmap #7 (2026-08-07): self-reported, optional. Empty/omitted -> null
+  // (not tracked), matching every other optional field on this form.
+  const renewalFeeRaw = (form.renewal_fee ?? "").trim();
+  let renewalFeeCents: number | null = null;
+  if (renewalFeeRaw.length > 0) {
+    renewalFeeCents = parseStrictDollarsToCents(renewalFeeRaw);
+    if (renewalFeeCents === null) {
+      return jsonResponse(400, { error: "Please enter a valid renewal fee." });
+    }
+  }
+
   const record = await store.addPending(env.DB, {
     email,
     stateSlug,
@@ -3598,6 +3615,7 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
     firmId: session.firmId,
     staffLabel,
     skipConfirmation: true,
+    renewalFeeCents,
   });
 
   // AuditLab LC-1 (LOW, 2026-08-04): if this same person was previously
@@ -3719,6 +3737,24 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
     staffLabel = trimmed.length > 0 ? trimmed.slice(0, MAX_STAFF_LABEL_LEN) : null;
   }
 
+  // Roadmap #7 (2026-08-07): self-reported, optional. Present-but-empty
+  // explicitly clears it (matches staff_label's own empty-string-clears
+  // convention above); absent from the body leaves the existing value
+  // untouched, true partial-update semantics.
+  let renewalFeeCents = existing.renewal_fee_cents;
+  if (typeof parsed.renewal_fee === "string") {
+    const trimmed = parsed.renewal_fee.trim();
+    if (trimmed.length === 0) {
+      renewalFeeCents = null;
+    } else {
+      const parsedCents = parseStrictDollarsToCents(trimmed);
+      if (parsedCents === null) {
+        return jsonResponse(400, { error: "Please enter a valid renewal fee." });
+      }
+      renewalFeeCents = parsedCents;
+    }
+  }
+
   let stateSlug = existing.state_slug;
   let deadlineFields: Record<string, string> = JSON.parse(existing.deadline_fields || "{}");
   let deadlineSource = existing.deadline_source;
@@ -3803,6 +3839,7 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
     deadlineFields,
     deadlineSource,
     userDeadline,
+    renewalFeeCents,
     resetConfirmation: emailChanged,
   });
   if (!updated) return jsonResponse(404, { error: "Not found." });

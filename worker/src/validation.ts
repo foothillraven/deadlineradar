@@ -106,6 +106,24 @@ export function parseStrictCpeHours(value: string): number | null {
   return n;
 }
 
+// Roadmap #7 (2026-08-07): a self-reported renewal fee, entered as plain
+// dollars-and-cents ("199" or "199.99"), stored as an integer cents value
+// (see migration 0034's own docstring for why cents, not a float). No sign,
+// no more than 2 decimal places -- a negative or three-decimal "fee" is
+// certainly a typo, not a real value to store as-is.
+const STRICT_MONEY_RE = /^\d+(\.\d{1,2})?$/;
+export const MAX_RENEWAL_FEE_CENTS = 100_000_00; // $100,000 -- generous headroom over any real renewal fee, still a real ceiling
+
+export function parseStrictDollarsToCents(value: string): number | null {
+  const trimmed = value.trim();
+  if (!STRICT_MONEY_RE.test(trimmed)) return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n)) return null;
+  const cents = Math.round(n * 100);
+  if (cents < 0 || cents > MAX_RENEWAL_FEE_CENTS) return null;
+  return cents;
+}
+
 // Deliberately stricter than "contains an @ and a dot" -- rejects
 // whitespace, control characters, multiple @ signs, and malformed domains
 // outright. Byte-for-byte the same pattern as server.py:160's `_EMAIL_RE`.

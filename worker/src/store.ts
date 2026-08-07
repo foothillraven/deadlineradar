@@ -107,6 +107,10 @@ export interface SubscriberRow {
   // types, separate from 'added' (see generate.py's drRenderActivity()).
   last_edited_at: string | null;
   renewed_at: string | null;
+  // migration 0034 (roadmap #7). Self-reported, in cents -- see that
+  // migration's own docstring for why this is never a verified/sourced
+  // fact. NULL means the admin hasn't entered a fee for this license.
+  renewal_fee_cents: number | null;
 }
 
 function nowIso(): string {
@@ -318,6 +322,11 @@ export interface AddPendingInput {
    * (transparent first-contact + one-click opt-out) right after this returns.
    */
   skipConfirmation?: boolean;
+  /** migration 0034 (roadmap #7). Self-reported, in cents. Omitted (-> null)
+   * for the free-tier /subscribe path, same posture as firmId/staffLabel --
+   * a fee rollup is a firm-dashboard concept, not something a free
+   * individual reminder signup has any use for. */
+  renewalFeeCents?: number | null;
 }
 
 /**
@@ -366,6 +375,7 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     staff_label: sanitizeFreeText(input.staffLabel, MAX_STAFF_LABEL_LEN),
     last_edited_at: null,
     renewed_at: null,
+    renewal_fee_cents: input.renewalFeeCents ?? null,
   };
   await db
     .prepare(
@@ -373,8 +383,8 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
        (id, email, cooldown_key, state_slug, deadline_fields, first_name, status,
         confirm_token, unsubscribe_token, renewed_token, created_at, confirmed_at,
         stopped_at, stop_reason, reminders_sent, cycle, deadline_source, user_deadline,
-        last_resend_at, resend_count, firm_id, staff_label)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22)`
+        last_resend_at, resend_count, firm_id, staff_label, renewal_fee_cents)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23)`
     )
     .bind(
       record.id,
@@ -398,7 +408,8 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
       record.last_resend_at,
       record.resend_count,
       record.firm_id,
-      record.staff_label
+      record.staff_label,
+      record.renewal_fee_cents
     )
     .run();
   return record;
@@ -1627,6 +1638,12 @@ export interface UpdateFirmLicenseInput {
    * never agreed to receive them.
    */
   resetConfirmation: boolean;
+  /** migration 0034 (roadmap #7). Self-reported, in cents. index.ts always
+   * passes a value here (the new one from the PATCH body, or the record's
+   * existing one when the client didn't touch this field) -- true partial-
+   * update semantics live at the HTTP layer, same as every other field on
+   * this interface despite none of them being optional here. */
+  renewalFeeCents: number | null;
 }
 
 /**
@@ -1674,8 +1691,8 @@ export async function updateFirmLicense(
       `UPDATE subscribers
        SET email = ?1, cooldown_key = ?2, staff_label = ?3, state_slug = ?4, deadline_fields = ?5,
            deadline_source = ?6, user_deadline = ?7, status = ?8, confirmed_at = ?9, confirm_token = ?10,
-           stopped_at = ?11, stop_reason = ?12, reminders_sent = ?13, last_edited_at = ?14
-       WHERE id = ?15 AND firm_id = ?16`
+           stopped_at = ?11, stop_reason = ?12, reminders_sent = ?13, last_edited_at = ?14, renewal_fee_cents = ?15
+       WHERE id = ?16 AND firm_id = ?17`
     )
     .bind(
       input.email,
@@ -1692,6 +1709,7 @@ export async function updateFirmLicense(
       stopReason,
       remindersSent,
       lastEditedAt,
+      input.renewalFeeCents,
       id,
       firmId
     )
@@ -1713,6 +1731,7 @@ export async function updateFirmLicense(
     stop_reason: stopReason,
     reminders_sent: remindersSent,
     last_edited_at: lastEditedAt,
+    renewal_fee_cents: input.renewalFeeCents,
   };
 }
 

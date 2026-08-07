@@ -1,0 +1,18 @@
+-- Roadmap #7 (2026-08-07, roadmap_items table, IMMEDIATE RELEASE): "Renewal
+-- cost budgeting rollup (total upcoming fees across all staff/states)".
+--
+-- Self-reported, per-license, same "bring your own [fact]" posture as
+-- migration 0033's peer_review_due_date: this product has NEVER tracked
+-- renewal FEES anywhere (data/cpa_deadlines.json has dates/citations/
+-- cycles, no dollar amounts), and sourcing verified fees for 55
+-- jurisdictions x multiple license types to this site's own two-source
+-- standard would be a real research project, not this feature. Confirmed
+-- directly with Devin (2026-08-07): admin enters the fee they already know
+-- for each staff member's license; the rollup sums whatever has been
+-- entered, honestly, rather than asserting a fact nobody has verified.
+--
+-- Stored in CENTS (integer), not a float dollar amount -- avoids the
+-- classic floating-point summation drift ($0.1 + $0.2 problem) when
+-- rolling up dozens of fees, same reasoning CPE-2's tenths-of-an-hour
+-- integer accumulation already applies to hour sums in this codebase.
+ALTER TABLE subscribers ADD COLUMN renewal_fee_cents INTEGER;

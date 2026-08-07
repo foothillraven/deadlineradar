@@ -6565,6 +6565,8 @@ def _firm_dashboard_add_staff_form_html(by_slug: dict[str, list[dict]], as_of: d
       {state_options}
     </select>
     {field_groups}
+    <label for="dr-add-fee">Renewal fee (optional)</label>
+    <input type="text" inputmode="decimal" id="dr-add-fee" name="renewal_fee" placeholder="e.g. 199.00">
     <button type="submit">Add staff</button>
   </form>
   <p id="dr-add-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
@@ -6822,6 +6824,7 @@ function drBuildSampleCpeEntries() {
 function drRenderAllViews() {
   drRenderTable();
   drRenderStats();
+  drRenderRenewalFeeRollup();
   drRenderAtRisk();
   drRenderCalendar();
   drRenderAgenda();
@@ -7097,6 +7100,34 @@ function drRenderStats() {
       // identical label on the same screen -- kept deliberately distinct.
       '<div><div class="dr-stat-label">Due soon</div><div class="dr-stat-value">' + atRisk + '</div>' +
       '<div class="dr-stat-sub">due within 30 days or unresolved</div></div></div>';
+}
+
+// Roadmap #7 (2026-08-07): renewal-cost rollup, computed client-side from
+// the SAME drLicenses array every other roster stat already reads -- no
+// separate aggregate endpoint. Self-reported per license (migration 0034),
+// so this is always honest about how much of the roster is actually
+// covered by an entered fee rather than silently implying completeness.
+function drRenderRenewalFeeRollup() {
+  var el = document.getElementById('dr-renewal-fee-body');
+  if (!el) return;
+  var active = drLicenses.filter(function(item) { return item.status !== 'opted_out'; });
+  if (active.length === 0) {
+    el.innerHTML = '<p class="dr-panel-empty">Add staff to start tracking renewal costs.</p>';
+    return;
+  }
+  var totalCents = 0, withFee = 0;
+  active.forEach(function(item) {
+    if (typeof item.renewal_fee_cents === 'number') {
+      totalCents += item.renewal_fee_cents;
+      withFee++;
+    }
+  });
+  var totalDollars = (totalCents / 100).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  var missing = active.length - withFee;
+  var missingNote = missing > 0
+    ? ' <span class="dr-panel-empty">(' + missing + ' of ' + active.length + ' staff have no fee entered yet -- edit a roster row to add one.)</span>'
+    : '';
+  el.innerHTML = '<p><strong>$' + drEscapeHtml(totalDollars) + '</strong> total across ' + withFee + ' of ' + active.length + ' staff.' + missingNote + '</p>';
 }
 
 function drRenderAtRisk() {
@@ -9076,6 +9107,7 @@ function drLoadLicenses() {
       drRenderPeerReview();
       drRenderTable();
       drRenderStats();
+      drRenderRenewalFeeRollup();
       drRenderAtRisk();
       drRenderCalendar();
       drRenderAgenda();
@@ -9187,6 +9219,10 @@ function drOpenEditModal(item, triggerBtn) {
         .toISOString().slice(0, 10);
     }
   }
+  var feeInput = document.getElementById('dr-edit-modal-fee');
+  if (feeInput) {
+    feeInput.value = (typeof item.renewal_fee_cents === 'number') ? (item.renewal_fee_cents / 100).toFixed(2) : '';
+  }
   if (title) title.textContent = 'Edit ' + (item.staff_label || item.email);
   drClearError();
   drClearWarning();
@@ -9226,6 +9262,11 @@ function drSubmitEditModal(ev) {
     if (!deadlineValue) { drShowError('License expiration date is required.'); return; }
     body.license_expiration_date = deadlineValue;
   }
+  var feeInput = document.getElementById('dr-edit-modal-fee');
+  // Roadmap #7: always sent (even empty), unlike the deadline field above --
+  // an empty string here is a real, meaningful "clear the fee" instruction
+  // the PATCH handler already supports, not an omission to avoid.
+  body.renewal_fee = feeInput ? feeInput.value.trim() : '';
   var id = drEditModalId;
   fetch('/api/firm/licenses/' + encodeURIComponent(id), {
     method: 'PATCH', credentials: 'include',
@@ -10600,6 +10641,13 @@ def build_firm_dashboard_page(
       <div id="dr-peer-review-body"></div>
     </div>
 
+    <div class="dr-panel" id="dr-renewal-fee-panel">
+      <div class="dr-onboarding-checklist-head">
+        <h2>Renewal costs</h2>
+      </div>
+      <div id="dr-renewal-fee-body"></div>
+    </div>
+
     <p class="dr-quicklinks">
       <a href="#" data-view="calendar">View full calendar &rarr;</a>
       <a href="#" data-view="map">View full map &rarr;</a>
@@ -10647,6 +10695,9 @@ def build_firm_dashboard_page(
             <input type="date" id="dr-edit-modal-deadline">
             <p class="dr-modal-hint">This state has no automatic renewal rule we can compute, so we track whatever date is printed on the license -- update it here whenever it renews.</p>
           </div>
+          <label for="dr-edit-modal-fee">Renewal fee (optional)</label>
+          <input type="text" inputmode="decimal" id="dr-edit-modal-fee" placeholder="e.g. 199.00">
+          <p class="dr-modal-hint">Self-reported -- whatever you know this renewal actually costs. Leave blank if unknown.</p>
           <div class="dr-modal-actions">
             <button type="submit" class="dr-btn-save">Save</button>
             <button type="button" class="dr-btn-cancel" id="dr-edit-modal-cancel">Cancel</button>

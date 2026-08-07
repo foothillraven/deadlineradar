@@ -68,6 +68,7 @@ import {
   MAX_DELETION_SURVEY_DETAIL_LEN,
   RATE_LIMIT_FIRM_SIGNOUT_OTHER,
   RATE_LIMIT_FIRM_SESSION_REVOKE,
+  RATE_LIMIT_FIRM_NPS,
   RATE_LIMIT_FIRM_CHANGE_EMAIL,
   RATE_LIMIT_FIRM_PASSWORD_SET,
   RATE_LIMIT_OAUTH_START,
@@ -3222,6 +3223,9 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
   // rather than a separate endpoint since this is already the one call the
   // dashboard makes on every load.
   const previousLoginAt = await store.getPreviousLoginAt(env.DB, session.firmId, session.sessionId);
+  // Roadmap #144: computed here (not a separate endpoint) since this is
+  // already the one call the dashboard makes on every load.
+  const npsPromptDue = store.shouldPromptNps(session.firm);
   items.sort((a, b) => {
     const ad = a.next_deadline as string | null;
     const bd = b.next_deadline as string | null;
@@ -3247,6 +3251,7 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
   return jsonResponse(200, {
     licenses: items,
     previous_login_at: previousLoginAt,
+    nps_prompt_due: npsPromptDue,
     firm_name: session.firm.name ?? null,
     // Task #29 (2026-08-05): the Account tab's email-change form needs to
     // show what it's changing FROM. Safe to include -- this is the
@@ -3568,6 +3573,63 @@ async function handleReminderCadenceSet(request: Request, env: Env): Promise<Res
   const asJson = JSON.stringify(parsed);
   await store.setReminderThresholds(env.DB, session.firmId, asJson);
   return jsonResponse(200, { reminder_thresholds: parsed });
+}
+
+/**
+ * POST /firm/nps -- roadmap #144, the 1-question NPS micro-survey. Score
+ * must be a whole number 0-10 (standard NPS scale); anything else is
+ * rejected rather than silently clamped, since a malformed score would
+ * poison real aggregate signal that isn't worth much to begin with without
+ * clean data.
+ */
+async function handleNpsResponse(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_nps", RATE_LIMIT_FIRM_NPS);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return jsonResponse(400, { error: "Request too large." });
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  const score = typeof body.score === "number" ? body.score : NaN;
+  if (!Number.isInteger(score) || score < 0 || score > 10) {
+    return jsonResponse(400, { error: "Please choose a score from 0 to 10." });
+  }
+
+  await store.recordNpsResponse(env.DB, session.firmId, score);
+  return jsonResponse(200, { ok: true });
+}
+
+/** POST /firm/nps/dismiss -- resets the same cooldown as a real response,
+ * without recording a score. See store.shouldPromptNps()'s own docstring. */
+async function handleNpsDismiss(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_nps_dismiss", RATE_LIMIT_FIRM_NPS);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  await store.recordNpsPromptDismissed(env.DB, session.firmId);
+  return jsonResponse(200, { ok: true });
 }
 
 /** GET /firm/calendar.ics -- static, one-time roster export (2026-08-06,
@@ -5147,6 +5209,21 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/cpe") {
         try {
           return await handleCpeEntryCreate(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/nps") {
+        try {
+          return await handleNpsResponse(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/nps/dismiss") {
+        try {
+          return await handleNpsDismiss(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }

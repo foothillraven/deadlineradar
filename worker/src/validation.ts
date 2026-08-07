@@ -718,6 +718,11 @@ export const RATE_LIMIT_FIRM_SIGNOUT_OTHER: RateLimit = { max: 10, windowSeconds
  * separately rate-limited, matching every other read-only /firm/* route. */
 export const RATE_LIMIT_FIRM_SESSION_REVOKE: RateLimit = { max: 10, windowSeconds: 3600 };
 
+/** Roadmap #144: submitting or dismissing the NPS prompt. Low-frequency by
+ * design (the quarterly cooldown itself bounds real usage), same
+ * defense-in-depth reasoning as every other authenticated-write bucket. */
+export const RATE_LIMIT_FIRM_NPS: RateLimit = { max: 10, windowSeconds: 3600 };
+
 /** Task #29 (2026-08-05). Keyed per-firm like the others above, but this
  * route is a DIFFERENT risk shape than a password/session action: each call
  * sends real email to an address of the CALLER'S choosing, not to the

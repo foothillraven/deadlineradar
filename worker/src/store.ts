@@ -913,6 +913,10 @@ export interface FirmRow {
   // (today's fixed behavior). Validated server-side on write -- see that
   // migration's own docstring for why this is a subset, not arbitrary values.
   reminder_thresholds: string | null;
+  // migration 0042 (roadmap #144). Null = never prompted yet. Set whenever
+  // the NPS prompt is SHOWN (answered or dismissed either way) -- see
+  // shouldPromptNps()'s own docstring for the quarterly-cadence rule.
+  nps_last_prompted_at: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -3246,6 +3250,35 @@ export async function setReplyToEmail(db: D1Database, firmId: string, email: str
  * this is ever called, same trust-the-caller posture as the setters above. */
 export async function setReminderThresholds(db: D1Database, firmId: string, thresholdsJson: string | null): Promise<void> {
   await db.prepare(`UPDATE firms SET reminder_thresholds = ?1 WHERE id = ?2`).bind(thresholdsJson, firmId).run();
+}
+
+// Roadmap #144 (2026-08-07): 1-question NPS/CSAT micro-survey. Fired after a
+// "Mark renewed" action (a genuine positive moment) or quarterly otherwise --
+// never more than once per NPS_PROMPT_COOLDOWN_DAYS regardless of whether the
+// firm answered or dismissed the previous prompt.
+export const NPS_PROMPT_COOLDOWN_DAYS = 90;
+
+export function shouldPromptNps(firm: Pick<FirmRow, "nps_last_prompted_at">, now: Date = new Date()): boolean {
+  if (!firm.nps_last_prompted_at) return true;
+  const elapsedMs = now.getTime() - Date.parse(firm.nps_last_prompted_at);
+  return elapsedMs >= NPS_PROMPT_COOLDOWN_DAYS * 86_400_000;
+}
+
+/** Marks the prompt as shown (resets the cooldown) without recording a
+ * score -- the firm dismissed it without answering. */
+export async function recordNpsPromptDismissed(db: D1Database, firmId: string): Promise<void> {
+  await db.prepare(`UPDATE firms SET nps_last_prompted_at = ?1 WHERE id = ?2`).bind(nowIso(), firmId).run();
+}
+
+/** Records a real response AND resets the cooldown -- an answered prompt
+ * should never immediately re-prompt any more than a dismissed one should. */
+export async function recordNpsResponse(db: D1Database, firmId: string, score: number): Promise<void> {
+  const now = nowIso();
+  await db
+    .prepare(`INSERT INTO firm_nps_responses (id, firm_id, score, submitted_at) VALUES (?1,?2,?3,?4)`)
+    .bind(newToken(), firmId, score, now)
+    .run();
+  await db.prepare(`UPDATE firms SET nps_last_prompted_at = ?1 WHERE id = ?2`).bind(now, firmId).run();
 }
 
 /** Roadmap #19: one query for scheduler.ts's own per-subscriber loop to

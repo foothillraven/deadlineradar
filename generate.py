@@ -1117,6 +1117,14 @@ PAGE_CSS = """
   .dr-mob-check input { margin-top: 0.2rem; flex: 0 0 auto; }
   .dr-questionnaire-check { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0.5rem 0; font-size: 0.88rem; font-weight: 400; }
   .dr-questionnaire-check input { margin-top: 0.2rem; flex: 0 0 auto; }
+  .dr-nps-scale { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.9rem 0; }
+  .dr-nps-score-btn {
+    font-family: inherit; font-size: 0.85rem; font-weight: 600; width: 2.4rem; height: 2.4rem;
+    border: 1px solid var(--border-strong); border-radius: 7px; background: transparent; color: inherit;
+    cursor: pointer;
+  }
+  .dr-nps-score-btn:hover { border-color: var(--fg); }
+  .dr-nps-score-btn:disabled { opacity: 0.6; cursor: default; }
   /* .dr-questionnaire-other, not an #id selector -- preship_gate's stylesheet-
      integrity check (added after the 2026-07-31 truncated-CSS incident, see
      its own docstring) flags ANY line starting with "#" as a leaked Python
@@ -8242,6 +8250,60 @@ function drRenderLastLoginBanner() {
   el.hidden = false;
 }
 
+// Roadmap #144: null until the load response sets it. Shown after a "Mark
+// renewed" success (drRenewLicense() reloads via drLoadLicenses(), which
+// re-checks this) or on ordinary page load once the quarterly cooldown has
+// elapsed -- both paths funnel through the same drLoadLicenses() response,
+// so one trigger point (called there) covers both cases without a separate
+// post-renewal-specific hook.
+var drNpsPromptDue = false;
+
+function drMaybeShowNpsPrompt() {
+  var modal = document.getElementById('dr-nps-modal');
+  if (!modal || !modal.hidden || !drNpsPromptDue) return;
+  modal.hidden = false;
+}
+
+function drCloseNpsModal() {
+  var modal = document.getElementById('dr-nps-modal');
+  if (modal) modal.hidden = true;
+}
+
+function drSubmitNpsScore(score, btn) {
+  var errEl = document.getElementById('dr-nps-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  document.querySelectorAll('.dr-nps-score-btn').forEach(function(b) { b.disabled = true; });
+  fetch('/api/firm/nps', {
+    method: 'POST', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({score: score})
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return; }
+    // Whole-quarter cooldown either way -- don't leave the prompt eligible
+    // to reappear on the next roster action within this same visit even if
+    // the write itself somehow failed server-side.
+    drNpsPromptDue = false;
+    if (!res.ok) {
+      document.querySelectorAll('.dr-nps-score-btn').forEach(function(b) { b.disabled = false; });
+      if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+      return;
+    }
+    drCloseNpsModal();
+  }).catch(function() {
+    drNpsPromptDue = false;
+    drCloseNpsModal();
+  });
+}
+
+// Escape/backdrop-click on this modal also count as "not now" -- see the
+// wiring below -- so an accidental close can't leave the prompt eligible to
+// pop up again on the very next roster action within the same visit.
+function drDismissNpsPrompt() {
+  drNpsPromptDue = false;
+  drCloseNpsModal();
+  fetch('/api/firm/nps/dismiss', {method: 'POST', credentials: 'include'}).catch(function() {});
+}
+
 // Roadmap #42: shown only while the firm has no paid tier -- same
 // DR_PLAN_TIER_LABELS[planTier] truthiness check drRenderBillingPanel()
 // itself uses just below to decide "is this firm on the free tier".
@@ -10307,6 +10369,7 @@ function drLoadLicenses() {
       }
       drLicenses = data.licenses || [];
       drPreviousLoginAt = data.previous_login_at || null;
+      drNpsPromptDue = Boolean(data.nps_prompt_due);
       drSeatCap = typeof data.seat_cap === 'number' ? data.seat_cap : null;
       drBilling = {
         planTier: data.plan_tier || 'free',
@@ -10330,6 +10393,12 @@ function drLoadLicenses() {
       // simply waits for the NEXT load (any later page visit) rather than
       // fighting the modal for attention on this one.
       if (!data.questionnaire_pending && data.product_tour_pending) drStartProductTour();
+      // Roadmap #144: same "wait its turn" precedence as the tour just
+      // above -- a brand-new firm's first-ever load has BOTH the
+      // questionnaire and nps_prompt_due true (never prompted for either
+      // yet); only shows once neither onboarding prompt is still pending,
+      // so it never competes with those for attention on the same load.
+      if (!data.questionnaire_pending && !data.product_tour_pending) drMaybeShowNpsPrompt();
       // Roadmap #28: pending flag is server-side/durable, but the CPE step
       // needs drCpeEntries, not loaded yet at this point in the function --
       // rendered again once drLoadCpeEntries() resolves, below.
@@ -11308,6 +11377,24 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     document.addEventListener('keydown', function(ev) {
       if (ev.key === 'Escape' && !questionnaireModal.hidden) drSkipQuestionnaire();
+    });
+  }
+
+  var npsModal = document.getElementById('dr-nps-modal');
+  var npsDismissBtn = document.getElementById('dr-nps-dismiss-btn');
+  if (npsDismissBtn) npsDismissBtn.addEventListener('click', drDismissNpsPrompt);
+  if (npsModal) {
+    npsModal.addEventListener('click', function(ev) {
+      var scoreBtn = ev.target.closest ? ev.target.closest('.dr-nps-score-btn') : null;
+      if (scoreBtn) { drSubmitNpsScore(Number(scoreBtn.getAttribute('data-score')), scoreBtn); return; }
+      // Same "backdrop/Escape counts as dismiss" reasoning as the
+      // questionnaire modal above -- this is meant to appear at most once
+      // per quarter; a bare close would leave it eligible to reappear on
+      // the very next roster action within the same visit.
+      if (ev.target === npsModal) drDismissNpsPrompt();
+    });
+    document.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Escape' && !npsModal.hidden) drDismissNpsPrompt();
     });
   }
 
@@ -12660,6 +12747,32 @@ def build_firm_dashboard_page(
       </div>
     </form>
     <p id="dr-questionnaire-error" role="alert" class="dr-account-err" hidden></p>
+  </div>
+</div>
+
+<!-- Roadmap #144 (2026-08-07): 1-question NPS micro-survey, shown after a
+     "Mark renewed" action or quarterly otherwise -- see drMaybeShowNpsPrompt()'s
+     own comment for the trigger logic. -->
+<div id="dr-nps-modal" class="dr-modal-overlay" hidden>
+  <div class="dr-modal" role="dialog" aria-modal="true" aria-labelledby="dr-nps-modal-title">
+    <h2 id="dr-nps-modal-title">Quick question</h2>
+    <p class="dr-modal-hint">How likely are you to recommend DeadlineRadar to another firm?
+    (0 = not at all, 10 = extremely likely)</p>
+    <div class="dr-nps-scale" role="group" aria-label="Score, 0 to 10">
+      <button type="button" class="dr-nps-score-btn" data-score="0">0</button>
+      <button type="button" class="dr-nps-score-btn" data-score="1">1</button>
+      <button type="button" class="dr-nps-score-btn" data-score="2">2</button>
+      <button type="button" class="dr-nps-score-btn" data-score="3">3</button>
+      <button type="button" class="dr-nps-score-btn" data-score="4">4</button>
+      <button type="button" class="dr-nps-score-btn" data-score="5">5</button>
+      <button type="button" class="dr-nps-score-btn" data-score="6">6</button>
+      <button type="button" class="dr-nps-score-btn" data-score="7">7</button>
+      <button type="button" class="dr-nps-score-btn" data-score="8">8</button>
+      <button type="button" class="dr-nps-score-btn" data-score="9">9</button>
+      <button type="button" class="dr-nps-score-btn" data-score="10">10</button>
+    </div>
+    <p class="dr-modal-hint"><button type="button" class="dr-link-btn" id="dr-nps-dismiss-btn">Not now</button></p>
+    <p id="dr-nps-error" role="alert" class="dr-account-err" hidden></p>
   </div>
 </div>
 

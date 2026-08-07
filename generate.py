@@ -2279,12 +2279,23 @@ def site_header(
     # network hiccup) leaves "Sign In" as the safe default. Skipped when
     # hide_signin is set -- that's already the dashboard itself, which
     # knows its own auth state from its own page load.
+    # Reported live 2026-08-07: once swapped, "Dashboard" kept the SAME
+    # nav-quiet (faint gray) styling "Sign In" had -- fine for an
+    # occasional link a visitor either clicks or ignores, wrong for a
+    # signed-in firm's one way back to their own data while browsing the
+    # rest of the site. Promoted to the exact same .cta treatment "Get
+    # reminders" already uses (accent color, bold) rather than inventing a
+    # third visual tier -- the two now read as a matched pair of real
+    # actions instead of "Dashboard" hiding among the quiet nav links.
     signin_swap_js_html = "" if hide_signin else f"""<script>
 (function() {{
   var link = document.getElementById('dr-nav-signin');
   if (!link) return;
   fetch('{REMINDER_BACKEND_BASE_URL}/firm/licenses', {{credentials: 'include'}}).then(function(r) {{
-    if (r.ok) {{ link.textContent = 'Dashboard'; link.href = '/firm-dashboard/'; }}
+    if (r.ok) {{
+      link.textContent = 'Dashboard'; link.href = '/firm-dashboard/';
+      link.classList.remove('nav-quiet'); link.classList.add('cta');
+    }}
   }}).catch(function() {{}});
 }})();
 </script>"""

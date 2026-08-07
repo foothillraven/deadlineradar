@@ -176,6 +176,12 @@
   .trust-line strong::before { content: "✓ "; color: var(--gold); }
   
   .rc-section-note { color: var(--muted); font-size: 0.88rem; margin: 0.2rem 0 0.9rem; }
+  
+  .cl-list { list-style: none; margin: 1.2rem 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+  .cl-list li { padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
+  .cl-list li:last-child { border-bottom: none; }
+  .cl-date { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.15rem; }
+  .cl-summary { display: block; }
   .rc-card {
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 10px;
     padding: 1rem 1.2rem; margin: 0 0 1rem;

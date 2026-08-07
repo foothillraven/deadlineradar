@@ -74,6 +74,10 @@ REG_CHANGE_EVENTS_PATH = ROOT / "data" / "reg_change_events.json"
 # active work instead of reading as broken/abandoned -- same
 # never-hardcode-a-published-number rule as everything else on this site.
 RULE_CHANGE_COVERAGE_STATS_PATH = ROOT / "data" / "rule_change_coverage_stats.json"
+# Roadmap #49 (2026-08-07): hand-curated public changelog entries -- see
+# build_changelog_page()'s own docstring for why this is NOT generated from
+# raw git commit history.
+CHANGELOG_DATA_PATH = ROOT / "data" / "changelog.json"
 # "docs" (not "site") deliberately -- this is the zero-config GitHub Pages
 # convention (Settings > Pages > Deploy from a branch > /docs), so this
 # directory becomes the deploy target as-is once a repo + Pages source exist.
@@ -555,6 +559,12 @@ PAGE_CSS = """
   .trust-line strong::before { content: "\\2713\\a0"; color: var(--gold); }
   /* ---- Rule-changes feed, /rule-changes/ (2026-08-02) ---- */
   .rc-section-note { color: var(--muted); font-size: 0.88rem; margin: 0.2rem 0 0.9rem; }
+  /* Roadmap #49 (2026-08-07): /changelog/. */
+  .cl-list { list-style: none; margin: 1.2rem 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+  .cl-list li { padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
+  .cl-list li:last-child { border-bottom: none; }
+  .cl-date { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.15rem; }
+  .cl-summary { display: block; }
   .rc-card {
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 10px;
     padding: 1rem 1.2rem; margin: 0 0 1rem;
@@ -4913,7 +4923,8 @@ taken effect yet, we wait for it to become the actual current rule before citing
 the "read the rule" link go to the primary legal text, not a summary. That's the same standard behind
 every date on this site.</p>
 
-<p class="backlink"><a href="/contact/">Found something that looks wrong? Tell us &rarr;</a></p>
+<p class="backlink"><a href="/changelog/">See exactly what's changed and when &rarr;</a> &middot;
+<a href="/contact/">Found something that looks wrong? Tell us &rarr;</a></p>
 """
     return page_shell(
         f"How We Verify Every Deadline — {SITE_NAME}",
@@ -4922,6 +4933,43 @@ every date on this site.</p>
         body,
         home_href="../",
         canonical_path="/methodology/",
+    )
+
+
+def build_changelog_page() -> str:
+    """Public changelog page (2026-08-07, roadmap #49): when this site's own data was
+    corrected or materially updated. Deliberately hand-curated, not generated from raw
+    git commit history -- this repo's real commit messages reference internal tooling
+    and finding codes never meant for public copy (checked directly before deciding
+    this: e.g. "Fix AuditLab DATA-3 (MEDIUM): DC citation covers firm permit only").
+    Every entry in data/changelog.json is a genuine, dated, already-verified change,
+    rewritten in plain language -- not an exhaustive commit-by-commit log, and the page
+    says so rather than implying completeness it doesn't have."""
+    changelog = json.loads(CHANGELOG_DATA_PATH.read_text(encoding="utf-8"))
+    entries = changelog.get("entries", [])
+    entries_html = "\n".join(
+        f'<li><span class="cl-date">{esc(fmt_date(date.fromisoformat(e["date"])))}</span>'
+        f'<span class="cl-summary">{esc(e["summary"])}</span></li>'
+        for e in entries
+    )
+    body = f"""<h1>Changelog</h1>
+<p class="intro">A running record of material corrections and updates to this site's data &mdash;
+not every commit, but every change that could affect what a visitor sees. See
+<a href="/methodology/">how we verify every deadline</a> for the full sourcing standard behind it.</p>
+
+<ul class="cl-list">
+{entries_html}
+</ul>
+
+<p class="backlink"><a href="/contact/">Found something that looks wrong? Tell us &rarr;</a></p>
+"""
+    return page_shell(
+        f"Changelog — {SITE_NAME}",
+        "A running record of material corrections and updates to DeadlineRadar's CPA license "
+        "renewal data -- dated, plain-language, never hidden.",
+        body,
+        home_href="../",
+        canonical_path="/changelog/",
     )
 
 
@@ -13046,6 +13094,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/methodology/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/changelog/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/rule-changes/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
@@ -13283,6 +13334,11 @@ def main() -> None:
     methodology_dir.mkdir(parents=True, exist_ok=True)
     (methodology_dir / "index.html").write_text(build_methodology_page(records, real_today), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/methodology/index.html")
+
+    changelog_dir = SITE_DIR / "changelog"
+    changelog_dir.mkdir(parents=True, exist_ok=True)
+    (changelog_dir / "index.html").write_text(build_changelog_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/changelog/index.html")
 
     rule_changes_dir = SITE_DIR / "rule-changes"
     rule_changes_dir.mkdir(parents=True, exist_ok=True)

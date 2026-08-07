@@ -1,0 +1,37 @@
+{
+  "schema_note": "Roadmap #49 (2026-08-07): a curated public changelog of material corrections and updates to this site's data -- hand-maintained (not auto-generated from commit history), since raw internal commit messages reference internal tooling/finding codes never meant for public copy. Each entry here is a genuine, dated, already-verified change, rewritten in plain language. Newest first.",
+  "entries": [
+    {
+      "date": "2026-08-06",
+      "summary": "Missouri: replaced a dead CPE source link with the current one."
+    },
+    {
+      "date": "2026-08-04",
+      "summary": "Kentucky: corrected a renewal deadline that had already elapsed in our data."
+    },
+    {
+      "date": "2026-08-04",
+      "summary": "Virginia and Minnesota: corrected citation links that pointed at the wrong specific rule."
+    },
+    {
+      "date": "2026-08-03",
+      "summary": "District of Columbia: corrected which credential types a citation actually covers."
+    },
+    {
+      "date": "2026-08-03",
+      "summary": "Idaho: corrected the scope of the firm registration deadline."
+    },
+    {
+      "date": "2026-08-02",
+      "summary": "Kentucky and South Dakota: corrected renewal cycle dates and updated citations to the codified sources."
+    },
+    {
+      "date": "2026-07-30",
+      "summary": "Refreshed CPA license renewal data across all 55 U.S. jurisdictions."
+    },
+    {
+      "date": "2026-07-25",
+      "summary": "Extended the license-reinstatement cost and catch-up CPE calculator to cover all 51 states plus DC."
+    }
+  ]
+}

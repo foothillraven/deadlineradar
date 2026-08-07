@@ -175,6 +175,12 @@
   .trust-line strong::before { content: "✓ "; color: var(--gold); }
   
   .rc-section-note { color: var(--muted); font-size: 0.88rem; margin: 0.2rem 0 0.9rem; }
+  
+  .cl-list { list-style: none; margin: 1.2rem 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+  .cl-list li { padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
+  .cl-list li:last-child { border-bottom: none; }
+  .cl-date { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.15rem; }
+  .cl-summary { display: block; }
   .rc-card {
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 10px;
     padding: 1rem 1.2rem; margin: 0 0 1rem;
@@ -1406,7 +1412,8 @@ taken effect yet, we wait for it to become the actual current rule before citing
 the "read the rule" link go to the primary legal text, not a summary. That's the same standard behind
 every date on this site.</p>
 
-<p class="backlink"><a href="/contact/">Found something that looks wrong? Tell us &rarr;</a></p>
+<p class="backlink"><a href="/changelog/">See exactly what's changed and when &rarr;</a> &middot;
+<a href="/contact/">Found something that looks wrong? Tell us &rarr;</a></p>
 
 </div>
 <footer class="site-footer">

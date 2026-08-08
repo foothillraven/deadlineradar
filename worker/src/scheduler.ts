@@ -36,8 +36,17 @@ import type { Env } from "./env";
 import type { BuiltEmail } from "./emails";
 import * as store from "./store";
 import { StaleDataError, checkDataFreshness, computeSubscriberDeadline, stateNameForSlug } from "./deadline";
-import { buildReminderEmail, fmtDate, SNOOZE_DAYS } from "./emails";
-import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, sendViaSendGrid } from "./sender";
+import {
+  buildReminderEmail,
+  fmtDate,
+  SNOOZE_DAYS,
+  buildDripCourseStep1Email,
+  buildDripCourseStep2Email,
+  buildDripCourseStep3Email,
+  buildDripCourseStep4Email,
+} from "./emails";
+import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, DEFAULT_DAILY_DRIP_COURSE_SEND_CAP, checkAndCountDripCourseSend, sendViaSendGrid } from "./sender";
+import cpaDataForDripCourse from "./cpa_deadlines.json";
 
 // scheduler.py: store.ESCALATION_THRESHOLDS_DAYS.
 export const ESCALATION_THRESHOLDS_DAYS = [1, 3, 7, 14, 30, 60];
@@ -365,6 +374,172 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
         await store.unclaimReminderThreshold(env.DB, sub.id, threshold).catch(() => {});
       }
       summary.errors.push({ subscriber_id: sub.id, error: `unexpected error: ${String(err)}` });
+    }
+  }
+
+  return summary;
+}
+
+// ---------------------------------------------------------------------------
+// Drip course (2026-08-08, roadmap #34). Same daily-cron trigger, own
+// independent pass -- see index.ts's scheduled(). Anchored on
+// drip_course_enrollments.started_at (days SINCE enrollment), the opposite
+// orientation from the reminder pass above (days UNTIL a deadline) -- see
+// nextDueDripStep()'s own comment for how the never-regress rule inverts.
+// ---------------------------------------------------------------------------
+
+export const DRIP_COURSE_STEP_DAYS = [0, 7, 14, 21];
+export const DRIP_COURSE_ENROLL_BATCH_SIZE = 50;
+
+interface DripCourseCpaRecord {
+  state_slug: string;
+  cycle_description?: string;
+}
+const DRIP_COURSE_CPA_RECORDS = (cpaDataForDripCourse as unknown as { records: DripCourseCpaRecord[] }).records;
+
+const DRIP_COURSE_CYCLE_FACT_MAX_LEN = 220;
+const DRIP_COURSE_GENERIC_CYCLE_FACT =
+  "renewal cycles vary by state (fixed calendar date, birth-month, or a multi-year cohort), so it's " +
+  "worth confirming which pattern applies to you specifically, not assuming it matches a neighboring state.";
+
+/** A short excerpt of the subscriber's own state's real renewal mechanic,
+ * sourced from the SAME cpa_deadlines.json field the public state pages
+ * render -- never a fact invented for this email. Falls back to a
+ * deliberately generic (never wrong) sentence when no record matches or the
+ * description is empty, rather than fabricating a per-state claim. */
+export function dripCourseCycleFact(stateSlug: string | null): string {
+  if (!stateSlug) return DRIP_COURSE_GENERIC_CYCLE_FACT;
+  const record = DRIP_COURSE_CPA_RECORDS.find((r) => r.state_slug === stateSlug && r.cycle_description);
+  const desc = record?.cycle_description?.trim();
+  if (!desc) return DRIP_COURSE_GENERIC_CYCLE_FACT;
+  if (desc.length <= DRIP_COURSE_CYCLE_FACT_MAX_LEN) return desc;
+  // Cut at the last sentence boundary within the cap, never mid-sentence --
+  // a truncated legal citation is worse than a shorter, complete sentence.
+  const truncated = desc.slice(0, DRIP_COURSE_CYCLE_FACT_MAX_LEN);
+  const lastPeriod = truncated.lastIndexOf(". ");
+  return lastPeriod > 40 ? truncated.slice(0, lastPeriod + 1) : truncated.trimEnd() + "...";
+}
+
+/**
+ * Finds the nearest due-and-unsent step, never regressing to an EARLIER
+ * step than the most recent one already sent. Inverted from
+ * nextDueThreshold() above: there, smaller = more urgent and time counts
+ * DOWN toward a deadline; here, larger = later-in-the-series and time
+ * counts UP from enrollment, so "never regress" means never re-sending a
+ * numerically smaller step after a larger one has already gone out.
+ */
+export function nextDueDripStep(daysSinceStart: number, alreadySent: number[], steps: number[] = DRIP_COURSE_STEP_DAYS): number | null {
+  const mostRecentSent = alreadySent.length > 0 ? Math.max(...alreadySent) : -1;
+  for (const step of [...steps].sort((a, b) => a - b)) {
+    if (alreadySent.includes(step)) continue;
+    if (step <= mostRecentSent) continue;
+    if (daysSinceStart >= step) return step;
+  }
+  return null;
+}
+
+export interface DripCourseSummary {
+  enrolled: number;
+  checked: number;
+  sent: number;
+  errors: { enrollment_id: string; error: string }[];
+}
+
+function dailyDripCourseSendCap(env: Env): number {
+  const n = Number.parseInt(env.DRIP_COURSE_DAILY_SEND_CAP ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_DRIP_COURSE_SEND_CAP;
+}
+
+export async function runDripCoursePass(env: Env, opts: RunReminderOptions = {}): Promise<DripCourseSummary> {
+  const asOf = opts.asOf ?? new Date();
+  const asOfDay = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate()));
+
+  const send: ReminderSendFn =
+    opts.send ??
+    ((to, built) => {
+      if (!env.SENDGRID_API_KEY) return Promise.resolve(false);
+      return sendViaSendGrid(env.SENDGRID_API_KEY, to, built, env.EMAIL_ALLOWLIST);
+    });
+
+  const summary: DripCourseSummary = { enrolled: 0, checked: 0, sent: 0, errors: [] };
+
+  // Phase 1: enroll newly-eligible leads. Bounded per pass so a large
+  // backlog on first deploy doesn't try to enroll everyone in one burst.
+  const eligible = await store.findEligibleDripCourseLeads(env.DB, DRIP_COURSE_ENROLL_BATCH_SIZE);
+  for (const lead of eligible) {
+    await store.enrollDripCourseLead(env.DB, lead);
+    summary.enrolled += 1;
+  }
+
+  const cap = dailyDripCourseSendCap(env);
+  const actionBase = actionBaseUrl(env);
+  const enrollments = await store.listActiveDripCourseEnrollments(env.DB);
+
+  for (const enr of enrollments) {
+    summary.checked += 1;
+    // Normalized to its own UTC midnight, same as asOfDay -- started_at
+    // carries a real time-of-day (whenever the cron happened to enroll
+    // them), and subtracting that against asOfDay's midnight would
+    // otherwise floor to -1 for the entire rest of enrollment day (any
+    // enrollment after 00:00 UTC looks like it happened "tomorrow" relative
+    // to today's midnight until normalized the same way).
+    const startedAtRaw = new Date(enr.started_at);
+    const startedAtDay = new Date(Date.UTC(startedAtRaw.getUTCFullYear(), startedAtRaw.getUTCMonth(), startedAtRaw.getUTCDate()));
+    const daysSinceStart = Math.floor((asOfDay.getTime() - startedAtDay.getTime()) / MS_PER_DAY);
+    let alreadySent: number[];
+    try {
+      alreadySent = JSON.parse(enr.steps_sent || "[]");
+    } catch {
+      alreadySent = [];
+    }
+    const step = nextDueDripStep(daysSinceStart, alreadySent);
+    if (step === null) continue;
+
+    let claimedStep = false;
+    try {
+      const unsubscribeUrl = `${actionBase}/drip-course/unsubscribe?token=${encodeURIComponent(enr.unsubscribe_token)}`;
+      const stateName = (enr.state_slug ? stateNameForSlug(enr.state_slug) : null) ?? "your state";
+      let built: BuiltEmail;
+      switch (step) {
+        case 0:
+          built = buildDripCourseStep1Email(enr.first_name, stateName, dripCourseCycleFact(enr.state_slug), unsubscribeUrl);
+          break;
+        case 7:
+          built = buildDripCourseStep2Email(enr.first_name, stateName, unsubscribeUrl);
+          break;
+        case 14:
+          built = buildDripCourseStep3Email(enr.first_name, stateName, unsubscribeUrl);
+          break;
+        case 21:
+          built = buildDripCourseStep4Email(enr.first_name, unsubscribeUrl);
+          break;
+        default:
+          continue;
+      }
+
+      const claimed = await store.claimDripCourseStep(env.DB, enr.id, enr.steps_sent || "[]", step);
+      if (!claimed) continue;
+      claimedStep = true;
+
+      const underCap = await checkAndCountDripCourseSend(env.DB, cap);
+      if (!underCap) {
+        await store.unclaimDripCourseStep(env.DB, enr.id, step);
+        summary.errors.push({ enrollment_id: enr.id, error: "daily send cap reached -- halting further sends today." });
+        break;
+      }
+
+      const ok = await send(enr.email, built);
+      if (ok) {
+        summary.sent += 1;
+      } else {
+        await store.unclaimDripCourseStep(env.DB, enr.id, step);
+        summary.errors.push({ enrollment_id: enr.id, error: "send returned false" });
+      }
+    } catch (err) {
+      if (claimedStep) {
+        await store.unclaimDripCourseStep(env.DB, enr.id, step).catch(() => {});
+      }
+      summary.errors.push({ enrollment_id: enr.id, error: `unexpected error: ${String(err)}` });
     }
   }
 

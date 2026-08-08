@@ -1560,6 +1560,226 @@ export function buildFeatureIdeaNotifyConfirmEmail(ideaTitle: string, confirmUrl
   return { subject, textBody, htmlBody, headers: {} };
 }
 
+// ---------------------------------------------------------------------------
+// Drip course (2026-08-08, roadmap #34). Four emails, days 0/7/14/21 after
+// enrollment, to confirmed free-tier subscribers who haven't converted to a
+// paying firm account. NOT the reminder footer above -- that copy promises
+// "no marketing, ever," which this series would directly contradict. Uses
+// the same minimal-footer shape buildStaffCpeReminderEmail()/
+// buildFeatureIdeaShippedEmail() already use, plus one honest sentence
+// naming this as a one-time series distinct from the recipient's actual
+// deadline reminders.
+// ---------------------------------------------------------------------------
+
+function dripCourseHtmlFooter(unsubscribeUrl: string, addr: string): string {
+  return (
+    `<p class="dr-muted" style="font-size:12px;color:${LIGHT.muted};line-height:1.6;margin:0 0 10px;">` +
+    `You're getting this because you confirmed a free ${esc(SITE_NAME)} reminder signup. This is a ` +
+    `one-time, four-email series -- not a recurring newsletter -- and your actual renewal-deadline ` +
+    `reminders are unaffected either way.` +
+    `</p>` +
+    `<p style="font-size:13px;margin:0 0 10px;">${textLink(unsubscribeUrl, "Unsubscribe from this series")}</p>` +
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+    `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+}
+
+function dripCourseTextFooter(unsubscribeUrl: string, addr: string): string {
+  return (
+    `\n\n---\n` +
+    `You're getting this because you confirmed a free ${SITE_NAME} reminder signup. This is a ` +
+    `one-time, four-email series -- not a recurring newsletter -- and your actual renewal-deadline ` +
+    `reminders are unaffected either way.\n\n` +
+    `Unsubscribe from this series any time: ${unsubscribeUrl}\n\n` +
+    `${SENDER_LINE}\n${addr}`
+  );
+}
+
+/**
+ * Step 1 (day 0, sent immediately on enrollment). `cycleFact` is a short,
+ * ALREADY-VERIFIED excerpt of the subscriber's own state's real renewal
+ * mechanic -- the caller (scheduler.ts) sources this from the same
+ * `cpa_deadlines.json` field the public state pages render, never a fact
+ * invented here. Steps 2/3 below deliberately do NOT attempt the same
+ * per-state depth for CPE/reinstatement specifics -- those numbers change
+ * per state and would need the same citation-verification bar as the
+ * public site pages carry; scoped down to generic, state-NAMED (not
+ * state-SPECIFIC-numbers) guidance instead, so nothing here can go stale
+ * or wrong the way an unverified specific claim could.
+ */
+export function buildDripCourseStep1Email(firstName: string | null, stateName: string, cycleFact: string, unsubscribeUrl: string): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `The real answer to "when does my CPA license renew?"`;
+
+  const textBody =
+    `${textGreeting(firstName)}\n\n` +
+    `You confirmed a ${SITE_NAME} reminder a little while back, so we know you're already tracking ` +
+    `your own renewal date. Over the next few weeks we'll send a short series -- no fluff, just the ` +
+    `things that actually trip CPAs up on renewals. This is a one-time series, not a recurring ` +
+    `newsletter.\n\n` +
+    `First up: most people assume their renewal date is set by when they got their license. In ` +
+    `${stateName}, that's not quite the whole picture -- ${cycleFact}\n\n` +
+    `Knowing which pattern your state uses is the difference between "I'll get to it" and actually ` +
+    `knowing your real deadline.\n\n` +
+    `Next email in about a week: the CPE mistake that catches even careful CPAs off guard.` +
+    dripCourseTextFooter(unsubscribeUrl, addr);
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `What actually decides your renewal date</h1>` +
+      p(htmlGreeting(firstName)) +
+      p(
+        `You confirmed a ${esc(SITE_NAME)} reminder a little while back, so we know you're already ` +
+          `tracking your own renewal date. Over the next few weeks we'll send a short series -- no ` +
+          `fluff, just the things that actually trip CPAs up on renewals. This is a one-time series, ` +
+          `not a recurring newsletter.`
+      ) +
+      p(
+        `First up: most people assume their renewal date is set by when they got their license. In ` +
+          `${esc(stateName)}, that's not quite the whole picture -- ${esc(cycleFact)}`
+      ) +
+      p(
+        `Knowing which pattern your state uses is the difference between "I'll get to it" and ` +
+          `actually knowing your real deadline.`,
+        13,
+        LIGHT.muted
+      ) +
+      p("Next email in about a week: the CPE mistake that catches even careful CPAs off guard.", 13, LIGHT.muted),
+    dripCourseHtmlFooter(unsubscribeUrl, addr)
+  );
+
+  return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
+}
+
+export function buildDripCourseStep2Email(firstName: string | null, stateName: string, unsubscribeUrl: string): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `The CPE rule most CPAs get wrong`;
+
+  const textBody =
+    `${textGreeting(firstName)}\n\n` +
+    `Quick one this week. The most common CPE mistake isn't missing hours overall -- it's missing ` +
+    `the ethics-specific minimum inside that total, or hitting an annual floor too late in the cycle ` +
+    `to fix it. Most boards, ${stateName}'s included, treat those as separate requirements, not one ` +
+    `combined number.\n\n` +
+    `If you're not sure where you stand, most boards let you check your own CPE history online -- ` +
+    `worth five minutes now rather than a scramble near the deadline.\n\n` +
+    `Last email in the series is next week: what actually happens if a deadline slips past you.` +
+    dripCourseTextFooter(unsubscribeUrl, addr);
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `The CPE mistake that catches people off guard</h1>` +
+      p(htmlGreeting(firstName)) +
+      p(
+        `Quick one this week. The most common CPE mistake isn't missing hours overall -- it's ` +
+          `missing the ethics-specific minimum inside that total, or hitting an annual floor too ` +
+          `late in the cycle to fix it. Most boards, ${esc(stateName)}'s included, treat those as ` +
+          `separate requirements, not one combined number.`
+      ) +
+      p(
+        `If you're not sure where you stand, most boards let you check your own CPE history online ` +
+          `-- worth five minutes now rather than a scramble near the deadline.`,
+        13,
+        LIGHT.muted
+      ) +
+      p("Last email in the series is next week: what actually happens if a deadline slips past you.", 13, LIGHT.muted),
+    dripCourseHtmlFooter(unsubscribeUrl, addr)
+  );
+
+  return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
+}
+
+export function buildDripCourseStep3Email(firstName: string | null, stateName: string, unsubscribeUrl: string): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `What actually happens if your license lapses`;
+
+  const textBody =
+    `${textGreeting(firstName)}\n\n` +
+    `Not trying to alarm you -- you're already ahead of this by tracking your deadline. But it's ` +
+    `worth knowing what "late" actually means in ${stateName}, because it's rarely instant and ` +
+    `rarely simple: a lapsed license doesn't disappear, but reinstatement typically means a formal ` +
+    `application, a fee, and proof of current CPE -- time you don't get back, for a deadline that ` +
+    `was knowable months in advance.\n\n` +
+    `That's exactly the gap ${SITE_NAME} exists to close, and you're already covered for your own ` +
+    `license. One more email after this -- then the series is done and you're back to just your ` +
+    `regular reminders.` +
+    dripCourseTextFooter(unsubscribeUrl, addr);
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `What happens if you miss it</h1>` +
+      p(htmlGreeting(firstName)) +
+      p(
+        `Not trying to alarm you -- you're already ahead of this by tracking your deadline. But ` +
+          `it's worth knowing what "late" actually means in ${esc(stateName)}, because it's rarely ` +
+          `instant and rarely simple: a lapsed license doesn't disappear, but reinstatement ` +
+          `typically means a formal application, a fee, and proof of current CPE -- time you don't ` +
+          `get back, for a deadline that was knowable months in advance.`
+      ) +
+      p(
+        `That's exactly the gap ${esc(SITE_NAME)} exists to close, and you're already covered for ` +
+          `your own license. One more email after this -- then the series is done and you're back ` +
+          `to just your regular reminders.`,
+        13,
+        LIGHT.muted
+      ),
+    dripCourseHtmlFooter(unsubscribeUrl, addr)
+  );
+
+  return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
+}
+
+/** Step 4 (day 21, final) -- the one soft CTA in the series, and only ever
+ * toward a firm account: the $39/mo individual paid tier
+ * (`individual_accounts`, migration 0018) is schema-only and has no live
+ * route anywhere in this Worker, so "nudge toward upgrading" can only mean
+ * firm conversion today. Framed as conditional ("if that's you") rather
+ * than assumed, since most recipients are not firm admins. */
+export function buildDripCourseStep4Email(firstName: string | null, unsubscribeUrl: string): BuiltEmail {
+  const addr = mailingAddress();
+  const forFirmsUrl = `${SITE_URL}/for-firms/`;
+  const subject = `Last one -- and a question, if it applies to you`;
+
+  const textBody =
+    `${textGreeting(firstName)}\n\n` +
+    `That's the series -- thanks for reading. Quick last thing, only relevant if it applies: if ` +
+    `you're part of a firm that tracks renewal dates for more than just yourself (a few staff, a ` +
+    `whole roster), ${SITE_NAME} has a firm plan built for exactly that -- one dashboard instead of ` +
+    `everyone tracking their own date separately. If that's not you, no action needed, and no hard ` +
+    `feelings either way.\n\n` +
+    `${forFirmsUrl}\n\n` +
+    `This is the last email in this series. You'll keep getting your normal deadline reminders ` +
+    `exactly as before -- this doesn't change or repeat.` +
+    dripCourseTextFooter(unsubscribeUrl, addr);
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `Last one -- and a question, if it applies to you</h1>` +
+      p(htmlGreeting(firstName)) +
+      p(
+        `That's the series -- thanks for reading. Quick last thing, only relevant if it applies: ` +
+          `if you're part of a firm that tracks renewal dates for more than just yourself (a few ` +
+          `staff, a whole roster), ${esc(SITE_NAME)} has a firm plan built for exactly that -- one ` +
+          `dashboard instead of everyone tracking their own date separately. If that's not you, no ` +
+          `action needed, and no hard feelings either way.`
+      ) +
+      `<p style="margin:0 0 20px;">${button(forFirmsUrl, "See the firm plan")}</p>` +
+      p(
+        `This is the last email in this series. You'll keep getting your normal deadline reminders ` +
+          `exactly as before -- this doesn't change or repeat.`,
+        13,
+        LIGHT.muted
+      ),
+    dripCourseHtmlFooter(unsubscribeUrl, addr)
+  );
+
+  return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
+}
+
 /**
  * Task #19 (2026-08-06): sent once, when an operator marks a roadmap idea
  * shipped (no automatic detection -- see index.ts's handleRoadmapMarkShipped

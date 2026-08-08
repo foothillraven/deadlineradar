@@ -787,6 +787,151 @@ export async function allConfirmedActive(db: D1Database): Promise<SubscriberRow[
   return results;
 }
 
+// ---------------------------------------------------------------------------
+// Drip course (2026-08-08, roadmap #34, migration 0049). A free renewal-
+// reminder email course for confirmed free-tier subscribers who haven't
+// converted to a paying firm account. Identity here is the EMAIL, not a
+// `subscribers` row -- same reasoning individual_accounts/firm_leads already
+// established for cross-cutting per-person concepts (one person can have
+// several `subscribers` rows, one per state/license tracked).
+// ---------------------------------------------------------------------------
+
+export interface DripCourseEnrollmentRow {
+  id: string;
+  email_normalized: string;
+  email: string;
+  first_name: string | null;
+  state_slug: string | null;
+  started_at: string;
+  steps_sent: string;
+  opted_out_at: string | null;
+  unsubscribe_token: string;
+  created_at: string;
+}
+
+export interface DripCourseLead {
+  email: string;
+  first_name: string | null;
+  state_slug: string;
+}
+
+/**
+ * Eligible = confirmed, free-tier (firm_id IS NULL), not already enrolled,
+ * not already running a firm (checked against BOTH firms.admin_email and
+ * firm_members.email -- a person can convert as either), and not
+ * permanently suppressed. `LIMIT` bounds each pass so a large backlog on
+ * first deploy doesn't try to enroll everyone in one burst -- mirrors the
+ * reminder pass's own per-pass bounding.
+ *
+ * `GROUP BY` collapses a person's multiple `subscribers` rows (one per
+ * state/license tracked) to one lead -- state_slug is taken from whichever
+ * row sorts first, which is an arbitrary but harmless choice (the drip
+ * course's own personalization is a nice-to-have, not a correctness-
+ * critical fact).
+ */
+export async function findEligibleDripCourseLeads(db: D1Database, limit: number): Promise<DripCourseLead[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT s.email AS email, s.first_name AS first_name, s.state_slug AS state_slug
+       FROM subscribers s
+       WHERE s.status = ?1
+         AND s.firm_id IS NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM drip_course_enrollments d WHERE d.email_normalized = LOWER(TRIM(s.email))
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM firms f WHERE LOWER(TRIM(f.admin_email)) = LOWER(TRIM(s.email))
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM firm_members m WHERE LOWER(TRIM(m.email)) = LOWER(TRIM(s.email))
+         )
+       GROUP BY LOWER(TRIM(s.email))
+       LIMIT ?2`
+    )
+    .bind(STATUS_CONFIRMED, limit)
+    .all<DripCourseLead>();
+  const leads: DripCourseLead[] = [];
+  for (const r of results) {
+    // isPermanentlySuppressed() isn't expressible as a single SQL predicate
+    // (it compares timestamps across rows) -- checked per-candidate here,
+    // same as every other caller of this function has to.
+    if (!(await isPermanentlySuppressed(db, r.email))) leads.push(r);
+  }
+  return leads;
+}
+
+/** `INSERT ... ON CONFLICT DO NOTHING` -- idempotent, so a caller never has
+ * to pre-check whether a lead is already enrolled (findEligibleDripCourseLeads()
+ * already excludes existing enrollments, but this stays safe under a
+ * concurrent pass too, same belt-and-suspenders posture as elsewhere). */
+export async function enrollDripCourseLead(db: D1Database, lead: DripCourseLead): Promise<void> {
+  const now = nowIso();
+  await db
+    .prepare(
+      `INSERT INTO drip_course_enrollments
+         (id, email_normalized, email, first_name, state_slug, started_at, steps_sent, opted_out_at, unsubscribe_token, created_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, '[]', NULL, ?7, ?6)
+       ON CONFLICT (email_normalized) DO NOTHING`
+    )
+    .bind(newToken(), normalizeEmail(lead.email), lead.email, lead.first_name, lead.state_slug, now, newToken())
+    .run();
+}
+
+export async function listActiveDripCourseEnrollments(db: D1Database): Promise<DripCourseEnrollmentRow[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM drip_course_enrollments WHERE opted_out_at IS NULL")
+    .all<DripCourseEnrollmentRow>();
+  return results;
+}
+
+/** Same optimistic-concurrency shape as claimReminderThreshold(): the
+ * UPDATE only applies if steps_sent still equals the exact JSON string the
+ * caller read earlier in its own pass, so two overlapping passes can't
+ * double-send the same step. */
+export async function claimDripCourseStep(
+  db: D1Database,
+  enrollmentId: string,
+  previousStepsSentJson: string,
+  step: number
+): Promise<boolean> {
+  const sent: number[] = JSON.parse(previousStepsSentJson || "[]");
+  if (sent.includes(step)) return false;
+  const next = JSON.stringify([...sent, step]);
+  const result = await db
+    .prepare("UPDATE drip_course_enrollments SET steps_sent = ?1 WHERE id = ?2 AND steps_sent = ?3")
+    .bind(next, enrollmentId, previousStepsSentJson)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+/** Reverts a claimDripCourseStep() claim after a failed send, mirroring
+ * unclaimReminderThreshold()'s own at-least-once-delivery reasoning. */
+export async function unclaimDripCourseStep(db: D1Database, enrollmentId: string, step: number): Promise<void> {
+  const row = await db
+    .prepare("SELECT steps_sent FROM drip_course_enrollments WHERE id = ?1")
+    .bind(enrollmentId)
+    .first<{ steps_sent: string }>();
+  if (!row) return;
+  const sent: number[] = JSON.parse(row.steps_sent);
+  const next = sent.filter((s) => s !== step);
+  if (next.length !== sent.length) {
+    await db.prepare("UPDATE drip_course_enrollments SET steps_sent = ?1 WHERE id = ?2").bind(JSON.stringify(next), enrollmentId).run();
+  }
+}
+
+/** Idempotent, mirrors store.stop()'s own repeat-visit posture (a scanner
+ * re-hitting the unsubscribe link must not error). */
+export async function stopDripCourseByToken(db: D1Database, token: string): Promise<boolean> {
+  const row = await db
+    .prepare("SELECT id, opted_out_at FROM drip_course_enrollments WHERE unsubscribe_token = ?1")
+    .bind(token)
+    .first<{ id: string; opted_out_at: string | null }>();
+  if (!row) return false;
+  if (row.opted_out_at) return true;
+  await db.prepare("UPDATE drip_course_enrollments SET opted_out_at = ?1 WHERE id = ?2").bind(nowIso(), row.id).run();
+  return true;
+}
+
 /**
  * migration 0007. A firm_leads row -- NOT a subscriber. This table has no
  * confirm/unsubscribe/renewed lifecycle at all: it just records that someone

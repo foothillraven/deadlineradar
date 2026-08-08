@@ -172,7 +172,7 @@ import {
   SNOOZE_DAYS,
 } from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountActionSend, isEmailAllowlisted, sendViaSendGrid } from "./sender";
-import { StaleDataError as SchedulerStaleDataError, runReminderPass } from "./scheduler";
+import { StaleDataError as SchedulerStaleDataError, runReminderPass, runDripCoursePass } from "./scheduler";
 import { isUsFederalHoliday } from "./holidays";
 import {
   MAX_PASSWORD_LEN,
@@ -299,6 +299,14 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
     heading: "Unsubscribe",
     intro: "Click below to stop all reminder emails for this deadline. This is instant and permanent.",
     button: "Unsubscribe me",
+  },
+  // Roadmap #34 (2026-08-08): separate from /unsubscribe above -- this only
+  // stops the drip course series, never a subscriber's actual renewal-
+  // deadline reminders (see store.stopDripCourseByToken()'s own comment).
+  "/drip-course/unsubscribe": {
+    heading: "Unsubscribe from this email series",
+    intro: "Click below to stop the rest of this email series. Your actual renewal-deadline reminders are unaffected either way.",
+    button: "Unsubscribe me from this series",
   },
   "/renewed": {
     heading: "Stop reminders entirely",
@@ -5773,6 +5781,26 @@ async function handleUnsubscribe(env: Env, token: string | null): Promise<Respon
   );
 }
 
+/**
+ * Roadmap #34 (2026-08-08). Deliberately separate from handleUnsubscribe()
+ * above and its own token -- stopping the drip course must never touch a
+ * subscriber's actual renewal-deadline reminders, and vice versa (see
+ * store.stopDripCourseByToken()'s own comment). Idempotent, same repeat-
+ * visit posture as every other action route here.
+ */
+async function handleDripCourseUnsubscribe(env: Env, token: string | null): Promise<Response> {
+  if (!token) return errorPage(400, "Missing unsubscribe link.");
+  const stopped = await store.stopDripCourseByToken(env.DB, token);
+  if (!stopped) return errorPage(404, "That link is invalid.");
+  return htmlResponse(
+    200,
+    htmlPage(
+      "Unsubscribed",
+      "<h1>Done</h1><p>You're unsubscribed from this email series, instantly. Your actual renewal-deadline reminders are unaffected.</p>"
+    )
+  );
+}
+
 async function handleRenewed(env: Env, token: string | null): Promise<Response> {
   if (!token) return errorPage(400, "Missing link.");
   const subscriber = await store.stop(env.DB, token, "renewed");
@@ -6720,6 +6748,8 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
               return await handleConfirm(env, token);
             case "/unsubscribe":
               return await handleUnsubscribe(env, token);
+            case "/drip-course/unsubscribe":
+              return await handleDripCourseUnsubscribe(env, token);
             case "/renewed":
               return await handleRenewed(env, token);
             case "/renewed-next-cycle":
@@ -8516,6 +8546,22 @@ export default {
           } else {
             console.log(`[reminder-cron] error: ${String(err)}`);
           }
+        }
+      })()
+    );
+
+    // Roadmap #34 (2026-08-08): the drip course's own independent pass, same
+    // trigger. Deliberately NOT inside the holiday-skip check above -- that
+    // guard exists for deadline-urgency accuracy (a reminder's day-count
+    // math), which doesn't apply to a fixed days-since-enrollment nurture
+    // sequence; skipping it here would just be unnecessary complexity.
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const summary = await runDripCoursePass(env);
+          console.log(`[drip-course-cron] ${JSON.stringify(summary)}`);
+        } catch (err) {
+          console.log(`[drip-course-cron] error: ${String(err)}`);
         }
       })()
     );

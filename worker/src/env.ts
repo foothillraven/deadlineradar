@@ -17,6 +17,11 @@
  * number) -- the circuit-breaker daily cap; defaults to DEFAULT_DAILY_SEND_CAP
  * in sender.ts when unset.
  *
+ * `DRIP_COURSE_DAILY_SEND_CAP` is an OPTIONAL wrangler var (a plain string
+ * number) -- same shape as REMINDERS_DAILY_SEND_CAP above, but for the drip
+ * course's own independent circuit breaker (sender.ts's
+ * checkAndCountDripCourseSend() / DEFAULT_DAILY_DRIP_COURSE_SEND_CAP).
+ *
  * `EMAIL_ALLOWLIST` is an OPTIONAL wrangler var -- a comma-separated list of
  * exact email addresses (e.g. "owner@example.com,owner+test@example.com").
  * This is a PREVIEW/STAGING-ONLY safety gate: when set, sendViaSendGrid()
@@ -49,6 +54,7 @@ export interface Env {
   TURNSTILE_SECRET_KEY?: string;
   SENDGRID_API_KEY?: string;
   REMINDERS_DAILY_SEND_CAP?: string;
+  DRIP_COURSE_DAILY_SEND_CAP?: string;
   EMAIL_ALLOWLIST?: string;
   ACTION_BASE_URL?: string;
   STATIC_SITE_BASE_URL?: string;

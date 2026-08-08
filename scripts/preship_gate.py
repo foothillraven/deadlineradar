@@ -499,6 +499,7 @@ def check_demo_locked_email_coverage(repo_root: Path) -> list[str]:
         "issueAndSendFirmMemberInviteEmail": "recipient IS admin-suppliable (any address a Partner/Office Manager wants to invite), but handleFirmMemberInvite() 403s the WHOLE request for a demo_locked firm before this is ever called -- same front-door posture as handleFirmPasswordSet/handleFirmChangeEmailRequest/handleFirmAccountDelete above, not a per-send check",
         "issueAndSendSubscriberLoginLink": "free-tier individual magic-link sign-in -- public, anonymous, no firm session exists at all (same category as handleSubscribe); demo_locked is a firm-scoped property and doesn't apply here",
         "handleSubscriberChangeEmailRequest": "roadmap #12 subscriber self-service email change -- subscriber_sessions has no firm_id/demo_locked concept at all (migration 0012's own docstring: an individual principal must never be resolvable to a firm), and both sends go to addresses the subscriber's OWN request supplies for their OWN account, same category as handleFirmChangeEmailRequest's already-demo_locked-gated pattern but for a principal type demo_locked was never defined for",
+        "runDripCoursePass": "roadmap #34 drip course cron -- targets ONLY confirmed free-tier (firm_id IS NULL) subscribers by construction (store.findEligibleDripCourseLeads()'s own query), so recipients have no firm association at all; demo_locked is a firm-scoped property and structurally cannot apply, same category as issueAndSendSubscriberLoginLink/handleSubscriberChangeEmailRequest above",
     }
 
     errors = []
@@ -681,6 +682,7 @@ def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
         "handleUnsubscribe": "consumes a subscriber's own unsubscribe token -- the one-click, no-login unsubscribe promise means this can't require a session, and the token itself is the only credential by design",
         "handleSnooze": "consumes a subscriber's own snooze token (store.snoozeByToken)",
         "handleRearm": "consumes a subscriber's own rearm token (store.renewAndRearmByToken)",
+        "handleDripCourseUnsubscribe": "consumes a drip-course enrollment's own unsubscribe token (store.stopDripCourseByToken) -- same one-click, no-login, token-is-the-credential shape as handleUnsubscribe",
     }
 
     errors = []

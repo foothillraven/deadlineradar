@@ -43,6 +43,12 @@
  * _CLIENT_SECRET in oauth.ts (an unconfigured integration is invisible,
  * not broken: its connect route 404s and its button is not rendered).
  *
+ * `TEAMS_ALERT_DAILY_SEND_CAP` is an OPTIONAL wrangler var (a plain string
+ * number) -- same shape again, for the Microsoft Teams daily-digest cron's
+ * own independent circuit breaker (sender.ts's checkAndCountTeamsAlertSend()
+ * / DEFAULT_DAILY_TEAMS_ALERT_SEND_CAP). No client id/secret needed for
+ * Teams at all -- see teams.ts's own docstring for why (no OAuth flow).
+ *
  * `EMAIL_ALLOWLIST` is an OPTIONAL wrangler var -- a comma-separated list of
  * exact email addresses (e.g. "owner@example.com,owner+test@example.com").
  * This is a PREVIEW/STAGING-ONLY safety gate: when set, sendViaSendGrid()
@@ -81,6 +87,7 @@ export interface Env {
   SLACK_ALERT_DAILY_SEND_CAP?: string;
   SLACK_OAUTH_CLIENT_ID?: string;
   SLACK_OAUTH_CLIENT_SECRET?: string;
+  TEAMS_ALERT_DAILY_SEND_CAP?: string;
   EMAIL_ALLOWLIST?: string;
   ACTION_BASE_URL?: string;
   STATIC_SITE_BASE_URL?: string;

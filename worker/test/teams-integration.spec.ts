@@ -1,0 +1,279 @@
+/**
+ * Roadmap #21 (2026-08-08): Microsoft Teams integration for deadline
+ * alerts. Modeled on slack-integration.spec.ts's own shape, minus the
+ * OAuth-route tests -- there is no OAuth flow here (see teams.ts's own
+ * docstring for why Office 365 Connectors' retirement forced the
+ * paste-a-webhook-URL design instead of Slack's "Add to Slack" button).
+ * Same freshAsOf()-per-test discipline as slack-integration.spec.ts/
+ * digest-mode.spec.ts to avoid cross-test date collisions, since
+ * runTeamsAlertPass() iterates every Teams-connected firm in the table.
+ */
+import { env, SELF } from "cloudflare:test";
+import { describe, expect, it } from "vitest";
+import * as store from "../src/store";
+import { isTeamsWebhookUrl } from "../src/teams";
+
+const BASE = "https://deadline-radar.com";
+const MS_PER_DAY = 86_400_000;
+const REAL_WEBHOOK_URL = "https://contoso.webhook.office.com/webhookb2/abc-123";
+
+async function newFirm(label: string): Promise<{ firmId: string; memberId: string }> {
+  const adminEmail = `${label}-${Date.now()}-${Math.floor(performance.now())}@examplefirm.com`;
+  const { id: firmId, memberId } = await store.createFirm(env.DB, { name: `${label} LLP`, adminEmail });
+  return { firmId, memberId };
+}
+
+async function sessionCookieFor(firmId: string, memberId: string): Promise<string> {
+  const { rawSessionToken } = await store.createSession(env.DB, firmId, memberId);
+  return `dr_firm_session=${rawSessionToken}`;
+}
+
+async function addRosterSubscriber(firmId: string, stateSlug: string, userDeadline: string) {
+  return store.addPending(env.DB, {
+    email: `staff-${Date.now()}-${Math.floor(performance.now())}@example.com`,
+    stateSlug,
+    deadlineFields: {},
+    deadlineSource: store.DEADLINE_SOURCE_USER,
+    userDeadline,
+    firstName: null,
+    firmId,
+    skipConfirmation: true,
+  });
+}
+
+function isoDaysFromUtcMidnight(base: Date, days: number): string {
+  return new Date(base.getTime() + days * MS_PER_DAY).toISOString().slice(0, 10);
+}
+
+const RUN_BASE_MS = Date.now();
+function freshAsOf(saltDays: number): Date {
+  const d = new Date(RUN_BASE_MS + saltDays * MS_PER_DAY);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+describe("isTeamsWebhookUrl", () => {
+  it("accepts a real workflow webhook URL", () => {
+    expect(isTeamsWebhookUrl(REAL_WEBHOOK_URL)).toBe(true);
+    expect(isTeamsWebhookUrl("https://contoso.logic.azure.com/workflows/abc")).toBe(true);
+  });
+
+  it("rejects http:// (non-https)", () => {
+    expect(isTeamsWebhookUrl("http://contoso.webhook.office.com/webhookb2/abc")).toBe(false);
+  });
+
+  it("rejects an arbitrary, non-Microsoft host -- the actual SSRF guard", () => {
+    expect(isTeamsWebhookUrl("https://evil.example.com/webhookb2/abc")).toBe(false);
+    expect(isTeamsWebhookUrl("https://webhook.office.com.evil.example.com/x")).toBe(false);
+  });
+
+  it("rejects a private/internal host", () => {
+    expect(isTeamsWebhookUrl("https://169.254.169.254/latest/meta-data")).toBe(false);
+    expect(isTeamsWebhookUrl("https://localhost/x")).toBe(false);
+    expect(isTeamsWebhookUrl("https://internal-service/x")).toBe(false);
+  });
+
+  it("rejects a malformed URL", () => {
+    expect(isTeamsWebhookUrl("not a url")).toBe(false);
+    expect(isTeamsWebhookUrl("")).toBe(false);
+  });
+});
+
+describe("PATCH /firm/integrations/teams", () => {
+  it("401s with no session", async () => {
+    const resp = await SELF.fetch(`${BASE}/firm/integrations/teams`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ webhook_url: REAL_WEBHOOK_URL }),
+    });
+    expect(resp.status).toBe(401);
+  });
+
+  it("sets a valid webhook URL and reports connected", async () => {
+    const { firmId, memberId } = await newFirm("teamspatch-ok");
+    const resp = await SELF.fetch(`${BASE}/firm/integrations/teams`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.20", Cookie: await sessionCookieFor(firmId, memberId) },
+      body: JSON.stringify({ webhook_url: REAL_WEBHOOK_URL }),
+    });
+    expect(resp.status).toBe(200);
+    const body = (await resp.json()) as { teams_connected: boolean };
+    expect(body.teams_connected).toBe(true);
+
+    const row = await env.DB.prepare(`SELECT teams_webhook_url FROM firms WHERE id = ?1`).bind(firmId).first<{ teams_webhook_url: string | null }>();
+    expect(row?.teams_webhook_url).toBe(REAL_WEBHOOK_URL);
+  });
+
+  it("400s on an invalid/non-Microsoft URL and stores nothing", async () => {
+    const { firmId, memberId } = await newFirm("teamspatch-bad");
+    const resp = await SELF.fetch(`${BASE}/firm/integrations/teams`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.21", Cookie: await sessionCookieFor(firmId, memberId) },
+      body: JSON.stringify({ webhook_url: "https://evil.example.com/x" }),
+    });
+    expect(resp.status).toBe(400);
+    const row = await env.DB.prepare(`SELECT teams_webhook_url FROM firms WHERE id = ?1`).bind(firmId).first<{ teams_webhook_url: string | null }>();
+    expect(row?.teams_webhook_url).toBeNull();
+  });
+
+  it("clears via webhook_url: null", async () => {
+    const { firmId, memberId } = await newFirm("teamspatch-clear");
+    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    const resp = await SELF.fetch(`${BASE}/firm/integrations/teams`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.22", Cookie: await sessionCookieFor(firmId, memberId) },
+      body: JSON.stringify({ webhook_url: null }),
+    });
+    expect(resp.status).toBe(200);
+    const body = (await resp.json()) as { teams_connected: boolean };
+    expect(body.teams_connected).toBe(false);
+    const row = await env.DB.prepare(`SELECT teams_webhook_url FROM firms WHERE id = ?1`).bind(firmId).first<{ teams_webhook_url: string | null }>();
+    expect(row?.teams_webhook_url).toBeNull();
+  });
+});
+
+describe("GET /firm/licenses bootstrap -- teams_connected field", () => {
+  it("reports connected status, never the webhook url itself", async () => {
+    const { firmId, memberId } = await newFirm("teamsboot-ok");
+    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    const resp = await SELF.fetch(`${BASE}/firm/licenses`, {
+      headers: { Cookie: await sessionCookieFor(firmId, memberId) },
+    });
+    const body = (await resp.json()) as Record<string, unknown>;
+    expect(body.teams_connected).toBe(true);
+    expect(JSON.stringify(body)).not.toContain("webhook.office.com");
+  });
+});
+
+describe("runTeamsAlertPass", () => {
+  it("bundles every newly-due item across a firm's roster into ONE message", async () => {
+    const { runTeamsAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(1000);
+    const { firmId } = await newFirm("teamse2e-bundle");
+    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    const due = isoDaysFromUtcMidnight(asOf, 30);
+    await addRosterSubscriber(firmId, "ohio", due);
+    await addRosterSubscriber(firmId, "texas", due);
+
+    const posted: { webhookUrl: string; text: string }[] = [];
+    const summary = await runTeamsAlertPass(env, {
+      asOf,
+      send: async (webhookUrl, text) => {
+        posted.push({ webhookUrl, text });
+        return true;
+      },
+    });
+
+    expect(posted.length).toBe(1);
+    expect(posted[0]!.webhookUrl).toBe(REAL_WEBHOOK_URL);
+    expect(posted[0]!.text).toContain("Ohio");
+    expect(posted[0]!.text).toContain("Texas");
+    expect(posted[0]!.text).toContain("2 renewals");
+    expect(summary.digestsSent).toBe(1);
+    expect(summary.itemsClaimed).toBe(2);
+  });
+
+  it("a firm with no Teams connected is completely untouched", async () => {
+    const { runTeamsAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(2000);
+    const { firmId } = await newFirm("teamse2e-noconnect");
+    await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
+
+    let posts = 0;
+    await runTeamsAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    expect(posts).toBe(0);
+  });
+
+  it("nothing newly due -- no message sent", async () => {
+    const { runTeamsAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(3000);
+    const { firmId } = await newFirm("teamse2e-quiet");
+    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 90));
+
+    let posts = 0;
+    await runTeamsAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    expect(posts).toBe(0);
+  });
+
+  it("dedup: an item already claimed by a concurrent pass is excluded", async () => {
+    const { runTeamsAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(4000);
+    const { firmId } = await newFirm("teamse2e-race");
+    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    const sub = await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
+    const claimed = await store.claimTeamsThresholdNotification(env.DB, sub.id, 30);
+    expect(claimed).toBe(true);
+
+    let posts = 0;
+    const summary = await runTeamsAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    expect(posts).toBe(0);
+    expect(summary.itemsClaimed).toBe(0);
+  });
+
+  it("independent of BOTH email (reminders_sent) and Slack's own dedup table", async () => {
+    const { runTeamsAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(5000);
+    const { firmId } = await newFirm("teamse2e-independent");
+    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    const sub = await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
+    const emailClaimed = await store.claimReminderThreshold(env.DB, sub.id, "[]", 30);
+    expect(emailClaimed).toBe(true);
+    const slackClaimed = await store.claimSlackThresholdNotification(env.DB, sub.id, 30);
+    expect(slackClaimed).toBe(true);
+
+    let posts = 0;
+    await runTeamsAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    expect(posts).toBe(1);
+  });
+
+  it("skips a demo-locked firm without claiming or posting", async () => {
+    const { runTeamsAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(6000);
+    const { firmId } = await newFirm("teamse2e-demo");
+    await env.DB.prepare(`UPDATE firms SET demo_locked = 1 WHERE id = ?1`).bind(firmId).run();
+    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    const sub = await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
+
+    let posts = 0;
+    const summary = await runTeamsAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    expect(posts).toBe(0);
+    expect(summary.digestsSent).toBe(0);
+    const claimedAfter = await store.claimTeamsThresholdNotification(env.DB, sub.id, 30);
+    expect(claimedAfter).toBe(true); // still claimable -- proves the demo-locked pass never claimed it
+  });
+
+  it("respects the firm's own reminder_thresholds override", async () => {
+    const { runTeamsAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(7000);
+    const { firmId } = await newFirm("teamse2e-thresholds");
+    await store.setReminderThresholds(env.DB, firmId, JSON.stringify([1]));
+    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 7));
+
+    let posts = 0;
+    await runTeamsAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    expect(posts).toBe(0);
+  });
+
+  it("the daily send cap halts the pass without erroring, and unclaims what it took", async () => {
+    const { runTeamsAlertPass } = await import("../src/scheduler");
+    const { checkAndCountTeamsAlertSend } = await import("../src/sender");
+    const asOf = freshAsOf(8000);
+    await checkAndCountTeamsAlertSend(env.DB, 1);
+
+    const { firmId } = await newFirm("teamse2e-cap");
+    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    const sub = await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
+
+    let posts = 0;
+    const summary = await runTeamsAlertPass(
+      { ...env, TEAMS_ALERT_DAILY_SEND_CAP: "1" },
+      { asOf, send: async () => { posts += 1; return true; } }
+    );
+    expect(posts).toBe(0);
+    expect(summary.errors.some((e) => e.error.includes("daily send cap"))).toBe(true);
+
+    const claimedAfter = await store.claimTeamsThresholdNotification(env.DB, sub.id, 30);
+    expect(claimedAfter).toBe(true);
+  });
+});

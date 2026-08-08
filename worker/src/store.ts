@@ -1180,6 +1180,12 @@ export interface FirmRow {
   slack_access_token_iv: string | null;
   slack_team_name: string | null;
   slack_channel_name: string | null;
+  // migration 0053 (roadmap #21). NULL = not connected, same posture as
+  // slack_webhook_url -- no access-token/encryption columns needed at all,
+  // since there's no OAuth flow here (see teams.ts's own docstring). Never
+  // serialized to the client -- a Teams webhook URL is as much a bearer
+  // secret as a Slack one, even though this one is firm-admin-supplied.
+  teams_webhook_url: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -4579,6 +4585,73 @@ export async function unclaimSlackThresholdNotification(db: D1Database, subscrib
 export async function listSlackNotifiedThresholds(db: D1Database, subscriberId: string): Promise<number[]> {
   const { results } = await db
     .prepare(`SELECT threshold FROM firm_slack_notified_thresholds WHERE subscriber_id = ?1`)
+    .bind(subscriberId)
+    .all<{ threshold: number }>();
+  return results.map((r) => r.threshold);
+}
+
+// ---------------------------------------------------------------------------
+// Microsoft Teams integration (2026-08-08, roadmap #21). Same shape as the
+// Slack block above, minus anything OAuth-token-related -- see teams.ts's
+// own docstring for why there's nothing to encrypt or revoke here.
+// ---------------------------------------------------------------------------
+
+export interface FirmTeamsConnectedInfo {
+  id: string;
+  name: string;
+  teams_webhook_url: string;
+  reminder_thresholds: string | null;
+  demo_locked: number;
+}
+
+export async function listFirmsWithTeamsConnected(db: D1Database): Promise<FirmTeamsConnectedInfo[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, name, teams_webhook_url, reminder_thresholds, demo_locked
+         FROM firms
+        WHERE teams_webhook_url IS NOT NULL`
+    )
+    .all<FirmTeamsConnectedInfo>();
+  return results;
+}
+
+export async function setFirmTeamsWebhook(db: D1Database, firmId: string, webhookUrl: string): Promise<void> {
+  await db.prepare(`UPDATE firms SET teams_webhook_url = ?1 WHERE id = ?2`).bind(webhookUrl, firmId).run();
+}
+
+export async function clearFirmTeamsWebhook(db: D1Database, firmId: string): Promise<void> {
+  await db.prepare(`UPDATE firms SET teams_webhook_url = NULL WHERE id = ?1`).bind(firmId).run();
+}
+
+/** Same INSERT-with-UNIQUE-conflict dedup shape as claimSlackThresholdNotification()
+ * -- deliberately independent of reminders_sent AND firm_slack_notified_thresholds,
+ * see migration 0053's own docstring. */
+export async function claimTeamsThresholdNotification(db: D1Database, subscriberId: string, threshold: number): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `INSERT INTO firm_teams_notified_thresholds (id, subscriber_id, threshold, notified_at) VALUES (?1, ?2, ?3, ?4)
+       ON CONFLICT (subscriber_id, threshold) DO NOTHING`
+    )
+    .bind(newToken(), subscriberId, threshold, nowIso())
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+/** Reverts a claimTeamsThresholdNotification() claim after a failed send,
+ * same at-least-once-delivery reasoning as unclaimSlackThresholdNotification(). */
+export async function unclaimTeamsThresholdNotification(db: D1Database, subscriberId: string, threshold: number): Promise<void> {
+  await db
+    .prepare(`DELETE FROM firm_teams_notified_thresholds WHERE subscriber_id = ?1 AND threshold = ?2`)
+    .bind(subscriberId, threshold)
+    .run();
+}
+
+/** Same Teams-side equivalent as listSlackNotifiedThresholds() -- used by
+ * runTeamsAlertPass() for its own independent escalation-ordering, never
+ * reminders_sent. */
+export async function listTeamsNotifiedThresholds(db: D1Database, subscriberId: string): Promise<number[]> {
+  const { results } = await db
+    .prepare(`SELECT threshold FROM firm_teams_notified_thresholds WHERE subscriber_id = ?1`)
     .bind(subscriberId)
     .all<{ threshold: number }>();
   return results.map((r) => r.threshold);

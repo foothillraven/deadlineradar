@@ -59,9 +59,12 @@ import {
   checkAndCountDigestSend,
   DEFAULT_DAILY_SLACK_ALERT_SEND_CAP,
   checkAndCountSlackAlertSend,
+  DEFAULT_DAILY_TEAMS_ALERT_SEND_CAP,
+  checkAndCountTeamsAlertSend,
   sendViaSendGrid,
 } from "./sender";
 import { sendToSlack } from "./slack";
+import { sendToTeams } from "./teams";
 import cpaDataForDripCourse from "./cpa_deadlines.json";
 import regChangeEventsData from "./reg_change_events.json";
 
@@ -1108,6 +1111,184 @@ export async function runSlackAlertPass(env: Env, opts: RunSlackAlertOptions = {
     } catch (err) {
       for (const { subscriberId, threshold } of claimed) {
         await store.unclaimSlackThresholdNotification(env.DB, subscriberId, threshold).catch(() => {});
+      }
+      summary.errors.push({ firm_id: firm.id, error: `unexpected error: ${String(err)}` });
+    }
+  }
+
+  return summary;
+}
+
+// ---------------------------------------------------------------------------
+// Microsoft Teams alerts (2026-08-08, roadmap #21). Near-identical
+// structure to runSlackAlertPass() above -- same firm-centric daily digest,
+// same per-row threshold-resolution body reused from runReminderPass(),
+// same "own dedup table, independent of reminders_sent AND
+// firm_slack_notified_thresholds" posture (migration 0053's own docstring).
+// Kept as its own separate function rather than sharing one with the Slack
+// pass, matching this codebase's own established "one function per
+// channel" precedent (drip course/rule-change/digest/Slack are all
+// separate top-level passes, never unified into one generic notification
+// engine). Real differences from runSlackAlertPass(): source table
+// (listFirmsWithTeamsConnected), dedup table (firm_teams_notified_thresholds),
+// send counter (teams_alert_send_counters), and the send function
+// (sendToTeams) -- no OAuth/access-token concern at all, see teams.ts's
+// own docstring for why.
+// ---------------------------------------------------------------------------
+
+export interface TeamsAlertSummary {
+  firmsChecked: number;
+  itemsClaimed: number;
+  digestsSent: number;
+  errors: { firm_id: string; error: string }[];
+}
+
+export interface RunTeamsAlertOptions {
+  asOf?: Date;
+  /** Injected for tests -- defaults to the real Teams webhook POST. Same
+   * plain-message-string shape as RunSlackAlertOptions.send, not
+   * ReminderSendFn. */
+  send?: (webhookUrl: string, text: string) => Promise<boolean>;
+}
+
+function dailyTeamsAlertSendCap(env: Env): number {
+  const n = Number.parseInt(env.TEAMS_ALERT_DAILY_SEND_CAP ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_TEAMS_ALERT_SEND_CAP;
+}
+
+/** Same digest-text shape as buildSlackDigestText() above -- Teams'
+ * confirmed-minimal payload ({"text": "..."}) accepts the identical plain
+ * message, no Adaptive Card envelope required (teams.ts's own docstring). */
+function buildTeamsDigestText(firmName: string, items: SlackDigestItem[]): string {
+  const count = items.length;
+  const header =
+    count === 1
+      ? `DeadlineRadar: 1 renewal newly due for ${firmName}`
+      : `DeadlineRadar: ${count} renewals newly due for ${firmName}`;
+  const lines = items.map((it) => `- ${it.stateName}: due ${daysPhraseForSlack(it.daysRemaining)}`);
+  return `${header}\n${lines.join("\n")}`;
+}
+
+export async function runTeamsAlertPass(env: Env, opts: RunTeamsAlertOptions = {}): Promise<TeamsAlertSummary> {
+  const asOf = opts.asOf ?? new Date();
+  const freshnessToday = opts.asOf ? new Date() : asOf;
+  checkDataFreshness(freshnessToday);
+  const asOfDay = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate()));
+  const todayIso = asOfDay.toISOString().slice(0, 10);
+
+  const send = opts.send ?? sendToTeams;
+  const cap = dailyTeamsAlertSendCap(env);
+
+  const summary: TeamsAlertSummary = { firmsChecked: 0, itemsClaimed: 0, digestsSent: 0, errors: [] };
+
+  const firms = await store.listFirmsWithTeamsConnected(env.DB);
+
+  let capReached = false;
+  for (const firm of firms) {
+    if (capReached) break;
+    summary.firmsChecked += 1;
+
+    if (firm.demo_locked) {
+      summary.errors.push({ firm_id: firm.id, error: "SKIPPED: firm is demo_locked -- no Teams post from the shared demo account." });
+      continue;
+    }
+
+    let thresholds: number[] = ESCALATION_THRESHOLDS_DAYS;
+    if (firm.reminder_thresholds) {
+      try {
+        const parsed = JSON.parse(firm.reminder_thresholds);
+        if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+      } catch {
+        // Same fall-through posture as runReminderPass() above.
+      }
+    }
+
+    const roster = await store.listFirmLicenses(env.DB, firm.id);
+    const items: SlackDigestItem[] = [];
+    const claimed: { subscriberId: string; threshold: number }[] = [];
+
+    try {
+      for (const sub of roster) {
+        if (sub.status !== store.STATUS_CONFIRMED) continue;
+        if (sub.snoozed_until && sub.snoozed_until >= todayIso) continue;
+
+        let deadline: Date | null;
+        let fields: Record<string, string>;
+        try {
+          fields = JSON.parse(sub.deadline_fields || "{}");
+          deadline =
+            sub.deadline_source === store.DEADLINE_SOURCE_USER && sub.user_deadline
+              ? new Date(`${sub.user_deadline}T00:00:00Z`)
+              : computeSubscriberDeadline(sub.state_slug, fields, asOf);
+        } catch (err) {
+          summary.errors.push({ firm_id: firm.id, error: `subscriber ${sub.id}: ${String(err)}` });
+          continue;
+        }
+        if (deadline === null) continue;
+        const stateName = stateNameForSlug(sub.state_slug);
+        if (stateName === null) continue;
+
+        const daysRemaining = Math.round((deadline.getTime() - asOfDay.getTime()) / MS_PER_DAY);
+        // Deliberately NOT sub.reminders_sent -- same independence
+        // reasoning as runSlackAlertPass() above, but from Teams' own
+        // dedup table instead of Slack's.
+        const alreadySent = await store.listTeamsNotifiedThresholds(env.DB, sub.id);
+        const neverNotified = alreadySent.length === 0;
+
+        let effectiveThresholds = thresholds;
+        if (sub.reminder_thresholds) {
+          try {
+            const parsed = JSON.parse(sub.reminder_thresholds);
+            if (Array.isArray(parsed) && parsed.length > 0) effectiveThresholds = parsed;
+          } catch {
+            // Same fall-through posture as above.
+          }
+        }
+
+        let threshold: number | null;
+        if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
+          if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
+            threshold = Math.min(...effectiveThresholds);
+          } else {
+            continue;
+          }
+        } else {
+          threshold = nextDueThreshold(daysRemaining, alreadySent, effectiveThresholds);
+          if (threshold === null) continue;
+        }
+
+        const wasClaimed = await store.claimTeamsThresholdNotification(env.DB, sub.id, threshold);
+        if (!wasClaimed) continue;
+        claimed.push({ subscriberId: sub.id, threshold });
+        summary.itemsClaimed += 1;
+        items.push({ stateName, daysRemaining });
+      }
+
+      if (items.length === 0) continue;
+
+      const underCap = await checkAndCountTeamsAlertSend(env.DB, cap);
+      if (!underCap) {
+        for (const { subscriberId, threshold } of claimed) {
+          await store.unclaimTeamsThresholdNotification(env.DB, subscriberId, threshold);
+        }
+        summary.errors.push({ firm_id: firm.id, error: "daily send cap reached -- halting further sends today." });
+        capReached = true;
+        break;
+      }
+
+      const text = buildTeamsDigestText(firm.name, items);
+      const ok = await send(firm.teams_webhook_url, text);
+      if (ok) {
+        summary.digestsSent += 1;
+      } else {
+        for (const { subscriberId, threshold } of claimed) {
+          await store.unclaimTeamsThresholdNotification(env.DB, subscriberId, threshold);
+        }
+        summary.errors.push({ firm_id: firm.id, error: "send returned false" });
+      }
+    } catch (err) {
+      for (const { subscriberId, threshold } of claimed) {
+        await store.unclaimTeamsThresholdNotification(env.DB, subscriberId, threshold).catch(() => {});
       }
       summary.errors.push({ firm_id: firm.id, error: `unexpected error: ${String(err)}` });
     }

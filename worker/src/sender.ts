@@ -153,6 +153,24 @@ export async function checkAndCountSlackAlertSend(db: D1Database, cap: number): 
   return (result.meta.changes ?? 0) > 0;
 }
 
+/** Roadmap #21 (2026-08-08): a SEVENTH independent daily circuit breaker,
+ * same identical shape as the six above, against its own
+ * `teams_alert_send_counters` table (migration 0053) -- same cron-vs-
+ * request-triggered isolation reasoning as the other cron passes. */
+export const DEFAULT_DAILY_TEAMS_ALERT_SEND_CAP = 100;
+
+export async function checkAndCountTeamsAlertSend(db: D1Database, cap: number): Promise<boolean> {
+  const day = todayUtc();
+  const result = await db
+    .prepare(
+      `INSERT INTO teams_alert_send_counters (day, count) VALUES (?1, 1)
+       ON CONFLICT(day) DO UPDATE SET count = count + 1 WHERE count < ?2`
+    )
+    .bind(day, cap)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
 /**
  * Case-insensitive, trimmed membership check against a comma-separated
  * allowlist string (env.EMAIL_ALLOWLIST). Returns null when `raw` is

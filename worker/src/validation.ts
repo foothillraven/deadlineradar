@@ -606,6 +606,10 @@ export const RATE_LIMIT_FIRM_RULE_CHANGE_ALERTS_SET: RateLimit = { max: 30, wind
 export const RATE_LIMIT_FIRM_SLACK_CONNECT: RateLimit = { max: 30, windowSeconds: 86400 };
 export const RATE_LIMIT_FIRM_SLACK_DISCONNECT: RateLimit = { max: 30, windowSeconds: 86400 };
 
+// PATCH /firm/integrations/teams (roadmap #21, 2026-08-08) -- same modest
+// cap as the settings routes above.
+export const RATE_LIMIT_FIRM_TEAMS_SET: RateLimit = { max: 30, windowSeconds: 86400 };
+
 // Roadmap #23: the ONLY values a firm may pick from -- see migration 0039's
 // own docstring for why this is a subset of the existing 6 escalation
 // points, not arbitrary day-offsets (each has bespoke, reviewed urgency

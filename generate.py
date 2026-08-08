@@ -11728,6 +11728,92 @@ function drRenderSlackIntegration(connected, teamName, channelName) {
   }
 }
 
+// Roadmap #21 (2026-08-08): Microsoft Teams. Unlike Slack, the webhook URL
+// is write-only from the client's perspective -- the backend never sends
+// it back (same "never serialize the secret" posture as Slack's own
+// webhook URL), so this panel toggles between an empty input (not
+// connected) and a plain "Connected" status + Clear button, rather than
+// pre-filling a saved value the way drRenderReplyTo() does for the
+// non-secret reply-to email.
+function drRenderTeamsIntegration(connected) {
+  var connectedEl = document.getElementById('dr-teams-connected');
+  var disconnectedEl = document.getElementById('dr-teams-disconnected');
+  if (!connectedEl || !disconnectedEl) return;
+  connectedEl.hidden = !connected;
+  disconnectedEl.hidden = connected;
+  if (!connected) {
+    var input = document.getElementById('dr-teams-webhook-input');
+    if (input) input.value = '';
+  }
+}
+
+function drSubmitTeamsWebhook(form) {
+  var okEl = document.getElementById('dr-teams-ok');
+  var errEl = document.getElementById('dr-teams-error');
+  if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+
+  var input = document.getElementById('dr-teams-webhook-input');
+  var value = input ? input.value.trim() : '';
+  if (!value) {
+    if (errEl) { errEl.textContent = 'Paste the webhook URL from your Teams workflow first.'; errEl.hidden = false; }
+    return;
+  }
+  var submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
+
+  fetch('/api/firm/integrations/teams', {
+    method: 'PATCH', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({webhook_url: value})
+  }).then(function(res) {
+    if (submitBtn) submitBtn.disabled = false;
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        return;
+      }
+      drRenderTeamsIntegration(true);
+      if (okEl) { okEl.textContent = 'Saved.'; okEl.hidden = false; }
+    });
+  }).catch(function() {
+    if (submitBtn) submitBtn.disabled = false;
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
+function drTeamsClear() {
+  var okEl = document.getElementById('dr-teams-ok');
+  var errEl = document.getElementById('dr-teams-error');
+  if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  var btn = document.getElementById('dr-teams-clear-btn');
+  if (btn) btn.disabled = true;
+
+  fetch('/api/firm/integrations/teams', {
+    method: 'PATCH', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({webhook_url: null})
+  }).then(function(res) {
+    if (btn) btn.disabled = false;
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        return;
+      }
+      drRenderTeamsIntegration(false);
+      if (okEl) { okEl.textContent = 'Cleared.'; okEl.hidden = false; }
+    });
+  }).catch(function() {
+    if (btn) btn.disabled = false;
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
 function drSlackDisconnect() {
   var okEl = document.getElementById('dr-slack-ok');
   var errEl = document.getElementById('dr-slack-error');
@@ -11957,6 +12043,8 @@ function drLoadLicenses() {
       drRenderRuleChangeAlerts(data.rule_change_alerts_enabled);
       // Roadmap #20: same note.
       drRenderSlackIntegration(Boolean(data.slack_connected), data.slack_team_name, data.slack_channel_name);
+      // Roadmap #21: same note.
+      drRenderTeamsIntegration(Boolean(data.teams_connected));
       drRenderTable();
       drRenderStats();
       drRenderRenewalFeeRollup();
@@ -12816,6 +12904,21 @@ document.addEventListener('DOMContentLoaded', function() {
     slackDisconnectBtn.addEventListener('click', function(ev) {
       ev.preventDefault();
       drSlackDisconnect();
+    });
+  }
+
+  var teamsForm = document.getElementById('dr-teams-form');
+  if (teamsForm) {
+    teamsForm.addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      drSubmitTeamsWebhook(teamsForm);
+    });
+  }
+  var teamsClearBtn = document.getElementById('dr-teams-clear-btn');
+  if (teamsClearBtn) {
+    teamsClearBtn.addEventListener('click', function(ev) {
+      ev.preventDefault();
+      drTeamsClear();
     });
   }
 
@@ -14306,6 +14409,27 @@ def build_firm_dashboard_page(
         </div>
         <p id="dr-slack-ok" class="dr-account-ok" hidden></p>
         <p id="dr-slack-error" role="alert" class="dr-account-err" hidden></p>
+      </div>
+
+      <div class="dr-account-panel">
+        <h2>Microsoft Teams alerts</h2>
+        <p class="signup-microcopy">Same daily digest as Slack, posted to a Teams channel instead.
+        Microsoft retired one-click Teams connectors, so this one's manual: in Teams, open the
+        channel, choose <strong>More options (&hellip;) &rarr; Workflows &rarr; "Send webhook alerts
+        to a channel"</strong>, save it, then paste the webhook URL it gives you below.</p>
+        <div id="dr-teams-disconnected">
+          <form id="dr-teams-form">
+            <label for="dr-teams-webhook-input">Teams webhook URL</label>
+            <input type="url" id="dr-teams-webhook-input" placeholder="https://xxxxx.webhook.office.com/...">
+            <button type="submit">Save</button>
+          </form>
+        </div>
+        <div id="dr-teams-connected" hidden>
+          <p>Connected.</p>
+          <button type="button" id="dr-teams-clear-btn" class="dr-btn-secondary">Clear</button>
+        </div>
+        <p id="dr-teams-ok" class="dr-account-ok" hidden></p>
+        <p id="dr-teams-error" role="alert" class="dr-account-err" hidden></p>
       </div>
 
       <div class="dr-account-panel">

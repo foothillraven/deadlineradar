@@ -92,6 +92,7 @@ import {
   RATE_LIMIT_FIRM_RULE_CHANGE_ALERTS_SET,
   RATE_LIMIT_FIRM_SLACK_CONNECT,
   RATE_LIMIT_FIRM_SLACK_DISCONNECT,
+  RATE_LIMIT_FIRM_TEAMS_SET,
   parseReminderThresholds,
   RATE_LIMIT_SUBSCRIBER_CPE_CREATE,
   RATE_LIMIT_SUBSCRIBER_CHANGE_EMAIL,
@@ -183,6 +184,7 @@ import {
   runRuleChangeAlertPass,
   runDigestPass,
   runSlackAlertPass,
+  runTeamsAlertPass,
 } from "./scheduler";
 import { isUsFederalHoliday } from "./holidays";
 import {
@@ -212,6 +214,7 @@ import {
   parseAndValidateIdToken,
 } from "./oauth";
 import { buildSlackAuthorizeUrl, exchangeSlackCode, revokeSlackToken } from "./slack";
+import { isTeamsWebhookUrl } from "./teams";
 import mobilityRulesData from "./mobility_rules.json";
 import {
   MOBILITY_DISCLAIMER,
@@ -4291,6 +4294,9 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     slack_connected: session.firm.slack_webhook_url !== null,
     slack_team_name: session.firm.slack_team_name,
     slack_channel_name: session.firm.slack_channel_name,
+    // Roadmap #21: same "connection status only, never the URL itself"
+    // posture as the Slack fields above.
+    teams_connected: session.firm.teams_webhook_url !== null,
   });
 }
 
@@ -4814,6 +4820,51 @@ async function handleFirmSlackDisconnect(request: Request, env: Env): Promise<Re
 
   await store.clearFirmSlackIntegration(env.DB, session.firmId);
   return jsonResponse(200, { slack_connected: false });
+}
+
+/**
+ * PATCH /firm/integrations/teams -- roadmap #21. Body: { webhook_url: string
+ * | null }. Unlike Slack, there's no OAuth flow -- the firm admin creates a
+ * Workflow inside their own Teams client and pastes the resulting URL here
+ * (see generate.py's panel copy for the exact manual steps). null clears
+ * it, same convention as handleReplyToSet()'s own email field. A value that
+ * fails isTeamsWebhookUrl()'s SSRF-guard allowlist is a 400, never a silent
+ * no-op or a stored-but-unusable value.
+ */
+async function handleFirmTeamsWebhookSet(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_teams_webhook_set", RATE_LIMIT_FIRM_TEAMS_SET);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return jsonResponse(400, { error: "Request too large." });
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  if (body.webhook_url === null) {
+    await store.clearFirmTeamsWebhook(env.DB, session.firmId);
+    return jsonResponse(200, { teams_connected: false });
+  }
+
+  const webhookUrlRaw = typeof body.webhook_url === "string" ? body.webhook_url.trim() : "";
+  if (!isTeamsWebhookUrl(webhookUrlRaw)) {
+    return jsonResponse(400, { error: "That doesn't look like a Teams workflow webhook URL. Please check it and try again." });
+  }
+
+  await store.setFirmTeamsWebhook(env.DB, session.firmId, webhookUrlRaw);
+  return jsonResponse(200, { teams_connected: true });
 }
 
 /**
@@ -6544,6 +6595,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/rule-change-alerts") {
         try {
           return await handleRuleChangeAlertsSet(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/integrations/teams") {
+        try {
+          return await handleFirmTeamsWebhookSet(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -8858,6 +8916,25 @@ export default {
             console.log(`[slack-alert-cron] paused -- stale reference data: ${err.message}`);
           } else {
             console.log(`[slack-alert-cron] error: ${String(err)}`);
+          }
+        }
+      })()
+    );
+
+    // Roadmap #21 (2026-08-08): same independent-pass shape as the Slack
+    // block above, same reasoning for staying outside the SENDGRID_API_KEY
+    // gate below -- Teams alerts post to a firm's own webhook, nothing to
+    // do with email.
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const summary = await runTeamsAlertPass(env);
+          console.log(`[teams-alert-cron] ${JSON.stringify(summary)}`);
+        } catch (err) {
+          if (err instanceof SchedulerStaleDataError) {
+            console.log(`[teams-alert-cron] paused -- stale reference data: ${err.message}`);
+          } else {
+            console.log(`[teams-alert-cron] error: ${String(err)}`);
           }
         }
       })()

@@ -13919,6 +13919,7 @@ def build_firm_dashboard_page(
         <form id="dr-documents-upload-form">
           <label for="dr-documents-kind">Document type</label>
           <select id="dr-documents-kind" required>
+            <option value="">Select&hellip;</option>
             <option value="license">License certificate</option>
             <option value="cpe">CPE completion certificate</option>
           </select>

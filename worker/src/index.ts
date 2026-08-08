@@ -68,6 +68,10 @@ import {
   MAX_DELETION_SURVEY_DETAIL_LEN,
   RATE_LIMIT_FIRM_SIGNOUT_OTHER,
   RATE_LIMIT_FIRM_SESSION_REVOKE,
+  RATE_LIMIT_FIRM_MEMBER_INVITE,
+  RATE_LIMIT_FIRM_MEMBER_ROLE_CHANGE,
+  RATE_LIMIT_FIRM_MEMBER_REMOVE,
+  RATE_LIMIT_FIRM_MEMBER_MAKE_PRIMARY,
   RATE_LIMIT_FIRM_NPS,
   RATE_LIMIT_FIRM_TESTIMONIAL,
   MAX_TESTIMONIAL_LEN,
@@ -137,6 +141,7 @@ import * as store from "./store";
 import {
   buildConfirmationEmail,
   buildFirmLoginEmail,
+  buildFirmMemberInviteEmail,
   buildSubscriberLoginEmail,
   buildStaffCpeReminderEmail,
   buildRuleChangeNotificationEmail,
@@ -1241,6 +1246,25 @@ const SSO_NO_ACCOUNT_MESSAGE =
 const SSO_EMAIL_REASSIGNED_MESSAGE =
   "This sign-in method was connected under a different admin email, which has since changed. Please sign in with the current admin email (or a password/magic link) and reconnect it from the Account tab.";
 
+// AuditLab ROLE-1 (MEDIUM, 2026-08-07): migration 0045 gave every firm more
+// than one signed-in identity, each with its own role -- but
+// firm_oauth_identities has no member_id column (a known, flagged scope
+// limit -- see handleOauthCallback()'s own comment), so createSession()
+// falls back to the firm's PRIMARY member whenever no memberId is passed.
+// A brand-new Google link for a NON-primary member's verified email would
+// silently mint a session attributed to the PRIMARY member (a Partner) --
+// a real privilege-escalation path the moment any endpoint gates on role,
+// which requireFirmRole() now does. Cheapest correct fix until per-member
+// OAuth linking exists: refuse to link/sign-in via SSO for anyone who
+// isn't the firm's primary member. Fails closed, and matches this
+// account's actual pre-0045 behavior exactly (there was only ever one
+// person to resolve to). The already-linked-identity branch above needs no
+// equivalent check: by the time this restriction is in place, every row
+// that can ever exist in firm_oauth_identities was linked by a primary
+// member, so it can never point at anyone else.
+const SSO_NON_PRIMARY_MEMBER_MESSAGE =
+  "Google sign-in is available for your firm's primary contact only right now. Please sign in with a password or emailed link instead.";
+
 // AuditLab SSO-C, 2026-08-03: every SSO error page was a dead end -- the
 // `link` param errorPage() grew in 38baca94 specifically to kill this class
 // of page, but SSO never actually used it. Two destinations cover all of
@@ -1333,6 +1357,52 @@ async function issueAndSendFirmLoginLink(
     // Swallow -- same reasoning as every other best-effort send in this
     // file: the caller's response must never depend on whether this
     // succeeded.
+  }
+}
+
+const ROLE_LABELS: Record<store.FirmMemberRole, string> = {
+  partner: "Partner",
+  office_manager: "Office Manager",
+  staff: "Staff",
+};
+
+/**
+ * migration 0045 (roadmap #11/#13/#14): issues the SAME kind of "login"-
+ * purpose token issueAndSendFirmLoginLink() does, just for a brand-new
+ * member instead of a returning one -- clicking it lands on the ordinary
+ * /firm/login/verify flow, which already handles "this member has never
+ * signed in before" via markFirmMemberJoined(), so no separate accept
+ * endpoint is needed. Only the EMAIL COPY differs (buildFirmMemberInviteEmail
+ * instead of buildFirmLoginEmail), since the recipient has no prior context.
+ *
+ * demo_locked NOT checked here (see check_demo_locked_email_coverage()'s
+ * allowlist entry for this function in preship_gate.py): handleFirmMemberInvite()
+ * below 403s the WHOLE request for a demo_locked firm before this is ever
+ * called, the same front-door posture handleFirmPasswordSet()/
+ * handleFirmChangeEmailRequest()/handleFirmAccountDelete() already use --
+ * an invite creates a real login-capable identity from an admin-suppliable
+ * address, which is exactly the class of self-serve credential path Devin
+ * ruled out entirely for the shared demo account.
+ */
+async function issueAndSendFirmMemberInviteEmail(
+  env: Env,
+  firmId: string,
+  memberId: string,
+  email: string,
+  firmName: string,
+  roleLabel: string,
+  inviterName: string | null
+): Promise<void> {
+  const { rawToken } = await store.createLoginToken(env.DB, firmId, "login", undefined, memberId);
+  if (!env.SENDGRID_API_KEY) return;
+  try {
+    const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+    if (!underCap) return;
+    const loginUrl = `${actionBaseUrl(env)}/firm/login/verify?token=${encodeURIComponent(rawToken)}`;
+    const built = buildFirmMemberInviteEmail(loginUrl, firmName, roleLabel, inviterName);
+    await sendViaSendGrid(env.SENDGRID_API_KEY, email, built, env.EMAIL_ALLOWLIST);
+  } catch {
+    // Swallow -- same reasoning as issueAndSendFirmLoginLink() above.
   }
 }
 
@@ -1952,6 +2022,274 @@ async function requireFirmRole(
     return jsonResponse(403, { error: "You don't have permission to do that." });
   }
   return session;
+}
+
+// ---------------------------------------------------------------------------
+// Firm members (2026-08-07, migration 0045, roadmap #11/#13/#14/#51). See
+// hazy-cooking-codd.md's role table: Partner/Office Manager can invite and
+// manage the team, Staff stays read-only; only a Partner can grant
+// Partner/Office Manager access or touch billing; a firm always keeps at
+// least one active Partner.
+// ---------------------------------------------------------------------------
+
+/** GET /firm/members -- visible to all three roles (same "transparency,
+ * not secrecy" posture as every other read in this dashboard); only the
+ * write actions below are role-gated. */
+async function handleFirmMembersList(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionWithFirm(request, env);
+  if (session instanceof Response) return session;
+  const members = await store.listFirmMembers(env.DB, session.firmId);
+  return jsonResponse(200, {
+    members: members.map((m) => ({
+      id: m.id,
+      email: m.email,
+      name: m.name,
+      role: m.role,
+      invited_at: m.invited_at,
+      joined_at: m.joined_at,
+      is_primary: m.id === session.firm.primary_member_id,
+      is_you: m.id === session.memberId,
+    })),
+  });
+}
+
+/**
+ * POST /firm/members/invite -- body: { email, role, name? }. Partner or
+ * Office Manager only; an Office Manager may only invite Staff (granting
+ * Office Manager/Partner access is Partner-only). Devin's pricing decision
+ * (2026-08-07): a firm on the free plan_tier cannot add a second person at
+ * all -- inviting requires a paid tier first, no separate per-member SKU
+ * once on one. Reuses the ordinary login-token/verify machinery for
+ * acceptance -- see issueAndSendFirmMemberInviteEmail()'s own docstring.
+ */
+async function handleFirmMemberInvite(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  // Devin, 2026-08-07: the free INDIVIDUAL product must never gain a
+  // multi-person capability, and neither may a FREE firm -- adding a
+  // second person requires a paid plan_tier first, matching the existing
+  // "want more? upgrade" pattern rather than a new per-member SKU.
+  if (session.firm.plan_tier === "free") {
+    return jsonResponse(402, {
+      error: "Adding team members requires a paid plan. Upgrade to invite your team.",
+      pay_now_url: "/firm-dashboard/#account",
+    });
+  }
+
+  // Same "no self-serve credential path at all for the shared demo
+  // account" posture as handleFirmPasswordSet()/handleFirmChangeEmailRequest()/
+  // handleFirmAccountDelete() -- an invite creates a real login-capable
+  // identity at an address this session fully controls the choice of.
+  if (session.firm.demo_locked) {
+    return jsonResponse(403, { error: "This is a shared demo account. Inviting team members isn't available for this account." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_member_invite", RATE_LIMIT_FIRM_MEMBER_INVITE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many invites sent today for this firm. Please try again tomorrow." });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return jsonResponse(400, { error: "Request too large." });
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  const emailRaw = typeof body.email === "string" ? body.email : "";
+  const nameRaw = typeof body.name === "string" ? body.name : null;
+  if (hasControlChars(emailRaw) || (nameRaw !== null && hasControlChars(nameRaw))) {
+    return jsonResponse(400, { error: "Invalid characters in submission." });
+  }
+  const email = emailRaw.trim();
+  if (!isValidEmail(email)) {
+    return jsonResponse(400, { error: "That doesn't look like a valid email address." });
+  }
+  if (await store.isEmailBlocklisted(env.DB, email)) {
+    return jsonResponse(400, { error: "That address can't be invited right now." });
+  }
+
+  const roleRaw = typeof body.role === "string" ? body.role : "";
+  if (roleRaw !== "partner" && roleRaw !== "office_manager" && roleRaw !== "staff") {
+    return jsonResponse(400, { error: "Please choose a valid role." });
+  }
+  const role = roleRaw as store.FirmMemberRole;
+
+  // Role-hierarchy: matches the "Invite a new Office Manager or Partner"
+  // row of the permission table this feature shipped with.
+  if (session.role === "office_manager" && role !== "staff") {
+    return jsonResponse(403, { error: "Only a Partner can invite an Office Manager or Partner." });
+  }
+
+  const name = sanitizeFreeText(nameRaw, MAX_ADMIN_NAME_LEN);
+
+  const existing = await store.findFirmMemberByEmail(env.DB, email);
+  if (existing) {
+    return jsonResponse(409, {
+      error:
+        existing.firm_id === session.firmId
+          ? "That person is already on your team."
+          : "That email address is already associated with a different firm account.",
+    });
+  }
+
+  const { id: memberId } = await store.createFirmMember(env.DB, {
+    firmId: session.firmId,
+    email,
+    name,
+    role,
+    invitedByMemberId: session.memberId,
+  });
+
+  const inviter = await store.getFirmMemberById(env.DB, session.memberId);
+  await issueAndSendFirmMemberInviteEmail(env, session.firmId, memberId, email, session.firm.name, ROLE_LABELS[role], inviter?.name ?? null);
+
+  return jsonResponse(201, { id: memberId, email, name, role, joined_at: null });
+}
+
+/**
+ * PATCH /firm/members/:id -- body: { role }. Partner-only: granting or
+ * removing Office Manager/Partner access is reserved for Partners alone
+ * (an Office Manager's power over Staff is limited to REMOVAL below, not
+ * role changes). Refuses to demote a firm's last active Partner.
+ */
+async function handleFirmMemberRoleChange(request: Request, env: Env, memberId: string): Promise<Response> {
+  const session = await requireFirmRole(request, env, "partner");
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_member_role_change", RATE_LIMIT_FIRM_MEMBER_ROLE_CHANGE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
+  const target = await store.getFirmMemberById(env.DB, memberId);
+  if (!target || target.firm_id !== session.firmId) {
+    return jsonResponse(404, { error: "Not found." });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return jsonResponse(400, { error: "Request too large." });
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  const roleRaw = typeof body.role === "string" ? body.role : "";
+  if (roleRaw !== "partner" && roleRaw !== "office_manager" && roleRaw !== "staff") {
+    return jsonResponse(400, { error: "Please choose a valid role." });
+  }
+  const role = roleRaw as store.FirmMemberRole;
+
+  if (target.role === "partner" && role !== "partner") {
+    const activePartners = await store.countActivePartners(env.DB, session.firmId);
+    if (activePartners <= 1) {
+      return jsonResponse(400, { error: "A firm must always have at least one Partner." });
+    }
+  }
+
+  await store.updateFirmMemberRole(env.DB, memberId, role);
+  return jsonResponse(200, { id: memberId, role });
+}
+
+/**
+ * DELETE /firm/members/:id -- Partner may remove anyone except the firm's
+ * last active Partner and except its current primary contact (transfer
+ * primary contact to another Partner first -- #51's make-primary). Office
+ * Manager may remove Staff only. Soft-delete, and ends every session and
+ * outstanding login/invite token the removed member had -- a removed
+ * member must not be able to keep using an already-issued cookie or a
+ * still-live invite link.
+ */
+async function handleFirmMemberRemove(request: Request, env: Env, memberId: string): Promise<Response> {
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_member_remove", RATE_LIMIT_FIRM_MEMBER_REMOVE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
+  const target = await store.getFirmMemberById(env.DB, memberId);
+  if (!target || target.firm_id !== session.firmId) {
+    return jsonResponse(404, { error: "Not found." });
+  }
+
+  if (session.role === "office_manager" && target.role !== "staff") {
+    return jsonResponse(403, { error: "You don't have permission to do that." });
+  }
+
+  if (target.id === session.firm.primary_member_id) {
+    return jsonResponse(400, { error: "Transfer primary contact to another Partner before removing this member." });
+  }
+
+  if (target.role === "partner") {
+    const activePartners = await store.countActivePartners(env.DB, session.firmId);
+    if (activePartners <= 1) {
+      return jsonResponse(400, { error: "A firm must always have at least one Partner." });
+    }
+  }
+
+  await store.removeFirmMember(env.DB, memberId);
+  await store.deleteAllSessionsForMember(env.DB, memberId);
+  await store.invalidateOutstandingLoginTokensForMember(env.DB, memberId);
+
+  return jsonResponse(200, { ok: true });
+}
+
+/**
+ * POST /firm/members/:id/make-primary -- roadmap #51, migration 0045.
+ * Partner-only. Transfers firm-level billing/email correspondence to a
+ * DIFFERENT existing active Partner; the current primary keeps their
+ * Partner role (this only moves the pointer, it never removes anyone --
+ * see store.setPrimaryMember()'s own docstring).
+ */
+async function handleFirmMemberMakePrimary(request: Request, env: Env, memberId: string): Promise<Response> {
+  const session = await requireFirmRole(request, env, "partner");
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_member_make_primary", RATE_LIMIT_FIRM_MEMBER_MAKE_PRIMARY);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
+  const target = await store.getFirmMemberById(env.DB, memberId);
+  if (!target || target.firm_id !== session.firmId) {
+    return jsonResponse(404, { error: "Not found." });
+  }
+  if (target.role !== "partner") {
+    return jsonResponse(400, { error: "Only a Partner can become the firm's primary contact." });
+  }
+  if (target.id === session.firm.primary_member_id) {
+    return jsonResponse(200, { ok: true, primary_member_id: target.id });
+  }
+
+  const applied = await store.setPrimaryMember(env.DB, session.firmId, memberId);
+  if (!applied) {
+    return jsonResponse(404, { error: "Not found." });
+  }
+
+  return jsonResponse(200, { ok: true, primary_member_id: memberId });
 }
 
 /**
@@ -2844,7 +3182,10 @@ async function handleSubscriberCpeEntryCreate(request: Request, env: Env): Promi
  * staffer never got the email is exactly the confusion this avoids.
  */
 async function handleFirmStaffCpeReminder(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // migration 0045 (roadmap #11/#13/#14): Staff stays read-only on roster
+  // actions -- sending a reminder is a write-shaped action even though it
+  // doesn't touch the roster row itself.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -3031,7 +3372,9 @@ const MAX_RULE_CHANGE_SHORT_FIELD_LEN = 200;
  * other outbound mail this file sends.
  */
 async function handleFirmRuleChangeNotify(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // migration 0045 (roadmap #11/#13/#14): same reasoning as
+  // handleFirmStaffCpeReminder() -- Staff stays read-only.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
@@ -3430,6 +3773,13 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     // billing/delete controls up front, rather than letting a demo visitor
     // fill out a form and only find out it's refused on submit.
     demo_locked: Boolean(session.firm.demo_locked),
+    // migration 0045 (roadmap #11/#13/#14/#51): the Team panel needs to
+    // know the CALLER's own role to decide which invite/manage controls to
+    // show -- the backend is the real gate either way (every mutating
+    // /firm/members/* route re-checks this itself), but rendering buttons
+    // a Staff member can't use anyway is just noise, not defense-in-depth.
+    role: session.role,
+    member_id: session.memberId,
     // Task #19 (2026-08-06): drives the one-time post-signup feature-
     // request questionnaire prompt -- true until the firm either submits
     // it or explicitly skips it, never shown again after either.
@@ -3662,7 +4012,9 @@ async function handleProductTourDismiss(request: Request, env: Env): Promise<Res
  * uses (parseStrictIsoDate), so this can't silently store an unparseable
  * string that would break drDaysUntil()/drFormatDeadline() downstream. */
 async function handlePeerReviewSet(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // migration 0045 (roadmap #11/#13/#14): firm-level setting, same tier as
+  // roster mutations -- Staff stays read-only.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
@@ -3705,7 +4057,9 @@ async function handlePeerReviewSet(request: Request, env: Env): Promise<Response
  * DeadlineRadar's own CAN-SPAM footer) -- only the Reply-To header on
  * reminders this firm's staff receive. */
 async function handleReplyToSet(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // migration 0045 (roadmap #11/#13/#14): firm-level setting -- Staff
+  // stays read-only.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
@@ -3745,7 +4099,9 @@ async function handleReplyToSet(request: Request, env: Env): Promise<Response> {
  * receive. Body: { thresholds: number[] | null }. See migration 0039's own
  * docstring for why this is a subset of a fixed set, not arbitrary values. */
 async function handleReminderCadenceSet(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // migration 0045 (roadmap #11/#13/#14): firm-level setting -- Staff
+  // stays read-only, same as handlePeerReviewSet().
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
@@ -3956,7 +4312,9 @@ async function handleFirmCalendarIcs(request: Request, env: Env): Promise<Respon
  * grant silent consent, it grants transparent, easily-declinable consent.
  */
 async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // migration 0045 (roadmap #11/#13/#14): Staff stays read-only on the
+  // roster -- can view coverage, can't add/edit/remove staff.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05, orchestrator abuse-test pass):
@@ -4196,7 +4554,8 @@ function stripHtmlErrorMessage(html: string): string {
  * untouched.
  */
 async function handleFirmLicensePatch(request: Request, env: Env, id: string): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // migration 0045 (roadmap #11/#13/#14): Staff stays read-only.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -4451,7 +4810,8 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
  * reminder cron's allConfirmedActive() only ever reads status='confirmed'
  * rows). */
 async function handleFirmLicenseDelete(request: Request, env: Env, id: string): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // migration 0045 (roadmap #11/#13/#14): Staff stays read-only.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -4503,7 +4863,8 @@ async function handleFirmLicenseDelete(request: Request, env: Env, id: string): 
  * to build two different code paths for the same operation.
  */
 async function handleFirmLicenseRenew(request: Request, env: Env, id: string): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // migration 0045 (roadmap #11/#13/#14): Staff stays read-only.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -4610,7 +4971,8 @@ async function handleCpeEntriesList(request: Request, env: Env): Promise<Respons
  * firm-scoped mutation in this file.
  */
 async function handleCpeEntryCreate(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // migration 0045 (roadmap #11/#13/#14): Staff stays read-only.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -4706,7 +5068,8 @@ async function handleCpeEntryCreate(request: Request, env: Env): Promise<Respons
 /** DELETE /firm/cpe/:id -- soft-delete (see migration 0009's comment for
  * why it's not a real DELETE), firm-scoped. */
 async function handleCpeEntryDelete(request: Request, env: Env, id: string): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // migration 0045 (roadmap #11/#13/#14): Staff stays read-only.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -4772,7 +5135,8 @@ function sanitizeDocumentFilename(raw: string): string {
  * with no D1 row is just unreferenced storage; a D1 row pointing at a
  * missing R2 object would break every future download of it. */
 async function handleDocumentUpload(request: Request, env: Env, subscriberId: string): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // migration 0045 (roadmap #11/#13/#14): Staff stays read-only.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
@@ -4894,7 +5258,8 @@ async function handleDocumentDownload(request: Request, env: Env, id: string): P
  * harmless) rather than the reverse (a "deleted" document whose bytes a
  * still-live r2_key could somehow still be reached through). */
 async function handleDocumentDelete(request: Request, env: Env, id: string): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // migration 0045 (roadmap #11/#13/#14): Staff stays read-only.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
@@ -5264,6 +5629,18 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
     // /firm/sessions/:id -- roadmap #52 (2026-08-07), same up-front parsing pattern.
     const firmSessionIdMatch = /^\/firm\/sessions\/([^/]+)$/.exec(url.pathname);
 
+    // /firm/members/:id/make-primary -- roadmap #51, matched BEFORE
+    // firmMemberIdMatch below (same "renew before :id" disambiguation
+    // firmLicenseRenewMatch/firmLicenseIdMatch already established) so a
+    // POST to this path is never mistaken for a :id route with literal id
+    // "make-primary".
+    const firmMemberMakePrimaryMatch = /^\/firm\/members\/([^/]+)\/make-primary$/.exec(url.pathname);
+
+    // /firm/members/:id -- migration 0045 (roadmap #11/#13/#14/#51), same
+    // up-front parsing pattern. /firm/members/invite is matched separately
+    // below (a literal path, not this dynamic :id form).
+    const firmMemberIdMatch = firmMemberMakePrimaryMatch ? null : /^\/firm\/members\/([^/]+)$/.exec(url.pathname);
+
     // GET on an action path renders a confirmation PAGE only -- it never
     // changes state. Email providers (Gmail, corporate filters) automatically
     // GET the links in a message to scan them; if the action fired on GET, a
@@ -5333,6 +5710,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/sessions") {
         try {
           return await handleFirmSessionsList(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/members") {
+        try {
+          return await handleFirmMembersList(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -5432,6 +5816,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
       }
+      if (firmMemberIdMatch) {
+        try {
+          return await handleFirmMemberRoleChange(request, env, firmMemberIdMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
       return errorPage(404, "Not found.");
     }
 
@@ -5474,6 +5865,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (documentIdMatch) {
         try {
           return await handleDocumentDelete(request, env, documentIdMatch[1] as string);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (firmMemberIdMatch) {
+        try {
+          return await handleFirmMemberRemove(request, env, firmMemberIdMatch[1] as string);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -5571,6 +5969,22 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/account/delete") {
         try {
           return await handleFirmAccountDelete(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/members/invite") {
+        try {
+          return await handleFirmMemberInvite(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (firmMemberMakePrimaryMatch) {
+        try {
+          return await handleFirmMemberMakePrimary(request, env, firmMemberMakePrimaryMatch[1] as string);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -6697,12 +7111,15 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
   // migration 0045: findFirmMemberByEmail(), not findFirmByAdminEmail() --
   // "does an account already exist for this verified email" must find a
   // non-primary member's own address too, not just the firm's primary
-  // contact. KNOWN SCOPE LIMIT (not fixed in this pass): the OAuth link
-  // itself (firm_oauth_identities) still has no member_id column, so the
-  // session this mints below still resolves to the firm's PRIMARY member
-  // via createSession()'s own default, regardless of which member's email
-  // actually matched here. True per-member SSO linking is a real follow-up,
-  // not silently forgotten -- flagged in this pass's own final report.
+  // contact, so the "no account" error below is accurate for them as well.
+  // KNOWN SCOPE LIMIT (not fixed in this pass): the OAuth link itself
+  // (firm_oauth_identities) still has no member_id column. AuditLab ROLE-1
+  // (2026-08-07): that gap meant a non-primary member's Google account
+  // would silently mint a session resolved to the firm's PRIMARY member via
+  // createSession()'s own default -- a real privilege-escalation path once
+  // role-gating went live. Closed below by refusing SSO outright for anyone
+  // who isn't the primary member, until true per-member linking exists
+  // (still a real follow-up, not silently forgotten).
   const memberForEmail = await store.findFirmMemberByEmail(env.DB, claims.email);
   if (!memberForEmail) {
     // Deliberately NOT auto-creating a firm here. Signup runs a domain
@@ -6730,6 +7147,14 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
   // out everyone who had the old one. Blocked outright, not worked around.
   if (firm.demo_locked) {
     return errorPage(400, "Sign-in for this shared demo account works with the demo password only.", ssoContactLink(env));
+  }
+
+  // AuditLab ROLE-1, 2026-08-07: see SSO_NON_PRIMARY_MEMBER_MESSAGE's own
+  // comment. Must fail closed before the identity is ever linked -- the
+  // whole point is that a non-primary member's Google account should never
+  // get as far as minting a firm session at all.
+  if (memberForEmail.id !== firm.primary_member_id) {
+    return errorPage(403, SSO_NON_PRIMARY_MEMBER_MESSAGE, ssoSigninLink(env));
   }
 
   const linked = await store.linkOauthIdentity(env.DB, {
@@ -7105,7 +7530,8 @@ async function handleMobilityCompletionsList(request: Request, env: Env): Promis
  * from what the UI shows.
  */
 async function handleMobilityCompletionCreate(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSession(request, env);
+  // migration 0045 (roadmap #11/#13/#14): Staff stays read-only.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
@@ -7161,7 +7587,8 @@ async function handleMobilityCompletionCreate(request: Request, env: Env): Promi
  * 0016's comment for why it's not a real DELETE), firm-scoped. Lets a firm
  * un-mark something they completed by mistake. */
 async function handleMobilityCompletionDelete(request: Request, env: Env, id: string): Promise<Response> {
-  const session = await requireFirmSession(request, env);
+  // migration 0045 (roadmap #11/#13/#14): Staff stays read-only.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.

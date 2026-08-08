@@ -5441,6 +5441,82 @@ describe("SSO routes", () => {
       fetchSpy.mockRestore();
     }
   });
+
+  // AuditLab ROLE-1 (MEDIUM, 2026-08-07): firm_oauth_identities has no
+  // member_id column, so createSession() would silently default a
+  // NON-primary member's brand-new Google link to the firm's PRIMARY
+  // member -- a real privilege-escalation path now that requireFirmRole()
+  // gates on role. Proves the fix from the real callback route, not just
+  // by reading the code: a Staff member's own verified email must be
+  // refused, and must NOT create a firm_oauth_identities row or a session.
+  it("ROLE-1: refuses SSO for a non-primary member's own verified email (would otherwise mint a Partner-level session)", async () => {
+    const worker = (await import("../src/index")).default;
+    const ownerEmail = `role1-owner-${Date.now()}@examplefirm.com`;
+    const staffEmail = `role1-staff-${Date.now()}@examplefirm.com`;
+    const firm = await store.createFirm(env.DB, { name: "ROLE-1 Firm", adminEmail: ownerEmail });
+    await store.createFirmMember(env.DB, { firmId: firm.id, email: staffEmail, role: "staff" });
+
+    const { rawState, nonce, rawBrowserBinding } = await store.createOauthState(env.DB, "google");
+    const idToken = makeIdToken({
+      iss: "https://accounts.google.com",
+      aud: "test-client-id",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      nonce,
+      sub: `role1-staff-sub-${Date.now()}`,
+      email: staffEmail,
+      email_verified: true,
+    });
+    const fetchSpy = stubTokenEndpoint(idToken);
+    try {
+      const resp = await worker.fetch(
+        new Request(`https://deadline-radar.com/firm/auth/google/callback?code=test-code&state=${rawState}`, {
+          headers: { "cf-connecting-ip": "203.0.113.242", Cookie: `dr_oauth_handshake=${rawBrowserBinding}` },
+        }),
+        { ...env, ...ssoEnv },
+        testExecutionContext()
+      );
+      expect(resp.status).toBe(403);
+      expect(resp.headers.get("Set-Cookie")).toBeNull();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+
+    // No identity was linked, and the staff member has no session -- the
+    // refusal happened before either side effect, not after.
+    const identities = await store.listOauthIdentitiesForFirm(env.DB, firm.id);
+    expect(identities).toHaveLength(0);
+  });
+
+  it("ROLE-1: the firm's PRIMARY member's own verified email still links and signs in normally", async () => {
+    const worker = (await import("../src/index")).default;
+    const ownerEmail = `role1-primary-${Date.now()}@examplefirm.com`;
+    await store.createFirm(env.DB, { name: "ROLE-1 Primary Firm", adminEmail: ownerEmail });
+
+    const { rawState, nonce, rawBrowserBinding } = await store.createOauthState(env.DB, "google");
+    const idToken = makeIdToken({
+      iss: "https://accounts.google.com",
+      aud: "test-client-id",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      nonce,
+      sub: `role1-primary-sub-${Date.now()}`,
+      email: ownerEmail,
+      email_verified: true,
+    });
+    const fetchSpy = stubTokenEndpoint(idToken);
+    try {
+      const resp = await worker.fetch(
+        new Request(`https://deadline-radar.com/firm/auth/google/callback?code=test-code&state=${rawState}`, {
+          headers: { "cf-connecting-ip": "203.0.113.243", Cookie: `dr_oauth_handshake=${rawBrowserBinding}` },
+        }),
+        { ...env, ...ssoEnv },
+        testExecutionContext()
+      );
+      expect(resp.status).toBe(302);
+      expect(resp.headers.get("Set-Cookie")).toContain("dr_firm_session=");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });
 
 describe("GET/DELETE /firm/oauth-identities -- connected accounts", () => {

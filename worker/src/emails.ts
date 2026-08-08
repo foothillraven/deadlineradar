@@ -556,6 +556,66 @@ export function buildFirmLoginEmail(loginUrl: string, isPasswordReset = false, a
 }
 
 /**
+ * migration 0045 (roadmap #11/#13/#14): sent when a Partner/Office Manager
+ * invites a new person into the firm. Distinct from buildFirmLoginEmail()
+ * above -- the recipient here has never had an account, so a bare "sign
+ * in" link with no context would read as confusing or phishy; this names
+ * who invited them, into what firm, and as what role before the same
+ * underlying 15-minute single-use link (the invite IS a login token under
+ * the hood -- see issueAndSendFirmMemberInviteEmail() in index.ts).
+ */
+export function buildFirmMemberInviteEmail(
+  loginUrl: string,
+  firmName: string,
+  roleLabel: string,
+  inviterName: string | null
+): BuiltEmail {
+  const addr = mailingAddress();
+  // Same CRLF defense-in-depth as buildFirmStaffAddedEmail()'s own comment
+  // -- firmName is attacker-influenceable text with no control-char
+  // stripping of its own at this layer.
+  const cleanFirmName = firmName.replace(/[\r\n]+/g, " ");
+  const inviter = inviterName && inviterName.trim().length > 0 ? inviterName.trim() : `Someone at ${cleanFirmName}`;
+  const subject = `${cleanFirmName} invited you to ${SITE_NAME}`;
+
+  const textBody =
+    `Hi there,\n\n` +
+    `${inviter} invited you to join ${cleanFirmName} on ${SITE_NAME} as ${roleLabel}. Click below to ` +
+    `accept and sign in:\n\n` +
+    `${loginUrl}\n\n` +
+    `This link expires in 15 minutes and can only be used once. If it's expired by the time you ` +
+    `click it, ask ${cleanFirmName} to send you a fresh invite.\n\n` +
+    `If you weren't expecting this, you can safely ignore this email -- nobody can sign in to this ` +
+    `account without clicking the link above.\n\n` +
+    `---\n${SENDER_LINE}\n${addr}`;
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `${esc(`Join ${cleanFirmName} on ${SITE_NAME}`)}</h1>` +
+      p(`${esc(inviter)} invited you to join ${esc(cleanFirmName)} on ${SITE_NAME} as ${esc(roleLabel)}.`) +
+      p("Click below to accept and sign in.") +
+      `<p style="margin:0 0 20px;">${button(loginUrl, "Accept invite")}</p>` +
+      p(
+        "This link expires in 15 minutes and can only be used once. If it's expired by the time " +
+          "you click it, ask them to send you a fresh invite.",
+        13,
+        LIGHT.muted
+      ) +
+      p(
+        "If you weren't expecting this, you can safely ignore this email &mdash; nobody can sign in " +
+          "to this account without clicking the link above.",
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
  * Task #29 (2026-08-05), self-serve admin-email change. Sent to the NEW
  * address only -- this email's existence in that inbox IS the proof of
  * control the change relies on, so it deliberately does not go anywhere

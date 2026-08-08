@@ -1216,6 +1216,31 @@ export async function createFirm(db: D1Database, input: CreateFirmInput): Promis
 }
 
 /**
+ * Roadmap #51 (2026-08-07, migration 0045): "transfer firm account" --
+ * moves firm-level billing/email correspondence to a DIFFERENT existing
+ * Partner. The OLD primary keeps their Partner role; this only moves the
+ * pointer, it never removes anyone (removal is handleFirmMemberRemove()'s
+ * own, separate action, which itself refuses to remove a firm's CURRENT
+ * primary contact -- so a transfer is the one way to hand that role off
+ * before an old primary can be removed at all). Mirrors firms.admin_email/
+ * admin_name to the new primary's own values so every existing billing/
+ * Stripe/outbound-email call site that still reads those columns directly
+ * keeps working unchanged. Returns false (not a throw) if memberId isn't
+ * an active member of this firm -- the caller 404s, same "ownership-scoped,
+ * caller decides the status code" convention as deleteSessionByIdForFirm().
+ */
+export async function setPrimaryMember(db: D1Database, firmId: string, newPrimaryMemberId: string): Promise<boolean> {
+  const member = await db
+    .prepare(`SELECT email, name FROM firm_members WHERE id = ?1 AND firm_id = ?2 AND removed_at IS NULL`)
+    .bind(newPrimaryMemberId, firmId)
+    .first<{ email: string; name: string | null }>();
+  if (!member) return false;
+  await db.prepare(`UPDATE firms SET primary_member_id = ?1, admin_name = ?2 WHERE id = ?3`).bind(newPrimaryMemberId, member.name, firmId).run();
+  await updateFirmAdminEmail(db, firmId, member.email);
+  return true;
+}
+
+/**
  * By id (the session-scoped id every firm-scoped route already trusts, via
  * requireFirmSession()) -- used where the firm's own NAME is needed, e.g. the
  * hybrid-consent first-contact email (buildFirmStaffAddedEmail()) naming
@@ -3209,6 +3234,14 @@ export async function deleteOtherSessionsForMember(
  * session worth preserving once the account itself is gone. */
 export async function deleteAllSessionsForFirm(db: D1Database, firmId: string): Promise<number> {
   const result = await db.prepare(`DELETE FROM firm_sessions WHERE firm_id = ?1`).bind(firmId).run();
+  return result.meta.changes ?? 0;
+}
+
+/** migration 0045: member-scoped counterpart to deleteAllSessionsForFirm()
+ * above -- removing ONE member from a firm must end only THEIR sessions,
+ * not every other member's (used by handleFirmMemberRemove()). */
+export async function deleteAllSessionsForMember(db: D1Database, memberId: string): Promise<number> {
+  const result = await db.prepare(`DELETE FROM firm_sessions WHERE member_id = ?1`).bind(memberId).run();
   return result.meta.changes ?? 0;
 }
 

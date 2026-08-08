@@ -7456,6 +7456,15 @@ var DR_PLAN_TIER_LABELS = {
   firm_starter: 'Essentials', firm_growth: 'Professional', firm_standard: 'Enterprise'
 };
 
+// migration 0045 (roadmap #11/#13/#14/#51): the CALLER's own role/member id,
+// same "null until the first real load" posture as drBilling above. Drives
+// which Team panel controls render -- the backend is the real gate either
+// way (every mutating /firm/members/* route re-checks this itself).
+var drRole = null;
+var drMemberId = null;
+var drTeamMembers = [];
+var DR_ROLE_LABELS = { partner: 'Partner', office_manager: 'Office Manager', staff: 'Staff' };
+
 // Task #14 (2026-08-05, reported directly: "why would nothing happen when
 // clicking Mark Renewed" -- the write DID succeed, drShowSuccess() DID run,
 // but this banner lives at the very top of .dr-main while the Roster table
@@ -10467,6 +10476,172 @@ function drRemoveIdentity(id, label) {
     });
 }
 
+// migration 0045 (roadmap #11/#13/#14/#51): the Team panel. Same load/
+// render/action shape as drLoadSessions()/drLoadIdentities() above -- the
+// backend is the real permission gate either way (every mutating
+// /firm/members/* route re-checks drRole server-side), this just avoids
+// rendering controls the signed-in role could not use anyway.
+function drTeamStatusLabel(m) {
+  if (m.joined_at) return "Joined";
+  return "Invited " + drFormatDeadline(String(m.invited_at).slice(0, 10)) + " &middot; pending";
+}
+
+function drRenderTeam(members) {
+  drTeamMembers = members || [];
+  var listEl = document.getElementById('dr-team-list');
+  if (listEl) {
+    if (drTeamMembers.length === 0) {
+      listEl.innerHTML = '<p class="dr-panel-empty">No team members yet.</p>';
+    } else {
+      listEl.innerHTML = drTeamMembers.map(function(m) {
+        var isSelf = m.id === drMemberId;
+        var tags = '';
+        if (m.is_primary) tags += ' &middot; <span class="dr-agenda-date">Primary contact</span>';
+        if (isSelf) tags += ' &middot; <span class="dr-agenda-date">You</span>';
+        var nameLine = drEscapeHtml(m.name || m.email);
+        var subLine = drEscapeHtml(m.email) + ' &middot; ' + (DR_ROLE_LABELS[m.role] || m.role) + ' &middot; ' + drTeamStatusLabel(m) + tags;
+
+        var actions = '';
+        var canManage = drRole === 'partner' || (drRole === 'office_manager' && m.role === 'staff');
+        if (!isSelf && canManage) {
+          if (drRole === 'partner') {
+            actions += '<select class="dr-team-role-select" data-member-id="' + drEscapeHtml(m.id) + '">' +
+              ['partner', 'office_manager', 'staff'].map(function(r) {
+                return '<option value="' + r + '"' + (r === m.role ? ' selected' : '') + '>' + DR_ROLE_LABELS[r] + '</option>';
+              }).join('') + '</select>';
+            if (m.role === 'partner' && !m.is_primary) {
+              actions += '<button type="button" class="dr-cpe-recent-remove" data-make-primary-id="' +
+                drEscapeHtml(m.id) + '" data-member-label="' + nameLine + '">Make primary</button>';
+            }
+          }
+          if (!m.is_primary) {
+            actions += '<button type="button" class="dr-cpe-recent-remove" data-remove-member-id="' +
+              drEscapeHtml(m.id) + '" data-member-label="' + nameLine + '">Remove</button>';
+          }
+        }
+        return '<div class="dr-cpe-recent-item"><span><b>' + nameLine + '</b>' +
+          '<span class="dr-agenda-date" style="display:block;">' + subLine + '</span></span>' + actions + '</div>';
+      }).join('');
+    }
+  }
+
+  var upgradeNotice = document.getElementById('dr-team-upgrade-notice');
+  var inviteForm = document.getElementById('dr-team-invite-form');
+  var isFree = !drBilling || drBilling.planTier === 'free';
+  var canInvite = drRole === 'partner' || drRole === 'office_manager';
+  if (upgradeNotice) upgradeNotice.hidden = !(isFree && canInvite);
+  if (inviteForm) {
+    inviteForm.hidden = !(canInvite && !isFree);
+    if (!inviteForm.hidden) {
+      var roleSelect = document.getElementById('dr-team-invite-role');
+      if (roleSelect) {
+        var opts = drRole === 'partner' ? ['partner', 'office_manager', 'staff'] : ['staff'];
+        roleSelect.innerHTML = opts.map(function(r) {
+          return '<option value="' + r + '">' + DR_ROLE_LABELS[r] + '</option>';
+        }).join('');
+      }
+    }
+  }
+}
+
+function drLoadTeam() {
+  return fetch('/api/firm/members', {credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      if (!res.ok) return null;
+      return res.json();
+    })
+    .then(function(data) { drRenderTeam(data && data.members); })
+    .catch(function() {});
+}
+
+function drSubmitTeamInvite(form) {
+  var okEl = document.getElementById('dr-team-invite-ok');
+  var errEl = document.getElementById('dr-team-invite-error');
+  if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+
+  var fd = new FormData(form);
+  var email = fd.get('email') || '';
+  var body = {email: email, role: fd.get('role') || 'staff'};
+
+  fetch('/api/firm/members/invite', {
+    method: 'POST', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        return;
+      }
+      form.reset();
+      if (okEl) { okEl.textContent = 'Invite sent to ' + email + '.'; okEl.hidden = false; }
+      drLoadTeam();
+    });
+  }).catch(function() {
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
+function drChangeTeamMemberRole(id, role) {
+  var errEl = document.getElementById('dr-team-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  fetch('/api/firm/members/' + encodeURIComponent(id), {
+    method: 'PATCH', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({role: role})
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (res.ok) { drLoadTeam(); return; }
+      var msg = (data && data.error) ? data.error : 'Could not change that role. Please try again.';
+      if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+      drLoadTeam();
+    });
+  }).catch(function() {
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
+function drRemoveTeamMember(id, label) {
+  if (!window.confirm('Remove ' + label + ' from your team? They will be signed out immediately, and any pending invite link stops working.')) return;
+  var errEl = document.getElementById('dr-team-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  fetch('/api/firm/members/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      return drReadJsonSafe(res).then(function(data) {
+        if (res.ok) { drLoadTeam(); return; }
+        var msg = (data && data.error) ? data.error : 'Could not remove that team member. Please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+      });
+    })
+    .catch(function() {
+      if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+    });
+}
+
+function drMakeTeamMemberPrimary(id, label) {
+  if (!window.confirm('Make ' + label + ' the primary contact for this firm? Billing receipts and account-level email go to them instead.')) return;
+  var errEl = document.getElementById('dr-team-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  fetch('/api/firm/members/' + encodeURIComponent(id) + '/make-primary', {method: 'POST', credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      return drReadJsonSafe(res).then(function(data) {
+        if (res.ok) { drLoadTeam(); drLoadLicenses(); return; }
+        var msg = (data && data.error) ? data.error : 'Could not update the primary contact. Please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+      });
+    })
+    .catch(function() {
+      if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+    });
+}
+
 function drSubmitPassword(form) {
   var okEl = document.getElementById('dr-password-ok');
   var errEl = document.getElementById('dr-password-error');
@@ -10991,6 +11166,8 @@ function drLoadLicenses() {
         currentPeriodEnd: data.current_period_end || null,
         demoLocked: Boolean(data.demo_locked)
       };
+      drRole = data.role || 'partner';
+      drMemberId = data.member_id || null;
       drRenderFirmName(data.firm_name);
       drRenderCurrentEmail(data.admin_email);
       drRenderStalenessBanner(data.data_as_of, data.data_stale);
@@ -11047,6 +11224,7 @@ function drLoadLicenses() {
       drLoadCpeEntries().then(drRenderOnboardingChecklist);
       drLoadActivity();
       drLoadAuditTrail();
+      drLoadTeam();
     })
     .catch(function() {
       drShowError('Something went wrong loading your roster. Please try again.');
@@ -11811,6 +11989,34 @@ document.addEventListener('DOMContentLoaded', function() {
       var btn = ev.target.closest ? ev.target.closest('[data-session-id]') : null;
       if (!btn) return;
       drRevokeSession(btn.getAttribute('data-session-id'));
+    });
+  }
+
+  var teamList = document.getElementById('dr-team-list');
+  if (teamList) {
+    teamList.addEventListener('click', function(ev) {
+      var removeBtn = ev.target.closest ? ev.target.closest('[data-remove-member-id]') : null;
+      if (removeBtn) {
+        drRemoveTeamMember(removeBtn.getAttribute('data-remove-member-id'), removeBtn.getAttribute('data-member-label'));
+        return;
+      }
+      var primaryBtn = ev.target.closest ? ev.target.closest('[data-make-primary-id]') : null;
+      if (primaryBtn) {
+        drMakeTeamMemberPrimary(primaryBtn.getAttribute('data-make-primary-id'), primaryBtn.getAttribute('data-member-label'));
+      }
+    });
+    teamList.addEventListener('change', function(ev) {
+      var select = ev.target.closest ? ev.target.closest('.dr-team-role-select') : null;
+      if (!select) return;
+      drChangeTeamMemberRole(select.getAttribute('data-member-id'), select.value);
+    });
+  }
+
+  var teamInviteForm = document.getElementById('dr-team-invite-form');
+  if (teamInviteForm) {
+    teamInviteForm.addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      drSubmitTeamInvite(teamInviteForm);
     });
   }
 
@@ -13341,6 +13547,27 @@ def build_firm_dashboard_page(
         you out &mdash; you can always request an emailed sign-in link.</p>
         <div id="dr-identities-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
         <p id="dr-identity-error" role="alert" class="dr-account-err" hidden></p>
+      </div>
+
+      <div class="dr-account-panel">
+        <h2>Team</h2>
+        <p class="signup-microcopy">Everyone who can sign in to this firm's account, and what they
+        can do. Partners have full access; Office Managers can manage the roster, CPE, and firm
+        settings but not billing; Staff can view everything but not change it.</p>
+        <div id="dr-team-list"><p class="dr-panel-empty">Loading&hellip;</p></div>
+        <p id="dr-team-error" role="alert" class="dr-account-err" hidden></p>
+        <p id="dr-team-upgrade-notice" class="signup-microcopy" hidden>Adding team members requires a
+        paid plan. <a href="#account">Upgrade your plan</a> to invite your team &mdash; once you're on
+        any paid tier, team members are included at no extra charge.</p>
+        <form id="dr-team-invite-form" hidden>
+          <label for="dr-team-invite-email">Invite someone by email</label>
+          <input type="email" id="dr-team-invite-email" name="email" placeholder="name@yourfirm.com" required>
+          <label for="dr-team-invite-role">Role</label>
+          <select id="dr-team-invite-role" name="role"></select>
+          <button type="submit">Send invite</button>
+        </form>
+        <p id="dr-team-invite-ok" class="dr-account-ok" hidden></p>
+        <p id="dr-team-invite-error" role="alert" class="dr-account-err" hidden></p>
       </div>
 
       <div class="dr-account-panel dr-danger-zone">

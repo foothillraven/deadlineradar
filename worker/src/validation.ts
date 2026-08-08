@@ -729,6 +729,27 @@ export const RATE_LIMIT_FIRM_SIGNOUT_OTHER: RateLimit = { max: 10, windowSeconds
  * separately rate-limited, matching every other read-only /firm/* route. */
 export const RATE_LIMIT_FIRM_SESSION_REVOKE: RateLimit = { max: 10, windowSeconds: 3600 };
 
+// POST /firm/members/invite (migration 0045, roadmap #11/#13/#14) -- sends
+// an email to an address the inviting session supplies (any address a
+// Partner/Office Manager wants to add), same "authenticated session, keyed
+// on firm id" reasoning as RATE_LIMIT_FIRM_LICENSE_CREATE. Modest cap --
+// inviting a firm's whole team is a rare, bursty, but bounded event.
+export const RATE_LIMIT_FIRM_MEMBER_INVITE: RateLimit = { max: 30, windowSeconds: 86400 };
+
+// PATCH /firm/members/:id (role change, migration 0045) -- same shape as
+// RATE_LIMIT_FIRM_PEER_REVIEW_SET/RATE_LIMIT_FIRM_REPLY_TO_SET above; not a
+// mail primitive, just a bounded authenticated-write cap.
+export const RATE_LIMIT_FIRM_MEMBER_ROLE_CHANGE: RateLimit = { max: 50, windowSeconds: 86400 };
+
+// DELETE /firm/members/:id (remove, migration 0045) -- same shape as
+// RATE_LIMIT_FIRM_LICENSE_DELETE above.
+export const RATE_LIMIT_FIRM_MEMBER_REMOVE: RateLimit = { max: 50, windowSeconds: 86400 };
+
+// POST /firm/members/:id/make-primary (roadmap #51, migration 0045) --
+// firm-account-transfer is a rare, deliberate action, same modest cap as
+// RATE_LIMIT_FIRM_PEER_REVIEW_SET/RATE_LIMIT_FIRM_REPLY_TO_SET above.
+export const RATE_LIMIT_FIRM_MEMBER_MAKE_PRIMARY: RateLimit = { max: 20, windowSeconds: 86400 };
+
 /** Roadmap #144: submitting or dismissing the NPS prompt. Low-frequency by
  * design (the quarterly cooldown itself bounds real usage), same
  * defense-in-depth reasoning as every other authenticated-write bucket. */

@@ -1565,10 +1565,18 @@ PAGE_CSS = """
      no such coupling: it isn't part of the table's layout at all, so
      editing never changes the table's width on any viewport, and there's
      no separate mobile-stacked-card variant to maintain either. */
+  /* 2026-08-08, reported live on mobile: the Edit staff modal's form (name,
+     email, deadline, fee, CPE carryover, office, notes, then Save/Cancel)
+     is taller than a phone viewport. align-items: center on a fixed,
+     non-scrolling overlay just centers the overflow -- neither the top nor
+     the Save button at the bottom was reachable, with no way to scroll to
+     either. overflow-y: auto here lets the OVERLAY itself scroll when its
+     content doesn't fit, same fix needed on every viewport, not just
+     mobile -- a short browser window on desktop hits the identical problem. */
   .dr-modal-overlay {
     position: fixed; inset: 0; background: rgba(10, 14, 20, 0.55);
     display: flex; align-items: center; justify-content: center;
-    padding: 1rem; z-index: 50;
+    padding: 1rem; z-index: 50; overflow-y: auto;
   }
   .dr-modal-overlay[hidden] { display: none; }
   .dr-modal {

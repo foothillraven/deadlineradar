@@ -946,10 +946,11 @@
   .dr-roster-panel td.dr-actions { white-space: normal; }
 
   
+  
   .dr-modal-overlay {
     position: fixed; inset: 0; background: rgba(10, 14, 20, 0.55);
     display: flex; align-items: center; justify-content: center;
-    padding: 1rem; z-index: 50;
+    padding: 1rem; z-index: 50; overflow-y: auto;
   }
   .dr-modal-overlay[hidden] { display: none; }
   .dr-modal {

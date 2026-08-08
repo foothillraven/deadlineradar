@@ -550,6 +550,16 @@ PAGE_CSS = """
     margin: 0.15rem 0 0.55rem;
   }
   .callout .rule { margin: 0; }
+  /* Birth-month personalized finder (California/Texas only) -- lets a visitor
+     see their own row instantly instead of self-cross-referencing the table.
+     Reuses .signup-form's existing input/select/button/row styling for visual
+     consistency rather than introducing new form-control CSS. */
+  .dr-bf-result {
+    font-family: var(--font-display); font-weight: 620; font-size: 1.4rem; letter-spacing: -0.01em;
+    margin: 0.9rem 0 0; padding: 0.7rem 1rem; border-radius: 8px;
+    background: var(--card-bg); border: 1px solid var(--border);
+  }
+  tr.dr-bf-highlight { background: var(--card-bg); outline: 2px solid var(--accent); outline-offset: -2px; }
   /* AuditLab A11Y-4 (LOW, 2026-08-04): standard visually-hidden pattern --
      present for screen readers (a <table> caption, in this case), removed
      from visual/document flow for sighted users who already have the
@@ -2476,6 +2486,83 @@ _MONTH_OPTIONS = "\n".join(
 )
 
 
+def _birth_month_finder_html(needs_year: bool) -> str:
+    """California/Texas only (2026-08-08, roadmap item from the UX-audit
+    finding): the table below asks a visitor to self-cross-reference their
+    own row, which doesn't match the homepage's "know exactly when YOUR
+    license is due" promise. This widget answers instantly instead, reading
+    the answer straight out of the already-rendered table (client-side only,
+    no new data collection, no risk of drifting from the Python-computed
+    dates -- the signup form's own birth_month/birth_year fields are a
+    separate, later step for the ongoing reminder relationship; this is
+    purely an instant on-page answer for a visitor who hasn't decided to
+    sign up yet). `needs_year` is True for California (odd/even birth-year
+    parity changes the answer), False for Texas (month alone is enough)."""
+    year_field = (
+        """<div>
+    <label for="dr-bf-year" class="signup-form-compact-label">Birth year</label>
+    <input type="number" id="dr-bf-year" min="1900" max="2100" placeholder="e.g. 1985">
+  </div>"""
+        if needs_year else ""
+    )
+    return f"""<form class="signup-form signup-form--compact" onsubmit="return false" aria-label="Find your renewal date">
+  <div class="signup-form-row">
+    <div>
+      <label for="dr-bf-month" class="signup-form-compact-label">Your birth month</label>
+      <select id="dr-bf-month">
+        <option value="">Select&hellip;</option>
+        {_MONTH_OPTIONS}
+      </select>
+    </div>
+    {year_field}
+    <div><button type="button" id="dr-bf-go">Show my date</button></div>
+  </div>
+</form>
+<p id="dr-bf-result" class="dr-bf-result" hidden></p>"""
+
+
+def _birth_month_finder_js(needs_year: bool) -> str:
+    needs_year_js = "true" if needs_year else "false"
+    return f"""<script>
+(function() {{
+  var monthSel = document.getElementById('dr-bf-month');
+  var yearInput = document.getElementById('dr-bf-year');
+  var goBtn = document.getElementById('dr-bf-go');
+  var result = document.getElementById('dr-bf-result');
+  var needsYear = {needs_year_js};
+  var lastRow = null;
+  function show() {{
+    var month = parseInt(monthSel.value, 10);
+    if (!month) return;
+    var row = document.querySelector('tr[data-month="' + month + '"]');
+    if (!row) return;
+    if (lastRow) lastRow.classList.remove('dr-bf-highlight');
+    row.classList.add('dr-bf-highlight');
+    lastRow = row;
+    row.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+    var cells = row.querySelectorAll('td');
+    var dateText = null;
+    if (needsYear) {{
+      var year = parseInt(yearInput.value, 10);
+      if (year) {{
+        var isOdd = (year % 2) === 1;
+        dateText = (isOdd ? cells[1] : cells[2]).textContent;
+      }}
+    }} else {{
+      dateText = cells[1] ? cells[1].textContent : null;
+    }}
+    result.hidden = false;
+    result.textContent = dateText
+      ? ('Your next renewal: ' + dateText)
+      : 'Enter your birth year too — it changes the date for this state.';
+  }}
+  goBtn.addEventListener('click', show);
+  monthSel.addEventListener('change', show);
+  if (yearInput) yearInput.addEventListener('input', show);
+}})();
+</script>"""
+
+
 _USER_DEADLINE_MAX_DAYS = 1280  # keep in sync with worker/src/deadline.ts's USER_DEADLINE_MAX_DAYS
 
 
@@ -3623,15 +3710,16 @@ def render_cohort_group_record(record: dict) -> str:
 def render_california(record: dict, as_of: date) -> str:
     table = build_california_table(as_of)
     rows = "\n".join(
-        f"<tr><td>{esc(r['month'])}</td><td>{esc(r['odd_birth_year_next_deadline'])}</td>"
-        f"<td>{esc(r['even_birth_year_next_deadline'])}</td></tr>"
-        for r in table
+        f'<tr data-month="{i}"><td>{esc(r["month"])}</td><td>{esc(r["odd_birth_year_next_deadline"])}</td>'
+        f'<td>{esc(r["even_birth_year_next_deadline"])}</td></tr>'
+        for i, r in enumerate(table, start=1)
     )
     return f"""<div class="callout">
   <p class="rule">{esc(record['cycle_description'])}</p>
-  <p><strong>Find your row:</strong> look up your birth month below, then use the
-  odd-birth-year or even-birth-year column depending on the year you were born.</p>
+  <p><strong>Enter your birth month and year below</strong> to see your date instantly, or
+  look up your row in the full table yourself.</p>
 </div>
+{_birth_month_finder_html(needs_year=True)}
 <div class="table-wrap">
   <table>
     <thead><tr><th>Birth month</th><th>Next deadline (odd birth year)</th><th>Next deadline (even birth year)</th></tr></thead>
@@ -3641,20 +3729,23 @@ def render_california(record: dict, as_of: date) -> str:
   </table>
 </div>
 <p>Example: born in March of an odd year (e.g. 1985)? Your next deadline is the
-odd-birth-year date on the March row.</p>"""
+odd-birth-year date on the March row.</p>
+{_birth_month_finder_js(needs_year=True)}"""
 
 
 def render_texas(record: dict, as_of: date) -> str:
     table = build_texas_table(as_of)
     rows = "\n".join(
-        f"<tr><td>{esc(r['month'])}</td><td>{esc(r['next_deadline'])}</td></tr>"
-        for r in table
+        f'<tr data-month="{i}"><td>{esc(r["month"])}</td><td>{esc(r["next_deadline"])}</td></tr>'
+        for i, r in enumerate(table, start=1)
     )
     return f"""<div class="callout">
   <p class="rule">{esc(record['cycle_description'])}</p>
-  <p><strong>Find your row:</strong> look up your birth month below for your next renewal date.
-  Texas renewal is annual, so this repeats every year on the same month.</p>
+  <p><strong>Enter your birth month below</strong> to see your date instantly, or look up
+  your row in the full table yourself. Texas renewal is annual, so this repeats every year
+  on the same month.</p>
 </div>
+{_birth_month_finder_html(needs_year=False)}
 <div class="table-wrap">
   <table>
     <thead><tr><th>Birth month</th><th>Next renewal deadline</th></tr></thead>
@@ -3662,7 +3753,8 @@ def render_texas(record: dict, as_of: date) -> str:
     {rows}
     </tbody>
   </table>
-</div>"""
+</div>
+{_birth_month_finder_js(needs_year=False)}"""
 
 
 def render_new_york(record: dict) -> str:

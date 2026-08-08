@@ -152,6 +152,13 @@
   }
   .callout .rule { margin: 0; }
   
+  .dr-bf-result {
+    font-family: var(--font-display); font-weight: 620; font-size: 1.4rem; letter-spacing: -0.01em;
+    margin: 0.9rem 0 0; padding: 0.7rem 1rem; border-radius: 8px;
+    background: var(--card-bg); border: 1px solid var(--border);
+  }
+  tr.dr-bf-highlight { background: var(--card-bg); outline: 2px solid var(--accent); outline-offset: -2px; }
+  
   .dr-visually-hidden {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
@@ -1463,28 +1470,55 @@
 <p class="subhead">Texas CPA license renewal</p>
 <div class="callout">
   <p class="rule">Renewal fee is due annually by the last day of the licensee&#x27;s own birth month.</p>
-  <p><strong>Find your row:</strong> look up your birth month below for your next renewal date.
-  Texas renewal is annual, so this repeats every year on the same month.</p>
+  <p><strong>Enter your birth month below</strong> to see your date instantly, or look up
+  your row in the full table yourself. Texas renewal is annual, so this repeats every year
+  on the same month.</p>
 </div>
+<form class="signup-form signup-form--compact" onsubmit="return false" aria-label="Find your renewal date">
+  <div class="signup-form-row">
+    <div>
+      <label for="dr-bf-month" class="signup-form-compact-label">Your birth month</label>
+      <select id="dr-bf-month">
+        <option value="">Select&hellip;</option>
+        <option value="1">January</option>
+<option value="2">February</option>
+<option value="3">March</option>
+<option value="4">April</option>
+<option value="5">May</option>
+<option value="6">June</option>
+<option value="7">July</option>
+<option value="8">August</option>
+<option value="9">September</option>
+<option value="10">October</option>
+<option value="11">November</option>
+<option value="12">December</option>
+      </select>
+    </div>
+    
+    <div><button type="button" id="dr-bf-go">Show my date</button></div>
+  </div>
+</form>
+<p id="dr-bf-result" class="dr-bf-result" hidden></p>
 <div class="table-wrap">
   <table>
     <thead><tr><th>Birth month</th><th>Next renewal deadline</th></tr></thead>
     <tbody>
-    <tr><td>January</td><td>January 31, 2027</td></tr>
-<tr><td>February</td><td>February 28, 2027</td></tr>
-<tr><td>March</td><td>March 31, 2027</td></tr>
-<tr><td>April</td><td>April 30, 2027</td></tr>
-<tr><td>May</td><td>May 31, 2027</td></tr>
-<tr><td>June</td><td>June 30, 2027</td></tr>
-<tr><td>July</td><td>July 31, 2027</td></tr>
-<tr><td>August</td><td>August 31, 2026</td></tr>
-<tr><td>September</td><td>September 30, 2026</td></tr>
-<tr><td>October</td><td>October 31, 2026</td></tr>
-<tr><td>November</td><td>November 30, 2026</td></tr>
-<tr><td>December</td><td>December 31, 2026</td></tr>
+    <tr data-month="1"><td>January</td><td>January 31, 2027</td></tr>
+<tr data-month="2"><td>February</td><td>February 28, 2027</td></tr>
+<tr data-month="3"><td>March</td><td>March 31, 2027</td></tr>
+<tr data-month="4"><td>April</td><td>April 30, 2027</td></tr>
+<tr data-month="5"><td>May</td><td>May 31, 2027</td></tr>
+<tr data-month="6"><td>June</td><td>June 30, 2027</td></tr>
+<tr data-month="7"><td>July</td><td>July 31, 2027</td></tr>
+<tr data-month="8"><td>August</td><td>August 31, 2026</td></tr>
+<tr data-month="9"><td>September</td><td>September 30, 2026</td></tr>
+<tr data-month="10"><td>October</td><td>October 31, 2026</td></tr>
+<tr data-month="11"><td>November</td><td>November 30, 2026</td></tr>
+<tr data-month="12"><td>December</td><td>December 31, 2026</td></tr>
     </tbody>
   </table>
 </div>
+<script>(function(){var monthSel=document.getElementById("dr-bf-month");var yearInput=document.getElementById("dr-bf-year");var goBtn=document.getElementById("dr-bf-go");var result=document.getElementById("dr-bf-result");var needsYear=false;var lastRow=null;function show(){var month=parseInt(monthSel.value,10);if(!month)return;var row=document.querySelector('tr[data-month="'+month+'"]');if(!row)return;if(lastRow)lastRow.classList.remove("dr-bf-highlight");row.classList.add("dr-bf-highlight");lastRow=row;row.scrollIntoView({behavior:"smooth",block:"center"});var cells=row.querySelectorAll("td");var dateText=null;if(needsYear){var year=parseInt(yearInput.value,10);if(year){var isOdd=year%2===1;dateText=(isOdd?cells[1]:cells[2]).textContent}}else{dateText=cells[1]?cells[1].textContent:null}result.hidden=false;result.textContent=dateText?"Your next renewal: "+dateText:"Enter your birth year too — it changes the date for this state."}goBtn.addEventListener("click",show);monthSel.addEventListener("change",show);if(yearInput)yearInput.addEventListener("input",show)})();</script>
 <div class="trust-line">
   <strong>Last verified: 2026-07-30</strong> &middot; sourced from the state board's own page; we could not independently confirm it against codified statute or administrative rule text, so we are not calling it primary-law-verified (<a href="/methodology/">see how we verify every deadline</a>). Always confirm with the
   <a href="https://www.tsbpa.texas.gov/cpas/renewal/">official state board</a> before relying on this date. License

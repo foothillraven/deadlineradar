@@ -1912,6 +1912,24 @@ export async function listFirmLicenses(db: D1Database, firmId: string): Promise<
   return results;
 }
 
+/** AuditLab MAP-1 (MEDIUM, 2026-08-07): the firm's own roster's distinct
+ * home states, for scope-based mobility-check rate limiting -- a query
+ * for a state the firm actually has staff in is the firm reviewing its
+ * own data, not harvesting. Same "on the roster" definition as
+ * listFirmLicenses() above (excludes admin-removed rows) so removing a
+ * staffer doesn't retroactively meter a state the firm was legitimately
+ * reviewing, per Devin's own spec for this fix. */
+export async function getFirmRosterStateSlugs(db: D1Database, firmId: string): Promise<Set<string>> {
+  const { results } = await db
+    .prepare(
+      `SELECT DISTINCT state_slug FROM subscribers
+       WHERE firm_id = ?1 AND NOT (status = ?2 AND stop_reason = ?3)`
+    )
+    .bind(firmId, STATUS_STOPPED, STOP_REASON_REMOVED_BY_ADMIN)
+    .all<{ state_slug: string }>();
+  return new Set(results.map((r) => r.state_slug));
+}
+
 export interface ActivityLogRow {
   id: string;
   firm_id: string;

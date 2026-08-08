@@ -94,6 +94,7 @@ import {
   RATE_LIMIT_FIRM_LEAD,
   RATE_LIMIT_MOBILITY_CHECK,
   RATE_LIMIT_MOBILITY_CHECK_BATCH,
+  RATE_LIMIT_MOBILITY_CHECK_UNMETERED,
   RATE_LIMIT_FIRM_LICENSE_CREATE,
   RATE_LIMIT_FIRM_LICENSE_PATCH,
   RATE_LIMIT_FIRM_LICENSE_DELETE,
@@ -7349,14 +7350,6 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
   const session = await requireFirmSessionAndPaidTier(request, env);
   if (session instanceof Response) return session;
 
-  // Rate limit AFTER the gate. Review finding: with it first, an
-  // authenticated-but-unentitled session could exhaust the firm's budget
-  // purely on 403s.
-  const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_check", RATE_LIMIT_MOBILITY_CHECK);
-  if (!allowed) {
-    return jsonResponse(429, { error: "Too many requests. Please try again later." });
-  }
-
   let raw: string;
   try {
     raw = await request.text();
@@ -7379,6 +7372,24 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
   const homeStateSlug = typeof body.home_state_slug === "string" ? body.home_state_slug : "";
   const targetStateSlug = typeof body.target_state_slug === "string" ? body.target_state_slug : "";
   const serviceTypeRaw = typeof body.service_type === "string" ? body.service_type : "";
+
+  // AuditLab MAP-1 (2026-08-07): rate limit is AFTER the entitlement gate
+  // (review finding: an unentitled session must not burn a paying firm's
+  // budget on 403s) but scope-decided BEFORE the bucket is chosen -- a
+  // query for a home state the firm actually has staff in is the firm
+  // reviewing its own roster, structurally bounded by the seat cap, and
+  // gets the high unmetered ceiling; a query for a state nobody on the
+  // roster is in is the harvesting shape and gets the tighter, existing
+  // bucket. See getFirmRosterStateSlugs()'s own docstring for why this
+  // uses listFirmLicenses()'s exact "on the roster" definition.
+  const rosterStates = await store.getFirmRosterStateSlugs(env.DB, session.firmId);
+  const isOwnRoster = rosterStates.has(homeStateSlug);
+  const allowed = isOwnRoster
+    ? await checkRateLimit(env.DB, session.firmId, "mobility_check_unmetered", RATE_LIMIT_MOBILITY_CHECK_UNMETERED)
+    : await checkRateLimit(env.DB, session.firmId, "mobility_check", RATE_LIMIT_MOBILITY_CHECK);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many requests. Please try again later." });
+  }
 
   // Slugs are validated against the real jurisdiction list, not merely
   // sanitised -- an unknown slug must be a 400, never a silent lookup miss
@@ -7436,11 +7447,6 @@ async function handleMobilityCheckBatch(request: Request, env: Env): Promise<Res
   const session = await requireFirmSessionAndPaidTier(request, env);
   if (session instanceof Response) return session;
 
-  const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_check_batch", RATE_LIMIT_MOBILITY_CHECK_BATCH);
-  if (!allowed) {
-    return jsonResponse(429, { error: "Too many mobility checks this hour. Please try again within the hour." });
-  }
-
   let raw: string;
   try {
     raw = await request.text();
@@ -7462,6 +7468,17 @@ async function handleMobilityCheckBatch(request: Request, env: Env): Promise<Res
 
   const homeStateSlug = typeof body.home_state_slug === "string" ? body.home_state_slug : "";
   const serviceTypeRaw = typeof body.service_type === "string" ? body.service_type : "";
+
+  // AuditLab MAP-1 (2026-08-07): same scope-based bucket choice as
+  // handleMobilityCheck() above -- see that handler's own comment.
+  const rosterStates = await store.getFirmRosterStateSlugs(env.DB, session.firmId);
+  const isOwnRoster = rosterStates.has(homeStateSlug);
+  const allowed = isOwnRoster
+    ? await checkRateLimit(env.DB, session.firmId, "mobility_check_unmetered", RATE_LIMIT_MOBILITY_CHECK_UNMETERED)
+    : await checkRateLimit(env.DB, session.firmId, "mobility_check_batch", RATE_LIMIT_MOBILITY_CHECK_BATCH);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many mobility checks this hour. Please try again within the hour." });
+  }
 
   if (!stateNameForSlug(homeStateSlug)) {
     return jsonResponse(400, { error: "Please choose a home state." });

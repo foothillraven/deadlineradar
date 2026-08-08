@@ -813,8 +813,32 @@ export const RATE_LIMIT_MOBILITY_CHECK: RateLimit = { max: 120, windowSeconds: 3
  * when deciding whether to trust the product. 40 keeps the same order-of-
  * magnitude protection against the ~6,000/hour side-door scenario above
  * (40 * ~50 = 2,000/hour, still well under it) while giving real headroom
- * for a single-sitting full-roster review. */
-export const RATE_LIMIT_MOBILITY_CHECK_BATCH: RateLimit = { max: 40, windowSeconds: 3600 };
+ * for a single-sitting full-roster review.
+ *
+ * AuditLab MAP-1 (MEDIUM, 2026-08-07): 40 was live-hitting a real paying
+ * Enterprise-tier firm (25 seats -> 25 batch calls per roster review) on
+ * nothing more than reviewing their own Map twice in an hour -- the
+ * in-memory client cache doesn't survive a page reload, so "review twice"
+ * is a completely ordinary usage pattern, not abuse. Raised to 120 as an
+ * immediate stop-the-bleeding fix (120 * ~50 = 6,000/hour -- back at the
+ * original side-door ceiling this constant was sized against, not a
+ * loosened bound), then the real fix landed same-day: scope-based limiting
+ * (handleMobilityCheck/handleMobilityCheckBatch now serve a firm's OWN
+ * roster home-states unmetered -- see RATE_LIMIT_MOBILITY_CHECK_UNMETERED
+ * below -- and only meter queries for states nobody on the roster is in).
+ * This bucket is now specifically the OFF-ROSTER/harvesting-shape ceiling,
+ * not the everyday-use ceiling anymore -- see
+ * auditlab_20260807_MAP1_scope_based_mobility_limit_spec.md /
+ * auditlab_20260807_MAP1_BUILD_DIRECTIVE.md for the full spec. */
+export const RATE_LIMIT_MOBILITY_CHECK_BATCH: RateLimit = { max: 120, windowSeconds: 3600 };
+
+/** AuditLab MAP-1: the unmetered path for a firm querying its OWN roster's
+ * home states (see getFirmRosterStateSlugs()) -- structurally bounded by
+ * the seat cap (<=25 distinct states even at the largest tier today), so
+ * this ceiling exists only as a safety net against a compromised session
+ * or a client bug looping, never expected to be reached by a real human
+ * workflow. Deliberately high and shared by both /check and /check-batch. */
+export const RATE_LIMIT_MOBILITY_CHECK_UNMETERED: RateLimit = { max: 500, windowSeconds: 3600 };
 
 /** Returns true if this request is ALLOWED, false if it should be blocked. */
 export async function checkRateLimit(

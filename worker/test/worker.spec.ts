@@ -5930,17 +5930,13 @@ describe("POST /firm/mobility/check-batch -- same gate, same engine, no target l
     expect(alabama!.individual.summary).toBe(singleBody.individual.summary);
   });
 
-  it("blocks the 41st batch call from the same firm within the hour (tighter bucket than the single check)", async () => {
-    const { cookie } = await firmOnTier("firm", new Date().toISOString());
-    let sawA429 = false;
-    for (let i = 0; i < 45; i++) {
-      const resp = await postMobilityCheckBatch(VALID_BATCH_CHECK, cookie, `203.0.113.${100 + i}`);
-      if (resp.status === 429) {
-        sawA429 = true;
-        break;
-      }
-      expect(resp.status).toBe(200);
-    }
-    expect(sawA429, "expected a 429 within the RATE_LIMIT_MOBILITY_CHECK_BATCH ceiling (40/hour) -- got none in 45 requests").toBe(true);
-  }, 40000);
+  // AuditLab MAP-1 (2026-08-07): scope-based mobility rate limiting (a
+  // firm's own roster states are unmetered) moved to its own file
+  // (map1-mobility-scope.spec.ts) -- running late inside this already
+  // very large (300+ test) single file triggered a vitest-pool-workers
+  // internal "Maximum call stack size exceeded" (inside the harness's own
+  // test-internal.mjs, not this codebase) that did not reproduce in
+  // isolation or in a smaller file. Splitting out matches this session's
+  // own established practice for new feature test suites (firm-roles.spec.ts,
+  // firm-members-crud.spec.ts).
 });

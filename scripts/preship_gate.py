@@ -498,6 +498,7 @@ def check_demo_locked_email_coverage(repo_root: Path) -> list[str]:
         "issueAndSendFirmLoginLink": "sends only to a firm's OWN admin_email -- callers pass either the just-typed signup email (self-referential, same category as handleSubscribe) or the email of an ALREADY-EXISTING firm looked up by store.findFirmByAdminEmail(), never an arbitrary third party",
         "issueAndSendFirmMemberInviteEmail": "recipient IS admin-suppliable (any address a Partner/Office Manager wants to invite), but handleFirmMemberInvite() 403s the WHOLE request for a demo_locked firm before this is ever called -- same front-door posture as handleFirmPasswordSet/handleFirmChangeEmailRequest/handleFirmAccountDelete above, not a per-send check",
         "issueAndSendSubscriberLoginLink": "free-tier individual magic-link sign-in -- public, anonymous, no firm session exists at all (same category as handleSubscribe); demo_locked is a firm-scoped property and doesn't apply here",
+        "handleSubscriberChangeEmailRequest": "roadmap #12 subscriber self-service email change -- subscriber_sessions has no firm_id/demo_locked concept at all (migration 0012's own docstring: an individual principal must never be resolvable to a firm), and both sends go to addresses the subscriber's OWN request supplies for their OWN account, same category as handleFirmChangeEmailRequest's already-demo_locked-gated pattern but for a principal type demo_locked was never defined for",
     }
 
     errors = []

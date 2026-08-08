@@ -785,6 +785,95 @@ export function buildSubscriberLoginEmail(loginUrl: string): BuiltEmail {
 }
 
 /**
+ * Roadmap #12 (2026-08-07): subscriber-side self-service email change,
+ * mirroring buildFirmEmailChangeConfirmEmail() -- same 15-minute/one-time
+ * terms, same "clicking it also signs you in" note.
+ */
+export function buildSubscriberEmailChangeConfirmEmail(confirmUrl: string): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `Confirm your new ${SITE_NAME} email address`;
+
+  const textBody =
+    `Someone requested to change the email address on a ${SITE_NAME} account to this address. ` +
+    `Click below to confirm and finish the change:\n\n` +
+    `${confirmUrl}\n\n` +
+    `This link expires in 15 minutes and can only be used once. Clicking it will also sign you in.\n\n` +
+    `If you didn't request this -- or don't recognize the account -- you can safely ignore this ` +
+    `email. Nothing changes unless you click the link above.\n\n` +
+    `---\n${SENDER_LINE}\n${addr}`;
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `Confirm your new email address</h1>` +
+      p(
+        `Someone requested to change the email address on a ${esc(SITE_NAME)} account to this ` +
+          `address. Click below to confirm and finish the change.`
+      ) +
+      `<p style="margin:0 0 20px;">${button(confirmUrl, "Confirm this email address")}</p>` +
+      p(
+        "This link expires in 15 minutes and can only be used once. Clicking it will also sign you in.",
+        13,
+        LIGHT.muted
+      ) +
+      p(
+        "If you didn't request this -- or don't recognize the account -- you can safely ignore this " +
+          "email. Nothing changes unless you click the link above.",
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
+ * Roadmap #12 companion to buildSubscriberEmailChangeConfirmEmail() --
+ * sent to the OLD (current) address at REQUEST time, mirroring
+ * buildFirmEmailChangeRequestedNoticeEmail()'s own detection-control
+ * reasoning: if the request came from a stolen session, this is the only
+ * signal the real person gets, and has to arrive before the new address
+ * could confirm.
+ */
+export function buildSubscriberEmailChangeRequestedNoticeEmail(requestedNewEmail: string, whenIso: string): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `An email change was requested on your ${SITE_NAME} account`;
+
+  const textBody =
+    `A request was just made to change the email address on your ${SITE_NAME} account to ` +
+    `${requestedNewEmail} (${whenIso}). Nothing has changed yet -- the new address still has to be ` +
+    `confirmed before this takes effect.\n\n` +
+    `If this was you, no action is needed.\n\n` +
+    `IF THIS WAS NOT YOU, you can safely ignore this email -- nothing changes unless the new ` +
+    `address is confirmed.\n\n` +
+    `---\n${SENDER_LINE}\n${addr}`;
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `An email change was requested</h1>` +
+      p(
+        `A request was just made to change the email address on your ${esc(SITE_NAME)} account to ` +
+          `<strong>${esc(requestedNewEmail)}</strong> (${esc(whenIso)}). Nothing has changed yet -- ` +
+          `the new address still has to be confirmed before this takes effect.`
+      ) +
+      p("If this was you, no action is needed.", 13, LIGHT.muted) +
+      p(
+        "<strong>If this was not you</strong>, you can safely ignore this email -- nothing changes " +
+          "unless the new address is confirmed.",
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
  * Admin-triggered nudge (2026-08-05, staff self-service CPE entry): a firm
  * admin asks us to remind one specific staff member to log their CPE hours.
  * Reuses the EXACT same magic-link mechanism as buildSubscriberLoginEmail()

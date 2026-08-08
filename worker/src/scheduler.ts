@@ -233,6 +233,18 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
         // default set rather than silently sending nothing.
       }
     }
+    // Roadmap #12 (migration 0046): a per-subscriber override, applied
+    // AFTER the firm's own setting -- "my own communication preferences"
+    // wins over the firm's default, never the reverse. NULL means
+    // "inherit," same posture as the firm-level column itself.
+    if (sub.reminder_thresholds) {
+      try {
+        const parsed = JSON.parse(sub.reminder_thresholds);
+        if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+      } catch {
+        // Same fall-through posture as the firm-level parse above.
+      }
+    }
 
     let threshold: number | null;
     if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {

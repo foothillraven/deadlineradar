@@ -605,6 +605,16 @@ PAGE_CSS = """
     cursor: pointer; flex-shrink: 0;
   }
   .dr-cookie-notice button:hover { opacity: 0.85; }
+  /* Devin, 2026-08-07 (COOKIE-1): [hidden]'s specificity (0,1,0, one
+     attribute selector) ties with .dr-cookie-notice's own bare class
+     selector (0,1,0) -- and author styles always beat the UA stylesheet's
+     [hidden]{display:none} regardless of that tie, so el.hidden = true in
+     the dismiss handler had zero visual effect. Live on every page; far
+     more noticeable on mobile (a full-width fixed bottom bar eating a big
+     chunk of the viewport) than on desktop's thin strip nobody
+     double-checked. [hidden] + class beats the bare class on specificity
+     alone, no !important needed. */
+  .dr-cookie-notice[hidden] { display: none; }
   .table-wrap {
     overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
     -webkit-overflow-scrolling: touch;
@@ -7064,8 +7074,32 @@ _MY_DASHBOARD_JS_HTML = """<script>
       '</form></div>';
   }
 
+  // Roadmap #12: pre-fills the profile form from the SAME /subscriber/licenses
+  // response drRender() already gets -- first_name/reminder_thresholds are
+  // person-level (every row sharing this email agrees), so no separate
+  // fetch is needed. Only runs once (nameInput.dataset.drFilled guards a
+  // re-render, e.g. after logging CPE hours, from clobbering an in-progress
+  // edit the person hasn't saved yet).
+  function drMyFillProfile(data) {
+    var nameInput = document.getElementById('dr-my-name-input');
+    if (nameInput && !nameInput.dataset.drFilled) {
+      nameInput.value = data.first_name || '';
+      nameInput.dataset.drFilled = '1';
+    }
+    var cadenceForm = document.getElementById('dr-my-cadence-form');
+    if (cadenceForm && !cadenceForm.dataset.drFilled) {
+      var active = data.reminder_thresholds; // null -> every box checked (the default)
+      var boxes = cadenceForm.querySelectorAll('input[name="my-cadence"]');
+      for (var i = 0; i < boxes.length; i++) {
+        boxes[i].checked = !active || active.indexOf(Number(boxes[i].value)) !== -1;
+      }
+      cadenceForm.dataset.drFilled = '1';
+    }
+  }
+
   function drRender(data) {
     if (emailEl) emailEl.textContent = data.email || '';
+    drMyFillProfile(data);
     drLicenses = data.licenses || [];
     if (!drLicenses.length) {
       if (emptyEl) emptyEl.hidden = false;
@@ -7162,6 +7196,111 @@ _MY_DASHBOARD_JS_HTML = """<script>
       if (listEl) listEl.innerHTML = '';
       if (errorEl) errorEl.hidden = false;
     });
+
+  // Roadmap #12: self-service profile -- name, email, reminder cadence.
+  var nameForm = document.getElementById('dr-my-name-form');
+  if (nameForm) {
+    nameForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var okEl = document.getElementById('dr-my-name-ok');
+      var errEl = document.getElementById('dr-my-name-error');
+      if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+      if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+      fetch('/api/subscriber/profile', {
+        method: 'POST', credentials: 'include',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({first_name: document.getElementById('dr-my-name-input').value}),
+      }).then(function (res) {
+        if (res.status === 401) { window.location.href = '/signin/'; return null; }
+        return res.json().catch(function () { return null; }).then(function (data) {
+          if (!res.ok) {
+            if (errEl) { errEl.textContent = (data && data.error) ? data.error : 'Something went wrong, please try again.'; errEl.hidden = false; }
+            return;
+          }
+          if (okEl) { okEl.textContent = 'Name saved.'; okEl.hidden = false; }
+        });
+      }).catch(function () {
+        if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+      });
+    });
+  }
+
+  var emailForm = document.getElementById('dr-my-email-form');
+  if (emailForm) {
+    emailForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var okEl = document.getElementById('dr-my-email-ok');
+      var errEl = document.getElementById('dr-my-email-error');
+      if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+      if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+      var newEmail = document.getElementById('dr-my-email-input').value;
+      fetch('/api/subscriber/change-email', {
+        method: 'POST', credentials: 'include',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({new_email: newEmail}),
+      }).then(function (res) {
+        if (res.status === 401) { window.location.href = '/signin/'; return null; }
+        return res.json().catch(function () { return null; }).then(function (data) {
+          if (!res.ok) {
+            if (errEl) { errEl.textContent = (data && data.error) ? data.error : 'Something went wrong, please try again.'; errEl.hidden = false; }
+            return;
+          }
+          emailForm.reset();
+          if (okEl) { okEl.textContent = 'Check ' + newEmail + ' for a confirmation link -- nothing changes until you click it.'; okEl.hidden = false; }
+        });
+      }).catch(function () {
+        if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+      });
+    });
+  }
+
+  var cadenceFormEl = document.getElementById('dr-my-cadence-form');
+  if (cadenceFormEl) {
+    cadenceFormEl.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var okEl = document.getElementById('dr-my-cadence-ok');
+      var errEl = document.getElementById('dr-my-cadence-error');
+      if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+      if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+      var boxes = cadenceFormEl.querySelectorAll('input[name="my-cadence"]:checked');
+      var thresholds = [];
+      for (var i = 0; i < boxes.length; i++) thresholds.push(Number(boxes[i].value));
+      // All 6 checked is indistinguishable from "never set" server-side --
+      // send null in that one case so it stays a true "inherit" rather than
+      // an explicit (but equivalent) subset, same posture the firm-side
+      // cadence form would need if it offered a "reset to default" action.
+      var body = thresholds.length === 6 ? {thresholds: null} : {thresholds: thresholds};
+      fetch('/api/subscriber/reminder-cadence', {
+        method: 'PATCH', credentials: 'include',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify(body),
+      }).then(function (res) {
+        if (res.status === 401) { window.location.href = '/signin/'; return null; }
+        return res.json().catch(function () { return null; }).then(function (data) {
+          if (!res.ok) {
+            if (errEl) { errEl.textContent = (data && data.error) ? data.error : 'Please choose at least one reminder timing.'; errEl.hidden = false; }
+            return;
+          }
+          if (okEl) { okEl.textContent = 'Reminder timing saved.'; okEl.hidden = false; }
+        });
+      }).catch(function () {
+        if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+      });
+    });
+  }
+
+  // Roadmap #12: the email-change confirm click lands back here with a
+  // query-string outcome (?email_changed=1 / ?email_change_failed=conflict)
+  // -- same "tell them what happened" posture the firm dashboard's own
+  // #account?email_changed=1 hash handling already established.
+  var myParams = new URLSearchParams(window.location.search);
+  if (myParams.get('email_changed') === '1') {
+    var nameOk = document.getElementById('dr-my-email-ok');
+    if (nameOk) { nameOk.textContent = 'Your email address was updated.'; nameOk.hidden = false; }
+  } else if (myParams.get('email_change_failed') === 'conflict') {
+    var emailErr = document.getElementById('dr-my-email-error');
+    if (emailErr) { emailErr.textContent = 'That address was claimed by someone else before you confirmed. Please try again with a different one.'; emailErr.hidden = false; }
+  }
 })();
 </script>"""
 
@@ -7210,6 +7349,49 @@ def build_my_page(cpe_hours_by_slug: dict[str, dict]) -> str:
     <form method="post" action="{REMINDER_BACKEND_BASE_URL}/subscriber/logout" class="dr-my-signout">
       <button type="submit">Sign out</button>
     </form>
+  </div>
+
+  <div class="dr-account-panel" id="dr-my-profile">
+    <h2>Your profile</h2>
+    <p class="signup-microcopy">Your own name, email, and which reminders you get -- applies across
+    every deadline above, including any your firm tracks for you. To stop or restart reminders for
+    one specific deadline instead, use the links at the bottom of that deadline's emails.</p>
+
+    <form id="dr-my-name-form">
+      <label for="dr-my-name-input">Your name (optional)</label>
+      <input type="text" id="dr-my-name-input" maxlength="60" placeholder="How should we address you?">
+      <button type="submit">Save name</button>
+    </form>
+    <p id="dr-my-name-ok" class="dr-account-ok" hidden></p>
+    <p id="dr-my-name-error" role="alert" class="dr-account-err" hidden></p>
+
+    <form id="dr-my-email-form">
+      <label for="dr-my-email-input">Change your email address</label>
+      <input type="email" id="dr-my-email-input" required placeholder="you@example.com">
+      <button type="submit">Send confirmation link</button>
+    </form>
+    <p class="field-hint">We'll email a confirmation link to the new address before anything
+    changes, and let your current address know too.</p>
+    <p id="dr-my-email-ok" class="dr-account-ok" hidden></p>
+    <p id="dr-my-email-error" role="alert" class="dr-account-err" hidden></p>
+
+    <form id="dr-my-cadence-form">
+      <fieldset class="dr-cadence-fieldset">
+        <legend>Which reminders you get</legend>
+        <label><input type="checkbox" name="my-cadence" value="60"> 60 days out</label>
+        <label><input type="checkbox" name="my-cadence" value="30"> 30 days out</label>
+        <label><input type="checkbox" name="my-cadence" value="14"> 14 days out</label>
+        <label><input type="checkbox" name="my-cadence" value="7"> 7 days out</label>
+        <label><input type="checkbox" name="my-cadence" value="3"> 3 days out</label>
+        <label><input type="checkbox" name="my-cadence" value="1"> 1 day out (final reminder)</label>
+      </fieldset>
+      <p class="field-hint">Leave all checked (the default) for the full escalating schedule, or use
+      this to receive fewer. This is your own setting -- it applies even if your firm has its own
+      cadence, and doesn't change anything for anyone else on their roster.</p>
+      <button type="submit">Save</button>
+    </form>
+    <p id="dr-my-cadence-ok" class="dr-account-ok" hidden></p>
+    <p id="dr-my-cadence-error" role="alert" class="dr-account-err" hidden></p>
   </div>
 
   <div class="dr-my-error" id="dr-my-error" role="alert" hidden>

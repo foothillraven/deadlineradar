@@ -134,6 +134,12 @@ export interface SubscriberRow {
   // email. NULL means no note. Edit-only, same as carryover_hours (no
   // create-time field -- a brand-new roster entry has nothing to note yet).
   internal_notes: string | null;
+  // migration 0046 (roadmap #12). Same JSON-array-subset shape as
+  // firms.reminder_thresholds -- NULL means "inherit the firm's setting"
+  // (or the full 6-value default for a free-tier row with no firm at
+  // all). scheduler.ts's runReminderPass() reads this as an override
+  // AFTER resolving the firm's own thresholds, never in place of it.
+  reminder_thresholds: string | null;
 }
 
 function nowIso(): string {
@@ -410,6 +416,10 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     // Roadmap #26: a new staffer starts un-snoozed, same as every other
     // brand-new record.
     snoozed_until: null,
+    // Roadmap #12: edit-only, same reasoning as carryover_hours/internal_notes
+    // above -- a brand-new record has no self-service preference to inherit
+    // yet, so it starts NULL ("use the firm's setting").
+    reminder_thresholds: null,
     // Roadmap #68: edit-only, same reasoning as carryover_hours above --
     // not part of the INSERT column list either, same as that field.
     internal_notes: null,
@@ -3364,6 +3374,21 @@ export async function deleteSessionByIdForMember(db: D1Database, memberId: strin
  * it is a one-shot bearer credential sitting in an inbox. */
 export const SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES = 15;
 
+/**
+ * Roadmap #12 (2026-08-07). Same "carry INTENT on the token row" pattern
+ * migrations 0013/0022 established for firm_login_tokens (see those
+ * migrations' own docstrings) -- mirrored here for the subscriber-side
+ * self-service email change. 'login' is the safe default: any caller that
+ * forgets the argument, or any pre-migration row, degrades to the
+ * ordinary sign-in, never the privileged branch.
+ */
+export type SubscriberLoginTokenPurpose = "login" | "email_change";
+
+export function normalizeSubscriberLoginTokenPurpose(raw: unknown): SubscriberLoginTokenPurpose {
+  if (raw === "email_change") return raw;
+  return "login";
+}
+
 /** Shorter than the firm's 30 days. A firm dashboard is a work tool; this
  * is a check-in-occasionally view, so a shorter window costs the user
  * little and reduces what a stolen cookie is worth. */
@@ -3380,17 +3405,32 @@ export const SUBSCRIBER_SESSION_TTL_DAYS = 14;
  */
 export async function createSubscriberLoginToken(
   db: D1Database,
-  email: string
+  email: string,
+  purpose: SubscriberLoginTokenPurpose = "login",
+  /** Roadmap #12: required for -- and only meaningful for -- purpose
+   * "email_change". The specific new address that was proven reachable by
+   * emailing THIS token to it, applied at redemption and never at the
+   * redeeming request's discretion -- same "intent lives on the token"
+   * rule migration 0022 already established for firm_login_tokens. */
+  pendingNewEmail: string | null = null
 ): Promise<{ rawToken: string }> {
   const rawToken = newToken();
   const now = new Date();
   const expiresAt = new Date(now.getTime() + SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES * 60_000).toISOString();
   await db
     .prepare(
-      `INSERT INTO subscriber_login_tokens (id, email_normalized, token_hash, created_at, expires_at, used_at)
-       VALUES (?1,?2,?3,?4,?5,NULL)`
+      `INSERT INTO subscriber_login_tokens (id, email_normalized, token_hash, created_at, expires_at, used_at, purpose, pending_new_email)
+       VALUES (?1,?2,?3,?4,?5,NULL,?6,?7)`
     )
-    .bind(newToken(), normalizeEmail(email), await hashToken(rawToken), now.toISOString(), expiresAt)
+    .bind(
+      newToken(),
+      normalizeEmail(email),
+      await hashToken(rawToken),
+      now.toISOString(),
+      expiresAt,
+      normalizeSubscriberLoginTokenPurpose(purpose),
+      purpose === "email_change" ? pendingNewEmail : null
+    )
     .run();
   return { rawToken };
 }
@@ -3407,12 +3447,19 @@ export async function createSubscriberLoginToken(
 export async function verifyAndConsumeSubscriberLoginToken(
   db: D1Database,
   rawToken: string
-): Promise<{ emailNormalized: string } | null> {
+): Promise<{ emailNormalized: string; purpose: SubscriberLoginTokenPurpose; pendingNewEmail: string | null } | null> {
   const tokenHash = await hashToken(rawToken);
   const row = await db
     .prepare(`SELECT * FROM subscriber_login_tokens WHERE token_hash = ?1`)
     .bind(tokenHash)
-    .first<{ id: string; email_normalized: string; expires_at: string; used_at: string | null }>();
+    .first<{
+      id: string;
+      email_normalized: string;
+      expires_at: string;
+      used_at: string | null;
+      purpose: string | null;
+      pending_new_email: string | null;
+    }>();
   if (!row) return null;
   if (row.used_at) return null;
   if (Date.parse(row.expires_at) <= Date.now()) return null;
@@ -3423,7 +3470,77 @@ export async function verifyAndConsumeSubscriberLoginToken(
     .run();
   if ((result.meta.changes ?? 0) === 0) return null;
 
-  return { emailNormalized: row.email_normalized };
+  // Purpose (and, for email_change, the target address) are read from the
+  // ROW -- never from anything the redeeming request supplied. Same rule
+  // as verifyAndConsumeLoginToken()'s own comment.
+  const purpose = normalizeSubscriberLoginTokenPurpose(row.purpose);
+  return {
+    emailNormalized: row.email_normalized,
+    purpose,
+    pendingNewEmail: purpose === "email_change" ? row.pending_new_email ?? null : null,
+  };
+}
+
+/** Roadmap #12: invalidates every UNUSED email_change token for this
+ * subscriber -- same reasoning as invalidateOutstandingEmailChangeTokensForMember()
+ * for firm members: requesting a second email change must not leave a
+ * stale link for the FIRST requested address still live. Scoped to
+ * purpose = 'email_change' only, so an outstanding plain login link isn't
+ * silently burned by requesting an email change. */
+export async function invalidateOutstandingSubscriberEmailChangeTokens(db: D1Database, emailNormalized: string): Promise<number> {
+  const result = await db
+    .prepare(`UPDATE subscriber_login_tokens SET used_at = ?1 WHERE email_normalized = ?2 AND purpose = 'email_change' AND used_at IS NULL`)
+    .bind(nowIso(), emailNormalized)
+    .run();
+  return result.meta.changes ?? 0;
+}
+
+/** Roadmap #12: does ANY subscribers row already use this email --
+ * the conflict check a self-service email change needs, same "does an
+ * account already exist for this address" role findFirmMemberByEmail()
+ * plays for handleFirmChangeEmailRequest(). ASCII-only comparison, same
+ * caveat as listSubscriberLicenses()'s own docstring: every write path
+ * into subscribers.email is gated by isValidEmail() today, so LOWER()'s
+ * ASCII-only behavior cannot diverge from normalizeEmail()'s full-Unicode
+ * one -- if that validation is ever relaxed, this comparison needs to
+ * change with it. */
+export async function hasAnySubscriberRowForEmail(db: D1Database, email: string): Promise<boolean> {
+  const row = await db
+    .prepare(`SELECT 1 FROM subscribers WHERE LOWER(TRIM(email)) = LOWER(TRIM(?1)) LIMIT 1`)
+    .bind(email)
+    .first();
+  return row !== null;
+}
+
+/** Roadmap #12: applies a self-service email change across EVERY
+ * subscribers row belonging to this person (their free-tier row and every
+ * firm-tracked row alike -- identity is the shared email, not a single
+ * account row, per migration 0012's own docstring). The caller must
+ * already have confirmed via hasAnySubscriberRowForEmail() that the new
+ * address isn't already someone else's before calling this -- this
+ * function does not re-check, same "caller validates, store executes"
+ * split as setFirmPassword(). */
+export async function setSubscriberEmail(db: D1Database, oldEmailNormalized: string, newEmail: string): Promise<number> {
+  const result = await db
+    .prepare(`UPDATE subscribers SET email = ?1 WHERE LOWER(TRIM(email)) = ?2`)
+    .bind(newEmail.trim(), oldEmailNormalized)
+    .run();
+  return result.meta.changes ?? 0;
+}
+
+/** Roadmap #12: the subscriber's own self-edited name, across every row
+ * sharing their email -- same "identity is the email, not a row" reach as
+ * setSubscriberEmail() above. Distinct from staff_label (the FIRM's own
+ * organizational tag for a tracked row, e.g. "Jane D. -- Audit team"),
+ * which this never touches -- first_name has always been the
+ * subscriber-supplied, cosmetic-only field (migration 0001's own
+ * comment), exactly the right one for self-edit. */
+export async function setSubscriberFirstName(db: D1Database, emailNormalized: string, firstName: string | null): Promise<number> {
+  const result = await db
+    .prepare(`UPDATE subscribers SET first_name = ?1 WHERE LOWER(TRIM(email)) = ?2`)
+    .bind(firstName, emailNormalized)
+    .run();
+  return result.meta.changes ?? 0;
 }
 
 export async function createSubscriberSession(
@@ -3745,6 +3862,19 @@ export async function setReplyToEmail(db: D1Database, firmId: string, email: str
  * this is ever called, same trust-the-caller posture as the setters above. */
 export async function setReminderThresholds(db: D1Database, firmId: string, thresholdsJson: string | null): Promise<void> {
   await db.prepare(`UPDATE firms SET reminder_thresholds = ?1 WHERE id = ?2`).bind(thresholdsJson, firmId).run();
+}
+
+/** Roadmap #12 (migration 0046): the subscriber-level override of
+ * setReminderThresholds() above -- same "validated by the caller before
+ * this is ever called" trust posture. Applies across EVERY row sharing
+ * this email, same "identity is the email, not a row" reach as
+ * setSubscriberEmail()/setSubscriberFirstName(). */
+export async function setSubscriberReminderThresholds(db: D1Database, emailNormalized: string, thresholdsJson: string | null): Promise<number> {
+  const result = await db
+    .prepare(`UPDATE subscribers SET reminder_thresholds = ?1 WHERE LOWER(TRIM(email)) = ?2`)
+    .bind(thresholdsJson, emailNormalized)
+    .run();
+  return result.meta.changes ?? 0;
 }
 
 // Roadmap #144 (2026-08-07): 1-question NPS/CSAT micro-survey. Fired after a

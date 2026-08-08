@@ -87,6 +87,9 @@ import {
   RATE_LIMIT_FIRM_REMINDER_CADENCE_SET,
   parseReminderThresholds,
   RATE_LIMIT_SUBSCRIBER_CPE_CREATE,
+  RATE_LIMIT_SUBSCRIBER_CHANGE_EMAIL,
+  RATE_LIMIT_SUBSCRIBER_PROFILE_UPDATE,
+  RATE_LIMIT_SUBSCRIBER_REMINDER_CADENCE,
   RATE_LIMIT_FIRM_STAFF_CPE_REMINDER,
   RATE_LIMIT_FIRM_RULE_CHANGE_NOTIFY,
   RATE_LIMIT_ROADMAP_VOTE,
@@ -144,6 +147,8 @@ import {
   buildFirmLoginEmail,
   buildFirmMemberInviteEmail,
   buildSubscriberLoginEmail,
+  buildSubscriberEmailChangeConfirmEmail,
+  buildSubscriberEmailChangeRequestedNoticeEmail,
   buildStaffCpeReminderEmail,
   buildRuleChangeNotificationEmail,
   buildStaffUnsubscribedNotificationEmail,
@@ -2950,19 +2955,231 @@ async function handleSubscriberLoginVerify(env: Env, token: string | null): Prom
       { href: `${env.STATIC_SITE_BASE_URL || ""}/signin/`, text: "Go to sign-in" }
     );
   }
-  const { rawSessionToken, sessionId } = await store.createSubscriberSession(env.DB, result.emailNormalized);
+  // Roadmap #12: the token PROVED control of the new inbox by arriving
+  // there at all -- applying the change here, same "intent lives on the
+  // token, never on what the redeeming request supplies" rule migration
+  // 0022/handleFirmLoginVerify() already established. Re-checks the
+  // conflict at REDEMPTION time too (not just request time), since another
+  // party could have claimed the address in the interim -- if so, the
+  // click still signs the person in (they proved a real inbox), just
+  // without the swap applying, same "conflict, not a hard failure" posture
+  // handleFirmLoginVerify() uses for updateFirmAdminEmail()'s own race.
+  let signInEmail = result.emailNormalized;
+  let emailChangeOutcome: "applied" | "conflict" | null = null;
+  if (result.purpose === "email_change" && result.pendingNewEmail) {
+    const alreadyClaimed = await store.hasAnySubscriberRowForEmail(env.DB, result.pendingNewEmail);
+    if (alreadyClaimed) {
+      emailChangeOutcome = "conflict";
+    } else {
+      await store.setSubscriberEmail(env.DB, result.emailNormalized, result.pendingNewEmail);
+      signInEmail = store.normalizeEmail(result.pendingNewEmail);
+      emailChangeOutcome = "applied";
+      // Any OTHER unused login/email-change link sits in the OLD address's
+      // inbox -- burn it now, same reasoning as
+      // invalidateOutstandingLoginTokensForMember()'s own comment on the
+      // firm side.
+      await store.invalidateOutstandingSubscriberEmailChangeTokens(env.DB, result.emailNormalized);
+    }
+  }
+  const { rawSessionToken, sessionId } = await store.createSubscriberSession(env.DB, signInEmail);
   // Signing in revokes every other session for this email -- see
   // deleteOtherSubscriberSessions()'s own docstring. This tier has no
   // account screen, so "request a fresh link" IS the sign-out-everywhere
   // control, and it only works if it actually revokes.
-  await store.deleteOtherSubscriberSessions(env.DB, result.emailNormalized, sessionId);
+  await store.deleteOtherSubscriberSessions(env.DB, signInEmail, sessionId);
+  const destinationQuery =
+    emailChangeOutcome === "applied" ? "?email_changed=1" : emailChangeOutcome === "conflict" ? "?email_change_failed=conflict" : "";
   return new Response(null, {
     status: 302,
     headers: {
-      Location: `${env.STATIC_SITE_BASE_URL || ""}/my/`,
+      Location: `${env.STATIC_SITE_BASE_URL || ""}/my/${destinationQuery}`,
       "Set-Cookie": subscriberSessionSetCookieHeader(rawSessionToken, env),
     },
   });
+}
+
+/**
+ * POST /subscriber/change-email -- roadmap #12. Mirrors
+ * handleFirmChangeEmailRequest() exactly: verify-new-address-before-
+ * applying, notice to the old address, no step-up re-auth (unlike the
+ * firm side, this tier has no password to re-prove -- the session cookie
+ * itself, minted by a magic link, is already the full authentication this
+ * tier has ever had; requiring anything more here would be a new bar this
+ * tier's login flow doesn't otherwise clear).
+ *
+ * Applies to EVERY subscribers row sharing the caller's current email,
+ * firm-tracked rows included -- moving where reminders land doesn't
+ * remove anyone from a firm's coverage, it only changes the address (see
+ * migration 0046's own docstring for the full reasoning).
+ */
+async function handleSubscriberChangeEmailRequest(request: Request, env: Env): Promise<Response> {
+  const session = await requireSubscriberSession(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_change_email", RATE_LIMIT_SUBSCRIBER_CHANGE_EMAIL);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().startsWith("application/json")) {
+    return jsonResponse(400, { error: "Expected a JSON request body." });
+  }
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return jsonResponse(400, { error: "Request too large or empty." });
+  }
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  const newEmailRaw = typeof body.new_email === "string" ? body.new_email.trim() : "";
+  if (!isValidEmail(newEmailRaw)) {
+    return jsonResponse(400, { error: "That doesn't look like a valid email address." });
+  }
+  if (await store.isEmailBlocklisted(env.DB, newEmailRaw)) {
+    return jsonResponse(400, { error: "We're not able to use that address right now." });
+  }
+  if (store.normalizeEmail(newEmailRaw) === session.emailNormalized) {
+    return jsonResponse(400, { error: "That's already your email address." });
+  }
+  // Same anti-enumeration trade-off handleFirmChangeEmailRequest() makes
+  // (and the same reasoning): the caller here is already an authenticated
+  // subscriber, not an anonymous visitor, and a silent failure at
+  // redemption time is strictly worse UX for zero real benefit -- that
+  // outcome already confirms the same fact one click later regardless.
+  if (await store.hasAnySubscriberRowForEmail(env.DB, newEmailRaw)) {
+    return jsonResponse(400, { error: "That email address is already in use." });
+  }
+
+  await store.invalidateOutstandingSubscriberEmailChangeTokens(env.DB, session.emailNormalized);
+  const { rawToken } = await store.createSubscriberLoginToken(env.DB, session.emailNormalized, "email_change", newEmailRaw);
+
+  if (env.SENDGRID_API_KEY) {
+    try {
+      // Notice to the OLD address first -- same ordering fix (and same
+      // reasoning) as handleFirmChangeEmailRequest()'s own comment: a
+      // starved daily-send budget should drop the (harmless, reversible)
+      // confirm email, never the time-sensitive warning.
+      const noticeUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      if (noticeUnderCap) {
+        const noticeEmail = buildSubscriberEmailChangeRequestedNoticeEmail(newEmailRaw, new Date().toISOString());
+        await sendViaSendGrid(env.SENDGRID_API_KEY, session.emailNormalized, noticeEmail, env.EMAIL_ALLOWLIST);
+      }
+      const confirmUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      if (confirmUnderCap) {
+        const confirmUrl = `${actionBaseUrl(env)}/subscriber/login/verify?token=${encodeURIComponent(rawToken)}`;
+        const confirmEmail = buildSubscriberEmailChangeConfirmEmail(confirmUrl);
+        await sendViaSendGrid(env.SENDGRID_API_KEY, newEmailRaw, confirmEmail, env.EMAIL_ALLOWLIST);
+      }
+    } catch {
+      // Swallow -- same best-effort posture as every other send in this
+      // file. The token already exists in the DB either way.
+    }
+  }
+
+  return jsonResponse(200, { ok: true });
+}
+
+/**
+ * POST /subscriber/profile -- roadmap #12. Body: { first_name: string |
+ * null }. Sets ONLY first_name -- the subscriber-supplied, cosmetic-only
+ * field (migration 0001's own comment) -- never staff_label (the FIRM's
+ * own organizational tag for a tracked row) and never anything
+ * compliance-relevant (state, license type, deadline), which stay
+ * firm-admin-only by construction: this handler has no path to them at
+ * all, not just a check that happens to refuse them.
+ */
+async function handleSubscriberProfileUpdate(request: Request, env: Env): Promise<Response> {
+  const session = await requireSubscriberSession(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_profile_update", RATE_LIMIT_SUBSCRIBER_PROFILE_UPDATE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return jsonResponse(400, { error: "Request too large." });
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  const firstNameRaw = typeof body.first_name === "string" ? body.first_name : "";
+  if (hasControlChars(firstNameRaw)) {
+    return jsonResponse(400, { error: "Invalid characters in submission." });
+  }
+  // Same 60-char cap and empty-means-unset posture as handleSubscribe()'s
+  // own first_name field (index.ts's public signup form) -- one cap for
+  // the same column, set at signup or edited later.
+  const trimmed = firstNameRaw.trim().slice(0, 60);
+  const firstName = trimmed.length > 0 ? trimmed : null;
+
+  await store.setSubscriberFirstName(env.DB, session.emailNormalized, firstName);
+  return jsonResponse(200, { first_name: firstName });
+}
+
+/**
+ * PATCH /subscriber/reminder-cadence -- roadmap #12. Body: { thresholds:
+ * number[] | null }. The subscriber's OWN override of which of the 6
+ * fixed escalation points (60/30/14/7/3/1 days) they personally receive
+ * -- null means "use the firm's setting" (or the full default for a
+ * free-tier row). Same validation (parseReminderThresholds) as
+ * handleReminderCadenceSet()'s firm-level version; applies across every
+ * row sharing this email, same reach as the profile/email setters above.
+ */
+async function handleSubscriberReminderCadenceSet(request: Request, env: Env): Promise<Response> {
+  const session = await requireSubscriberSession(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_reminder_cadence", RATE_LIMIT_SUBSCRIBER_REMINDER_CADENCE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return jsonResponse(400, { error: "Request too large." });
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  if (body.thresholds === null) {
+    await store.setSubscriberReminderThresholds(env.DB, session.emailNormalized, null);
+    return jsonResponse(200, { reminder_thresholds: null });
+  }
+
+  const parsed = parseReminderThresholds(body.thresholds);
+  if (!parsed) {
+    return jsonResponse(400, { error: "Please choose at least one valid reminder timing." });
+  }
+
+  await store.setSubscriberReminderThresholds(env.DB, session.emailNormalized, JSON.stringify(parsed));
+  return jsonResponse(200, { reminder_thresholds: parsed });
 }
 
 /** POST /subscriber/logout -- deletes the session row (no-op if there wasn't
@@ -3068,7 +3285,28 @@ async function handleSubscriberLicensesList(request: Request, env: Env): Promise
     if (bd === null) return -1;
     return ad < bd ? -1 : ad > bd ? 1 : 0;
   });
-  return jsonResponse(200, { email: session.emailNormalized, licenses: items });
+  // Roadmap #12: first_name/reminder_thresholds are PERSON-level (every
+  // row sharing this email carries the same value -- see
+  // setSubscriberFirstName()/setSubscriberReminderThresholds()'s own
+  // "every row sharing this email" reach), so they're surfaced once here
+  // rather than per-license, for the self-service profile form to
+  // pre-fill. Read from the first row; every row agrees by construction.
+  let reminderThresholds: number[] | null = null;
+  if (rows[0]?.reminder_thresholds) {
+    try {
+      const parsed = JSON.parse(rows[0].reminder_thresholds);
+      if (Array.isArray(parsed) && parsed.length > 0) reminderThresholds = parsed;
+    } catch {
+      // Malformed value somehow reached storage -- same fall-through
+      // posture as scheduler.ts's own parse.
+    }
+  }
+  return jsonResponse(200, {
+    email: session.emailNormalized,
+    first_name: rows[0]?.first_name ?? null,
+    reminder_thresholds: reminderThresholds,
+    licenses: items,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -5824,6 +6062,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
       }
+      if (url.pathname === "/subscriber/reminder-cadence") {
+        try {
+          return await handleSubscriberReminderCadenceSet(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
       return errorPage(404, "Not found.");
     }
 
@@ -6111,6 +6356,22 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/subscriber/cpe") {
         try {
           return await handleSubscriberCpeEntryCreate(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/subscriber/change-email") {
+        try {
+          return await handleSubscriberChangeEmailRequest(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/subscriber/profile") {
+        try {
+          return await handleSubscriberProfileUpdate(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }

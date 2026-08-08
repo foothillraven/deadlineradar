@@ -642,6 +642,23 @@ export const RATE_LIMIT_OAUTH_IDENTITY_DELETE: RateLimit = { max: 20, windowSeco
 // lower-volume than a firm admin bulk-logging a whole roster.
 export const RATE_LIMIT_SUBSCRIBER_CPE_CREATE: RateLimit = { max: 20, windowSeconds: 86400 };
 
+// POST /subscriber/change-email (roadmap #12, 2026-08-07) -- same shape
+// and same reasoning as RATE_LIMIT_FIRM_CHANGE_EMAIL above: this sends
+// real email to an address of the caller's choosing, not the account's
+// own address, so it needs its own per-account throttle on top of the
+// global daily send cap.
+export const RATE_LIMIT_SUBSCRIBER_CHANGE_EMAIL: RateLimit = { max: 5, windowSeconds: 3600 };
+
+// POST /subscriber/profile (roadmap #12) -- sets only first_name, no
+// email involved -- not a mail primitive, same modest authenticated-write
+// cap as the firm-side single-field setters (RATE_LIMIT_FIRM_REPLY_TO_SET
+// and siblings).
+export const RATE_LIMIT_SUBSCRIBER_PROFILE_UPDATE: RateLimit = { max: 30, windowSeconds: 86400 };
+
+// PATCH /subscriber/reminder-cadence (roadmap #12) -- same shape as
+// RATE_LIMIT_SUBSCRIBER_PROFILE_UPDATE above.
+export const RATE_LIMIT_SUBSCRIBER_REMINDER_CADENCE: RateLimit = { max: 30, windowSeconds: 86400 };
+
 // POST /firm/staff-cpe-reminder (2026-08-05) -- an admin-triggered nudge
 // email to one staff member. Keyed on firm_id like RATE_LIMIT_FIRM_LICENSE_CREATE,
 // bounding a compromised/careless firm session from mail-bombing its own

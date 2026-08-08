@@ -2012,9 +2012,19 @@ PAGE_CSS = """
      paragraph, not a form's own submit, so it gets the same compact/bordered
      treatment as this dashboard's other secondary action buttons
      (.dr-cpe-remind-btn) rather than the full-width form-submit style above. */
-  .dr-account-panel #dr-billing-body button, .dr-account-panel #dr-signout-other-btn { font-family: inherit; font-size: 0.85rem; font-weight: 600; padding: 0.4rem 0.9rem; border: 1px solid var(--border-strong); border-radius: 7px; background: transparent; color: inherit; cursor: pointer; margin-top: 0.4rem; }
-  .dr-account-panel #dr-billing-body button:hover, .dr-account-panel #dr-signout-other-btn:hover { border-color: var(--fg); }
-  .dr-account-panel #dr-billing-body button:disabled, .dr-account-panel #dr-signout-other-btn:disabled { opacity: 0.6; cursor: default; }
+  .dr-account-panel #dr-billing-body button, .dr-account-panel #dr-signout-other-btn, .dr-account-panel #dr-2fa-body button { font-family: inherit; font-size: 0.85rem; font-weight: 600; padding: 0.4rem 0.9rem; border: 1px solid var(--border-strong); border-radius: 7px; background: transparent; color: inherit; cursor: pointer; margin-top: 0.4rem; }
+  .dr-account-panel #dr-billing-body button:hover, .dr-account-panel #dr-signout-other-btn:hover, .dr-account-panel #dr-2fa-body button:hover { border-color: var(--fg); }
+  .dr-account-panel #dr-billing-body button:disabled, .dr-account-panel #dr-signout-other-btn:disabled, .dr-account-panel #dr-2fa-body button:disabled { opacity: 0.6; cursor: default; }
+  /* Roadmap #53 (2026-08-07): the enrollment secret and backup codes are the
+     one place this dashboard shows a value the user is expected to copy
+     character-for-character -- a proportional font makes 0/O and 1/I/l hard
+     to tell apart, which is exactly the ambiguity the backup-code alphabet
+     itself was already chosen to avoid (see totp.ts). */
+  .dr-2fa-secret, .dr-2fa-backup-codes { font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace; }
+  .dr-2fa-secret { display: inline-block; background: var(--row-alt); border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem 0.6rem; font-size: 0.95rem; letter-spacing: 0.03em; word-break: break-all; margin: 0.4rem 0; }
+  .dr-2fa-backup-codes { list-style: none; margin: 0.6rem 0; padding: 0.8rem 0.9rem; background: var(--row-alt); border: 1px solid var(--border); border-radius: 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem 1rem; font-size: 0.92rem; }
+  .dr-2fa-warn { background: rgba(200, 55, 55, 0.08); border: 1px solid rgba(200, 55, 55, 0.35); border-radius: 8px; padding: 0.6rem 0.8rem; font-size: 0.85rem; margin: 0.7rem 0; }
+  .dr-2fa-status-line { font-size: 0.9rem; font-weight: 600; margin: 0 0 0.3rem; }
   /* Demo-account lockdown (2026-08-06): input:disabled has no useful default
      look in most browsers -- still full-contrast text, no visual signal it's
      inert. Scoped to .dr-account-panel forms only, the two this ever hits. */
@@ -6711,6 +6721,103 @@ def build_set_password_page() -> str:
     )
 
 
+_FIRM_2FA_ENTRY_JS_HTML = """<script>
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  var pending = params.get('pending') || '';
+  var form = document.getElementById('dr-2fa-entry-form');
+  var err = document.getElementById('dr-2fa-entry-error');
+  var noPending = document.getElementById('dr-2fa-entry-no-pending');
+  if (!pending) {
+    if (form) form.hidden = true;
+    if (noPending) noPending.hidden = false;
+    return;
+  }
+  if (!form) return;
+
+  function firstParagraphText(html) {
+    var match = /<p>([\\s\\S]*?)<\\/p>/.exec(html);
+    if (!match) return 'Something went wrong. Please try again.';
+    var div = document.createElement('div');
+    div.innerHTML = match[1];
+    return div.textContent || div.innerText || 'Something went wrong. Please try again.';
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (err) { err.hidden = true; err.textContent = ''; }
+    var code = document.getElementById('dr-2fa-entry-code').value.trim();
+    var submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+
+    fetch(form.getAttribute('action'), {
+      method: 'POST',
+      credentials: 'include',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({pending: pending, code: code}).toString()
+    }).then(function (resp) {
+      if (resp.redirected) { window.location.href = resp.url; return null; }
+      return resp.text().then(function (html) {
+        if (resp.ok) { window.location.href = '/firm-dashboard/'; return; }
+        if (err) { err.textContent = firstParagraphText(html); err.hidden = false; }
+        if (submitBtn) submitBtn.disabled = false;
+      });
+    }).catch(function () {
+      if (err) { err.textContent = 'Something went wrong. Please try again.'; err.hidden = false; }
+      if (submitBtn) submitBtn.disabled = false;
+    });
+  });
+})();
+</script>"""
+
+
+def build_firm_2fa_page() -> str:
+    """/firm-login/2fa/ -- roadmap #53. Where handleFirmPasswordLogin() and
+    handleFirmLoginVerify() redirect a TOTP-enrolled member instead of
+    signing them straight in (`?pending=<token>`), per migration 0047's own
+    gate-placement reasoning: the original credential is proven but the
+    session/side-effect is deferred until a code is verified here too.
+
+    Static and enforces nothing itself, same posture as build_set_password_page():
+    `POST /firm/2fa/verify` is the only real authority, and this page is just
+    a place to collect the code and show its response. Reached only by
+    redirect with a real `pending` token in practice, but a direct visit
+    with none just shows a plain "no sign-in in progress" message instead of
+    a broken form -- there is no session to leak by visiting this URL cold.
+
+    `noindex`: a mid-authentication utility screen, not indexable content.
+    """
+    body = f"""<div class="dr-auth-card">
+  <h1>Enter your code</h1>
+  <p class="subhead">Enter the 6-digit code from your authenticator app, or one of your backup
+  codes.</p>
+
+  <form id="dr-2fa-entry-form" method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/2fa/verify">
+    <label for="dr-2fa-entry-code">Code</label>
+    <input type="text" id="dr-2fa-entry-code" name="code" required autocomplete="one-time-code"
+    autofocus>
+    <button type="submit">Verify</button>
+    <p id="dr-2fa-entry-error" role="alert" class="dr-account-err" hidden></p>
+  </form>
+
+  <p class="dr-account-err" id="dr-2fa-entry-no-pending" hidden>There is no sign-in in progress.
+  Please sign in again.</p>
+
+  <p class="dr-auth-alt"><a href="../">Back to sign in</a></p>
+</div>
+{_FIRM_2FA_ENTRY_JS_HTML}
+"""
+    return page_shell(
+        f"Enter your code — {SITE_NAME}",
+        "Two-factor authentication code entry for DeadlineRadar firm accounts.",
+        body,
+        home_href="../../",
+        canonical_path="/firm-login/2fa/",
+        extra_head='<meta name="robots" content="noindex">',
+        hide_signin=True,
+    )
+
+
 # SIGN-IN ROUTING (2026-08-02). A firm admin -- a PAYING customer -- clicked the
 # header "Sign In", landed on the free individual page, and had no way to reach
 # his firm dashboard except a link buried at the bottom of a second card. The
@@ -10902,6 +11009,182 @@ function drSignOutOtherDevices(btn) {
   });
 }
 
+// Roadmap #53 (2026-08-07): two-factor authentication self-service. Same
+// load/render shape as drLoadIdentities()/drLoadSessions() above, but with
+// three states instead of one list: not enrolled (a single Enable button),
+// mid-enrollment (secret + confirm-code form, rendered by
+// drRender2faEnrollForm), and enrolled (status + a Disable toggle). The
+// backup-codes view after a successful confirm is a fourth, ONE-TIME-ONLY
+// render -- drLoad2faStatus() is never called again until the user
+// acknowledges having saved them, since that GET would otherwise just show
+// the same "enabled" state and make the codes' one-time disclosure feel
+// like it silently vanished.
+function drLoad2faStatus() {
+  return fetch('/api/firm/2fa/status', {credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      if (!res.ok) return null;
+      return res.json();
+    })
+    .then(function(data) { if (data) drRender2faStatus(data.enabled, data.backup_codes_remaining); })
+    .catch(function() {});
+}
+
+function drRender2faStatus(enabled, remaining) {
+  var el = document.getElementById('dr-2fa-body');
+  if (!el) return;
+  if (enabled) {
+    el.innerHTML =
+      '<p class="dr-2fa-status-line">Enabled</p>' +
+      '<p class="signup-microcopy">' + remaining + ' backup code' + (remaining === 1 ? '' : 's') + ' remaining.</p>' +
+      '<button type="button" id="dr-2fa-disable-toggle">Disable two-factor authentication</button>' +
+      '<div id="dr-2fa-disable-form-wrap"></div>';
+    var toggleBtn = document.getElementById('dr-2fa-disable-toggle');
+    if (toggleBtn) toggleBtn.addEventListener('click', drShow2faDisableForm);
+  } else {
+    el.innerHTML =
+      '<p class="dr-2fa-status-line">Not enabled</p>' +
+      '<button type="button" id="dr-2fa-enable-btn">Enable two-factor authentication</button>' +
+      '<div id="dr-2fa-enroll-wrap"></div>';
+    var enableBtn = document.getElementById('dr-2fa-enable-btn');
+    if (enableBtn) enableBtn.addEventListener('click', drStart2faEnroll);
+  }
+}
+
+function drShow2faDisableForm() {
+  var wrap = document.getElementById('dr-2fa-disable-form-wrap');
+  if (!wrap) return;
+  wrap.innerHTML =
+    '<form id="dr-2fa-disable-form">' +
+      '<label for="dr-2fa-disable-code">Current code from your app, or a backup code</label>' +
+      '<input type="text" id="dr-2fa-disable-code" name="code" required autocomplete="one-time-code">' +
+      '<button type="submit">Confirm disable</button>' +
+    '</form>';
+  var form = document.getElementById('dr-2fa-disable-form');
+  if (form) {
+    form.addEventListener('submit', function(ev) { ev.preventDefault(); drSubmit2faDisable(form); });
+  }
+}
+
+function drSubmit2faDisable(form) {
+  var errEl = document.getElementById('dr-2fa-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  var fd = new FormData(form);
+  var code = (fd.get('code') || '').toString().trim();
+  var btn = form.querySelector('button[type="submit"]');
+  if (btn) btn.disabled = true;
+  fetch('/api/firm/2fa/disable', {
+    method: 'POST', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({code: code})
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (btn) btn.disabled = false;
+      if (!res.ok) {
+        var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        return;
+      }
+      drLoad2faStatus();
+    });
+  }).catch(function() {
+    if (btn) btn.disabled = false;
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
+function drStart2faEnroll() {
+  var errEl = document.getElementById('dr-2fa-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  var enableBtn = document.getElementById('dr-2fa-enable-btn');
+  if (enableBtn) enableBtn.disabled = true;
+  fetch('/api/firm/2fa/enroll', {method: 'POST', credentials: 'include'})
+    .then(function(res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      return drReadJsonSafe(res).then(function(data) {
+        if (enableBtn) enableBtn.disabled = false;
+        if (!res.ok) {
+          var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+          if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+          return;
+        }
+        drRender2faEnrollForm(data.secret, data.otpauth_uri);
+      });
+    }).catch(function() {
+      if (enableBtn) enableBtn.disabled = false;
+      if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+    });
+}
+
+function drRender2faEnrollForm(secret, otpauthUri) {
+  var wrap = document.getElementById('dr-2fa-enroll-wrap');
+  if (!wrap) return;
+  wrap.innerHTML =
+    '<p class="signup-microcopy">Add a new account in your authenticator app (Google Authenticator, ' +
+    '1Password, Authy, etc.), choose &ldquo;Enter a setup key manually&rdquo;, and enter this code:</p>' +
+    '<p class="dr-2fa-secret">' + drEscapeHtml(secret) + '</p>' +
+    '<p class="signup-microcopy">On a phone with the app already installed, you can instead ' +
+    '<a href="' + drEscapeHtml(otpauthUri) + '">tap to add it directly</a>.</p>' +
+    '<form id="dr-2fa-confirm-form">' +
+      '<label for="dr-2fa-confirm-code">6-digit code from the app</label>' +
+      '<input type="text" id="dr-2fa-confirm-code" name="code" required inputmode="numeric" ' +
+      'pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code">' +
+      '<button type="submit">Confirm and enable</button>' +
+    '</form>' +
+    '<p id="dr-2fa-enroll-error" role="alert" class="dr-account-err" hidden></p>' +
+    '<button type="button" id="dr-2fa-cancel-enroll">Cancel</button>';
+  var form = document.getElementById('dr-2fa-confirm-form');
+  if (form) {
+    form.addEventListener('submit', function(ev) { ev.preventDefault(); drSubmit2faEnrollConfirm(form, secret); });
+  }
+  var cancelBtn = document.getElementById('dr-2fa-cancel-enroll');
+  if (cancelBtn) cancelBtn.addEventListener('click', function() { drLoad2faStatus(); });
+}
+
+function drSubmit2faEnrollConfirm(form, secret) {
+  var errEl = document.getElementById('dr-2fa-enroll-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  var fd = new FormData(form);
+  var code = (fd.get('code') || '').toString().trim();
+  var btn = form.querySelector('button[type="submit"]');
+  if (btn) btn.disabled = true;
+  fetch('/api/firm/2fa/enroll/confirm', {
+    method: 'POST', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({secret: secret, code: code})
+  }).then(function(res) {
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (btn) btn.disabled = false;
+      if (!res.ok) {
+        var msg = (data && data.error) ? data.error : 'That code was not right. Please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        return;
+      }
+      drRender2faBackupCodes(data.backup_codes || []);
+    });
+  }).catch(function() {
+    if (btn) btn.disabled = false;
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
+function drRender2faBackupCodes(codes) {
+  var el = document.getElementById('dr-2fa-body');
+  if (!el) return;
+  el.innerHTML =
+    '<p class="dr-2fa-status-line">Two-factor authentication is enabled.</p>' +
+    '<div class="dr-2fa-warn">Save these backup codes somewhere safe now. Each one works once, if ' +
+    'you lose access to your authenticator app. They will not be shown again.</div>' +
+    '<ul class="dr-2fa-backup-codes">' +
+    codes.map(function(c) { return '<li>' + drEscapeHtml(c) + '</li>'; }).join('') +
+    '</ul>' +
+    '<button type="button" id="dr-2fa-backup-done">I have saved these</button>';
+  var doneBtn = document.getElementById('dr-2fa-backup-done');
+  if (doneBtn) doneBtn.addEventListener('click', function() { drLoad2faStatus(); });
+}
+
 // Task #19 (2026-08-06): one-time post-signup feature-request prompt.
 // Both "Submit" and "Skip" mark it dismissed server-side (POST
 // /firm/questionnaire and /firm/questionnaire/dismiss respectively) -- the
@@ -12172,6 +12455,11 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!btn) return;
       drRevokeSession(btn.getAttribute('data-session-id'));
     });
+  }
+
+  var dr2faBody = document.getElementById('dr-2fa-body');
+  if (dr2faBody) {
+    drLoad2faStatus();
   }
 
   var teamList = document.getElementById('dr-team-list');
@@ -13707,6 +13995,15 @@ def build_firm_dashboard_page(
         </form>
         <p id="dr-password-ok" class="dr-account-ok" hidden></p>
         <p id="dr-password-error" role="alert" class="dr-account-err" hidden></p>
+      </div>
+
+      <div class="dr-account-panel">
+        <h2>Two-factor authentication</h2>
+        <p class="signup-microcopy">Require a code from an authenticator app, in addition to your
+        password or sign-in link, before this account can be signed in. Doesn't apply when you sign
+        in with Google &mdash; that already proves a real, typically 2FA-protected Google account.</p>
+        <div id="dr-2fa-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
+        <p id="dr-2fa-error" role="alert" class="dr-account-err" hidden></p>
       </div>
 
       <div class="dr-account-panel">
@@ -15300,6 +15597,11 @@ def main() -> None:
     firm_login_dir.mkdir(parents=True, exist_ok=True)
     (firm_login_dir / "index.html").write_text(build_firm_login_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/firm-login/index.html")
+
+    firm_2fa_dir = firm_login_dir / "2fa"
+    firm_2fa_dir.mkdir(parents=True, exist_ok=True)
+    (firm_2fa_dir / "index.html").write_text(build_firm_2fa_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/firm-login/2fa/index.html")
 
     set_password_dir = SITE_DIR / "set-password"
     set_password_dir.mkdir(parents=True, exist_ok=True)

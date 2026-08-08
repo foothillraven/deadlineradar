@@ -88,6 +88,18 @@ export interface Env {
    * set a new password. Treat it as a durable secret, not a rotatable one.
    */
   PASSWORD_PEPPER?: string;
+  /**
+   * Two-factor authentication (roadmap #53, 2026-08-07). A base64-encoded
+   * 32-byte AES-GCM key (`wrangler secret put TOTP_ENCRYPTION_KEY`),
+   * generated once and held as a Worker secret, never in D1 -- same trust-
+   * domain-separation reasoning as PASSWORD_PEPPER above. UNLIKE the
+   * pepper, this is NOT optional in the way that one is: a TOTP secret
+   * must be recoverable to verify a code (unlike a password, which is
+   * only ever hashed), so there is no safe "write v1, no encryption"
+   * fallback -- enrollment is refused outright while this is unset,
+   * rather than ever storing a secret unencrypted.
+   */
+  TOTP_ENCRYPTION_KEY?: string;
   GOOGLE_OAUTH_CLIENT_ID?: string;
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
   /**

@@ -1055,6 +1055,63 @@ ${addr}`;
 }
 
 /**
+ * Roadmap #53 (2026-08-07). Sent to the MEMBER whose account just enrolled
+ * or disabled two-factor authentication -- same detection-control reasoning
+ * as buildFirmPasswordChangedEmail() above and buildFirmOauthLinkedEmail()
+ * below: enrolling/disabling 2FA is a durable change to this account's
+ * security posture, and unlike a password change there is no forced
+ * sign-out of other sessions to notice it by, so this email is the only
+ * signal a legitimate owner gets if someone else made the change.
+ */
+export function buildFirmTwoFactorChangedEmail(
+  firmName: string,
+  enabled: boolean,
+  whenIso: string,
+  adminName: string | null = null
+): BuiltEmail {
+  const addr = mailingAddress();
+  const action = enabled ? "enabled" : "disabled";
+  const subject = `Two-factor authentication was ${action} on your ${SITE_NAME} account`;
+
+  const textBody =
+    `${textGreeting(adminName)}\n\n` +
+    `Two-factor authentication was just ${action} for ${firmName} on ${SITE_NAME} (${whenIso}).
+
+` +
+    `If this was you, nothing further is needed.
+
+` +
+    `IF THIS WAS NOT YOU, request a sign-in link from the sign-in page to get back in, then review ` +
+    `your account's security settings immediately. The sign-in link goes only to this address, so ` +
+    `whoever made this change cannot intercept it.
+
+` +
+    `---
+${SENDER_LINE}
+${addr}`;
+
+  const htmlBody = htmlShell(
+    `Two-factor authentication was ${action} on your ${SITE_NAME} account`,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `Two-factor authentication was ${action}</h1>` +
+      p(htmlGreeting(adminName)) +
+      p(`Two-factor authentication was just ${action} for ${esc(firmName)} on ${esc(SITE_NAME)} (${esc(whenIso)}).`) +
+      p("If this was you, nothing further is needed.", 13, LIGHT.muted) +
+      p(
+        "<strong>If this was not you</strong>, request a sign-in link from the sign-in page to get back " +
+          "in, then review your account's security settings immediately. That link goes only to this " +
+          "address, so whoever made this change cannot intercept it.",
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
  * Sent to the FIRM'S OWN admin_email whenever a roster staffer unsubscribes
  * (2026-08-06, Task #10). Not the same recipient as
  * buildSignupNotificationEmail() (that one goes to INTERNAL_NOTIFY_EMAIL,

@@ -62,6 +62,10 @@ import {
   MAX_INTERNAL_NOTES_LEN,
   RATE_LIMIT_ACTION,
   RATE_LIMIT_FIRM_PASSWORD_LOGIN,
+  RATE_LIMIT_FIRM_2FA_VERIFY,
+  RATE_LIMIT_FIRM_2FA_VERIFY_ACCOUNT,
+  RATE_LIMIT_FIRM_2FA_ENROLL,
+  RATE_LIMIT_FIRM_2FA_DISABLE,
   RATE_LIMIT_FIRM_BILLING_CANCEL,
   RATE_LIMIT_FIRM_ACCOUNT_DELETE,
   DELETION_SURVEY_REASONS,
@@ -155,6 +159,7 @@ import {
   buildFeatureIdeaNotifyConfirmEmail,
   buildFeatureIdeaShippedEmail,
   buildFirmPasswordChangedEmail,
+  buildFirmTwoFactorChangedEmail,
   buildFirmSessionsEndedEmail,
   buildFirmEmailChangeConfirmEmail,
   buildFirmEmailChangeRequestedNoticeEmail,
@@ -177,6 +182,15 @@ import {
   needsRehash,
   dummyVerifyForTiming,
 } from "./password";
+import {
+  generateTotpSecretBase32,
+  verifyTotp,
+  buildOtpauthUri,
+  encryptTotpSecret,
+  decryptTotpSecret,
+  generateBackupCodes,
+  hashBackupCode,
+} from "./totp";
 import {
   getConfiguredProvider,
   buildRedirectUri,
@@ -1789,6 +1803,49 @@ async function handleFirmLoginVerify(
   if (!member) {
     return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
   }
+
+  // Roadmap #53: gate at the EARLIEST point -- immediately after the
+  // ORIGINAL token is resolved to a real member, before ANY purpose-
+  // specific side effect (email_change apply, opportunistic password-set,
+  // session creation). Gating only the final createSession() call while
+  // letting those side effects fire immediately would leave a real hole:
+  // a stolen/live session could request an email change, and the confirm
+  // click alone (no TOTP) would complete the takeover. purpose/
+  // pendingNewEmail are carried forward on the pending row so the SAME
+  // deferred side effects replay, unchanged, once TOTP succeeds -- see
+  // finishFirmLoginVerify() below and migration 0047's own docstring.
+  if (member.totp_enrolled_at) {
+    const { rawToken } = await store.createFirm2faPendingToken(env.DB, member.id, firm.id, result.purpose, result.pendingNewEmail);
+    return new Response(null, {
+      status: 302,
+      headers: { Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-login/2fa/?pending=${encodeURIComponent(rawToken)}` },
+    });
+  }
+
+  return finishFirmLoginVerify(env, firm, member, result.purpose, result.pendingNewEmail, optionalNewPassword);
+}
+
+/**
+ * The deferred continuation of handleFirmLoginVerify() -- everything that
+ * happens once a login token's identity is fully proven, whether that
+ * proof completed in one step (no 2FA) or two (2FA: original token, then
+ * a TOTP/backup code against the pending token it minted). Called from
+ * TWO places: directly above when 2FA isn't enrolled, and from
+ * handleFirm2faVerify() after a successful code check. `optionalNewPassword`
+ * is only ever non-null from the first call site -- the 2FA-entry page has
+ * no such field (a member with 2FA enrolled already has a real credential
+ * by construction, so the "set a password on first login" opportunity
+ * doesn't apply to that path anyway).
+ */
+async function finishFirmLoginVerify(
+  env: Env,
+  firm: store.FirmRow,
+  member: store.FirmMemberRow,
+  purpose: store.LoginTokenPurpose,
+  pendingNewEmail: string | null,
+  optionalNewPassword: string | null
+): Promise<Response> {
+  const result = { firmId: firm.id, memberId: member.id, purpose, pendingNewEmail };
   // Task #29: the token PROVED control of the new inbox by arriving there at
   // all -- applying the change here, not on a separate page, since (unlike
   // password_reset) there is no follow-up form to fill in first. `newEmail`
@@ -1898,6 +1955,108 @@ async function handleFirmLoginVerify(
       "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken, env),
     },
   });
+}
+
+/**
+ * POST /firm/2fa/verify -- roadmap #53. Body: pending (the token minted by
+ * handleFirmPasswordLogin()/handleFirmLoginVerify() when 2FA is enrolled),
+ * code (a 6-digit TOTP code or a 10-character backup code). On success,
+ * replays the SAME deferred continuation the non-2FA path would have run
+ * immediately -- see finishFirmLoginVerify()'s own docstring.
+ */
+async function handleFirm2faVerify(request: Request, env: Env, ip: string): Promise<Response> {
+  // Same login-CSRF reasoning as handleFirmPasswordLogin() -- this route
+  // ends in Set-Cookie: dr_firm_session with no separate GET-rendered
+  // nonce of its own.
+  if (!originAllowed(request, env)) {
+    return errorPage(400, "That sign-in couldn't be completed. Please sign in from the DeadlineRadar site.");
+  }
+
+  const ipAllowed = await checkRateLimit(env.DB, ip, "firm_2fa_verify", RATE_LIMIT_FIRM_2FA_VERIFY);
+  if (!ipAllowed) {
+    return errorPage(429, "Too many attempts from this address. Please try again later.");
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return errorPage(400, "Request too large or empty.");
+  }
+  let form: Record<string, string>;
+  try {
+    form = Object.fromEntries(new URLSearchParams(raw).entries());
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+
+  const signinLink = { href: `${env.STATIC_SITE_BASE_URL || ""}/firm-login/`, text: "Go to firm sign-in" };
+  const pendingToken = (form.pending ?? "").trim();
+  const submittedCode = (form.code ?? "").trim();
+  if (!pendingToken || !submittedCode) {
+    return errorPage(400, "Please enter your 6-digit code.", signinLink);
+  }
+
+  // peekFirm2faPendingToken() already refuses unknown/expired/used/
+  // attempts-exhausted rows -- all indistinguishable to this caller, same
+  // no-oracle posture every other token lookup in this file uses.
+  const pending = await store.peekFirm2faPendingToken(env.DB, pendingToken);
+  if (!pending) {
+    return errorPage(400, "That sign-in attempt has expired or already been used. Please sign in again.", signinLink);
+  }
+
+  // Second bucket, keyed on the ACCOUNT rather than the source IP -- same
+  // "per-IP alone does nothing against a distributed attack aimed at one
+  // account" reasoning as handleFirmPasswordLogin()'s own account bucket.
+  const accountAllowed = await checkRateLimit(env.DB, `account:${pending.member_id}`, "firm_2fa_verify_account", RATE_LIMIT_FIRM_2FA_VERIFY_ACCOUNT);
+  if (!accountAllowed) {
+    return errorPage(429, "Too many attempts for this account. Please try again later.", signinLink);
+  }
+
+  const member = await store.getFirmMemberById(env.DB, pending.firm_id, pending.member_id);
+  if (!member || !member.totp_secret_encrypted || !member.totp_secret_iv || !env.TOTP_ENCRYPTION_KEY) {
+    // 2FA was disabled (or the encryption key is unexpectedly unset)
+    // between minting the pending token and now -- fail closed rather
+    // than crash or silently succeed.
+    return errorPage(400, "That sign-in attempt is no longer valid. Please sign in again.", signinLink);
+  }
+
+  let verified = false;
+  const looksLikeTotp = /^\d{6}$/.test(submittedCode);
+  if (looksLikeTotp) {
+    const secret = await decryptTotpSecret(member.totp_secret_encrypted, member.totp_secret_iv, member.id, env.TOTP_ENCRYPTION_KEY);
+    if (secret) verified = await verifyTotp(secret, submittedCode);
+  } else {
+    // Not TOTP-shaped -- try it as a backup code instead of wasting a
+    // decrypt+HMAC on a value that can never match.
+    const codeHash = await hashBackupCode(submittedCode);
+    verified = await store.consumeFirmMemberBackupCode(env.DB, member.id, codeHash);
+  }
+
+  if (!verified) {
+    await store.incrementFirm2faPendingAttempts(env.DB, pending.id);
+    return errorPage(400, "That code wasn't right. Please try again.", {
+      href: `${env.STATIC_SITE_BASE_URL || ""}/firm-login/2fa/?pending=${encodeURIComponent(pendingToken)}`,
+      text: "Try again",
+    });
+  }
+
+  const consumed = await store.consumeFirm2faPendingToken(env.DB, pending.id);
+  if (!consumed) {
+    // A race -- this exact pending token was already redeemed (e.g. two
+    // tabs). Fails closed rather than signing in twice from one code.
+    return errorPage(400, "That sign-in attempt was already completed. Please sign in again.", signinLink);
+  }
+
+  const firm = await store.getFirmById(env.DB, pending.firm_id);
+  if (!firm || firm.status !== "active") {
+    return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
+  }
+
+  return finishFirmLoginVerify(env, firm, member, store.normalizeLoginTokenPurpose(pending.purpose), pending.pending_new_email, null);
 }
 
 /** POST /firm/logout -- reads the session cookie (if any), deletes the
@@ -5953,6 +6112,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
       }
+      if (url.pathname === "/firm/2fa/status") {
+        try {
+          return await handleFirm2faStatus(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
       if (url.pathname === "/firm/members") {
         try {
           return await handleFirmMembersList(request, env);
@@ -6289,9 +6455,41 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
       }
 
+      if (url.pathname === "/firm/2fa/verify") {
+        try {
+          return await handleFirm2faVerify(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
       if (url.pathname === "/firm/password") {
         try {
           return await handleFirmPasswordSet(request, env, ip);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/2fa/enroll") {
+        try {
+          return await handleFirm2faEnroll(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/2fa/enroll/confirm") {
+        try {
+          return await handleFirm2faEnrollConfirm(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/2fa/disable") {
+        try {
+          return await handleFirm2faDisable(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -6705,6 +6903,20 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
     return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
   }
 
+  // Roadmap #53: gate at the EARLIEST point after credential proof, before
+  // ANY side effect (the rehash upgrade below is itself a side effect,
+  // though a harmless one) -- mirrors handleFirmLoginVerify()'s own gate
+  // placement and the same reasoning migration 0047's docstring gives:
+  // this is the "credential proven, TOTP not yet entered" boundary, not
+  // just "before createSession()".
+  if (member.totp_enrolled_at) {
+    const { rawToken } = await store.createFirm2faPendingToken(env.DB, member.id, firm.id, "login", null);
+    return new Response(null, {
+      status: 302,
+      headers: { Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-login/2fa/?pending=${encodeURIComponent(rawToken)}` },
+    });
+  }
+
   // Successful login is the only moment the plaintext is legitimately in
   // hand, so it is the only moment an outdated work factor can be upgraded
   // without asking the user to do anything.
@@ -6971,6 +7183,278 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
   }
 
   return jsonResponse(200, { ok: true, other_sessions_ended: endedSessions });
+}
+
+/**
+ * GET /firm/2fa/status -- roadmap #53. Read-only, same shape as
+ * handleFirmSessionsList()/handleFirmIdentitiesList() just above: session-
+ * gated only, no CSRF/rate-limit needed for a read. Lets the Account tab
+ * render "Enable"/"Disable" without guessing from any other endpoint's
+ * side data.
+ */
+async function handleFirm2faStatus(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+  const member = await store.getFirmMemberById(env.DB, session.firmId, session.memberId);
+  if (!member) {
+    return jsonResponse(404, { error: "Not found." });
+  }
+  const enabled = Boolean(member.totp_enrolled_at);
+  const backupCodesRemaining = enabled ? await store.countUnusedFirmMemberBackupCodes(env.DB, member.id) : 0;
+  return jsonResponse(200, { enabled, backup_codes_remaining: backupCodesRemaining });
+}
+
+/**
+ * POST /firm/2fa/enroll -- roadmap #53, enrollment step 1. Generates a fresh
+ * secret and returns it (base32 + otpauth:// URI) for the caller to add to
+ * an authenticator app. Deliberately persists NOTHING yet -- the secret
+ * only becomes real once handleFirm2faEnrollConfirm() proves a code was
+ * actually derived from it, so an abandoned enrollment (closed tab, changed
+ * mind) leaves no half-enrolled row to clean up. The secret is round-
+ * tripped back to the client on /enroll/confirm; that adds no new exposure
+ * (the client is about to display it to the member for manual entry into
+ * their app anyway, which is the whole point of this step), and confirm
+ * never trusts it without independently TOTP-verifying a real code
+ * alongside it -- see that handler's own comment.
+ */
+async function handleFirm2faEnroll(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  if (!env.TOTP_ENCRYPTION_KEY) {
+    return jsonResponse(503, { error: "Two-factor authentication isn't available right now. Please try again later." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.memberId, "firm_2fa_enroll", RATE_LIMIT_FIRM_2FA_ENROLL);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  const firm = await store.getFirmById(env.DB, session.firmId);
+  const member = await store.getFirmMemberById(env.DB, session.firmId, session.memberId);
+  if (!firm || !member) {
+    return jsonResponse(404, { error: "Not found." });
+  }
+  // Same posture as SSO-linking's own demo_locked refusal (Task #27): the
+  // shared demo account is used by many people who all need the same
+  // sign-in to keep working. Two-factor authentication tying sign-in to
+  // ONE person's authenticator app would lock everyone else out of the
+  // exact account this exists to let anyone freely try.
+  if (firm.demo_locked) {
+    return jsonResponse(400, { error: "Two-factor authentication isn't available for this shared demo account." });
+  }
+  if (member.totp_enrolled_at) {
+    return jsonResponse(400, { error: "Two-factor authentication is already enabled on this account. Disable it first to re-enroll." });
+  }
+
+  const secret = generateTotpSecretBase32();
+  return jsonResponse(200, { secret, otpauth_uri: buildOtpauthUri(secret, member.email, "DeadlineRadar") });
+}
+
+/**
+ * POST /firm/2fa/enroll/confirm -- roadmap #53, enrollment step 2. Body:
+ * secret (the value /enroll just returned), code (what the member's app
+ * shows for it right now). Verifying the code against the CLIENT-SUPPLIED
+ * secret before ever persisting anything is the whole security argument
+ * for the stateless enroll/confirm split above: this route only ever
+ * writes a secret it just watched produce a real, currently-valid code, so
+ * there is no path where an unverified value reaches storage.
+ *
+ * Refuses outright if the member is already enrolled -- without this, a
+ * stolen session could silently swap out a legitimate member's TOTP secret
+ * for an attacker-controlled one, which would be a full account takeover
+ * masquerading as "re-enrollment." Disabling has its own step-up-gated
+ * route (handleFirm2faDisable) for a reason; this must never become a side
+ * door around it.
+ */
+async function handleFirm2faEnrollConfirm(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  if (!env.TOTP_ENCRYPTION_KEY) {
+    return jsonResponse(503, { error: "Two-factor authentication isn't available right now. Please try again later." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.memberId, "firm_2fa_enroll", RATE_LIMIT_FIRM_2FA_ENROLL);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().startsWith("application/json")) {
+    return jsonResponse(400, { error: "Expected a JSON request body." });
+  }
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return jsonResponse(400, { error: "Request too large or empty." });
+  }
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  const secret = typeof body.secret === "string" ? body.secret.trim().toUpperCase() : "";
+  const code = typeof body.code === "string" ? body.code.trim() : "";
+  if (!secret || !code) {
+    return jsonResponse(400, { error: "Enter the 6-digit code from your authenticator app." });
+  }
+
+  const firm = await store.getFirmById(env.DB, session.firmId);
+  const member = await store.getFirmMemberById(env.DB, session.firmId, session.memberId);
+  if (!firm || !member) {
+    return jsonResponse(404, { error: "Not found." });
+  }
+  // Defense-in-depth: the SAME check handleFirm2faEnroll already makes,
+  // repeated here rather than trusted from that earlier call -- a client
+  // could otherwise hold a secret from before a firm became demo_locked
+  // and confirm it after, same "don't trust an earlier gate alone" posture
+  // as this file's own M1 fix for email_change/password purposes.
+  if (firm.demo_locked) {
+    return jsonResponse(400, { error: "Two-factor authentication isn't available for this shared demo account." });
+  }
+  if (member.totp_enrolled_at) {
+    return jsonResponse(400, { error: "Two-factor authentication is already enabled on this account." });
+  }
+
+  const verified = await verifyTotp(secret, code);
+  if (!verified) {
+    return jsonResponse(400, { error: "That code wasn't right. Please try again." });
+  }
+
+  const { ciphertextBase64, ivBase64 } = await encryptTotpSecret(secret, member.id, env.TOTP_ENCRYPTION_KEY);
+  await store.setFirmMemberTotpSecret(env.DB, member.id, ciphertextBase64, ivBase64);
+  const backupCodes = generateBackupCodes();
+  await store.createFirmMemberBackupCodes(env.DB, member.id, await Promise.all(backupCodes.map(hashBackupCode)));
+
+  // Best-effort security notice, same guarded/capped/never-fails-the-request
+  // pattern as handleFirmPasswordSet's own send above.
+  if (env.SENDGRID_API_KEY) {
+    try {
+      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      if (underCap) {
+        const built = buildFirmTwoFactorChangedEmail(firm.name, true, new Date().toISOString(), member.name);
+        await sendViaSendGrid(env.SENDGRID_API_KEY, member.email, built, env.EMAIL_ALLOWLIST);
+      }
+    } catch {
+      // Intentionally swallowed -- see above.
+    }
+  }
+
+  return jsonResponse(200, { ok: true, backup_codes: backupCodes });
+}
+
+/**
+ * POST /firm/2fa/disable -- roadmap #53. Body: code (a current TOTP code or
+ * an unused backup code). Requires fresh proof of the SECOND factor being
+ * removed, not just the session cookie or the account password -- the
+ * standard step-up bar mainstream providers use for turning 2FA off, and
+ * the one that actually matches the threat this feature defends against: a
+ * stolen session cookie proves nothing about knowing the password OR
+ * holding the authenticator, so a password-only check would not catch
+ * exactly the attacker this route needs to stop.
+ */
+async function handleFirm2faDisable(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSession(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.memberId, "firm_2fa_disable", RATE_LIMIT_FIRM_2FA_DISABLE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().startsWith("application/json")) {
+    return jsonResponse(400, { error: "Expected a JSON request body." });
+  }
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return jsonResponse(400, { error: "Request too large or empty." });
+  }
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  const code = typeof body.code === "string" ? body.code.trim() : "";
+  if (!code) {
+    return jsonResponse(400, { error: "Enter a current code from your authenticator app, or a backup code." });
+  }
+
+  const firm = await store.getFirmById(env.DB, session.firmId);
+  const member = await store.getFirmMemberById(env.DB, session.firmId, session.memberId);
+  if (!firm || !member || !member.totp_secret_encrypted || !member.totp_secret_iv) {
+    return jsonResponse(400, { error: "Two-factor authentication isn't enabled on this account." });
+  }
+  // Unreachable in practice today (a demo_locked firm can never enroll --
+  // see handleFirm2faEnroll's own gate), kept explicit anyway rather than
+  // relying on that invariant holding forever across future changes.
+  if (firm.demo_locked) {
+    return jsonResponse(400, { error: "Two-factor authentication isn't available for this shared demo account." });
+  }
+  if (!env.TOTP_ENCRYPTION_KEY) {
+    return jsonResponse(503, { error: "Two-factor authentication isn't available right now. Please try again later." });
+  }
+
+  let verified = false;
+  if (/^\d{6}$/.test(code)) {
+    const secret = await decryptTotpSecret(member.totp_secret_encrypted, member.totp_secret_iv, member.id, env.TOTP_ENCRYPTION_KEY);
+    if (secret) verified = await verifyTotp(secret, code);
+  } else {
+    const codeHash = await hashBackupCode(code);
+    verified = await store.consumeFirmMemberBackupCode(env.DB, member.id, codeHash);
+  }
+  if (!verified) {
+    return jsonResponse(400, { error: "That code wasn't right." });
+  }
+
+  await store.clearFirmMemberTotpSecret(env.DB, member.id);
+  await store.deleteFirmMemberBackupCodes(env.DB, member.id);
+
+  if (env.SENDGRID_API_KEY) {
+    try {
+      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      if (underCap) {
+        const built = buildFirmTwoFactorChangedEmail(firm.name, false, new Date().toISOString(), member.name);
+        await sendViaSendGrid(env.SENDGRID_API_KEY, member.email, built, env.EMAIL_ALLOWLIST);
+      }
+    } catch {
+      // Intentionally swallowed -- see above.
+    }
+  }
+
+  return jsonResponse(200, { ok: true });
 }
 
 /**

@@ -715,6 +715,34 @@ export const RATE_LIMIT_MOBILITY_COMPLETION_DELETE: RateLimit = { max: 100, wind
  */
 export const RATE_LIMIT_FIRM_PASSWORD_LOGIN: RateLimit = { max: 10, windowSeconds: 600 };
 
+// POST /firm/2fa/verify (roadmap #53, 2026-08-07) -- same dual-bucket shape
+// as RATE_LIMIT_FIRM_PASSWORD_LOGIN (per-IP here, per-member below): a
+// 6-digit code with a +/-1 step window is ~3-in-1,000,000 per guess, but
+// only if attempts are actually bounded -- this bucket plus the pending
+// token's own DB-level attempts cap (FIRM_2FA_PENDING_MAX_ATTEMPTS,
+// store.ts) are the two independent layers.
+export const RATE_LIMIT_FIRM_2FA_VERIFY: RateLimit = { max: 10, windowSeconds: 600 };
+// Tighter per-member bucket, same "per-IP alone does nothing against a
+// distributed attack aimed at one account" reasoning every other
+// account-keyed bucket in this file already uses.
+export const RATE_LIMIT_FIRM_2FA_VERIFY_ACCOUNT: RateLimit = { max: 8, windowSeconds: 600 };
+
+/** POST /firm/2fa/enroll and /firm/2fa/enroll/confirm -- already
+ * session-authenticated (same "stops a compromised session burning CPU/
+ * D1 writes" reasoning as RATE_LIMIT_FIRM_PASSWORD_SET), keyed on
+ * session.memberId rather than IP -- an office sharing one outbound IP
+ * must not throttle a different member's own enrollment attempt. Tighter
+ * than password-set's 10/hr: confirm is also where a code gets brute-forced
+ * against a client-supplied secret (see handleFirm2faEnrollConfirm's own
+ * comment), so this doubles as that route's guessing-rate bound too. */
+export const RATE_LIMIT_FIRM_2FA_ENROLL: RateLimit = { max: 8, windowSeconds: 3600 };
+
+/** POST /firm/2fa/disable -- requires a fresh code (see the route's own
+ * comment for why proof-of-possession, not the password, is the right
+ * step-up here), so this bucket is what actually bounds guessing it. Same
+ * per-member keying and count as RATE_LIMIT_FIRM_2FA_VERIFY_ACCOUNT. */
+export const RATE_LIMIT_FIRM_2FA_DISABLE: RateLimit = { max: 8, windowSeconds: 600 };
+
 /** Setting/changing a password is authenticated already; this only stops a
  * compromised session being used to burn CPU. */
 export const RATE_LIMIT_FIRM_PASSWORD_SET: RateLimit = { max: 10, windowSeconds: 3600 };

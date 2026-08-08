@@ -1001,6 +1001,14 @@ export interface FirmMemberRow {
   joined_at: string | null;
   removed_at: string | null;
   created_at: string;
+  // migration 0047 (roadmap #53). NULL = 2FA not enrolled. The secret is
+  // ENCRYPTED, not hashed (unlike a password, TOTP needs the secret back
+  // to compute the current code) -- see worker/src/totp.ts's own
+  // docstring. totp_secret_iv is the per-row random AES-GCM IV, never
+  // derived from the key alone.
+  totp_secret_encrypted: string | null;
+  totp_secret_iv: string | null;
+  totp_enrolled_at: string | null;
 }
 
 export interface CreateFirmMemberInput {
@@ -1148,6 +1156,162 @@ export async function markFirmMemberJoined(db: D1Database, memberId: string): Pr
     .prepare(`UPDATE firm_members SET joined_at = ?1 WHERE id = ?2 AND joined_at IS NULL`)
     .bind(nowIso(), memberId)
     .run();
+}
+
+// ---------------------------------------------------------------------------
+// Two-factor authentication (2026-08-07, roadmap #53, migration 0047).
+// Encryption/decryption of the secret itself lives in totp.ts (needs the
+// TOTP_ENCRYPTION_KEY env secret, which store.ts functions deliberately
+// never receive -- same separation password.ts's pepper-taking functions
+// vs. store.ts's plain column reads/writes already established). These
+// functions only ever handle the already-encrypted blob.
+// ---------------------------------------------------------------------------
+
+/** Persists an already-encrypted secret (see totp.ts's encryptTotpSecret())
+ * and marks enrollment complete. Called only after the caller has already
+ * verified a real code against this exact secret -- this function itself
+ * does not verify anything, same "caller validates, store executes" split
+ * as setFirmPassword(). */
+export async function setFirmMemberTotpSecret(db: D1Database, memberId: string, encryptedSecret: string, iv: string): Promise<void> {
+  await db
+    .prepare(`UPDATE firm_members SET totp_secret_encrypted = ?1, totp_secret_iv = ?2, totp_enrolled_at = ?3 WHERE id = ?4`)
+    .bind(encryptedSecret, iv, nowIso(), memberId)
+    .run();
+}
+
+/** Disables 2FA -- nulls all three columns. Callers should also delete
+ * this member's backup codes (deleteFirmMemberBackupCodes() below); kept
+ * as two calls rather than one, matching this codebase's existing
+ * "removal is the caller's explicit sequence, not one hidden cascade"
+ * posture elsewhere (e.g. hardDeleteExpiredFirms()'s own table-by-table
+ * loop). */
+export async function clearFirmMemberTotpSecret(db: D1Database, memberId: string): Promise<void> {
+  await db
+    .prepare(`UPDATE firm_members SET totp_secret_encrypted = NULL, totp_secret_iv = NULL, totp_enrolled_at = NULL WHERE id = ?1`)
+    .bind(memberId)
+    .run();
+}
+
+/** Bulk-inserts a freshly generated set of backup-code HASHES (never the
+ * raw codes -- those are shown to the member exactly once, at enrollment,
+ * and never stored). Deletes any PRIOR set first -- re-enrolling (or
+ * regenerating codes) invalidates the old set outright rather than
+ * accumulating across enrollments. */
+export async function createFirmMemberBackupCodes(db: D1Database, memberId: string, codeHashes: string[]): Promise<void> {
+  await db.prepare(`DELETE FROM firm_member_backup_codes WHERE member_id = ?1`).bind(memberId).run();
+  const now = nowIso();
+  for (const codeHash of codeHashes) {
+    await db
+      .prepare(`INSERT INTO firm_member_backup_codes (id, member_id, code_hash, used_at, created_at) VALUES (?1,?2,?3,NULL,?4)`)
+      .bind(newToken(), memberId, codeHash, now)
+      .run();
+  }
+}
+
+export async function deleteFirmMemberBackupCodes(db: D1Database, memberId: string): Promise<void> {
+  await db.prepare(`DELETE FROM firm_member_backup_codes WHERE member_id = ?1`).bind(memberId).run();
+}
+
+/** Redeems ONE unused backup code matching the given hash. Conditional
+ * UPDATE (used_at IS NULL), same "two concurrent redemptions cannot both
+ * succeed" pattern as verifyAndConsumeLoginToken() -- a backup code is a
+ * genuine bearer credential once known, worth the same single-use
+ * guarantee. Returns true only if a row was actually consumed. */
+export async function consumeFirmMemberBackupCode(db: D1Database, memberId: string, codeHash: string): Promise<boolean> {
+  const result = await db
+    .prepare(`UPDATE firm_member_backup_codes SET used_at = ?1 WHERE member_id = ?2 AND code_hash = ?3 AND used_at IS NULL`)
+    .bind(nowIso(), memberId, codeHash)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+export async function countUnusedFirmMemberBackupCodes(db: D1Database, memberId: string): Promise<number> {
+  const row = await db
+    .prepare(`SELECT COUNT(*) AS n FROM firm_member_backup_codes WHERE member_id = ?1 AND used_at IS NULL`)
+    .bind(memberId)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+const FIRM_2FA_PENDING_TOKEN_TTL_MINUTES = 5;
+const FIRM_2FA_PENDING_MAX_ATTEMPTS = 6;
+
+export interface Firm2faPendingRow {
+  id: string;
+  member_id: string;
+  firm_id: string;
+  purpose: string;
+  pending_new_email: string | null;
+  attempts: number;
+  expires_at: string;
+  used_at: string | null;
+}
+
+/**
+ * Mints the "credential proven, TOTP not yet entered" pending token.
+ * Carries the ORIGINAL login-token's purpose/pendingNewEmail forward,
+ * since that token is already consumed by the time this fires -- see
+ * migration 0047's own docstring for why gating happens at the earliest
+ * point (right after the original token/password check succeeds, before
+ * any purpose-specific side effect) rather than only before
+ * createSession().
+ */
+export async function createFirm2faPendingToken(
+  db: D1Database,
+  memberId: string,
+  firmId: string,
+  purpose: string,
+  pendingNewEmail: string | null
+): Promise<{ rawToken: string }> {
+  const rawToken = newToken();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + FIRM_2FA_PENDING_TOKEN_TTL_MINUTES * 60_000).toISOString();
+  await db
+    .prepare(
+      `INSERT INTO firm_2fa_pending_tokens (id, member_id, firm_id, token_hash, purpose, pending_new_email, attempts, created_at, expires_at, used_at)
+       VALUES (?1,?2,?3,?4,?5,?6,0,?7,?8,NULL)`
+    )
+    .bind(newToken(), memberId, firmId, await hashToken(rawToken), purpose, pendingNewEmail, now.toISOString(), expiresAt)
+    .run();
+  return { rawToken };
+}
+
+/** Looks up a pending token WITHOUT consuming it -- the TOTP-verify step
+ * needs to check attempts/expiry BEFORE spending the (comparatively
+ * expensive) HMAC work of checking a code, and needs to know the outcome
+ * to decide whether to increment attempts or consume outright. Unknown,
+ * expired, already-used, and attempts-exhausted are all treated
+ * identically by the caller (jsonResponse-level), same no-oracle posture
+ * every other token lookup in this file uses -- this function itself just
+ * reports the raw state. */
+export async function peekFirm2faPendingToken(db: D1Database, rawToken: string): Promise<Firm2faPendingRow | null> {
+  const tokenHash = await hashToken(rawToken);
+  const row = await db.prepare(`SELECT * FROM firm_2fa_pending_tokens WHERE token_hash = ?1`).bind(tokenHash).first<Firm2faPendingRow>();
+  if (!row) return null;
+  if (row.used_at) return null;
+  if (Date.parse(row.expires_at) <= Date.now()) return null;
+  if (row.attempts >= FIRM_2FA_PENDING_MAX_ATTEMPTS) return null;
+  return row;
+}
+
+/** Records one failed code attempt. Called after a submitted code fails
+ * verification -- bounds brute-force guessing independent of the token's
+ * own expiry (a long-enough-lived window alone doesn't stop a fast
+ * guesser; this hard cap does, per FIRM_2FA_PENDING_MAX_ATTEMPTS above). */
+export async function incrementFirm2faPendingAttempts(db: D1Database, id: string): Promise<void> {
+  await db.prepare(`UPDATE firm_2fa_pending_tokens SET attempts = attempts + 1 WHERE id = ?1`).bind(id).run();
+}
+
+/** Marks a pending token consumed on a SUCCESSFUL code verification.
+ * Conditional UPDATE (used_at IS NULL), same "two concurrent redemptions
+ * cannot both succeed" pattern as verifyAndConsumeLoginToken(). Returns
+ * false if it was already consumed (a race), true otherwise. */
+export async function consumeFirm2faPendingToken(db: D1Database, id: string): Promise<boolean> {
+  const result = await db
+    .prepare(`UPDATE firm_2fa_pending_tokens SET used_at = ?1 WHERE id = ?2 AND used_at IS NULL`)
+    .bind(nowIso(), id)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 // A login link is a one-shot bearer credential emailed in plaintext -- kept
@@ -1367,6 +1531,15 @@ export const FIRM_SCOPED_TABLES = [
   "reminder_log",
   "firm_nps_responses",
   "firm_testimonials",
+  // migration 0047 (roadmap #53): same "permanently erased" promise --
+  // has its own firm_id column (unlike firm_member_backup_codes below,
+  // which is member-scoped only and needs its own explicit cleanup step
+  // in hardDeleteExpiredFirms(), since this loop's WHERE firm_id = ?1
+  // can't reach it). Listed BEFORE firm_members: its own rows reference
+  // firm_members(id) via member_id, so they must be gone before that
+  // table's own DELETE runs, same circular-FK reasoning as
+  // primary_member_id's own explicit clear below.
+  "firm_2fa_pending_tokens",
   // migration 0045 (roadmap #11/#13/#14/#51): a firm's members are exactly
   // as firm-scoped as every table above -- AuditLab RETAIN-1's own
   // "permanently erased" promise applies here too, and this table's hard
@@ -1414,6 +1587,17 @@ export async function hardDeleteExpiredFirms(db: D1Database, bucket: R2Bucket, a
     // below fails its FK constraint while firms.primary_member_id still
     // points at the row being removed.
     await db.prepare(`UPDATE firms SET primary_member_id = NULL WHERE id = ?1`).bind(firmId).run();
+    // migration 0047 (roadmap #53): firm_member_backup_codes has no firm_id
+    // column of its own (only member_id -> firm_members(id)), so it can't go
+    // in FIRM_SCOPED_TABLES's flat WHERE firm_id = ?1 loop below -- it's also
+    // invisible to preship_gate.py's RETAIN-1 scan for that same reason, so
+    // this cleanup is on us to remember, not a gate we can lean on. Deleted
+    // here, before the loop's own firm_members DELETE, for the same
+    // circular-FK reasoning as primary_member_id above.
+    await db
+      .prepare(`DELETE FROM firm_member_backup_codes WHERE member_id IN (SELECT id FROM firm_members WHERE firm_id = ?1)`)
+      .bind(firmId)
+      .run();
     for (const table of FIRM_SCOPED_TABLES) {
       await db.prepare(`DELETE FROM ${table} WHERE firm_id = ?1`).bind(firmId).run();
     }

@@ -140,6 +140,15 @@ export interface SubscriberRow {
   // all). scheduler.ts's runReminderPass() reads this as an override
   // AFTER resolving the firm's own thresholds, never in place of it.
   reminder_thresholds: string | null;
+  // migration 0051 (roadmap #24). "immediate" (default, today's only prior
+  // behavior) or "digest" -- scheduler.ts's runReminderPass() skips any
+  // "digest" row entirely; runDigestPass() is the only pass that acts on
+  // it. See setSubscriberNotificationMode()'s own docstring for the
+  // cross-row-write reach.
+  notification_mode: string;
+  // migration 0051. NULL until the first digest actually sends, then a
+  // rolling +7-day window -- see advanceDigestWindow()'s own docstring.
+  digest_next_send_at: string | null;
 }
 
 function nowIso(): string {
@@ -423,6 +432,12 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     // Roadmap #68: edit-only, same reasoning as carryover_hours above --
     // not part of the INSERT column list either, same as that field.
     internal_notes: null,
+    // Roadmap #24: a brand-new record always starts on the default
+    // immediate delivery -- matches the column's own DB default, not part
+    // of the INSERT column list either, same as reminder_thresholds/
+    // internal_notes above.
+    notification_mode: NOTIFICATION_MODE_IMMEDIATE,
+    digest_next_send_at: null,
   };
   await db
     .prepare(
@@ -4311,6 +4326,59 @@ export async function setSubscriberReminderThresholds(db: D1Database, emailNorma
     .bind(thresholdsJson, emailNormalized)
     .run();
   return result.meta.changes ?? 0;
+}
+
+export const NOTIFICATION_MODE_IMMEDIATE = "immediate";
+export const NOTIFICATION_MODE_DIGEST = "digest";
+
+/** Roadmap #24 (migration 0051): "immediate" (today's only behavior, sent
+ * per-threshold as each becomes due) or "digest" (batched into one weekly
+ * email by scheduler.ts's runDigestPass()). Same cross-row-write reach as
+ * setSubscriberReminderThresholds() above -- this is a per-PERSON delivery
+ * preference, not a per-deadline one. */
+export async function setSubscriberNotificationMode(db: D1Database, emailNormalized: string, mode: string): Promise<number> {
+  const result = await db
+    .prepare(`UPDATE subscribers SET notification_mode = ?1 WHERE LOWER(TRIM(email)) = ?2`)
+    .bind(mode, emailNormalized)
+    .run();
+  return result.meta.changes ?? 0;
+}
+
+/** Roadmap #24: distinct emails whose digest window is open right now --
+ * NULL digest_next_send_at (never sent one yet) or one that's reached its
+ * +7-day rolling window (see runDigestPass()'s own docstring for why this
+ * is a rolling window off the last SEND, not a fixed day-of-week). Status
+ * filtered to confirmed here so a stopped/unconfirmed-only email never
+ * shows up as "eligible" with nothing runDigestPass() could actually send
+ * to -- the pass itself re-checks each row's own status via
+ * listSubscriberLicenses() the same way allConfirmedActive() already does
+ * for the immediate pass. */
+export async function listDigestEligibleEmails(db: D1Database, todayIso: string, limit: number): Promise<string[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT DISTINCT LOWER(TRIM(email)) AS email_normalized
+         FROM subscribers
+        WHERE status = ?1
+          AND notification_mode = ?2
+          AND (digest_next_send_at IS NULL OR digest_next_send_at <= ?3)
+        LIMIT ?4`
+    )
+    .bind(STATUS_CONFIRMED, NOTIFICATION_MODE_DIGEST, todayIso, limit)
+    .all<{ email_normalized: string }>();
+  return (results ?? []).map((r) => r.email_normalized);
+}
+
+/** Roadmap #24: advances the rolling window -- called ONLY after an actual
+ * digest send, never speculatively, so a quiet week (nothing due) leaves
+ * digest_next_send_at untouched and the next pass just checks again. Same
+ * cross-row-write reach as setSubscriberNotificationMode() above -- every
+ * row sharing this email advances together, since the digest bundles all
+ * of them into one email. */
+export async function advanceDigestWindow(db: D1Database, emailNormalized: string, nextSendAtIso: string): Promise<void> {
+  await db
+    .prepare(`UPDATE subscribers SET digest_next_send_at = ?1 WHERE LOWER(TRIM(email)) = ?2`)
+    .bind(nextSendAtIso, emailNormalized)
+    .run();
 }
 
 // Roadmap #144 (2026-08-07): 1-question NPS/CSAT micro-survey. Fired after a

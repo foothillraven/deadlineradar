@@ -45,6 +45,8 @@ import {
   buildDripCourseStep3Email,
   buildDripCourseStep4Email,
   buildRuleChangeAdminAlertEmail,
+  buildDigestEmail,
+  type DigestItem,
 } from "./emails";
 import {
   DEFAULT_DAILY_SEND_CAP,
@@ -53,6 +55,8 @@ import {
   checkAndCountDripCourseSend,
   DEFAULT_DAILY_RULE_CHANGE_ALERT_SEND_CAP,
   checkAndCountRuleChangeAlertSend,
+  DEFAULT_DAILY_DIGEST_SEND_CAP,
+  checkAndCountDigestSend,
   sendViaSendGrid,
 } from "./sender";
 import cpaDataForDripCourse from "./cpa_deadlines.json";
@@ -196,6 +200,16 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
     // one, rather than a suppressed-at-send-time special case.
     if (sub.snoozed_until && sub.snoozed_until >= todayIso) {
       summary.skipped_snoozed += 1;
+      continue;
+    }
+
+    // Roadmap #24: a digest-mode subscriber is handled ENTIRELY by
+    // runDigestPass() below, on its own weekly cadence -- if this pass
+    // sent to them too they'd get both an immediate ping AND a later
+    // digest for the same threshold. Not counted in any summary field
+    // (this is a routing decision, not a skip condition like snoozed_until
+    // above -- the digest pass has its own summary for its own outcomes).
+    if (sub.notification_mode === store.NOTIFICATION_MODE_DIGEST) {
       continue;
     }
 
@@ -680,6 +694,213 @@ export async function runRuleChangeAlertPass(env: Env, opts: RunReminderOptions 
         }
         summary.errors.push({ firm_id: firm.id, event_id: event.event_id, error: `unexpected error: ${String(err)}` });
       }
+    }
+  }
+
+  return summary;
+}
+
+// ---------------------------------------------------------------------------
+// Digest mode (2026-08-08, roadmap #24). Same daily-cron trigger, own
+// independent pass -- see index.ts's scheduled(). A per-subscriber delivery-
+// cadence preference (store.NOTIFICATION_MODE_DIGEST) that bundles every
+// currently-due item for a person -- who can own several `subscribers` rows,
+// one per state/license tracked -- into ONE weekly email instead of
+// runReminderPass()'s one-per-threshold sends (that pass excludes digest-mode
+// rows entirely -- see its own notification_mode check above). Replays that
+// same per-row deadline/threshold-resolution/claim body verbatim per row
+// below; digest mode only changes WHEN a claimed item's email goes out, never
+// the escalation machinery itself. Gated on a rolling +7-day window
+// (digest_next_send_at) rather than a fixed day-of-week -- advanced only on
+// an actual send, so a quiet week (nothing due) never fires an empty
+// "nothing to report" email and a due item arriving mid-window simply waits,
+// unclaimed, for the window to reopen and bundle with whatever else is due
+// by then.
+// ---------------------------------------------------------------------------
+
+export interface DigestSummary {
+  emailsChecked: number;
+  itemsClaimed: number;
+  digestsSent: number;
+  errors: { email: string; error: string }[];
+}
+
+const DIGEST_WINDOW_DAYS = 7;
+const DIGEST_ELIGIBLE_EMAIL_BATCH_SIZE = 200;
+
+function dailyDigestSendCap(env: Env): number {
+  const n = Number.parseInt(env.DIGEST_DAILY_SEND_CAP ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_DIGEST_SEND_CAP;
+}
+
+export async function runDigestPass(env: Env, opts: RunReminderOptions = {}): Promise<DigestSummary> {
+  const asOf = opts.asOf ?? new Date();
+  // Same real-vs-simulated freshness split as runReminderPass() above.
+  const freshnessToday = opts.asOf ? new Date() : asOf;
+  checkDataFreshness(freshnessToday);
+  const asOfDay = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate()));
+  const todayIso = asOfDay.toISOString().slice(0, 10);
+
+  const send: ReminderSendFn =
+    opts.send ??
+    ((to, built) => {
+      if (!env.SENDGRID_API_KEY) return Promise.resolve(false);
+      return sendViaSendGrid(env.SENDGRID_API_KEY, to, built, env.EMAIL_ALLOWLIST);
+    });
+
+  const firmsById = new Map((await store.listAllFirmsBasicInfo(env.DB)).map((f) => [f.id, f]));
+  const cap = dailyDigestSendCap(env);
+  const staticBase = env.STATIC_SITE_BASE_URL || "";
+  const manageUrl = `${staticBase}/my/`;
+
+  const summary: DigestSummary = { emailsChecked: 0, itemsClaimed: 0, digestsSent: 0, errors: [] };
+
+  const emails = await store.listDigestEligibleEmails(env.DB, todayIso, DIGEST_ELIGIBLE_EMAIL_BATCH_SIZE);
+
+  let capReached = false;
+  for (const emailNormalized of emails) {
+    if (capReached) break;
+    summary.emailsChecked += 1;
+
+    const rows = await store.listSubscriberLicenses(env.DB, emailNormalized);
+    const items: DigestItem[] = [];
+    const claimedRows: { sub: store.SubscriberRow; threshold: number }[] = [];
+    let firstName: string | null = null;
+
+    try {
+      for (const sub of rows) {
+        // Defense-in-depth, same posture as allConfirmedActive()'s own
+        // status filter for the immediate pass -- listSubscriberLicenses()
+        // includes non-removed stopped/pending rows too, which must never
+        // reach threshold evaluation.
+        if (sub.status !== store.STATUS_CONFIRMED) continue;
+        // A person's rows can straddle both modes mid-transition (a mode
+        // change writes across every row sharing the email, but a row
+        // added between that write and this pass could theoretically
+        // differ) -- only digest-mode rows belong in this bundle; any
+        // immediate-mode row was already handled by runReminderPass().
+        if (sub.notification_mode !== store.NOTIFICATION_MODE_DIGEST) continue;
+        if (sub.snoozed_until && sub.snoozed_until >= todayIso) continue;
+        if (!firstName && sub.first_name) firstName = sub.first_name;
+
+        let deadline: Date | null;
+        let fields: Record<string, string>;
+        try {
+          fields = JSON.parse(sub.deadline_fields || "{}");
+          deadline =
+            sub.deadline_source === store.DEADLINE_SOURCE_USER && sub.user_deadline
+              ? new Date(`${sub.user_deadline}T00:00:00Z`)
+              : computeSubscriberDeadline(sub.state_slug, fields, asOf);
+        } catch (err) {
+          summary.errors.push({ email: emailNormalized, error: `subscriber ${sub.id}: ${String(err)}` });
+          continue;
+        }
+        if (deadline === null) continue;
+        const stateName = stateNameForSlug(sub.state_slug);
+        if (stateName === null) continue;
+
+        const daysRemaining = Math.round((deadline.getTime() - asOfDay.getTime()) / MS_PER_DAY);
+        let alreadySent: number[];
+        try {
+          alreadySent = JSON.parse(sub.reminders_sent || "[]");
+        } catch {
+          alreadySent = [];
+        }
+        const neverNotified = alreadySent.length === 0;
+
+        // AuditLab DEMO-5's own reasoning, same as runReminderPass()'s
+        // identical check -- checked before claiming, without claiming.
+        const firmInfo = sub.firm_id ? firmsById.get(sub.firm_id) ?? null : null;
+        if (firmInfo?.demo_locked) continue;
+
+        let thresholds: number[] = ESCALATION_THRESHOLDS_DAYS;
+        if (firmInfo?.reminder_thresholds) {
+          try {
+            const parsed = JSON.parse(firmInfo.reminder_thresholds);
+            if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+          } catch {
+            // Same fall-through posture as runReminderPass() above.
+          }
+        }
+        if (sub.reminder_thresholds) {
+          try {
+            const parsed = JSON.parse(sub.reminder_thresholds);
+            if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+          } catch {
+            // Same fall-through posture as runReminderPass() above.
+          }
+        }
+
+        let threshold: number | null;
+        if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
+          if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
+            threshold = Math.min(...thresholds);
+          } else {
+            continue;
+          }
+        } else {
+          threshold = nextDueThreshold(daysRemaining, alreadySent, thresholds);
+          if (threshold === null) continue;
+        }
+
+        // Same defense-in-depth re-check as runReminderPass() above.
+        if (await store.isPermanentlySuppressed(env.DB, sub.email)) continue;
+
+        // Claimed BEFORE this row's item is added to the batch -- same
+        // atomic-claim-before-any-side-effect posture as runReminderPass().
+        // A lost race here just means this row's item isn't in TODAY's
+        // digest; it stays claimed by whichever pass won, exactly as
+        // intended.
+        const claimed = await store.claimReminderThreshold(env.DB, sub.id, sub.reminders_sent || "[]", threshold);
+        if (!claimed) continue;
+        claimedRows.push({ sub, threshold });
+        summary.itemsClaimed += 1;
+
+        const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(sub.unsubscribe_token)}`;
+        items.push({
+          stateName,
+          deadlineDateStr: fmtDate(deadline),
+          threshold,
+          daysRemaining,
+          rowUnsubscribeUrl: unsubscribeUrl,
+        });
+      }
+
+      // Nothing due for this person this pass -- leave digest_next_send_at
+      // untouched (whether NULL or already in the future) and retry next
+      // pass. No claim was taken above, so there's nothing to revert.
+      if (items.length === 0) continue;
+
+      // Circuit breaker right before the send, same "claims above this
+      // point are cheap to lose, the send itself is not" placement as
+      // runReminderPass().
+      const underCap = await checkAndCountDigestSend(env.DB, cap);
+      if (!underCap) {
+        for (const { sub, threshold } of claimedRows) {
+          await store.unclaimReminderThreshold(env.DB, sub.id, threshold);
+        }
+        summary.errors.push({ email: emailNormalized, error: "daily send cap reached -- halting further sends today." });
+        capReached = true;
+        break;
+      }
+
+      const built = buildDigestEmail(items, manageUrl, firstName);
+      const ok = await send(emailNormalized, built);
+      if (ok) {
+        summary.digestsSent += 1;
+        const nextSendAt = new Date(asOfDay.getTime() + DIGEST_WINDOW_DAYS * MS_PER_DAY).toISOString().slice(0, 10);
+        await store.advanceDigestWindow(env.DB, emailNormalized, nextSendAt);
+      } else {
+        for (const { sub, threshold } of claimedRows) {
+          await store.unclaimReminderThreshold(env.DB, sub.id, threshold);
+        }
+        summary.errors.push({ email: emailNormalized, error: "send returned false" });
+      }
+    } catch (err) {
+      for (const { sub, threshold } of claimedRows) {
+        await store.unclaimReminderThreshold(env.DB, sub.id, threshold).catch(() => {});
+      }
+      summary.errors.push({ email: emailNormalized, error: `unexpected error: ${String(err)}` });
     }
   }
 

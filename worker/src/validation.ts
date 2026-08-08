@@ -663,6 +663,9 @@ export const RATE_LIMIT_SUBSCRIBER_PROFILE_UPDATE: RateLimit = { max: 30, window
 // RATE_LIMIT_SUBSCRIBER_PROFILE_UPDATE above.
 export const RATE_LIMIT_SUBSCRIBER_REMINDER_CADENCE: RateLimit = { max: 30, windowSeconds: 86400 };
 
+// PATCH /subscriber/notification-mode (roadmap #24) -- same shape again.
+export const RATE_LIMIT_SUBSCRIBER_NOTIFICATION_MODE: RateLimit = { max: 30, windowSeconds: 86400 };
+
 // POST /firm/staff-cpe-reminder (2026-08-05) -- an admin-triggered nudge
 // email to one staff member. Keyed on firm_id like RATE_LIMIT_FIRM_LICENSE_CREATE,
 // bounding a compromised/careless firm session from mail-bombing its own

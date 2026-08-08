@@ -95,6 +95,7 @@ import {
   RATE_LIMIT_SUBSCRIBER_CHANGE_EMAIL,
   RATE_LIMIT_SUBSCRIBER_PROFILE_UPDATE,
   RATE_LIMIT_SUBSCRIBER_REMINDER_CADENCE,
+  RATE_LIMIT_SUBSCRIBER_NOTIFICATION_MODE,
   RATE_LIMIT_FIRM_STAFF_CPE_REMINDER,
   RATE_LIMIT_FIRM_RULE_CHANGE_NOTIFY,
   RATE_LIMIT_ROADMAP_VOTE,
@@ -173,7 +174,13 @@ import {
   SNOOZE_DAYS,
 } from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountActionSend, isEmailAllowlisted, sendViaSendGrid } from "./sender";
-import { StaleDataError as SchedulerStaleDataError, runReminderPass, runDripCoursePass, runRuleChangeAlertPass } from "./scheduler";
+import {
+  StaleDataError as SchedulerStaleDataError,
+  runReminderPass,
+  runDripCoursePass,
+  runRuleChangeAlertPass,
+  runDigestPass,
+} from "./scheduler";
 import { isUsFederalHoliday } from "./holidays";
 import {
   MAX_PASSWORD_LEN,
@@ -3362,6 +3369,45 @@ async function handleSubscriberReminderCadenceSet(request: Request, env: Env): P
   return jsonResponse(200, { reminder_thresholds: parsed });
 }
 
+/**
+ * PATCH /subscriber/notification-mode -- roadmap #24. Body: { mode:
+ * "immediate" | "digest" }. The subscriber's OWN delivery-cadence
+ * preference -- "immediate" (today's only prior behavior, sent per-
+ * threshold as each becomes due) or "digest" (bundled into one weekly
+ * email by scheduler.ts's runDigestPass()). Same session/rate-limit/CSRF
+ * pipeline and cross-row-write reach as handleSubscriberReminderCadenceSet()
+ * above -- this is a per-PERSON preference, not a per-deadline one.
+ */
+async function handleSubscriberNotificationModeSet(request: Request, env: Env): Promise<Response> {
+  const session = await requireSubscriberSession(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_notification_mode", RATE_LIMIT_SUBSCRIBER_NOTIFICATION_MODE);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return jsonResponse(400, { error: "Request too large." });
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  if (body.mode !== store.NOTIFICATION_MODE_IMMEDIATE && body.mode !== store.NOTIFICATION_MODE_DIGEST) {
+    return jsonResponse(400, { error: "Please choose a valid notification mode." });
+  }
+
+  await store.setSubscriberNotificationMode(env.DB, session.emailNormalized, body.mode);
+  return jsonResponse(200, { notification_mode: body.mode });
+}
+
 /** POST /subscriber/logout -- deletes the session row (no-op if there wasn't
  * one) and clears the cookie. Never reports failure; there is no useful
  * "logout failed" state. */
@@ -3485,6 +3531,9 @@ async function handleSubscriberLicensesList(request: Request, env: Env): Promise
     email: session.emailNormalized,
     first_name: rows[0]?.first_name ?? null,
     reminder_thresholds: reminderThresholds,
+    // Roadmap #24: same "person-level, read from the first row, every row
+    // agrees by construction" posture as reminder_thresholds above.
+    notification_mode: rows[0]?.notification_mode ?? store.NOTIFICATION_MODE_IMMEDIATE,
     licenses: items,
   });
 }
@@ -6319,6 +6368,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
       }
+      if (url.pathname === "/subscriber/notification-mode") {
+        try {
+          return await handleSubscriberNotificationModeSet(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
       return errorPage(404, "Not found.");
     }
 
@@ -8619,6 +8675,27 @@ export default {
           console.log(`[rule-change-alert-cron] ${JSON.stringify(summary)}`);
         } catch (err) {
           console.log(`[rule-change-alert-cron] error: ${String(err)}`);
+        }
+      })()
+    );
+
+    // Roadmap #24 (2026-08-08): the weekly digest's own independent pass,
+    // same trigger. Computes deadlines the same way runReminderPass() does,
+    // so it shares that pass's stale-data guard/catch -- not the holiday
+    // skip, same reasoning as the drip course/rule-change passes above
+    // (day-count accuracy doesn't apply to a person's own rolling 7-day
+    // window).
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const summary = await runDigestPass(env);
+          console.log(`[digest-cron] ${JSON.stringify(summary)}`);
+        } catch (err) {
+          if (err instanceof SchedulerStaleDataError) {
+            console.log(`[digest-cron] paused -- stale reference data: ${err.message}`);
+          } else {
+            console.log(`[digest-cron] error: ${String(err)}`);
+          }
         }
       })()
     );

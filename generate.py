@@ -7308,6 +7308,15 @@ _MY_DASHBOARD_JS_HTML = """<script>
       }
       cadenceForm.dataset.drFilled = '1';
     }
+    var modeForm = document.getElementById('dr-my-notification-mode-form');
+    if (modeForm && !modeForm.dataset.drFilled) {
+      var mode = data.notification_mode || 'immediate';
+      var modeRadios = modeForm.querySelectorAll('input[name="my-notification-mode"]');
+      for (var j = 0; j < modeRadios.length; j++) {
+        modeRadios[j].checked = modeRadios[j].value === mode;
+      }
+      modeForm.dataset.drFilled = '1';
+    }
   }
 
   function drRender(data) {
@@ -7502,6 +7511,35 @@ _MY_DASHBOARD_JS_HTML = """<script>
     });
   }
 
+  var modeFormEl = document.getElementById('dr-my-notification-mode-form');
+  if (modeFormEl) {
+    modeFormEl.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var okEl = document.getElementById('dr-my-notification-mode-ok');
+      var errEl = document.getElementById('dr-my-notification-mode-error');
+      if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+      if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+      var checked = modeFormEl.querySelector('input[name="my-notification-mode"]:checked');
+      var mode = checked ? checked.value : 'immediate';
+      fetch('/api/subscriber/notification-mode', {
+        method: 'PATCH', credentials: 'include',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({mode: mode}),
+      }).then(function (res) {
+        if (res.status === 401) { window.location.href = '/signin/'; return null; }
+        return res.json().catch(function () { return null; }).then(function (data) {
+          if (!res.ok) {
+            if (errEl) { errEl.textContent = (data && data.error) ? data.error : 'Something went wrong, please try again.'; errEl.hidden = false; }
+            return;
+          }
+          if (okEl) { okEl.textContent = 'Notification preference saved.'; okEl.hidden = false; }
+        });
+      }).catch(function () {
+        if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+      });
+    });
+  }
+
   // Roadmap #12: the email-change confirm click lands back here with a
   // query-string outcome (?email_changed=1 / ?email_change_failed=conflict)
   // -- same "tell them what happened" posture the firm dashboard's own
@@ -7605,6 +7643,19 @@ def build_my_page(cpe_hours_by_slug: dict[str, dict]) -> str:
     </form>
     <p id="dr-my-cadence-ok" class="dr-account-ok" hidden></p>
     <p id="dr-my-cadence-error" role="alert" class="dr-account-err" hidden></p>
+
+    <form id="dr-my-notification-mode-form">
+      <fieldset class="dr-cadence-fieldset">
+        <legend>How you're notified</legend>
+        <label><input type="radio" name="my-notification-mode" value="immediate"> Email me as each reminder point arrives</label>
+        <label><input type="radio" name="my-notification-mode" value="digest"> Bundle into one email a week, only when something's new</label>
+      </fieldset>
+      <p class="field-hint">Digest mode never sends an empty "nothing to report" email -- you'll hear
+      from us at most once a week, and only when a reminder above is actually due.</p>
+      <button type="submit">Save</button>
+    </form>
+    <p id="dr-my-notification-mode-ok" class="dr-account-ok" hidden></p>
+    <p id="dr-my-notification-mode-error" role="alert" class="dr-account-err" hidden></p>
   </div>
 
   <div class="dr-my-error" id="dr-my-error" role="alert" hidden>

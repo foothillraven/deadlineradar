@@ -27,6 +27,11 @@
  * cron's own independent circuit breaker (sender.ts's
  * checkAndCountRuleChangeAlertSend() / DEFAULT_DAILY_RULE_CHANGE_ALERT_SEND_CAP).
  *
+ * `DIGEST_DAILY_SEND_CAP` is an OPTIONAL wrangler var (a plain string
+ * number) -- same shape again, for the weekly digest cron's own independent
+ * circuit breaker (sender.ts's checkAndCountDigestSend() /
+ * DEFAULT_DAILY_DIGEST_SEND_CAP).
+ *
  * `EMAIL_ALLOWLIST` is an OPTIONAL wrangler var -- a comma-separated list of
  * exact email addresses (e.g. "owner@example.com,owner+test@example.com").
  * This is a PREVIEW/STAGING-ONLY safety gate: when set, sendViaSendGrid()
@@ -61,6 +66,7 @@ export interface Env {
   REMINDERS_DAILY_SEND_CAP?: string;
   DRIP_COURSE_DAILY_SEND_CAP?: string;
   RULE_CHANGE_ALERT_DAILY_SEND_CAP?: string;
+  DIGEST_DAILY_SEND_CAP?: string;
   EMAIL_ALLOWLIST?: string;
   ACTION_BASE_URL?: string;
   STATIC_SITE_BASE_URL?: string;

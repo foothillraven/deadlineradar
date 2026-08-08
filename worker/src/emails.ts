@@ -418,6 +418,120 @@ export function buildReminderEmail(
   return { subject, textBody, htmlBody, headers };
 }
 
+export interface DigestItem {
+  stateName: string;
+  deadlineDateStr: string;
+  threshold: number;
+  daysRemaining: number;
+  // The row's own real unsubscribe_token URL -- "stop this one" per item,
+  // same real token every other email in this file already uses, no new
+  // token type invented for the digest.
+  rowUnsubscribeUrl: string;
+}
+
+/**
+ * Roadmap #24 (2026-08-08): the digest-mode alternative to buildReminderEmail()
+ * above -- ONE email bundling every currently-due item for a person who opted
+ * into weekly delivery, instead of one email per threshold. Sent only when
+ * `items` is non-empty (runDigestPass() never calls this with an empty list --
+ * no "nothing to report" filler email exists). Deliberately does NOT reuse
+ * htmlFooter()/textFooter() above -- their copy says "that one deadline,"
+ * which is wrong once more than one item is listed. `manageUrl` is the
+ * sign-in-required "/my/" hub (same posture as buildRuleChangeAdminAlertEmail's
+ * accountSettingsUrl -- a real destination, not a token, since changing the
+ * delivery-mode PREFERENCE itself is a session-gated action, same as every
+ * other self-service preference on that page) where a recipient can switch
+ * back to immediate delivery or manage anything else. Each item additionally
+ * carries its own instant "stop this one" link using that row's real token --
+ * no single link could mean "unsubscribe from everything in one click" here
+ * the way buildReminderEmail's list-unsubscribe header can for a single
+ * deadline, so no List-Unsubscribe header is attached; the per-item links
+ * plus the manage-everything hub are the compliant opt-out path instead.
+ */
+export function buildDigestEmail(items: DigestItem[], manageUrl: string, firstName: string | null = null): BuiltEmail {
+  if (items.length === 0) {
+    throw new Error("buildDigestEmail: items must be non-empty -- a digest is never sent with nothing to report");
+  }
+  const addr = mailingAddress();
+  const count = items.length;
+  const subject =
+    count === 1
+      ? `Your weekly summary: 1 renewal needs attention`
+      : `Your weekly summary: ${count} renewals need attention`;
+
+  const textItems = items
+    .map((it) => {
+      const dp = daysPhrase(it.daysRemaining);
+      return (
+        `- ${it.stateName}: due ${it.deadlineDateStr} (${dp})\n` +
+        `  Stop reminders for this one: ${it.rowUnsubscribeUrl}`
+      );
+    })
+    .join("\n\n");
+
+  const textBody =
+    `${textGreeting(firstName)}\n\n` +
+    `Here's this week's bundled summary from ${SITE_NAME} -- ${count === 1 ? "one renewal" : `${count} renewals`} ` +
+    `currently need your attention:\n\n` +
+    `${textItems}\n\n` +
+    `Want these one at a time instead, as each becomes due? Switch back to immediate reminders any time:\n` +
+    `${manageUrl}\n\n` +
+    `Nothing to do for anything not listed above -- we'll include it here once it's actually due.` +
+    `\n\n---\n` +
+    `You're getting this because you asked ${SITE_NAME} to track CPA license renewal deadlines, and chose ` +
+    `weekly digest delivery instead of individual reminders. Manage or change this any time: ${manageUrl}\n\n` +
+    `${SENDER_LINE}\n${addr}\n\n` +
+    `${SITE_NAME} is an independent reminder service operated by ${BRAND_NAME}. It is not affiliated with, ` +
+    `endorsed by, or connected to NASBA, the AICPA, or any state board of accountancy. Renewal dates are ` +
+    `compiled from public sources for informational purposes only -- not legal, tax, or professional advice. ` +
+    `Always confirm your exact renewal date with your state board or on your license.`;
+
+  const htmlItems = items
+    .map((it) => {
+      const dp = daysPhrase(it.daysRemaining);
+      return (
+        `<div style="margin:0 0 16px;padding:0 0 16px;border-bottom:1px solid ${LIGHT.border};">` +
+        `<p class="dr-fg" style="margin:0 0 6px;font-size:15px;font-weight:700;color:${LIGHT.fg};">` +
+        `${esc(it.stateName)}</p>` +
+        `<p class="dr-fg" style="margin:0 0 8px;font-size:14px;color:${LIGHT.fg};">Due ${esc(it.deadlineDateStr)} (${esc(dp)})</p>` +
+        `<p style="margin:0;font-size:13px;">${textLink(it.rowUnsubscribeUrl, "Stop reminders for this one")}</p>` +
+        `</div>`
+      );
+    })
+    .join("");
+
+  const htmlBody = htmlShell(
+    `Your weekly DeadlineRadar summary -- ${count} ${count === 1 ? "renewal" : "renewals"} due`,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `Your weekly summary</h1>` +
+      p(
+        `${htmlGreeting(firstName)}<br><br>` +
+          `${esc(count === 1 ? "One renewal" : `${count} renewals`)} currently need your attention:`
+      ) +
+      htmlItems +
+      p(
+        `Want these one at a time instead, as each becomes due? ` +
+          `<a href="${esc(manageUrl)}" style="color:${LIGHT.accent};">Switch back to immediate reminders</a> any time.`,
+        13,
+        LIGHT.muted
+      ) +
+      p("Nothing to do for anything not listed above -- we'll include it here once it's actually due.", 13, LIGHT.muted),
+    `<p class="dr-muted" style="font-size:12px;color:${LIGHT.muted};line-height:1.6;margin:0 0 10px;">` +
+      `You're getting this because you asked ${esc(SITE_NAME)} to track CPA license renewal deadlines, and ` +
+      `chose weekly digest delivery instead of individual reminders.</p>` +
+      `<p style="font-size:13px;margin:0 0 10px;">${textLink(manageUrl, "Manage my notifications")}</p>` +
+      `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>` +
+      `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:8px 0 0;">` +
+      `${esc(SITE_NAME)} is an independent reminder service operated by ${esc(BRAND_NAME)}. It is not ` +
+      `affiliated with, endorsed by, or connected to NASBA, the AICPA, or any state board of accountancy. ` +
+      `Renewal dates are compiled from public sources for informational purposes only &mdash; not legal, tax, ` +
+      `or professional advice. Always confirm your exact renewal date with your state board or on your license.</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
 /**
  * Port of reminders/emails.py `stop_confirmation_email()`. Sent after a
  * subscriber stops reminders. For reason="renewed" it congratulates them and

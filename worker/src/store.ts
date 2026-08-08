@@ -1045,10 +1045,18 @@ export async function findFirmMemberByEmail(db: D1Database, email: string): Prom
   return row ?? null;
 }
 
-export async function getFirmMemberById(db: D1Database, memberId: string): Promise<FirmMemberRow | null> {
+/** AuditLab MEMBER-1 (LOW, 2026-08-07): firmId is REQUIRED and bound into
+ * the WHERE clause -- every current caller already has it in scope and
+ * already double-checks `target.firm_id === session.firmId` itself, so
+ * this was "not exploitable today," but it was the exact unguarded-
+ * primitive shape that's decayed 5 times already in this codebase
+ * (SEC-1/RETAIN-1/DEMO-4/DEMO-5) the moment a future caller forgets the
+ * check. A mismatched firmId now returns null from the query itself,
+ * not from an easy-to-omit caller-side comparison. */
+export async function getFirmMemberById(db: D1Database, firmId: string, memberId: string): Promise<FirmMemberRow | null> {
   const row = await db
-    .prepare(`SELECT * FROM firm_members WHERE id = ?1 AND removed_at IS NULL`)
-    .bind(memberId)
+    .prepare(`SELECT * FROM firm_members WHERE id = ?1 AND firm_id = ?2 AND removed_at IS NULL`)
+    .bind(memberId, firmId)
     .first<FirmMemberRow>();
   return row ?? null;
 }
@@ -1076,8 +1084,10 @@ export async function countActivePartners(db: D1Database, firmId: string): Promi
   return row?.n ?? 0;
 }
 
-export async function updateFirmMemberRole(db: D1Database, memberId: string, role: FirmMemberRole): Promise<void> {
-  await db.prepare(`UPDATE firm_members SET role = ?1 WHERE id = ?2`).bind(role, memberId).run();
+/** AuditLab MEMBER-1: firmId bound into the WHERE clause, same reasoning
+ * as getFirmMemberById() above. */
+export async function updateFirmMemberRole(db: D1Database, firmId: string, memberId: string, role: FirmMemberRole): Promise<void> {
+  await db.prepare(`UPDATE firm_members SET role = ?1 WHERE id = ?2 AND firm_id = ?3`).bind(role, memberId, firmId).run();
 }
 
 /** Soft-delete only -- keeps history for #51's "transfer keeps history"
@@ -1085,9 +1095,10 @@ export async function updateFirmMemberRole(db: D1Database, memberId: string, rol
  * (cpe_entries.deleted_at etc.). Callers MUST check countActivePartners()
  * first if this could remove the firm's last partner; this function does
  * not re-check (same "caller validates, store executes" split as
- * setFirmPassword() above). */
-export async function removeFirmMember(db: D1Database, memberId: string): Promise<void> {
-  await db.prepare(`UPDATE firm_members SET removed_at = ?1 WHERE id = ?2`).bind(nowIso(), memberId).run();
+ * setFirmPassword() above). AuditLab MEMBER-1: firmId bound into the WHERE
+ * clause, same reasoning as getFirmMemberById() above. */
+export async function removeFirmMember(db: D1Database, firmId: string, memberId: string): Promise<void> {
+  await db.prepare(`UPDATE firm_members SET removed_at = ?1 WHERE id = ?2 AND firm_id = ?3`).bind(nowIso(), memberId, firmId).run();
 }
 
 export async function setFirmMemberEmail(db: D1Database, memberId: string, newEmail: string): Promise<boolean> {

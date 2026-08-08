@@ -5558,6 +5558,55 @@ describe("GET/DELETE /firm/oauth-identities -- connected accounts", () => {
     expect((await (await callList(cookie)).json<{ identities: unknown[] }>()).identities).toHaveLength(0);
   });
 
+  // AuditLab ROLE-2 (MEDIUM, 2026-08-07): DELETE is Partner-only -- a Staff
+  // or Office Manager session must not be able to unlink the firm's
+  // (necessarily the Partner's, post-ROLE-1) linked Google account. GET
+  // stays open to every role (read-only, same "transparency" posture as
+  // the Team panel), only the mutating DELETE is restricted.
+  it("ROLE-2: only a Partner can unlink a connected account -- Staff/Office Manager get 403, GET stays open to all", async () => {
+    const email = `ident-role2-${Date.now()}@examplefirm.com`;
+    const firm = await store.createFirm(env.DB, { name: "Ident Role2 Firm", adminEmail: email });
+    const linked = await store.linkOauthIdentity(env.DB, {
+      firmId: firm.id,
+      provider: "google",
+      providerSubject: `sub-role2-${Date.now()}`,
+      providerEmail: email,
+    });
+
+    const staff = await store.createFirmMember(env.DB, {
+      firmId: firm.id,
+      email: `ident-role2-staff-${Date.now()}@example.com`,
+      role: "staff",
+    });
+    const { rawSessionToken: staffToken } = await store.createSession(env.DB, firm.id, staff.id);
+    const staffCookie = `dr_firm_session=${staffToken}`;
+
+    const officeManager = await store.createFirmMember(env.DB, {
+      firmId: firm.id,
+      email: `ident-role2-om-${Date.now()}@example.com`,
+      role: "office_manager",
+    });
+    const { rawSessionToken: omToken } = await store.createSession(env.DB, firm.id, officeManager.id);
+    const omCookie = `dr_firm_session=${omToken}`;
+
+    // Reads stay open to every role.
+    expect((await callList(staffCookie)).status).toBe(200);
+    expect((await callList(omCookie)).status).toBe(200);
+
+    // The mutating unlink is Partner-only.
+    expect((await callDelete(linked!.id, staffCookie)).status).toBe(403);
+    expect((await callDelete(linked!.id, omCookie)).status).toBe(403);
+
+    // Still linked -- neither refused request actually removed it.
+    const stillListed = await (await callList(staffCookie)).json<{ identities: unknown[] }>();
+    expect(stillListed.identities).toHaveLength(1);
+
+    // The firm's own Partner (its founding/primary member) can.
+    const { rawSessionToken: partnerToken } = await store.createSession(env.DB, firm.id);
+    const partnerCookie = `dr_firm_session=${partnerToken}`;
+    expect((await callDelete(linked!.id, partnerCookie)).status).toBe(200);
+  });
+
   // AuditLab S-3, 2026-08-03 (LOW): DELETE had no bucket at all. Rate limit
   // runs before the id lookup, so a nonexistent id still consumes the bucket.
   it("DELETE /firm/oauth-identities/:id is rate-limited per firm (was completely unbounded)", async () => {

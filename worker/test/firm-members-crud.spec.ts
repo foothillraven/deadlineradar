@@ -50,7 +50,7 @@ describe("POST /firm/members/invite", () => {
     expect(body.role).toBe("staff");
     expect(body.joined_at).toBeNull();
 
-    const member = await store.getFirmMemberById(env.DB, body.id);
+    const member = await store.getFirmMemberById(env.DB, partner.firmId, body.id);
     expect(member?.email).toBe(email);
     expect(member?.joined_at).toBeNull();
 
@@ -121,13 +121,13 @@ describe("POST /firm/members/invite", () => {
   it("rejects inviting an email that's already active in this firm, or already belongs to a DIFFERENT firm", async () => {
     const partner = await seedPaidFirm();
     const staff = await addMember(partner.firmId, "staff");
-    const staffMember = await store.getFirmMemberById(env.DB, staff.memberId);
+    const staffMember = await store.getFirmMemberById(env.DB, partner.firmId, staff.memberId);
 
     const sameFirm = await postInvite(partner.cookie, inviteBody("staff", staffMember!.email));
     expect(sameFirm.status).toBe(409);
 
     const otherFirm = await seedPaidFirm("Other Firm");
-    const otherFirmOwner = await store.getFirmMemberById(env.DB, otherFirm.memberId);
+    const otherFirmOwner = await store.getFirmMemberById(env.DB, otherFirm.firmId, otherFirm.memberId);
     const crossFirm = await postInvite(partner.cookie, inviteBody("staff", otherFirmOwner!.email));
     expect(crossFirm.status).toBe(409);
   });
@@ -187,7 +187,7 @@ describe("PATCH /firm/members/:id -- role change", () => {
       body: JSON.stringify({ role: "office_manager" }),
     });
     expect(resp.status).toBe(200);
-    expect((await store.getFirmMemberById(env.DB, staff.memberId))?.role).toBe("office_manager");
+    expect((await store.getFirmMemberById(env.DB, partner.firmId, staff.memberId))?.role).toBe("office_manager");
   });
 
   it("refuses to demote a firm's only Partner", async () => {
@@ -198,7 +198,7 @@ describe("PATCH /firm/members/:id -- role change", () => {
       body: JSON.stringify({ role: "office_manager" }),
     });
     expect(resp.status).toBe(400);
-    expect((await store.getFirmMemberById(env.DB, partner.memberId))?.role).toBe("partner");
+    expect((await store.getFirmMemberById(env.DB, partner.firmId, partner.memberId))?.role).toBe("partner");
   });
 
   it("allows demoting a Partner when another active Partner remains", async () => {
@@ -232,7 +232,7 @@ describe("DELETE /firm/members/:id -- remove", () => {
 
     const resp = await SELF.fetch(`${BASE}/firm/members/${staff.memberId}`, { method: "DELETE", headers: { Cookie: officeManager.cookie } });
     expect(resp.status).toBe(200);
-    expect(await store.getFirmMemberById(env.DB, staff.memberId)).toBeNull();
+    expect(await store.getFirmMemberById(env.DB, partner.firmId, staff.memberId)).toBeNull();
   });
 
   it("an Office Manager cannot remove another Office Manager or a Partner", async () => {
@@ -257,7 +257,7 @@ describe("DELETE /firm/members/:id -- remove", () => {
     const partner = await seedPaidFirm();
     const resp = await SELF.fetch(`${BASE}/firm/members/${partner.memberId}`, { method: "DELETE", headers: { Cookie: partner.cookie } });
     expect(resp.status).toBe(400);
-    expect(await store.getFirmMemberById(env.DB, partner.memberId)).not.toBeNull();
+    expect(await store.getFirmMemberById(env.DB, partner.firmId, partner.memberId)).not.toBeNull();
   });
 
   it("refuses to remove the firm's current primary contact even if another Partner exists (transfer first)", async () => {
@@ -299,7 +299,7 @@ describe("POST /firm/members/:id/make-primary -- #51 account transfer", () => {
   it("a Partner can transfer primary contact to another Partner -- old primary keeps their Partner role, firm-level mail routes to the new one", async () => {
     const partner = await seedPaidFirm();
     const secondPartner = await addMember(partner.firmId, "partner");
-    const secondPartnerRow = await store.getFirmMemberById(env.DB, secondPartner.memberId);
+    const secondPartnerRow = await store.getFirmMemberById(env.DB, partner.firmId, secondPartner.memberId);
 
     const resp = await SELF.fetch(`${BASE}/firm/members/${secondPartner.memberId}/make-primary`, {
       method: "POST",
@@ -314,7 +314,7 @@ describe("POST /firm/members/:id/make-primary -- #51 account transfer", () => {
     expect(firm?.admin_email).toBe(secondPartnerRow!.email);
 
     // The OLD primary is untouched -- still an active Partner, not removed.
-    expect((await store.getFirmMemberById(env.DB, partner.memberId))?.role).toBe("partner");
+    expect((await store.getFirmMemberById(env.DB, partner.firmId, partner.memberId))?.role).toBe("partner");
   });
 
   it("refuses to make a Staff or Office Manager member the primary contact", async () => {

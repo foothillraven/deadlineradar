@@ -1779,7 +1779,7 @@ async function handleFirmLoginVerify(
   // migration 0045: the specific member this token is FOR -- a removed
   // member's still-outstanding token must not be able to sign back in
   // (getFirmMemberById already excludes removed_at rows).
-  const member = await store.getFirmMemberById(env.DB, result.memberId);
+  const member = await store.getFirmMemberById(env.DB, result.firmId, result.memberId);
   if (!member) {
     return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
   }
@@ -2148,7 +2148,7 @@ async function handleFirmMemberInvite(request: Request, env: Env): Promise<Respo
     invitedByMemberId: session.memberId,
   });
 
-  const inviter = await store.getFirmMemberById(env.DB, session.memberId);
+  const inviter = await store.getFirmMemberById(env.DB, session.firmId, session.memberId);
   await issueAndSendFirmMemberInviteEmail(env, session.firmId, memberId, email, session.firm.name, ROLE_LABELS[role], inviter?.name ?? null);
 
   return jsonResponse(201, { id: memberId, email, name, role, joined_at: null });
@@ -2173,7 +2173,7 @@ async function handleFirmMemberRoleChange(request: Request, env: Env, memberId: 
     return jsonResponse(429, { error: "Too many changes. Please try again later." });
   }
 
-  const target = await store.getFirmMemberById(env.DB, memberId);
+  const target = await store.getFirmMemberById(env.DB, session.firmId, memberId);
   if (!target || target.firm_id !== session.firmId) {
     return jsonResponse(404, { error: "Not found." });
   }
@@ -2200,7 +2200,7 @@ async function handleFirmMemberRoleChange(request: Request, env: Env, memberId: 
     }
   }
 
-  await store.updateFirmMemberRole(env.DB, memberId, role);
+  await store.updateFirmMemberRole(env.DB, session.firmId, memberId, role);
   return jsonResponse(200, { id: memberId, role });
 }
 
@@ -2226,7 +2226,7 @@ async function handleFirmMemberRemove(request: Request, env: Env, memberId: stri
     return jsonResponse(429, { error: "Too many changes. Please try again later." });
   }
 
-  const target = await store.getFirmMemberById(env.DB, memberId);
+  const target = await store.getFirmMemberById(env.DB, session.firmId, memberId);
   if (!target || target.firm_id !== session.firmId) {
     return jsonResponse(404, { error: "Not found." });
   }
@@ -2246,7 +2246,7 @@ async function handleFirmMemberRemove(request: Request, env: Env, memberId: stri
     }
   }
 
-  await store.removeFirmMember(env.DB, memberId);
+  await store.removeFirmMember(env.DB, session.firmId, memberId);
   await store.deleteAllSessionsForMember(env.DB, memberId);
   await store.invalidateOutstandingLoginTokensForMember(env.DB, memberId);
 
@@ -2273,7 +2273,7 @@ async function handleFirmMemberMakePrimary(request: Request, env: Env, memberId:
     return jsonResponse(429, { error: "Too many changes. Please try again later." });
   }
 
-  const target = await store.getFirmMemberById(env.DB, memberId);
+  const target = await store.getFirmMemberById(env.DB, session.firmId, memberId);
   if (!target || target.firm_id !== session.firmId) {
     return jsonResponse(404, { error: "Not found." });
   }
@@ -6604,7 +6604,7 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
   // migration 0045: a password is now set on the SIGNED-IN MEMBER, not the
   // firm -- every check below (current-password proof, the hash itself)
   // reads/writes session.memberId's own firm_members row.
-  const member = await store.getFirmMemberById(env.DB, session.memberId);
+  const member = await store.getFirmMemberById(env.DB, session.firmId, session.memberId);
   if (!member) {
     return jsonResponse(404, { error: "Not found." });
   }
@@ -6759,7 +6759,7 @@ async function handleFirmSignOutOtherDevices(request: Request, env: Env): Promis
     await store.invalidateOutstandingLoginTokensForMember(env.DB, session.memberId);
 
     const firm = await store.getFirmById(env.DB, session.firmId);
-    const member = await store.getFirmMemberById(env.DB, session.memberId);
+    const member = await store.getFirmMemberById(env.DB, session.firmId, session.memberId);
     // Best-effort and never allowed to fail the request -- see
     // handleFirmPasswordSet's own comment on the identical pattern. This is
     // the DETECTION control: if the click that triggered this came from a
@@ -6853,7 +6853,7 @@ async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise
   // login email, not the firm's admin_email directly (though the mirror
   // update still applies if they happen to be the primary contact -- see
   // handleFirmLoginVerify()'s own comment on that mirroring).
-  const member = await store.getFirmMemberById(env.DB, session.memberId);
+  const member = await store.getFirmMemberById(env.DB, session.firmId, session.memberId);
   if (!member) return jsonResponse(404, { error: "Not found." });
 
   // Task #27 follow-up (2026-08-06, reported live): this route, the billing
@@ -7237,9 +7237,18 @@ async function handleOauthIdentitiesList(request: Request, env: Env): Promise<Re
  * session for firm A cannot unlink firm B's identity; a miss returns the
  * same generic 404 as a nonexistent id, matching this file's
  * no-oracle convention.
+ *
+ * AuditLab ROLE-2 (MEDIUM, 2026-08-07): Partner-only, not just any signed-
+ * in role. firm_oauth_identities is firm-scoped, not member-scoped, and
+ * ROLE-1's own fix means the only identity that can ever exist here
+ * belongs to the firm's PRIMARY member -- before this fix, a Staff or
+ * Office Manager session could delete the Partner's own linked sign-in
+ * method. Not a lockout (password/magic-link always remain), but it's one
+ * member mutating another member's auth configuration, exactly the class
+ * of boundary requireFirmRole() exists to close everywhere else.
  */
 async function handleOauthIdentityDelete(request: Request, env: Env, id: string): Promise<Response> {
-  const session = await requireFirmSession(request, env);
+  const session = await requireFirmRole(request, env, "partner");
   if (session instanceof Response) return session;
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own

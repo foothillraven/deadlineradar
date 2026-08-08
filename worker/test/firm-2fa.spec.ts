@@ -53,7 +53,10 @@ async function newEnrolledFirm(label: string) {
   await store.setFirmMemberPassword(env.DB, memberId, await hashPassword(password));
   const secret = generateTotpSecretBase32();
   const { ciphertextBase64, ivBase64 } = await encryptTotpSecret(secret, memberId, KEY);
-  await store.setFirmMemberTotpSecret(env.DB, memberId, ciphertextBase64, ivBase64);
+  // confirmedTimestep=0: a real current counter (Unix-epoch/30s) is always
+  // far larger, so this never collides with a genuinely-generated code in
+  // these tests -- it just seeds the replay floor at "nothing accepted yet".
+  await store.setFirmMemberTotpSecret(env.DB, memberId, ciphertextBase64, ivBase64, 0);
   return { firmId, memberId, email, password, secret };
 }
 
@@ -63,6 +66,16 @@ async function newPlainFirm(label: string) {
   const { id: firmId, memberId } = await store.createFirm(env.DB, { name: "2FA Test LLP", adminEmail: email });
   await store.setFirmMemberPassword(env.DB, memberId, await hashPassword(password));
   return { firmId, memberId, email, password };
+}
+
+/** A magic-link-only member -- no password ever set. Exercises the
+ * exemption AuditLab 2FA-2's fix mirrors from handleFirmChangeEmailRequest:
+ * the step-up gate is skipped (not enforced-and-failing) when there is no
+ * password to prove, same reasoning as every sibling step-up check. */
+async function newPasswordlessFirm(label: string) {
+  const email = `${label}-${Date.now()}-${Math.floor(performance.now())}@examplefirm.com`;
+  const { id: firmId, memberId } = await store.createFirm(env.DB, { name: "2FA Test LLP", adminEmail: email });
+  return { firmId, memberId, email };
 }
 
 function pendingTokenFromLocation(resp: Response): string {
@@ -390,6 +403,81 @@ describe("POST /firm/2fa/verify", () => {
     expect(second.headers.get("Set-Cookie")).toBeNull();
   });
 
+  // AuditLab 2FA-1 (MEDIUM, 2026-08-07): the SAME code submitted against a
+  // SECOND, INDEPENDENT pending token -- not a reuse of the first token
+  // (that's the two-tab-race test above, and pending-token single-use
+  // doesn't cover this case at all). This is the actual attack RFC 6238
+  // Section 5.2 requires refusing: a real-time phishing proxy relays the
+  // victim's password AND code to the real site as the victim types them,
+  // then starts its OWN login with the captured password to get its own
+  // fresh pending token, and submits the captured code into THAT token
+  // within its ~90s validity window. Without replay prevention this
+  // succeeds; with it, the second attempt must fail even though the code
+  // is still inside its own step window.
+  it("REPLAY: the same code cannot be accepted twice across two INDEPENDENT pending tokens (phishing-proxy scenario)", async () => {
+    const { firmId, memberId, secret } = await newEnrolledFirm("verify-replay-cross-token");
+    const code = await generateTotp(secret);
+
+    const pendingA = (await store.createFirm2faPendingToken(env.DB, memberId, firmId, "login", null)).rawToken;
+    const respA = await workerFetch(
+      new Request(`${BASE}/firm/2fa/verify`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.219" },
+        body: form({ pending: pendingA, code }),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
+    expect(respA.status).toBe(302);
+    expect(respA.headers.get("Set-Cookie") ?? "").toContain("dr_firm_session=");
+
+    // A brand-new pending token -- the attacker's own login attempt, not a
+    // resubmission of pendingA. The SAME code, still well inside its +/-1
+    // step window (generated and used within the same test, milliseconds
+    // apart), must now be refused.
+    const pendingB = (await store.createFirm2faPendingToken(env.DB, memberId, firmId, "login", null)).rawToken;
+    const respB = await workerFetch(
+      new Request(`${BASE}/firm/2fa/verify`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.220" },
+        body: form({ pending: pendingB, code }),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
+    expect(respB.status).toBe(400);
+    expect(respB.headers.get("Set-Cookie")).toBeNull();
+  });
+
+  it("REPLAY: a LATER, freshly-generated code still works normally after an earlier one was accepted", async () => {
+    const { firmId, memberId, secret } = await newEnrolledFirm("verify-replay-later-code-ok");
+    const now = new Date();
+    const later = new Date(now.getTime() + 30_000); // one step later -- a genuinely new code
+    const codeNow = await generateTotp(secret, now);
+    const codeLater = await generateTotp(secret, later);
+
+    const pendingA = (await store.createFirm2faPendingToken(env.DB, memberId, firmId, "login", null)).rawToken;
+    const respA = await workerFetch(
+      new Request(`${BASE}/firm/2fa/verify`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.221" },
+        body: form({ pending: pendingA, code: codeNow }),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
+    expect(respA.status).toBe(302);
+
+    const pendingB = (await store.createFirm2faPendingToken(env.DB, memberId, firmId, "login", null)).rawToken;
+    const respB = await workerFetch(
+      new Request(`${BASE}/firm/2fa/verify`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.222" },
+        body: form({ pending: pendingB, code: codeLater }),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
+    expect(respB.status).toBe(302);
+    expect(respB.headers.get("Set-Cookie") ?? "").toContain("dr_firm_session=");
+  });
+
   it("missing pending or code is a plain 400, not a crash", async () => {
     const resp = await workerFetch(
       new Request(`${BASE}/firm/2fa/verify`, {
@@ -507,7 +595,7 @@ describe("Google SSO is NOT gated by TOTP -- a documented scope decision, not an
     const { id: firmId, memberId } = await store.createFirm(env.DB, { name: "SSO 2FA Test LLP", adminEmail: email });
     const secret = generateTotpSecretBase32();
     const { ciphertextBase64, ivBase64 } = await encryptTotpSecret(secret, memberId, KEY);
-    await store.setFirmMemberTotpSecret(env.DB, memberId, ciphertextBase64, ivBase64);
+    await store.setFirmMemberTotpSecret(env.DB, memberId, ciphertextBase64, ivBase64, 0);
 
     const { rawState, nonce, rawBrowserBinding } = await store.createOauthState(env.DB, "google");
 
@@ -584,13 +672,13 @@ describe("GET /firm/2fa/status", () => {
 
 describe("POST /firm/2fa/enroll", () => {
   it("returns a secret + otpauth URI and persists NOTHING yet", async () => {
-    const { firmId, memberId } = await newPlainFirm("enroll-nothing-persisted");
+    const { firmId, memberId, password } = await newPlainFirm("enroll-nothing-persisted");
     const cookie = await sessionCookieFor(firmId, memberId);
     const resp = await workerFetch(
       new Request(`${BASE}/firm/2fa/enroll`, {
         method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.260", Cookie: cookie },
-        body: "",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.260", Cookie: cookie },
+        body: JSON.stringify({ current_password: password }),
       }),
       { TOTP_ENCRYPTION_KEY: KEY }
     );
@@ -651,14 +739,83 @@ describe("POST /firm/2fa/enroll", () => {
     });
     expect(resp.status).toBe(503);
   });
-});
 
-describe("POST /firm/2fa/enroll/confirm", () => {
-  async function enroll(cookie: string, ip: string): Promise<{ secret: string }> {
+  // AuditLab 2FA-2 (MEDIUM, 2026-08-07): a stolen session alone must not be
+  // enough to enroll 2FA -- without step-up, an attacker holding just a
+  // session cookie could enroll with a secret THEY control, receive the 8
+  // backup codes, and lock the real owner out permanently (disable itself
+  // requires a code the attacker now holds -- worse than the email-change
+  // hijack EMAILCHG-1 already closed the same way).
+  it("refuses without current_password when the member already has a password", async () => {
+    const { firmId, memberId } = await newPlainFirm("enroll-stepup-missing");
+    const cookie = await sessionCookieFor(firmId, memberId);
     const resp = await workerFetch(
       new Request(`${BASE}/firm/2fa/enroll`, {
         method: "POST",
-        headers: { "cf-connecting-ip": ip, Cookie: cookie },
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.265", Cookie: cookie },
+        body: JSON.stringify({}),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
+    expect(resp.status).toBe(400);
+  });
+
+  it("refuses with the WRONG current_password", async () => {
+    const { firmId, memberId } = await newPlainFirm("enroll-stepup-wrong");
+    const cookie = await sessionCookieFor(firmId, memberId);
+    const resp = await workerFetch(
+      new Request(`${BASE}/firm/2fa/enroll`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.266", Cookie: cookie },
+        body: JSON.stringify({ current_password: "definitely-not-it" }),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
+    expect(resp.status).toBe(400);
+  });
+
+  it("a stolen session alone (no password) cannot obtain a secret -- the attacker never reaches enroll/confirm", async () => {
+    const { firmId, memberId } = await newPlainFirm("enroll-stepup-no-secret-leak");
+    const cookie = await sessionCookieFor(firmId, memberId);
+    const resp = await workerFetch(
+      new Request(`${BASE}/firm/2fa/enroll`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.267", Cookie: cookie },
+        body: JSON.stringify({ current_password: "wrong" }),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
+    expect(resp.status).toBe(400);
+    const json = (await resp.json()) as Record<string, unknown>;
+    expect(json.secret).toBeUndefined();
+    const member = await store.getFirmMemberById(env.DB, firmId, memberId);
+    expect(member?.totp_enrolled_at).toBeNull();
+  });
+
+  it("succeeds without current_password for a magic-link-only member (no password to prove) -- same exemption as handleFirmChangeEmailRequest", async () => {
+    const { firmId, memberId } = await newPasswordlessFirm("enroll-stepup-no-password-member");
+    const cookie = await sessionCookieFor(firmId, memberId);
+    const resp = await workerFetch(
+      new Request(`${BASE}/firm/2fa/enroll`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.268", Cookie: cookie },
+        body: JSON.stringify({}),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
+    expect(resp.status).toBe(200);
+    const json = (await resp.json()) as { secret: string };
+    expect(json.secret).toMatch(/^[A-Z2-7]{32}$/);
+  });
+});
+
+describe("POST /firm/2fa/enroll/confirm", () => {
+  async function enroll(cookie: string, ip: string, password: string): Promise<{ secret: string }> {
+    const resp = await workerFetch(
+      new Request(`${BASE}/firm/2fa/enroll`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "cf-connecting-ip": ip, Cookie: cookie },
+        body: JSON.stringify({ current_password: password }),
       }),
       { TOTP_ENCRYPTION_KEY: KEY }
     );
@@ -667,9 +824,9 @@ describe("POST /firm/2fa/enroll/confirm", () => {
   }
 
   it("a correct code completes enrollment and returns 8 one-time backup codes", async () => {
-    const { firmId, memberId } = await newPlainFirm("confirm-ok");
+    const { firmId, memberId, password } = await newPlainFirm("confirm-ok");
     const cookie = await sessionCookieFor(firmId, memberId);
-    const { secret } = await enroll(cookie, "203.0.113.270");
+    const { secret } = await enroll(cookie, "203.0.113.270", password);
     const code = await generateTotp(secret);
 
     const resp = await workerFetch(
@@ -695,9 +852,9 @@ describe("POST /firm/2fa/enroll/confirm", () => {
   });
 
   it("a wrong code refuses and leaves the member unenrolled", async () => {
-    const { firmId, memberId } = await newPlainFirm("confirm-wrong-code");
+    const { firmId, memberId, password } = await newPlainFirm("confirm-wrong-code");
     const cookie = await sessionCookieFor(firmId, memberId);
-    const { secret } = await enroll(cookie, "203.0.113.271");
+    const { secret } = await enroll(cookie, "203.0.113.271", password);
 
     const resp = await workerFetch(
       new Request(`${BASE}/firm/2fa/enroll/confirm`, {

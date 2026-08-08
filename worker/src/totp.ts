@@ -125,22 +125,37 @@ export async function generateTotp(secretBase32: string, at: Date = new Date()):
 }
 
 /**
- * Verifies a submitted code against a +/-1 step window. Checks every
- * candidate (no early return on the first match) so response timing
- * can't leak which step, if any, matched.
+ * Verifies a submitted code against a +/-1 step window and returns the
+ * matched 30-second-step COUNTER rather than a bare boolean -- null on no
+ * match. AuditLab 2FA-1 (MEDIUM, 2026-08-07): RFC 6238 Section 5.2 is a
+ * MUST, not a SHOULD -- "the verifier MUST NOT accept the second attempt of
+ * the OTP after the successful validation has been issued for the first
+ * OTP." With a +/-1 window, up to 3 codes are valid at any instant (~90
+ * seconds); without tracking which counter was last accepted, the SAME
+ * code can be replayed by a second, independent login attempt within that
+ * window -- exactly the real-time phishing-proxy scenario 2FA exists to
+ * defeat (the proxy relays the victim's password AND code to the real
+ * site as the victim types them; without replay prevention, that one
+ * captured code is good for a second, attacker-controlled session for up
+ * to ~90 seconds). Callers compare the returned counter against the
+ * member's stored `totp_last_used_timestep` (store.ts) and reject when
+ * `<=` that value, otherwise persist it as the new floor -- this function
+ * only reports what matched, it has no persistence of its own. Checks
+ * every candidate (no early return on the first match) so response timing
+ * still can't leak which step, if any, matched.
  */
-export async function verifyTotp(secretBase32: string, submittedCode: string, at: Date = new Date()): Promise<boolean> {
+export async function verifyTotp(secretBase32: string, submittedCode: string, at: Date = new Date()): Promise<number | null> {
   const normalized = submittedCode.trim();
-  if (!/^\d{6}$/.test(normalized)) return false;
+  if (!/^\d{6}$/.test(normalized)) return null;
   const counter = Math.floor(at.getTime() / 1000 / TOTP_STEP_SECONDS);
   const steps: number[] = [];
   for (let i = -TOTP_WINDOW_STEPS; i <= TOTP_WINDOW_STEPS; i++) steps.push(counter + i);
   const candidates = await Promise.all(steps.map((c) => totpAtCounter(secretBase32, c)));
-  let matched = false;
-  for (const candidate of candidates) {
-    if (candidate === normalized) matched = true;
+  let matchedCounter: number | null = null;
+  for (let i = 0; i < candidates.length; i++) {
+    if (candidates[i] === normalized) matchedCounter = steps[i] ?? null;
   }
-  return matched;
+  return matchedCounter;
 }
 
 /**

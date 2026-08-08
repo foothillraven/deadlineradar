@@ -89,7 +89,7 @@ describe("TOTP generation -- RFC 6238 Appendix B published test vectors (SHA1, t
 
   it("verifyTotp accepts the exact RFC vector as a submitted code", async () => {
     for (const [unixSeconds, expected] of vectors) {
-      expect(await verifyTotp(SECRET, expected, new Date(unixSeconds * 1000))).toBe(true);
+      expect(await verifyTotp(SECRET, expected, new Date(unixSeconds * 1000))).not.toBeNull();
     }
   });
 });
@@ -101,9 +101,9 @@ describe("verifyTotp -- window and input handling", () => {
     const before = new Date(now.getTime() - 30_000);
     const after = new Date(now.getTime() + 30_000);
     const code = await generateTotp(secret, now);
-    expect(await verifyTotp(secret, code, now)).toBe(true);
-    expect(await verifyTotp(secret, code, before)).toBe(true);
-    expect(await verifyTotp(secret, code, after)).toBe(true);
+    expect(await verifyTotp(secret, code, now)).not.toBeNull();
+    expect(await verifyTotp(secret, code, before)).not.toBeNull();
+    expect(await verifyTotp(secret, code, after)).not.toBeNull();
   });
 
   it("rejects a code two or more steps away", async () => {
@@ -111,16 +111,16 @@ describe("verifyTotp -- window and input handling", () => {
     const now = new Date(Date.UTC(2026, 0, 1, 0, 0, 0));
     const farAway = new Date(now.getTime() - 90_000);
     const code = await generateTotp(secret, farAway);
-    expect(await verifyTotp(secret, code, now)).toBe(false);
+    expect(await verifyTotp(secret, code, now)).toBeNull();
   });
 
   it("rejects malformed input without throwing", async () => {
     const secret = generateTotpSecretBase32();
-    expect(await verifyTotp(secret, "")).toBe(false);
-    expect(await verifyTotp(secret, "12345")).toBe(false); // too short
-    expect(await verifyTotp(secret, "1234567")).toBe(false); // too long
-    expect(await verifyTotp(secret, "abcdef")).toBe(false); // not digits
-    expect(await verifyTotp(secret, "12 345")).toBe(false);
+    expect(await verifyTotp(secret, "")).toBeNull();
+    expect(await verifyTotp(secret, "12345")).toBeNull(); // too short
+    expect(await verifyTotp(secret, "1234567")).toBeNull(); // too long
+    expect(await verifyTotp(secret, "abcdef")).toBeNull(); // not digits
+    expect(await verifyTotp(secret, "12 345")).toBeNull();
   });
 
   it("a code from a DIFFERENT secret never verifies", async () => {
@@ -128,7 +128,15 @@ describe("verifyTotp -- window and input handling", () => {
     const secretB = generateTotpSecretBase32();
     const now = new Date();
     const codeA = await generateTotp(secretA, now);
-    expect(await verifyTotp(secretB, codeA, now)).toBe(false);
+    expect(await verifyTotp(secretB, codeA, now)).toBeNull();
+  });
+
+  it("returns the actual matched 30-second-step counter, not just a boolean -- callers need this for replay prevention (AuditLab 2FA-1)", async () => {
+    const secret = generateTotpSecretBase32();
+    const now = new Date(Date.UTC(2026, 0, 1, 0, 0, 0));
+    const expectedCounter = Math.floor(now.getTime() / 1000 / 30);
+    const code = await generateTotp(secret, now);
+    expect(await verifyTotp(secret, code, now)).toBe(expectedCounter);
   });
 });
 

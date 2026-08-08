@@ -1009,6 +1009,10 @@ export interface FirmMemberRow {
   totp_secret_encrypted: string | null;
   totp_secret_iv: string | null;
   totp_enrolled_at: string | null;
+  // migration 0048 (AuditLab 2FA-1, MEDIUM): the RFC 6238 Section 5.2
+  // replay-prevention floor -- see setFirmMemberTotpLastUsedTimestep()'s
+  // own docstring below.
+  totp_last_used_timestep: number | null;
 }
 
 export interface CreateFirmMemberInput {
@@ -1171,15 +1175,27 @@ export async function markFirmMemberJoined(db: D1Database, memberId: string): Pr
  * and marks enrollment complete. Called only after the caller has already
  * verified a real code against this exact secret -- this function itself
  * does not verify anything, same "caller validates, store executes" split
- * as setFirmPassword(). */
-export async function setFirmMemberTotpSecret(db: D1Database, memberId: string, encryptedSecret: string, iv: string): Promise<void> {
+ * as setFirmPassword(). `confirmedTimestep` (totp.ts's verifyTotp() return
+ * value for the code that just proved enrollment) seeds
+ * totp_last_used_timestep immediately -- AuditLab 2FA-1: without this, the
+ * exact code that completed enrollment would still be replayable against
+ * /firm/2fa/verify for the rest of its validity window. */
+export async function setFirmMemberTotpSecret(
+  db: D1Database,
+  memberId: string,
+  encryptedSecret: string,
+  iv: string,
+  confirmedTimestep: number
+): Promise<void> {
   await db
-    .prepare(`UPDATE firm_members SET totp_secret_encrypted = ?1, totp_secret_iv = ?2, totp_enrolled_at = ?3 WHERE id = ?4`)
-    .bind(encryptedSecret, iv, nowIso(), memberId)
+    .prepare(
+      `UPDATE firm_members SET totp_secret_encrypted = ?1, totp_secret_iv = ?2, totp_enrolled_at = ?3, totp_last_used_timestep = ?4 WHERE id = ?5`
+    )
+    .bind(encryptedSecret, iv, nowIso(), confirmedTimestep, memberId)
     .run();
 }
 
-/** Disables 2FA -- nulls all three columns. Callers should also delete
+/** Disables 2FA -- nulls all four columns. Callers should also delete
  * this member's backup codes (deleteFirmMemberBackupCodes() below); kept
  * as two calls rather than one, matching this codebase's existing
  * "removal is the caller's explicit sequence, not one hidden cascade"
@@ -1187,9 +1203,25 @@ export async function setFirmMemberTotpSecret(db: D1Database, memberId: string, 
  * loop). */
 export async function clearFirmMemberTotpSecret(db: D1Database, memberId: string): Promise<void> {
   await db
-    .prepare(`UPDATE firm_members SET totp_secret_encrypted = NULL, totp_secret_iv = NULL, totp_enrolled_at = NULL WHERE id = ?1`)
+    .prepare(
+      `UPDATE firm_members SET totp_secret_encrypted = NULL, totp_secret_iv = NULL, totp_enrolled_at = NULL, totp_last_used_timestep = NULL WHERE id = ?1`
+    )
     .bind(memberId)
     .run();
+}
+
+/**
+ * migration 0048 (AuditLab 2FA-1, MEDIUM, 2026-08-07): records the counter
+ * (totp.ts's verifyTotp() return value) that was just accepted for this
+ * member -- the RFC 6238 Section 5.2 replay-prevention floor. A caller
+ * MUST reject any future code whose matched counter is `<=` this stored
+ * value BEFORE calling this function again, or the whole point (the same
+ * code cannot be accepted twice) is lost. This function only persists;
+ * it does not itself check anything, same "caller validates, store
+ * executes" split every other function in this section already uses.
+ */
+export async function setFirmMemberTotpLastUsedTimestep(db: D1Database, memberId: string, timestep: number): Promise<void> {
+  await db.prepare(`UPDATE firm_members SET totp_last_used_timestep = ?1 WHERE id = ?2`).bind(timestep, memberId).run();
 }
 
 /** Bulk-inserts a freshly generated set of backup-code HASHES (never the

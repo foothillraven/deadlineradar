@@ -11044,10 +11044,17 @@ function drRender2faStatus(enabled, remaining) {
   } else {
     el.innerHTML =
       '<p class="dr-2fa-status-line">Not enabled</p>' +
-      '<button type="button" id="dr-2fa-enable-btn">Enable two-factor authentication</button>' +
+      '<form id="dr-2fa-enable-form">' +
+        '<label for="dr-2fa-enable-password">Current password ' +
+        '<span class="field-hint">(leave blank if you have never set one)</span></label>' +
+        '<input type="password" id="dr-2fa-enable-password" name="current_password" autocomplete="current-password">' +
+        '<button type="submit">Enable two-factor authentication</button>' +
+      '</form>' +
       '<div id="dr-2fa-enroll-wrap"></div>';
-    var enableBtn = document.getElementById('dr-2fa-enable-btn');
-    if (enableBtn) enableBtn.addEventListener('click', drStart2faEnroll);
+    var enableForm = document.getElementById('dr-2fa-enable-form');
+    if (enableForm) {
+      enableForm.addEventListener('submit', function(ev) { ev.preventDefault(); drStart2faEnroll(enableForm); });
+    }
   }
 }
 
@@ -11094,25 +11101,39 @@ function drSubmit2faDisable(form) {
   });
 }
 
-function drStart2faEnroll() {
+// AuditLab 2FA-2 (MEDIUM, 2026-08-07): enrollment now requires step-up
+// proof (the current password, same as every sibling credential-changing
+// action -- see handleFirm2faEnroll's own comment) so a stolen session
+// alone can never enroll 2FA with an attacker-controlled secret and lock
+// the real owner out. Sent even when blank -- a magic-link-only member has
+// no password to prove, and the server-side check already exempts that
+// case exactly the way handleFirmChangeEmailRequest's does.
+function drStart2faEnroll(form) {
   var errEl = document.getElementById('dr-2fa-error');
   if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
-  var enableBtn = document.getElementById('dr-2fa-enable-btn');
-  if (enableBtn) enableBtn.disabled = true;
-  fetch('/api/firm/2fa/enroll', {method: 'POST', credentials: 'include'})
+  var fd = new FormData(form);
+  var currentPassword = (fd.get('current_password') || '').toString();
+  var btn = form.querySelector('button[type="submit"]');
+  if (btn) btn.disabled = true;
+  fetch('/api/firm/2fa/enroll', {
+    method: 'POST', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({current_password: currentPassword})
+  })
     .then(function(res) {
       if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
       return drReadJsonSafe(res).then(function(data) {
-        if (enableBtn) enableBtn.disabled = false;
+        if (btn) btn.disabled = false;
         if (!res.ok) {
           var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
           if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
           return;
         }
+        form.hidden = true;
         drRender2faEnrollForm(data.secret, data.otpauth_uri);
       });
     }).catch(function() {
-      if (enableBtn) enableBtn.disabled = false;
+      if (btn) btn.disabled = false;
       if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
     });
 }

@@ -2028,7 +2028,19 @@ async function handleFirm2faVerify(request: Request, env: Env, ip: string): Prom
   const looksLikeTotp = /^\d{6}$/.test(submittedCode);
   if (looksLikeTotp) {
     const secret = await decryptTotpSecret(member.totp_secret_encrypted, member.totp_secret_iv, member.id, env.TOTP_ENCRYPTION_KEY);
-    if (secret) verified = await verifyTotp(secret, submittedCode);
+    if (secret) {
+      const matchedCounter = await verifyTotp(secret, submittedCode);
+      // AuditLab 2FA-1 (MEDIUM, 2026-08-07): RFC 6238 Section 5.2 replay
+      // prevention -- a code already accepted (matchedCounter <= the
+      // stored floor) is refused even though it is still inside its +/-1
+      // step validity window, closing the gap a real-time phishing proxy
+      // would otherwise exploit (relay the victim's password+code, then
+      // replay that same code into a second, attacker-controlled login).
+      if (matchedCounter !== null && (member.totp_last_used_timestep === null || matchedCounter > member.totp_last_used_timestep)) {
+        verified = true;
+        await store.setFirmMemberTotpLastUsedTimestep(env.DB, member.id, matchedCounter);
+      }
+    }
   } else {
     // Not TOTP-shaped -- try it as a backup code instead of wasting a
     // decrypt+HMAC on a value that can never match.
@@ -7251,6 +7263,55 @@ async function handleFirm2faEnroll(request: Request, env: Env): Promise<Response
     return jsonResponse(400, { error: "Two-factor authentication is already enabled on this account. Disable it first to re-enroll." });
   }
 
+  // AuditLab 2FA-2 (MEDIUM, 2026-08-07): every other credential-changing
+  // action in this file requires step-up (handleFirmPasswordSet,
+  // handleFirmChangeEmailRequest's own EMAILCHG-1 fix, account deletion's
+  // DELETE-1 fix) -- enrollment was the outlier. Without this, a stolen
+  // session enrolls 2FA with an ATTACKER-controlled secret and receives the
+  // 8 backup codes in the response, locking the real owner out of their own
+  // account with no self-recovery path (disable itself requires a TOTP/
+  // backup code the attacker now holds) -- strictly worse than the
+  // email-change hijack EMAILCHG-1 already established as worth gating.
+  // Mirrors handleFirmChangeEmailRequest's exact gate, including the same
+  // two exemptions: skipped when the firm has no password yet (a magic-
+  // link-only firm must still be able to use this feature) or the session
+  // is passwordResetAuthorized (already proved control of the inbox via a
+  // fresh reset link).
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (raw.length > MAX_BODY_BYTES) {
+    return jsonResponse(400, { error: "Request too large." });
+  }
+  let body: Record<string, unknown> = {};
+  if (raw.length > 0) {
+    try {
+      body = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      return jsonResponse(400, { error: "Something went wrong processing that request." });
+    }
+  }
+  const currentPassword = typeof body.current_password === "string" ? body.current_password : "";
+  if (member.password_hash && !session.passwordResetAuthorized) {
+    const currentOk = await verifyPassword(
+      currentPassword,
+      {
+        algo: member.password_algo ?? undefined,
+        salt: member.password_salt ?? undefined,
+        iterations: member.password_iterations ?? undefined,
+        rounds: member.password_rounds ?? undefined,
+        hash: member.password_hash,
+      },
+      env.PASSWORD_PEPPER
+    );
+    if (!currentOk) {
+      return jsonResponse(400, { error: "That current password isn't right." });
+    }
+  }
+
   const secret = generateTotpSecretBase32();
   return jsonResponse(200, { secret, otpauth_uri: buildOtpauthUri(secret, member.email, "DeadlineRadar") });
 }
@@ -7334,13 +7395,16 @@ async function handleFirm2faEnrollConfirm(request: Request, env: Env): Promise<R
     return jsonResponse(400, { error: "Two-factor authentication is already enabled on this account." });
   }
 
-  const verified = await verifyTotp(secret, code);
-  if (!verified) {
+  const matchedCounter = await verifyTotp(secret, code);
+  if (matchedCounter === null) {
     return jsonResponse(400, { error: "That code wasn't right. Please try again." });
   }
 
   const { ciphertextBase64, ivBase64 } = await encryptTotpSecret(secret, member.id, env.TOTP_ENCRYPTION_KEY);
-  await store.setFirmMemberTotpSecret(env.DB, member.id, ciphertextBase64, ivBase64);
+  // AuditLab 2FA-1: seed the replay-prevention floor with the counter that
+  // just confirmed enrollment, so that exact code cannot also be replayed
+  // against /firm/2fa/verify for the rest of its validity window.
+  await store.setFirmMemberTotpSecret(env.DB, member.id, ciphertextBase64, ivBase64, matchedCounter);
   const backupCodes = generateBackupCodes();
   await store.createFirmMemberBackupCodes(env.DB, member.id, await Promise.all(backupCodes.map(hashBackupCode)));
 
@@ -7430,7 +7494,18 @@ async function handleFirm2faDisable(request: Request, env: Env): Promise<Respons
   let verified = false;
   if (/^\d{6}$/.test(code)) {
     const secret = await decryptTotpSecret(member.totp_secret_encrypted, member.totp_secret_iv, member.id, env.TOTP_ENCRYPTION_KEY);
-    if (secret) verified = await verifyTotp(secret, code);
+    if (secret) {
+      const matchedCounter = await verifyTotp(secret, code);
+      // AuditLab 2FA-1: same replay floor as the login-gate verify path --
+      // clearFirmMemberTotpSecret() below makes this moot for a SUBSEQUENT
+      // disable attempt (nothing left to decrypt against), but a
+      // concurrent duplicate request racing this exact call is still worth
+      // closing, and consistency with the other two verify sites means
+      // there is only one rule to reason about, not an exception here.
+      if (matchedCounter !== null && (member.totp_last_used_timestep === null || matchedCounter > member.totp_last_used_timestep)) {
+        verified = true;
+      }
+    }
   } else {
     const codeHash = await hashBackupCode(code);
     verified = await store.consumeFirmMemberBackupCode(env.DB, member.id, codeHash);

@@ -74,6 +74,7 @@ describe("every record survives normalizeRuleRow() with nothing silently dropped
         "firm_registration_tax",
         "peer_review_required",
         "rule_in_flux",
+        "home_state_substantially_equivalent",
       ] as const;
       for (const f of TRISTATE) {
         if (src[f] === null) continue; // an honest, deliberate null is fine
@@ -137,6 +138,33 @@ describe("every record survives normalizeRuleRow() with nothing silently dropped
       }
     });
   }
+});
+
+describe("roadmap #317 Phase 1: home_state_substantially_equivalent dataset shape", () => {
+  const rows = records.map((r) => normalizeRuleRow(r)).filter((r): r is MobilityRuleRow => r !== null);
+
+  it("every one of the 55 rows carries the key (even if null) -- nothing silently omitted", () => {
+    for (const raw of records) {
+      expect(raw, `${(raw as { state_slug: string }).state_slug} is missing home_state_substantially_equivalent`)
+        .toHaveProperty("home_state_substantially_equivalent");
+    }
+  });
+
+  it("is true for every jurisdiction EXCEPT New York and Ohio's Legacy Pathway carve-out", () => {
+    // Locks in the actual sourced result (NASBA: all 55 jurisdictions
+    // currently substantially equivalent, minus the two whose alternative
+    // post-2012 pathway means an individual's status can't be known from
+    // state-level data alone) -- a change here should only ever come from a
+    // real re-sourcing pass, never an accidental edit.
+    for (const row of rows) {
+      if (row.state_slug === "new-york" || row.state_slug === "ohio") {
+        expect(row.home_state_substantially_equivalent, row.state_slug).toBeNull();
+        expect(row.home_state_substantially_equivalent_note, row.state_slug).not.toBeNull();
+      } else {
+        expect(row.home_state_substantially_equivalent, row.state_slug).toBe(true);
+      }
+    }
+  });
 });
 
 describe("the engine's answers are conservative where they should be", () => {

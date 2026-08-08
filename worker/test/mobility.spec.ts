@@ -33,6 +33,8 @@ function verifiedPermissiveRule(over: Partial<MobilityRuleRow> = {}): MobilityRu
     rule_in_flux: false,
     flux_note: null,
     rule_changes_on: null,
+    home_state_substantially_equivalent: null,
+    home_state_substantially_equivalent_note: null,
     ...over,
   };
 }
@@ -109,6 +111,8 @@ describe("SAFETY: the engine must never assert a clearance it cannot cite", () =
       rule_in_flux: null,
       flux_note: null,
       rule_changes_on: null,
+      home_state_substantially_equivalent: null,
+      home_state_substantially_equivalent_note: null,
     };
     const res = evaluateMobility(input(), blank);
     expect(res.overall).toBe("not_verified");
@@ -194,6 +198,94 @@ describe("individual practice privilege", () => {
     const res = evaluateIndividualMobility(input({ targetStateSlug: "california" }), verifiedPermissiveRule());
     expect(res.verdict).toBe("not_applicable");
     expect(res.summary).toMatch(/home state/i);
+  });
+});
+
+describe("roadmap #317 Phase 1: sourced home-state equivalence overrides self-attestation", () => {
+  // A nasba_state_level target rule + a home rule whose equivalency is
+  // itself sourced-true -- the shape that should bypass the self-attestation
+  // gate entirely.
+  const nasbaTargetRule = () => verifiedPermissiveRule({ equivalence_test: "nasba_state_level" });
+  const equivalentHomeRule = () =>
+    verifiedPermissiveRule({ state_slug: "california", home_state_substantially_equivalent: true });
+
+  it("resolves definitively even when the practitioner did NOT self-attest", () => {
+    const res = evaluateIndividualMobility(
+      input({ substantiallyEquivalent: false }),
+      nasbaTargetRule(),
+      equivalentHomeRule()
+    );
+    expect(res.verdict).toBe("clear");
+    expect(res.summary).toMatch(/NASBA/);
+    expect(res.requirements.some((r) => r.includes("NASBA"))).toBe(true);
+  });
+
+  it("does NOT change anything when the target state isn't nasba_state_level, even with a sourced home rule", () => {
+    const res = evaluateIndividualMobility(
+      input({ substantiallyEquivalent: false }),
+      verifiedPermissiveRule({ equivalence_test: "individual_criteria" }), // unchanged default
+      equivalentHomeRule()
+    );
+    expect(res.verdict).toBe("action_required");
+    expect(res.summary).not.toMatch(/NASBA/);
+  });
+
+  it("does NOT bypass self-attestation when the home rule's equivalency is null (unverified) or false", () => {
+    for (const homeRule of [
+      verifiedPermissiveRule({ state_slug: "new-york", home_state_substantially_equivalent: null }),
+      verifiedPermissiveRule({ state_slug: "ohio", home_state_substantially_equivalent: false }),
+      null,
+    ]) {
+      const res = evaluateIndividualMobility(input({ substantiallyEquivalent: false }), nasbaTargetRule(), homeRule);
+      expect(res.verdict).toBe("action_required");
+      expect(res.summary).not.toMatch(/NASBA/);
+    }
+  });
+
+  it("still stays not_verified when the target rule is in flux, even with sourced home equivalence", () => {
+    // The flux/staleness guards run downstream of the sourced-equivalence
+    // branch (blockingRuleCondition is checked inside evaluateIndividualMobilityInner
+    // regardless of how substantial equivalence was satisfied) -- proves this
+    // change cannot be used to route around them.
+    const fluxTarget = nasbaTargetRule();
+    fluxTarget.rule_in_flux = true;
+    fluxTarget.rule_changes_on = "2099-01-01"; // unsettled
+    const res = evaluateIndividualMobility(
+      input({ substantiallyEquivalent: false }),
+      fluxTarget,
+      equivalentHomeRule()
+    );
+    expect(res.verdict).toBe("not_verified");
+  });
+
+  it("still requires citation on the target rule -- sourced home equivalence does not bypass requireCitationOrDowngrade", () => {
+    const uncitedTarget = nasbaTargetRule();
+    uncitedTarget.citation = null;
+    const res = evaluateIndividualMobility(
+      input({ substantiallyEquivalent: false }),
+      uncitedTarget,
+      equivalentHomeRule()
+    );
+    expect(res.verdict).toBe("not_verified");
+  });
+
+  it("evaluateMobility() threads homeRule through to the individual finding only, firm registration is unaffected", () => {
+    const res = evaluateMobility(
+      input({ substantiallyEquivalent: false, serviceType: "attest" }),
+      nasbaTargetRule(),
+      undefined,
+      equivalentHomeRule()
+    );
+    expect(res.individual.verdict).toBe("clear");
+    // firm registration reads only the target rule, never homeRule -- both
+    // false here means clear either way, proving no accidental coupling.
+    expect(res.firm.verdict).toBe("clear");
+  });
+
+  it("a caller that omits homeRule entirely renders byte-identical to before this feature existed", () => {
+    const withoutHomeRule = evaluateIndividualMobility(input({ substantiallyEquivalent: false }), nasbaTargetRule());
+    expect(withoutHomeRule.verdict).toBe("action_required");
+    expect(withoutHomeRule.summary).not.toMatch(/NASBA/);
   });
 });
 

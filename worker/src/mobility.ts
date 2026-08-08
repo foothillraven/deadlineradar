@@ -148,6 +148,8 @@ export function normalizeRuleRow(raw: unknown): MobilityRuleRow | null {
     rule_in_flux: strictTriState(r.rule_in_flux),
     flux_note: str(r.flux_note),
     rule_changes_on: str(r.rule_changes_on),
+    home_state_substantially_equivalent: strictTriState(r.home_state_substantially_equivalent),
+    home_state_substantially_equivalent_note: str(r.home_state_substantially_equivalent_note),
   };
 }
 
@@ -228,6 +230,30 @@ export interface MobilityRuleRow {
    * can warn ahead of time instead of silently going stale on the morning
    * the new rule takes effect. */
   rule_changes_on: string | null;
+
+  /**
+   * Roadmap #317 Phase 1 (2026-08-08). A HOME-state fact, independent of
+   * `equivalence_test` above (which is about what a TARGET state requires of
+   * an incoming out-of-state CPA -- a different question): is a CPA
+   * licensed here, in good standing, substantially equivalent under the UAA
+   * three-E's test (150 hours, one year experience, the Uniform CPA Exam)?
+   * Source: NASBA's own Substantial Equivalency tracking page
+   * (https://nasba.org/licensure/substantialequivalency/, checked
+   * 2026-08-08), which currently lists all 55 jurisdictions as substantially
+   * equivalent -- EXCEPT this field stays null for New York and Ohio, whose
+   * "Legacy Pathway" carve-out means a post-2012 alternative-pathway license
+   * may NOT actually qualify, a fact about the INDIVIDUAL this dataset
+   * cannot know from state-level data alone. See
+   * `home_state_substantially_equivalent_note` for jurisdictions where this
+   * needs explaining. null = not verified (never read as permission), same
+   * posture as every other field on this row.
+   */
+  home_state_substantially_equivalent: boolean | null;
+
+  /** Explanation, populated only when the plain boolean above needs context
+   * (currently: New York/Ohio's Legacy Pathway carve-out). null for every
+   * other jurisdiction -- this is not a general-purpose notes field. */
+  home_state_substantially_equivalent_note: string | null;
 }
 
 /**
@@ -450,6 +476,56 @@ function applyRecentChangeCaveat(finding: MobilityFinding, rule: MobilityRuleRow
 }
 
 /**
+ * Roadmap #317 Phase 1 (2026-08-08). Source for
+ * `home_state_substantially_equivalent` -- referenced in the requirements
+ * text below whenever the sourced-equivalence branch fires, so the "this
+ * was verified from data, not just your own say-so" claim is itself
+ * checkable.
+ */
+export const NASBA_SUBSTANTIAL_EQUIVALENCE_SOURCE_URL = "https://nasba.org/licensure/substantialequivalency/";
+
+/**
+ * True when the TARGET state's substantial-equivalence question is fully
+ * answered by a sourced fact about the practitioner's HOME state, making
+ * the self-attestation checkbox unnecessary for this specific pair. Only
+ * fires for `nasba_state_level` target states (the ones that defer to
+ * NASBA's determination about the home STATE, not the individual's own
+ * credentials -- see `equivalence_test`'s own docstring) with a home state
+ * whose equivalency is itself verified true. Every other combination
+ * (`individual_criteria`/`other`/null target test, or an unverified/false/
+ * missing home rule) falls through to the existing self-attestation gate
+ * completely unchanged.
+ */
+function hasSourcedEquivalence(rule: MobilityRuleRow | null, homeRule: MobilityRuleRow | null): boolean {
+  return rule?.equivalence_test === "nasba_state_level" && homeRule?.home_state_substantially_equivalent === true;
+}
+
+/**
+ * Appends an informational (never blocking) note when a finding was reached
+ * via sourced home-state equivalence rather than the practitioner's own
+ * attestation -- same "additive, not `applyRecentChangeCaveat`" is applied
+ * with the same not_verified/not_applicable exclusions, since those
+ * findings either already explain themselves or never depended on
+ * equivalence at all (not_applicable's home-state branch above never
+ * reaches this far).
+ */
+function applySourcedEquivalenceNote(
+  finding: MobilityFinding,
+  sourced: boolean,
+  homeRule: MobilityRuleRow | null
+): MobilityFinding {
+  if (!sourced || finding.verdict === "not_verified" || finding.verdict === "not_applicable") return finding;
+  const note =
+    "Your home state's substantial-equivalence status was verified from NASBA's own tracking " +
+    `(${NASBA_SUBSTANTIAL_EQUIVALENCE_SOURCE_URL}), not just your own attestation.`;
+  return {
+    ...finding,
+    summary: `${finding.summary} (${note})`,
+    requirements: [...finding.requirements, note],
+  };
+}
+
+/**
  * Individual practice privilege in the TARGET state.
  *
  * Note the ordering: the practitioner's own attestations are checked FIRST,
@@ -458,18 +534,32 @@ function applyRecentChangeCaveat(finding: MobilityFinding, rule: MobilityRuleRow
  * says. Answering "the state allows mobility" to someone who doesn't
  * qualify for it would be exactly the kind of technically-true, practically
  * dangerous answer this engine is built to avoid.
+ *
+ * `homeRule` (roadmap #317 Phase 1, 2026-08-08): the HOME state's own row,
+ * used ONLY to check `home_state_substantially_equivalent` via
+ * `hasSourcedEquivalence()` above -- optional/defaulted so every existing
+ * caller that doesn't pass one renders byte-identical to before this
+ * parameter existed (falls through to the self-attestation gate exactly as
+ * today).
  */
 export function evaluateIndividualMobility(
   input: MobilityInput,
   rule: MobilityRuleRow | null,
+  homeRule: MobilityRuleRow | null = null,
   now: Date = new Date()
 ): MobilityFinding {
-  return applyRecentChangeCaveat(evaluateIndividualMobilityInner(input, rule, now), rule, now);
+  const sourced = hasSourcedEquivalence(rule, homeRule);
+  return applySourcedEquivalenceNote(
+    applyRecentChangeCaveat(evaluateIndividualMobilityInner(input, rule, sourced, now), rule, now),
+    sourced,
+    homeRule
+  );
 }
 
 function evaluateIndividualMobilityInner(
   input: MobilityInput,
   rule: MobilityRuleRow | null,
+  sourcedEquivalence: boolean,
   now: Date
 ): MobilityFinding {
   if (input.homeStateSlug === input.targetStateSlug) {
@@ -506,7 +596,12 @@ function evaluateIndividualMobilityInner(
     };
   }
 
-  if (!input.substantiallyEquivalent) {
+  // Roadmap #317 Phase 1: `sourcedEquivalence` means we already KNOW the
+  // answer from data (the home state's own NASBA-verified status), so the
+  // self-attestation checkbox is not the deciding factor for this pair --
+  // skip straight past it to the rule-based evaluation below, same as if
+  // the practitioner HAD checked the box.
+  if (!input.substantiallyEquivalent && !sourcedEquivalence) {
     return {
       verdict: "action_required",
       summary:
@@ -708,9 +803,15 @@ export interface MobilityResult {
 export function evaluateMobility(
   input: MobilityInput,
   rule: MobilityRuleRow | null,
-  now: Date = new Date()
+  now: Date = new Date(),
+  // Roadmap #317 Phase 1 (2026-08-08): optional/defaulted so every existing
+  // caller renders byte-identical to before this parameter existed -- only
+  // evaluateIndividualMobility() reads it (see hasSourcedEquivalence()'s own
+  // docstring); firm registration is unaffected, it's a target-state-only
+  // question.
+  homeRule: MobilityRuleRow | null = null
 ): MobilityResult {
-  const individual = evaluateIndividualMobility(input, rule, now);
+  const individual = evaluateIndividualMobility(input, rule, homeRule, now);
   const firm = evaluateFirmRegistration(input, rule, now);
   const verdicts = [individual.verdict, firm.verdict];
   // not_verified now outranks action_required. Review finding: merging them

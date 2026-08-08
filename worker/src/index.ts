@@ -8359,7 +8359,12 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
       licenseInGoodStanding: body.license_in_good_standing === true,
       substantiallyEquivalent: body.substantially_equivalent === true,
     },
-    MOBILITY_RULES_BY_SLUG[targetStateSlug] ?? null
+    MOBILITY_RULES_BY_SLUG[targetStateSlug] ?? null,
+    // Roadmap #317 Phase 1: `now` left at its default (undefined -> `new
+    // Date()`); homeRule is the practitioner's OWN state's row, looked up
+    // the same way the target state's row already is just above.
+    undefined,
+    MOBILITY_RULES_BY_SLUG[homeStateSlug] ?? null
   );
 
   return jsonResponse(200, {
@@ -8444,8 +8449,12 @@ async function handleMobilityCheckBatch(request: Request, env: Env): Promise<Res
     substantiallyEquivalent: body.substantially_equivalent === true,
   };
 
+  // Roadmap #317 Phase 1: fixed across the whole batch (one home state
+  // against every target state), so looked up once rather than per-target.
+  const homeRule = MOBILITY_RULES_BY_SLUG[homeStateSlug] ?? null;
+
   const results = Object.values(MOBILITY_RULES_BY_SLUG).map((rule) => {
-    const result = evaluateMobility({ ...input, targetStateSlug: rule.state_slug }, rule);
+    const result = evaluateMobility({ ...input, targetStateSlug: rule.state_slug }, rule, undefined, homeRule);
     return {
       target_state_slug: rule.state_slug,
       target_state: rule.state,

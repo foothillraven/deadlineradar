@@ -32,6 +32,17 @@
  * circuit breaker (sender.ts's checkAndCountDigestSend() /
  * DEFAULT_DAILY_DIGEST_SEND_CAP).
  *
+ * `SLACK_ALERT_DAILY_SEND_CAP` is an OPTIONAL wrangler var (a plain string
+ * number) -- same shape again, for the Slack daily-digest cron's own
+ * independent circuit breaker (sender.ts's checkAndCountSlackAlertSend() /
+ * DEFAULT_DAILY_SLACK_ALERT_SEND_CAP).
+ *
+ * `SLACK_OAUTH_CLIENT_ID` / `SLACK_OAUTH_CLIENT_SECRET` are wrangler
+ * secrets for the "Add to Slack" OAuth v2 flow (roadmap #20) -- same
+ * optional-degrades-to-invisible posture as GOOGLE_OAUTH_CLIENT_ID/
+ * _CLIENT_SECRET in oauth.ts (an unconfigured integration is invisible,
+ * not broken: its connect route 404s and its button is not rendered).
+ *
  * `EMAIL_ALLOWLIST` is an OPTIONAL wrangler var -- a comma-separated list of
  * exact email addresses (e.g. "owner@example.com,owner+test@example.com").
  * This is a PREVIEW/STAGING-ONLY safety gate: when set, sendViaSendGrid()
@@ -67,6 +78,9 @@ export interface Env {
   DRIP_COURSE_DAILY_SEND_CAP?: string;
   RULE_CHANGE_ALERT_DAILY_SEND_CAP?: string;
   DIGEST_DAILY_SEND_CAP?: string;
+  SLACK_ALERT_DAILY_SEND_CAP?: string;
+  SLACK_OAUTH_CLIENT_ID?: string;
+  SLACK_OAUTH_CLIENT_SECRET?: string;
   EMAIL_ALLOWLIST?: string;
   ACTION_BASE_URL?: string;
   STATIC_SITE_BASE_URL?: string;

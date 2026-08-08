@@ -90,6 +90,8 @@ import {
   RATE_LIMIT_FIRM_REPLY_TO_SET,
   RATE_LIMIT_FIRM_REMINDER_CADENCE_SET,
   RATE_LIMIT_FIRM_RULE_CHANGE_ALERTS_SET,
+  RATE_LIMIT_FIRM_SLACK_CONNECT,
+  RATE_LIMIT_FIRM_SLACK_DISCONNECT,
   parseReminderThresholds,
   RATE_LIMIT_SUBSCRIBER_CPE_CREATE,
   RATE_LIMIT_SUBSCRIBER_CHANGE_EMAIL,
@@ -180,6 +182,7 @@ import {
   runDripCoursePass,
   runRuleChangeAlertPass,
   runDigestPass,
+  runSlackAlertPass,
 } from "./scheduler";
 import { isUsFederalHoliday } from "./holidays";
 import {
@@ -196,6 +199,8 @@ import {
   buildOtpauthUri,
   encryptTotpSecret,
   decryptTotpSecret,
+  encryptSecretAesGcm,
+  decryptSecretAesGcm,
   generateBackupCodes,
   hashBackupCode,
 } from "./totp";
@@ -206,6 +211,7 @@ import {
   exchangeCodeForTokens,
   parseAndValidateIdToken,
 } from "./oauth";
+import { buildSlackAuthorizeUrl, exchangeSlackCode, revokeSlackToken } from "./slack";
 import mobilityRulesData from "./mobility_rules.json";
 import {
   MOBILITY_DISCLAIMER,
@@ -4278,6 +4284,13 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     // Roadmap #9/#319: opt-out, defaults true -- see migration 0050's own
     // docstring for why on-by-default is the deliberate call here.
     rule_change_alerts_enabled: session.firm.rule_change_alerts_enabled !== 0,
+    // Roadmap #20: connection status only -- slack_webhook_url and the
+    // encrypted access token are NEVER serialized to the client, same
+    // posture as password_hash. team/channel names are just display copy
+    // ("Connected to #general in Acme Co"), not secrets.
+    slack_connected: session.firm.slack_webhook_url !== null,
+    slack_team_name: session.firm.slack_team_name,
+    slack_channel_name: session.firm.slack_channel_name,
   });
 }
 
@@ -4639,6 +4652,168 @@ async function handleRuleChangeAlertsSet(request: Request, env: Env): Promise<Re
 
   await store.setFirmRuleChangeAlertsEnabled(env.DB, session.firmId, body.enabled);
   return jsonResponse(200, { rule_change_alerts_enabled: body.enabled });
+}
+
+// ---------------------------------------------------------------------------
+// Slack integration (2026-08-08, roadmap #20). "Add to Slack" (incoming-
+// webhook scope). Unlike handleOauthStart()/handleOauthCallback() above
+// (SSO sign-in, which ESTABLISH identity), this is "connect an integration
+// to an ALREADY-authenticated account" -- a firm session is required at
+// BOTH the start and callback routes, and store.createOauthState()/
+// consumeOauthState() (already provider-agnostic) is reused purely for its
+// CSRF/replay protection, not to carry firm identity through the OAuth
+// state itself.
+// ---------------------------------------------------------------------------
+
+function slackDashboardAccountUrl(env: Env): string {
+  return `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/#account`;
+}
+
+function slackRedirectUri(env: Env): string {
+  return `${actionBaseUrl(env)}/firm/integrations/slack/callback`;
+}
+
+/** Plain 302 via a Location header, NOT Response.redirect() -- that static
+ * method requires an absolute URL and throws on the relative one
+ * dashboardUrl can be when STATIC_SITE_BASE_URL is unset (e.g. in tests),
+ * same reason every other redirect in this file already uses this shape. */
+function redirectTo(location: string): Response {
+  return new Response(null, { status: 302, headers: { Location: location, "Cache-Control": "no-store" } });
+}
+
+/**
+ * GET /firm/integrations/slack/connect -- starts the handshake. Reached via
+ * a plain <a href> link from the dashboard (a real top-level navigation,
+ * not a fetch) -- same reasoning handleOauthStart() above skips
+ * originAllowed(): a forced-navigation CSRF here can only bind an OAuth
+ * state to the VICTIM's own browser session (completing it still requires
+ * that same session's cookie), never hand a connection to an attacker.
+ */
+async function handleFirmSlackConnectStart(request: Request, env: Env): Promise<Response> {
+  if (!env.SLACK_OAUTH_CLIENT_ID || !env.SLACK_OAUTH_CLIENT_SECRET) {
+    return errorPage(404, "Not found.");
+  }
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
+  if (session instanceof Response) return session;
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_slack_connect", RATE_LIMIT_FIRM_SLACK_CONNECT);
+  if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
+
+  try {
+    await store.deleteExpiredOauthStates(env.DB);
+  } catch {
+    // Housekeeping must never block a connect attempt.
+  }
+
+  const { rawState, rawBrowserBinding } = await store.createOauthState(env.DB, "slack");
+  const authorizeUrl = buildSlackAuthorizeUrl(env.SLACK_OAUTH_CLIENT_ID, slackRedirectUri(env), rawState);
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: authorizeUrl,
+      "Cache-Control": "no-store",
+      "Set-Cookie": oauthHandshakeSetCookieHeader(rawBrowserBinding),
+    },
+  });
+}
+
+/**
+ * GET /firm/integrations/slack/callback -- completes the handshake. `state`
+ * is consumed BEFORE the code is exchanged, same replay-prevention ordering
+ * as handleOauthCallback() above. Every failure path redirects back to the
+ * dashboard's Account tab with a `slack_connect_failed` reason rather than a
+ * bare error page -- the admin is mid-dashboard-flow, not on a standalone
+ * auth page.
+ */
+async function handleFirmSlackConnectCallback(request: Request, env: Env): Promise<Response> {
+  const dashboardUrl = slackDashboardAccountUrl(env);
+  if (!env.SLACK_OAUTH_CLIENT_ID || !env.SLACK_OAUTH_CLIENT_SECRET) {
+    return errorPage(404, "Not found.");
+  }
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
+  if (session instanceof Response) return session;
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_slack_connect", RATE_LIMIT_FIRM_SLACK_CONNECT);
+  if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
+
+  const url = new URL(request.url);
+  if (url.searchParams.get("error")) {
+    return redirectTo(`${dashboardUrl}?slack_connect_failed=declined`);
+  }
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  if (!code || !state) {
+    return redirectTo(`${dashboardUrl}?slack_connect_failed=invalid`);
+  }
+
+  const browserBinding = getCookie(request, OAUTH_HANDSHAKE_COOKIE_NAME);
+  const consumed = await store.consumeOauthState(env.DB, state, browserBinding);
+  if (!consumed || consumed.provider !== "slack") {
+    return redirectTo(`${dashboardUrl}?slack_connect_failed=invalid`);
+  }
+
+  const result = await exchangeSlackCode({
+    clientId: env.SLACK_OAUTH_CLIENT_ID,
+    clientSecret: env.SLACK_OAUTH_CLIENT_SECRET,
+    code,
+    redirectUri: slackRedirectUri(env),
+  });
+  if (!result.ok) {
+    return redirectTo(`${dashboardUrl}?slack_connect_failed=exchange`);
+  }
+
+  // Degrades gracefully if the encryption key isn't configured -- see
+  // SetFirmSlackIntegrationInput's own docstring for why this only affects
+  // disconnect's best-effort revoke, never the core alert-posting feature.
+  let accessTokenEncrypted: string | null = null;
+  let accessTokenIv: string | null = null;
+  if (env.TOTP_ENCRYPTION_KEY) {
+    const enc = await encryptSecretAesGcm(result.accessToken, session.firmId, env.TOTP_ENCRYPTION_KEY);
+    accessTokenEncrypted = enc.ciphertextBase64;
+    accessTokenIv = enc.ivBase64;
+  }
+
+  await store.setFirmSlackIntegration(env.DB, session.firmId, {
+    webhookUrl: result.webhookUrl,
+    accessTokenEncrypted,
+    accessTokenIv,
+    teamName: result.teamName,
+    channelName: result.channelName,
+  });
+
+  return redirectTo(`${dashboardUrl}?slack_connected=1`);
+}
+
+/** POST /firm/integrations/slack/disconnect. Best-effort token revocation
+ * before clearing local storage -- see revokeSlackToken()'s own docstring
+ * for why disconnect must succeed locally regardless of whether the Slack
+ * API call itself succeeds. */
+async function handleFirmSlackDisconnect(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_slack_disconnect", RATE_LIMIT_FIRM_SLACK_DISCONNECT);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
+  if (session.firm.slack_access_token_encrypted && session.firm.slack_access_token_iv && env.TOTP_ENCRYPTION_KEY) {
+    const token = await decryptSecretAesGcm(
+      session.firm.slack_access_token_encrypted,
+      session.firm.slack_access_token_iv,
+      session.firmId,
+      env.TOTP_ENCRYPTION_KEY
+    );
+    if (token) await revokeSlackToken(token);
+  }
+
+  await store.clearFirmSlackIntegration(env.DB, session.firmId);
+  return jsonResponse(200, { slack_connected: false });
 }
 
 /**
@@ -6308,6 +6483,25 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
       }
 
+      // Slack integration (2026-08-08, roadmap #20) -- same "connect an
+      // integration to an already-authenticated account" shape as the SSO
+      // routes above, but session-gated rather than provider-id-in-URL,
+      // since there's only ever one provider (Slack) here.
+      if (url.pathname === "/firm/integrations/slack/connect") {
+        try {
+          return await handleFirmSlackConnectStart(request, env);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+      if (url.pathname === "/firm/integrations/slack/callback") {
+        try {
+          return await handleFirmSlackConnectCallback(request, env);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
       if (ACTION_PATHS.has(url.pathname)) {
         const allowed = await checkRateLimit(env.DB, ip, "action", RATE_LIMIT_ACTION);
         if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
@@ -6466,6 +6660,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/nps/dismiss") {
         try {
           return await handleNpsDismiss(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/integrations/slack/disconnect") {
+        try {
+          return await handleFirmSlackDisconnect(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -8636,6 +8837,32 @@ export default {
       })()
     );
 
+    // Roadmap #20 (2026-08-08): the Slack digest's own independent pass,
+    // deliberately NOT gated on SENDGRID_API_KEY below -- same "unrelated
+    // concern that happens to share one cron trigger" reasoning the
+    // account-deletion-cron block above already established. Slack alerts
+    // post to a firm's own webhook, nothing to do with email at all, so an
+    // unset/misconfigured SendGrid key must never silently stop them.
+    // Computes deadlines the same way runReminderPass() does, so it shares
+    // that pass's stale-data guard/catch -- not the holiday skip, same
+    // reasoning as the other independent passes below (a firm's daily
+    // digest cadence doesn't depend on day-count accuracy at the pass
+    // level).
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const summary = await runSlackAlertPass(env);
+          console.log(`[slack-alert-cron] ${JSON.stringify(summary)}`);
+        } catch (err) {
+          if (err instanceof SchedulerStaleDataError) {
+            console.log(`[slack-alert-cron] paused -- stale reference data: ${err.message}`);
+          } else {
+            console.log(`[slack-alert-cron] error: ${String(err)}`);
+          }
+        }
+      })()
+    );
+
     if (!env.SENDGRID_API_KEY) return;
     // Roadmap #70: skipped entirely on a recognized US federal holiday --
     // see holidays.ts's own docstring for why this never loses a reminder,
@@ -8708,5 +8935,6 @@ export default {
         }
       })()
     );
+
   },
 };

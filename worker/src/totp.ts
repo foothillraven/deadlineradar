@@ -192,41 +192,50 @@ async function importAesKey(rawKeyBase64: string): Promise<CryptoKey> {
 }
 
 /**
- * Encrypts a base32 TOTP secret for storage. `memberId` is bound as AES-GCM
- * additional authenticated data -- a raw-SQL row-swap between two members'
+ * Roadmap #20 (2026-08-08): generalized out of what used to be
+ * encryptTotpSecret()'s own body, so the Slack integration's access token
+ * (see slack.ts) can reuse the SAME at-rest-encryption primitive and the
+ * SAME `TOTP_ENCRYPTION_KEY` secret rather than provisioning a second
+ * wrangler secret for one token field -- nothing about the key itself is
+ * TOTP-specific, only its current name. `contextId` is bound as AES-GCM
+ * additional authenticated data -- a raw-SQL row-swap between two records'
  * encrypted secrets (or any tampering with which row this ciphertext is
  * attached to) fails decryption instead of silently succeeding. A fresh
  * random IV is generated per call, never derived from the key alone --
  * reusing an IV under the same key is a real AES-GCM confidentiality
  * break, not just a style preference.
  */
-export async function encryptTotpSecret(
-  secretBase32: string,
-  memberId: string,
+export async function encryptSecretAesGcm(
+  plaintext: string,
+  contextId: string,
   encryptionKeyBase64: string
 ): Promise<{ ciphertextBase64: string; ivBase64: string }> {
   const key = await importAesKey(encryptionKeyBase64);
   const iv = crypto.getRandomValues(new Uint8Array(AES_GCM_IV_BYTES));
-  const plaintext = new TextEncoder().encode(secretBase32);
-  const aad = new TextEncoder().encode(memberId);
-  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv as BufferSource, additionalData: aad as BufferSource }, key, plaintext as BufferSource);
+  const plaintextBytes = new TextEncoder().encode(plaintext);
+  const aad = new TextEncoder().encode(contextId);
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: iv as BufferSource, additionalData: aad as BufferSource },
+    key,
+    plaintextBytes as BufferSource
+  );
   return { ciphertextBase64: toBase64(new Uint8Array(ciphertext)), ivBase64: toBase64(iv) };
 }
 
 /** Decrypts a stored secret. Returns null (never throws) on any failure --
- * wrong key, tampered ciphertext, or a memberId that doesn't match the
+ * wrong key, tampered ciphertext, or a contextId that doesn't match the
  * AAD it was encrypted with -- so a caller can fail closed the same way
  * every other "verify" function in this codebase does. */
-export async function decryptTotpSecret(
+export async function decryptSecretAesGcm(
   ciphertextBase64: string,
   ivBase64: string,
-  memberId: string,
+  contextId: string,
   encryptionKeyBase64: string
 ): Promise<string | null> {
   try {
     const key = await importAesKey(encryptionKeyBase64);
     const iv = fromBase64(ivBase64);
-    const aad = new TextEncoder().encode(memberId);
+    const aad = new TextEncoder().encode(contextId);
     const plaintext = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: iv as BufferSource, additionalData: aad as BufferSource },
       key,
@@ -236,6 +245,28 @@ export async function decryptTotpSecret(
   } catch {
     return null;
   }
+}
+
+/** Thin wrapper over encryptSecretAesGcm() -- memberId is the AAD context.
+ * Kept as its own named function so every existing 2FA call site stays
+ * unchanged. */
+export async function encryptTotpSecret(
+  secretBase32: string,
+  memberId: string,
+  encryptionKeyBase64: string
+): Promise<{ ciphertextBase64: string; ivBase64: string }> {
+  return encryptSecretAesGcm(secretBase32, memberId, encryptionKeyBase64);
+}
+
+/** Thin wrapper over decryptSecretAesGcm() -- see encryptTotpSecret()'s own
+ * comment for why this stays a separate named export. */
+export async function decryptTotpSecret(
+  ciphertextBase64: string,
+  ivBase64: string,
+  memberId: string,
+  encryptionKeyBase64: string
+): Promise<string | null> {
+  return decryptSecretAesGcm(ciphertextBase64, ivBase64, memberId, encryptionKeyBase64);
 }
 
 // ---------------------------------------------------------------------------

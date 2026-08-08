@@ -1168,6 +1168,18 @@ export interface FirmRow {
   // see that migration's own docstring for why on-by-default is the
   // deliberate call here, not the usual "new email type defaults off."
   rule_change_alerts_enabled: number;
+  // migration 0052 (roadmap #20). NULL slack_webhook_url = not connected --
+  // the single source of truth read everywhere "is Slack on" matters.
+  // access_token is encrypted at rest (totp.ts's encryptSecretAesGcm(),
+  // contextId = firm id) since it's a live bearer credential, needed only
+  // so disconnect can call Slack's auth.revoke -- posting itself only ever
+  // uses slack_webhook_url. Never serialized to the client, same posture
+  // as password_hash.
+  slack_webhook_url: string | null;
+  slack_access_token_encrypted: string | null;
+  slack_access_token_iv: string | null;
+  slack_team_name: string | null;
+  slack_channel_name: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -4450,6 +4462,126 @@ export async function listAllFirmsBasicInfo(db: D1Database): Promise<FirmBasicIn
     .prepare(`SELECT id, name, reply_to_email, reminder_thresholds, demo_locked FROM firms`)
     .all<FirmBasicInfo>();
   return results;
+}
+
+// ---------------------------------------------------------------------------
+// Slack integration (2026-08-08, roadmap #20). "Add to Slack" (incoming-
+// webhook scope) lets a firm admin connect a channel; scheduler.ts's
+// runSlackAlertPass() posts one daily digest per firm of newly-due reminder
+// thresholds. Firm-centric (not subscriber-centric like
+// listAllFirmsBasicInfo() above) -- same shape as
+// findFirmsEligibleForRuleChangeAlert(), since only a small subset of firms
+// will ever have Slack connected, so filtering at the query is cheaper than
+// fetching every firm and checking a null column in JS.
+// ---------------------------------------------------------------------------
+
+export interface FirmSlackConnectedInfo {
+  id: string;
+  name: string;
+  slack_webhook_url: string;
+  // JSON array string or null -- same "raw column value, caller decides"
+  // posture as FirmBasicInfo.reminder_thresholds above. runSlackAlertPass()
+  // reuses the SAME firm-then-subscriber threshold resolution
+  // runReminderPass()/runDigestPass() already use -- no new threshold logic.
+  reminder_thresholds: string | null;
+  // Same AuditLab DEMO-5 reasoning as FirmBasicInfo.demo_locked above.
+  demo_locked: number;
+}
+
+export async function listFirmsWithSlackConnected(db: D1Database): Promise<FirmSlackConnectedInfo[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, name, slack_webhook_url, reminder_thresholds, demo_locked
+         FROM firms
+        WHERE slack_webhook_url IS NOT NULL`
+    )
+    .all<FirmSlackConnectedInfo>();
+  return results;
+}
+
+export interface SetFirmSlackIntegrationInput {
+  webhookUrl: string;
+  // Null when TOTP_ENCRYPTION_KEY isn't configured at connect time --
+  // posting alerts only ever needs webhookUrl, so a missing encryption key
+  // degrades ONLY the disconnect-time auth.revoke call (best-effort
+  // regardless), never the core "receive alerts" feature.
+  accessTokenEncrypted: string | null;
+  accessTokenIv: string | null;
+  teamName: string;
+  channelName: string;
+}
+
+export async function setFirmSlackIntegration(db: D1Database, firmId: string, input: SetFirmSlackIntegrationInput): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE firms
+          SET slack_webhook_url = ?1,
+              slack_access_token_encrypted = ?2,
+              slack_access_token_iv = ?3,
+              slack_team_name = ?4,
+              slack_channel_name = ?5
+        WHERE id = ?6`
+    )
+    .bind(input.webhookUrl, input.accessTokenEncrypted, input.accessTokenIv, input.teamName, input.channelName, firmId)
+    .run();
+}
+
+export async function clearFirmSlackIntegration(db: D1Database, firmId: string): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE firms
+          SET slack_webhook_url = NULL,
+              slack_access_token_encrypted = NULL,
+              slack_access_token_iv = NULL,
+              slack_team_name = NULL,
+              slack_channel_name = NULL
+        WHERE id = ?1`
+    )
+    .bind(firmId)
+    .run();
+}
+
+/** Roadmap #20's own dedup, INDEPENDENT of claimReminderThreshold()/
+ * reminders_sent (that claim belongs to the email lifecycle) -- see
+ * migration 0052's own docstring for why the two channels must never
+ * starve each other. Same INSERT-with-UNIQUE-conflict shape as
+ * claimRuleChangeNotification(). */
+export async function claimSlackThresholdNotification(db: D1Database, subscriberId: string, threshold: number): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `INSERT INTO firm_slack_notified_thresholds (id, subscriber_id, threshold, notified_at) VALUES (?1, ?2, ?3, ?4)
+       ON CONFLICT (subscriber_id, threshold) DO NOTHING`
+    )
+    .bind(newToken(), subscriberId, threshold, nowIso())
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+/** Reverts a claimSlackThresholdNotification() claim after a failed send,
+ * same at-least-once-delivery reasoning as unclaimReminderThreshold()/
+ * unclaimRuleChangeNotification(). */
+export async function unclaimSlackThresholdNotification(db: D1Database, subscriberId: string, threshold: number): Promise<void> {
+  await db
+    .prepare(`DELETE FROM firm_slack_notified_thresholds WHERE subscriber_id = ?1 AND threshold = ?2`)
+    .bind(subscriberId, threshold)
+    .run();
+}
+
+/**
+ * Every threshold already notified via Slack for this subscriber -- the
+ * Slack-side equivalent of parsing subscribers.reminders_sent, but from
+ * firm_slack_notified_thresholds instead. runSlackAlertPass() uses this
+ * (NOT reminders_sent) for nextDueThreshold()'s own escalation-ordering
+ * logic, so a threshold already claimed by EMAIL never suppresses its
+ * INDEPENDENT Slack notification -- see migration 0052's own docstring for
+ * why the two channels must never starve each other.
+ */
+export async function listSlackNotifiedThresholds(db: D1Database, subscriberId: string): Promise<number[]> {
+  const { results } = await db
+    .prepare(`SELECT threshold FROM firm_slack_notified_thresholds WHERE subscriber_id = ?1`)
+    .bind(subscriberId)
+    .all<{ threshold: number }>();
+  return results.map((r) => r.threshold);
 }
 
 /**

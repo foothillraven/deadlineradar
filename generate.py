@@ -2026,6 +2026,15 @@ PAGE_CSS = """
     border-radius: 8px; background: #1f5fbf; color: #fff; font-family: inherit; font-size: 0.98rem;
     font-weight: 700; cursor: pointer; }
   .dr-auth-card button[type="submit"]:hover, .dr-account-panel form button[type="submit"]:hover { background: #1a4f9e; }
+  /* Roadmap #20 (2026-08-08): same visual weight as the submit-button rule
+     above, but NOT form/submit-scoped -- covers the Slack "Connect" <a> (a
+     real OAuth-redirect navigation, not a form submit) and "Disconnect"
+     <button type="button">, both siblings of but outside any <form>. */
+  .dr-account-panel .dr-btn-secondary {
+    display: inline-block; margin-top: 0.4rem; padding: 0.6rem 1.1rem; border: 0;
+    border-radius: 8px; background: #1f5fbf; color: #fff; font-family: inherit; font-size: 0.95rem;
+    font-weight: 700; cursor: pointer; text-decoration: none; }
+  .dr-account-panel .dr-btn-secondary:hover { background: #1a4f9e; }
   /* Self-serve cancellation (2026-08-05) -- a standalone action button in a
      paragraph, not a form's own submit, so it gets the same compact/bordered
      treatment as this dashboard's other secondary action buttons
@@ -11696,6 +11705,58 @@ function drSubmitRuleChangeAlerts(form) {
   });
 }
 
+// Roadmap #20 (2026-08-08): Slack integration. Unlike every other
+// Account-tab panel, "connect" is a plain top-level navigation (an <a
+// href> to the OAuth start route, not a fetch) -- Slack's own consent
+// screen has to be a real page the browser navigates to. "Disconnect" is
+// the one piece that's a normal fetch-based action, same shape as
+// drSubmitRuleChangeAlerts() above.
+function drRenderSlackIntegration(connected, teamName, channelName) {
+  var connectedEl = document.getElementById('dr-slack-connected');
+  var disconnectedEl = document.getElementById('dr-slack-disconnected');
+  var statusEl = document.getElementById('dr-slack-status-text');
+  if (!connectedEl || !disconnectedEl) return;
+  if (connected) {
+    if (statusEl) {
+      statusEl.textContent = 'Connected to #' + (channelName || '') + ' in ' + (teamName || 'your workspace') + '.';
+    }
+    connectedEl.hidden = false;
+    disconnectedEl.hidden = true;
+  } else {
+    connectedEl.hidden = true;
+    disconnectedEl.hidden = false;
+  }
+}
+
+function drSlackDisconnect() {
+  var okEl = document.getElementById('dr-slack-ok');
+  var errEl = document.getElementById('dr-slack-error');
+  if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  var btn = document.getElementById('dr-slack-disconnect-btn');
+  if (btn) btn.disabled = true;
+
+  fetch('/api/firm/integrations/slack/disconnect', {
+    method: 'POST', credentials: 'include',
+    headers: {'Content-Type': 'application/json'}
+  }).then(function(res) {
+    if (btn) btn.disabled = false;
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        return;
+      }
+      drRenderSlackIntegration(false, null, null);
+      if (okEl) { okEl.textContent = 'Disconnected.'; okEl.hidden = false; }
+    });
+  }).catch(function() {
+    if (btn) btn.disabled = false;
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
 // Roadmap #25 (2026-08-07): in-app notification center. Purely a more
 // portable way to surface what "Staff at risk" (drRenderAtRisk) and the CPE
 // Hours tab's own behind-on-hours flag already compute -- same 30-day-or-
@@ -11894,6 +11955,8 @@ function drLoadLicenses() {
       drRenderReminderCadence(data.reminder_thresholds || null);
       // Roadmap #9/#319: same note.
       drRenderRuleChangeAlerts(data.rule_change_alerts_enabled);
+      // Roadmap #20: same note.
+      drRenderSlackIntegration(Boolean(data.slack_connected), data.slack_team_name, data.slack_channel_name);
       drRenderTable();
       drRenderStats();
       drRenderRenewalFeeRollup();
@@ -12572,6 +12635,10 @@ document.addEventListener('DOMContentLoaded', function() {
     drShowSuccess('Your sign-in email has been updated.');
   } else if (hashParams.get('email_change_failed') === 'conflict') {
     drShowError('That email address was claimed by another account before you confirmed. Nothing changed — try a different address.');
+  } else if (hashParams.get('slack_connected') === '1') {
+    drShowSuccess('Slack connected — expect a daily digest of newly-due renewals.');
+  } else if (hashParams.get('slack_connect_failed')) {
+    drShowError('Slack connection failed. Please try again.');
   }
 
   // Task #12: delegated pattern, since #dr-billing-body's innerHTML is rebuilt by
@@ -12741,6 +12808,14 @@ document.addEventListener('DOMContentLoaded', function() {
     ruleChangeAlertsForm.addEventListener('submit', function(ev) {
       ev.preventDefault();
       drSubmitRuleChangeAlerts(ruleChangeAlertsForm);
+    });
+  }
+
+  var slackDisconnectBtn = document.getElementById('dr-slack-disconnect-btn');
+  if (slackDisconnectBtn) {
+    slackDisconnectBtn.addEventListener('click', function(ev) {
+      ev.preventDefault();
+      drSlackDisconnect();
     });
   }
 
@@ -14215,6 +14290,22 @@ def build_firm_dashboard_page(
         </form>
         <p id="dr-rule-change-alerts-ok" class="dr-account-ok" hidden></p>
         <p id="dr-rule-change-alerts-error" role="alert" class="dr-account-err" hidden></p>
+      </div>
+
+      <div class="dr-account-panel">
+        <h2>Slack alerts</h2>
+        <p class="signup-microcopy">Connect a Slack channel to get one daily digest of renewals that
+        became newly due for your roster -- bundled into a single message, never one ping per
+        deadline. Uses the same reminder timing you've already set above.</p>
+        <div id="dr-slack-disconnected">
+          <a href="{REMINDER_BACKEND_BASE_URL}/firm/integrations/slack/connect" class="dr-btn-secondary">Connect Slack</a>
+        </div>
+        <div id="dr-slack-connected" hidden>
+          <p id="dr-slack-status-text"></p>
+          <button type="button" id="dr-slack-disconnect-btn" class="dr-btn-secondary">Disconnect</button>
+        </div>
+        <p id="dr-slack-ok" class="dr-account-ok" hidden></p>
+        <p id="dr-slack-error" role="alert" class="dr-account-err" hidden></p>
       </div>
 
       <div class="dr-account-panel">

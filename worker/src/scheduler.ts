@@ -57,8 +57,11 @@ import {
   checkAndCountRuleChangeAlertSend,
   DEFAULT_DAILY_DIGEST_SEND_CAP,
   checkAndCountDigestSend,
+  DEFAULT_DAILY_SLACK_ALERT_SEND_CAP,
+  checkAndCountSlackAlertSend,
   sendViaSendGrid,
 } from "./sender";
+import { sendToSlack } from "./slack";
 import cpaDataForDripCourse from "./cpa_deadlines.json";
 import regChangeEventsData from "./reg_change_events.json";
 
@@ -901,6 +904,212 @@ export async function runDigestPass(env: Env, opts: RunReminderOptions = {}): Pr
         await store.unclaimReminderThreshold(env.DB, sub.id, threshold).catch(() => {});
       }
       summary.errors.push({ email: emailNormalized, error: `unexpected error: ${String(err)}` });
+    }
+  }
+
+  return summary;
+}
+
+// ---------------------------------------------------------------------------
+// Slack alerts (2026-08-08, roadmap #20). Same daily-cron trigger, own
+// independent pass -- see index.ts's scheduled(). Firm-centric (only firms
+// with slack_webhook_url set), unlike runReminderPass()/runDigestPass()
+// above which iterate subscribers first: one daily digest per firm bundling
+// every newly-due reminder threshold across its OWN roster, never one
+// message per threshold (which would flood a shared channel). Reuses the
+// SAME per-row deadline/threshold-resolution body those two passes already
+// use, and the firm's own reminder_thresholds setting -- no new threshold
+// logic. Dedup is INDEPENDENT of reminders_sent (migration 0052's own
+// docstring) via claimSlackThresholdNotification(), so the email and Slack
+// channels can never starve each other.
+// ---------------------------------------------------------------------------
+
+export interface SlackAlertSummary {
+  firmsChecked: number;
+  itemsClaimed: number;
+  digestsSent: number;
+  errors: { firm_id: string; error: string }[];
+}
+
+interface SlackDigestItem {
+  stateName: string;
+  daysRemaining: number;
+}
+
+export interface RunSlackAlertOptions {
+  asOf?: Date;
+  /** Injected for tests -- defaults to the real Slack webhook POST. Takes a
+   * plain message string, not a BuiltEmail -- deliberately its own shape,
+   * not ReminderSendFn, since Slack has nothing resembling a subject/HTML
+   * body. */
+  send?: (webhookUrl: string, text: string) => Promise<boolean>;
+}
+
+function dailySlackAlertSendCap(env: Env): number {
+  const n = Number.parseInt(env.SLACK_ALERT_DAILY_SEND_CAP ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_SLACK_ALERT_SEND_CAP;
+}
+
+function daysPhraseForSlack(actual: number): string {
+  if (actual > 0) return `in ${actual} day${actual !== 1 ? "s" : ""}`;
+  if (actual === 0) return "today";
+  return `${-actual} day${actual !== -1 ? "s" : ""} ago`;
+}
+
+/** Plain-text Slack message (Slack's own light "mrkdwn" -- `*bold*`, not
+ * full Markdown). No links/citations here unlike the email builders in
+ * emails.ts -- this is a heads-up, not the determination itself; staff
+ * still go to the dashboard or their email for the full reminder. */
+function buildSlackDigestText(firmName: string, items: SlackDigestItem[]): string {
+  const count = items.length;
+  const header =
+    count === 1
+      ? `*DeadlineRadar: 1 renewal newly due for ${firmName}*`
+      : `*DeadlineRadar: ${count} renewals newly due for ${firmName}*`;
+  const lines = items.map((it) => `• ${it.stateName}: due ${daysPhraseForSlack(it.daysRemaining)}`);
+  return `${header}\n${lines.join("\n")}`;
+}
+
+export async function runSlackAlertPass(env: Env, opts: RunSlackAlertOptions = {}): Promise<SlackAlertSummary> {
+  const asOf = opts.asOf ?? new Date();
+  // Same real-vs-simulated freshness split as runReminderPass()/
+  // runDigestPass() above -- this pass computes deadlines the same way.
+  const freshnessToday = opts.asOf ? new Date() : asOf;
+  checkDataFreshness(freshnessToday);
+  const asOfDay = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate()));
+  const todayIso = asOfDay.toISOString().slice(0, 10);
+
+  const send = opts.send ?? sendToSlack;
+  const cap = dailySlackAlertSendCap(env);
+
+  const summary: SlackAlertSummary = { firmsChecked: 0, itemsClaimed: 0, digestsSent: 0, errors: [] };
+
+  const firms = await store.listFirmsWithSlackConnected(env.DB);
+
+  let capReached = false;
+  for (const firm of firms) {
+    if (capReached) break;
+    summary.firmsChecked += 1;
+
+    // AuditLab DEMO-5's own reasoning, same as every other pass's identical
+    // check -- checked before any claiming, without claiming.
+    if (firm.demo_locked) {
+      summary.errors.push({ firm_id: firm.id, error: "SKIPPED: firm is demo_locked -- no Slack post from the shared demo account." });
+      continue;
+    }
+
+    let thresholds: number[] = ESCALATION_THRESHOLDS_DAYS;
+    if (firm.reminder_thresholds) {
+      try {
+        const parsed = JSON.parse(firm.reminder_thresholds);
+        if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+      } catch {
+        // Same fall-through posture as runReminderPass() above.
+      }
+    }
+
+    const roster = await store.listFirmLicenses(env.DB, firm.id);
+    const items: SlackDigestItem[] = [];
+    const claimed: { subscriberId: string; threshold: number }[] = [];
+
+    try {
+      for (const sub of roster) {
+        if (sub.status !== store.STATUS_CONFIRMED) continue;
+        if (sub.snoozed_until && sub.snoozed_until >= todayIso) continue;
+
+        let deadline: Date | null;
+        let fields: Record<string, string>;
+        try {
+          fields = JSON.parse(sub.deadline_fields || "{}");
+          deadline =
+            sub.deadline_source === store.DEADLINE_SOURCE_USER && sub.user_deadline
+              ? new Date(`${sub.user_deadline}T00:00:00Z`)
+              : computeSubscriberDeadline(sub.state_slug, fields, asOf);
+        } catch (err) {
+          summary.errors.push({ firm_id: firm.id, error: `subscriber ${sub.id}: ${String(err)}` });
+          continue;
+        }
+        if (deadline === null) continue;
+        const stateName = stateNameForSlug(sub.state_slug);
+        if (stateName === null) continue;
+
+        const daysRemaining = Math.round((deadline.getTime() - asOfDay.getTime()) / MS_PER_DAY);
+        // Deliberately NOT sub.reminders_sent -- that's the EMAIL claim
+        // history. This pass's own escalation-ordering (nextDueThreshold()
+        // below) must be independent of it, or a threshold already claimed
+        // by email would silently suppress its own separate Slack
+        // notification -- exactly the coupling migration 0052's docstring
+        // says must never happen. listSlackNotifiedThresholds() reads
+        // firm_slack_notified_thresholds instead.
+        const alreadySent = await store.listSlackNotifiedThresholds(env.DB, sub.id);
+        const neverNotified = alreadySent.length === 0;
+
+        // Same subscriber-level override as runReminderPass()/runDigestPass()
+        // -- "my own communication preferences" wins over the firm's default.
+        let effectiveThresholds = thresholds;
+        if (sub.reminder_thresholds) {
+          try {
+            const parsed = JSON.parse(sub.reminder_thresholds);
+            if (Array.isArray(parsed) && parsed.length > 0) effectiveThresholds = parsed;
+          } catch {
+            // Same fall-through posture as above.
+          }
+        }
+
+        let threshold: number | null;
+        if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
+          if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
+            threshold = Math.min(...effectiveThresholds);
+          } else {
+            continue;
+          }
+        } else {
+          threshold = nextDueThreshold(daysRemaining, alreadySent, effectiveThresholds);
+          if (threshold === null) continue;
+        }
+
+        // Independent of claimReminderThreshold()/reminders_sent -- see
+        // migration 0052's own docstring for why the two channels must
+        // never starve each other. A lost race here just means this item
+        // isn't in TODAY's Slack digest; already-claimed-by-a-concurrent-
+        // pass is not an error.
+        const wasClaimed = await store.claimSlackThresholdNotification(env.DB, sub.id, threshold);
+        if (!wasClaimed) continue;
+        claimed.push({ subscriberId: sub.id, threshold });
+        summary.itemsClaimed += 1;
+        items.push({ stateName, daysRemaining });
+      }
+
+      // Nothing newly due for this firm -- no message, same "no filler"
+      // posture as runDigestPass() above. Nothing was claimed above, so
+      // there's nothing to revert.
+      if (items.length === 0) continue;
+
+      const underCap = await checkAndCountSlackAlertSend(env.DB, cap);
+      if (!underCap) {
+        for (const { subscriberId, threshold } of claimed) {
+          await store.unclaimSlackThresholdNotification(env.DB, subscriberId, threshold);
+        }
+        summary.errors.push({ firm_id: firm.id, error: "daily send cap reached -- halting further sends today." });
+        capReached = true;
+        break;
+      }
+
+      const text = buildSlackDigestText(firm.name, items);
+      const ok = await send(firm.slack_webhook_url, text);
+      if (ok) {
+        summary.digestsSent += 1;
+      } else {
+        for (const { subscriberId, threshold } of claimed) {
+          await store.unclaimSlackThresholdNotification(env.DB, subscriberId, threshold);
+        }
+        summary.errors.push({ firm_id: firm.id, error: "send returned false" });
+      }
+    } catch (err) {
+      for (const { subscriberId, threshold } of claimed) {
+        await store.unclaimSlackThresholdNotification(env.DB, subscriberId, threshold).catch(() => {});
+      }
+      summary.errors.push({ firm_id: firm.id, error: `unexpected error: ${String(err)}` });
     }
   }
 

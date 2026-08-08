@@ -2593,7 +2593,10 @@ up automatically, so we'll remind you based on the date you give us.</p>"""
         return f"""<div class="signup-form-row">
   <div>
     <label for="birth_month">Birth month</label>
-    <select id="birth_month" name="birth_month" required>{_MONTH_OPTIONS}</select>
+    <select id="birth_month" name="birth_month" required>
+      <option value="">Select&hellip;</option>
+      {_MONTH_OPTIONS}
+    </select>
   </div>
   <div>
     <label for="birth_year">Birth year</label>
@@ -2603,7 +2606,10 @@ up automatically, so we'll remind you based on the date you give us.</p>"""
 <p class="field-hint">Your renewal cycle is set by your birth month and whether your birth year is odd or even.</p>"""
     if state_slug == "texas":
         return f"""<label for="birth_month">Birth month</label>
-<select id="birth_month" name="birth_month" required>{_MONTH_OPTIONS}</select>
+<select id="birth_month" name="birth_month" required>
+  <option value="">Select&hellip;</option>
+  {_MONTH_OPTIONS}
+</select>
 <p class="field-hint">Texas renewal is due by the last day of your birth month, every year.</p>"""
     if state_slug == "ohio":
         return """<label for="cohort_group">Your cohort group</label>

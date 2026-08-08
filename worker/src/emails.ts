@@ -988,6 +988,80 @@ export function buildRuleChangeNotificationEmail(
 }
 
 /**
+ * Roadmap #9/#319 (2026-08-08). The PROACTIVE counterpart to
+ * buildRuleChangeNotificationEmail() above -- that one is staff-framed and
+ * only ever sent when an admin clicks "Notify staff in this state" on a
+ * SPECIFIC event they've already reviewed; this one is admin-framed and
+ * sent by the cron the moment a new event is detected touching a state the
+ * firm's roster is actually licensed in, before any human has looked at it.
+ * Deliberately does NOT notify staff itself -- it tells the admin a change
+ * exists and links to the same Calendar/modal where the existing button
+ * lives, preserving their existing editorial control over what staff hear
+ * about. Also names how to turn this specific alert off (an opt-out,
+ * on-by-default setting -- see migration 0050's own docstring), since
+ * unlike the button-triggered email, nobody asked for this one specifically.
+ */
+export function buildRuleChangeAdminAlertEmail(
+  firmName: string,
+  jurisdiction: string,
+  stateName: string,
+  summary: string,
+  effectiveDateLabel: string,
+  citationUrl: string | null,
+  calendarUrl: string,
+  accountSettingsUrl: string
+): BuiltEmail {
+  const addr = mailingAddress();
+  const safeFirmName = firmName.replace(/[\r\n]+/g, " ");
+  const subject = `New ${jurisdiction} mobility rule change affects your roster`;
+
+  const citationLine = citationUrl ? `Source: ${citationUrl}\n\n` : "";
+  const textBody =
+    `${safeFirmName},\n\n` +
+    `A new practice-privilege rule change was just added for ${jurisdiction} -- your roster has ` +
+    `staff licensed there, so it may be worth a look.\n\n` +
+    `Effective ${effectiveDateLabel}:\n${summary}\n\n` +
+    citationLine +
+    `This is informational only, not a determination about any specific staff member's situation. ` +
+    `We have not notified your staff about this -- open the Calendar to review it and use "Notify ` +
+    `staff in this state" yourself if it's relevant:\n${calendarUrl}\n\n` +
+    `You're getting this because proactive rule-change alerts are on for your account (on by ` +
+    `default). Turn them off any time from your Account settings:\n${accountSettingsUrl}\n\n` +
+    `---\n${SENDER_LINE}\n${addr}`;
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `New ${esc(jurisdiction)} rule change affects your roster</h1>` +
+      p(
+        `${esc(safeFirmName)}, a new practice-privilege rule change was just added for ` +
+          `${esc(jurisdiction)} -- your roster has staff licensed there, so it may be worth a look.`
+      ) +
+      p(`<strong>Effective ${esc(effectiveDateLabel)}:</strong> ${esc(summary)}`) +
+      (citationUrl ? `<p style="margin:0 0 20px;">${button(citationUrl, "See the source")}</p>` : "") +
+      p(
+        `This is informational only, not a determination about any specific staff member's ` +
+          `situation. We have not notified your staff about this -- review it and use ` +
+          `&ldquo;Notify staff in this state&rdquo; yourself if it's relevant.`,
+        13,
+        LIGHT.muted
+      ) +
+      `<p style="margin:0 0 20px;">${button(calendarUrl, "Review on the Calendar")}</p>` +
+      p(
+        `You're getting this because proactive rule-change alerts are on for your account (on by ` +
+          `default). <a href="${esc(accountSettingsUrl)}" style="color:${LIGHT.accent};">Turn them ` +
+          `off</a> any time from your Account settings.`,
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
  * Sent whenever a firm's password is set or changed (2026-07-30, from the
  * security review).
  *

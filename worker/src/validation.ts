@@ -595,6 +595,10 @@ export const RATE_LIMIT_FIRM_REPLY_TO_SET: RateLimit = { max: 30, windowSeconds:
 // same modest cap as the two above.
 export const RATE_LIMIT_FIRM_REMINDER_CADENCE_SET: RateLimit = { max: 30, windowSeconds: 86400 };
 
+// PATCH /firm/rule-change-alerts (roadmap #9/#319, 2026-08-08) -- same
+// shape and same modest cap as the three above.
+export const RATE_LIMIT_FIRM_RULE_CHANGE_ALERTS_SET: RateLimit = { max: 30, windowSeconds: 86400 };
+
 // Roadmap #23: the ONLY values a firm may pick from -- see migration 0039's
 // own docstring for why this is a subset of the existing 6 escalation
 // points, not arbitrary day-offsets (each has bespoke, reviewed urgency

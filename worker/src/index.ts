@@ -89,6 +89,7 @@ import {
   RATE_LIMIT_FIRM_PEER_REVIEW_SET,
   RATE_LIMIT_FIRM_REPLY_TO_SET,
   RATE_LIMIT_FIRM_REMINDER_CADENCE_SET,
+  RATE_LIMIT_FIRM_RULE_CHANGE_ALERTS_SET,
   parseReminderThresholds,
   RATE_LIMIT_SUBSCRIBER_CPE_CREATE,
   RATE_LIMIT_SUBSCRIBER_CHANGE_EMAIL,
@@ -172,7 +173,7 @@ import {
   SNOOZE_DAYS,
 } from "./emails";
 import { DEFAULT_DAILY_SEND_CAP, checkAndCountActionSend, isEmailAllowlisted, sendViaSendGrid } from "./sender";
-import { StaleDataError as SchedulerStaleDataError, runReminderPass, runDripCoursePass } from "./scheduler";
+import { StaleDataError as SchedulerStaleDataError, runReminderPass, runDripCoursePass, runRuleChangeAlertPass } from "./scheduler";
 import { isUsFederalHoliday } from "./holidays";
 import {
   MAX_PASSWORD_LEN,
@@ -4225,6 +4226,9 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     // raw-null column value means "everything" versus re-deriving that
     // itself.
     reminder_thresholds: session.firm.reminder_thresholds ? JSON.parse(session.firm.reminder_thresholds) : null,
+    // Roadmap #9/#319: opt-out, defaults true -- see migration 0050's own
+    // docstring for why on-by-default is the deliberate call here.
+    rule_change_alerts_enabled: session.firm.rule_change_alerts_enabled !== 0,
   });
 }
 
@@ -4553,6 +4557,39 @@ async function handleReminderCadenceSet(request: Request, env: Env): Promise<Res
   const asJson = JSON.stringify(parsed);
   await store.setReminderThresholds(env.DB, session.firmId, asJson);
   return jsonResponse(200, { reminder_thresholds: parsed });
+}
+
+/** PATCH /firm/rule-change-alerts -- roadmap #9/#319. Body: { enabled:
+ * boolean }. Toggles the opt-out, on-by-default proactive alert setting --
+ * see migration 0050's own docstring for why it defaults on. */
+async function handleRuleChangeAlertsSet(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_rule_change_alerts_set", RATE_LIMIT_FIRM_RULE_CHANGE_ALERTS_SET);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return jsonResponse(400, { error: "Request too large." });
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  if (typeof body.enabled !== "boolean") {
+    return jsonResponse(400, { error: "Missing or invalid 'enabled' value." });
+  }
+
+  await store.setFirmRuleChangeAlertsEnabled(env.DB, session.firmId, body.enabled);
+  return jsonResponse(200, { rule_change_alerts_enabled: body.enabled });
 }
 
 /**
@@ -6257,6 +6294,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/reminder-cadence") {
         try {
           return await handleReminderCadenceSet(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/rule-change-alerts") {
+        try {
+          return await handleRuleChangeAlertsSet(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -8562,6 +8606,19 @@ export default {
           console.log(`[drip-course-cron] ${JSON.stringify(summary)}`);
         } catch (err) {
           console.log(`[drip-course-cron] error: ${String(err)}`);
+        }
+      })()
+    );
+
+    // Roadmap #9/#319 (2026-08-08): same independent-pass shape as the drip
+    // course above -- not deadline-urgency-sensitive, so no holiday skip.
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const summary = await runRuleChangeAlertPass(env);
+          console.log(`[rule-change-alert-cron] ${JSON.stringify(summary)}`);
+        } catch (err) {
+          console.log(`[rule-change-alert-cron] error: ${String(err)}`);
         }
       })()
     );

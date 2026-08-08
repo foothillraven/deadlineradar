@@ -369,17 +369,25 @@ def check_terms_version_sync(repo_root: Path) -> list[str]:
 
 
 def check_json_copies_identical(repo_root: Path) -> list[str]:
-    a = repo_root / "data" / "cpa_deadlines.json"
-    b = repo_root / "worker" / "src" / "cpa_deadlines.json"
-    if not b.exists():
-        # Scratch/partial checkouts (e.g. a data-only copy for render verification)
-        # won't have the worker tree -- this check only makes sense against a full
-        # repo checkout, so skip it rather than false-failing.
-        print(f"  (skipping byte-identical check -- {b} not present in this checkout)")
-        return []
-    if a.read_bytes() != b.read_bytes():
-        return [f"[C] {a} and {b} are NOT byte-identical"]
-    return []
+    # Roadmap #9/#319 (2026-08-08): reg_change_events.json added as a SECOND
+    # data/ -> worker/src/ hand-synced pair, same "two copies, byte-identical"
+    # convention cpa_deadlines.json already established -- same decay risk,
+    # same guard, just a second file name.
+    pairs = [
+        (repo_root / "data" / "cpa_deadlines.json", repo_root / "worker" / "src" / "cpa_deadlines.json"),
+        (repo_root / "data" / "reg_change_events.json", repo_root / "worker" / "src" / "reg_change_events.json"),
+    ]
+    errors = []
+    for a, b in pairs:
+        if not b.exists():
+            # Scratch/partial checkouts (e.g. a data-only copy for render verification)
+            # won't have the worker tree -- this check only makes sense against a full
+            # repo checkout, so skip it rather than false-failing.
+            print(f"  (skipping byte-identical check -- {b} not present in this checkout)")
+            continue
+        if a.read_bytes() != b.read_bytes():
+            errors.append(f"[C] {a} and {b} are NOT byte-identical")
+    return errors
 
 
 SITE_BASE_URL_RE = re.compile(r'<loc>(https?://[^<]+)</loc>')

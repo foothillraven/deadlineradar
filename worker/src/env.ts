@@ -22,6 +22,11 @@
  * course's own independent circuit breaker (sender.ts's
  * checkAndCountDripCourseSend() / DEFAULT_DAILY_DRIP_COURSE_SEND_CAP).
  *
+ * `RULE_CHANGE_ALERT_DAILY_SEND_CAP` is an OPTIONAL wrangler var (a plain
+ * string number) -- same shape again, for the proactive rule-change alert
+ * cron's own independent circuit breaker (sender.ts's
+ * checkAndCountRuleChangeAlertSend() / DEFAULT_DAILY_RULE_CHANGE_ALERT_SEND_CAP).
+ *
  * `EMAIL_ALLOWLIST` is an OPTIONAL wrangler var -- a comma-separated list of
  * exact email addresses (e.g. "owner@example.com,owner+test@example.com").
  * This is a PREVIEW/STAGING-ONLY safety gate: when set, sendViaSendGrid()
@@ -55,6 +60,7 @@ export interface Env {
   SENDGRID_API_KEY?: string;
   REMINDERS_DAILY_SEND_CAP?: string;
   DRIP_COURSE_DAILY_SEND_CAP?: string;
+  RULE_CHANGE_ALERT_DAILY_SEND_CAP?: string;
   EMAIL_ALLOWLIST?: string;
   ACTION_BASE_URL?: string;
   STATIC_SITE_BASE_URL?: string;

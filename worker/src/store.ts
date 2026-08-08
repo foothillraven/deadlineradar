@@ -932,6 +932,74 @@ export async function stopDripCourseByToken(db: D1Database, token: string): Prom
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// Rule-change alerts (2026-08-08, roadmap #9/#319, migration 0050). Wires
+// two systems that already existed independently: the reg_change_events.json
+// feed /rule-changes/ and the dashboard calendar already publish, and the
+// reminder engine's own email-sending machinery -- no new data collection.
+// Proactively alerts the firm ADMIN (not staff directly) when a new rule
+// change touches a state their roster is actually licensed in, preserving
+// the existing human-in-the-loop "Notify staff in this state" button as the
+// admin's own next step, not something this bypasses.
+// ---------------------------------------------------------------------------
+
+/**
+ * Firms eligible for a proactive alert about ONE event: alerts enabled,
+ * active firm status, at least one roster license in `stateSlug` that isn't
+ * opted out (same "opted_out" definition index.ts's firmLicenseStatus()
+ * uses: status='stopped' AND stop_reason='unsubscribed' -- pending/needs-
+ * attention staff still count, mirroring the existing admin-triggered
+ * notify flow's own reasoning that a rule change isn't about any one
+ * staffer's deadline status), and not already notified about this exact
+ * `eventId` (firm_rule_change_notifications).
+ */
+export async function findFirmsEligibleForRuleChangeAlert(db: D1Database, stateSlug: string, eventId: string, limit: number): Promise<FirmRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT f.* FROM firms f
+       WHERE f.status = 'active'
+         AND f.rule_change_alerts_enabled = 1
+         AND EXISTS (
+           SELECT 1 FROM subscribers s
+           WHERE s.firm_id = f.id AND s.state_slug = ?1
+             AND NOT (s.status = ?2 AND s.stop_reason = 'unsubscribed')
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM firm_rule_change_notifications n WHERE n.firm_id = f.id AND n.event_id = ?3
+         )
+       LIMIT ?4`
+    )
+    .bind(stateSlug, STATUS_STOPPED, eventId, limit)
+    .all<FirmRow>();
+  return results;
+}
+
+/** Claim-before-send, same shape as claimReminderThreshold()/
+ * claimDripCourseStep(): the UNIQUE(firm_id, event_id) constraint means a
+ * concurrent pass's INSERT loses the race and this returns false, so the
+ * event is not claimed twice. */
+export async function claimRuleChangeNotification(db: D1Database, firmId: string, eventId: string): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `INSERT INTO firm_rule_change_notifications (id, firm_id, event_id, notified_at) VALUES (?1, ?2, ?3, ?4)
+       ON CONFLICT (firm_id, event_id) DO NOTHING`
+    )
+    .bind(newToken(), firmId, eventId, nowIso())
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+/** Reverts a claimRuleChangeNotification() claim after a failed send, same
+ * at-least-once-delivery reasoning as unclaimReminderThreshold()/
+ * unclaimDripCourseStep(). */
+export async function unclaimRuleChangeNotification(db: D1Database, firmId: string, eventId: string): Promise<void> {
+  await db.prepare(`DELETE FROM firm_rule_change_notifications WHERE firm_id = ?1 AND event_id = ?2`).bind(firmId, eventId).run();
+}
+
+export async function setFirmRuleChangeAlertsEnabled(db: D1Database, firmId: string, enabled: boolean): Promise<void> {
+  await db.prepare(`UPDATE firms SET rule_change_alerts_enabled = ?1 WHERE id = ?2`).bind(enabled ? 1 : 0, firmId).run();
+}
+
 /**
  * migration 0007. A firm_leads row -- NOT a subscriber. This table has no
  * confirm/unsubscribe/renewed lifecycle at all: it just records that someone
@@ -1081,6 +1149,10 @@ export interface FirmRow {
   // billing contact -- a firm_members.id. Transferring ownership (#51)
   // updates this pointer; nothing about the member row itself changes.
   primary_member_id: string | null;
+  // migration 0050 (roadmap #9/#319). Opt-out, defaults to 1 (enabled) --
+  // see that migration's own docstring for why on-by-default is the
+  // deliberate call here, not the usual "new email type defaults off."
+  rule_change_alerts_enabled: number;
 }
 
 export interface FirmLoginTokenRow {
@@ -1708,6 +1780,9 @@ export const FIRM_SCOPED_TABLES = [
   "reminder_log",
   "firm_nps_responses",
   "firm_testimonials",
+  // migration 0050 (roadmap #9/#319): same "permanently erased" promise --
+  // has its own firm_id column, no dependency on firm_members ordering.
+  "firm_rule_change_notifications",
   // migration 0047 (roadmap #53): same "permanently erased" promise --
   // has its own firm_id column (unlike firm_member_backup_codes below,
   // which is member-scoped only and needs its own explicit cleanup step

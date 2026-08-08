@@ -11505,6 +11505,48 @@ function drSubmitReminderCadence(form) {
   });
 }
 
+// Roadmap #9/#319 (2026-08-08): proactive rule-change alerts, opt-out
+// (defaults on) -- same load/render/submit shape as
+// drRenderReminderCadence()/drSubmitReminderCadence() just above, but a
+// single checkbox instead of a fieldset.
+function drRenderRuleChangeAlerts(enabled) {
+  var box = document.getElementById('dr-rule-change-alerts-checkbox');
+  if (box) box.checked = enabled !== false;
+}
+
+function drSubmitRuleChangeAlerts(form) {
+  var okEl = document.getElementById('dr-rule-change-alerts-ok');
+  var errEl = document.getElementById('dr-rule-change-alerts-error');
+  if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+
+  var box = document.getElementById('dr-rule-change-alerts-checkbox');
+  var enabled = box ? box.checked : true;
+  var submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
+
+  fetch('/api/firm/rule-change-alerts', {
+    method: 'PATCH', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({enabled: enabled})
+  }).then(function(res) {
+    if (submitBtn) submitBtn.disabled = false;
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        return;
+      }
+      drRenderRuleChangeAlerts(data.rule_change_alerts_enabled);
+      if (okEl) { okEl.textContent = 'Saved.'; okEl.hidden = false; }
+    });
+  }).catch(function() {
+    if (submitBtn) submitBtn.disabled = false;
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
 // Roadmap #25 (2026-08-07): in-app notification center. Purely a more
 // portable way to surface what "Staff at risk" (drRenderAtRisk) and the CPE
 // Hours tab's own behind-on-hours flag already compute -- same 30-day-or-
@@ -11701,6 +11743,8 @@ function drLoadLicenses() {
       drRenderReplyTo(data.reply_to_email || null);
       // Roadmap #23: same note.
       drRenderReminderCadence(data.reminder_thresholds || null);
+      // Roadmap #9/#319: same note.
+      drRenderRuleChangeAlerts(data.rule_change_alerts_enabled);
       drRenderTable();
       drRenderStats();
       drRenderRenewalFeeRollup();
@@ -12540,6 +12584,14 @@ document.addEventListener('DOMContentLoaded', function() {
     reminderCadenceForm.addEventListener('submit', function(ev) {
       ev.preventDefault();
       drSubmitReminderCadence(reminderCadenceForm);
+    });
+  }
+
+  var ruleChangeAlertsForm = document.getElementById('dr-rule-change-alerts-form');
+  if (ruleChangeAlertsForm) {
+    ruleChangeAlertsForm.addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      drSubmitRuleChangeAlerts(ruleChangeAlertsForm);
     });
   }
 
@@ -13999,6 +14051,20 @@ def build_firm_dashboard_page(
         </form>
         <p id="dr-reminder-cadence-ok" class="dr-account-ok" hidden></p>
         <p id="dr-reminder-cadence-error" role="alert" class="dr-account-err" hidden></p>
+      </div>
+
+      <div class="dr-account-panel">
+        <h2>Proactive rule-change alerts</h2>
+        <p class="signup-microcopy">We'll email you when a new mobility rule change affects a state
+        your roster is licensed in -- on by default. You still choose whether to notify staff; this
+        just means you don't have to remember to check the Calendar yourself.</p>
+        <form id="dr-rule-change-alerts-form">
+          <label><input type="checkbox" id="dr-rule-change-alerts-checkbox" checked> Email me about
+          new rule changes affecting my roster</label>
+          <button type="submit">Save</button>
+        </form>
+        <p id="dr-rule-change-alerts-ok" class="dr-account-ok" hidden></p>
+        <p id="dr-rule-change-alerts-error" role="alert" class="dr-account-err" hidden></p>
       </div>
 
       <div class="dr-account-panel">

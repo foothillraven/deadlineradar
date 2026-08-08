@@ -44,9 +44,19 @@ import {
   buildDripCourseStep2Email,
   buildDripCourseStep3Email,
   buildDripCourseStep4Email,
+  buildRuleChangeAdminAlertEmail,
 } from "./emails";
-import { DEFAULT_DAILY_SEND_CAP, checkAndCountSend, DEFAULT_DAILY_DRIP_COURSE_SEND_CAP, checkAndCountDripCourseSend, sendViaSendGrid } from "./sender";
+import {
+  DEFAULT_DAILY_SEND_CAP,
+  checkAndCountSend,
+  DEFAULT_DAILY_DRIP_COURSE_SEND_CAP,
+  checkAndCountDripCourseSend,
+  DEFAULT_DAILY_RULE_CHANGE_ALERT_SEND_CAP,
+  checkAndCountRuleChangeAlertSend,
+  sendViaSendGrid,
+} from "./sender";
 import cpaDataForDripCourse from "./cpa_deadlines.json";
+import regChangeEventsData from "./reg_change_events.json";
 
 // scheduler.py: store.ESCALATION_THRESHOLDS_DAYS.
 export const ESCALATION_THRESHOLDS_DAYS = [1, 3, 7, 14, 30, 60];
@@ -540,6 +550,136 @@ export async function runDripCoursePass(env: Env, opts: RunReminderOptions = {})
         await store.unclaimDripCourseStep(env.DB, enr.id, step).catch(() => {});
       }
       summary.errors.push({ enrollment_id: enr.id, error: `unexpected error: ${String(err)}` });
+    }
+  }
+
+  return summary;
+}
+
+// ---------------------------------------------------------------------------
+// Rule-change alerts (2026-08-08, roadmap #9/#319). Same daily-cron trigger,
+// own independent pass -- see index.ts's scheduled(). Proactively alerts a
+// firm's admin when a new rule-change event touches a state their roster is
+// actually licensed in, wiring the existing reg_change_events.json feed
+// together with the existing send/suppression machinery. Deliberately does
+// NOT notify staff itself -- see buildRuleChangeAdminAlertEmail()'s own
+// comment for why that stays the admin's own choice via the existing
+// button.
+// ---------------------------------------------------------------------------
+
+interface RuleChangeEvent {
+  event_id: string;
+  jurisdiction_slug: string;
+  jurisdiction: string;
+  topic?: string;
+  effective_date: string;
+  summary_public?: string;
+  citation?: string;
+  citation_url?: string;
+  kind: string;
+  upcoming: boolean;
+}
+const RULE_CHANGE_EVENTS = (regChangeEventsData as unknown as { events: RuleChangeEvent[] }).events;
+
+// Same filter generate.py's own DR_RULE_CHANGE_EVENTS construction and
+// build_rule_changes_page() both use -- this can never alert on something
+// those pages themselves wouldn't stand behind (excludes source_conflict
+// entries, which aren't confirmed changes, and already-effective ones).
+function upcomingRuleChangeEvents(): RuleChangeEvent[] {
+  return RULE_CHANGE_EVENTS.filter((e) => e.kind === "rule_change" && e.upcoming && e.effective_date);
+}
+
+export interface RuleChangeAlertSummary {
+  eventsChecked: number;
+  firmsChecked: number;
+  sent: number;
+  errors: { firm_id: string; event_id: string; error: string }[];
+}
+
+function dailyRuleChangeAlertSendCap(env: Env): number {
+  const n = Number.parseInt(env.RULE_CHANGE_ALERT_DAILY_SEND_CAP ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_RULE_CHANGE_ALERT_SEND_CAP;
+}
+
+export async function runRuleChangeAlertPass(env: Env, opts: RunReminderOptions = {}): Promise<RuleChangeAlertSummary> {
+  const send: ReminderSendFn =
+    opts.send ??
+    ((to, built) => {
+      if (!env.SENDGRID_API_KEY) return Promise.resolve(false);
+      return sendViaSendGrid(env.SENDGRID_API_KEY, to, built, env.EMAIL_ALLOWLIST);
+    });
+
+  const summary: RuleChangeAlertSummary = { eventsChecked: 0, firmsChecked: 0, sent: 0, errors: [] };
+  const cap = dailyRuleChangeAlertSendCap(env);
+  const staticBase = env.STATIC_SITE_BASE_URL || "";
+  const calendarUrl = `${staticBase}/firm-dashboard/#calendar`;
+  const accountSettingsUrl = `${staticBase}/firm-dashboard/#account`;
+
+  let capReached = false;
+  for (const event of upcomingRuleChangeEvents()) {
+    if (capReached) break;
+    summary.eventsChecked += 1;
+    const stateName = stateNameForSlug(event.jurisdiction_slug) ?? event.jurisdiction;
+    const firms = await store.findFirmsEligibleForRuleChangeAlert(env.DB, event.jurisdiction_slug, event.event_id, 200);
+
+    for (const firm of firms) {
+      summary.firmsChecked += 1;
+      // AuditLab DEMO-5's own reasoning, same as runReminderPass()'s
+      // identical check above: the shared public demo account's roster is
+      // deliberately still mutable, so it could otherwise be structurally
+      // eligible here too. Checked BEFORE claiming (no DB write) and
+      // WITHOUT claiming -- claiming would mark this event as "handled"
+      // for the demo firm when nothing was actually sent, silently
+      // breaking a future real send once the account is unlocked.
+      if (firm.demo_locked) {
+        summary.errors.push({
+          firm_id: firm.id,
+          event_id: event.event_id,
+          error: "SKIPPED: firm is demo_locked -- no email sent from the shared demo account.",
+        });
+        continue;
+      }
+      let claimed = false;
+      try {
+        claimed = await store.claimRuleChangeNotification(env.DB, firm.id, event.event_id);
+        if (!claimed) continue;
+
+        const underCap = await checkAndCountRuleChangeAlertSend(env.DB, cap);
+        if (!underCap) {
+          await store.unclaimRuleChangeNotification(env.DB, firm.id, event.event_id);
+          summary.errors.push({
+            firm_id: firm.id,
+            event_id: event.event_id,
+            error: "daily send cap reached -- halting further sends today.",
+          });
+          capReached = true;
+          break;
+        }
+
+        const built = buildRuleChangeAdminAlertEmail(
+          firm.name,
+          event.jurisdiction,
+          stateName,
+          event.summary_public || "",
+          fmtDate(new Date(`${event.effective_date}T00:00:00Z`)),
+          event.citation_url && event.citation_url.startsWith("https://") ? event.citation_url : null,
+          calendarUrl,
+          accountSettingsUrl
+        );
+
+        const ok = await send(firm.admin_email, built);
+        if (ok) {
+          summary.sent += 1;
+        } else {
+          await store.unclaimRuleChangeNotification(env.DB, firm.id, event.event_id);
+          summary.errors.push({ firm_id: firm.id, event_id: event.event_id, error: "send returned false" });
+        }
+      } catch (err) {
+        if (claimed) {
+          await store.unclaimRuleChangeNotification(env.DB, firm.id, event.event_id).catch(() => {});
+        }
+        summary.errors.push({ firm_id: firm.id, event_id: event.event_id, error: `unexpected error: ${String(err)}` });
+      }
     }
   }
 

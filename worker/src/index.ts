@@ -3650,21 +3650,35 @@ async function handleSmsInbound(request: Request, env: Env): Promise<Response> {
 // sized for ordinary form submissions) is far too small here.
 const MAX_EMAIL_EVENTS_BODY_BYTES = 5_000_000;
 
-// Reasons SUPPRESSION-worthy at the address level -- a genuinely permanent
-// failure. "blocked" (greylisting, transient IP reputation) and every
-// other SendGrid event type are logged only, never suppressed -- see
-// sendgrid_webhook.ts's own docstring for the "bounce" vs "blocked"
-// distinction this is based on.
-const SUPPRESSION_WORTHY_EVENTS: Record<string, store.PermanentSuppressionReason> = {
-  bounce: "hard_bounced",
-  spamreport: "spam_complaint",
-};
-
 interface SendGridEvent {
   email?: unknown;
   event?: unknown;
+  // AuditLab EMAIL-3 (MEDIUM, 2026-08-09): SendGrid sends both hard AND
+  // soft (temporary) bounces under event:"bounce" -- `type` is what
+  // distinguishes them ("bounce" = permanent, SendGrid already suppresses
+  // it themselves; "blocked" = temporary, e.g. a full mailbox or transient
+  // greylisting, NOT suppression-worthy). The original code only read
+  // `event`, so a soft bounce was indistinguishable from a hard one and
+  // permanently silenced every subsequent reminder to that address --
+  // exactly the outcome this handler's own docstring says "blocked" must
+  // never cause. See suppressionReasonFor() below.
+  type?: unknown;
   sg_event_id?: unknown;
   reason?: unknown;
+}
+
+/** Suppression-worthy at the address level -- a genuinely permanent
+ * failure. Null (log only, never suppress) for a soft/temporary bounce
+ * and every other SendGrid event type. See SendGridEvent.type's own
+ * docstring above for why `event` alone isn't enough for "bounce". */
+function suppressionReasonFor(eventType: string, typeField: string): store.PermanentSuppressionReason | null {
+  if (eventType === "bounce") {
+    return typeField === "blocked" ? null : "hard_bounced";
+  }
+  if (eventType === "spamreport") {
+    return "spam_complaint";
+  }
+  return null;
 }
 
 /**
@@ -3714,6 +3728,7 @@ async function handleEmailEventsWebhook(request: Request, env: Env): Promise<Res
     try {
       const email = typeof raw.email === "string" ? raw.email.trim() : "";
       const eventType = typeof raw.event === "string" ? raw.event : "";
+      const typeField = typeof raw.type === "string" ? raw.type : "";
       const sgEventId = typeof raw.sg_event_id === "string" ? raw.sg_event_id : "";
       const reason = typeof raw.reason === "string" ? raw.reason : null;
       if (!email || !eventType || !sgEventId) continue;
@@ -3721,7 +3736,7 @@ async function handleEmailEventsWebhook(request: Request, env: Env): Promise<Res
       const inserted = await store.recordDeliverabilityEvent(env.DB, { sgEventId, email, eventType, reason });
       if (!inserted) continue; // already processed this exact event -- redelivered webhook, skip
 
-      const suppressionReason = SUPPRESSION_WORTHY_EVENTS[eventType];
+      const suppressionReason = suppressionReasonFor(eventType, typeField);
       if (suppressionReason) {
         await store.suppressByEmail(env.DB, store.normalizeEmail(email), suppressionReason);
       }

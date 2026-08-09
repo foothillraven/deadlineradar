@@ -242,21 +242,45 @@ describe("POST /email/events", () => {
     expect(await store.isPermanentlySuppressed(env.DB, email)).toBe(true);
   });
 
-  it("a blocked event is logged but does NOT suppress", async () => {
+  it("AuditLab EMAIL-3: a SOFT bounce (event:'bounce', type:'blocked' -- SendGrid's REAL shape) is logged but does NOT suppress", async () => {
+    // Per SendGrid's own docs, a temporary delivery failure (full mailbox,
+    // transient greylisting) arrives as event:"bounce" with type:"blocked"
+    // -- SendGrid never sends a top-level event:"blocked". The original
+    // handler only read `event`, so this soft bounce was indistinguishable
+    // from a hard one and permanently silenced every future reminder to
+    // the address. This is the exact payload shape that must NOT suppress.
     const keyPair = await generateKeyPair();
     const pubKeyB64 = await publicKeyBase64(keyPair);
-    const email = `sgevt-blocked-${Date.now()}@example.com`;
-    const sgEventId = `evt-blocked-${Date.now()}`;
+    const email = `sgevt-softbounce-${Date.now()}@example.com`;
+    const sgEventId = `evt-softbounce-${Date.now()}`;
     await seedConfirmedSubscriber(email);
 
-    const resp = await postEvents(keyPair, [{ email, event: "blocked", sg_event_id: sgEventId, reason: "greylisted" }], {
-      SENDGRID_WEBHOOK_PUBLIC_KEY: pubKeyB64,
-    });
+    const resp = await postEvents(
+      keyPair,
+      [{ email, event: "bounce", type: "blocked", sg_event_id: sgEventId, reason: "mailbox full" }],
+      { SENDGRID_WEBHOOK_PUBLIC_KEY: pubKeyB64 }
+    );
     expect(resp.status).toBe(200);
     expect(await store.isPermanentlySuppressed(env.DB, email)).toBe(false);
     const row = await env.DB.prepare("SELECT * FROM email_deliverability_events WHERE sg_event_id = ?1").bind(sgEventId).first();
     expect(row).toBeTruthy();
-    expect((row as { event_type: string }).event_type).toBe("blocked");
+    expect((row as { event_type: string }).event_type).toBe("bounce");
+  });
+
+  it("positive control: a HARD bounce (event:'bounce', type:'bounce') still suppresses -- the soft-bounce fix didn't break this", async () => {
+    const keyPair = await generateKeyPair();
+    const pubKeyB64 = await publicKeyBase64(keyPair);
+    const email = `sgevt-hardbounce-${Date.now()}@example.com`;
+    const sgEventId = `evt-hardbounce-${Date.now()}`;
+    await seedConfirmedSubscriber(email);
+
+    const resp = await postEvents(
+      keyPair,
+      [{ email, event: "bounce", type: "bounce", sg_event_id: sgEventId, reason: "550 5.1.1 no such user" }],
+      { SENDGRID_WEBHOOK_PUBLIC_KEY: pubKeyB64 }
+    );
+    expect(resp.status).toBe(200);
+    expect(await store.isPermanentlySuppressed(env.DB, email)).toBe(true);
   });
 
   it("a redelivered event (same sg_event_id) doesn't double-log or re-suppress destructively", async () => {

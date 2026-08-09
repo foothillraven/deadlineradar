@@ -221,8 +221,13 @@ def _state_signup_supported(state_slug: str, records: list[dict]) -> bool:
     build) the form always renders now -- this function instead selects
     WHICH extra field(s) `_extra_fields_html()` shows: the per-state
     computed fields when true, or a plain date input when false. Mirrors
-    deadline.ts's `isStateComputable()` exactly, same underlying data, so
-    the two can't drift out of sync."""
+    deadline.ts's `isStateComputable()` -- the DATA-derived half (below)
+    can't drift, since both sides read the same JSON, but
+    _WORKER_FIELD_COMPUTED_STATES above is a hardcoded literal duplicated
+    in TypeScript and nothing enforced the two staying equal (AuditLab
+    SYNC-1, 2026-08-09 -- an earlier version of this docstring claimed
+    otherwise). preship_gate.py's check_field_computed_states_sync() is
+    the actual enforcement now; add a state to BOTH sets together."""
     if state_slug in _WORKER_FIELD_COMPUTED_STATES:
         return True
     return any(r.get("next_deadline_computed") for r in records)
@@ -6621,7 +6626,7 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
   // an otherwise-empty page, so that is what gets pulled out and shown
   // inline; nothing about the routes themselves changes.
   function firstParagraphText(html) {
-    var match = /<p>([\s\S]*?)<\/p>/.exec(html);
+    var match = /<p>([\\s\\S]*?)<\\/p>/.exec(html);
     if (!match) return "Something went wrong. Please try again.";
     var div = document.createElement("div");
     div.innerHTML = match[1];

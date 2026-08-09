@@ -172,11 +172,17 @@ export function stateNameForSlug(slug: string): string | null {
  */
 export const SUPPORTED_STATE_SLUGS: ReadonlySet<string> = new Set(DATA.records.map((r) => r.state_slug));
 
-// Mirrors generate.py's `_state_signup_supported()` exactly -- same rule,
-// same underlying cpa_deadlines.json, so the site (which decides whether to
-// show the auto-compute fields vs. the "bring your own date" field) and the
-// worker (which decides whether to require/accept a user-provided date)
-// can never drift out of sync with each other.
+// Mirrors generate.py's `_state_signup_supported()` -- same rule, same
+// underlying cpa_deadlines.json for the DATA-derived half of that function
+// (the `any(next_deadline_computed)` fallback below IS drift-proof, since
+// both sides read the same JSON). This hardcoded literal is NOT -- AuditLab
+// SYNC-1 (2026-08-09): an earlier version of this comment claimed the two
+// could "never drift out of sync", which was false; nothing enforced it.
+// preship_gate.py's check_field_computed_states_sync() is the actual
+// enforcement -- it parses this literal and generate.py's
+// _WORKER_FIELD_COMPUTED_STATES and fails the build on any difference.
+// Add a state to BOTH sets together, or the page and the worker disagree
+// on which fields to show/require and signup 400s in that state.
 const FIELD_COMPUTED_STATES = new Set(["california", "texas", "ohio"]);
 
 /** Whether the worker can EVER derive a deadline for this state from state

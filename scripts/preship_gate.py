@@ -432,6 +432,58 @@ def check_terms_version_sync(repo_root: Path) -> list[str]:
     return []
 
 
+def check_field_computed_states_sync(repo_root: Path) -> list[str]:
+    """AuditLab SYNC-1 (MEDIUM, 2026-08-09): worker/src/deadline.ts's
+    FIELD_COMPUTED_STATES and generate.py's _WORKER_FIELD_COMPUTED_STATES
+    are the same set of states hand-duplicated across two languages -- and
+    unlike TERMS_LAST_CHANGED/TERMS_VERSION above (which at least admit
+    they're two copies), both comments here claimed the sets "can never
+    drift out of sync", which was false: nothing enforced it. A drift
+    breaks signup in BOTH directions for the affected state (the page
+    renders one set of fields, the worker expects the other -- see
+    generate.py's own docstring on _WORKER_FIELD_COMPUTED_STATES for the
+    exact 400 each direction produces), and hits both public signup and
+    the dashboard staff-add form. Same "parse both literals, diff them"
+    shape as check_terms_version_sync() above -- this is the 5th instance
+    of this hand-maintained-duplicate-list class in the codebase (after
+    CRAWL-1/2, RETAIN-1, DEMO-4/5, SEC-1/2), and the first one that was
+    actively documented as impossible, which is exactly why it survived a
+    hand review."""
+    generate_py = repo_root / "generate.py"
+    deadline_ts = repo_root / "worker" / "src" / "deadline.ts"
+    if not deadline_ts.exists():
+        print("  (skipping field-computed-states-sync check -- worker/ tree not present in this checkout)")
+        return []
+    py_text = generate_py.read_text(encoding="utf-8")
+    ts_text = deadline_ts.read_text(encoding="utf-8")
+
+    py_match = re.search(r"_WORKER_FIELD_COMPUTED_STATES\s*=\s*\{([^}]*)\}", py_text)
+    if not py_match:
+        return ["[SYNC] generate.py's _WORKER_FIELD_COMPUTED_STATES literal not found -- can't verify sync with worker/src"]
+    py_states = set(re.findall(r'"([a-z_]+)"', py_match.group(1)))
+
+    ts_match = re.search(r"FIELD_COMPUTED_STATES\s*=\s*new Set\(\[([^\]]*)\]\)", ts_text)
+    if not ts_match:
+        return ["[SYNC] worker/src/deadline.ts's FIELD_COMPUTED_STATES literal not found -- can't verify sync with generate.py"]
+    ts_states = set(re.findall(r'"([a-z_]+)"', ts_match.group(1)))
+
+    if py_states != ts_states:
+        only_py = sorted(py_states - ts_states)
+        only_ts = sorted(ts_states - py_states)
+        detail = []
+        if only_py:
+            detail.append(f"only in generate.py's _WORKER_FIELD_COMPUTED_STATES: {only_py}")
+        if only_ts:
+            detail.append(f"only in deadline.ts's FIELD_COMPUTED_STATES: {only_ts}")
+        return [
+            "[SYNC] generate.py's _WORKER_FIELD_COMPUTED_STATES and worker/src/deadline.ts's "
+            "FIELD_COMPUTED_STATES have drifted (" + "; ".join(detail) + ") -- a state on only one "
+            "side breaks signup, since the page and the worker disagree on which fields to show/"
+            "require. Update both together."
+        ]
+    return []
+
+
 def check_json_copies_identical(repo_root: Path) -> list[str]:
     # Roadmap #9/#319 (2026-08-08): reg_change_events.json added as a SECOND
     # data/ -> worker/src/ hand-synced pair, same "two copies, byte-identical"
@@ -997,6 +1049,7 @@ def main():
     all_errors += check_deadline_currency(data_path)
     all_errors += check_cpe_hours_currency(repo_root)
     all_errors += check_reinstatement_currency(repo_root)
+    all_errors += check_field_computed_states_sync(repo_root)
     all_errors += check_json_copies_identical(repo_root)
     all_errors += check_terms_version_sync(repo_root)
     all_errors += check_retention_coverage(repo_root)

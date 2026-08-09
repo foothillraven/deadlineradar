@@ -100,7 +100,7 @@ describe("Roster/CPE Hours are a standing free tier -- no expiration, no entitle
   });
 
   it("GET /firm/licenses: 200 on every paid firm tier too -- paid tiers grant Map/Practice Privilege Check on top, never take away the free features", async () => {
-    for (const tier of ["firm_starter", "firm_growth", "firm_standard", "firm", "firm_annual", "premium"]) {
+    for (const tier of ["firm_starter", "firm_growth", "firm_standard", "firm_scale", "firm", "firm_annual", "premium"]) {
       const { firmId, cookie } = await createFirmWithSession(`Gate Firm ${tier}`, `gate-${tier}-${Date.now()}@example.com`);
       await setFirmTierAndAge(firmId, tier, daysAgoIso(500));
       expect((await getFirmLicenses(cookie)).status, `tier "${tier}" should grant access`).toBe(200);
@@ -184,7 +184,9 @@ describe("POST /firm/billing/checkout", () => {
       expect(created.status).toBe(201);
     }
     // 6 staff exceeds Essentials' 5-seat cap -- checkout for Essentials must
-    // be refused even though the caller can technically pay for it.
+    // be refused even though the caller can technically pay for it. Under
+    // the 2026-08-09 4-band re-tier, 6 staff's minimum tier is Growth
+    // (10-seat cap), not Professional (was Growth's own label pre-retier).
     const resp = await workerFetch(
       new Request("https://deadline-radar.com/firm/billing/checkout", {
         method: "POST",
@@ -195,7 +197,7 @@ describe("POST /firm/billing/checkout", () => {
     );
     expect(resp.status).toBe(400);
     const body = (await resp.json()) as { error: string };
-    expect(body.error).toMatch(/professional/i);
+    expect(body.error).toMatch(/growth/i);
   });
 
   it("happy path: creates a real Checkout Session (Stripe mocked) with firm_id/target_plan_tier metadata", async () => {

@@ -50,8 +50,9 @@ import urllib.request
 EXPECTED_TIERS = {
     "STRIPE_PRICE_INDIVIDUAL": {"label": "Individual", "price_usd": 39},
     "STRIPE_PRICE_FIRM_STARTER": {"label": "Starter", "price_usd": 199},
-    "STRIPE_PRICE_FIRM_GROWTH": {"label": "Growth", "price_usd": 349},
-    "STRIPE_PRICE_FIRM_STANDARD": {"label": "Standard", "price_usd": 500},
+    "STRIPE_PRICE_FIRM_GROWTH": {"label": "Growth", "price_usd": 299},
+    "STRIPE_PRICE_FIRM_STANDARD": {"label": "Standard", "price_usd": 399},
+    "STRIPE_PRICE_FIRM_SCALE": {"label": "Scale", "price_usd": 549},
 }
 
 

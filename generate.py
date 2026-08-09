@@ -4708,7 +4708,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   law data in one roster view &mdash; who's current, who's at risk, and who needs to act.</p>
   {_firm_dashboard_mockup_html(by_slug, as_of)}
   <p class="how-it-works"><strong>Roster, calendar, and CPE tracking are free</strong>, no card required,
-  no time limit. Firm plans from $199/year (up to 5 staff) to $500/year (up to 25 staff) add the
+  no time limit. Firm plans from $199/year (up to 5 staff) to $549/year (up to 35 staff) add the
   multistate map and practice-privilege check &mdash; every paid tier has the identical feature set,
   gated only by staff count. <a href="for-firms/" style="font-weight:600;">See the firm overview
   &rarr;</a> &middot; <a href="pricing/">Full pricing (incl. individual) &rarr;</a></p>
@@ -4793,7 +4793,7 @@ tracking, with no card required and no time limit. Nothing is charged unless and
 upgrade to a paid firm plan for the multistate map and Practice Privilege Check.</p>
 
 <h2>4. Paid firm plans and billing</h2>
-<p>Paid firm plans (Essentials, Professional, and Enterprise, priced by staff-count capacity &mdash; every tier has
+<p>Paid firm plans (Essentials, Growth, Professional, and Enterprise, priced by staff-count capacity &mdash; every tier has
 the identical feature set) are billed annually in advance through Stripe. We never see or store your card
 number; Stripe processes payment directly. By subscribing to a paid plan, you authorize us to charge your
 payment method on file for each renewal period until you cancel. An Individual plan is also available for
@@ -4918,19 +4918,25 @@ is held back on a cheaper plan.</p>
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_starter">Get Essentials</button>
   </div>
   <div class="pricing-card">
+    <h2>Growth</h2>
+    <p class="price">$299<span>/year</span></p>
+    <p class="detail">Up to 10 staff.</p>
+    <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_growth">Get Growth</button>
+  </div>
+  <div class="pricing-card">
     <h2>Professional</h2>
-    <p class="price">$349<span>/year</span></p>
-    <p class="detail">Up to 15 staff.</p>
-    <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_growth">Get Professional</button>
+    <p class="price">$399<span>/year</span></p>
+    <p class="detail">Up to 20 staff.</p>
+    <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_standard">Get Professional</button>
   </div>
   <div class="pricing-card">
     <h2>Enterprise</h2>
-    <p class="price">$500<span>/year</span></p>
-    <p class="detail">Up to 25 staff.</p>
-    <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_standard">Get Enterprise</button>
+    <p class="price">$549<span>/year</span></p>
+    <p class="detail">Up to 35 staff.</p>
+    <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_scale">Get Enterprise</button>
   </div>
   <div class="pricing-card pricing-card--wide">
-    <h2>More than 25 staff?</h2>
+    <h2>More than 35 staff?</h2>
     <p class="detail"><a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a> &mdash; no formula, we'll work out what fits.</p>
   </div>
 </div>
@@ -4946,7 +4952,7 @@ for that tier, same as the dashboard's own upgrade panel.</p>
     return page_shell(
         f"Pricing — {SITE_NAME}",
         "DeadlineRadar pricing: free individual reminders, a $39/year Individual plan, and firm plans "
-        "from $199/year for up to 5 staff. Every firm tier has the identical feature set.",
+        "from $199/year for up to 5 staff, up to $549/year for up to 35. Every firm tier has the identical feature set.",
         body,
         home_href="../",
         canonical_path="/pricing/",
@@ -6157,8 +6163,8 @@ _FIRM_FAQ = [
     ),
     (
         "Which plan should my firm pick?",
-        "Whatever covers your current staff count &mdash; Essentials (up to 5), Professional (up to 15), or "
-        "Enterprise (up to 25). Every tier has the exact same feature set (Roster, Calendar, Map, CPE "
+        "Whatever covers your current staff count &mdash; Essentials (up to 5), Growth (up to 10), "
+        "Professional (up to 20), or Enterprise (up to 35). Every tier has the exact same feature set (Roster, Calendar, Map, CPE "
         "Hours, Practice Privilege Check); the only thing that changes between tiers is how many "
         "staff it covers, never what it can do. Outgrowing your plan later just means moving up a "
         "tier, not losing anything.",
@@ -6280,9 +6286,10 @@ feature set; the only difference between them is how many staff it covers, nothi
 cheaper plan.</p>
 <ul class="firm-pricing-list">
   <li><strong>Essentials</strong> &mdash; $199/year, up to 5 staff</li>
-  <li><strong>Professional</strong> &mdash; $349/year, up to 15 staff</li>
-  <li><strong>Enterprise</strong> &mdash; $500/year, up to 25 staff</li>
-  <li><strong>More than 25 staff?</strong> <a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a>.</li>
+  <li><strong>Growth</strong> &mdash; $299/year, up to 10 staff</li>
+  <li><strong>Professional</strong> &mdash; $399/year, up to 20 staff</li>
+  <li><strong>Enterprise</strong> &mdash; $549/year, up to 35 staff</li>
+  <li><strong>More than 35 staff?</strong> <a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a>.</li>
 </ul>
 <p><a href="/pricing/">See full pricing, including the individual plan &rarr;</a></p>
 <p><strong>Tracking just your own license, not a firm roster?</strong> The free individual reminders
@@ -6358,7 +6365,7 @@ invoice; a self-serve card-payment option is coming soon. Not ready to create an
     return page_shell(
         f"For Firms — {SITE_NAME}",
         "CPA firm license tracking: roster, calendar, and CPE hours free forever, plus paid plans "
-        "from $199/year (5 staff) to $500/year (25 staff) for the map and Practice Privilege Check, "
+        "from $199/year (5 staff) to $549/year (35 staff) for the map and Practice Privilege Check, "
         "or a $39/year individual plan. Sourced to the same codified state law DeadlineRadar "
         "verifies for every state.",
         body,
@@ -8134,7 +8141,7 @@ var drSeatCap = null;
 // the first real load" posture as drSeatCap above.
 var drBilling = null;
 var DR_PLAN_TIER_LABELS = {
-  firm_starter: 'Essentials', firm_growth: 'Professional', firm_standard: 'Enterprise'
+  firm_starter: 'Essentials', firm_growth: 'Growth', firm_standard: 'Professional', firm_scale: 'Enterprise'
 };
 
 // migration 0045 (roadmap #11/#13/#14/#51): the CALLER's own role/member id,
@@ -8686,8 +8693,10 @@ function drApplyBulkTag() {
   var tagValue = valueInput ? valueInput.value.trim() : '';
   if (statusEl) statusEl.textContent = 'Applying to ' + ids.length + ' staff member' + (ids.length === 1 ? '' : 's') + '\\u2026';
   // Sequential PATCH per id, reusing the existing single-record endpoint --
-  // firms are capped at 25 staff (SELF_SERVE_SEAT_CAP), so this is always a
-  // small, bounded number of requests, not worth a new bulk backend route.
+  // firms are capped at 35 staff at most (the top paid tier's seat cap;
+  // free/pilot firms are capped lower, at SELF_SERVE_SEAT_CAP), so this is
+  // always a small, bounded number of requests, not worth a new bulk
+  // backend route.
   var applyOne = function(id) {
     return fetch('/api/firm/licenses/' + encodeURIComponent(id), {
       method: 'PATCH', credentials: 'include',
@@ -9515,16 +9524,18 @@ function drRenderBillingPanel() {
     var seatCount = drLicenses.length;
     var tiersHtml = '<div class="dr-paywall-tiers" id="dr-billing-upgrade-tiers">' +
       '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_starter" data-seat-cap="5" ' + (seatCount > 5 ? 'hidden' : '') + '>Essentials<br><span>$199/year &middot; up to 5 staff</span></button>' +
-      '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_growth" data-seat-cap="15" ' + (seatCount > 15 ? 'hidden' : '') + '>Professional<br><span>$349/year &middot; up to 15 staff</span></button>' +
-      '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_standard" data-seat-cap="25" ' + (seatCount > 25 ? 'hidden' : '') + '>Enterprise<br><span>$500/year &middot; up to 25 staff</span></button>' +
+      '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_growth" data-seat-cap="10" ' + (seatCount > 10 ? 'hidden' : '') + '>Growth<br><span>$299/year &middot; up to 10 staff</span></button>' +
+      '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_standard" data-seat-cap="20" ' + (seatCount > 20 ? 'hidden' : '') + '>Professional<br><span>$399/year &middot; up to 20 staff</span></button>' +
+      '<button type="button" class="dr-paywall-tier-btn" data-tier="firm_scale" data-seat-cap="35" ' + (seatCount > 35 ? 'hidden' : '') + '>Enterprise<br><span>$549/year &middot; up to 35 staff</span></button>' +
       '</div>';
-    // AuditLab PAYNOW-1 (2026-08-05, caught pre-deploy): a roster over 25
-    // hides all 3 buttons -- without this, that firm sees the intro line
-    // then an empty box, no explanation.
-    var moreThan25Html = '<p style="font-size:0.85rem; color:var(--muted); margin-top:0.7rem;">' +
-      'More than 25 staff? <a href="/for-firms/">Contact us</a>.</p>';
+    // AuditLab PAYNOW-1 (2026-08-05, caught pre-deploy): a roster over the
+    // top tier's cap hides all buttons -- without this, that firm sees the
+    // intro line then an empty box, no explanation. Ceiling moved to 35
+    // with the 2026-08-09 seat-cliff re-tier (was 25).
+    var moreThanTopTierHtml = '<p style="font-size:0.85rem; color:var(--muted); margin-top:0.7rem;">' +
+      'More than 35 staff? <a href="/for-firms/">Contact us</a>.</p>';
     body.innerHTML = '<p class="dr-panel-empty">You are on the free tier. Upgrade any time for the ' +
-      'map and Practice Privilege Check.</p>' + tiersHtml + moreThan25Html;
+      'map and Practice Privilege Check.</p>' + tiersHtml + moreThanTopTierHtml;
     if (drBilling.demoLocked) body.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
     return;
   }

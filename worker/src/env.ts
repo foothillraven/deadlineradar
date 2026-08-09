@@ -176,11 +176,20 @@ export interface Env {
    * swapping to live values at Gate 2 is a pure secret rotation, zero code
    * diff, by design (PRO_TIER_SPEC / the paid-tiers plan).
    *
-   * The four STRIPE_PRICE_* values are Stripe Price ids, not secrets (Stripe
+   * The five STRIPE_PRICE_* values are Stripe Price ids, not secrets (Stripe
    * price ids are safe to expose client-side), but are still env-sourced
    * rather than hardcoded because test-mode and live-mode prices are
    * DIFFERENT ids on the same Stripe account -- hardcoding would break the
    * Gate 1 -> Gate 2 swap the same way hardcoding the key would.
+   *
+   * STRIPE_PRICE_FIRM_SCALE added 2026-08-09 (seat-cliff re-tier, see
+   * tiers.ts's own comment on FIRM_TIERS) -- the one genuinely NEW Stripe
+   * Price object this re-tier needs; the other three tiers reuse their
+   * existing STRIPE_PRICE_* secrets with new price/cap VALUES in code, but
+   * that still requires the underlying live Stripe Price OBJECTS for
+   * firm_growth/firm_standard to be recreated (Prices are immutable) and
+   * their secrets rotated in lockstep with this deploy -- see the deploy
+   * runbook note this change ships alongside.
    */
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
@@ -188,6 +197,7 @@ export interface Env {
   STRIPE_PRICE_FIRM_STARTER?: string;
   STRIPE_PRICE_FIRM_GROWTH?: string;
   STRIPE_PRICE_FIRM_STANDARD?: string;
+  STRIPE_PRICE_FIRM_SCALE?: string;
   /**
    * Roadmap #31 (2026-08-09, referral program). A Stripe Coupon id --
    * OPTIONAL, same degrade-safely convention as the four STRIPE_PRICE_*

@@ -57,8 +57,9 @@ export type EntitlementSubject = Pick<FirmRow, "plan_tier" | "status">;
  * two features, regardless of how long the firm has had an account.
  * `firm`/`firm_annual`/`premium` are the original manually-set tiers (still
  * honored -- no existing row is migrated off them); `firm_starter`/
- * `firm_growth`/`firm_standard`/`individual` are the Stripe-backed tiers
- * (2026-08-05, see tiers.ts). All paid firm tiers carry the identical
+ * `firm_growth`/`firm_standard`/`firm_scale`/`individual` are the
+ * Stripe-backed tiers (2026-08-05, see tiers.ts; `firm_scale` added in the
+ * 2026-08-09 seat-cliff re-tier). All paid firm tiers carry the identical
  * PAID feature set -- this set gates access to Map/Practice Privilege
  * Check specifically, not to the free features at all. */
 const PAID_PLAN_TIERS = new Set([
@@ -68,6 +69,7 @@ const PAID_PLAN_TIERS = new Set([
   "firm_starter",
   "firm_growth",
   "firm_standard",
+  "firm_scale",
   "individual",
 ]);
 

@@ -44,6 +44,7 @@ describe("paid tiers", () => {
       "firm_starter",
       "firm_growth",
       "firm_standard",
+      "firm_scale",
       "individual",
     ]) {
       const res = checkPaidFeatureAccess(firm({ plan_tier: tier }));

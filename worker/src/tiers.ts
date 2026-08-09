@@ -24,13 +24,25 @@ export interface FirmTierDef {
 // Ordered ascending by seat cap -- firmTierForSeatCount() below depends on
 // that order to find the cheapest tier a given headcount qualifies for.
 // Labels renamed 2026-08-06 (Devin's pick) -- planTier slugs (firm_starter/
-// firm_growth/firm_standard) are internal identifiers, stored in D1 and read
-// by stripePriceIdForTier()'s switch below; they stay as-is, only `label`
-// (the customer-facing name) changed.
+// firm_growth/firm_standard/firm_scale) are internal identifiers, stored in
+// D1 and read by stripePriceIdForTier()'s switch below; they stay as-is,
+// only `label` (the customer-facing name) changes.
+//
+// Re-tiered 2026-08-09 (Devin's own proposal, via orchestrator): the old
+// 3-band flat-fee structure (199/5, 349/15, 500/25) had real cliffs -- one
+// hire past a boundary jumped the WHOLE invoice (5->6 staff was +75%). This
+// 4-band structure smooths that: the worst single-hire jump is now +50%
+// (5->6), +33% (10->11), +38% (20->21). firm_starter/firm_growth/
+// firm_standard REUSE their existing slugs with new price/cap (no real
+// paying customers existed on any paid tier at the time of this change, so
+// no migration concern) -- firm_scale is the one genuinely NEW slug, for
+// the new top band. Labels shifted up one level to match: "Enterprise" now
+// means the real top tier (35 seats), not the old 25-seat one.
 export const FIRM_TIERS: FirmTierDef[] = [
   { planTier: "firm_starter", label: "Essentials", priceUsd: 199, seatCap: 5 },
-  { planTier: "firm_growth", label: "Professional", priceUsd: 349, seatCap: 15 },
-  { planTier: "firm_standard", label: "Enterprise", priceUsd: 500, seatCap: 25 },
+  { planTier: "firm_growth", label: "Growth", priceUsd: 299, seatCap: 10 },
+  { planTier: "firm_standard", label: "Professional", priceUsd: 399, seatCap: 20 },
+  { planTier: "firm_scale", label: "Enterprise", priceUsd: 549, seatCap: 35 },
 ];
 
 export const INDIVIDUAL_TIER = { planTier: "individual", label: "Individual", priceUsd: 39 } as const;
@@ -47,9 +59,9 @@ export function seatCapForFirmTier(planTier: string): number {
 }
 
 /** The cheapest firm tier whose seat cap covers `seatCount`, or null if no
- * defined tier covers it (25+ staff -- unchanged "contact us", no formula,
- * Devin's explicit call). Checkout must never let a firm buy a tier smaller
- * than this for its current roster. */
+ * defined tier covers it (35+ staff as of the 2026-08-09 re-tier -- unchanged
+ * "contact us", no formula, Devin's explicit call). Checkout must never let
+ * a firm buy a tier smaller than this for its current roster. */
 export function firmTierForSeatCount(seatCount: number): FirmTierDef | null {
   return FIRM_TIERS.find((t) => seatCount <= t.seatCap) ?? null;
 }
@@ -70,6 +82,8 @@ export function stripePriceIdForTier(env: Env, planTier: string): string | null 
       return env.STRIPE_PRICE_FIRM_GROWTH ?? null;
     case "firm_standard":
       return env.STRIPE_PRICE_FIRM_STANDARD ?? null;
+    case "firm_scale":
+      return env.STRIPE_PRICE_FIRM_SCALE ?? null;
     case "individual":
       return env.STRIPE_PRICE_INDIVIDUAL ?? null;
     default:

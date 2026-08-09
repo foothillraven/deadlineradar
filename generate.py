@@ -13725,6 +13725,89 @@ _MOBILITY_JS_HTML = """<script>
 
 _MOBILITY_JS_HTML = _MOBILITY_JS_HTML.replace("'/api/firm", f"'{REMINDER_BACKEND_BASE_URL}/firm")
 
+# Roadmap #318 (2026-08-09). Same badge()/esc() shape as _MOBILITY_JS_HTML
+# above (a separate copy, not a shared function, since these two scripts
+# are independently-loaded <script> blocks on the same page with no shared
+# module system) but simpler: one finding, not individual+firm; no staff
+# picker or "mark complete" flow this pass (see the plan's own scope note).
+_FIRM_MOBILITY_JS_HTML = """<script>
+(function () {
+  var form = document.getElementById('dr-firm-mobility-form');
+  if (!form) return;
+  var errEl = document.getElementById('dr-firm-mobility-error');
+  var resultEl = document.getElementById('dr-firm-mobility-result');
+
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function badge(verdict) {
+    if (verdict === 'clear') return '<span class="dr-verdict-badge dr-verdict-clear">Clear</span>';
+    if (verdict === 'action_required') return '<span class="dr-verdict-badge dr-verdict-action">Action required</span>';
+    if (verdict === 'not_applicable') return '<span class="dr-verdict-badge dr-verdict-unverified">Not applicable</span>';
+    return '<span class="dr-verdict-badge dr-verdict-unverified">Not verified</span>';
+  }
+
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+    if (resultEl) { resultEl.hidden = true; resultEl.innerHTML = ''; }
+
+    var body = {
+      firm_home_state_slug: document.getElementById('dr-firmmob-home').value,
+      target_state_slug: document.getElementById('dr-firmmob-target').value,
+      has_physical_office: document.getElementById('dr-firmmob-office').checked
+    };
+
+    fetch('/api/firm/mobility/firm-check', {
+      method: 'POST', credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    }).then(function (res) {
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      return res.json().catch(function () { return null; }).then(function (data) {
+        if (!res.ok) {
+          var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+          if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+          return;
+        }
+        if (!data) return;
+        var reqs = '';
+        if (data.requirements && data.requirements.length) {
+          reqs = '<ul class="dr-verdict-reqs">' +
+            data.requirements.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('') + '</ul>';
+        }
+        var cite;
+        if (data.citation) {
+          cite = data.citation_url
+            ? '<a href="' + esc(data.citation_url) + '" rel="noopener noreferrer" target="_blank">' + esc(data.citation) + '</a>'
+            : esc(data.citation);
+          if (data.verified_date) { cite += ' &middot; verified ' + esc(data.verified_date); }
+          if (data.confidence === 'single_source') {
+            cite += ' &middot; single-source (not yet independently confirmed by a second source)';
+          }
+          cite = '<p class="dr-verdict-cite">Source: ' + cite + '</p>';
+        } else if (data.verdict === 'not_applicable') {
+          cite = '';
+        } else {
+          cite = '<p class="dr-verdict-cite">No verified citation on file for this one &mdash; which is exactly why it is not a yes.</p>';
+        }
+        var html = '<h3>' + esc(data.firm_home_state) + ' &rarr; ' + esc(data.target_state) + '</h3>' +
+          '<div class="dr-verdict">' + badge(data.verdict) + '<p>' + esc(data.summary) + '</p>' +
+          reqs + cite + '<p class="dr-verdict-disclaimer">' + esc(data.disclaimer) + '</p></div>';
+        if (resultEl) { resultEl.innerHTML = html; resultEl.hidden = false; }
+      });
+    }).catch(function () {
+      if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+    });
+  });
+})();
+</script>"""
+
+_FIRM_MOBILITY_JS_HTML = _FIRM_MOBILITY_JS_HTML.replace("'/api/firm", f"'{REMINDER_BACKEND_BASE_URL}/firm")
+
 
 def _mobility_covered_slugs() -> set[str]:
     """State slugs with a verified mobility rule, read from the SAME file the
@@ -13759,6 +13842,33 @@ def _mobility_covered_slugs() -> set[str]:
         for r in data.get("records", [])
         if isinstance(r, dict) and isinstance(r.get("state_slug"), str)
     }
+
+
+def _firm_mobility_covered_slugs() -> set[str]:
+    """State slugs with a verified FIRM-level registration rule (roadmap
+    #318), read from the SAME file the Worker imports
+    (`worker/src/firm_mobility_rules.json`) -- same "read the Worker's own
+    data file rather than a second hand-kept list" reasoning as
+    _mobility_covered_slugs() above. That file's dataset is already keyed
+    by this repo's own canonical slugs (the "dc" vs "district-of-columbia"
+    drift _mobility_covered_slugs() had to alias-translate for the
+    individual dataset was instead fixed AT THE SOURCE when this file was
+    created -- confirmed via a direct diff against cpa_deadlines.json's own
+    55-slug set -- so no alias table is needed here.
+
+    A missing/unreadable file yields an EMPTY set, same deliberately-safe
+    direction as _mobility_covered_slugs(): a checker offering nothing is
+    obviously broken and gets fixed; one offering everything looks fine
+    while quietly returning not_verified for all of it.
+    """
+    path = pathlib.Path(__file__).resolve().parent / "worker" / "src" / "firm_mobility_rules.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    if not isinstance(data, dict):
+        return set()
+    return {slug for slug in data if isinstance(slug, str)}
 
 
 def _dashboard_sidebar_html(active: str, tabs_live_here: bool) -> str:
@@ -13933,6 +14043,27 @@ def build_firm_mobility_page(by_slug: dict[str, list[dict]]) -> str:
         "list grows slowly on purpose."
     )
 
+    # Roadmap #318 (2026-08-09): the FIRM-level registration panel below --
+    # a separate coverage list from the individual one above, since it's a
+    # separate dataset/question (see firm_mobility.ts's own module
+    # docstring for why). Same covered/disabled-uncovered rendering
+    # convention as the individual target select just above.
+    firm_covered_slugs = _firm_mobility_covered_slugs()
+    firm_covered = [s for s in all_slugs if s in firm_covered_slugs]
+    firm_uncovered = [s for s in all_slugs if s not in firm_covered_slugs]
+    firm_target_state_options = "\n".join(_opt(s) for s in firm_covered)
+    if firm_uncovered:
+        firm_target_state_options += (
+            '\n<optgroup label="Not yet verified -- we will not guess" disabled>\n'
+            + "\n".join(_opt(s, disabled=True) for s in firm_uncovered)
+            + "\n</optgroup>"
+        )
+    firm_coverage_line = (
+        f"Verified in <strong>{len(firm_covered)} of {len(all_slugs)}</strong> jurisdictions so far. "
+        "Separate dataset from the individual check above -- a state can be verified for one and not "
+        "yet the other."
+    )
+
     sidebar_html = _dashboard_sidebar_html("mobility", tabs_live_here=False)
     body = f"""<div class="dr-dash-shell">
   {sidebar_html}
@@ -14004,6 +14135,55 @@ first? Every answer is tied to the rule it came from.</p>
 
 <div id="dr-mobility-result" hidden></div>
 
+<hr style="margin:2.5rem 0;">
+
+<h1>Does your firm need to register here?</h1>
+<p class="subhead">A different question from the check above: does your FIRM itself need to register
+in a state where it has no office, for attest work you're doing there? Firms sometimes assume that if
+the individual CPA has practice privilege, the firm is covered too &mdash; the firm often still has its
+own separate registration requirement, and that gap is one of the most common real-world mobility
+mistakes.</p>
+
+<div class="dr-mobility-callout">
+  <strong>Informational, not legal advice.</strong> Same posture as the check above &mdash; every answer
+  is tied to the rule it came from, and where we haven't verified something against a primary source,
+  we say so instead of guessing. Confirm with the state board before you rely on any answer here.
+</div>
+
+<div class="signup-form">
+  <form id="dr-firm-mobility-form">
+    <div class="signup-form-row">
+      <div>
+        <label for="dr-firmmob-home">Your firm's home state</label>
+        <select id="dr-firmmob-home" name="firm_home_state_slug" required>
+          <option value="">Select state</option>
+          {home_state_options}
+        </select>
+      </div>
+      <div>
+        <label for="dr-firmmob-target">Target state (where the attest work happens)</label>
+        <select id="dr-firmmob-target" name="target_state_slug" required>
+          <option value="">Select state</option>
+          {firm_target_state_options}
+        </select>
+        <p class="field-hint">{firm_coverage_line}</p>
+      </div>
+    </div>
+
+    <label class="dr-mob-check">
+      <input type="checkbox" id="dr-firmmob-office" name="has_physical_office">
+      Your firm has a physical office in the target state
+    </label>
+    <p class="field-hint">A physical office is its own, separate trigger for registration in most
+    states, regardless of service type -- this changes which rule applies.</p>
+
+    <button type="submit">Check firm registration</button>
+  </form>
+  <p id="dr-firm-mobility-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
+</div>
+
+<div id="dr-firm-mobility-result" hidden></div>
+
 <p class="how-it-works"><a href="/firm-dashboard/">&larr; Back to your dashboard</a></p>
   </div>
 </div>
@@ -14054,6 +14234,7 @@ first? Every answer is tied to the rule it came from.</p>
 </script>
 
 {_MOBILITY_JS_HTML}
+{_FIRM_MOBILITY_JS_HTML}
 """
     return page_shell(
         f"Practice-Privilege Check — {SITE_NAME}",

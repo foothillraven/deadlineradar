@@ -109,6 +109,7 @@ import {
   RATE_LIMIT_ROADMAP_NOTIFY_SIGNUP,
   RATE_LIMIT_FIRM_LEAD,
   RATE_LIMIT_MOBILITY_CHECK,
+  RATE_LIMIT_FIRM_MOBILITY_CHECK,
   RATE_LIMIT_MOBILITY_CHECK_BATCH,
   RATE_LIMIT_MOBILITY_CHECK_UNMETERED,
   RATE_LIMIT_FIRM_LICENSE_CREATE,
@@ -230,6 +231,8 @@ import {
   normalizeRuleRow,
   type MobilityRuleRow,
 } from "./mobility";
+import firmMobilityRulesData from "./firm_mobility_rules.json";
+import { evaluateFirmMobility, normalizeFirmRuleRow, type FirmMobilityRuleRow } from "./firm_mobility";
 import { checkPaidFeatureAccess, paidFeatureDenialMessage } from "./entitlements";
 import { firmTierByPlanTier, firmTierForSeatCount, seatCapForFirmTier, stripePriceIdForTier } from "./tiers";
 import {
@@ -7318,6 +7321,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
       }
+      if (url.pathname === "/firm/mobility/firm-coverage") {
+        try {
+          return await handleFirmMobilityCoverage(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
       if (url.pathname === "/firm/cpe") {
         try {
           return await handleCpeEntriesList(request, env);
@@ -7751,6 +7761,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/mobility/check") {
         try {
           return await handleMobilityCheck(request, env, ip);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
+      if (url.pathname === "/firm/mobility/firm-check") {
+        try {
+          return await handleFirmMobilityFirmCheck(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -8286,6 +8304,49 @@ async function handleMobilityCoverage(request: Request, env: Env): Promise<Respo
     covered,
     covered_count: covered.length,
     as_of: (mobilityRulesData._meta as Record<string, unknown> | undefined)?.as_of_date ?? null,
+    disclaimer: MOBILITY_DISCLAIMER,
+  });
+}
+
+/** Rules are looked up by slug. Built once at module load, same reasoning
+ * as MOBILITY_RULES_BY_SLUG above -- the dataset is static and small.
+ * firm_mobility_rules.json is keyed by slug directly (no `records` array
+ * wrapper, unlike mobility_rules.json), so this iterates Object.values(). */
+const FIRM_MOBILITY_RULES_BY_SLUG: Record<string, FirmMobilityRuleRow> = Object.create(null);
+for (const raw of Object.values(firmMobilityRulesData as Record<string, unknown>)) {
+  const row = normalizeFirmRuleRow(raw);
+  if (row) FIRM_MOBILITY_RULES_BY_SLUG[row.stateSlug] = row;
+}
+
+/**
+ * GET /firm/mobility/firm-coverage -- which states we hold verified
+ * FIRM-level (not individual) registration rules for. Same "be honest
+ * about coverage before letting a firm run a check" and pay-gating
+ * reasoning as handleMobilityCoverage() above -- deliberately a SEPARATE
+ * endpoint/dataset rather than folded into that one, since roadmap #318's
+ * own framing is "separate from individual mobility... this was a real
+ * gap," a structurally different question with its own citations.
+ */
+async function handleFirmMobilityCoverage(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionAndPaidTier(request, env);
+  if (session instanceof Response) return session;
+
+  const rows = Object.values(FIRM_MOBILITY_RULES_BY_SLUG);
+  const covered = rows.map((r) => ({
+    state_slug: r.stateSlug,
+    state: r.state,
+    confidence: r.confidence,
+    verified_date: r.verifiedDate,
+  }));
+  const asOf = rows.reduce<string | null>((latest, r) => {
+    if (!r.verifiedDate) return latest;
+    if (!latest || r.verifiedDate > latest) return r.verifiedDate;
+    return latest;
+  }, null);
+  return jsonResponse(200, {
+    covered,
+    covered_count: covered.length,
+    as_of: asOf,
     disclaimer: MOBILITY_DISCLAIMER,
   });
 }
@@ -9551,6 +9612,85 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
     individual: result.individual,
     firm: result.firm,
     disclaimer: MOBILITY_DISCLAIMER,
+  });
+}
+
+/**
+ * POST /firm/mobility/firm-check -- roadmap #318 (2026-08-09). Runs the
+ * FIRM-level (not individual) registration determination -- see
+ * firm_mobility.ts's own module docstring for why this is a structurally
+ * separate question from handleMobilityCheck() above, not a mode of it.
+ *
+ * Body: { firm_home_state_slug, target_state_slug, has_physical_office }.
+ * `has_physical_office` is the firm's own self-attestation, same posture as
+ * the individual check's license/equivalence booleans -- an input to the
+ * determination, never a fact we assert. `firm_peer_review_due_date` is
+ * DELIBERATELY NOT read from the request body -- it comes from the firm's
+ * own stored `peer_review_due_date` (session.firm), server-side, so a
+ * client can never claim a peer-review date it doesn't actually have on
+ * file with us.
+ */
+async function handleFirmMobilityFirmCheck(request: Request, env: Env): Promise<Response> {
+  // Entitlement BEFORE any work, same reasoning as handleMobilityCheck().
+  const session = await requireFirmSessionAndPaidTier(request, env);
+  if (session instanceof Response) return session;
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_mobility_check", RATE_LIMIT_FIRM_MOBILITY_CHECK);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many requests. Please try again later." });
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return jsonResponse(400, { error: "Request too large or empty." });
+  }
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  const firmHomeStateSlug = typeof body.firm_home_state_slug === "string" ? body.firm_home_state_slug : "";
+  const targetStateSlug = typeof body.target_state_slug === "string" ? body.target_state_slug : "";
+
+  // Slugs are validated against the real jurisdiction list, not merely
+  // sanitised -- an unknown slug must be a 400, never a silent lookup miss
+  // that renders as "not verified" and looks like a data gap. Same
+  // discipline as handleMobilityCheck()'s own validation.
+  if (!stateNameForSlug(firmHomeStateSlug) || !stateNameForSlug(targetStateSlug)) {
+    return jsonResponse(400, { error: "Please choose both your firm's home state and a target state." });
+  }
+
+  const finding = evaluateFirmMobility(
+    {
+      firmHomeStateSlug,
+      targetStateSlug,
+      hasPhysicalOfficeInTargetState: body.has_physical_office === true,
+    },
+    FIRM_MOBILITY_RULES_BY_SLUG[targetStateSlug] ?? null,
+    session.firm.peer_review_due_date
+  );
+
+  return jsonResponse(200, {
+    firm_home_state: stateNameForSlug(firmHomeStateSlug),
+    target_state: stateNameForSlug(targetStateSlug),
+    verdict: finding.verdict,
+    summary: finding.summary,
+    requirements: finding.requirements,
+    citation: finding.citation,
+    citation_url: finding.citationUrl,
+    verified_date: finding.verifiedDate,
+    confidence: finding.confidence,
+    disclaimer: finding.disclaimer,
   });
 }
 

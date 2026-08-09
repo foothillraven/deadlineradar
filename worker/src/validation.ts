@@ -887,6 +887,14 @@ export const RATE_LIMIT_DEBUG_REMINDER_PASS: RateLimit = { max: 5, windowSeconds
  * authenticated FIRM ID rather than IP -- see handleMobilityCheck. */
 export const RATE_LIMIT_MOBILITY_CHECK: RateLimit = { max: 120, windowSeconds: 3600 };
 
+/** Roadmap #318 (2026-08-09, firm-level registration check) -- own bucket,
+ * not shared with RATE_LIMIT_MOBILITY_CHECK: a genuinely different query
+ * shape (one firm-home-state/target-state/office pair, not per-staff), so
+ * mixing them would let firm-level harvesting silently eat an individual
+ * check's budget or vice versa. Same "premium feature, bound automated
+ * harvesting, key on the authenticated FIRM" reasoning. */
+export const RATE_LIMIT_FIRM_MOBILITY_CHECK: RateLimit = { max: 120, windowSeconds: 3600 };
+
 /** POST /firm/mobility/check-batch (2026-08-03, dashboard Map redesign) --
  * one call does the work of up to ~50 single checks (every covered target
  * state for one person), so it gets its own, tighter bucket rather than

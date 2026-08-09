@@ -2813,8 +2813,34 @@ async function handleFirmAccountDelete(request: Request, env: Env): Promise<Resp
   // right. Applies regardless of whether the firm had already clicked
   // "Cancel" first -- deleting is what triggers the refund, not a prior
   // cancellation state.
-  let refundCents: number | null = null;
+  // AuditLab BILL-5 (HIGH, 2026-08-08): cancellation and refund used to
+  // share one try, with cancellation sequenced AFTER the refund -- so any
+  // refund failure (an ordinary Stripe 5xx, a network blip, a PaymentIntent
+  // already refunded by a prior partial refund/chargeback) aborted before
+  // cancelSubscriptionImmediately() ever ran. Access was already gone
+  // (status='deleted' above), but the Stripe subscription stayed ACTIVE and
+  // billed again next period -- a deleted, inaccessible firm getting
+  // charged, discovered by the cardholder as an unauthorized-looking charge
+  // rather than a support ticket. Cancel FIRST now: it's idempotent, needs
+  // nothing from the refund, and is the operation that actually stops
+  // ongoing harm. Each step gets its OWN try/catch so a refund failure can
+  // never again prevent cancellation, and refundCents distinguishes
+  // "nothing owed" (null) from "a refund was owed but the attempt itself
+  // failed" ("failed") -- see buildAccountDeletionNotificationEmail's own
+  // docstring for why that distinction is the whole point of this email.
+  let refundCents: number | null | "failed" = null;
   if (env.STRIPE_SECRET_KEY && firm.stripe_subscription_id) {
+    try {
+      await cancelSubscriptionImmediately(env.STRIPE_SECRET_KEY, firm.stripe_subscription_id);
+    } catch {
+      // Non-fatal -- see the block comment above. The notification email
+      // below still fires and (via refundCents) signals reconciliation is
+      // needed whenever the REFUND leg below also has trouble; a
+      // cancellation-only failure with a clean refund is rarer and not
+      // separately signaled here, matching the original design's own
+      // "one notification, human reconciles" posture -- not a new gap.
+    }
+
     try {
       const invoice = await getLatestInvoiceForSubscription(env.STRIPE_SECRET_KEY, firm.stripe_subscription_id);
       if (invoice && invoice.paymentIntentId && invoice.amountPaid > 0) {
@@ -2825,13 +2851,12 @@ async function handleFirmAccountDelete(request: Request, env: Env): Promise<Resp
           refundCents = proratedCents;
         }
       }
-      await cancelSubscriptionImmediately(env.STRIPE_SECRET_KEY, firm.stripe_subscription_id);
     } catch {
-      // Stripe outage must not block account deletion -- access is already
-      // gone via status='deleted' regardless of what Stripe billing does.
-      // A failure here (refund OR cancellation) needs a human to reconcile
-      // -- the internal notification email below fires regardless of this
-      // try/catch and is the detection signal for that.
+      // A refund that was owed but failed -- distinct from "nothing owed"
+      // (null). Cancellation above already ran regardless, so ongoing
+      // billing harm is stopped either way; this only means the prorated
+      // refund itself needs manual reconciliation.
+      refundCents = "failed";
     }
   }
 

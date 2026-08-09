@@ -86,9 +86,8 @@ describe("store.setSubscriberNotificationMode / listDigestEligibleEmails / advan
     expect(theirRow?.notification_mode).toBe(store.NOTIFICATION_MODE_IMMEDIATE);
   });
 
-  it("listDigestEligibleEmails: only confirmed digest-mode emails whose window is open (null or <= today)", async () => {
+  it("listDigestEligibleEmails: every confirmed digest-mode email, regardless of window state (AuditLab DIGEST-1)", async () => {
     const today = new Date(Date.UTC(2027, 0, 15));
-    const todayIso = today.toISOString().slice(0, 10);
 
     const neverSent = `digestelig-never-${Date.now()}@example.com`;
     const windowOpen = `digestelig-open-${Date.now()}@example.com`;
@@ -106,12 +105,15 @@ describe("store.setSubscriberNotificationMode / listDigestEligibleEmails / advan
     // immediateMode stays at the default -- never opted into digest.
 
     await store.advanceDigestWindow(env.DB, store.normalizeEmail(windowOpen), isoDaysFromUtcMidnight(today, -1));
+    // Deliberately in the FUTURE -- this must still come back. The window
+    // no longer gates membership; runDigestPass() itself decides whether
+    // an item can bypass a still-closed window for urgency.
     await store.advanceDigestWindow(env.DB, store.normalizeEmail(windowFuture), isoDaysFromUtcMidnight(today, 3));
 
-    const eligible = await store.listDigestEligibleEmails(env.DB, todayIso, 200);
+    const eligible = await store.listDigestEligibleEmails(env.DB, 200);
     expect(eligible).toContain(store.normalizeEmail(neverSent));
     expect(eligible).toContain(store.normalizeEmail(windowOpen));
-    expect(eligible).not.toContain(store.normalizeEmail(windowFuture));
+    expect(eligible).toContain(store.normalizeEmail(windowFuture));
     expect(eligible).not.toContain(store.normalizeEmail(immediateMode));
   });
 
@@ -262,6 +264,41 @@ describe("runDigestPass", () => {
     expect(targetBody).toContain("Ohio");
     row = (await store.listSubscriberLicenses(env.DB, email))[0];
     expect(JSON.parse(row!.reminders_sent)).toContain(30);
+  });
+
+  it("AuditLab DIGEST-1: an URGENT threshold arriving mid-window is not delayed past its own deadline", async () => {
+    const { runDigestPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(3500);
+    const email = `digest-urgent-${Date.now()}@example.com`;
+    // Deadline TOMORROW -- the 1-day threshold is the most urgent tier.
+    await seedUserDate(email, "ohio", isoDaysFromUtcMidnight(asOf, 1));
+    await store.setSubscriberNotificationMode(env.DB, store.normalizeEmail(email), store.NOTIFICATION_MODE_DIGEST);
+    // Window doesn't reopen for 6 more days -- if the window still gated
+    // eligibility, this item would wait until after its own deadline.
+    await store.advanceDigestWindow(env.DB, store.normalizeEmail(email), isoDaysFromUtcMidnight(asOf, 6));
+
+    const target = store.normalizeEmail(email);
+    const sentTo: string[] = [];
+    await runDigestPass(env, { asOf, send: async (toEmail) => { sentTo.push(toEmail); return true; } });
+    expect(sentTo).toContain(target);
+    const row = (await store.listSubscriberLicenses(env.DB, email))[0];
+    expect(JSON.parse(row!.reminders_sent)).toContain(1);
+  });
+
+  it("a non-urgent (7-day) threshold still waits for a closed window, even though the query now returns the email", async () => {
+    const { runDigestPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(3600);
+    const email = `digest-nonurgent-${Date.now()}@example.com`;
+    await seedUserDate(email, "ohio", isoDaysFromUtcMidnight(asOf, 7));
+    await store.setSubscriberNotificationMode(env.DB, store.normalizeEmail(email), store.NOTIFICATION_MODE_DIGEST);
+    await store.advanceDigestWindow(env.DB, store.normalizeEmail(email), isoDaysFromUtcMidnight(asOf, 6));
+
+    const target = store.normalizeEmail(email);
+    const sentTo: string[] = [];
+    await runDigestPass(env, { asOf, send: async (toEmail) => { sentTo.push(toEmail); return true; } });
+    expect(sentTo).not.toContain(target);
+    const row = (await store.listSubscriberLicenses(env.DB, email))[0];
+    expect(row?.reminders_sent).toBe("[]"); // released, not stranded claimed-but-unsent
   });
 
   it("a non-digest subscriber is unaffected by runDigestPass and still handled by runReminderPass", async () => {

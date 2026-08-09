@@ -1675,15 +1675,29 @@ export function buildAccountDeletionNotificationEmail(details: {
   adminEmail: string;
   reason: string | null;
   detail: string | null;
-  /** Task #32 (2026-08-06). Cents, or null when no refund applied (no
-   * subscription, a $0 invoice, or the proration rounded to $0). */
-  refundCents: number | null;
+  /**
+   * AuditLab BILL-5 (HIGH, 2026-08-08): `"failed"` is a DISTINCT state from
+   * `null` -- before this fix, a refund attempt that threw (Stripe 5xx, an
+   * already-refunded PaymentIntent, a network blip) left this `null`,
+   * rendering byte-identical to the three legitimate no-refund-owed cases
+   * (no subscription / `amountPaid <= 0` / `proratedCents <= 0`). The one
+   * signal meant to flag "a human must reconcile this" was indistinguishable
+   * from the common normal case, so nobody would ever look. Cents, `null`
+   * when genuinely no refund was owed, or `"failed"` when a refund SHOULD
+   * have been attempted but the attempt itself threw.
+   */
+  refundCents: number | null | "failed";
 }): BuiltEmail {
   const safeFirmName = details.firmName.replace(/[\r\n]+/g, " ");
   const safeEmail = details.adminEmail.replace(/[\r\n]+/g, " ");
   const safeDetail = details.detail ? details.detail.replace(/[\r\n]+/g, " ") : null;
   const subject = `Firm deleted their account: ${safeFirmName}`;
-  const refundLine = details.refundCents !== null ? `$${(details.refundCents / 100).toFixed(2)} (prorated, unused time)` : "(none)";
+  const refundLine =
+    details.refundCents === "failed"
+      ? "REFUND FAILED -- reconcile manually (Stripe error during deletion, subscription cancellation was attempted independently)"
+      : details.refundCents !== null
+        ? `$${(details.refundCents / 100).toFixed(2)} (prorated, unused time)`
+        : "(none)";
 
   const textBody =
     `Firm: ${details.firmName}\n` +

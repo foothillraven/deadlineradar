@@ -77,6 +77,14 @@ export const ESCALATION_THRESHOLDS_DAYS = [1, 3, 7, 14, 30, 60];
 const GRACE_PERIOD_PAST_DEADLINE_DAYS = 3;
 const NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS = 14;
 
+// AuditLab DIGEST-1 (2026-08-09): a threshold at or below this many days
+// remaining bypasses a still-closed digest window rather than waiting for
+// it to reopen -- otherwise a 1- or 3-day item claimed mid-window can sit
+// unsent until the rolling window catches up, which can land AFTER the
+// deadline it was warning about. Matches ESCALATION_THRESHOLDS_DAYS' own
+// two most urgent tiers.
+const DIGEST_URGENT_BYPASS_THRESHOLD_DAYS = 3;
+
 // Action links point back at the Worker's /api route (Cloudflare delivers the
 // /api prefix; the fetch handler strips it again on the way in).
 const ACTION_BASE_URL = "https://deadline-radar.com/api";
@@ -764,7 +772,7 @@ export async function runDigestPass(env: Env, opts: RunReminderOptions = {}): Pr
 
   const summary: DigestSummary = { emailsChecked: 0, itemsClaimed: 0, digestsSent: 0, errors: [] };
 
-  const emails = await store.listDigestEligibleEmails(env.DB, todayIso, DIGEST_ELIGIBLE_EMAIL_BATCH_SIZE);
+  const emails = await store.listDigestEligibleEmails(env.DB, DIGEST_ELIGIBLE_EMAIL_BATCH_SIZE);
 
   let capReached = false;
   for (const emailNormalized of emails) {
@@ -772,6 +780,13 @@ export async function runDigestPass(env: Env, opts: RunReminderOptions = {}): Pr
     summary.emailsChecked += 1;
 
     const rows = await store.listSubscriberLicenses(env.DB, emailNormalized);
+    // Same value on every row sharing this email -- advanceDigestWindow()
+    // writes it across all of them unconditionally. AuditLab DIGEST-1: this
+    // no longer gates WHICH emails get examined (listDigestEligibleEmails()
+    // returns all digest-mode confirmed emails now); it only gates whether
+    // a NON-urgent item waits below.
+    const digestNextSendAt = rows[0]?.digest_next_send_at ?? null;
+    const windowOpen = !digestNextSendAt || digestNextSendAt <= todayIso;
     const items: DigestItem[] = [];
     const claimedRows: { sub: store.SubscriberRow; threshold: number }[] = [];
     let firstName: string | null = null;
@@ -879,6 +894,20 @@ export async function runDigestPass(env: Env, opts: RunReminderOptions = {}): Pr
       // untouched (whether NULL or already in the future) and retry next
       // pass. No claim was taken above, so there's nothing to revert.
       if (items.length === 0) continue;
+
+      // AuditLab DIGEST-1: the window is still closed and nothing claimed
+      // this pass is urgent enough to bypass it -- release the claims so a
+      // later pass (window reopening, or one of these items escalating to
+      // an urgent tier) re-evaluates them fresh. Same "no send happened,
+      // nothing to revert but the claims themselves" posture as the
+      // cap-reached and send-failed paths below.
+      const hasUrgentItem = items.some((item) => item.threshold <= DIGEST_URGENT_BYPASS_THRESHOLD_DAYS);
+      if (!windowOpen && !hasUrgentItem) {
+        for (const { sub, threshold } of claimedRows) {
+          await store.unclaimReminderThreshold(env.DB, sub.id, threshold);
+        }
+        continue;
+      }
 
       // Circuit breaker right before the send, same "claims above this
       // point are cheap to lose, the send itself is not" placement as

@@ -4377,26 +4377,29 @@ export async function setSubscriberNotificationMode(db: D1Database, emailNormali
   return result.meta.changes ?? 0;
 }
 
-/** Roadmap #24: distinct emails whose digest window is open right now --
- * NULL digest_next_send_at (never sent one yet) or one that's reached its
- * +7-day rolling window (see runDigestPass()'s own docstring for why this
- * is a rolling window off the last SEND, not a fixed day-of-week). Status
- * filtered to confirmed here so a stopped/unconfirmed-only email never
- * shows up as "eligible" with nothing runDigestPass() could actually send
- * to -- the pass itself re-checks each row's own status via
- * listSubscriberLicenses() the same way allConfirmedActive() already does
- * for the immediate pass. */
-export async function listDigestEligibleEmails(db: D1Database, todayIso: string, limit: number): Promise<string[]> {
+/** Roadmap #24: distinct confirmed digest-mode emails, PERIOD -- the
+ * digest_next_send_at window is deliberately NOT filtered here (AuditLab
+ * DIGEST-1, 2026-08-09). The window only decides whether a NON-urgent item
+ * waits for the next digest; it must never gate an item at the most urgent
+ * escalation tier out of being examined at all, or that tier's own deadline
+ * can pass while the item sits unclaimed waiting for a window that reopens
+ * too late. Because the actual deadline is computed in JS from per-state
+ * rules (computeSubscriberDeadline()), not a raw SQL-comparable column,
+ * that open-vs-urgent decision is made per-row inside runDigestPass()
+ * itself, which already has each row's resolved threshold in hand -- this
+ * query's only remaining job is the same confirmed/digest-mode membership
+ * check listSubscriberLicenses() re-verifies row-by-row right after,
+ * mirroring allConfirmedActive()'s own posture for the immediate pass. */
+export async function listDigestEligibleEmails(db: D1Database, limit: number): Promise<string[]> {
   const { results } = await db
     .prepare(
       `SELECT DISTINCT LOWER(TRIM(email)) AS email_normalized
          FROM subscribers
         WHERE status = ?1
           AND notification_mode = ?2
-          AND (digest_next_send_at IS NULL OR digest_next_send_at <= ?3)
-        LIMIT ?4`
+        LIMIT ?3`
     )
-    .bind(STATUS_CONFIRMED, NOTIFICATION_MODE_DIGEST, todayIso, limit)
+    .bind(STATUS_CONFIRMED, NOTIFICATION_MODE_DIGEST, limit)
     .all<{ email_normalized: string }>();
   return (results ?? []).map((r) => r.email_normalized);
 }

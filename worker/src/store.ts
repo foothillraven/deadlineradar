@@ -1827,6 +1827,18 @@ export async function getFirmById(db: D1Database, firmId: string): Promise<FirmR
 }
 
 /**
+ * The one shared, public demo account -- resolved by `demo_locked = 1`,
+ * never by a hardcoded email, so this can never drift from generate.py's
+ * own DEMO_FIRM_EMAIL constant (which already carries its own drift-risk
+ * warning against the real row's actual credential). Used only by
+ * handleDemoLogin() to mint a session with no credential check at all.
+ * `status = 'active'` matches every other login path's own liveness gate. */
+export async function getDemoFirm(db: D1Database): Promise<FirmRow | null> {
+  const row = await db.prepare(`SELECT * FROM firms WHERE demo_locked = 1 AND status = 'active' LIMIT 1`).first<FirmRow>();
+  return row ?? null;
+}
+
+/**
  * Task #3 (2026-08-06, Devin's decision: soft-deactivate immediately + a
  * 30-day hard-delete grace period). Two things happen atomically-in-effect
  * (D1 has no multi-statement transactions from the Workers binding, so this

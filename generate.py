@@ -2404,7 +2404,7 @@ def site_header(
       <a href="/methodology/">How We Verify</a>
       <a href="/blog/">Guides</a>
       <a href="/for-firms/">For Firms</a>
-      <a href="/firm-login/?demo=1">Live Demo</a>
+      <a href="{REMINDER_BACKEND_BASE_URL}/firm/demo-login">Live Demo</a>
       {signin_link_html}<a href="{esc(remind_href)}" class="cta">Get reminders</a>
     </div>
   </div>
@@ -6263,8 +6263,8 @@ personal inbox provides, in one place.</p>
 {_firm_dashboard_mockup_html(by_slug, as_of)}
 
 <p class="how-it-works"><strong>Want to click around for real instead of a mockup?</strong>
-<a href="/firm-login/?demo=1" style="font-weight:600;">Try the live demo &rarr;</a> A shared account,
-seeded with sample staff, credentials pre-filled for you &mdash; no signup needed.</p>
+<a href="{REMINDER_BACKEND_BASE_URL}/firm/demo-login" style="font-weight:600;">Try the live demo &rarr;</a> A shared
+account, seeded with sample staff &mdash; one click, no signup, no credentials to type.</p>
 
 <p><strong>Scope, plainly stated:</strong> the license <em>renewal dates</em> are the part we verify
 against actual state law, the same way we already do for individuals. The dashboard also has a CPE

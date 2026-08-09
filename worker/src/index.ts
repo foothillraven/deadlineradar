@@ -62,6 +62,7 @@ import {
   MAX_INTERNAL_NOTES_LEN,
   RATE_LIMIT_ACTION,
   RATE_LIMIT_FIRM_PASSWORD_LOGIN,
+  RATE_LIMIT_FIRM_DEMO_LOGIN_GLOBAL,
   RATE_LIMIT_FIRM_2FA_VERIFY,
   RATE_LIMIT_FIRM_2FA_VERIFY_ACCOUNT,
   RATE_LIMIT_FIRM_2FA_ENROLL,
@@ -363,6 +364,19 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
     intro: "Click below to finish signing in.",
     button: "Sign in",
   },
+  // Orchestrator escalation (2026-08-09): replaces the old /firm-login/
+  // ?demo=1 password-prefill flow, which Chrome's saved-credential autofill
+  // silently hijacked on submit for any visitor with ANY saved credential
+  // on this domain (their own real account, if they'd ever signed up
+  // before) -- see handleDemoLogin()'s own docstring. No token/credential
+  // involved: this path resolves to the one shared, already-public demo
+  // account (its password is printed on the marketing site) regardless of
+  // who clicks it.
+  "/firm/demo-login": {
+    heading: "View the live demo",
+    intro: "Click below to sign in as the shared demo firm and look around.",
+    button: "View the demo",
+  },
   // Free-tier individual sign-in (2026-07-31). Routed through the same
   // render-then-POST machinery as everything above, for the same reason:
   // corporate mail scanners prefetch links, and a token consumed by a
@@ -428,10 +442,18 @@ const ACTION_CSRF_MAX_AGE_SECONDS = 30 * 60;
  * That is an acceptable line to draw because CSRF only matters where the
  * request GRANTS something. /confirm, /unsubscribe, /renewed and /rearm all
  * require an unguessable per-subscriber token and change only that
- * subscriber's own reminder state; the two login routes below are the only
- * ones that hand the browser a session.
+ * subscriber's own reminder state; the three login routes below are the
+ * only ones that hand the browser a session.
+ *
+ * /firm/demo-login has no token at all -- but it hands out a session just
+ * like the other two, so it needs the SAME defence for the SAME reason: a
+ * bare cross-site GET (an <img> tag, an auto-navigating iframe) could
+ * otherwise silently overwrite a real visitor's dr_firm_session cookie with
+ * the demo account's, signing them out of their own paid account with no
+ * warning. The double-submit nonce below requires an actual same-browser
+ * click on our own rendered confirm page first.
  */
-const ACTION_CSRF_REQUIRED_PATHS = new Set(["/firm/login/verify", "/subscriber/login/verify"]);
+const ACTION_CSRF_REQUIRED_PATHS = new Set(["/firm/login/verify", "/subscriber/login/verify", "/firm/demo-login"]);
 
 function actionCsrfSetCookieHeader(nonce: string, env: Env): string {
   return (
@@ -567,11 +589,14 @@ async function actionConfirmPage(pathname: string, token: string, env: Env): Pro
     pathname === "/firm/login/verify" && tokenPurpose === "password_reset"
       ? "Click below, then choose a new password on the next screen."
       : meta.intro;
+  // /firm/demo-login has no token at all -- the field would just be an
+  // empty, meaningless value for that one path.
+  const tokenFieldHtml = token ? `<input type="hidden" name="token" value="${escapeHtml(token)}">` : "";
   const body =
     `<h1>${escapeHtml(meta.heading)}</h1>` +
     `<p>${escapeHtml(intro)}</p>` +
     `<form method="post" action="${escapeHtml(action)}">` +
-    `<input type="hidden" name="token" value="${escapeHtml(token)}">` +
+    tokenFieldHtml +
     csrfFieldHtml +
     passwordFieldHtml +
     `<button type="submit">${escapeHtml(meta.button)}</button>` +
@@ -2039,6 +2064,64 @@ async function finishFirmLoginVerify(
 }
 
 /**
+ * POST /firm/demo-login -- mints a session directly for the shared public
+ * demo account. No password, no email round-trip, no token: routed through
+ * the same GET-render/POST-act, CSRF-nonce-gated machinery as
+ * /firm/login/verify just above (see ACTION_PAGES/ACTION_CSRF_REQUIRED_PATHS)
+ * because it hands out a session exactly like that route does.
+ *
+ * Orchestrator escalation (2026-08-09), reproduced live: the old
+ * /firm-login/?demo=1 flow pre-filled the demo password into a real
+ * password field, and Chrome's saved-credential autofill silently
+ * overwrote it with a saved credential on click -- for ANY visitor who had
+ * ever saved a password on this domain (their own real account, if they'd
+ * signed up before), the demo button submitted THEIR credential, not the
+ * demo's. The "email me a link instead" fallback worked, but nobody on the
+ * team can read demo@deadline-radar.com's inbox, so even that path only
+ * verifies email delivery, not an actual working session.
+ *
+ * This route has no credential to intercept: demo_locked already blocks
+ * every consequential action for this firm (password changes, SSO linking,
+ * billing, referral rewards -- see demo_locked's own call sites throughout
+ * this file), and the account's password is already printed on the public
+ * marketing site, so resolving straight to its row grants nothing an
+ * anonymous visitor couldn't already get by typing that published password
+ * in themselves. getDemoFirm() resolves by demo_locked, not a hardcoded
+ * email, so this can never drift from generate.py's own DEMO_FIRM_EMAIL
+ * constant.
+ *
+ * Adversarial review (2026-08-09, model: opus): the old password flow's
+ * real throughput protection wasn't just Turnstile -- it was ALSO a
+ * 10/600s cap keyed on the demo account itself, GLOBAL across every IP
+ * (handleFirmPasswordLogin's own account-keyed bucket). This route has no
+ * credential for such a bucket to hang off of, so RATE_LIMIT_FIRM_DEMO_LOGIN_GLOBAL
+ * applies that same real cap directly, keyed on a fixed string (there is
+ * exactly one demo account) -- on top of, not instead of, the generic
+ * per-IP RATE_LIMIT_ACTION every action-confirm path already shares.
+ * Bounds both session-table growth and the resource-exhaustion class this
+ * review also found downstream (handleFirmSignOutOtherDevices's own
+ * comment).
+ */
+async function handleDemoLogin(env: Env): Promise<Response> {
+  const globalAllowed = await checkRateLimit(env.DB, "demo-login", "firm_demo_login_global", RATE_LIMIT_FIRM_DEMO_LOGIN_GLOBAL);
+  if (!globalAllowed) {
+    return errorPage(429, "The live demo is getting a lot of traffic right now. Please try again in a few minutes.");
+  }
+  const firm = await store.getDemoFirm(env.DB);
+  if (!firm) {
+    return errorPage(404, "The live demo isn't set up right now. Sorry about that -- get in touch and we'll help you look around another way.");
+  }
+  const { rawSessionToken } = await store.createSession(env.DB, firm.id);
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-dashboard/`,
+      "Set-Cookie": firmSessionSetCookieHeader(rawSessionToken, env),
+    },
+  });
+}
+
+/**
  * POST /firm/2fa/verify -- roadmap #53. Body: pending (the token minted by
  * handleFirmPasswordLogin()/handleFirmLoginVerify() when 2FA is enrolled),
  * code (a 6-digit TOTP code or a 10-character backup code). On success,
@@ -2642,6 +2725,17 @@ async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Re
 
   const firm = await store.getFirmById(env.DB, session.firmId);
   if (!firm) return jsonResponse(404, { error: "Not found." });
+  // Adversarial review (2026-08-09, model: opus, /firm/demo-login review):
+  // this was a real gap, not a theoretical one -- cancel/resume just below
+  // already refuse a demo_locked firm, but checkout itself never did.
+  // Completing a real Stripe Checkout Session with metadata.firm_id set to
+  // the shared demo account binds a stranger's real card to it. Same
+  // posture as every other consequential-action refusal for this account
+  // (billing, referral rewards, password/SSO/2FA changes -- see
+  // demo_locked's own call sites throughout this file).
+  if (firm.demo_locked) {
+    return jsonResponse(400, { error: "Billing isn't available on this shared demo account." });
+  }
 
   // The firm's LIVE roster count at click-time -- never trusted from the
   // request -- so a client can never buy a cheaper tier than its real
@@ -5395,6 +5489,16 @@ async function handleFirmSlackConnectStart(request: Request, env: Env): Promise<
   const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
+  // Adversarial review (2026-08-09, model: opus, /firm/demo-login review):
+  // connecting Slack would store a REAL, attacker-controlled webhook URL
+  // (a live bearer credential -- see AuditLab SLACK-1's own comment below)
+  // against the shared demo account, letting a stranger receive whatever
+  // the demo could be made to post. Same "every consequential action
+  // blocked" posture as billing/SSO/2FA already have for this account.
+  if (session.firm.demo_locked) {
+    return errorPage(400, "Slack isn't available on this shared demo account.");
+  }
+
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_slack_connect", RATE_LIMIT_FIRM_SLACK_CONNECT);
   if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
 
@@ -5432,6 +5536,12 @@ async function handleFirmSlackConnectCallback(request: Request, env: Env): Promi
   }
   const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
+
+  // Defense-in-depth alongside the same check in handleFirmSlackConnectStart
+  // above -- this is the step that actually PERSISTS the webhook credential.
+  if (session.firm.demo_locked) {
+    return redirectTo(`${dashboardUrl}?slack_connect_failed=not_configured`);
+  }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_slack_connect", RATE_LIMIT_FIRM_SLACK_CONNECT);
   if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
@@ -5502,6 +5612,14 @@ async function handleFirmSlackDisconnect(request: Request, env: Env): Promise<Re
     return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
   }
 
+  // Adversarial review (2026-08-09, model: opus, /firm/demo-login review):
+  // the shared demo account never has a real Slack connection to begin
+  // with (connect is refused above), but this closes the class
+  // consistently rather than relying on that alone.
+  if (session.firm.demo_locked) {
+    return jsonResponse(400, { error: "This isn't available on the shared demo account." });
+  }
+
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_slack_disconnect", RATE_LIMIT_FIRM_SLACK_DISCONNECT);
   if (!allowed) {
     return jsonResponse(429, { error: "Too many changes. Please try again later." });
@@ -5536,6 +5654,14 @@ async function handleFirmTeamsWebhookSet(request: Request, env: Env): Promise<Re
 
   if (!originAllowed(request, env)) {
     return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  // Adversarial review (2026-08-09, model: opus, /firm/demo-login review):
+  // same "real bearer credential, shared public account" reasoning as
+  // Slack connect above -- a manually-pasted Teams webhook is just as real
+  // a credential as an OAuth one.
+  if (session.firm.demo_locked) {
+    return jsonResponse(400, { error: "This isn't available on the shared demo account." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_teams_webhook_set", RATE_LIMIT_FIRM_TEAMS_SET);
@@ -7263,6 +7389,11 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (ACTION_PATHS.has(url.pathname)) {
         const allowed = await checkRateLimit(env.DB, ip, "action", RATE_LIMIT_ACTION);
         if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
+        // /firm/demo-login is the one action path with no token to check --
+        // see its own ACTION_PAGES comment.
+        if (url.pathname === "/firm/demo-login") {
+          return await actionConfirmPage(url.pathname, "", env);
+        }
         const token = url.searchParams.get("token");
         if (!token) return errorPage(400, "That link is missing its token.");
         return await actionConfirmPage(url.pathname, token, env);
@@ -7869,6 +8000,8 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
               return await handleSubscriberLoginVerify(env, token);
             case "/roadmap/notify-confirm":
               return await handleRoadmapNotifyConfirm(env, token);
+            case "/firm/demo-login":
+              return await handleDemoLogin(env);
           }
         } catch {
           return errorPage(400, "Something went wrong processing that request.");
@@ -8702,6 +8835,24 @@ async function handleFirmSignOutOtherDevices(request: Request, env: Env): Promis
     return jsonResponse(429, { error: "Too many attempts. Please try again later." });
   }
 
+  // Adversarial review (2026-08-09, model: opus, /firm/demo-login review):
+  // real gap, not theoretical. Same "many people all need the same sign-in
+  // to keep working" reasoning as 2FA enrollment's own demo_locked refusal
+  // -- this route is the inverse of that: it SIGNS OUT every other session
+  // on the shared account, which is directly hostile to a demo's whole
+  // purpose (many concurrent visitors). It also amplified a resource-
+  // exhaustion path: this route's rate limit is keyed per-SESSION (see this
+  // function's own docstring on why), and /firm/demo-login made minting a
+  // fresh session for this one firm free of any credential/Turnstile check
+  // -- so without this gate, that per-session limit reset on every new
+  // demo login, letting an anonymous visitor repeatedly burn the real
+  // send-email side effect below against the SAME global daily send cap
+  // every legitimate reminder and login link shares.
+  const signoutFirm = await store.getFirmById(env.DB, session.firmId);
+  if (signoutFirm?.demo_locked) {
+    return jsonResponse(400, { error: "This isn't available on the shared demo account." });
+  }
+
   // migration 0045: this member's own other sessions only -- see
   // deleteOtherSessionsForMember()'s own docstring for why the firm-wide
   // version would wrongly sign out teammates who did nothing.
@@ -8714,7 +8865,6 @@ async function handleFirmSignOutOtherDevices(request: Request, env: Env): Promis
     // part of the door.
     await store.invalidateOutstandingLoginTokensForMember(env.DB, session.memberId);
 
-    const firm = await store.getFirmById(env.DB, session.firmId);
     const member = await store.getFirmMemberById(env.DB, session.firmId, session.memberId);
     // Best-effort and never allowed to fail the request -- see
     // handleFirmPasswordSet's own comment on the identical pattern. This is
@@ -8722,11 +8872,11 @@ async function handleFirmSignOutOtherDevices(request: Request, env: Env): Promis
     // stolen session rather than the real member, this email is the only
     // signal they ever get. Sent to the MEMBER whose own sessions were
     // ended, not the firm's primary contact.
-    if (firm && member && env.SENDGRID_API_KEY) {
+    if (signoutFirm && member && env.SENDGRID_API_KEY) {
       try {
         const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
         if (underCap) {
-          const built = buildFirmSessionsEndedEmail(firm.name, new Date().toISOString(), endedSessions, member.name);
+          const built = buildFirmSessionsEndedEmail(signoutFirm.name, new Date().toISOString(), endedSessions, member.name);
           await sendViaSendGrid(env.SENDGRID_API_KEY, member.email, built, env.EMAIL_ALLOWLIST);
         }
       } catch {
@@ -9235,6 +9385,14 @@ async function handleOauthIdentityDelete(request: Request, env: Env, id: string)
   const allowed = await checkRateLimit(env.DB, session.firmId, "oauth_identity_delete", RATE_LIMIT_OAUTH_IDENTITY_DELETE);
   if (!allowed) {
     return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
+  // Adversarial review (2026-08-09, model: opus, /firm/demo-login review):
+  // SSO LINKING already refuses a demo_locked firm (Task #27) -- unlinking
+  // was the missing other half of the same class, letting any visitor
+  // mutate the shared demo account's auth configuration.
+  if (session.firm.demo_locked) {
+    return jsonResponse(400, { error: "This isn't available on the shared demo account." });
   }
 
   const removed = await store.unlinkOauthIdentity(env.DB, session.firmId, id);

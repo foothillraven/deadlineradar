@@ -746,6 +746,19 @@ export const RATE_LIMIT_MOBILITY_COMPLETION_DELETE: RateLimit = { max: 100, wind
  */
 export const RATE_LIMIT_FIRM_PASSWORD_LOGIN: RateLimit = { max: 10, windowSeconds: 600 };
 
+// POST /firm/demo-login (2026-08-09, adversarial review: /firm/demo-login
+// replaces the old password-prefill demo flow, which required BOTH
+// Turnstile and this same 10/600s cap keyed on the demo account's own
+// email -- a real, GLOBAL-across-every-IP throttle on how fast that one
+// shared session can be re-minted. The new route has no credential to
+// check and so no natural place for that account-keyed bucket to hang off
+// of; this is that same cap, applied directly, keyed on a fixed string
+// since there is exactly one demo account. Distinct from the generic
+// RATE_LIMIT_ACTION bucket every other action-confirm path shares (30/600s
+// per IP only) -- that alone would let a distributed abuser mint far more
+// sessions per window than the credentialed flow ever allowed.
+export const RATE_LIMIT_FIRM_DEMO_LOGIN_GLOBAL: RateLimit = { max: 10, windowSeconds: 600 };
+
 // POST /firm/2fa/verify (roadmap #53, 2026-08-07) -- same dual-bucket shape
 // as RATE_LIMIT_FIRM_PASSWORD_LOGIN (per-IP here, per-member below): a
 // 6-digit code with a +/-1 step window is ~3-in-1,000,000 per guess, but

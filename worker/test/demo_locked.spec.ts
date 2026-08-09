@@ -16,7 +16,7 @@
  * it -- verified by code review, not a synthetic end-to-end test.
  */
 import { env, SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as store from "../src/store";
 
 const BASE = "https://deadline-radar.com";
@@ -113,5 +113,112 @@ describe("demo_locked firms -- self-serve password change", () => {
       body: JSON.stringify({ new_password: "a rotated passphrase 8" }),
     });
     expect(setResp.status).toBe(200);
+  });
+});
+
+/**
+ * Adversarial review (2026-08-09, model: opus, /firm/demo-login review):
+ * /firm/demo-login made reaching a demo_locked session free of any
+ * credential check -- these five routes were found to be missing the
+ * demo_locked refusal every OTHER consequential action here already has
+ * (password change/reset above, 2FA enrollment, SSO linking). Each test
+ * proves the SPECIFIC gap the review found, not a generic smoke test.
+ */
+describe("demo_locked firms -- the other consequential actions (adversarial-review fix)", () => {
+  async function newFirmWithSession(label: string): Promise<{ id: string; cookie: string }> {
+    const adminEmail = `${label}-${Date.now()}-${Math.floor(performance.now())}@examplefirm.com`;
+    const { id } = await store.createFirm(env.DB, { name: "Demo Gate Test LLC", adminEmail });
+    const { rawSessionToken } = await store.createSession(env.DB, id);
+    return { id, cookie: `dr_firm_session=${rawSessionToken}` };
+  }
+
+  it("POST /firm/billing/checkout refuses a demo_locked firm before ever calling Stripe -- money gap", async () => {
+    const { id, cookie } = await newFirmWithSession("demo-billing");
+    await setDemoLocked(id, true);
+    const worker = (await import("../src/index")).default;
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    try {
+      const resp = await worker.fetch(
+        new Request(`${BASE}/firm/billing/checkout`, {
+          method: "POST",
+          headers: { "content-type": "application/json", Cookie: cookie },
+          body: JSON.stringify({ tier: "firm_starter" }),
+        }),
+        { ...env, STRIPE_SECRET_KEY: "sk_test_x", STRIPE_PRICE_FIRM_STARTER: "price_x" } as never,
+        { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
+      );
+      expect(resp.status).toBe(400);
+      expect(fetchSpy).not.toHaveBeenCalled(); // never reached Stripe at all
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("POST /firm/billing/checkout still works for a non-demo firm -- the gate isn't over-broad", async () => {
+    const { cookie } = await newFirmWithSession("demo-billing-control");
+    const worker = (await import("../src/index")).default;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "cs_x", url: "https://checkout.stripe.com/pay/cs_x" }), { status: 200 })
+    );
+    try {
+      const resp = await worker.fetch(
+        new Request(`${BASE}/firm/billing/checkout`, {
+          method: "POST",
+          headers: { "content-type": "application/json", Cookie: cookie },
+          body: JSON.stringify({ tier: "firm_starter" }),
+        }),
+        { ...env, STRIPE_SECRET_KEY: "sk_test_x", STRIPE_PRICE_FIRM_STARTER: "price_x" } as never,
+        { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
+      );
+      expect(resp.status).toBe(200);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("POST /firm/sign-out-other-devices refuses a demo_locked firm -- closes the resource-exhaustion amplifier", async () => {
+    const { id, cookie } = await newFirmWithSession("demo-signout");
+    await setDemoLocked(id, true);
+    // A second session exists to end, so if the gate failed to fire this
+    // would otherwise proceed and attempt a real SendGrid send.
+    await store.createSession(env.DB, id);
+    const resp = await SELF.fetch(`${BASE}/firm/sign-out-other-devices`, {
+      method: "POST",
+      headers: { Cookie: cookie },
+    });
+    expect(resp.status).toBe(400);
+  });
+
+  it("DELETE /firm/oauth-identities/:id refuses a demo_locked firm", async () => {
+    const { id, cookie } = await newFirmWithSession("demo-oauth-delete");
+    await setDemoLocked(id, true);
+    const resp = await SELF.fetch(`${BASE}/firm/oauth-identities/some-id`, {
+      method: "DELETE",
+      headers: { Cookie: cookie },
+    });
+    expect(resp.status).toBe(400);
+  });
+
+  it("GET /firm/integrations/slack/connect refuses a demo_locked firm before starting the OAuth handshake", async () => {
+    const { id, cookie } = await newFirmWithSession("demo-slack-connect");
+    await setDemoLocked(id, true);
+    const worker = (await import("../src/index")).default;
+    const resp = await worker.fetch(
+      new Request(`${BASE}/firm/integrations/slack/connect`, { headers: { Cookie: cookie } }),
+      { ...env, SLACK_OAUTH_CLIENT_ID: "test-client-id", SLACK_OAUTH_CLIENT_SECRET: "test-secret" } as never,
+      { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
+    );
+    expect(resp.status).toBe(400);
+  });
+
+  it("PATCH /firm/integrations/teams refuses a demo_locked firm from storing a real webhook credential", async () => {
+    const { id, cookie } = await newFirmWithSession("demo-teams");
+    await setDemoLocked(id, true);
+    const resp = await SELF.fetch(`${BASE}/firm/integrations/teams`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", Cookie: cookie },
+      body: JSON.stringify({ webhook_url: "https://prod-01.westus.logic.azure.com:443/workflows/abc" }),
+    });
+    expect(resp.status).toBe(400);
   });
 });

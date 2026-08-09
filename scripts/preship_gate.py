@@ -330,6 +330,70 @@ def check_deadline_currency(data_path: Path) -> list[str]:
     return errors
 
 
+def check_cpe_hours_currency(repo_root: Path) -> list[str]:
+    """AuditLab BADGE-1 (MEDIUM, 2026-08-09): roadmap #47 upgraded the public
+    CPE badge from a bare "Verified" to a dated "Verified 2026-07-15" on 50
+    live pages -- a specific, publicly checkable claim. cpe_hours_staleness_check.py
+    already computes exactly which records are past the 30-day bar, but was
+    wired into preship_gate.py as an advisory only (print_cpe_hours_staleness_advisory()
+    below), same as cpa_deadlines.json's per-citation staleness was before
+    DATE-1 promoted THAT dataset's check_deadline_currency() into a hard
+    gate. Without this, 22 badges were on track to cross 30 days on
+    2026-08-14 with the build still passing -- a dated, predictable failure,
+    not a hypothetical. Same fix shape as DATE-1: promote, don't just print."""
+    sys.path.insert(0, str(repo_root / "scripts"))
+    try:
+        import cpe_hours_staleness_check as chsc
+    except ImportError:
+        return []
+    data_path = repo_root / "data" / "cpe_hours.json"
+    if not data_path.exists():
+        return []
+    data = json.loads(data_path.read_text(encoding="utf-8"))
+    _fresh, stale, unparseable, missing = chsc.collect_stale(data["records"])
+    errors = []
+    for r, age_days in stale:
+        errors.append(
+            f"[BADGE][cpe/{r['id']}] {r.get('state')} -- verified_date={r['verified_date']} is {age_days}d old, "
+            f"past the {chsc.STALENESS_THRESHOLD_DAYS}-day bar the public 'Verified {r['verified_date']}' badge "
+            f"asserts -- re-verify and bump verified_date before shipping"
+        )
+    for r in unparseable:
+        errors.append(f"[BADGE][cpe/{r['id']}] {r.get('state')} -- verified_date={r.get('verified_date')!r} is unparseable -- treat as stale")
+    for r in missing:
+        errors.append(f"[BADGE][cpe/{r['id']}] {r.get('state')} -- verified_date is missing entirely -- treat as stale")
+    return errors
+
+
+def check_reinstatement_currency(repo_root: Path) -> list[str]:
+    """AuditLab BADGE-1 (MEDIUM, 2026-08-09): same promotion as
+    check_cpe_hours_currency() above, for the sibling reinstatement dataset
+    -- see that function's own docstring for the full reasoning."""
+    sys.path.insert(0, str(repo_root / "scripts"))
+    try:
+        import reinstatement_staleness_check as rsc
+    except ImportError:
+        return []
+    data_path = repo_root / "data" / "reinstatement.json"
+    if not data_path.exists():
+        return []
+    data = json.loads(data_path.read_text(encoding="utf-8"))
+    records = data["records"] if isinstance(data, dict) else data
+    _fresh, stale, unparseable, missing = rsc.collect_stale(records)
+    errors = []
+    for r, age_days in stale:
+        errors.append(
+            f"[BADGE][reinstatement/{r['id']}] {r.get('state')} -- last_verified={r['last_verified']} is {age_days}d old, "
+            f"past the {rsc.STALENESS_THRESHOLD_DAYS}-day bar the public 'Last verified {r['last_verified']}' badge "
+            f"asserts -- re-verify and bump last_verified before shipping"
+        )
+    for r in unparseable:
+        errors.append(f"[BADGE][reinstatement/{r['id']}] {r.get('state')} -- last_verified={r.get('last_verified')!r} is unparseable -- treat as stale")
+    for r in missing:
+        errors.append(f"[BADGE][reinstatement/{r['id']}] {r.get('state')} -- last_verified is missing entirely -- treat as stale")
+    return errors
+
+
 def check_terms_version_sync(repo_root: Path) -> list[str]:
     """Roadmap #56 (2026-08-07): generate.py's TERMS_LAST_CHANGED (the
     "Last updated" date shown on /terms/) and worker/src/validation.ts's
@@ -931,6 +995,8 @@ def main():
     all_errors += check_named_vendor_disparagement(html_files)
     all_errors += check_data_manifest_consistency(data_path, docs_dir)
     all_errors += check_deadline_currency(data_path)
+    all_errors += check_cpe_hours_currency(repo_root)
+    all_errors += check_reinstatement_currency(repo_root)
     all_errors += check_json_copies_identical(repo_root)
     all_errors += check_terms_version_sync(repo_root)
     all_errors += check_retention_coverage(repo_root)

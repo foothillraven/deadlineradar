@@ -12,12 +12,19 @@ script -- a second small script with an identical, easy-to-read structure is
 lower-risk than widening an existing script's call interface out from under
 whatever already imports it.
 
-Advisory only: prints a report, never blocks a build or exits non-zero on its
-own. `data/reinstatement.json` is inlined into the public reinstatement pages
+Run standalone, this prints a report and never exits non-zero on its own.
+`data/reinstatement.json` is inlined into the public reinstatement pages
 at build time by generate.py, entirely client-side/static -- there is no
 Worker-side runtime path this could gate even if it wanted to. A human/agent
 re-verifying a flagged record and bumping its last_verified date is the fix,
 not code.
+
+AuditLab BADGE-1 (MEDIUM, 2026-08-09): collect_stale() (below) is ALSO
+imported by preship_gate.py's check_reinstatement_currency(), which DOES
+fail the build on a stale/unparseable/missing record -- same "print +
+hard gate together" pattern cpa_deadlines.json's check_deadline_currency()
+already uses, extended to this sibling dataset's own dated "Last verified"
+public claim.
 
 Usage:
     python scripts/reinstatement_staleness_check.py [repo_root]
@@ -33,12 +40,11 @@ from pathlib import Path
 STALENESS_THRESHOLD_DAYS = 30
 
 
-def main() -> None:
-    repo_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent
-    data_path = repo_root / "data" / "reinstatement.json"
-    data = json.loads(data_path.read_text(encoding="utf-8"))
-    records = data["records"] if isinstance(data, dict) else data
-
+def collect_stale(records: list[dict]) -> tuple[list, list, list, list]:
+    """Sorts records into (fresh, stale, unparseable, missing) by
+    last_verified age. Split out of main() (AuditLab BADGE-1, 2026-08-09)
+    so preship_gate.py can promote this from an advisory into a hard gate
+    -- see that function's own check_reinstatement_currency() docstring."""
     today = date.today()
     fresh, stale, unparseable, missing = [], [], [], []
     for r in records:
@@ -53,6 +59,17 @@ def main() -> None:
             continue
         age_days = (today - verified).days
         (stale if age_days > STALENESS_THRESHOLD_DAYS else fresh).append((r, age_days))
+    return fresh, stale, unparseable, missing
+
+
+def main() -> None:
+    repo_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent
+    data_path = repo_root / "data" / "reinstatement.json"
+    data = json.loads(data_path.read_text(encoding="utf-8"))
+    records = data["records"] if isinstance(data, dict) else data
+
+    today = date.today()
+    fresh, stale, unparseable, missing = collect_stale(records)
 
     print(f"Reinstatement staleness check -- {today.isoformat()} (threshold {STALENESS_THRESHOLD_DAYS}d)")
     print(f"  fresh: {len(fresh)}   stale: {len(stale)}   unparseable: {len(unparseable)}   missing last_verified: {len(missing)}")

@@ -318,6 +318,14 @@ export async function findOtherFirmRowsByEmail(
  * `test/worker.spec.ts`'s "does not fall back to a full table scan" test,
  * which asserts the query plan actually uses the index.
  */
+// Roadmap #55 (2026-08-09): stop_reason values that mean "never send here
+// again unless a later real confirm proves renewed consent" -- broadened
+// from the original unsubscribe-only set to also cover a hard bounce
+// (address doesn't exist) or spam complaint, since both hurt sender
+// reputation for every subsequent send exactly the way an unsubscribe
+// does. See suppressByEmail()'s own docstring for how these get set.
+const PERMANENT_SUPPRESSION_REASONS = new Set(["unsubscribed", "hard_bounced", "spam_complaint"]);
+
 export async function isPermanentlySuppressed(db: D1Database, email: string): Promise<boolean> {
   const normalized = normalizeEmail(email);
   const { results } = await db
@@ -328,7 +336,7 @@ export async function isPermanentlySuppressed(db: D1Database, email: string): Pr
     .bind(normalized)
     .all<Pick<SubscriberRow, "stop_reason" | "stopped_at" | "confirmed_at" | "email">>();
   const records = results;
-  const unsubStops = records.filter((r) => r.stop_reason === "unsubscribed" && r.stopped_at);
+  const unsubStops = records.filter((r) => r.stop_reason && PERMANENT_SUPPRESSION_REASONS.has(r.stop_reason) && r.stopped_at);
   if (unsubStops.length === 0) return false;
   const mostRecentUnsubAt = Math.max(...unsubStops.map((r) => Date.parse(r.stopped_at as string)));
   for (const r of records) {
@@ -4814,6 +4822,51 @@ export async function allSmsOptedInConfirmed(db: D1Database): Promise<Subscriber
     .bind(STATUS_CONFIRMED)
     .all<SubscriberRow>();
   return results;
+}
+
+// ---------------------------------------------------------------------------
+// Email deliverability (2026-08-09, roadmap #55). SendGrid's Event Webhook
+// reports what happened to an email AFTER it was accepted for sending --
+// see sendgrid_webhook.ts's own docstring for the signature verification
+// this feeds into.
+// ---------------------------------------------------------------------------
+
+export type PermanentSuppressionReason = "hard_bounced" | "spam_complaint";
+
+/**
+ * Cross-row suppression by EMAIL (not a single token, unlike stop()) --
+ * a bounce/complaint event is about the ADDRESS, not one subscriber row.
+ * Same UPDATE shape as stop() (status -> STOPPED, stopped_at, stop_reason),
+ * skipping rows already STATUS_STOPPED (same idempotent posture stop()
+ * itself has). Returns the number of rows actually changed.
+ */
+export async function suppressByEmail(db: D1Database, emailNormalized: string, reason: PermanentSuppressionReason): Promise<number> {
+  const result = await db
+    .prepare(
+      `UPDATE subscribers SET status = ?1, stopped_at = ?2, stop_reason = ?3
+        WHERE LOWER(TRIM(email)) = ?4 AND status != ?1`
+    )
+    .bind(STATUS_STOPPED, nowIso(), reason, emailNormalized)
+    .run();
+  return result.meta.changes ?? 0;
+}
+
+/** Idempotent log insert, keyed by SendGrid's own event id -- see migration
+ * 0055's own docstring for why this is the real dedup guard against a
+ * redelivered webhook. */
+export async function recordDeliverabilityEvent(
+  db: D1Database,
+  input: { sgEventId: string; email: string; eventType: string; reason: string | null }
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `INSERT INTO email_deliverability_events (id, sg_event_id, email, event_type, reason, received_at)
+       VALUES (?1,?2,?3,?4,?5,?6)
+       ON CONFLICT (sg_event_id) DO NOTHING`
+    )
+    .bind(newToken(), input.sgEventId, input.email, input.eventType, input.reason, nowIso())
+    .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 /**

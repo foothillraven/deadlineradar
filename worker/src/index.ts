@@ -220,6 +220,7 @@ import {
 import { buildSlackAuthorizeUrl, exchangeSlackCode, revokeSlackToken } from "./slack";
 import { isTeamsWebhookUrl } from "./teams";
 import { sendSms, generateVerificationCode, isValidTwilioSignature } from "./sms";
+import { verifySendGridEventSignature } from "./sendgrid_webhook";
 import mobilityRulesData from "./mobility_rules.json";
 import {
   MOBILITY_DISCLAIMER,
@@ -3629,6 +3630,94 @@ async function handleSmsInbound(request: Request, env: Env): Promise<Response> {
   }
 
   return emptyTwiml();
+}
+
+// SendGrid batches can carry 1000+ events per POST -- MAX_BODY_BYTES (8KB,
+// sized for ordinary form submissions) is far too small here.
+const MAX_EMAIL_EVENTS_BODY_BYTES = 5_000_000;
+
+// Reasons SUPPRESSION-worthy at the address level -- a genuinely permanent
+// failure. "blocked" (greylisting, transient IP reputation) and every
+// other SendGrid event type are logged only, never suppressed -- see
+// sendgrid_webhook.ts's own docstring for the "bounce" vs "blocked"
+// distinction this is based on.
+const SUPPRESSION_WORTHY_EVENTS: Record<string, store.PermanentSuppressionReason> = {
+  bounce: "hard_bounced",
+  spamreport: "spam_complaint",
+};
+
+interface SendGridEvent {
+  email?: unknown;
+  event?: unknown;
+  sg_event_id?: unknown;
+  reason?: unknown;
+}
+
+/**
+ * POST /email/events -- roadmap #55, SendGrid's Event Webhook. PUBLIC
+ * route (SendGrid calls it, no session) -- authenticated via
+ * verifySendGridEventSignature() instead, same "signature is the real
+ * access control" posture as handleStripeWebhook()/handleSmsInbound()
+ * above. The signature covers the WHOLE raw body, so it's checked once
+ * for the whole batch (400 + SendGrid retries on failure, same posture as
+ * handleStripeWebhook) -- an individual malformed EVENT OBJECT within an
+ * otherwise-valid, correctly-signed batch is a separate concern, handled
+ * per-event so one bad entry can't drop the rest of a real batch.
+ */
+async function handleEmailEventsWebhook(request: Request, env: Env): Promise<Response> {
+  if (!env.SENDGRID_WEBHOOK_PUBLIC_KEY) {
+    return jsonResponse(503, { error: "Not configured yet." });
+  }
+
+  let rawBody: string;
+  try {
+    rawBody = await request.text();
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (rawBody.length > MAX_EMAIL_EVENTS_BODY_BYTES) {
+    return jsonResponse(400, { error: "Request too large." });
+  }
+
+  const signature = request.headers.get("X-Twilio-Email-Event-Webhook-Signature");
+  const timestamp = request.headers.get("X-Twilio-Email-Event-Webhook-Timestamp");
+  const valid = await verifySendGridEventSignature(env.SENDGRID_WEBHOOK_PUBLIC_KEY, signature, timestamp, rawBody);
+  if (!valid) {
+    return jsonResponse(400, { error: "Invalid signature." });
+  }
+
+  let events: unknown;
+  try {
+    events = JSON.parse(rawBody);
+  } catch {
+    return jsonResponse(400, { error: "Malformed payload." });
+  }
+  if (!Array.isArray(events)) {
+    return jsonResponse(400, { error: "Malformed payload." });
+  }
+
+  for (const raw of events as SendGridEvent[]) {
+    try {
+      const email = typeof raw.email === "string" ? raw.email.trim() : "";
+      const eventType = typeof raw.event === "string" ? raw.event : "";
+      const sgEventId = typeof raw.sg_event_id === "string" ? raw.sg_event_id : "";
+      const reason = typeof raw.reason === "string" ? raw.reason : null;
+      if (!email || !eventType || !sgEventId) continue;
+
+      const inserted = await store.recordDeliverabilityEvent(env.DB, { sgEventId, email, eventType, reason });
+      if (!inserted) continue; // already processed this exact event -- redelivered webhook, skip
+
+      const suppressionReason = SUPPRESSION_WORTHY_EVENTS[eventType];
+      if (suppressionReason) {
+        await store.suppressByEmail(env.DB, store.normalizeEmail(email), suppressionReason);
+      }
+    } catch {
+      // One malformed/unexpected event must not drop the rest of a real batch.
+      continue;
+    }
+  }
+
+  return jsonResponse(200, { ok: true });
 }
 
 /** POST /subscriber/logout -- deletes the session row (no-op if there wasn't
@@ -7228,6 +7317,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
             status: 200,
             headers: { "Content-Type": "text/xml" },
           });
+        }
+      }
+      if (url.pathname === "/email/events") {
+        try {
+          return await handleEmailEventsWebhook(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
       }
 

@@ -59,6 +59,13 @@
  * conservative by default given SMS has a real per-message cost, unlike
  * every other channel.
  *
+ * `SENDGRID_WEBHOOK_PUBLIC_KEY` is a wrangler secret for verifying
+ * SendGrid's Event Webhook (roadmap #55, bounce/complaint tracking) --
+ * the base64 SPKI/DER public key SendGrid's dashboard displays once
+ * "Signed Event Webhook" is enabled. Same unconfigured-rejects posture as
+ * handleStripeWebhook() -- POST /email/events 503s until this is set,
+ * rather than silently accepting unverifiable calls; SendGrid retries.
+ *
  * `EMAIL_ALLOWLIST` is an OPTIONAL wrangler var -- a comma-separated list of
  * exact email addresses (e.g. "owner@example.com,owner+test@example.com").
  * This is a PREVIEW/STAGING-ONLY safety gate: when set, sendViaSendGrid()
@@ -102,6 +109,7 @@ export interface Env {
   TWILIO_AUTH_TOKEN?: string;
   TWILIO_FROM_NUMBER?: string;
   SMS_DAILY_SEND_CAP?: string;
+  SENDGRID_WEBHOOK_PUBLIC_KEY?: string;
   EMAIL_ALLOWLIST?: string;
   ACTION_BASE_URL?: string;
   STATIC_SITE_BASE_URL?: string;

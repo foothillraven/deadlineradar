@@ -681,6 +681,11 @@ def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
         "server-to-server callback, same category as handleStripeWebhook above -- rate-limiting it "
         "risks dropping a legitimate burst of real inbound STOP replies, and the signature check is "
         "the real access control here, not a counter",
+        "handleEmailEventsWebhook": "SendGrid-signed (verified via X-Twilio-Email-Event-Webhook-Signature, "
+        "verifySendGridEventSignature()) server-to-server callback, same category as handleStripeWebhook/ "
+        "handleSmsInbound above -- rate-limiting it risks dropping a legitimate burst of real bounce/ "
+        "complaint events (batches can carry 1000+ events), and the signature check is the real access "
+        "control here, not a counter",
         # Token-keyed action links (AuditLab's own suggested exception
         # category): each takes a large random unguessable `token` as its
         # actual identifier, so the token's own entropy -- not a per-IP/

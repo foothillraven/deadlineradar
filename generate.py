@@ -11173,8 +11173,16 @@ function drRenderTeam(members) {
     if (!inviteForm.hidden) {
       var roleSelect = document.getElementById('dr-team-invite-role');
       if (roleSelect) {
+        // AuditLab ROLE-3 (MEDIUM, 2026-08-09): no blank option meant
+        // 'partner' -- first in the list, and the HIGHEST privilege --
+        // was silently pre-selected. A Partner who typed an email and
+        // clicked "Send invite" without opening the dropdown silently
+        // granted another Partner (billing, member management, ownership
+        // transfer, account deletion). Same fix shape as dr-documents-kind:
+        // a blank leading option + `required` on the <select> forces an
+        // explicit choice, so there's nothing left to silently inherit.
         var opts = drRole === 'partner' ? ['partner', 'office_manager', 'staff'] : ['staff'];
-        roleSelect.innerHTML = opts.map(function(r) {
+        roleSelect.innerHTML = '<option value="">Select a role&hellip;</option>' + opts.map(function(r) {
           return '<option value="' + r + '">' + DR_ROLE_LABELS[r] + '</option>';
         }).join('');
       }
@@ -14685,7 +14693,7 @@ def build_firm_dashboard_page(
           <label for="dr-team-invite-email">Invite someone by email</label>
           <input type="email" id="dr-team-invite-email" name="email" placeholder="name@yourfirm.com" required>
           <label for="dr-team-invite-role">Role</label>
-          <select id="dr-team-invite-role" name="role"></select>
+          <select id="dr-team-invite-role" name="role" required></select>
           <button type="submit">Send invite</button>
         </form>
         <p id="dr-team-invite-ok" class="dr-account-ok" hidden></p>

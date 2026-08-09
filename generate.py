@@ -7375,13 +7375,19 @@ _MY_DASHBOARD_JS_HTML = """<script>
       if (errEl) { errEl.textContent = 'Please check the box to confirm you want text reminders.'; errEl.hidden = false; }
       return;
     }
+    // AuditLab SMS-3 (2026-08-09): this client check is a UX nicety, not
+    // the enforcement -- consent + consent_version are transmitted below
+    // and the server independently refuses without them (validation
+    // authority stays server-side). Bump the version string here (and the
+    // matching one worker/src/sms.ts's SMS_CONSENT_VERSION documents) any
+    // time the disclosure text a few lines below changes.
     var submitBtn = form.querySelector('button[type="submit"]');
     if (submitBtn) submitBtn.disabled = true;
 
     fetch('/api/subscriber/phone/start-verification', {
       method: 'POST', credentials: 'include',
       headers: {'content-type': 'application/json'},
-      body: JSON.stringify({phone_number: phone}),
+      body: JSON.stringify({phone_number: phone, consent: true, consent_version: 'sms-consent-2026-08-09'}),
     }).then(function (res) {
       if (submitBtn) submitBtn.disabled = false;
       if (res.status === 401) { window.location.href = '/signin/'; return null; }

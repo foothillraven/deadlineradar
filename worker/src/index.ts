@@ -3515,6 +3515,21 @@ async function handleSubscriberPhoneStartVerification(request: Request, env: Env
     return jsonResponse(400, { error: "Please enter a valid US phone number." });
   }
 
+  // AuditLab SMS-3 (MEDIUM, 2026-08-09): consent was previously a
+  // client-only gesture (an unchecked checkbox refused client-side, but
+  // never transmitted) -- TCPA requires PRIOR EXPRESS consent with the
+  // burden of proof on the sender, and "our JavaScript required a
+  // checkbox" is materially weaker than a stored record. Validation
+  // authority stays server-side, same rule this codebase already applies
+  // elsewhere (ROLE-3's own fix, hours earlier). consent_version is
+  // recorded verbatim, whatever the client sends -- the record is the
+  // deliverable, not an exact match against a server-known-current value.
+  const consentGiven = body.consent === true;
+  const consentVersion = typeof body.consent_version === "string" ? body.consent_version.trim() : "";
+  if (!consentGiven || !consentVersion) {
+    return jsonResponse(400, { error: "Please check the box to confirm you want text reminders." });
+  }
+
   // AuditLab SMS-1 (MEDIUM, 2026-08-09): a subscriber whose ONLY licensed
   // state(s) are Guam/CNMI could complete this entire flow -- including a
   // real, working verification text -- and then never receive another
@@ -3531,7 +3546,7 @@ async function handleSubscriberPhoneStartVerification(request: Request, env: Env
   }
 
   const code = generateVerificationCode();
-  await store.createPhoneVerification(env.DB, session.emailNormalized, phoneNumberRaw, await store.hashToken(code));
+  await store.createPhoneVerification(env.DB, session.emailNormalized, phoneNumberRaw, await store.hashToken(code), consentVersion, clientIp(request));
 
   const sent = await sendSms(
     env.TWILIO_ACCOUNT_SID,
@@ -3585,13 +3600,15 @@ async function handleSubscriberPhoneConfirmVerification(request: Request, env: E
     return jsonResponse(400, { error: "Please enter the code we texted you." });
   }
 
-  const phoneNumber = await store.consumePhoneVerification(env.DB, session.emailNormalized, codeRaw);
-  if (!phoneNumber) {
+  const consumed = await store.consumePhoneVerification(env.DB, session.emailNormalized, codeRaw);
+  if (!consumed) {
     return jsonResponse(400, { error: "That code is incorrect or has expired. Please request a new one." });
   }
 
-  await store.setSubscriberSmsOptedIn(env.DB, session.emailNormalized, phoneNumber);
-  return jsonResponse(200, { sms_opted_in: true, phone_last4: phoneNumber.slice(-4) });
+  // AuditLab SMS-3: the consent record captured at start-verification time
+  // rides through here unchanged -- never re-derived, never defaulted.
+  await store.setSubscriberSmsOptedIn(env.DB, session.emailNormalized, consumed.phoneNumber, consumed.consentVersion, consumed.consentIp);
+  return jsonResponse(200, { sms_opted_in: true, phone_last4: consumed.phoneNumber.slice(-4) });
 }
 
 /** POST /subscriber/phone/opt-out -- self-service STOP-equivalent, same

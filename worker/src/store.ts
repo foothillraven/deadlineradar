@@ -158,6 +158,12 @@ export interface SubscriberRow {
   phone_number: string | null;
   sms_opted_in: number;
   sms_opted_in_at: string | null;
+  // AuditLab SMS-3 (2026-08-09): the actual TCPA consent record --
+  // disclosure-text version + the IP that asserted it, captured at
+  // start-verification time and carried through by setSubscriberSmsOptedIn().
+  // Kept even after opt-out, same audit-trail reasoning as sms_opted_in_at.
+  sms_consent_version: string | null;
+  sms_consent_ip: string | null;
 }
 
 function nowIso(): string {
@@ -461,6 +467,8 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     phone_number: null,
     sms_opted_in: 0,
     sms_opted_in_at: null,
+    sms_consent_version: null,
+    sms_consent_ip: null,
   };
   await db
     .prepare(
@@ -4719,44 +4727,69 @@ export const PHONE_VERIFICATION_TTL_MINUTES = 10;
 /** Mints a phone-verification row. `codeHash` is the caller's
  * hashToken(rawCode) -- this function never sees or logs the raw code,
  * same never-store-a-live-secret-in-the-clear posture as every other
- * token/code in this file. */
+ * token/code in this file.
+ *
+ * AuditLab SMS-3 (MEDIUM, 2026-08-09): consentVersion/consentIp are the
+ * actual TCPA consent record -- captured HERE, at the moment consent is
+ * asserted (start-verification), not inferred later from the fact that
+ * verification eventually completed. TCPA's prior-express-consent
+ * requirement puts the burden of proof on the sender; "our JavaScript
+ * required a checkbox" is materially weaker than a stored timestamp + IP
+ * + disclosure-version record. */
 export async function createPhoneVerification(
   db: D1Database,
   emailNormalized: string,
   phoneNumber: string,
-  codeHash: string
+  codeHash: string,
+  consentVersion: string,
+  consentIp: string
 ): Promise<void> {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + PHONE_VERIFICATION_TTL_MINUTES * 60_000).toISOString();
   await db
     .prepare(
       `INSERT INTO subscriber_phone_verifications
-         (id, subscriber_email_normalized, phone_number, code_hash, created_at, expires_at, used_at)
-       VALUES (?1,?2,?3,?4,?5,?6,NULL)`
+         (id, subscriber_email_normalized, phone_number, code_hash, created_at, expires_at, used_at, consent_version, consent_ip)
+       VALUES (?1,?2,?3,?4,?5,?6,NULL,?7,?8)`
     )
-    .bind(newToken(), emailNormalized, phoneNumber, codeHash, now.toISOString(), expiresAt)
+    .bind(newToken(), emailNormalized, phoneNumber, codeHash, now.toISOString(), expiresAt, consentVersion, consentIp)
     .run();
+}
+
+export interface ConsumedPhoneVerification {
+  phoneNumber: string;
+  consentVersion: string | null;
+  consentIp: string | null;
 }
 
 /**
  * Validates and CONSUMES the most recent still-open verification for this
- * email. Returns the verified phone_number on success, null for unknown/
- * expired/already-used/wrong-code -- all indistinguishable to the caller,
- * same no-oracle posture as verifyAndConsumeLoginToken()/consumeOauthState().
- * Marking used_at atomically (conditional UPDATE) is what makes a captured
- * code non-replayable even within its own TTL.
+ * email. Returns the verified phone_number (plus the consent record
+ * captured at createPhoneVerification() time) on success, null for
+ * unknown/expired/already-used/wrong-code -- all indistinguishable to the
+ * caller, same no-oracle posture as verifyAndConsumeLoginToken()/
+ * consumeOauthState(). Marking used_at atomically (conditional UPDATE) is
+ * what makes a captured code non-replayable even within its own TTL.
  */
-export async function consumePhoneVerification(db: D1Database, emailNormalized: string, rawCode: string): Promise<string | null> {
+export async function consumePhoneVerification(db: D1Database, emailNormalized: string, rawCode: string): Promise<ConsumedPhoneVerification | null> {
   const row = await db
     .prepare(
-      `SELECT id, phone_number, code_hash, expires_at, used_at
+      `SELECT id, phone_number, code_hash, expires_at, used_at, consent_version, consent_ip
          FROM subscriber_phone_verifications
         WHERE subscriber_email_normalized = ?1
         ORDER BY created_at DESC
         LIMIT 1`
     )
     .bind(emailNormalized)
-    .first<{ id: string; phone_number: string; code_hash: string; expires_at: string; used_at: string | null }>();
+    .first<{
+      id: string;
+      phone_number: string;
+      code_hash: string;
+      expires_at: string;
+      used_at: string | null;
+      consent_version: string | null;
+      consent_ip: string | null;
+    }>();
   if (!row) return null;
   if (row.used_at) return null;
   if (Date.parse(row.expires_at) <= Date.now()) return null;
@@ -4768,16 +4801,28 @@ export async function consumePhoneVerification(db: D1Database, emailNormalized: 
     .run();
   if ((result.meta.changes ?? 0) === 0) return null;
 
-  return row.phone_number;
+  return { phoneNumber: row.phone_number, consentVersion: row.consent_version, consentIp: row.consent_ip };
 }
 
 /** Cross-row write, same reach as setSubscriberNotificationMode() -- a
  * phone number and its consent belong to the PERSON, not one deadline.
- * Called only after consumePhoneVerification() succeeds. */
-export async function setSubscriberSmsOptedIn(db: D1Database, emailNormalized: string, phoneNumber: string): Promise<void> {
+ * Called only after consumePhoneVerification() succeeds, passing THAT
+ * call's own consent record through (AuditLab SMS-3) -- never re-derived,
+ * never defaulted, so a row with sms_opted_in=1 always has the consent
+ * record that justified it. */
+export async function setSubscriberSmsOptedIn(
+  db: D1Database,
+  emailNormalized: string,
+  phoneNumber: string,
+  consentVersion: string | null,
+  consentIp: string | null
+): Promise<void> {
   await db
-    .prepare(`UPDATE subscribers SET phone_number = ?1, sms_opted_in = 1, sms_opted_in_at = ?2 WHERE LOWER(TRIM(email)) = ?3`)
-    .bind(phoneNumber, nowIso(), emailNormalized)
+    .prepare(
+      `UPDATE subscribers SET phone_number = ?1, sms_opted_in = 1, sms_opted_in_at = ?2, sms_consent_version = ?3, sms_consent_ip = ?4
+        WHERE LOWER(TRIM(email)) = ?5`
+    )
+    .bind(phoneNumber, nowIso(), consentVersion, consentIp, emailNormalized)
     .run();
 }
 

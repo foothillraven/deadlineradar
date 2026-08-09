@@ -111,6 +111,16 @@ const QUIET_HOURS_END = 21; // 9pm local, exclusive
  * confirmation that can never be honored. */
 export const SMS_UNAVAILABLE_STATE_SLUGS = new Set(["guam", "northern-mariana-islands"]);
 
+/** AuditLab SMS-3 (MEDIUM, 2026-08-09): identifies WHICH disclosure text a
+ * consent record refers to -- bump this (and the matching string literal
+ * generate.py's /my/ SMS panel sends) any time the consent checkbox's
+ * disclosure copy changes, so a stored consent record always says what the
+ * subscriber actually saw. Not enforced two-sided the way FIELD_COMPUTED_STATES
+ * is (SYNC-1) -- the server records whatever version string arrives rather
+ * than validating it against a known-current value, since the record IS
+ * the deliverable regardless of which version is current at read time. */
+export const SMS_CONSENT_VERSION = "sms-consent-2026-08-09";
+
 /** true only when it is currently safe (8am-9pm local) to send an SMS to
  * this state's subscribers. Fails closed (false) for any unlisted
  * jurisdiction -- never guessed, same posture as every other "we don't

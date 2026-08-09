@@ -164,7 +164,7 @@ describe("phone verification flow", () => {
       new Request(`${BASE}/subscriber/phone/start-verification`, {
         method: "POST",
         headers: { "content-type": "application/json", Cookie: await subscriberCookie(email) },
-        body: JSON.stringify({ phone_number: "+15551234567" }),
+        body: JSON.stringify({ phone_number: "+15551234567", consent: true, consent_version: "sms-consent-2026-08-09" }),
       }),
       { ...env, TWILIO_ACCOUNT_SID: "AC_fake", TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TWILIO_FROM_NUMBER: "+15559999999" } as never,
       { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
@@ -190,7 +190,7 @@ describe("phone verification flow", () => {
         new Request(`${BASE}/subscriber/phone/start-verification`, {
           method: "POST",
           headers: { "content-type": "application/json", Cookie: await subscriberCookie(email) },
-          body: JSON.stringify({ phone_number: "+15551234567" }),
+          body: JSON.stringify({ phone_number: "+15551234567", consent: true, consent_version: "sms-consent-2026-08-09" }),
         }),
         { ...env, TWILIO_ACCOUNT_SID: "AC_fake", TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TWILIO_FROM_NUMBER: "+15559999999" } as never,
         { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
@@ -204,6 +204,48 @@ describe("phone verification flow", () => {
     }
   });
 
+  it("AuditLab SMS-3: refuses start-verification without consent, server-side -- even if the client's own JS check were bypassed", async () => {
+    const worker = (await import("../src/index")).default;
+    const envOverride = { ...env, TWILIO_ACCOUNT_SID: "AC_fake", TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TWILIO_FROM_NUMBER: "+15559999999" } as never;
+    const ctx = { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext;
+
+    async function attempt(email: string, extra: Record<string, unknown>): Promise<Response> {
+      await seedConfirmedSubscriber("ohio", "2027-01-01", email);
+      return worker.fetch(
+        new Request(`${BASE}/subscriber/phone/start-verification`, {
+          method: "POST",
+          headers: { "content-type": "application/json", Cookie: await subscriberCookie(email) },
+          body: JSON.stringify({ phone_number: "+15551234567", ...extra }),
+        }),
+        envOverride,
+        ctx
+      );
+    }
+
+    const noConsentEmail = `sms3-noconsent-${Date.now()}@example.com`;
+    const noConsentField = await attempt(noConsentEmail, {});
+    expect(noConsentField.status).toBe(400);
+
+    const consentFalseEmail = `sms3-false-${Date.now()}@example.com`;
+    const consentFalse = await attempt(consentFalseEmail, { consent: false, consent_version: "sms-consent-2026-08-09" });
+    expect(consentFalse.status).toBe(400);
+
+    const noVersionEmail = `sms3-noversion-${Date.now()}@example.com`;
+    const noVersion = await attempt(noVersionEmail, { consent: true });
+    expect(noVersion.status).toBe(400);
+
+    // None of the above created a verification row -- refused before any
+    // code was generated or sent. Scoped by EMAIL, not phone_number --
+    // other tests in this shared-DB suite reuse the same literal phone
+    // number for their own (legitimately created) verification rows.
+    for (const email of [noConsentEmail, consentFalseEmail, noVersionEmail]) {
+      const row = await env.DB.prepare("SELECT * FROM subscriber_phone_verifications WHERE subscriber_email_normalized = ?1")
+        .bind(store.normalizeEmail(email))
+        .first();
+      expect(row).toBeNull();
+    }
+  });
+
   it("full round trip: start -> confirm -> opted in, then opt-out clears it", async () => {
     const email = `smsverif-roundtrip-${Date.now()}@example.com`;
     await seedConfirmedSubscriber("ohio", "2027-01-01", email);
@@ -213,7 +255,7 @@ describe("phone verification flow", () => {
     // as store-level testing elsewhere in this codebase) to get a known
     // code, since sendSms() itself is never exercised live in tests.
     const code = "123456";
-    await store.createPhoneVerification(env.DB, store.normalizeEmail(email), "+15551234567", await store.hashToken(code));
+    await store.createPhoneVerification(env.DB, store.normalizeEmail(email), "+15551234567", await store.hashToken(code), "sms-consent-2026-08-09", "203.0.113.99");
 
     const confirmResp = await SELF.fetch(`${BASE}/subscriber/phone/confirm-verification`, {
       method: "POST",
@@ -228,6 +270,10 @@ describe("phone verification flow", () => {
     const row = await store.listSubscriberLicenses(env.DB, email);
     expect(row[0]?.sms_opted_in).toBe(1);
     expect(row[0]?.phone_number).toBe("+15551234567");
+    // AuditLab SMS-3: the actual TCPA consent record -- captured at
+    // start-verification time, carried through confirm.
+    expect(row[0]?.sms_consent_version).toBe("sms-consent-2026-08-09");
+    expect(row[0]?.sms_consent_ip).toBe("203.0.113.99");
 
     const optOutResp = await SELF.fetch(`${BASE}/subscriber/phone/opt-out`, {
       method: "POST",
@@ -241,13 +287,15 @@ describe("phone verification flow", () => {
     // docstring).
     expect(rowAfter[0]?.phone_number).toBe("+15551234567");
     expect(rowAfter[0]?.sms_opted_in_at).not.toBeNull();
+    // Consent record survives opt-out too -- same audit-trail reasoning.
+    expect(rowAfter[0]?.sms_consent_version).toBe("sms-consent-2026-08-09");
   });
 
   it("rejects a wrong code and an expired code", async () => {
     const email = `smsverif-wrongcode-${Date.now()}@example.com`;
     await seedConfirmedSubscriber("ohio", "2027-01-01", email);
     const cookie = await subscriberCookie(email);
-    await store.createPhoneVerification(env.DB, store.normalizeEmail(email), "+15551234567", await store.hashToken("111111"));
+    await store.createPhoneVerification(env.DB, store.normalizeEmail(email), "+15551234567", await store.hashToken("111111"), "sms-consent-2026-08-09", "203.0.113.99");
 
     const wrongResp = await SELF.fetch(`${BASE}/subscriber/phone/confirm-verification`, {
       method: "POST",
@@ -292,7 +340,7 @@ describe("POST /sms/inbound", () => {
   it("STOP with a valid signature clears sms_opted_in for every row sharing that phone number", async () => {
     const email = `smsinbound-stop-${Date.now()}@example.com`;
     await seedConfirmedSubscriber("ohio", "2027-01-01", email);
-    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15557654321");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15557654321", "sms-consent-2026-08-09", "203.0.113.99");
 
     const url = `${BASE}/api/sms/inbound`;
     const params = { From: "+15557654321", Body: "STOP" };
@@ -316,7 +364,7 @@ describe("POST /sms/inbound", () => {
   it("an invalid signature does NOT clear opt-in", async () => {
     const email = `smsinbound-badsig-${Date.now()}@example.com`;
     await seedConfirmedSubscriber("ohio", "2027-01-01", email);
-    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15557654322");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15557654322", "sms-consent-2026-08-09", "203.0.113.99");
 
     const url = `${BASE}/api/sms/inbound`;
     const params = { From: "+15557654322", Body: "STOP" };
@@ -339,7 +387,7 @@ describe("POST /sms/inbound", () => {
   it("a non-STOP keyword (e.g. an ordinary reply) does not clear opt-in", async () => {
     const email = `smsinbound-noop-${Date.now()}@example.com`;
     await seedConfirmedSubscriber("ohio", "2027-01-01", email);
-    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15557654323");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15557654323", "sms-consent-2026-08-09", "203.0.113.99");
 
     const url = `${BASE}/api/sms/inbound`;
     const params = { From: "+15557654323", Body: "thanks!" };
@@ -369,7 +417,7 @@ describe("runSmsAlertPass", () => {
     const safeAsOf = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate(), 18, 0, 0));
     const email = `smse2e-basic-${Date.now()}@example.com`;
     const sub = await seedConfirmedSubscriber("ohio", isoDaysFromUtcMidnight(safeAsOf, 30), email);
-    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110001");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110001", "sms-consent-2026-08-09", "203.0.113.99");
 
     const sent: { to: string; body: string }[] = [];
     const summary = await runSmsAlertPass(env, {
@@ -394,7 +442,7 @@ describe("runSmsAlertPass", () => {
     const unsafeAsOf = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate(), 12, 0, 0)); // 4am PT
     const email = `smse2e-quiethours-${Date.now()}@example.com`;
     await seedConfirmedSubscriber("california", isoDaysFromUtcMidnight(unsafeAsOf, 30), email);
-    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110002");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110002", "sms-consent-2026-08-09", "203.0.113.99");
 
     let sends = 0;
     const summary = await runSmsAlertPass(env, { asOf: unsafeAsOf, send: async () => { sends += 1; return true; } });
@@ -408,7 +456,7 @@ describe("runSmsAlertPass", () => {
     const safeAsOf = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate(), 18, 0, 0));
     const email = `smse2e-independent-${Date.now()}@example.com`;
     const sub = await seedConfirmedSubscriber("ohio", isoDaysFromUtcMidnight(safeAsOf, 30), email);
-    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110003");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110003", "sms-consent-2026-08-09", "203.0.113.99");
     await store.claimReminderThreshold(env.DB, sub.id, "[]", 30);
     await store.claimSlackThresholdNotification(env.DB, sub.id, 30);
     await store.claimTeamsThresholdNotification(env.DB, sub.id, 30);
@@ -424,7 +472,7 @@ describe("runSmsAlertPass", () => {
     const safeAsOf = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate(), 18, 0, 0));
     const email = `smse2e-race-${Date.now()}@example.com`;
     const sub = await seedConfirmedSubscriber("ohio", isoDaysFromUtcMidnight(safeAsOf, 30), email);
-    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110004");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110004", "sms-consent-2026-08-09", "203.0.113.99");
     await store.claimSmsThresholdNotification(env.DB, sub.id, 30);
 
     let sends = 0;
@@ -450,7 +498,7 @@ describe("runSmsAlertPass", () => {
       firmId,
       skipConfirmation: true,
     });
-    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110005");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110005", "sms-consent-2026-08-09", "203.0.113.99");
 
     let sends = 0;
     const summary = await runSmsAlertPass(env, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
@@ -469,7 +517,7 @@ describe("runSmsAlertPass", () => {
 
     const email = `smse2e-cap-${Date.now()}@example.com`;
     const sub = await seedConfirmedSubscriber("ohio", isoDaysFromUtcMidnight(safeAsOf, 30), email);
-    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110006");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110006", "sms-consent-2026-08-09", "203.0.113.99");
 
     let sends = 0;
     const summary = await runSmsAlertPass(

@@ -1123,7 +1123,13 @@ export function buildRuleChangeAdminAlertEmail(
   effectiveDateLabel: string,
   citationUrl: string | null,
   calendarUrl: string,
-  accountSettingsUrl: string
+  accountSettingsUrl: string,
+  // AuditLab ALERT-1 secondary finding (2026-08-09): the dashboard modal
+  // renders "· confidence: <value>" next to every event; this email
+  // asserted the same claim with the label stripped off. Carried through
+  // verbatim (raw confidence string, e.g. "dual_source"/"single_source"),
+  // same "unverified" fallback the dashboard's own JS uses.
+  confidenceLabel: string = "unverified"
 ): BuiltEmail {
   const addr = mailingAddress();
   const safeFirmName = firmName.replace(/[\r\n]+/g, " ");
@@ -1134,7 +1140,7 @@ export function buildRuleChangeAdminAlertEmail(
     `${safeFirmName},\n\n` +
     `A new practice-privilege rule change was just added for ${jurisdiction} -- your roster has ` +
     `staff licensed there, so it may be worth a look.\n\n` +
-    `Effective ${effectiveDateLabel}:\n${summary}\n\n` +
+    `Effective ${effectiveDateLabel} (confidence: ${confidenceLabel}):\n${summary}\n\n` +
     citationLine +
     `This is informational only, not a determination about any specific staff member's situation. ` +
     `We have not notified your staff about this -- open the Calendar to review it and use "Notify ` +
@@ -1151,7 +1157,10 @@ export function buildRuleChangeAdminAlertEmail(
         `${esc(safeFirmName)}, a new practice-privilege rule change was just added for ` +
           `${esc(jurisdiction)} -- your roster has staff licensed there, so it may be worth a look.`
       ) +
-      p(`<strong>Effective ${esc(effectiveDateLabel)}:</strong> ${esc(summary)}`) +
+      p(
+        `<strong>Effective ${esc(effectiveDateLabel)}</strong> ` +
+          `<span style="color:${LIGHT.muted};">(confidence: ${esc(confidenceLabel)})</span>: ${esc(summary)}`
+      ) +
       (citationUrl ? `<p style="margin:0 0 20px;">${button(citationUrl, "See the source")}</p>` : "") +
       p(
         `This is informational only, not a determination about any specific staff member's ` +

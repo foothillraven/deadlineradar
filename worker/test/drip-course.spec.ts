@@ -6,10 +6,12 @@
  * instead of waiting on the wall clock.
  */
 import { env, SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as store from "../src/store";
 import { nextDueDripStep, dripCourseCycleFact, DRIP_COURSE_STEP_DAYS, runDripCoursePass } from "../src/scheduler";
 import { checkAndCountDripCourseSend } from "../src/sender";
+import { StaleDataError, STALENESS_THRESHOLD_DAYS } from "../src/deadline";
+import cpaDeadlinesData from "../src/cpa_deadlines.json";
 
 const BASE = "https://deadline-radar.com";
 
@@ -369,6 +371,25 @@ describe("runDripCoursePass() -- end to end", () => {
       },
     });
     expect(sent).toBe(false);
+  });
+
+  it("AuditLab DRIP-3: throws StaleDataError (not a silent send) once cpa_deadlines.json's as_of_date ages out, same guard runReminderPass() has", async () => {
+    // checkDataFreshness() judges freshness against the REAL wall clock
+    // even when a caller supplies a simulated `asOf` -- proving the guard
+    // actually fires requires moving the system clock, not passing a
+    // parameter. Derived from the real as_of_date + one day past the
+    // threshold, same "never lets this go silently wrong later" reasoning
+    // as worker.spec.ts's own STALE_MOCK_DATE.
+    const staleMockDate = new Date(
+      Date.parse(`${cpaDeadlinesData.as_of_date}T00:00:00Z`) + (STALENESS_THRESHOLD_DAYS + 1) * 86_400_000
+    );
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(staleMockDate);
+      await expect(runDripCoursePass(env)).rejects.toThrow(StaleDataError);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

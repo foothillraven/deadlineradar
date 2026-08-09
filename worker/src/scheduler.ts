@@ -512,6 +512,17 @@ function dailyDripCourseSendCap(env: Env): number {
 
 export async function runDripCoursePass(env: Env, opts: RunReminderOptions = {}): Promise<DripCourseSummary> {
   const asOf = opts.asOf ?? new Date();
+  // AuditLab DRIP-3 (MEDIUM, 2026-08-09): this pass builds email 1's
+  // cycleFact from the SAME cpa_deadlines.json runReminderPass() guards
+  // with checkDataFreshness() -- without this, once the data aged past 30
+  // days, reminders to paying subscribers correctly stopped while
+  // marketing emails kept quoting that same stale file to leads, the
+  // guard doing the opposite of its purpose in the channel with the least
+  // context. Same real-vs-simulated freshness split as runReminderPass()'s
+  // own comment explains -- a simulated future asOf must not trip this on
+  // its own.
+  const freshnessToday = opts.asOf ? new Date() : asOf;
+  checkDataFreshness(freshnessToday);
   const asOfDay = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate()));
 
   const send: ReminderSendFn =
@@ -627,7 +638,7 @@ export async function runDripCoursePass(env: Env, opts: RunReminderOptions = {})
 // button.
 // ---------------------------------------------------------------------------
 
-interface RuleChangeEvent {
+export interface RuleChangeEvent {
   event_id: string;
   jurisdiction_slug: string;
   jurisdiction: string;
@@ -638,15 +649,39 @@ interface RuleChangeEvent {
   citation_url?: string;
   kind: string;
   upcoming: boolean;
+  // AuditLab ALERT-1 (MEDIUM, 2026-08-09): these two exist specifically to
+  // mark an event as not-yet-trustworthy, and upcomingRuleChangeEvents()
+  // below didn't read either -- today's safety against emailing a
+  // not-yet-real change was an accident of `upcoming` timing, not an
+  // actual check. See that function's own comment.
+  status?: string;
+  needs_reverification?: boolean;
+  confidence?: string;
 }
 const RULE_CHANGE_EVENTS = (regChangeEventsData as unknown as { events: RuleChangeEvent[] }).events;
 
 // Same filter generate.py's own DR_RULE_CHANGE_EVENTS construction and
-// build_rule_changes_page() both use -- this can never alert on something
-// those pages themselves wouldn't stand behind (excludes source_conflict
-// entries, which aren't confirmed changes, and already-effective ones).
+// build_rule_changes_page() both use, PLUS two conditions those pages
+// don't need (their own reader can weigh a caveat visually; this filter's
+// output goes straight into an email asserting the change as fact) --
+// AuditLab ALERT-1: `kind`/`upcoming`/`effective_date` alone let a future
+// event flagged needs_reverification=true through (Louisiana qualified on
+// every axis except the calendar), and let a PROPOSED rule (frequently
+// doesn't pass) through the moment it got a future effective_date, since
+// `status` was never compared to ENACTED. A false positive here is worse
+// than a missed alert -- it triggers the admin's own "notify staff"
+// follow-up, propagating one wrong event to a whole roster. Exported as
+// its own pure function (rather than inlined into the .filter() call) so
+// it's unit-testable against synthetic events -- no currently-live event
+// combines needs_reverification=true or a non-ENACTED status with
+// upcoming=true, so a live-data test alone couldn't prove this closes the
+// gap it's meant to.
+export function isEmailableRuleChangeEvent(e: RuleChangeEvent): boolean {
+  return e.kind === "rule_change" && e.upcoming && Boolean(e.effective_date) && e.status === "ENACTED" && !e.needs_reverification;
+}
+
 function upcomingRuleChangeEvents(): RuleChangeEvent[] {
-  return RULE_CHANGE_EVENTS.filter((e) => e.kind === "rule_change" && e.upcoming && e.effective_date);
+  return RULE_CHANGE_EVENTS.filter(isEmailableRuleChangeEvent);
 }
 
 export interface RuleChangeAlertSummary {
@@ -699,6 +734,19 @@ export async function runRuleChangeAlertPass(env: Env, opts: RunReminderOptions 
         });
         continue;
       }
+      // AuditLab ALERT-2 (LOW-MED, 2026-08-09): permanent suppression is
+      // the one signal that means "stop emailing me" globally --
+      // runReminderPass() already refuses on it ("BLOCKED: email is
+      // permanently suppressed"); this pass didn't. Same before-claim,
+      // no-DB-write placement as the demo_locked check above.
+      if (await store.isPermanentlySuppressed(env.DB, firm.admin_email)) {
+        summary.errors.push({
+          firm_id: firm.id,
+          event_id: event.event_id,
+          error: "BLOCKED: admin_email is permanently suppressed -- refusing despite an active account.",
+        });
+        continue;
+      }
       let claimed = false;
       try {
         claimed = await store.claimRuleChangeNotification(env.DB, firm.id, event.event_id);
@@ -724,7 +772,8 @@ export async function runRuleChangeAlertPass(env: Env, opts: RunReminderOptions 
           fmtDate(new Date(`${event.effective_date}T00:00:00Z`)),
           event.citation_url && event.citation_url.startsWith("https://") ? event.citation_url : null,
           calendarUrl,
-          accountSettingsUrl
+          accountSettingsUrl,
+          event.confidence || "unverified"
         );
 
         const ok = await send(firm.admin_email, built);

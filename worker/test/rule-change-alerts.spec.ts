@@ -205,6 +205,73 @@ describe("runRuleChangeAlertPass() -- end to end", () => {
     expect(sends).toBe(0);
     expect(summary.errors.some((e) => e.error.includes("daily send cap"))).toBe(true);
   });
+
+  it("AuditLab ALERT-2: a firm whose admin_email is permanently suppressed is skipped -- no send, no claim", async () => {
+    const { firmId, adminEmail } = await newFirmWithRosterLicense("e2e-suppressed", REAL_EVENT_STATE);
+    // Suppress via the subscriber mechanism this store fn reads -- same
+    // stop_reason values isPermanentlySuppressed() already treats as
+    // permanent (unsubscribed/hard_bounced/spam_complaint).
+    await env.DB
+      .prepare(
+        `INSERT INTO subscribers (id, email, cooldown_key, state_slug, deadline_fields, status, stop_reason, stopped_at, confirm_token, unsubscribe_token, renewed_token, created_at)
+         VALUES (?1, ?2, ?2, 'ohio', '{}', 'stopped', 'unsubscribed', datetime('now'), ?3, ?4, ?5, datetime('now'))`
+      )
+      .bind(store.newToken(), adminEmail, store.newToken(), store.newToken(), store.newToken())
+      .run();
+
+    let sent = false;
+    const summary = await runRuleChangeAlertPass(env, {
+      send: async (to) => {
+        if (to === adminEmail) sent = true;
+        return true;
+      },
+    });
+    expect(sent).toBe(false);
+    expect(summary.errors.some((e) => e.error.includes("permanently suppressed"))).toBe(true);
+
+    const row = await env.DB.prepare("SELECT * FROM firm_rule_change_notifications WHERE firm_id = ?1 AND event_id = ?2")
+      .bind(firmId, REAL_EVENT_ID)
+      .first();
+    expect(row).toBeNull(); // not claimed either
+  });
+});
+
+describe("isEmailableRuleChangeEvent() -- AuditLab ALERT-1", () => {
+  function baseEvent(overrides: Partial<import("../src/scheduler").RuleChangeEvent> = {}) {
+    return {
+      event_id: "test-event",
+      jurisdiction_slug: "test",
+      jurisdiction: "Test",
+      effective_date: "2027-01-01",
+      kind: "rule_change",
+      upcoming: true,
+      status: "ENACTED",
+      needs_reverification: false,
+      ...overrides,
+    };
+  }
+
+  it("emails a real ENACTED, fully-reverified, upcoming rule change", async () => {
+    const { isEmailableRuleChangeEvent } = await import("../src/scheduler");
+    expect(isEmailableRuleChangeEvent(baseEvent())).toBe(true);
+  });
+
+  it("does NOT email a future event flagged needs_reverification -- the exact Louisiana shape, but upcoming", async () => {
+    const { isEmailableRuleChangeEvent } = await import("../src/scheduler");
+    expect(isEmailableRuleChangeEvent(baseEvent({ needs_reverification: true }))).toBe(false);
+  });
+
+  it("does NOT email a PROPOSED (not yet ENACTED) rule with a future effective date -- the exact Idaho shape, but upcoming", async () => {
+    const { isEmailableRuleChangeEvent } = await import("../src/scheduler");
+    expect(isEmailableRuleChangeEvent(baseEvent({ status: "PROPOSED" }))).toBe(false);
+  });
+
+  it("still excludes source_conflict/non-upcoming/missing-date, unchanged from before this fix", async () => {
+    const { isEmailableRuleChangeEvent } = await import("../src/scheduler");
+    expect(isEmailableRuleChangeEvent(baseEvent({ kind: "source_conflict" }))).toBe(false);
+    expect(isEmailableRuleChangeEvent(baseEvent({ upcoming: false }))).toBe(false);
+    expect(isEmailableRuleChangeEvent(baseEvent({ effective_date: "" }))).toBe(false);
+  });
 });
 
 describe("PATCH /firm/rule-change-alerts", () => {

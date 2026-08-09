@@ -4815,6 +4815,32 @@ describe("POST /firm/change-email -- request phase", () => {
     }
   });
 
+  it("AuditLab SEC-3: a FAILED notice send (non-2xx from SendGrid) blocks the confirm from going out at all", async () => {
+    const oldEmail = `changeemail-sec3-${Date.now()}@example.com`;
+    const newEmail = `changeemail-sec3new-${Date.now()}@example.com`;
+    const { cookie } = await createFirmWithSession("Change Email SEC-3 Firm", oldEmail);
+
+    // The first call is the OLD-address (member's own) notice -- fails,
+    // same as the ordinary "recipient on a bounce/suppression list" case
+    // this finding is about.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("", { status: 500 }));
+    try {
+      const headers: Record<string, string> = { "content-type": "application/json", "cf-connecting-ip": "203.0.113.271", Cookie: cookie };
+      const worker = (await import("../src/index")).default;
+      const resp = await worker.fetch(
+        new Request("https://deadline-radar.com/firm/change-email", { method: "POST", headers, body: JSON.stringify({ new_email: newEmail }) }),
+        { ...env, SENDGRID_API_KEY: "test-key-not-real" } as never,
+        testExecutionContext()
+      );
+      expect(resp.status).toBe(200); // request itself still succeeds -- token exists, just unconfirmed
+      // Only the failed notice attempt -- the confirm to the attacker-
+      // controlled new address must never go out once the warning failed.
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("a second request invalidates the FIRST request's outstanding token -- only the latest address can be confirmed", async () => {
     const email = `changeemail-super-${Date.now()}@example.com`;
     const firstNewEmail = `changeemail-first-${Date.now()}@example.com`;

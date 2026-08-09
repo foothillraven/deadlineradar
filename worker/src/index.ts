@@ -3300,15 +3300,29 @@ async function handleSubscriberChangeEmailRequest(request: Request, env: Env): P
       // starved daily-send budget should drop the (harmless, reversible)
       // confirm email, never the time-sensitive warning.
       const noticeUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      let noticeSent = false;
       if (noticeUnderCap) {
         const noticeEmail = buildSubscriberEmailChangeRequestedNoticeEmail(newEmailRaw, new Date().toISOString());
-        await sendViaSendGrid(env.SENDGRID_API_KEY, session.emailNormalized, noticeEmail, env.EMAIL_ALLOWLIST);
+        noticeSent = await sendViaSendGrid(env.SENDGRID_API_KEY, session.emailNormalized, noticeEmail, env.EMAIL_ALLOWLIST);
       }
-      const confirmUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
-      if (confirmUnderCap) {
-        const confirmUrl = `${actionBaseUrl(env)}/subscriber/login/verify?token=${encodeURIComponent(rawToken)}`;
-        const confirmEmail = buildSubscriberEmailChangeConfirmEmail(confirmUrl);
-        await sendViaSendGrid(env.SENDGRID_API_KEY, newEmailRaw, confirmEmail, env.EMAIL_ALLOWLIST);
+      // AuditLab SEC-3 (MEDIUM, 2026-08-09): the ordering above only
+      // protected against budget starvation (checkAndCountActionSend's own
+      // cap) -- a plain SEND FAILURE (SendGrid returns non-2xx for a
+      // suppressed/bounced address, a network error) was indistinguishable
+      // from success because the return value was discarded, so the confirm
+      // still went out with the victim's warning silently dropped. That's
+      // exactly the stolen-session threat this ordering exists to prevent:
+      // an attacker changing the address the notice would go to gate the
+      // confirm on the notice ACTUALLY having been delivered, not just
+      // attempted. Fail-safe: the token is unusable without this confirm
+      // link, so skipping it just means the user retries.
+      if (noticeSent) {
+        const confirmUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+        if (confirmUnderCap) {
+          const confirmUrl = `${actionBaseUrl(env)}/subscriber/login/verify?token=${encodeURIComponent(rawToken)}`;
+          const confirmEmail = buildSubscriberEmailChangeConfirmEmail(confirmUrl);
+          await sendViaSendGrid(env.SENDGRID_API_KEY, newEmailRaw, confirmEmail, env.EMAIL_ALLOWLIST);
+        }
       }
     } catch {
       // Swallow -- same best-effort posture as every other send in this
@@ -8503,6 +8517,7 @@ async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise
       // email, which just delays the (harmless, reversible) change rather
       // than suppressing the (time-sensitive) warning.
       const noticeUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      let noticeSent = false;
       if (noticeUnderCap) {
         // migration 0045: notice goes to the MEMBER's own current (OLD)
         // address -- the person actually being warned, not necessarily
@@ -8513,16 +8528,28 @@ async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise
           new Date().toISOString(),
           member.name
         );
-        await sendViaSendGrid(env.SENDGRID_API_KEY, member.email, noticeEmail, env.EMAIL_ALLOWLIST);
+        noticeSent = await sendViaSendGrid(env.SENDGRID_API_KEY, member.email, noticeEmail, env.EMAIL_ALLOWLIST);
       }
-      // Independent send, independent cap check -- this is a SECOND real
-      // email (to a different address, for a different purpose), not a
-      // retry of the first.
-      const confirmUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
-      if (confirmUnderCap) {
-        const confirmUrl = `${actionBaseUrl(env)}/firm/login/verify?token=${encodeURIComponent(rawToken)}`;
-        const confirmEmail = buildFirmEmailChangeConfirmEmail(confirmUrl, member.name);
-        await sendViaSendGrid(env.SENDGRID_API_KEY, newEmailRaw, confirmEmail, env.EMAIL_ALLOWLIST);
+      // AuditLab SEC-3 (MEDIUM, 2026-08-09): the ordering above only
+      // protected against budget starvation -- a plain SEND FAILURE
+      // (non-2xx from SendGrid, e.g. the old address is on a suppression
+      // list, or a network error) was indistinguishable from success
+      // because the return value was discarded, so the confirm still went
+      // out with the real admin's warning silently dropped. That defeats
+      // M3's own threat model: gate the confirm on the notice actually
+      // having been delivered, not just attempted. Fail-safe -- the token
+      // is unusable without this confirm link, so skipping it just delays
+      // the (harmless, reversible) change until retried.
+      if (noticeSent) {
+        // Independent send, independent cap check -- this is a SECOND real
+        // email (to a different address, for a different purpose), not a
+        // retry of the first.
+        const confirmUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+        if (confirmUnderCap) {
+          const confirmUrl = `${actionBaseUrl(env)}/firm/login/verify?token=${encodeURIComponent(rawToken)}`;
+          const confirmEmail = buildFirmEmailChangeConfirmEmail(confirmUrl, member.name);
+          await sendViaSendGrid(env.SENDGRID_API_KEY, newEmailRaw, confirmEmail, env.EMAIL_ALLOWLIST);
+        }
       }
     } catch {
       // Intentionally swallowed -- same posture as every other best-effort

@@ -297,6 +297,37 @@ describe("POST /subscriber/change-email -- request phase", () => {
     }
   });
 
+  it("AuditLab SEC-3: a FAILED notice send (non-2xx from SendGrid) blocks the confirm from going out at all", async () => {
+    const oldEmail = `sub12-sec3-${Date.now()}@example.com`;
+    const newEmail = `sub12-sec3new-${Date.now()}@example.com`;
+    await seed(oldEmail, "ohio");
+    const cookie = await subscriberCookie(oldEmail);
+
+    // The first call (the OLD-address notice, per the "notice first"
+    // ordering above) fails; SendGrid returning non-2xx is the ordinary
+    // case for a suppressed/bounced address -- exactly the victim's
+    // address in a stolen-session attack.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("", { status: 500 }));
+    try {
+      const worker = (await import("../src/index")).default;
+      const resp = await worker.fetch(
+        new Request(`${BASE}/subscriber/change-email`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.229", Cookie: cookie },
+          body: JSON.stringify({ new_email: newEmail }),
+        }),
+        { ...env, SENDGRID_API_KEY: "test-key-not-real" },
+        { waitUntil: () => {}, passThroughOnException: () => {} } as unknown as ExecutionContext
+      );
+      expect(resp.status).toBe(200); // the request itself still succeeds -- token exists, just unconfirmed
+      // Only the failed notice attempt -- the confirm to the new address
+      // must never have been sent once its warning was dropped.
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("a second request invalidates the FIRST request's outstanding token", async () => {
     const email = `sub12-super-${Date.now()}@example.com`;
     const firstNew = `sub12-superfirst-${Date.now()}@example.com`;

@@ -54,7 +54,11 @@ async function postWebhook(payload: string, sigHeader: string | null, envOverrid
   return workerFetch(new Request("https://deadline-radar.com/stripe/webhook", { method: "POST", headers, body: payload }), envOverrides);
 }
 
-async function checkoutCompletedPayload(eventId: string, firmId: string, opts: { paymentStatus?: string; targetPlanTier?: string } = {}): Promise<string> {
+async function checkoutCompletedPayload(
+  eventId: string,
+  firmId: string,
+  opts: { paymentStatus?: string; targetPlanTier?: string; invoice?: string } = {}
+): Promise<string> {
   return JSON.stringify({
     id: eventId,
     type: "checkout.session.completed",
@@ -64,6 +68,7 @@ async function checkoutCompletedPayload(eventId: string, firmId: string, opts: {
         subscription: `sub_${eventId}`,
         metadata: { firm_id: firmId, target_plan_tier: opts.targetPlanTier ?? "firm_starter" },
         payment_status: opts.paymentStatus ?? "paid",
+        ...(opts.invoice ? { invoice: opts.invoice } : {}),
       },
     },
   });
@@ -79,7 +84,7 @@ const STRIPE_ENV = { STRIPE_SECRET_KEY: "sk_test_x", STRIPE_WEBHOOK_SECRET: SECR
 describe("POST /firm/signup -- referral code capture", () => {
   it("a valid referral_code sets referred_by_firm_id on the NEW firm", async () => {
     const referrer = await store.createFirm(env.DB, { name: "Referrer LLP", adminEmail: `ref-a-${Date.now()}@example.com` });
-    const referrerCode = await store.getOrCreateReferralCode(env.DB, referrer.id);
+    const referrerCode = await store.mintReferralCode(env.DB, referrer.id);
 
     const newEmail = `referred-a-${Date.now()}@example.com`;
     const resp = await postFirmSignup({ name: "Referred Firm A", admin_email: newEmail, referral_code: referrerCode }, "203.0.113.1");
@@ -128,7 +133,7 @@ describe("POST /firm/signup -- referral code capture", () => {
     const referrerResp = await postFirmSignup({ name: "Gmail Referrer LLP", admin_email: referrerEmail }, "203.0.113.40");
     expect(referrerResp.status).toBe(200);
     const referrerMember = await store.findFirmMemberByEmail(env.DB, referrerEmail);
-    const referrerCode = await store.getOrCreateReferralCode(env.DB, referrerMember!.firm_id);
+    const referrerCode = await store.mintReferralCode(env.DB, referrerMember!.firm_id);
     expect(store.cooldownKey(referrerEmail)).toBe(`refgmailowner${base}@gmail.com`); // sanity-check the fold itself
 
     // Same human, different-LOOKING address: a +tag added. Different
@@ -149,7 +154,7 @@ describe("POST /firm/signup -- referral code capture", () => {
     const referrerResp = await postFirmSignup({ name: "IP Referrer LLP", admin_email: referrerEmail }, sharedIp);
     expect(referrerResp.status).toBe(200);
     const referrerMember = await store.findFirmMemberByEmail(env.DB, referrerEmail);
-    const referrerCode = await store.getOrCreateReferralCode(env.DB, referrerMember!.firm_id);
+    const referrerCode = await store.mintReferralCode(env.DB, referrerMember!.firm_id);
 
     const secondEmail = `refip-second-${Date.now()}@example.com`;
     const secondResp = await postFirmSignup({ name: "IP Second Firm", admin_email: secondEmail, referral_code: referrerCode }, sharedIp);
@@ -164,7 +169,7 @@ describe("POST /firm/signup -- referral code capture", () => {
     const referrerResp = await postFirmSignup({ name: "Diff IP Referrer LLP", admin_email: referrerEmail }, "203.0.113.60");
     expect(referrerResp.status).toBe(200);
     const referrerMember = await store.findFirmMemberByEmail(env.DB, referrerEmail);
-    const referrerCode = await store.getOrCreateReferralCode(env.DB, referrerMember!.firm_id);
+    const referrerCode = await store.mintReferralCode(env.DB, referrerMember!.firm_id);
 
     const secondEmail = `refipdiff-second-${Date.now()}@example.com`;
     const secondResp = await postFirmSignup({ name: "Diff IP Second Firm", admin_email: secondEmail, referral_code: referrerCode }, "203.0.113.61");
@@ -176,24 +181,75 @@ describe("POST /firm/signup -- referral code capture", () => {
 });
 
 // ---------------------------------------------------------------------------
-// store.getOrCreateReferralCode / findFirmByReferralCode
+// Referral v2 (2026-08-09): store.mintReferralCode / incrementReferralCodeUse
+// / findFirmByReferralCode -- rotation and the 10-use cap.
 // ---------------------------------------------------------------------------
 
-describe("store: referral code lifecycle", () => {
-  it("getOrCreateReferralCode is lazy, stable, and unique per call", async () => {
-    const { firmId } = await createFirmWithSession("Lazy Code Firm", `lazycode-${Date.now()}@example.com`);
-    const first = await store.getOrCreateReferralCode(env.DB, firmId);
-    expect(first).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/);
-    const second = await store.getOrCreateReferralCode(env.DB, firmId);
-    expect(second).toBe(first); // stable, not regenerated on a second call
+describe("store: referral code rotation + use-cap (v2)", () => {
+  it("a brand-new firm has no referral_code until one is minted", async () => {
+    const { firmId } = await createFirmWithSession("No Code Yet Firm", `nocodeyet-${Date.now()}@example.com`);
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.referral_code).toBeNull();
+    expect(firm?.referral_code_uses).toBe(0);
   });
 
-  it("findFirmByReferralCode resolves a real code and returns null for an unresolvable one", async () => {
-    const { firmId } = await createFirmWithSession("Findable Firm", `findable-${Date.now()}@example.com`);
-    const code = await store.getOrCreateReferralCode(env.DB, firmId);
-    const found = await store.findFirmByReferralCode(env.DB, code);
-    expect(found?.id).toBe(firmId);
+  it("mintReferralCode generates a fresh code each call and resets the use-counter", async () => {
+    const { firmId } = await createFirmWithSession("Mint Firm", `mint-${Date.now()}@example.com`);
+    const first = await store.mintReferralCode(env.DB, firmId);
+    expect(first).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/);
+    await store.incrementReferralCodeUse(env.DB, firmId, first);
+    const second = await store.mintReferralCode(env.DB, firmId);
+    expect(second).not.toBe(first); // NOT stable -- v2 rotates on every mint
+
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.referral_code).toBe(second);
+    expect(firm?.referral_code_uses).toBe(0); // reset by the second mint
+  });
+
+  it("the OLD code stops resolving immediately once a new one is minted -- no grace period", async () => {
+    const { firmId } = await createFirmWithSession("Rotate Firm", `rotate-${Date.now()}@example.com`);
+    const oldCode = await store.mintReferralCode(env.DB, firmId);
+    expect((await store.findFirmByReferralCode(env.DB, oldCode))?.id).toBe(firmId);
+
+    const newCode = await store.mintReferralCode(env.DB, firmId);
+    expect(await store.findFirmByReferralCode(env.DB, oldCode)).toBeNull();
+    expect((await store.findFirmByReferralCode(env.DB, newCode))?.id).toBe(firmId);
+  });
+
+  it("findFirmByReferralCode returns null for an unresolvable code", async () => {
     expect(await store.findFirmByReferralCode(env.DB, "ZZZZZZZZ")).toBeNull();
+  });
+
+  it("incrementReferralCodeUse succeeds exactly 10 times for one code, fails on the 11th", async () => {
+    const { firmId } = await createFirmWithSession("Cap Firm", `cap-${Date.now()}@example.com`);
+    const code = await store.mintReferralCode(env.DB, firmId);
+    for (let i = 0; i < 10; i++) {
+      expect(await store.incrementReferralCodeUse(env.DB, firmId, code)).toBe(true);
+    }
+    expect(await store.incrementReferralCodeUse(env.DB, firmId, code)).toBe(false);
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.referral_code_uses).toBe(10);
+  });
+
+  it("incrementReferralCodeUse fails for a code that's since been rotated away, even for the right firm id", async () => {
+    const { firmId } = await createFirmWithSession("Rotated Away Firm", `rotatedaway-${Date.now()}@example.com`);
+    const oldCode = await store.mintReferralCode(env.DB, firmId);
+    await store.mintReferralCode(env.DB, firmId); // rotates -- oldCode is now stale
+    expect(await store.incrementReferralCodeUse(env.DB, firmId, oldCode)).toBe(false);
+  });
+
+  it("concurrency: many concurrent increments at count 9 -- exactly one wins the 10th slot", async () => {
+    const { firmId } = await createFirmWithSession("Race Cap Firm", `racecap-${Date.now()}@example.com`);
+    const code = await store.mintReferralCode(env.DB, firmId);
+    for (let i = 0; i < 9; i++) {
+      await store.incrementReferralCodeUse(env.DB, firmId, code);
+    }
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => store.incrementReferralCodeUse(env.DB, firmId, code))
+    );
+    expect(results.filter(Boolean).length).toBe(1); // exactly one of the 5 racers claims the 10th use
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.referral_code_uses).toBe(10);
   });
 });
 
@@ -649,8 +705,20 @@ describe("POST /firm/account/delete -- referral reward reversal on refund", () =
 // ---------------------------------------------------------------------------
 
 describe("GET /firm/licenses -- referral fields", () => {
-  it("returns a lazily-generated referral_link and a reward count reflecting only REWARDED referrals", async () => {
+  it("a firm with no paid invoice yet has no referral_link and 0 uses remaining", async () => {
+    const { cookie } = await createFirmWithSession("No Invoice Yet Firm", `noinvoice-${Date.now()}@example.com`);
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/licenses", { headers: { Cookie: cookie } });
+    expect(resp.status).toBe(200);
+    const body = (await resp.json()) as { referral_link: string | null; referral_code_uses_remaining: number };
+    expect(body.referral_link).toBeNull();
+    expect(body.referral_code_uses_remaining).toBe(0);
+  });
+
+  it("returns the CURRENT referral_link, uses remaining, and a reward count reflecting only REWARDED referrals", async () => {
     const { firmId, cookie } = await createFirmWithSession("Dashboard Referral Firm", `dashref-${Date.now()}@example.com`);
+    const code = await store.mintReferralCode(env.DB, firmId);
+    await store.incrementReferralCodeUse(env.DB, firmId, code);
+    await store.incrementReferralCodeUse(env.DB, firmId, code);
     const referredNotRewarded = await store.createFirm(env.DB, {
       name: "Not Rewarded Yet",
       adminEmail: `dashref-notyet-${Date.now()}@example.com`,
@@ -666,9 +734,257 @@ describe("GET /firm/licenses -- referral fields", () => {
 
     const resp = await SELF.fetch("https://deadline-radar.com/firm/licenses", { headers: { Cookie: cookie } });
     expect(resp.status).toBe(200);
-    const body = (await resp.json()) as { referral_link: string; referral_reward_count: number };
-    expect(body.referral_link).toContain("/for-firms/?ref=");
+    const body = (await resp.json()) as { referral_link: string; referral_code_uses_remaining: number; referral_reward_count: number };
+    expect(body.referral_link).toContain(`/for-firms/?ref=${code}`);
+    expect(body.referral_code_uses_remaining).toBe(8); // 10 - 2 uses
     expect(body.referral_reward_count).toBe(1); // only the rewarded one counts
     void referredNotRewarded;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /stripe/webhook -- invoice.created mints + prints the referral code
+// ---------------------------------------------------------------------------
+
+async function invoiceCreatedPayload(eventId: string, invoiceId: string, subscriptionId: string): Promise<string> {
+  return JSON.stringify({
+    id: eventId,
+    type: "invoice.created",
+    data: { object: { id: invoiceId, subscription: subscriptionId } },
+  });
+}
+
+describe("POST /stripe/webhook -- invoice.created referral code mint + print", () => {
+  it("mints a fresh code for the firm and prints it on the invoice via custom_fields", async () => {
+    const firm = await store.createFirm(env.DB, { name: "Invoice Mint Firm", adminEmail: `invmint-${Date.now()}@example.com` });
+    await env.DB.prepare("UPDATE firms SET stripe_subscription_id = ?1 WHERE id = ?2").bind("sub_invmint", firm.id).run();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    try {
+      const eventId = `evt_invmint_${firm.id}`;
+      const payload = await invoiceCreatedPayload(eventId, "in_invmint_1", "sub_invmint");
+      const t = Math.floor(Date.now() / 1000);
+      const sig = await signPayload(SECRET, t, payload);
+      const resp = await postWebhook(payload, sig, STRIPE_ENV);
+      expect(resp.status).toBe(200);
+
+      const after = await store.getFirmById(env.DB, firm.id);
+      expect(after?.referral_code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/);
+      expect(after?.referral_code_uses).toBe(0);
+
+      const invoiceUpdateCall = fetchSpy.mock.calls.find((c) => (c[0] as string).includes("/v1/invoices/in_invmint_1"));
+      expect(invoiceUpdateCall).toBeTruthy();
+      const sentBody = (invoiceUpdateCall![1] as RequestInit).body as string;
+      expect(sentBody).toContain("custom_fields%5B0%5D%5Bname%5D=");
+      expect(decodeURIComponent(sentBody)).toContain(`ref=${after?.referral_code}`);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("resolves the firm via parent.subscription_details.subscription (Basil-era API shape) when top-level subscription is absent", async () => {
+    const firm = await store.createFirm(env.DB, { name: "Basil Shape Firm", adminEmail: `basil-${Date.now()}@example.com` });
+    await env.DB.prepare("UPDATE firms SET stripe_subscription_id = ?1 WHERE id = ?2").bind("sub_basil", firm.id).run();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    try {
+      const eventId = `evt_basil_${firm.id}`;
+      const payload = JSON.stringify({
+        id: eventId,
+        type: "invoice.created",
+        data: { object: { id: "in_basil_1", parent: { subscription_details: { subscription: "sub_basil" } } } },
+      });
+      const t = Math.floor(Date.now() / 1000);
+      const resp = await postWebhook(payload, await signPayload(SECRET, t, payload), STRIPE_ENV);
+      expect(resp.status).toBe(200);
+      const after = await store.getFirmById(env.DB, firm.id);
+      expect(after?.referral_code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("a SECOND invoice.created for the same firm rotates the code again", async () => {
+    const firm = await store.createFirm(env.DB, { name: "Renewal Mint Firm", adminEmail: `renewmint-${Date.now()}@example.com` });
+    await env.DB.prepare("UPDATE firms SET stripe_subscription_id = ?1 WHERE id = ?2").bind("sub_renewmint", firm.id).run();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    try {
+      const t = Math.floor(Date.now() / 1000);
+      const firstPayload = await invoiceCreatedPayload(`evt_renewmint_1_${firm.id}`, "in_renewmint_1", "sub_renewmint");
+      await postWebhook(firstPayload, await signPayload(SECRET, t, firstPayload), STRIPE_ENV);
+      const firstCode = (await store.getFirmById(env.DB, firm.id))?.referral_code;
+
+      const secondPayload = await invoiceCreatedPayload(`evt_renewmint_2_${firm.id}`, "in_renewmint_2", "sub_renewmint");
+      await postWebhook(secondPayload, await signPayload(SECRET, t, secondPayload), STRIPE_ENV);
+      const secondCode = (await store.getFirmById(env.DB, firm.id))?.referral_code;
+
+      expect(secondCode).not.toBe(firstCode);
+      expect(await store.findFirmByReferralCode(env.DB, firstCode!)).toBeNull();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("an unresolvable subscription id no-ops cleanly and still 200s", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    try {
+      const eventId = `evt_invunresolvable_${Date.now()}`;
+      const payload = await invoiceCreatedPayload(eventId, "in_unresolvable_1", "sub_does_not_exist");
+      const t = Math.floor(Date.now() / 1000);
+      const resp = await postWebhook(payload, await signPayload(SECRET, t, payload), STRIPE_ENV);
+      expect(resp.status).toBe(200);
+      const invoiceUpdateCall = fetchSpy.mock.calls.find((c) => (c[0] as string).includes("/v1/invoices/"));
+      expect(invoiceUpdateCall).toBeUndefined();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("idempotency: a redelivered invoice.created event does not mint a second code", async () => {
+    const firm = await store.createFirm(env.DB, { name: "Invoice Idempotent Firm", adminEmail: `invidem-${Date.now()}@example.com` });
+    await env.DB.prepare("UPDATE firms SET stripe_subscription_id = ?1 WHERE id = ?2").bind("sub_invidem", firm.id).run();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    try {
+      const eventId = `evt_invidem_${firm.id}`;
+      const payload = await invoiceCreatedPayload(eventId, "in_invidem_1", "sub_invidem");
+      const t = Math.floor(Date.now() / 1000);
+      const sig = await signPayload(SECRET, t, payload);
+      await postWebhook(payload, sig, STRIPE_ENV);
+      const codeAfterFirst = (await store.getFirmById(env.DB, firm.id))?.referral_code;
+      await postWebhook(payload, sig, STRIPE_ENV);
+      const codeAfterSecond = (await store.getFirmById(env.DB, firm.id))?.referral_code;
+      expect(codeAfterSecond).toBe(codeAfterFirst);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Adversarial-review fix (2026-08-09, model: opus): checkout.session.completed
+// ALSO mints (and best-effort prints) this firm's own first code -- Stripe
+// doesn't guarantee invoice.created arrives after this event, and
+// invoice.created's own firm lookup depends on stripe_subscription_id, which
+// is written for the first time by THIS handler. Without this, a firm whose
+// first invoice.created happens to arrive first would get no code until its
+// next renewal.
+// ---------------------------------------------------------------------------
+
+describe("POST /stripe/webhook -- checkout.session.completed also mints the FIRST referral code", () => {
+  it("mints a code for the paying firm and prints it on the linked invoice when object.invoice is present", async () => {
+    const firm = await store.createFirm(env.DB, { name: "First Mint Firm", adminEmail: `firstmint-${Date.now()}@example.com` });
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    try {
+      const eventId = `evt_firstmint_${firm.id}`;
+      const payload = await checkoutCompletedPayload(eventId, firm.id, { invoice: "in_firstmint_1" });
+      const t = Math.floor(Date.now() / 1000);
+      const resp = await postWebhook(payload, await signPayload(SECRET, t, payload), STRIPE_ENV);
+      expect(resp.status).toBe(200);
+
+      const after = await store.getFirmById(env.DB, firm.id);
+      expect(after?.referral_code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/);
+
+      const invoiceUpdateCall = fetchSpy.mock.calls.find((c) => (c[0] as string).includes("/v1/invoices/in_firstmint_1"));
+      expect(invoiceUpdateCall).toBeTruthy();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("a subsequent invoice.created for that same firm still rotates the code again (checkout-time mint doesn't block renewals)", async () => {
+    const firm = await store.createFirm(env.DB, { name: "First Then Renewal Firm", adminEmail: `firstrenewal-${Date.now()}@example.com` });
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    try {
+      const t = Math.floor(Date.now() / 1000);
+      const checkoutPayload = await checkoutCompletedPayload(`evt_firstrenewal_checkout_${firm.id}`, firm.id);
+      await postWebhook(checkoutPayload, await signPayload(SECRET, t, checkoutPayload), STRIPE_ENV);
+      const firstCode = (await store.getFirmById(env.DB, firm.id))?.referral_code;
+      expect(firstCode).not.toBeNull();
+
+      const renewalPayload = await invoiceCreatedPayload(`evt_firstrenewal_invoice_${firm.id}`, "in_firstrenewal_1", `sub_evt_firstrenewal_checkout_${firm.id}`);
+      await postWebhook(renewalPayload, await signPayload(SECRET, t, renewalPayload), STRIPE_ENV);
+      const secondCode = (await store.getFirmById(env.DB, firm.id))?.referral_code;
+
+      expect(secondCode).not.toBe(firstCode);
+      expect(await store.findFirmByReferralCode(env.DB, firstCode!)).toBeNull();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Adversarial-review fix (2026-08-09, model: opus): findFirmByReferralCode
+// must exclude non-'active' firms -- without this, a self-serve-deleted
+// (refunded) firm's last-minted code stays resolvable for the rest of its
+// 10 uses, each one a real discount for a new signup off a firm that no
+// longer exists.
+// ---------------------------------------------------------------------------
+
+describe("store: findFirmByReferralCode excludes deleted firms", () => {
+  it("a code minted before deletion stops resolving once the firm is deleted", async () => {
+    const firm = await store.createFirm(env.DB, { name: "Soon Deleted Firm", adminEmail: `soondeleted-${Date.now()}@example.com` });
+    const code = await store.mintReferralCode(env.DB, firm.id);
+    expect((await store.findFirmByReferralCode(env.DB, code))?.id).toBe(firm.id);
+
+    await store.requestFirmDeletion(env.DB, firm.id, { reason: null, detail: null });
+    expect(await store.findFirmByReferralCode(env.DB, code)).toBeNull();
+  });
+
+  it("a signup attempting to use a deleted firm's code does not attribute the referral", async () => {
+    const referrer = await store.createFirm(env.DB, { name: "Deleted Referrer", adminEmail: `deletedreferrer-${Date.now()}@example.com` });
+    const code = await store.mintReferralCode(env.DB, referrer.id);
+    await store.requestFirmDeletion(env.DB, referrer.id, { reason: null, detail: null });
+
+    const newEmail = `deletedref-referred-${Date.now()}@example.com`;
+    const resp = await postFirmSignup({ name: "Deleted Ref Referred Firm", admin_email: newEmail, referral_code: code }, "203.0.113.80");
+    expect(resp.status).toBe(200);
+    const member = await store.findFirmMemberByEmail(env.DB, newEmail);
+    const referred = await store.getFirmById(env.DB, member!.firm_id);
+    expect(referred?.referred_by_firm_id).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /firm/signup -- referral code use-cap enforcement (v2)
+// ---------------------------------------------------------------------------
+
+describe("POST /firm/signup -- referral code use-cap (v2)", () => {
+  it("a signup using a code already at its 10-use cap does not attribute the referral", async () => {
+    const referrer = await store.createFirm(env.DB, { name: "Capped Referrer", adminEmail: `capped-referrer-${Date.now()}@example.com` });
+    const code = await store.mintReferralCode(env.DB, referrer.id);
+    for (let i = 0; i < 10; i++) {
+      await store.incrementReferralCodeUse(env.DB, referrer.id, code);
+    }
+    const newEmail = `capped-referred-${Date.now()}@example.com`;
+    const resp = await postFirmSignup({ name: "Capped Referred Firm", admin_email: newEmail, referral_code: code }, "203.0.113.70");
+    expect(resp.status).toBe(200);
+    const member = await store.findFirmMemberByEmail(env.DB, newEmail);
+    const referred = await store.getFirmById(env.DB, member!.firm_id);
+    expect(referred?.referred_by_firm_id).toBeNull();
+  });
+
+  it("a signup using a code that was just rotated away does not attribute -- proves the code-value binding, not just the firm id", async () => {
+    const referrer = await store.createFirm(env.DB, { name: "Rotated Referrer", adminEmail: `rotated-referrer-${Date.now()}@example.com` });
+    const oldCode = await store.mintReferralCode(env.DB, referrer.id);
+    await store.mintReferralCode(env.DB, referrer.id); // supersedes oldCode before the signup below
+
+    const newEmail = `rotated-referred-${Date.now()}@example.com`;
+    const resp = await postFirmSignup({ name: "Rotated Referred Firm", admin_email: newEmail, referral_code: oldCode }, "203.0.113.71");
+    expect(resp.status).toBe(200);
+    const member = await store.findFirmMemberByEmail(env.DB, newEmail);
+    const referred = await store.getFirmById(env.DB, member!.firm_id);
+    expect(referred?.referred_by_firm_id).toBeNull();
+  });
+
+  it("a signup under the cap DOES attribute and consumes exactly one use", async () => {
+    const referrer = await store.createFirm(env.DB, { name: "Under Cap Referrer", adminEmail: `undercap-referrer-${Date.now()}@example.com` });
+    const code = await store.mintReferralCode(env.DB, referrer.id);
+    const newEmail = `undercap-referred-${Date.now()}@example.com`;
+    const resp = await postFirmSignup({ name: "Under Cap Referred Firm", admin_email: newEmail, referral_code: code }, "203.0.113.72");
+    expect(resp.status).toBe(200);
+    const member = await store.findFirmMemberByEmail(env.DB, newEmail);
+    const referred = await store.getFirmById(env.DB, member!.firm_id);
+    expect(referred?.referred_by_firm_id).toBe(referrer.id);
+    const referrerAfter = await store.getFirmById(env.DB, referrer.id);
+    expect(referrerAfter?.referral_code_uses).toBe(1);
   });
 });

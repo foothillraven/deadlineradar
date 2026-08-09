@@ -240,6 +240,7 @@ import {
   cancelSubscriptionImmediately,
   applyCouponToSubscription,
   removeCouponFromSubscription,
+  setInvoiceReferralCustomField,
   verifyWebhookSignature,
   StripeApiError,
   type StripeWebhookEvent,
@@ -1645,6 +1646,14 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
     // it) -- the real backstop against a profitable loop is the reward-
     // reversal-on-refund hook in handleFirmAccountDelete(), not this
     // string comparison; see that function's own comment.
+    // Referral v2 (2026-08-09): a code is now capped at 10 uses and can be
+    // rotated out from under this lookup by a concurrent invoice.created
+    // webhook (see store.incrementReferralCodeUse()'s own docstring for the
+    // race this closes). incrementReferralCodeUse() is the SOLE gate for
+    // both "still the current code" and "under the cap" -- a resolved
+    // referrer whose code has since rotated, or is already at 10 uses,
+    // fails this exactly like an unresolvable code always has: silently,
+    // never a 400.
     let referredByFirmId: string | null = null;
     const referralCodeRaw = (form.referral_code ?? "").trim().toUpperCase();
     if (REFERRAL_CODE_PATTERN.test(referralCodeRaw)) {
@@ -1653,7 +1662,10 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
         const sameEmail = store.cooldownKey(referrer.admin_email) === store.cooldownKey(email);
         const sameIp = Boolean(referrer.signup_ip) && referrer.signup_ip === ip;
         if (!sameEmail && !sameIp) {
-          referredByFirmId = referrer.id;
+          const claimed = await store.incrementReferralCodeUse(env.DB, referrer.id, referralCodeRaw);
+          if (claimed) {
+            referredByFirmId = referrer.id;
+          }
         }
       }
     }
@@ -3142,6 +3154,37 @@ async function handleStripeWebhook(request: Request, env: Env): Promise<Response
         } catch (err) {
           console.log(`[referral-reward] error for firm ${firmId}: ${String(err)}`);
         }
+        // Adversarial review (2026-08-09, model: opus, referral v2): mints
+        // THIS firm's own first code here too, not solely in the
+        // invoice.created branch below. Stripe does not guarantee event
+        // ordering, and invoice.created's own firm lookup depends on
+        // stripe_subscription_id, which is written for the first time by
+        // updateFirmBilling() just above -- a first invoice.created that
+        // happens to be delivered before this event would resolve no firm,
+        // silently no-op (idempotency-recorded, never retried), and leave
+        // this firm with no referral code until its next renewal, up to a
+        // year later. Minting again here is a genuine fix, not a guess:
+        // this event is proof the first invoice was already paid. object
+        // .invoice is the Checkout Session's own linked invoice id (present
+        // once payment succeeds, which it already has by the time this
+        // fires) -- used to print the code on that same first invoice. If
+        // invoice.created for this exact invoice ALSO lands (before or
+        // after), it harmlessly mints once more; the firm has not yet seen
+        // the dashboard for a mint this fresh, so nothing user-visible
+        // flips underneath them.
+        try {
+          const thisFirm = await store.getFirmById(env.DB, firmId);
+          if (thisFirm && !thisFirm.demo_locked) {
+            const firstCode = await store.mintReferralCode(env.DB, firmId);
+            const firstInvoiceId = typeof object.invoice === "string" ? object.invoice : null;
+            if (firstInvoiceId && env.STRIPE_SECRET_KEY) {
+              const link = `${staticSiteAbsoluteBaseUrl(env)}/for-firms/?ref=${encodeURIComponent(firstCode)}`;
+              await setInvoiceReferralCustomField(env.STRIPE_SECRET_KEY, firstInvoiceId, link);
+            }
+          }
+        } catch (err) {
+          console.log(`[referral-code] checkout-time mint/print failed for firm ${firmId}: ${String(err)}`);
+        }
         await store.markWebhookEventProcessed(env.DB, event.id);
       }
     }
@@ -3165,6 +3208,58 @@ async function handleStripeWebhook(request: Request, env: Env): Promise<Response
             stripeCustomerId: firm.stripe_customer_id ?? "",
             stripeSubscriptionId: null,
           });
+        }
+        await store.markWebhookEventProcessed(env.DB, event.id);
+      }
+    }
+    return jsonResponse(200, { received: true });
+  }
+
+  if (event.type === "invoice.created") {
+    // Referral v2 (2026-08-09): mints a fresh referral code on EVERY paid
+    // invoice (first checkout and every renewal), not just once at signup
+    // -- fires here, not on checkout.session.completed/invoice.paid,
+    // specifically because invoice.created delivers while the invoice is
+    // still a DRAFT (Stripe: not attempted/finalized until roughly an hour
+    // later), giving a real window to write custom_fields onto it before
+    // Stripe finalizes/charges it. Best-effort, never fails this webhook's
+    // 200 -- same posture as the referral-reward block above; a failed
+    // mint/print here just means this one invoice ships without a code,
+    // manually reconcilable, not a state that needs rollback.
+    // Adversarial review (2026-08-09, model: opus): `object.subscription`
+    // moved to `object.parent.subscription_details.subscription` on newer
+    // ("Basil"-era) Stripe API versions -- this codebase already hit the
+    // same shape of breakage twice on OTHER endpoints (see
+    // updateSubscriptionCancelAtPeriodEnd()/getLatestInvoiceForSubscription()'s
+    // own comments in stripe.ts for current_period_end/payment_intent both
+    // having moved). No `Stripe-Version` header is pinned anywhere in this
+    // codebase, so the account's default version applies here too -- try
+    // the new location first, fall back to the old one, so this keeps
+    // working regardless of which version is actually live.
+    const parentSubscriptionDetails = (object.parent as Record<string, unknown> | undefined)?.subscription_details as
+      | Record<string, unknown>
+      | undefined;
+    const subscriptionId =
+      typeof parentSubscriptionDetails?.subscription === "string"
+        ? parentSubscriptionDetails.subscription
+        : typeof object.subscription === "string"
+          ? object.subscription
+          : null;
+    const invoiceId = typeof object.id === "string" ? object.id : null;
+    if (subscriptionId && invoiceId) {
+      const isNew = await store.recordWebhookEventIfNew(env.DB, event.id, event.type, null);
+      if (isNew) {
+        try {
+          const firm = await store.findFirmByStripeSubscriptionId(env.DB, subscriptionId);
+          if (firm && !firm.demo_locked) {
+            const code = await store.mintReferralCode(env.DB, firm.id);
+            const link = `${staticSiteAbsoluteBaseUrl(env)}/for-firms/?ref=${encodeURIComponent(code)}`;
+            if (env.STRIPE_SECRET_KEY) {
+              await setInvoiceReferralCustomField(env.STRIPE_SECRET_KEY, invoiceId, link);
+            }
+          }
+        } catch (err) {
+          console.log(`[referral-code] invoice.created mint/print failed for invoice ${invoiceId}: ${String(err)}`);
         }
         await store.markWebhookEventProcessed(env.DB, event.id);
       }
@@ -4775,17 +4870,20 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
   // visitors answering NPS would pollute the only real product-feedback
   // signal this survey exists to collect.
   const npsPromptDue = !session.firm.demo_locked && store.shouldPromptNps(session.firm);
-  // Roadmap #31 (2026-08-09, referral program): lazily generated on first
-  // touch (getOrCreateReferralCode()'s own docstring) rather than
-  // backfilled -- this is the one dashboard load every firm's account
-  // panel already calls, same posture as seat_cap/freshness below.
-  // Adversarial review finding (2026-08-09, model: opus): the shared
-  // public demo account must never expose a shareable referral link at
-  // all -- same Account-tab-lockdown posture demo_locked already applies
-  // to every other consequential control (see demo_locked in the response
-  // below). It also can't meaningfully earn a reward (no real Stripe
-  // subscription), so there's nothing useful to show regardless.
-  const referralCode = session.firm.demo_locked ? null : await store.getOrCreateReferralCode(env.DB, session.firmId);
+  // Referral v2 (2026-08-09): referral_code now comes only from a paid
+  // invoice (handleStripeWebhook's invoice.created branch minting it via
+  // store.mintReferralCode()) -- read straight off the already-loaded
+  // session.firm row rather than a separate store call; a firm with no
+  // paid invoice yet simply has a null code, shown as "no active code yet"
+  // on the dashboard. Adversarial review finding (2026-08-09, model:
+  // opus): the shared public demo account must never expose a shareable
+  // referral link at all -- same Account-tab-lockdown posture demo_locked
+  // already applies to every other consequential control (see demo_locked
+  // in the response below). It also can't meaningfully earn a reward (no
+  // real Stripe subscription), so there's nothing useful to show
+  // regardless.
+  const referralCode = session.firm.demo_locked ? null : session.firm.referral_code;
+  const referralCodeUsesRemaining = referralCode ? Math.max(0, 10 - session.firm.referral_code_uses) : 0;
   const referralRewardCount = session.firm.demo_locked ? 0 : await store.countRewardedReferrals(env.DB, session.firmId);
   items.sort((a, b) => {
     const ad = a.next_deadline as string | null;
@@ -4886,6 +4984,9 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     // rather than have the client assemble it from a bare code. Null for
     // a demo_locked session -- see referralCode's own comment above.
     referral_link: referralCode ? `${staticSiteAbsoluteBaseUrl(env)}/for-firms/?ref=${encodeURIComponent(referralCode)}` : null,
+    // Referral v2: how many of this code's 10 uses are left -- 0 when
+    // referralCode is null (nothing to show a use-count for).
+    referral_code_uses_remaining: referralCodeUsesRemaining,
     // Rewarded referrals only (not raw signups) -- see
     // countRewardedReferrals()'s own docstring for why.
     referral_reward_count: referralRewardCount,

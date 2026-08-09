@@ -1237,11 +1237,17 @@ export interface FirmRow {
   // NULL = not connected. Never serialized to the client.
   teams_webhook_url: string | null;
   teams_webhook_url_iv: string | null;
-  // migration 0058 (roadmap #31). NULL for every pre-migration row --
-  // lazily generated on first dashboard touch (getOrCreateReferralCode()),
-  // never backfilled. Written once at createFirm() time and never changed
-  // afterward.
+  // migration 0058 (roadmap #31), rotated per migration 0059 (referral v2,
+  // 2026-08-09). NULL until this firm's first paid invoice -- minted (and
+  // re-minted on every subsequent paid invoice, each time replacing the
+  // prior value) by store.mintReferralCode(), called only from
+  // handleStripeWebhook's invoice.created branch. Never written at
+  // createFirm() time, never lazily generated on a dashboard touch.
   referral_code: string | null;
+  // Use-counter for the CURRENT referral_code above -- reset to 0 every
+  // time mintReferralCode() rotates the code. Capped at 10 by
+  // incrementReferralCodeUse()'s atomic conditional UPDATE.
+  referral_code_uses: number;
   // The referrer firm's own id, set ONLY at createFirm() time from a valid,
   // non-self referral_code -- no code path updates this after signup.
   referred_by_firm_id: string | null;
@@ -1729,46 +1735,28 @@ export async function createFirm(db: D1Database, input: CreateFirmInput): Promis
   const id = newToken();
   const name = sanitizeFreeText(input.name, MAX_FIRM_NAME_LEN) ?? "";
   const adminName = sanitizeFreeText(input.adminName ?? null, MAX_ADMIN_NAME_LEN);
-  // Roadmap #31: retry-on-conflict against idx_firms_referral_code, same
-  // TOCTOU posture createFirm() already needs for admin_email uniqueness
-  // (handled one layer up, in index.ts) -- collision odds at this
-  // alphabet/length are negligible, but the guard costs nothing.
-  const MAX_REFERRAL_CODE_ATTEMPTS = 5;
-  let inserted = false;
-  for (let attempt = 0; attempt < MAX_REFERRAL_CODE_ATTEMPTS && !inserted; attempt++) {
-    try {
-      await db
-        .prepare(
-          `INSERT INTO firms (id, name, admin_email, admin_name, plan_tier, status, created_at, tos_accepted_version, referral_code, referred_by_firm_id, signup_ip)
-           VALUES (?1,?2,?3,?4,'free','active',?5,?6,?7,?8,?9)`
-        )
-        .bind(
-          id,
-          name,
-          input.adminEmail,
-          adminName,
-          nowIso(),
-          input.tosAcceptedVersion ?? null,
-          newReferralCode(),
-          input.referredByFirmId ?? null,
-          input.signupIp ?? null
-        )
-        .run();
-      inserted = true;
-    } catch (err) {
-      // Adversarial-review-L1-style precision (same posture as
-      // updateFirmAdminEmail()'s own docstring above): only a genuine
-      // referral_code collision is worth retrying. Anything else (e.g. a
-      // real admin_email conflict) rethrows immediately -- retrying that
-      // would just fail identically 5 times before reporting the real
-      // error, which the caller one layer up already has its own
-      // TOCTOU handling for.
-      if (err instanceof Error && err.message.includes("idx_firms_referral_code") && attempt < MAX_REFERRAL_CODE_ATTEMPTS - 1) {
-        continue;
-      }
-      throw err;
-    }
-  }
+  // Referral v2 (2026-08-09): referral_code is deliberately left NULL here
+  // -- codes are minted only by handleStripeWebhook's invoice.created
+  // branch (store.mintReferralCode()) on a firm's first paid invoice, never
+  // at signup. A brand-new free-tier firm that hasn't paid yet has no code
+  // to share; the dashboard shows its own "no active code yet" state for
+  // that (see handleFirmLicensesList in index.ts).
+  await db
+    .prepare(
+      `INSERT INTO firms (id, name, admin_email, admin_name, plan_tier, status, created_at, tos_accepted_version, referred_by_firm_id, signup_ip)
+       VALUES (?1,?2,?3,?4,'free','active',?5,?6,?7,?8)`
+    )
+    .bind(
+      id,
+      name,
+      input.adminEmail,
+      adminName,
+      nowIso(),
+      input.tosAcceptedVersion ?? null,
+      input.referredByFirmId ?? null,
+      input.signupIp ?? null
+    )
+    .run();
   // migration 0045 (roadmap #11/#13/#14/#51): every firm now needs a
   // firm_members row from the moment it exists, not just from the next
   // migration's backfill -- this IS the "backfill" for every firm created
@@ -2698,26 +2686,38 @@ export async function findFirmByStripeSubscriptionId(
  * form field) to the referrer firm, or null for unresolvable/malformed --
  * the caller's own posture (handleFirmSignup) is "an invalid code never
  * fails the signup," so this deliberately returns null rather than
- * throwing on a miss. */
+ * throwing on a miss.
+ *
+ * Adversarial review (2026-08-09, model: opus, referral v2): `status =
+ * 'active'` is REQUIRED here, not optional -- without it, a firm that
+ * self-serve-deletes (requestFirmDeletion(), refunded near-in-full) keeps
+ * its last-minted code fully resolvable for the rest of its 10 uses, each
+ * one still handing a real new signup 10% off. Same "any non-'active'
+ * status is denied" convention this file already uses elsewhere (see
+ * requestFirmDeletion()'s own docstring). */
 export async function findFirmByReferralCode(db: D1Database, code: string): Promise<FirmRow | null> {
-  const row = await db.prepare(`SELECT * FROM firms WHERE referral_code = ?1 LIMIT 1`).bind(code).first<FirmRow>();
+  const row = await db.prepare(`SELECT * FROM firms WHERE referral_code = ?1 AND status = 'active' LIMIT 1`).bind(code).first<FirmRow>();
   return row ?? null;
 }
 
-/** Lazily generates and persists a referral_code for a pre-migration-0058
- * firm (or any firm somehow still missing one) the first time it's read --
- * see migration 0058's own docstring for why this is lazy, not backfilled.
- * Already-set codes are returned unchanged; retries on the same
- * idx_firms_referral_code collision createFirm() itself guards against. */
-export async function getOrCreateReferralCode(db: D1Database, firmId: string): Promise<string> {
-  const existing = await db.prepare(`SELECT referral_code FROM firms WHERE id = ?1`).bind(firmId).first<{ referral_code: string | null }>();
-  if (existing?.referral_code) return existing.referral_code;
-
+/**
+ * Referral v2 (2026-08-09): mints a FRESH referral_code for a firm and
+ * resets its use-counter to 0, replacing whatever code (if any) was live
+ * before -- called only from handleStripeWebhook's invoice.created branch,
+ * on every paid invoice (first checkout AND every renewal), never lazily
+ * on a dashboard touch. The old code is simply overwritten here: nothing
+ * else in the schema stores it, so it stops resolving via
+ * findFirmByReferralCode() the instant this commits -- that's the whole
+ * mechanism behind "the old code dies immediately when a new one is
+ * minted." Same retry-on-idx_firms_referral_code-collision shape
+ * createFirm() uses for its own initial insert.
+ */
+export async function mintReferralCode(db: D1Database, firmId: string): Promise<string> {
   const MAX_ATTEMPTS = 5;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const code = newReferralCode();
     try {
-      await db.prepare(`UPDATE firms SET referral_code = ?1 WHERE id = ?2`).bind(code, firmId).run();
+      await db.prepare(`UPDATE firms SET referral_code = ?1, referral_code_uses = 0 WHERE id = ?2`).bind(code, firmId).run();
       return code;
     } catch (err) {
       if (err instanceof Error && err.message.includes("idx_firms_referral_code") && attempt < MAX_ATTEMPTS - 1) {
@@ -2728,7 +2728,31 @@ export async function getOrCreateReferralCode(db: D1Database, firmId: string): P
   }
   // Unreachable (the loop above always returns or throws), but TypeScript
   // can't see that -- satisfies the return type.
-  throw new Error("getOrCreateReferralCode: exhausted retry attempts");
+  throw new Error("mintReferralCode: exhausted retry attempts");
+}
+
+/**
+ * Referral v2 (2026-08-09): the ONE enforcement point for a referral
+ * code's use-cap -- deliberately the only place that checks "is this code
+ * still current AND under 10 uses," rather than a separate read-then-check
+ * in findFirmByReferralCode() plus a second check here, which would leave
+ * a TOCTOU window between the two reads. Binding on BOTH the firm id AND
+ * the exact code closes the race where a NEW invoice mints a replacement
+ * code for this same firm between the caller's lookup and this call: the
+ * UPDATE's WHERE clause simply matches zero rows (referral_code has moved
+ * on), so this returns false instead of incrementing the wrong (new)
+ * code's counter. Same atomic claim-before-act shape as
+ * claimReferralReward() above. Returns true only if this call itself
+ * pushed the counter past the previous value while still under the cap --
+ * the caller (handleFirmSignup) must only attribute the referral when this
+ * returns true.
+ */
+export async function incrementReferralCodeUse(db: D1Database, firmId: string, code: string): Promise<boolean> {
+  const result = await db
+    .prepare(`UPDATE firms SET referral_code_uses = referral_code_uses + 1 WHERE id = ?1 AND referral_code = ?2 AND referral_code_uses < 10`)
+    .bind(firmId, code)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 /**

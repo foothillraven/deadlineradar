@@ -9550,20 +9550,32 @@ function drRenderBillingPanel() {
   }
 }
 
-// Roadmap #31 (2026-08-09, referral program). link is server-built
-// (staticSiteAbsoluteBaseUrl() + the firm's own referral_code) -- this
-// function never assembles a URL itself. Clipboard-only "Copy link"
-// (no server round trip); rewardCount counts only REWARDED referrals
-// (see countRewardedReferrals()'s own docstring), never raw signups.
-function drRenderReferralPanel(link, rewardCount) {
+// Referral v2 (2026-08-09). link is server-built (staticSiteAbsoluteBaseUrl()
+// + the firm's own, currently-live referral_code) -- this function never
+// assembles a URL itself. A null link means this firm has no paid invoice
+// yet (codes are now minted only by invoice.created, never at signup) --
+// shown as its own explanatory state, not a silent no-op, since the panel
+// starts as a "Loading..." placeholder that must never be left stuck.
+// Clipboard-only "Copy link" (no server round trip); rewardCount counts
+// only REWARDED referrals (see countRewardedReferrals()'s own docstring),
+// never raw signups; usesRemaining is this code's own 10-use cap headroom.
+function drRenderReferralPanel(link, usesRemaining, rewardCount) {
   var body = document.getElementById('dr-referral-body');
-  if (!body || !link) return;
+  if (!body) return;
+  if (!link) {
+    body.innerHTML = '<p class="dr-panel-empty">No active referral code yet &mdash; one arrives with your next invoice.</p>';
+    return;
+  }
+  var usesText = usesRemaining > 0
+    ? usesRemaining + ' of 10 uses left on this code.'
+    : 'This code has reached its 10-use limit; a new one arrives with your next invoice.';
   var countText = rewardCount > 0
     ? rewardCount + (rewardCount === 1 ? ' firm has' : ' firms have') + ' joined using your link.'
     : 'No referrals yet.';
   body.innerHTML =
     '<input type="text" id="dr-referral-link-input" readonly value="' + drEscapeHtml(link) + '">' +
     '<button type="button" class="dr-btn-secondary" id="dr-referral-copy-btn">Copy link</button>' +
+    '<p class="dr-panel-empty">' + drEscapeHtml(usesText) + '</p>' +
     '<p class="dr-panel-empty">' + drEscapeHtml(countText) + '</p>';
   var copyBtn = document.getElementById('dr-referral-copy-btn');
   if (copyBtn) {
@@ -12310,7 +12322,7 @@ function drLoadLicenses() {
       // Roadmap #21: same note.
       drRenderTeamsIntegration(Boolean(data.teams_connected));
       // Roadmap #31: same note.
-      drRenderReferralPanel(data.referral_link || null, data.referral_reward_count || 0);
+      drRenderReferralPanel(data.referral_link || null, data.referral_code_uses_remaining || 0, data.referral_reward_count || 0);
       drRenderTable();
       drRenderStats();
       drRenderRenewalFeeRollup();
@@ -14598,7 +14610,8 @@ def build_firm_dashboard_page(
       <div class="dr-account-panel" id="dr-referral-panel">
         <h2>Refer a firm</h2>
         <p class="signup-microcopy">Share your link with another CPA firm. When they sign up for a
-        paid plan, you both get 10% off your next invoice.</p>
+        paid plan, you both get 10% off your next invoice. A new code with up to 10 uses arrives
+        on every paid invoice, replacing the old one.</p>
         <div id="dr-referral-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
       </div>
 

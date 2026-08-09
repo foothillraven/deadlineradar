@@ -220,6 +220,40 @@ export async function removeCouponFromSubscription(secretKey: string, subscripti
   }
 }
 
+/**
+ * Referral v2 (2026-08-09). Prints the firm's freshly-minted referral link
+ * directly on the Stripe invoice/receipt document via `custom_fields`, so
+ * it's visible without the firm ever visiting the dashboard. Called only
+ * from handleStripeWebhook's invoice.created branch, on a DRAFT invoice --
+ * Stripe's own docs confirm a draft is fully editable and isn't attempted/
+ * finalized until roughly an hour after invoice.created fires, so there's
+ * no race with Stripe auto-finalizing the invoice out from under this call.
+ * `custom_fields` is an array of up to 4 {name, value} entries (name <=40
+ * chars, value <=140 chars, both confirmed against Stripe's own "Update an
+ * invoice" API reference) and SETTING it REPLACES the whole list -- this
+ * codebase sets no other custom_fields anywhere today, so there is nothing
+ * to preserve, but a future second use of custom_fields on an invoice must
+ * merge with this one rather than overwrite it.
+ */
+export async function setInvoiceReferralCustomField(secretKey: string, invoiceId: string, referralLink: string): Promise<void> {
+  const body = new URLSearchParams();
+  body.set("custom_fields[0][name]", "Refer a firm, get 10% off");
+  body.set("custom_fields[0][value]", referralLink);
+
+  const res = await fetch(`https://api.stripe.com/v1/invoices/${encodeURIComponent(invoiceId)}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${btoa(`${secretKey}:`)}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: body.toString(),
+  });
+  if (!res.ok) {
+    const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+    throw new StripeApiError(json.error?.message ?? "Stripe invoice custom-field update failed.", res.status);
+  }
+}
+
 export interface StripeInvoiceDetails {
   invoiceId: string;
   /** Smallest currency unit (cents for USD) -- what was ACTUALLY charged,

@@ -610,6 +610,19 @@ export const RATE_LIMIT_FIRM_SLACK_DISCONNECT: RateLimit = { max: 30, windowSeco
 // cap as the settings routes above.
 export const RATE_LIMIT_FIRM_TEAMS_SET: RateLimit = { max: 30, windowSeconds: 86400 };
 
+// POST /subscriber/phone/start-verification (roadmap #22, 2026-08-09) --
+// deliberately tighter than the settings caps above: each call sends a
+// REAL SMS at REAL per-message cost, unlike every other rate-limited
+// action in this file. Same "circuit breaker before the send" posture as
+// RESEND_COOLDOWN_MINUTES/RESEND_MAX_ATTEMPTS (store.ts) for email resends.
+export const RATE_LIMIT_SUBSCRIBER_PHONE_VERIFICATION_START: RateLimit = { max: 5, windowSeconds: 86400 };
+// POST /subscriber/phone/confirm-verification -- a 6-digit code's real
+// brute-force resistance comes from attempt throttling, not the code's
+// own keyspace. Tighter than the start cap: several guesses per SENT
+// code, not several codes per day.
+export const RATE_LIMIT_SUBSCRIBER_PHONE_VERIFICATION_CONFIRM: RateLimit = { max: 10, windowSeconds: 3600 };
+export const RATE_LIMIT_SUBSCRIBER_PHONE_OPT_OUT: RateLimit = { max: 30, windowSeconds: 86400 };
+
 // Roadmap #23: the ONLY values a firm may pick from -- see migration 0039's
 // own docstring for why this is a subset of the existing 6 escalation
 // points, not arbitrary day-offsets (each has bespoke, reviewed urgency

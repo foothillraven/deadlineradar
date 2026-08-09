@@ -61,10 +61,13 @@ import {
   checkAndCountSlackAlertSend,
   DEFAULT_DAILY_TEAMS_ALERT_SEND_CAP,
   checkAndCountTeamsAlertSend,
+  DEFAULT_DAILY_SMS_SEND_CAP,
+  checkAndCountSmsSend,
   sendViaSendGrid,
 } from "./sender";
 import { sendToSlack } from "./slack";
 import { sendToTeams } from "./teams";
+import { sendSms, isWithinSmsQuietHours } from "./sms";
 import cpaDataForDripCourse from "./cpa_deadlines.json";
 import regChangeEventsData from "./reg_change_events.json";
 
@@ -1291,6 +1294,184 @@ export async function runTeamsAlertPass(env: Env, opts: RunTeamsAlertOptions = {
         await store.unclaimTeamsThresholdNotification(env.DB, subscriberId, threshold).catch(() => {});
       }
       summary.errors.push({ firm_id: firm.id, error: `unexpected error: ${String(err)}` });
+    }
+  }
+
+  return summary;
+}
+
+// ---------------------------------------------------------------------------
+// SMS alerts (2026-08-09, roadmap #22). Same daily-cron trigger, own
+// independent pass. Per-SUBSCRIBER (like runReminderPass() above), not
+// per-firm like Slack/Teams -- filtered to store.allSmsOptedInConfirmed().
+// Reuses the identical threshold-resolution body, the firm-then-subscriber
+// reminder_thresholds resolution, and the same demo_locked check, but:
+//   - a quiet-hours gate (sms.ts's isWithinSmsQuietHours()) runs FIRST,
+//     before any threshold work -- a subscriber outside 8am-9pm their
+//     licensing state's approximate local time is skipped entirely this
+//     pass, real TCPA requirement, not a style choice.
+//   - dedup is via sms_notified_thresholds, INDEPENDENT of reminders_sent
+//     and both Slack's/Teams' own tables -- migration 0054's own docstring.
+//   - ONE text per newly-due threshold, never batched into a digest like
+//     Slack/Teams -- a text is already minimal/single-purpose, batching
+//     would only delay urgent per-deadline information for no benefit.
+// ---------------------------------------------------------------------------
+
+export interface SmsAlertSummary {
+  checked: number;
+  itemsClaimed: number;
+  sent: number;
+  skippedQuietHours: number;
+  errors: { subscriber_id: string; error: string }[];
+}
+
+export interface RunSmsAlertOptions {
+  asOf?: Date;
+  /** Injected for tests -- defaults to the real Twilio send. Plain
+   * (to, body) shape, not ReminderSendFn -- an SMS has no subject/HTML. */
+  send?: (to: string, body: string) => Promise<boolean>;
+}
+
+function dailySmsSendCap(env: Env): number {
+  const n = Number.parseInt(env.SMS_DAILY_SEND_CAP ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_SMS_SEND_CAP;
+}
+
+function smsBodyFor(stateName: string, deadlineStr: string, daysRemaining: number): string {
+  const dp =
+    daysRemaining > 0
+      ? `in ${daysRemaining} day${daysRemaining !== 1 ? "s" : ""}`
+      : daysRemaining === 0
+        ? "today"
+        : `${-daysRemaining} day${daysRemaining !== -1 ? "s" : ""} ago`;
+  return `DeadlineRadar: your ${stateName} CPA renewal is due ${dp} (${deadlineStr}). Reply STOP to opt out.`;
+}
+
+export async function runSmsAlertPass(env: Env, opts: RunSmsAlertOptions = {}): Promise<SmsAlertSummary> {
+  const asOf = opts.asOf ?? new Date();
+  const freshnessToday = opts.asOf ? new Date() : asOf;
+  checkDataFreshness(freshnessToday);
+  const asOfDay = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate()));
+  const todayIso = asOfDay.toISOString().slice(0, 10);
+
+  const send: (to: string, body: string) => Promise<boolean> =
+    opts.send ??
+    ((to, body) => {
+      if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN || !env.TWILIO_FROM_NUMBER) return Promise.resolve(false);
+      return sendSms(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN, env.TWILIO_FROM_NUMBER, to, body);
+    });
+
+  const firmsById = new Map((await store.listAllFirmsBasicInfo(env.DB)).map((f) => [f.id, f]));
+  const cap = dailySmsSendCap(env);
+
+  const summary: SmsAlertSummary = { checked: 0, itemsClaimed: 0, sent: 0, skippedQuietHours: 0, errors: [] };
+
+  const subscribers = await store.allSmsOptedInConfirmed(env.DB);
+  let capReached = false;
+  for (const sub of subscribers) {
+    if (capReached) break;
+    summary.checked += 1;
+
+    if (!sub.phone_number) continue; // defensive -- sms_opted_in=1 should always carry a number
+
+    // TCPA quiet hours -- checked before ANY threshold work, same
+    // "evaluated at all" gate as snoozed_until below.
+    if (!isWithinSmsQuietHours(sub.state_slug, asOf)) {
+      summary.skippedQuietHours += 1;
+      continue;
+    }
+
+    if (sub.snoozed_until && sub.snoozed_until >= todayIso) continue;
+
+    let deadline: Date | null;
+    let fields: Record<string, string>;
+    try {
+      fields = JSON.parse(sub.deadline_fields || "{}");
+      deadline =
+        sub.deadline_source === store.DEADLINE_SOURCE_USER && sub.user_deadline
+          ? new Date(`${sub.user_deadline}T00:00:00Z`)
+          : computeSubscriberDeadline(sub.state_slug, fields, asOf);
+    } catch (err) {
+      summary.errors.push({ subscriber_id: sub.id, error: String(err) });
+      continue;
+    }
+    if (deadline === null) continue;
+    const stateName = stateNameForSlug(sub.state_slug);
+    if (stateName === null) continue;
+
+    const daysRemaining = Math.round((deadline.getTime() - asOfDay.getTime()) / MS_PER_DAY);
+    // Deliberately NOT sub.reminders_sent -- same independence reasoning
+    // as runSlackAlertPass()/runTeamsAlertPass() above, from SMS' own
+    // dedup table instead.
+    const alreadySent = await store.listSmsNotifiedThresholds(env.DB, sub.id);
+    const neverNotified = alreadySent.length === 0;
+
+    const firmInfo = sub.firm_id ? firmsById.get(sub.firm_id) ?? null : null;
+    let thresholds: number[] = ESCALATION_THRESHOLDS_DAYS;
+    if (firmInfo?.reminder_thresholds) {
+      try {
+        const parsed = JSON.parse(firmInfo.reminder_thresholds);
+        if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+      } catch {
+        // Same fall-through posture as runReminderPass() above.
+      }
+    }
+    if (sub.reminder_thresholds) {
+      try {
+        const parsed = JSON.parse(sub.reminder_thresholds);
+        if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+      } catch {
+        // Same fall-through posture as above.
+      }
+    }
+
+    let threshold: number | null;
+    if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
+      if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
+        threshold = Math.min(...thresholds);
+      } else {
+        continue;
+      }
+    } else {
+      threshold = nextDueThreshold(daysRemaining, alreadySent, thresholds);
+      if (threshold === null) continue;
+    }
+
+    let claimedThreshold = false;
+    try {
+      // Same AuditLab DEMO-5 reasoning as every other pass -- checked
+      // before claiming, without claiming.
+      if (firmInfo?.demo_locked) {
+        summary.errors.push({ subscriber_id: sub.id, error: "SKIPPED: firm is demo_locked -- no SMS sent from the shared demo account." });
+        continue;
+      }
+
+      const claimed = await store.claimSmsThresholdNotification(env.DB, sub.id, threshold);
+      if (!claimed) continue;
+      claimedThreshold = true;
+      summary.itemsClaimed += 1;
+
+      const underCap = await checkAndCountSmsSend(env.DB, cap);
+      if (!underCap) {
+        await store.unclaimSmsThresholdNotification(env.DB, sub.id, threshold);
+        summary.errors.push({ subscriber_id: sub.id, error: "daily send cap reached -- halting further sends today." });
+        capReached = true;
+        break;
+      }
+
+      const body = smsBodyFor(stateName, fmtDate(deadline), daysRemaining);
+      const ok = await send(sub.phone_number, body);
+      if (ok) {
+        summary.sent += 1;
+      } else {
+        await store.unclaimSmsThresholdNotification(env.DB, sub.id, threshold);
+        summary.errors.push({ subscriber_id: sub.id, error: "send returned false" });
+      }
+    } catch (err) {
+      if (claimedThreshold) {
+        await store.unclaimSmsThresholdNotification(env.DB, sub.id, threshold).catch(() => {});
+      }
+      summary.errors.push({ subscriber_id: sub.id, error: `unexpected error: ${String(err)}` });
     }
   }
 

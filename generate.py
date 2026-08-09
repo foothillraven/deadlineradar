@@ -7326,6 +7326,136 @@ _MY_DASHBOARD_JS_HTML = """<script>
       }
       modeForm.dataset.drFilled = '1';
     }
+    // Roadmap #22: three-state panel (not opted in / awaiting a code /
+    // opted in), so this always reflects the server's own state on every
+    // render -- no drFilled guard, since "awaiting a code" is a transient
+    // client-only state that a background poll/re-render should not
+    // clobber once the person has actually submitted a phone number, but
+    // a genuine server-confirmed opted-in status should always win.
+    drRenderSmsPanel(Boolean(data.sms_opted_in), data.phone_last4 || null);
+  }
+
+  // Roadmap #22 (2026-08-09): SMS opt-in, double opt-in flow (send a code,
+  // confirm it) -- same rigor as the email confirm_token flow, applied to
+  // a new channel with real TCPA consent requirements. Three UI states:
+  // not opted in (phone input), awaiting a code (code input), opted in
+  // (status + opt-out button).
+  function drRenderSmsPanel(optedIn, phoneLast4) {
+    var disconnectedEl = document.getElementById('dr-sms-disconnected');
+    var awaitingEl = document.getElementById('dr-sms-awaiting-code');
+    var connectedEl = document.getElementById('dr-sms-connected');
+    var statusEl = document.getElementById('dr-sms-status-text');
+    if (!disconnectedEl || !awaitingEl || !connectedEl) return;
+    if (optedIn) {
+      if (statusEl) statusEl.textContent = 'Texts enabled for the number ending in ' + (phoneLast4 || '????') + '.';
+      connectedEl.hidden = false;
+      disconnectedEl.hidden = true;
+      awaitingEl.hidden = true;
+    } else if (!awaitingEl.dataset.drAwaitingCode) {
+      connectedEl.hidden = true;
+      disconnectedEl.hidden = false;
+      awaitingEl.hidden = true;
+    }
+  }
+
+  function drSmsStartVerification(form) {
+    var okEl = document.getElementById('dr-sms-ok');
+    var errEl = document.getElementById('dr-sms-error');
+    if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+    if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+    var input = document.getElementById('dr-sms-phone-input');
+    var phone = input ? input.value.trim() : '';
+    var consentBox = document.getElementById('dr-sms-consent-checkbox');
+    if (!consentBox || !consentBox.checked) {
+      if (errEl) { errEl.textContent = 'Please check the box to confirm you want text reminders.'; errEl.hidden = false; }
+      return;
+    }
+    var submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+
+    fetch('/api/subscriber/phone/start-verification', {
+      method: 'POST', credentials: 'include',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({phone_number: phone}),
+    }).then(function (res) {
+      if (submitBtn) submitBtn.disabled = false;
+      if (res.status === 401) { window.location.href = '/signin/'; return null; }
+      return res.json().catch(function () { return null; }).then(function (data) {
+        if (!res.ok) {
+          if (errEl) { errEl.textContent = (data && data.error) ? data.error : 'Something went wrong, please try again.'; errEl.hidden = false; }
+          return;
+        }
+        var disconnectedEl = document.getElementById('dr-sms-disconnected');
+        var awaitingEl = document.getElementById('dr-sms-awaiting-code');
+        if (disconnectedEl) disconnectedEl.hidden = true;
+        if (awaitingEl) { awaitingEl.hidden = false; awaitingEl.dataset.drAwaitingCode = '1'; }
+        if (okEl) { okEl.textContent = 'Code sent -- check your phone.'; okEl.hidden = false; }
+      });
+    }).catch(function () {
+      if (submitBtn) submitBtn.disabled = false;
+      if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+    });
+  }
+
+  function drSmsConfirmVerification(form) {
+    var okEl = document.getElementById('dr-sms-ok');
+    var errEl = document.getElementById('dr-sms-error');
+    if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+    if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+    var input = document.getElementById('dr-sms-code-input');
+    var code = input ? input.value.trim() : '';
+    var submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+
+    fetch('/api/subscriber/phone/confirm-verification', {
+      method: 'POST', credentials: 'include',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({code: code}),
+    }).then(function (res) {
+      if (submitBtn) submitBtn.disabled = false;
+      if (res.status === 401) { window.location.href = '/signin/'; return null; }
+      return res.json().catch(function () { return null; }).then(function (data) {
+        if (!res.ok) {
+          if (errEl) { errEl.textContent = (data && data.error) ? data.error : 'That code is incorrect or has expired.'; errEl.hidden = false; }
+          return;
+        }
+        var awaitingEl = document.getElementById('dr-sms-awaiting-code');
+        if (awaitingEl) delete awaitingEl.dataset.drAwaitingCode;
+        drRenderSmsPanel(true, data.phone_last4 || null);
+        if (okEl) { okEl.textContent = 'Text reminders enabled.'; okEl.hidden = false; }
+      });
+    }).catch(function () {
+      if (submitBtn) submitBtn.disabled = false;
+      if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+    });
+  }
+
+  function drSmsOptOut() {
+    var okEl = document.getElementById('dr-sms-ok');
+    var errEl = document.getElementById('dr-sms-error');
+    if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+    if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+    var btn = document.getElementById('dr-sms-opt-out-btn');
+    if (btn) btn.disabled = true;
+
+    fetch('/api/subscriber/phone/opt-out', {
+      method: 'POST', credentials: 'include',
+      headers: {'content-type': 'application/json'},
+    }).then(function (res) {
+      if (btn) btn.disabled = false;
+      if (res.status === 401) { window.location.href = '/signin/'; return null; }
+      return res.json().catch(function () { return null; }).then(function (data) {
+        if (!res.ok) {
+          if (errEl) { errEl.textContent = (data && data.error) ? data.error : 'Something went wrong, please try again.'; errEl.hidden = false; }
+          return;
+        }
+        drRenderSmsPanel(false, null);
+        if (okEl) { okEl.textContent = 'Text reminders turned off.'; okEl.hidden = false; }
+      });
+    }).catch(function () {
+      if (btn) btn.disabled = false;
+      if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+    });
   }
 
   function drRender(data) {
@@ -7549,6 +7679,28 @@ _MY_DASHBOARD_JS_HTML = """<script>
     });
   }
 
+  var smsStartFormEl = document.getElementById('dr-sms-start-form');
+  if (smsStartFormEl) {
+    smsStartFormEl.addEventListener('submit', function (e) {
+      e.preventDefault();
+      drSmsStartVerification(smsStartFormEl);
+    });
+  }
+  var smsConfirmFormEl = document.getElementById('dr-sms-confirm-form');
+  if (smsConfirmFormEl) {
+    smsConfirmFormEl.addEventListener('submit', function (e) {
+      e.preventDefault();
+      drSmsConfirmVerification(smsConfirmFormEl);
+    });
+  }
+  var smsOptOutBtn = document.getElementById('dr-sms-opt-out-btn');
+  if (smsOptOutBtn) {
+    smsOptOutBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      drSmsOptOut();
+    });
+  }
+
   // Roadmap #12: the email-change confirm click lands back here with a
   // query-string outcome (?email_changed=1 / ?email_change_failed=conflict)
   // -- same "tell them what happened" posture the firm dashboard's own
@@ -7665,6 +7817,37 @@ def build_my_page(cpe_hours_by_slug: dict[str, dict]) -> str:
     </form>
     <p id="dr-my-notification-mode-ok" class="dr-account-ok" hidden></p>
     <p id="dr-my-notification-mode-error" role="alert" class="dr-account-err" hidden></p>
+  </div>
+
+  <div class="dr-account-panel" id="dr-my-sms">
+    <h2>Text reminders</h2>
+    <p class="signup-microcopy">Get a text at the same reminder points as your email, on top of it
+    -- not instead of it. Message and data rates may apply. Reply STOP at any time to opt out.</p>
+    <div id="dr-sms-disconnected">
+      <form id="dr-sms-start-form">
+        <label for="dr-sms-phone-input">Your phone number</label>
+        <input type="tel" id="dr-sms-phone-input" placeholder="+15551234567">
+        <label class="dr-sms-consent-label">
+          <input type="checkbox" id="dr-sms-consent-checkbox">
+          I agree to receive automated CPA renewal deadline text reminders from DeadlineRadar at
+          this number. Message and data rates may apply. Reply STOP to opt out, HELP for help.
+        </label>
+        <button type="submit">Send code</button>
+      </form>
+    </div>
+    <div id="dr-sms-awaiting-code" hidden>
+      <form id="dr-sms-confirm-form">
+        <label for="dr-sms-code-input">Enter the code we texted you</label>
+        <input type="text" id="dr-sms-code-input" inputmode="numeric" maxlength="6" placeholder="123456">
+        <button type="submit">Confirm</button>
+      </form>
+    </div>
+    <div id="dr-sms-connected" hidden>
+      <p id="dr-sms-status-text"></p>
+      <button type="button" id="dr-sms-opt-out-btn" class="dr-btn-secondary">Turn off text reminders</button>
+    </div>
+    <p id="dr-sms-ok" class="dr-account-ok" hidden></p>
+    <p id="dr-sms-error" role="alert" class="dr-account-err" hidden></p>
   </div>
 
   <div class="dr-my-error" id="dr-my-error" role="alert" hidden>

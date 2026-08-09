@@ -149,6 +149,15 @@ export interface SubscriberRow {
   // migration 0051. NULL until the first digest actually sends, then a
   // rolling +7-day window -- see advanceDigestWindow()'s own docstring.
   digest_next_send_at: string | null;
+  // migration 0054 (roadmap #22). E.164 format, null until verified via
+  // the phone-verification flow. sms_opted_in is the actual gate
+  // runSmsAlertPass() reads -- a phone_number can exist (mid-verification
+  // or after an opt-out) without sms_opted_in being true. sms_opted_in_at
+  // is the TCPA consent timestamp, kept even after an opt-out -- see
+  // clearSubscriberSmsOptIn()'s own docstring for why.
+  phone_number: string | null;
+  sms_opted_in: number;
+  sms_opted_in_at: string | null;
 }
 
 function nowIso(): string {
@@ -438,6 +447,12 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     // internal_notes above.
     notification_mode: NOTIFICATION_MODE_IMMEDIATE,
     digest_next_send_at: null,
+    // Roadmap #22: a brand-new record has no phone number and has not
+    // consented to SMS -- matches the columns' own DB defaults, not part
+    // of the INSERT column list either, same as notification_mode above.
+    phone_number: null,
+    sms_opted_in: 0,
+    sms_opted_in_at: null,
   };
   await db
     .prepare(
@@ -4655,6 +4670,147 @@ export async function listTeamsNotifiedThresholds(db: D1Database, subscriberId: 
     .bind(subscriberId)
     .all<{ threshold: number }>();
   return results.map((r) => r.threshold);
+}
+
+// ---------------------------------------------------------------------------
+// SMS reminders (2026-08-09, roadmap #22). Opt-in ADDITIONAL channel on top
+// of email -- see migration 0054's own docstring for the real TCPA
+// compliance reasoning behind this shape (double opt-in, cross-row reach,
+// consent timestamp kept even after opt-out).
+// ---------------------------------------------------------------------------
+
+export const PHONE_VERIFICATION_TTL_MINUTES = 10;
+
+/** Mints a phone-verification row. `codeHash` is the caller's
+ * hashToken(rawCode) -- this function never sees or logs the raw code,
+ * same never-store-a-live-secret-in-the-clear posture as every other
+ * token/code in this file. */
+export async function createPhoneVerification(
+  db: D1Database,
+  emailNormalized: string,
+  phoneNumber: string,
+  codeHash: string
+): Promise<void> {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + PHONE_VERIFICATION_TTL_MINUTES * 60_000).toISOString();
+  await db
+    .prepare(
+      `INSERT INTO subscriber_phone_verifications
+         (id, subscriber_email_normalized, phone_number, code_hash, created_at, expires_at, used_at)
+       VALUES (?1,?2,?3,?4,?5,?6,NULL)`
+    )
+    .bind(newToken(), emailNormalized, phoneNumber, codeHash, now.toISOString(), expiresAt)
+    .run();
+}
+
+/**
+ * Validates and CONSUMES the most recent still-open verification for this
+ * email. Returns the verified phone_number on success, null for unknown/
+ * expired/already-used/wrong-code -- all indistinguishable to the caller,
+ * same no-oracle posture as verifyAndConsumeLoginToken()/consumeOauthState().
+ * Marking used_at atomically (conditional UPDATE) is what makes a captured
+ * code non-replayable even within its own TTL.
+ */
+export async function consumePhoneVerification(db: D1Database, emailNormalized: string, rawCode: string): Promise<string | null> {
+  const row = await db
+    .prepare(
+      `SELECT id, phone_number, code_hash, expires_at, used_at
+         FROM subscriber_phone_verifications
+        WHERE subscriber_email_normalized = ?1
+        ORDER BY created_at DESC
+        LIMIT 1`
+    )
+    .bind(emailNormalized)
+    .first<{ id: string; phone_number: string; code_hash: string; expires_at: string; used_at: string | null }>();
+  if (!row) return null;
+  if (row.used_at) return null;
+  if (Date.parse(row.expires_at) <= Date.now()) return null;
+  if ((await hashToken(rawCode)) !== row.code_hash) return null;
+
+  const result = await db
+    .prepare(`UPDATE subscriber_phone_verifications SET used_at = ?1 WHERE id = ?2 AND used_at IS NULL`)
+    .bind(nowIso(), row.id)
+    .run();
+  if ((result.meta.changes ?? 0) === 0) return null;
+
+  return row.phone_number;
+}
+
+/** Cross-row write, same reach as setSubscriberNotificationMode() -- a
+ * phone number and its consent belong to the PERSON, not one deadline.
+ * Called only after consumePhoneVerification() succeeds. */
+export async function setSubscriberSmsOptedIn(db: D1Database, emailNormalized: string, phoneNumber: string): Promise<void> {
+  await db
+    .prepare(`UPDATE subscribers SET phone_number = ?1, sms_opted_in = 1, sms_opted_in_at = ?2 WHERE LOWER(TRIM(email)) = ?3`)
+    .bind(phoneNumber, nowIso(), emailNormalized)
+    .run();
+}
+
+/**
+ * The STOP path (self-service or Twilio inbound webhook). Deliberately
+ * clears ONLY sms_opted_in, never phone_number or sms_opted_in_at -- the
+ * consent timestamp is a compliance record of when consent was GIVEN, and
+ * erasing it on opt-out would destroy the audit trail that consent (and
+ * its later withdrawal) ever happened. Same "never delete the suppression
+ * record" instinct as isPermanentlySuppressed()'s own reach for email.
+ */
+export async function clearSubscriberSmsOptIn(db: D1Database, emailNormalized: string): Promise<void> {
+  await db.prepare(`UPDATE subscribers SET sms_opted_in = 0 WHERE LOWER(TRIM(email)) = ?1`).bind(emailNormalized).run();
+}
+
+/** Same clear-by-phone-number path for the Twilio inbound STOP webhook,
+ * which identifies the sender by phone number, not an authenticated
+ * email session. Every row sharing this phone number is cleared -- same
+ * cross-row reach as the email-keyed setter above. */
+export async function clearSubscriberSmsOptInByPhoneNumber(db: D1Database, phoneNumber: string): Promise<void> {
+  await db.prepare(`UPDATE subscribers SET sms_opted_in = 0 WHERE phone_number = ?1`).bind(phoneNumber).run();
+}
+
+/** Same INSERT-with-UNIQUE-conflict dedup shape as claimSlackThresholdNotification()/
+ * claimTeamsThresholdNotification() -- independent of reminders_sent and
+ * both of those tables, see migration 0054's own docstring. */
+export async function claimSmsThresholdNotification(db: D1Database, subscriberId: string, threshold: number): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `INSERT INTO sms_notified_thresholds (id, subscriber_id, threshold, notified_at) VALUES (?1, ?2, ?3, ?4)
+       ON CONFLICT (subscriber_id, threshold) DO NOTHING`
+    )
+    .bind(newToken(), subscriberId, threshold, nowIso())
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+/** Reverts a claimSmsThresholdNotification() claim after a failed send,
+ * same at-least-once-delivery reasoning as the other channels' unclaim
+ * functions. */
+export async function unclaimSmsThresholdNotification(db: D1Database, subscriberId: string, threshold: number): Promise<void> {
+  await db
+    .prepare(`DELETE FROM sms_notified_thresholds WHERE subscriber_id = ?1 AND threshold = ?2`)
+    .bind(subscriberId, threshold)
+    .run();
+}
+
+/** Same per-channel escalation-ordering source as listSlackNotifiedThresholds()/
+ * listTeamsNotifiedThresholds() -- used by runSmsAlertPass() instead of
+ * reminders_sent. */
+export async function listSmsNotifiedThresholds(db: D1Database, subscriberId: string): Promise<number[]> {
+  const { results } = await db
+    .prepare(`SELECT threshold FROM sms_notified_thresholds WHERE subscriber_id = ?1`)
+    .bind(subscriberId)
+    .all<{ threshold: number }>();
+  return results.map((r) => r.threshold);
+}
+
+/** Filtered at the query, same "small subset of the table" reasoning as
+ * listFirmsWithSlackConnected()/listFirmsWithTeamsConnected() -- most
+ * subscribers will never opt into SMS. runSmsAlertPass() iterates this
+ * directly (per-subscriber, unlike the firm-centric Slack/Teams passes). */
+export async function allSmsOptedInConfirmed(db: D1Database): Promise<SubscriberRow[]> {
+  const { results } = await db
+    .prepare(`SELECT * FROM subscribers WHERE status = ?1 AND sms_opted_in = 1`)
+    .bind(STATUS_CONFIRMED)
+    .all<SubscriberRow>();
+  return results;
 }
 
 /**

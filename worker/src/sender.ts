@@ -171,6 +171,25 @@ export async function checkAndCountTeamsAlertSend(db: D1Database, cap: number): 
   return (result.meta.changes ?? 0) > 0;
 }
 
+/** Roadmap #22 (2026-08-09): an EIGHTH independent daily circuit breaker,
+ * same identical shape as the seven above, against its own
+ * `sms_send_counters` table (migration 0054) -- kept especially tight by
+ * default given SMS has a real per-message cost, unlike every other
+ * channel. */
+export const DEFAULT_DAILY_SMS_SEND_CAP = 50;
+
+export async function checkAndCountSmsSend(db: D1Database, cap: number): Promise<boolean> {
+  const day = todayUtc();
+  const result = await db
+    .prepare(
+      `INSERT INTO sms_send_counters (day, count) VALUES (?1, 1)
+       ON CONFLICT(day) DO UPDATE SET count = count + 1 WHERE count < ?2`
+    )
+    .bind(day, cap)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
 /**
  * Case-insensitive, trimmed membership check against a comma-separated
  * allowlist string (env.EMAIL_ALLOWLIST). Returns null when `raw` is

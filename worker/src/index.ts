@@ -93,6 +93,9 @@ import {
   RATE_LIMIT_FIRM_SLACK_CONNECT,
   RATE_LIMIT_FIRM_SLACK_DISCONNECT,
   RATE_LIMIT_FIRM_TEAMS_SET,
+  RATE_LIMIT_SUBSCRIBER_PHONE_VERIFICATION_START,
+  RATE_LIMIT_SUBSCRIBER_PHONE_VERIFICATION_CONFIRM,
+  RATE_LIMIT_SUBSCRIBER_PHONE_OPT_OUT,
   parseReminderThresholds,
   RATE_LIMIT_SUBSCRIBER_CPE_CREATE,
   RATE_LIMIT_SUBSCRIBER_CHANGE_EMAIL,
@@ -185,6 +188,7 @@ import {
   runDigestPass,
   runSlackAlertPass,
   runTeamsAlertPass,
+  runSmsAlertPass,
 } from "./scheduler";
 import { isUsFederalHoliday } from "./holidays";
 import {
@@ -215,6 +219,7 @@ import {
 } from "./oauth";
 import { buildSlackAuthorizeUrl, exchangeSlackCode, revokeSlackToken } from "./slack";
 import { isTeamsWebhookUrl } from "./teams";
+import { sendSms, generateVerificationCode, isValidTwilioSignature } from "./sms";
 import mobilityRulesData from "./mobility_rules.json";
 import {
   MOBILITY_DISCLAIMER,
@@ -3417,6 +3422,190 @@ async function handleSubscriberNotificationModeSet(request: Request, env: Env): 
   return jsonResponse(200, { notification_mode: body.mode });
 }
 
+// ---------------------------------------------------------------------------
+// SMS reminders (2026-08-09, roadmap #22). Double opt-in, same rigor
+// email's own confirm_token flow already has -- see migration 0054's own
+// docstring for the TCPA reasoning. Scoped to US numbers (+1...) --
+// A2P 10DLC registration and this whole product are US-specific.
+// ---------------------------------------------------------------------------
+
+const US_E164_PATTERN = /^\+1\d{10}$/;
+
+/**
+ * POST /subscriber/phone/start-verification -- body: { phone_number }.
+ * Session-gated (same requireSubscriberSession as every other /my/
+ * action). Sends a real SMS at real cost, so rate-limited far tighter
+ * than the settings routes above (RATE_LIMIT_SUBSCRIBER_PHONE_VERIFICATION_START).
+ * Degrades to a clear "not available yet" error when Twilio isn't
+ * configured, rather than a silent no-op or a generic 500.
+ */
+async function handleSubscriberPhoneStartVerification(request: Request, env: Env): Promise<Response> {
+  const session = await requireSubscriberSession(request, env);
+  if (session instanceof Response) return session;
+
+  if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN || !env.TWILIO_FROM_NUMBER) {
+    return jsonResponse(503, { error: "Text reminders aren't available yet. Please check back soon." });
+  }
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(
+    env.DB,
+    session.emailNormalized,
+    "subscriber_phone_start_verification",
+    RATE_LIMIT_SUBSCRIBER_PHONE_VERIFICATION_START
+  );
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return jsonResponse(400, { error: "Request too large." });
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  const phoneNumberRaw = typeof body.phone_number === "string" ? body.phone_number.trim() : "";
+  if (!US_E164_PATTERN.test(phoneNumberRaw)) {
+    return jsonResponse(400, { error: "Please enter a valid US phone number." });
+  }
+
+  const code = generateVerificationCode();
+  await store.createPhoneVerification(env.DB, session.emailNormalized, phoneNumberRaw, await store.hashToken(code));
+
+  const sent = await sendSms(
+    env.TWILIO_ACCOUNT_SID,
+    env.TWILIO_AUTH_TOKEN,
+    env.TWILIO_FROM_NUMBER,
+    phoneNumberRaw,
+    `Your DeadlineRadar verification code is ${code}. It expires in ${store.PHONE_VERIFICATION_TTL_MINUTES} minutes.`
+  );
+  if (!sent) {
+    return jsonResponse(502, { error: "Couldn't send the verification text. Please check the number and try again." });
+  }
+
+  return jsonResponse(200, { sent: true });
+}
+
+/**
+ * POST /subscriber/phone/confirm-verification -- body: { code }. On
+ * success, marks the number opted in (store.setSubscriberSmsOptedIn()).
+ * A wrong/expired/already-used code is indistinguishable to the caller,
+ * same no-oracle posture as consumePhoneVerification() itself.
+ */
+async function handleSubscriberPhoneConfirmVerification(request: Request, env: Env): Promise<Response> {
+  const session = await requireSubscriberSession(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(
+    env.DB,
+    session.emailNormalized,
+    "subscriber_phone_confirm_verification",
+    RATE_LIMIT_SUBSCRIBER_PHONE_VERIFICATION_CONFIRM
+  );
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return jsonResponse(400, { error: "Request too large." });
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  const codeRaw = typeof body.code === "string" ? body.code.trim() : "";
+  if (!codeRaw) {
+    return jsonResponse(400, { error: "Please enter the code we texted you." });
+  }
+
+  const phoneNumber = await store.consumePhoneVerification(env.DB, session.emailNormalized, codeRaw);
+  if (!phoneNumber) {
+    return jsonResponse(400, { error: "That code is incorrect or has expired. Please request a new one." });
+  }
+
+  await store.setSubscriberSmsOptedIn(env.DB, session.emailNormalized, phoneNumber);
+  return jsonResponse(200, { sms_opted_in: true, phone_last4: phoneNumber.slice(-4) });
+}
+
+/** POST /subscriber/phone/opt-out -- self-service STOP-equivalent, same
+ * posture as the existing reminder-cadence self-service actions. Keeps
+ * phone_number/sms_opted_in_at (store.clearSubscriberSmsOptIn()'s own
+ * docstring). */
+async function handleSubscriberPhoneOptOut(request: Request, env: Env): Promise<Response> {
+  const session = await requireSubscriberSession(request, env);
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_phone_opt_out", RATE_LIMIT_SUBSCRIBER_PHONE_OPT_OUT);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+  }
+
+  await store.clearSubscriberSmsOptIn(env.DB, session.emailNormalized);
+  return jsonResponse(200, { sms_opted_in: false });
+}
+
+/**
+ * POST /sms/inbound -- Twilio's inbound-message webhook (STOP/START/HELP
+ * keyword handling). PUBLIC route (Twilio calls it, no subscriber
+ * session) -- authenticated instead via Twilio's own X-Twilio-Signature
+ * scheme (sms.ts's isValidTwilioSignature()), so an unauthenticated
+ * caller can't forge an opt-out/opt-in on someone else's number. Twilio
+ * POSTs form-urlencoded, not JSON. Always returns empty TwiML (200) --
+ * Twilio expects a valid (if empty) response regardless of outcome, and
+ * this endpoint's job is bookkeeping, not a reply message (Twilio's own
+ * Advanced Opt-Out already sends the carrier-required confirmation).
+ */
+async function handleSmsInbound(request: Request, env: Env): Promise<Response> {
+  const emptyTwiml = () =>
+    new Response(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`, {
+      status: 200,
+      headers: { "Content-Type": "text/xml" },
+    });
+
+  if (!env.TWILIO_AUTH_TOKEN) return emptyTwiml();
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return emptyTwiml();
+  }
+  if (raw.length > MAX_BODY_BYTES) return emptyTwiml();
+
+  const params: Record<string, string> = {};
+  for (const [k, v] of new URLSearchParams(raw)) params[k] = v;
+
+  const signature = request.headers.get("X-Twilio-Signature");
+  const fullUrl = new URL(request.url).toString();
+  const valid = await isValidTwilioSignature(env.TWILIO_AUTH_TOKEN, signature, fullUrl, params);
+  if (!valid) return emptyTwiml();
+
+  const from = params.From;
+  const bodyText = (params.Body || "").trim().toUpperCase();
+  const STOP_KEYWORDS = new Set(["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"]);
+  if (from && STOP_KEYWORDS.has(bodyText)) {
+    await store.clearSubscriberSmsOptInByPhoneNumber(env.DB, from);
+  }
+
+  return emptyTwiml();
+}
+
 /** POST /subscriber/logout -- deletes the session row (no-op if there wasn't
  * one) and clears the cookie. Never reports failure; there is no useful
  * "logout failed" state. */
@@ -3543,8 +3732,19 @@ async function handleSubscriberLicensesList(request: Request, env: Env): Promise
     // Roadmap #24: same "person-level, read from the first row, every row
     // agrees by construction" posture as reminder_thresholds above.
     notification_mode: rows[0]?.notification_mode ?? store.NOTIFICATION_MODE_IMMEDIATE,
+    // Roadmap #22: same person-level posture. phone_number is MASKED --
+    // last 4 digits only -- never the full number, same "never serialize
+    // the sensitive value" posture as Slack/Teams' own webhook URLs.
+    phone_last4: maskPhoneLast4(rows[0]?.phone_number ?? null),
+    sms_opted_in: (rows[0]?.sms_opted_in ?? 0) !== 0,
     licenses: items,
   });
+}
+
+/** "+15551234567" -> "1234". null in, null out -- never guessed. */
+function maskPhoneLast4(phoneNumber: string | null): string | null {
+  if (!phoneNumber || phoneNumber.length < 4) return null;
+  return phoneNumber.slice(-4);
 }
 
 // ---------------------------------------------------------------------------
@@ -6974,6 +7174,38 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
       }
 
+      if (url.pathname === "/subscriber/phone/start-verification") {
+        try {
+          return await handleSubscriberPhoneStartVerification(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/subscriber/phone/confirm-verification") {
+        try {
+          return await handleSubscriberPhoneConfirmVerification(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/subscriber/phone/opt-out") {
+        try {
+          return await handleSubscriberPhoneOptOut(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/sms/inbound") {
+        try {
+          return await handleSmsInbound(request, env);
+        } catch {
+          return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`, {
+            status: 200,
+            headers: { "Content-Type": "text/xml" },
+          });
+        }
+      }
+
       if (url.pathname === "/firm/staff-cpe-reminder") {
         try {
           return await handleFirmStaffCpeReminder(request, env);
@@ -8935,6 +9167,28 @@ export default {
             console.log(`[teams-alert-cron] paused -- stale reference data: ${err.message}`);
           } else {
             console.log(`[teams-alert-cron] error: ${String(err)}`);
+          }
+        }
+      })()
+    );
+
+    // Roadmap #22 (2026-08-09): same independent-pass shape as Slack/Teams
+    // above, same reasoning for staying outside the SENDGRID_API_KEY gate
+    // below -- SMS alerts go through Twilio, nothing to do with email. The
+    // pass itself checks TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/
+    // TWILIO_FROM_NUMBER and no-ops cleanly if unset (runSmsAlertPass's
+    // own docstring) -- correct today, since Devin's A2P 10DLC
+    // registration hasn't completed yet.
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const summary = await runSmsAlertPass(env);
+          console.log(`[sms-alert-cron] ${JSON.stringify(summary)}`);
+        } catch (err) {
+          if (err instanceof SchedulerStaleDataError) {
+            console.log(`[sms-alert-cron] paused -- stale reference data: ${err.message}`);
+          } else {
+            console.log(`[sms-alert-cron] error: ${String(err)}`);
           }
         }
       })()

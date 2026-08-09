@@ -49,6 +49,16 @@
  * / DEFAULT_DAILY_TEAMS_ALERT_SEND_CAP). No client id/secret needed for
  * Teams at all -- see teams.ts's own docstring for why (no OAuth flow).
  *
+ * `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` are
+ * wrangler secrets for SMS reminders (roadmap #22) -- same optional-
+ * degrades-to-invisible posture as the Slack OAuth vars (unconfigured
+ * means the phone-verification routes and runSmsAlertPass() no-op
+ * cleanly, never broken). `SMS_DAILY_SEND_CAP` is an OPTIONAL wrangler var
+ * (plain string number), same shape as the other daily caps but for
+ * sender.ts's checkAndCountSmsSend()/DEFAULT_DAILY_SMS_SEND_CAP -- kept
+ * conservative by default given SMS has a real per-message cost, unlike
+ * every other channel.
+ *
  * `EMAIL_ALLOWLIST` is an OPTIONAL wrangler var -- a comma-separated list of
  * exact email addresses (e.g. "owner@example.com,owner+test@example.com").
  * This is a PREVIEW/STAGING-ONLY safety gate: when set, sendViaSendGrid()
@@ -88,6 +98,10 @@ export interface Env {
   SLACK_OAUTH_CLIENT_ID?: string;
   SLACK_OAUTH_CLIENT_SECRET?: string;
   TEAMS_ALERT_DAILY_SEND_CAP?: string;
+  TWILIO_ACCOUNT_SID?: string;
+  TWILIO_AUTH_TOKEN?: string;
+  TWILIO_FROM_NUMBER?: string;
+  SMS_DAILY_SEND_CAP?: string;
   EMAIL_ALLOWLIST?: string;
   ACTION_BASE_URL?: string;
   STATIC_SITE_BASE_URL?: string;

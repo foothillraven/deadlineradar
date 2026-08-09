@@ -436,6 +436,12 @@ export const DRIP_COURSE_ENROLL_BATCH_SIZE = 50;
 interface DripCourseCpaRecord {
   state_slug: string;
   cycle_description?: string;
+  // AuditLab DRIP-1 (MEDIUM, 2026-08-09): present (non-null) means this
+  // record's own public state page deliberately publishes NO computed
+  // date and shows a sourcing caveat instead -- see dripCourseCycleFact()
+  // below for why that makes any excerpt of cycle_description unsafe to
+  // send here.
+  data_gap_note?: string | null;
 }
 const DRIP_COURSE_CPA_RECORDS = (cpaDataForDripCourse as unknown as { records: DripCourseCpaRecord[] }).records;
 
@@ -448,18 +454,30 @@ const DRIP_COURSE_GENERIC_CYCLE_FACT =
  * sourced from the SAME cpa_deadlines.json field the public state pages
  * render -- never a fact invented for this email. Falls back to a
  * deliberately generic (never wrong) sentence when no record matches or the
- * description is empty, rather than fabricating a per-state claim. */
+ * description is empty, rather than fabricating a per-state claim.
+ *
+ * AuditLab DRIP-1 (MEDIUM, 2026-08-09): these fields are routinely written
+ * as claim-first, caveat-second ("X expires biennially on July 31. Neither
+ * official source specifies which year of the cycle applies..."), so a
+ * mid-sentence truncation preserves grammar but not meaning -- the cut can
+ * land exactly between the claim and the caveat that qualifies it,
+ * simulated to affect 14/55 states. Two guards now, both from the
+ * finding's own cheapest-fix list: (1) a record with data_gap_note (the
+ * public page itself deliberately publishes no date and shows a sourcing
+ * caveat) never gets excerpted at all -- the email must never be MORE
+ * assertive than the product's own page for that exact record; (2) the
+ * excerpt is only used when the WHOLE cycle_description fits under the
+ * cap, otherwise fall back to the generic (never-wrong) sentence rather
+ * than ever truncating -- removes the truncation failure mode entirely
+ * instead of patching individual instances of it. */
 export function dripCourseCycleFact(stateSlug: string | null): string {
   if (!stateSlug) return DRIP_COURSE_GENERIC_CYCLE_FACT;
   const record = DRIP_COURSE_CPA_RECORDS.find((r) => r.state_slug === stateSlug && r.cycle_description);
+  if (record?.data_gap_note) return DRIP_COURSE_GENERIC_CYCLE_FACT;
   const desc = record?.cycle_description?.trim();
   if (!desc) return DRIP_COURSE_GENERIC_CYCLE_FACT;
   if (desc.length <= DRIP_COURSE_CYCLE_FACT_MAX_LEN) return desc;
-  // Cut at the last sentence boundary within the cap, never mid-sentence --
-  // a truncated legal citation is worse than a shorter, complete sentence.
-  const truncated = desc.slice(0, DRIP_COURSE_CYCLE_FACT_MAX_LEN);
-  const lastPeriod = truncated.lastIndexOf(". ");
-  return lastPeriod > 40 ? truncated.slice(0, lastPeriod + 1) : truncated.trimEnd() + "...";
+  return DRIP_COURSE_GENERIC_CYCLE_FACT;
 }
 
 /**

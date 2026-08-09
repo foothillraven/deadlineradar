@@ -77,9 +77,31 @@ describe("dripCourseCycleFact()", () => {
     expect(dripCourseCycleFact("not-a-real-state-slug")).toMatch(/renewal cycles vary by state/);
   });
 
-  it("never exceeds the length cap, and never cuts off mid-sentence when a period exists within it", () => {
+  it("never exceeds the length cap", () => {
     const fact = dripCourseCycleFact("texas");
     expect(fact.length).toBeLessThanOrEqual(230);
+  });
+
+  it("AuditLab DRIP-1: a record with data_gap_note never gets excerpted, even though cycle_description exists -- falls back to the generic sentence", () => {
+    // Michigan: the public state page itself deliberately publishes no
+    // computed date and shows a sourcing caveat (data_gap_note) instead --
+    // the drip email must never be MORE assertive than the product's own
+    // page for this exact record.
+    const fact = dripCourseCycleFact("michigan");
+    expect(fact).toMatch(/renewal cycles vary by state/);
+  });
+
+  it("AuditLab DRIP-1: a cycle_description longer than the cap (no data_gap_note) falls back to the generic sentence rather than truncating mid-caveat", () => {
+    // Pennsylvania: no data_gap_note, but cycle_description is well over
+    // 220 chars -- isolates the SECOND guard (length-only) from the first
+    // (data_gap_note), proving the fallback fires on length alone too.
+    // These fields are routinely claim-first, caveat-second -- a
+    // mid-sentence cut can land exactly between them, so the fix removes
+    // truncation as a failure mode entirely instead of finding a smarter
+    // cut point.
+    const fact = dripCourseCycleFact("pennsylvania");
+    expect(fact).toMatch(/renewal cycles vary by state/);
+    expect(fact).not.toContain("...");
   });
 });
 

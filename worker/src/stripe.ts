@@ -31,6 +31,12 @@ interface StripeCheckoutSessionParams {
   /** Only used when customerId is absent -- lets Stripe create/attach a
    * customer by email on first checkout. */
   customerEmail?: string;
+  /** Roadmap #31 (2026-08-09, referral program). A Stripe Coupon id --
+   * eligibility (self-referral checks, one-time-only) is decided entirely
+   * by the caller (index.ts's handleFirmBillingCheckout) before this is
+   * ever passed in; this function never validates or infers eligibility
+   * itself. Absent for every non-referred checkout, unchanged from today. */
+  couponId?: string;
 }
 
 export interface StripeCheckoutSession {
@@ -61,6 +67,9 @@ export async function createCheckoutSession(
     body.set("customer", params.customerId);
   } else if (params.customerEmail) {
     body.set("customer_email", params.customerEmail);
+  }
+  if (params.couponId) {
+    body.set("discounts[0][coupon]", params.couponId);
   }
 
   const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
@@ -137,6 +146,78 @@ export async function updateSubscriptionCancelAtPeriodEnd(
     currentPeriodEnd: new Date(currentPeriodEndUnix * 1000).toISOString(),
     cancelAtPeriodEnd: json.cancel_at_period_end,
   };
+}
+
+/**
+ * Roadmap #31 (2026-08-09, referral program). Applies a Coupon to an
+ * EXISTING subscription -- the referrer's own reward, fired from
+ * handleStripeWebhook()'s checkout.session.completed branch once the
+ * REFERRED firm's payment actually clears (never at signup). Same
+ * auth/error-handling shape as updateSubscriptionCancelAtPeriodEnd()
+ * above, POSTing a different field to the same endpoint.
+ *
+ * GENUINE IMPLEMENTATION RISKS, not verified live (adversarial review,
+ * 2026-08-09, model: opus):
+ *   1. The exact `discounts[0][coupon]` param shape on this endpoint (vs.
+ *      an older singular `coupon=` param some API versions still accept)
+ *      has not been confirmed against this Stripe account's own pinned
+ *      API version -- same caution updateSubscriptionCancelAtPeriodEnd()'s
+ *      own comment gives for current_period_end having moved to per-item.
+ *   2. `discounts[0][coupon]` may REPLACE the subscription's discount
+ *      list rather than append to it -- if the referrer's subscription
+ *      already carries some OTHER legitimate discount (from a manual/
+ *      support-granted coupon, a future promo mechanism, etc.), this call
+ *      could silently overwrite it. No other discount-granting mechanism
+ *      exists in this codebase today, so the realistic collision risk at
+ *      ship time is effectively zero, but this is NOT re-verified if a
+ *      second discount mechanism is ever added later.
+ * Verify BOTH with one real test-mode call against a disposable
+ * subscription (ideally one that already carries an unrelated discount,
+ * to directly observe replace-vs-append) before this ever reaches a live
+ * checkout path.
+ */
+export async function applyCouponToSubscription(secretKey: string, subscriptionId: string, couponId: string): Promise<void> {
+  const body = new URLSearchParams();
+  body.set("discounts[0][coupon]", couponId);
+
+  const res = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${btoa(`${secretKey}:`)}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: body.toString(),
+  });
+  if (!res.ok) {
+    const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+    throw new StripeApiError(json.error?.message ?? "Stripe coupon application failed.", res.status);
+  }
+}
+
+/**
+ * Roadmap #31 (2026-08-09, referral program). Reverses a referrer's
+ * reward -- called from handleFirmAccountDelete() when a firm that
+ * already earned its referrer a discount gets refunded on deletion (see
+ * store.markReferrerRewardReversed()'s own docstring for the exploit this
+ * closes: pay, trigger the referrer's reward, immediately self-serve-
+ * delete-and-refund, repeat). Uses Stripe's OWN dedicated removal endpoint
+ * (`DELETE .../discount`) rather than trying to reason about
+ * applyCouponToSubscription()'s replace-vs-append ambiguity in reverse --
+ * this is the one Stripe operation that unambiguously means "the
+ * subscription has no discount now," regardless of how many discounts
+ * were on it or how they got there. A 404 (subscription already
+ * cancelled/gone, or already has no discount) is treated as success --
+ * there's nothing left to remove, not a failure.
+ */
+export async function removeCouponFromSubscription(secretKey: string, subscriptionId: string): Promise<void> {
+  const res = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}/discount`, {
+    method: "DELETE",
+    headers: { Authorization: `Basic ${btoa(`${secretKey}:`)}` },
+  });
+  if (!res.ok && res.status !== 404) {
+    const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+    throw new StripeApiError(json.error?.message ?? "Stripe coupon removal failed.", res.status);
+  }
 }
 
 export interface StripeInvoiceDetails {

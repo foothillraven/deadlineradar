@@ -179,6 +179,24 @@ export function newToken(): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+// Roadmap #31 (2026-08-09, referral program). Excludes visually-ambiguous
+// characters (0/O, 1/I/L) -- unlike newToken() above, this is a
+// human-typed/shared value (a URL query param someone reads off a link or
+// retypes), not an opaque bearer credential, so ambiguity is a real UX cost
+// a session token doesn't have.
+const REFERRAL_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const REFERRAL_CODE_LENGTH = 8;
+
+/** Short, human-shareable referral code -- CSPRNG, never Math.random(), same
+ * discipline as every other code/secret generated in this codebase. */
+export function newReferralCode(): string {
+  const bytes = new Uint8Array(REFERRAL_CODE_LENGTH);
+  crypto.getRandomValues(bytes);
+  let code = "";
+  for (const b of bytes) code += REFERRAL_CODE_ALPHABET[b % REFERRAL_CODE_ALPHABET.length];
+  return code;
+}
+
 /**
  * migration 0008. Hashes a raw CSPRNG token (a login link or a session
  * token) to hex-encoded SHA-256, via the Web Crypto API the Workers runtime
@@ -1219,6 +1237,33 @@ export interface FirmRow {
   // NULL = not connected. Never serialized to the client.
   teams_webhook_url: string | null;
   teams_webhook_url_iv: string | null;
+  // migration 0058 (roadmap #31). NULL for every pre-migration row --
+  // lazily generated on first dashboard touch (getOrCreateReferralCode()),
+  // never backfilled. Written once at createFirm() time and never changed
+  // afterward.
+  referral_code: string | null;
+  // The referrer firm's own id, set ONLY at createFirm() time from a valid,
+  // non-self referral_code -- no code path updates this after signup.
+  referred_by_firm_id: string | null;
+  // Null until THIS firm's own one-time referred-checkout discount has
+  // been spent -- set UNCONDITIONALLY the moment this firm's first paid
+  // checkout completes, regardless of whether the referrer turns out to
+  // be reward-eligible (see claimReferralReward()'s own docstring; a
+  // firm-scoped marker rather than one on the referrer's row because
+  // referrals are uncapped). The idempotency guard against a webhook
+  // redelivery, a concurrent double-checkout race, or an unrelated later
+  // re-checkout re-requesting the discount.
+  referral_reward_applied_at: string | null;
+  // Null until the REFERRER actually received a Stripe discount because
+  // of THIS firm's conversion -- deliberately separate from
+  // referral_reward_applied_at above (see migration 0058's own
+  // docstring for why conflating the two would overcount the dashboard's
+  // reward count). Read by countRewardedReferrals().
+  referrer_rewarded_at: string | null;
+  // Self-referral fraud check (matched against a NEW signup's own IP) --
+  // same raw-IP-for-fraud-evidence precedent as migration 0057's
+  // consent_ip. Null for any firm created before this migration.
+  signup_ip: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -1657,6 +1702,15 @@ export interface CreateFirmInput {
   // or null means "no record of what version, if any, this firm saw,"
   // which is the honest state for a synthetic/test-created firm.
   tosAcceptedVersion?: string | null;
+  // Roadmap #31 (2026-08-09, referral program). Both optional, same
+  // "absent/null is the honest default for a synthetic/test firm" posture
+  // as tosAcceptedVersion above. ALREADY VALIDATED by the caller
+  // (handleFirmSignup's own self-referral-by-email/IP checks) before this
+  // ever reaches createFirm() -- store.ts persists, index.ts decides.
+  // Written ONCE here; no other code path ever sets referred_by_firm_id
+  // after signup.
+  referredByFirmId?: string | null;
+  signupIp?: string | null;
 }
 
 /**
@@ -1675,13 +1729,46 @@ export async function createFirm(db: D1Database, input: CreateFirmInput): Promis
   const id = newToken();
   const name = sanitizeFreeText(input.name, MAX_FIRM_NAME_LEN) ?? "";
   const adminName = sanitizeFreeText(input.adminName ?? null, MAX_ADMIN_NAME_LEN);
-  await db
-    .prepare(
-      `INSERT INTO firms (id, name, admin_email, admin_name, plan_tier, status, created_at, tos_accepted_version)
-       VALUES (?1,?2,?3,?4,'free','active',?5,?6)`
-    )
-    .bind(id, name, input.adminEmail, adminName, nowIso(), input.tosAcceptedVersion ?? null)
-    .run();
+  // Roadmap #31: retry-on-conflict against idx_firms_referral_code, same
+  // TOCTOU posture createFirm() already needs for admin_email uniqueness
+  // (handled one layer up, in index.ts) -- collision odds at this
+  // alphabet/length are negligible, but the guard costs nothing.
+  const MAX_REFERRAL_CODE_ATTEMPTS = 5;
+  let inserted = false;
+  for (let attempt = 0; attempt < MAX_REFERRAL_CODE_ATTEMPTS && !inserted; attempt++) {
+    try {
+      await db
+        .prepare(
+          `INSERT INTO firms (id, name, admin_email, admin_name, plan_tier, status, created_at, tos_accepted_version, referral_code, referred_by_firm_id, signup_ip)
+           VALUES (?1,?2,?3,?4,'free','active',?5,?6,?7,?8,?9)`
+        )
+        .bind(
+          id,
+          name,
+          input.adminEmail,
+          adminName,
+          nowIso(),
+          input.tosAcceptedVersion ?? null,
+          newReferralCode(),
+          input.referredByFirmId ?? null,
+          input.signupIp ?? null
+        )
+        .run();
+      inserted = true;
+    } catch (err) {
+      // Adversarial-review-L1-style precision (same posture as
+      // updateFirmAdminEmail()'s own docstring above): only a genuine
+      // referral_code collision is worth retrying. Anything else (e.g. a
+      // real admin_email conflict) rethrows immediately -- retrying that
+      // would just fail identically 5 times before reporting the real
+      // error, which the caller one layer up already has its own
+      // TOCTOU handling for.
+      if (err instanceof Error && err.message.includes("idx_firms_referral_code") && attempt < MAX_REFERRAL_CODE_ATTEMPTS - 1) {
+        continue;
+      }
+      throw err;
+    }
+  }
   // migration 0045 (roadmap #11/#13/#14/#51): every firm now needs a
   // firm_members row from the moment it exists, not just from the next
   // migration's backfill -- this IS the "backfill" for every firm created
@@ -2597,6 +2684,131 @@ export async function findFirmByStripeSubscriptionId(
     .bind(stripeSubscriptionId)
     .first<FirmRow>();
   return row ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Referral program (2026-08-09, roadmap #31). See migration 0058's own
+// docstring and handleFirmSignup()/handleFirmBillingCheckout()/
+// handleStripeWebhook()'s own comments in index.ts for the full flow --
+// self-referral checks and reward-eligibility decisions live THERE, not
+// here; these are pure persistence helpers.
+// ---------------------------------------------------------------------------
+
+/** Resolves an attacker-controlled referral_code (query param / signup
+ * form field) to the referrer firm, or null for unresolvable/malformed --
+ * the caller's own posture (handleFirmSignup) is "an invalid code never
+ * fails the signup," so this deliberately returns null rather than
+ * throwing on a miss. */
+export async function findFirmByReferralCode(db: D1Database, code: string): Promise<FirmRow | null> {
+  const row = await db.prepare(`SELECT * FROM firms WHERE referral_code = ?1 LIMIT 1`).bind(code).first<FirmRow>();
+  return row ?? null;
+}
+
+/** Lazily generates and persists a referral_code for a pre-migration-0058
+ * firm (or any firm somehow still missing one) the first time it's read --
+ * see migration 0058's own docstring for why this is lazy, not backfilled.
+ * Already-set codes are returned unchanged; retries on the same
+ * idx_firms_referral_code collision createFirm() itself guards against. */
+export async function getOrCreateReferralCode(db: D1Database, firmId: string): Promise<string> {
+  const existing = await db.prepare(`SELECT referral_code FROM firms WHERE id = ?1`).bind(firmId).first<{ referral_code: string | null }>();
+  if (existing?.referral_code) return existing.referral_code;
+
+  const MAX_ATTEMPTS = 5;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const code = newReferralCode();
+    try {
+      await db.prepare(`UPDATE firms SET referral_code = ?1 WHERE id = ?2`).bind(code, firmId).run();
+      return code;
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("idx_firms_referral_code") && attempt < MAX_ATTEMPTS - 1) {
+        continue;
+      }
+      throw err;
+    }
+  }
+  // Unreachable (the loop above always returns or throws), but TypeScript
+  // can't see that -- satisfies the return type.
+  throw new Error("getOrCreateReferralCode: exhausted retry attempts");
+}
+
+/**
+ * The idempotency gate for one referral relationship's reward pair --
+ * keyed on the REFERRED firm (not the referrer): referrals are uncapped
+ * (a firm can refer arbitrarily many others), so a single marker column
+ * on the REFERRER's row could only ever represent "was I rewarded once,
+ * ever" -- wrong the moment a second, distinct referral converts. Each
+ * referred firm converts at most once, so its own row is the correct,
+ * uniquely-scoped place for this marker; countRewardedReferrals() reads
+ * exactly this column across every firm a given referrer sponsored.
+ *
+ * ATOMIC claim-before-act, same optimistic-concurrency shape as
+ * claimReminderThreshold()/claimSlackThresholdNotification() elsewhere in
+ * this file -- the conditional `AND referral_reward_applied_at IS NULL`
+ * is what actually closes the race two genuinely distinct
+ * checkout.session.completed events for the same referred firm could
+ * otherwise hit (both reading null before either write lands). Returns
+ * false if this call lost the race (or the reward was already applied) --
+ * the caller must not proceed to call Stripe in that case. See
+ * handleStripeWebhook()'s own applyReferralRewardIfEligible() for the
+ * claim -> Stripe call -> unclaim-on-failure sequence, mirroring the
+ * "claim before send, unclaim on failure" pattern every other send pass
+ * in scheduler.ts already uses.
+ */
+export async function claimReferralReward(db: D1Database, referredFirmId: string): Promise<boolean> {
+  const result = await db
+    .prepare(`UPDATE firms SET referral_reward_applied_at = ?1 WHERE id = ?2 AND referral_reward_applied_at IS NULL`)
+    .bind(nowIso(), referredFirmId)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+/** Records that the REFERRER actually received a Stripe discount because
+ * of this referred firm's conversion -- called only after
+ * applyCouponToSubscription() succeeds (see handleStripeWebhook's
+ * applyReferralRewardIfEligible() own docstring). Deliberately separate
+ * from claimReferralReward() above: that one is set unconditionally the
+ * moment the REFERRED firm's own discount is spent, this one only on the
+ * REFERRER's actual success -- countRewardedReferrals() reads this
+ * column, not that one, so the dashboard count never overstates rewards
+ * the referrer didn't actually get. */
+export async function markReferrerRewarded(db: D1Database, referredFirmId: string): Promise<void> {
+  await db.prepare(`UPDATE firms SET referrer_rewarded_at = ?1 WHERE id = ?2`).bind(nowIso(), referredFirmId).run();
+}
+
+/**
+ * Reverses a referrer's reward -- called from handleFirmAccountDelete()
+ * when a REFERRED firm that had already earned its referrer a discount
+ * gets refunded on deletion (see that function's own comment for the
+ * exploit this closes: pay, trigger the referrer's reward, immediately
+ * self-serve-delete-and-refund, repeat -- a real, profitable loop an
+ * adversarial review surfaced, 2026-08-09). Best-effort: if the Stripe
+ * call to remove the discount fails, this is logged for manual
+ * reconciliation by the caller, same posture as every other Stripe
+ * side-effect failure in this codebase -- the firm is being deleted
+ * either way, so there is no local state left to revert past clearing
+ * this marker (kept non-null, timestamped as reversed, for the audit
+ * trail rather than reset to null, which would look identical to "never
+ * rewarded at all").
+ */
+export async function markReferrerRewardReversed(db: D1Database, referredFirmId: string): Promise<void> {
+  await db
+    .prepare(`UPDATE firms SET referrer_rewarded_at = 'reversed:' || referrer_rewarded_at WHERE id = ?1 AND referrer_rewarded_at IS NOT NULL AND referrer_rewarded_at NOT LIKE 'reversed:%'`)
+    .bind(referredFirmId)
+    .run();
+}
+
+/** Rewarded-referral count for the dashboard panel -- reads
+ * referrer_rewarded_at (the referrer's OWN actual-success marker), not
+ * referral_reward_applied_at (the referred firm's own one-time-discount
+ * marker, which is set even when the referrer never actually got
+ * anything) -- see migration 0058's own docstring for why conflating the
+ * two would overcount. */
+export async function countRewardedReferrals(db: D1Database, referrerFirmId: string): Promise<number> {
+  const row = await db
+    .prepare(`SELECT count(*) as n FROM firms WHERE referred_by_firm_id = ?1 AND referrer_rewarded_at IS NOT NULL AND referrer_rewarded_at NOT LIKE 'reversed:%'`)
+    .bind(referrerFirmId)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
 }
 
 /**

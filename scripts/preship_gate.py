@@ -816,6 +816,15 @@ def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
         "handleSnooze": "consumes a subscriber's own snooze token (store.snoozeByToken)",
         "handleRearm": "consumes a subscriber's own rearm token (store.renewAndRearmByToken)",
         "handleDripCourseUnsubscribe": "consumes a drip-course enrollment's own unsubscribe token (store.stopDripCourseByToken) -- same one-click, no-login, token-is-the-credential shape as handleUnsubscribe",
+        # Roadmap #31 (2026-08-09, referral program): GET /firm/licenses is
+        # the one call the dashboard makes on every load (already
+        # session-authenticated) -- its "write" is store.getOrCreateReferralCode(),
+        # which is idempotent and fires AT MOST ONCE per firm ever (it
+        # short-circuits to a plain read the moment referral_code is set).
+        # Rate-limiting the whole endpoint to guard a write that can only
+        # ever happen once would just break the legitimate polling UI
+        # already does on this exact route.
+        "handleFirmLicensesList": "session-authenticated primary dashboard GET; its only write (getOrCreateReferralCode) is idempotent and fires at most once per firm, ever",
     }
 
     errors = []

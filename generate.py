@@ -6301,7 +6301,7 @@ plan</strong> for a single CPA's own CPE tracking and Practice Privilege Check &
     prominent one-click opt-out.</p>
     <p class="remind-promise">Free, no time limit, no card collected anywhere in this flow.</p>
   </div>
-  <p><a class="cta-button" href="../firm-login/">Create your firm account &rarr;</a></p>
+  <p><a class="cta-button" id="dr-firms-cta" href="../firm-login/">Create your firm account &rarr;</a></p>
   <p class="field-hint">By creating an account, you agree to our <a href="../terms/">Terms of
   Service</a> and <a href="../privacy/">Privacy Policy</a>.</p>
 </div>
@@ -6337,6 +6337,23 @@ invoice; a self-serve card-payment option is coming soon. Not ready to create an
 <h2>Questions first?</h2>
 <p>Email us any time, no commitment:</p>
 <p><a href="mailto:{esc(CONTACT_EMAIL)}?subject=Firm%20tier%20question">{esc(CONTACT_EMAIL)}</a></p>
+<script>
+(function() {{
+  // Roadmap #31 (2026-08-09, referral program). Carries a ?ref= referral
+  // code from THIS page's own query string onto the signup CTA link --
+  // /firm-login/'s own signup form (dr-view-signup) reads it back off
+  // ITS query string and prefills a hidden field. Deliberately no
+  // format validation here (this page can't know what a valid code
+  // looks like without duplicating store.ts's alphabet) -- the SERVER
+  // is the real authority and silently ignores anything unresolvable,
+  // same "an invalid code never fails the signup" posture the backend
+  // handler has.
+  var ref = new URLSearchParams(window.location.search).get('ref');
+  if (!ref) return;
+  var cta = document.getElementById('dr-firms-cta');
+  if (cta) cta.href = '../firm-login/?ref=' + encodeURIComponent(ref) + '#dr-view-signup';
+}})();
+</script>
 """
     return page_shell(
         f"For Firms — {SITE_NAME}",
@@ -6460,6 +6477,10 @@ def build_firm_login_page() -> str:
   <p class="subhead">Free, no time limit, no card required.</p>
   <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/signup" id="dr-firmlogin-signup-form">
     {_BOT_DEFENSE_FIELDS_HTML_ALT}
+    <!-- Roadmap #31 (referral program): populated by this page's own JS
+         from a ?ref= query param, never user-typed. An invalid/unresolvable
+         code never fails the signup (server-side, see index.ts). -->
+    <input type="hidden" id="dr-firmlogin-referral-code" name="referral_code" value="">
     <label for="signup-firm-name">Firm name</label>
     <input type="text" id="signup-firm-name" name="name" required maxlength="200"
     placeholder="Example Firm, LLC">
@@ -6600,6 +6621,17 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
   if (new URLSearchParams(window.location.search).get("account-deleted") === "1") {
     var deletedNotice = document.getElementById("dr-account-deleted-notice");
     if (deletedNotice) deletedNotice.hidden = false;
+  }
+
+  // Roadmap #31 (2026-08-09, referral program): carries a ?ref= referral
+  // code (propagated here from /for-firms/'s own CTA link, or shared
+  // directly) into the hidden field the real POST /firm/signup submit
+  // reads. No format validation here -- see /for-firms/'s own script for
+  // why that's deliberately left to the server.
+  var referralCodeParam = new URLSearchParams(window.location.search).get("ref");
+  if (referralCodeParam) {
+    var referralCodeEl = document.getElementById("dr-firmlogin-referral-code");
+    if (referralCodeEl) referralCodeEl.value = referralCodeParam;
   }
 
   // Task #33 (2026-08-06): public demo link (/firm-login/?demo=1) pre-fills
@@ -9518,6 +9550,36 @@ function drRenderBillingPanel() {
   }
 }
 
+// Roadmap #31 (2026-08-09, referral program). link is server-built
+// (staticSiteAbsoluteBaseUrl() + the firm's own referral_code) -- this
+// function never assembles a URL itself. Clipboard-only "Copy link"
+// (no server round trip); rewardCount counts only REWARDED referrals
+// (see countRewardedReferrals()'s own docstring), never raw signups.
+function drRenderReferralPanel(link, rewardCount) {
+  var body = document.getElementById('dr-referral-body');
+  if (!body || !link) return;
+  var countText = rewardCount > 0
+    ? rewardCount + (rewardCount === 1 ? ' firm has' : ' firms have') + ' joined using your link.'
+    : 'No referrals yet.';
+  body.innerHTML =
+    '<input type="text" id="dr-referral-link-input" readonly value="' + drEscapeHtml(link) + '">' +
+    '<button type="button" class="dr-btn-secondary" id="dr-referral-copy-btn">Copy link</button>' +
+    '<p class="dr-panel-empty">' + drEscapeHtml(countText) + '</p>';
+  var copyBtn = document.getElementById('dr-referral-copy-btn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', function() {
+      var input = document.getElementById('dr-referral-link-input');
+      var done = function() { copyBtn.textContent = 'Copied!'; setTimeout(function() { copyBtn.textContent = 'Copy link'; }, 2000); };
+      var fail = function() { if (input) { input.focus(); input.select(); } };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(done, fail);
+      } else {
+        fail();
+      }
+    });
+  }
+}
+
 function drToggleCancellation(cancel, btn) {
   var confirmMsg = cancel
     ? 'Cancel your subscription? No refund for the current period, but you will keep full access until it ends.'
@@ -12247,6 +12309,8 @@ function drLoadLicenses() {
       drRenderSlackIntegration(Boolean(data.slack_connected), data.slack_team_name, data.slack_channel_name);
       // Roadmap #21: same note.
       drRenderTeamsIntegration(Boolean(data.teams_connected));
+      // Roadmap #31: same note.
+      drRenderReferralPanel(data.referral_link || null, data.referral_reward_count || 0);
       drRenderTable();
       drRenderStats();
       drRenderRenewalFeeRollup();
@@ -14529,6 +14593,13 @@ def build_firm_dashboard_page(
         <div id="dr-billing-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
         <p id="dr-billing-ok" class="dr-account-ok" hidden></p>
         <p id="dr-billing-error" role="alert" class="dr-account-err" hidden></p>
+      </div>
+
+      <div class="dr-account-panel" id="dr-referral-panel">
+        <h2>Refer a firm</h2>
+        <p class="signup-microcopy">Share your link with another CPA firm. When they sign up for a
+        paid plan, you both get 10% off your next invoice.</p>
+        <div id="dr-referral-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
       </div>
 
       <div class="dr-account-panel">

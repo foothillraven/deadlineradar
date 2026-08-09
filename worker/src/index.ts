@@ -238,6 +238,8 @@ import {
   computeProratedRefundCents,
   refundPaymentIntent,
   cancelSubscriptionImmediately,
+  applyCouponToSubscription,
+  removeCouponFromSubscription,
   verifyWebhookSignature,
   StripeApiError,
   type StripeWebhookEvent,
@@ -1470,6 +1472,11 @@ async function issueAndSendFirmMemberInviteEmail(
  * codebase's existing SUBSCRIBE_SUCCESS_PAGE / FIRM_LEAD_SUCCESS_PAGE
  * convention of one generic response regardless of internal branch.
  */
+// Roadmap #31 (2026-08-09, referral program). Matches newReferralCode()'s
+// own alphabet/length exactly (store.ts) -- cheap format validation before
+// this attacker-controlled input reaches a DB lookup.
+const REFERRAL_CODE_PATTERN = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/;
+
 async function handleFirmSignup(request: Request, env: Env, ip: string): Promise<Response> {
   const allowed = await checkRateLimit(env.DB, ip, "firm_signup", RATE_LIMIT_FIRM_SIGNUP);
   if (!allowed) {
@@ -1622,12 +1629,43 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
     memberId = existing.id;
     resolvedAdminName = existing.name;
   } else {
+    // Roadmap #31 (2026-08-09, referral program). Optional -- never
+    // required, same "empty -> null, never an error" convention as
+    // admin_name above. An unresolvable/malformed code, or one that fails
+    // a self-referral check, is silently ignored: the signup proceeds
+    // identically to today with referredByFirmId left null, never a 400.
+    // Self-referral checks happen HERE, not in store.ts -- createFirm()
+    // persists whatever referredByFirmId it's given, it doesn't validate.
+    // Adversarial review (2026-08-09, model: opus, requested by Devin --
+    // "ensure there's no exploit"): cooldownKey() (not normalizeEmail())
+    // for the email comparison -- it folds Gmail-style +tag/dot variants
+    // (owner+r1@gmail.com === owner@gmail.com), the cheapest realistic
+    // self-referral trick. This is NOT a complete same-human check (any
+    // two genuinely different inboxes the same person controls still pass
+    // it) -- the real backstop against a profitable loop is the reward-
+    // reversal-on-refund hook in handleFirmAccountDelete(), not this
+    // string comparison; see that function's own comment.
+    let referredByFirmId: string | null = null;
+    const referralCodeRaw = (form.referral_code ?? "").trim().toUpperCase();
+    if (REFERRAL_CODE_PATTERN.test(referralCodeRaw)) {
+      const referrer = await store.findFirmByReferralCode(env.DB, referralCodeRaw);
+      if (referrer) {
+        const sameEmail = store.cooldownKey(referrer.admin_email) === store.cooldownKey(email);
+        const sameIp = Boolean(referrer.signup_ip) && referrer.signup_ip === ip;
+        if (!sameEmail && !sameIp) {
+          referredByFirmId = referrer.id;
+        }
+      }
+    }
+
     try {
       const created = await store.createFirm(env.DB, {
         name: nameRaw,
         adminEmail: email,
         adminName,
         tosAcceptedVersion: TERMS_VERSION,
+        referredByFirmId,
+        signupIp: ip,
       });
       firmId = created.id;
       memberId = created.memberId;
@@ -2612,6 +2650,20 @@ async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Re
     return jsonResponse(503, { error: "That plan isn't available for checkout yet." });
   }
 
+  // Roadmap #31 (2026-08-09, referral program): the REFERRED firm's own
+  // discount, requested at checkout-session-creation time (not decided
+  // client-side -- eligibility is derived entirely from columns the client
+  // can't write). referral_reward_applied_at gates the REFERRER's side
+  // (webhook), but doubles as this firm's own one-time-use marker too --
+  // both sides of one referral relationship resolve together, the moment
+  // THIS checkout actually completes (see handleStripeWebhook's own
+  // comment). Abandoning checkout here leaves eligibility untouched for a
+  // later real attempt.
+  const referralCouponId =
+    firm.referred_by_firm_id && !firm.referral_reward_applied_at && env.STRIPE_COUPON_REFERRAL
+      ? env.STRIPE_COUPON_REFERRAL
+      : undefined;
+
   const dashboardBase = `${staticSiteAbsoluteBaseUrl(env)}/firm-dashboard/`;
   try {
     const checkoutSession = await createCheckoutSession(env.STRIPE_SECRET_KEY, {
@@ -2621,6 +2673,7 @@ async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Re
       metadata: { firm_id: firm.id, target_plan_tier: tierDef.planTier },
       customerId: firm.stripe_customer_id ?? undefined,
       customerEmail: firm.stripe_customer_id ? undefined : firm.admin_email,
+      couponId: referralCouponId,
     });
     return jsonResponse(200, { checkout_url: checkoutSession.url });
   } catch (err) {
@@ -2861,6 +2914,47 @@ async function handleFirmAccountDelete(request: Request, env: Env): Promise<Resp
     }
   }
 
+  // Roadmap #31 (2026-08-09, referral program). Adversarial review finding
+  // (model: opus, requested by Devin -- "ensure there's no exploit"): pay,
+  // trigger the referrer's reward via checkout.session.completed, then
+  // immediately self-serve delete-and-refund via the block above -- a
+  // real, repeatable, near-zero-cost way to extract a real Stripe discount
+  // for a referrer with no genuine conversion behind it. Closed here: a
+  // firm being deleted that (a) actually got a real refund just now
+  // (refundCents is a real number, not null/"failed" -- "nothing owed" or
+  // "refund itself failed" both mean no money is actually being returned,
+  // so there's nothing to claw the reward back FOR) and (b) had already
+  // earned its referrer a real discount (referrer_rewarded_at set, not
+  // already reversed) gets that discount removed from the referrer's live
+  // subscription. Best-effort, same posture as every other Stripe call in
+  // this function -- logged for manual reconciliation on failure, never
+  // blocks the deletion itself (already irreversible, in effect, by the
+  // requestFirmDeletion() call above).
+  if (
+    env.STRIPE_SECRET_KEY &&
+    typeof refundCents === "number" &&
+    refundCents > 0 &&
+    firm.referred_by_firm_id &&
+    firm.referrer_rewarded_at &&
+    !firm.referrer_rewarded_at.startsWith("reversed:")
+  ) {
+    try {
+      const referrer = await store.getFirmById(env.DB, firm.referred_by_firm_id);
+      // No active subscription left to remove a discount FROM (referrer
+      // cancelled independently) -- the discount is moot either way, mark
+      // reversed so this doesn't get retried forever.
+      if (referrer?.stripe_subscription_id) {
+        await removeCouponFromSubscription(env.STRIPE_SECRET_KEY, referrer.stripe_subscription_id);
+      }
+      await store.markReferrerRewardReversed(env.DB, session.firmId);
+    } catch (err) {
+      // Left un-marked (not reversed) on failure -- see
+      // store.markReferrerRewardReversed()'s own docstring; this needs a
+      // human to check Stripe directly, not a silent "handled."
+      console.log(`[referral-reward] reversal failed for deleted firm ${session.firmId}: ${String(err)}`);
+    }
+  }
+
   try {
     await store.invalidateOutstandingLoginTokens(env.DB, session.firmId);
   } catch {
@@ -2892,6 +2986,99 @@ async function handleFirmAccountDelete(request: Request, env: Env): Promise<Resp
   }
 
   return jsonResponse(200, { ok: true });
+}
+
+/**
+ * Roadmap #31 (2026-08-09, referral program). Called from inside
+ * handleStripeWebhook()'s checkout.session.completed branch, only once
+ * (already inside that event's own recordWebhookEventIfNew() gate) --
+ * `checkoutSessionObject` is the RAW, signature-verified event.data.object,
+ * never re-fetched or re-trusted from anywhere else.
+ *
+ * ADVERSARIAL REVIEW FINDING (2026-08-09, model: opus, requested by Devin
+ * -- "ensure there's no exploit"): the original version of this function
+ * gated the CLAIM itself behind referrer-eligibility (subscription active,
+ * not demo-locked). That meant a referred firm whose referrer was NEVER
+ * eligible (free tier, demo-locked, since-cancelled) never got claimed at
+ * all -- its own `!firm.referral_reward_applied_at` check at checkout-
+ * request time (handleFirmBillingCheckout) stayed true FOREVER, so that
+ * firm could request the "one-time" coupon on every checkout, forever.
+ * Combined with the demo firm's referral link being publicly discoverable
+ * (`/firm-login/?demo=1`), that was an indefinitely-reusable public
+ * discount code, not a one-time referral bonus.
+ *
+ * FIX: the claim is now UNCONDITIONAL for any referred firm's first paid
+ * checkout -- it IS this firm's own "my one-time referred discount is now
+ * spent" marker, and must be set the moment that's true, independent of
+ * whether a referrer reward turns out to be possible. The referrer-side
+ * reward is a separate, best-effort SIDE EFFECT attempted only after the
+ * claim succeeds, gated by:
+ *   - The referrer has a live stripe_subscription_id (a referrer who's
+ *     since cancelled has nothing to discount) and is not demo_locked
+ *     (AuditLab DEMO-4/5's own reasoning, applied proactively -- the
+ *     shared public demo account is structurally eligible to be
+ *     "referred_by" like any other firm unless explicitly excluded).
+ *   - env.STRIPE_COUPON_REFERRAL is configured.
+ * A failure here (Stripe API error, referrer ineligible) is logged for
+ * manual reconciliation, same "best-effort, human reconciles" posture
+ * BILL-5's own refund-failure handling already established elsewhere in
+ * this file -- it deliberately does NOT revert the claim, because the
+ * claim's real meaning (the referred firm's own discount was spent) stays
+ * true regardless of whether the referrer's side succeeded.
+ *
+ * object.payment_status === "paid" is checked first -- Stripe's own
+ * guidance is that checkout.session.completed can fire before an async
+ * payment method (e.g. ACH) actually settles; payment_status is the real
+ * "did money move" signal. Scoped to this reward block only, never
+ * touching the plan-tier flip's own condition one call site up.
+ *
+ * RACE CLOSED: two genuinely distinct checkout.session.completed events
+ * for the same referred firm (a double-clicked checkout producing two
+ * real Sessions, not a redelivery of the same event -- the ledger above
+ * already handles that) are closed by claiming with an ATOMIC conditional
+ * UPDATE (store.claimReferralReward()), not a read-then-write -- only one
+ * of two concurrent invocations can win.
+ *
+ * STILL A KNOWN, ACCEPTED GAP (flagged, not silently ignored): a firm
+ * that pays, triggers this reward, then gets a full/near-full refund via
+ * self-serve account deletion minutes later keeps the referrer's discount
+ * -- closing that requires reversing the reward on refund, which
+ * handleFirmAccountDelete() now does (see its own comment) for the
+ * COMMON case (refund on deletion); it does not cover every possible
+ * later chargeback path Stripe itself might report through a webhook this
+ * codebase doesn't yet handle.
+ */
+async function applyReferralRewardIfEligible(env: Env, referredFirmId: string, checkoutSessionObject: Record<string, unknown>): Promise<void> {
+  // Follow-up verification (2026-08-09, model: opus): with STRIPE_COUPON_REFERRAL
+  // shipped as percent_off (10%), a checkout session is never fully free,
+  // so payment_status is always reachable via a real charge. If this
+  // coupon is EVER changed to a 100%-off / free-trial-style coupon,
+  // Stripe reports a $0 invoice as payment_status "no_payment_required",
+  // not "paid" -- that would silently reopen the exact "referred firm
+  // never gets claimed, coupon reusable forever" gap this function's own
+  // docstring describes fixing. Widen this check to accept
+  // "no_payment_required" too if the coupon is ever changed that way.
+  if (checkoutSessionObject.payment_status !== "paid") return;
+
+  const firm = await store.getFirmById(env.DB, referredFirmId);
+  if (!firm || !firm.referred_by_firm_id || firm.referral_reward_applied_at) return;
+
+  // Unconditional claim -- this firm's OWN referred-checkout discount was
+  // just spent on this real, paid session, regardless of what happens
+  // below. Never reverted (see this function's own docstring for why).
+  const claimed = await store.claimReferralReward(env.DB, referredFirmId);
+  if (!claimed) return; // lost the race to a concurrent invocation, or already applied
+
+  if (!env.STRIPE_SECRET_KEY || !env.STRIPE_COUPON_REFERRAL) return;
+  const referrer = await store.getFirmById(env.DB, firm.referred_by_firm_id);
+  if (!referrer || !referrer.stripe_subscription_id || referrer.demo_locked) return;
+
+  try {
+    await applyCouponToSubscription(env.STRIPE_SECRET_KEY, referrer.stripe_subscription_id, env.STRIPE_COUPON_REFERRAL);
+    await store.markReferrerRewarded(env.DB, referredFirmId);
+  } catch (err) {
+    console.log(`[referral-reward] referrer coupon application failed for referrer ${referrer.id} (referred firm ${referredFirmId} already claimed): ${String(err)}`);
+  }
 }
 
 /**
@@ -2945,6 +3132,16 @@ async function handleStripeWebhook(request: Request, env: Env): Promise<Response
           stripeCustomerId: customerId,
           stripeSubscriptionId: subscriptionId,
         });
+        // Roadmap #31 (2026-08-09, referral program). Best-effort, never
+        // fails this webhook's 200 -- the plan-tier flip above is the
+        // must-succeed part; a coupon-application failure is manually
+        // reconcilable, same "must never block the primary state
+        // transition" posture as this file's other best-effort sends.
+        try {
+          await applyReferralRewardIfEligible(env, firmId, object);
+        } catch (err) {
+          console.log(`[referral-reward] error for firm ${firmId}: ${String(err)}`);
+        }
         await store.markWebhookEventProcessed(env.DB, event.id);
       }
     }
@@ -4578,6 +4775,18 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
   // visitors answering NPS would pollute the only real product-feedback
   // signal this survey exists to collect.
   const npsPromptDue = !session.firm.demo_locked && store.shouldPromptNps(session.firm);
+  // Roadmap #31 (2026-08-09, referral program): lazily generated on first
+  // touch (getOrCreateReferralCode()'s own docstring) rather than
+  // backfilled -- this is the one dashboard load every firm's account
+  // panel already calls, same posture as seat_cap/freshness below.
+  // Adversarial review finding (2026-08-09, model: opus): the shared
+  // public demo account must never expose a shareable referral link at
+  // all -- same Account-tab-lockdown posture demo_locked already applies
+  // to every other consequential control (see demo_locked in the response
+  // below). It also can't meaningfully earn a reward (no real Stripe
+  // subscription), so there's nothing useful to show regardless.
+  const referralCode = session.firm.demo_locked ? null : await store.getOrCreateReferralCode(env.DB, session.firmId);
+  const referralRewardCount = session.firm.demo_locked ? 0 : await store.countRewardedReferrals(env.DB, session.firmId);
   items.sort((a, b) => {
     const ad = a.next_deadline as string | null;
     const bd = b.next_deadline as string | null;
@@ -4672,6 +4881,14 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     // Roadmap #21: same "connection status only, never the URL itself"
     // posture as the Slack fields above.
     teams_connected: session.firm.teams_webhook_url !== null,
+    // Roadmap #31: the full shareable link, built server-side (same
+    // staticSiteAbsoluteBaseUrl() the billing checkout redirect uses)
+    // rather than have the client assemble it from a bare code. Null for
+    // a demo_locked session -- see referralCode's own comment above.
+    referral_link: referralCode ? `${staticSiteAbsoluteBaseUrl(env)}/for-firms/?ref=${encodeURIComponent(referralCode)}` : null,
+    // Rewarded referrals only (not raw signups) -- see
+    // countRewardedReferrals()'s own docstring for why.
+    referral_reward_count: referralRewardCount,
   });
 }
 

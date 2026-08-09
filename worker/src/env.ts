@@ -189,6 +189,19 @@ export interface Env {
   STRIPE_PRICE_FIRM_GROWTH?: string;
   STRIPE_PRICE_FIRM_STANDARD?: string;
   /**
+   * Roadmap #31 (2026-08-09, referral program). A Stripe Coupon id --
+   * OPTIONAL, same degrade-safely convention as the four STRIPE_PRICE_*
+   * values above: unset means handleFirmBillingCheckout() never requests a
+   * referral discount and the webhook's reward block never fires
+   * (checked, not assumed -- both read this var directly, neither
+   * fabricates a fallback id). Created once, out-of-band, in the Stripe
+   * Dashboard (percent_off, duration:"once") -- never by application code,
+   * so there is no `POST /v1/coupons` call anywhere in this codebase.
+   * Test-mode and live-mode Coupons are different ids on the same Stripe
+   * account, same Gate-1-to-Gate-2 swap reasoning as STRIPE_PRICE_* above.
+   */
+  STRIPE_COUPON_REFERRAL?: string;
+  /**
    * Roadmap #1/#2 (2026-08-07, document storage). R2 bucket bound in
    * wrangler.toml (bucket `deadlineradar-documents`) -- holds the actual
    * uploaded file bytes for license/CPE certificates. D1's `documents`

@@ -7,7 +7,7 @@
  * are never exercised live; every test injects its own `send`.
  */
 import { env, SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as store from "../src/store";
 import { isWithinSmsQuietHours, isValidTwilioSignature } from "../src/sms";
 
@@ -154,6 +154,54 @@ describe("phone verification flow", () => {
       { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
     );
     expect(resp.status).toBe(400);
+  });
+
+  it("AuditLab SMS-1: refuses opt-in for a subscriber whose ONLY licensed state is Guam -- never accepts an opt-in that can never be honored", async () => {
+    const email = `smsverif-guamonly-${Date.now()}@example.com`;
+    await seedConfirmedSubscriber("guam", "2027-01-01", email);
+    const worker = (await import("../src/index")).default;
+    const resp = await worker.fetch(
+      new Request(`${BASE}/subscriber/phone/start-verification`, {
+        method: "POST",
+        headers: { "content-type": "application/json", Cookie: await subscriberCookie(email) },
+        body: JSON.stringify({ phone_number: "+15551234567" }),
+      }),
+      { ...env, TWILIO_ACCOUNT_SID: "AC_fake", TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TWILIO_FROM_NUMBER: "+15559999999" } as never,
+      { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
+    );
+    expect(resp.status).toBe(400);
+    const body = (await resp.json()) as { error: string };
+    expect(body.error).toMatch(/timezone/i);
+    // No verification row created -- refused before any code was sent.
+    const row = await env.DB.prepare("SELECT * FROM subscriber_phone_verifications WHERE subscriber_email_normalized = ?1")
+      .bind(store.normalizeEmail(email))
+      .first();
+    expect(row).toBeNull();
+  });
+
+  it("AuditLab SMS-1: a subscriber with a Guam row AND another state can still opt in -- SMS still sends for the other state's deadlines", async () => {
+    const email = `smsverif-guamplus-${Date.now()}@example.com`;
+    await seedConfirmedSubscriber("guam", "2027-01-01", email);
+    await seedConfirmedSubscriber("ohio", "2027-06-01", email);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ sid: "SM_fake" }), { status: 201 }));
+    try {
+      const worker = (await import("../src/index")).default;
+      const resp = await worker.fetch(
+        new Request(`${BASE}/subscriber/phone/start-verification`, {
+          method: "POST",
+          headers: { "content-type": "application/json", Cookie: await subscriberCookie(email) },
+          body: JSON.stringify({ phone_number: "+15551234567" }),
+        }),
+        { ...env, TWILIO_ACCOUNT_SID: "AC_fake", TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TWILIO_FROM_NUMBER: "+15559999999" } as never,
+        { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
+      );
+      // Not blocked by the timezone check -- reaches the real send path
+      // (mocked here), proving the mixed-state case is unaffected.
+      expect(resp.status).toBe(200);
+      expect(fetchSpy).toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it("full round trip: start -> confirm -> opted in, then opt-out clears it", async () => {

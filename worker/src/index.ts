@@ -219,7 +219,7 @@ import {
 } from "./oauth";
 import { buildSlackAuthorizeUrl, exchangeSlackCode, revokeSlackToken } from "./slack";
 import { isTeamsWebhookUrl } from "./teams";
-import { sendSms, generateVerificationCode, isValidTwilioSignature } from "./sms";
+import { sendSms, generateVerificationCode, isValidTwilioSignature, SMS_UNAVAILABLE_STATE_SLUGS } from "./sms";
 import { verifySendGridEventSignature } from "./sendgrid_webhook";
 import mobilityRulesData from "./mobility_rules.json";
 import {
@@ -3513,6 +3513,21 @@ async function handleSubscriberPhoneStartVerification(request: Request, env: Env
   const phoneNumberRaw = typeof body.phone_number === "string" ? body.phone_number.trim() : "";
   if (!US_E164_PATTERN.test(phoneNumberRaw)) {
     return jsonResponse(400, { error: "Please enter a valid US phone number." });
+  }
+
+  // AuditLab SMS-1 (MEDIUM, 2026-08-09): a subscriber whose ONLY licensed
+  // state(s) are Guam/CNMI could complete this entire flow -- including a
+  // real, working verification text -- and then never receive another
+  // message, because runSmsAlertPass()'s quiet-hours check correctly
+  // never fires for their timezone against the fixed cron time. Refused
+  // upfront, honestly, rather than silently accepting an opt-in that can
+  // never be honored. Someone with at least one OTHER licensed state is
+  // unaffected -- their SMS still sends for that state's own deadlines.
+  const licenses = await store.listSubscriberLicenses(env.DB, session.emailNormalized);
+  if (licenses.length > 0 && licenses.every((r) => SMS_UNAVAILABLE_STATE_SLUGS.has(r.state_slug))) {
+    return jsonResponse(400, {
+      error: "Text reminders aren't available yet for your timezone (Guam/Northern Mariana Islands). You'll still get email reminders.",
+    });
   }
 
   const code = generateVerificationCode();

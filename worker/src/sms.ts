@@ -96,6 +96,21 @@ export const STATE_TIMEZONE_UTC_OFFSET: Record<string, number> = {
 const QUIET_HOURS_START = 8; // 8am local, inclusive
 const QUIET_HOURS_END = 21; // 9pm local, exclusive
 
+/** AuditLab SMS-1 (MEDIUM, 2026-08-09): the two jurisdictions whose real
+ * UTC+10 offset (see STATE_TIMEZONE_UTC_OFFSET's own docstring) puts them
+ * OUTSIDE the 8am-9pm quiet-hours window every single day against the
+ * fixed 18:00 UTC cron -- runSmsAlertPass() correctly never sends to them,
+ * but nothing told the subscriber that before they completed opt-in.
+ * Someone whose ONLY licensed state(s) are in this set could tick consent,
+ * receive a working verification code (that send is on-demand, not
+ * cron-gated, so it DOES arrive), get sms_opted_in=1, and then receive
+ * nothing ever -- worse than never offering the channel, since they have
+ * every reason to believe it's on and may rely on a text that never comes.
+ * Used by handleSubscriberPhoneStartVerification() to refuse opt-in
+ * upfront with an honest message, rather than silently accepting a
+ * confirmation that can never be honored. */
+export const SMS_UNAVAILABLE_STATE_SLUGS = new Set(["guam", "northern-mariana-islands"]);
+
 /** true only when it is currently safe (8am-9pm local) to send an SMS to
  * this state's subscribers. Fails closed (false) for any unlisted
  * jurisdiction -- never guessed, same posture as every other "we don't

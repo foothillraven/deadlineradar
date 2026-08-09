@@ -5097,21 +5097,27 @@ async function handleFirmSlackConnectCallback(request: Request, env: Env): Promi
     return redirectTo(`${dashboardUrl}?slack_connect_failed=exchange`);
   }
 
-  // Degrades gracefully if the encryption key isn't configured -- see
-  // SetFirmSlackIntegrationInput's own docstring for why this only affects
-  // disconnect's best-effort revoke, never the core alert-posting feature.
-  let accessTokenEncrypted: string | null = null;
-  let accessTokenIv: string | null = null;
-  if (env.TOTP_ENCRYPTION_KEY) {
-    const enc = await encryptSecretAesGcm(result.accessToken, session.firmId, env.TOTP_ENCRYPTION_KEY);
-    accessTokenEncrypted = enc.ciphertextBase64;
-    accessTokenIv = enc.ivBase64;
+  // AuditLab SLACK-1 (2026-08-09): the webhook URL is a live bearer
+  // credential (possession alone posts to that channel) -- unlike the
+  // access token above, there's no safe degraded mode for it, so connect
+  // now fails closed if the encryption key isn't configured, same
+  // "unconfigured is invisible" posture applied one layer earlier.
+  if (!env.TOTP_ENCRYPTION_KEY) {
+    return redirectTo(`${dashboardUrl}?slack_connect_failed=not_configured`);
   }
+  const webhookEnc = await encryptSecretAesGcm(result.webhookUrl, session.firmId, env.TOTP_ENCRYPTION_KEY);
+
+  // Degrades gracefully -- see SetFirmSlackIntegrationInput's own docstring
+  // for why a missing access token only affects disconnect's best-effort
+  // revoke, never the core alert-posting feature (which only ever needs
+  // the webhook URL above, not this token).
+  const accessTokenEnc = await encryptSecretAesGcm(result.accessToken, session.firmId, env.TOTP_ENCRYPTION_KEY);
 
   await store.setFirmSlackIntegration(env.DB, session.firmId, {
-    webhookUrl: result.webhookUrl,
-    accessTokenEncrypted,
-    accessTokenIv,
+    webhookUrlEncrypted: webhookEnc.ciphertextBase64,
+    webhookUrlIv: webhookEnc.ivBase64,
+    accessTokenEncrypted: accessTokenEnc.ciphertextBase64,
+    accessTokenIv: accessTokenEnc.ivBase64,
     teamName: result.teamName,
     channelName: result.channelName,
   });
@@ -5191,7 +5197,15 @@ async function handleFirmTeamsWebhookSet(request: Request, env: Env): Promise<Re
     return jsonResponse(400, { error: "That doesn't look like a Teams workflow webhook URL. Please check it and try again." });
   }
 
-  await store.setFirmTeamsWebhook(env.DB, session.firmId, webhookUrlRaw);
+  // AuditLab SLACK-1 (extends to Teams, 2026-08-09): this webhook URL is
+  // the ONLY credential Teams has at all (no OAuth token) -- fail closed
+  // rather than ever storing it plaintext, same posture as Slack's own
+  // connect callback now has.
+  if (!env.TOTP_ENCRYPTION_KEY) {
+    return jsonResponse(503, { error: "Teams integration isn't available right now. Please try again later." });
+  }
+  const webhookEnc = await encryptSecretAesGcm(webhookUrlRaw, session.firmId, env.TOTP_ENCRYPTION_KEY);
+  await store.setFirmTeamsWebhook(env.DB, session.firmId, webhookEnc.ciphertextBase64, webhookEnc.ivBase64);
   return jsonResponse(200, { teams_connected: true });
 }
 

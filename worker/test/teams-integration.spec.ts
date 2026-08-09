@@ -12,10 +12,42 @@ import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import * as store from "../src/store";
 import { isTeamsWebhookUrl } from "../src/teams";
+import { encryptSecretAesGcm } from "../src/totp";
 
 const BASE = "https://deadline-radar.com";
 const MS_PER_DAY = 86_400_000;
 const REAL_WEBHOOK_URL = "https://contoso.webhook.office.com/webhookb2/abc-123";
+
+// AuditLab SLACK-1 (extends to Teams, 2026-08-09): teams_webhook_url is now
+// AES-GCM encrypted at rest -- same per-call env override as
+// slack-integration.spec.ts's own KEY, since this test env's wrangler.toml
+// deliberately doesn't set the real TOTP_ENCRYPTION_KEY secret.
+const KEY = randomKeyBase64();
+
+function randomKeyBase64(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+async function seedTeamsWebhook(firmId: string, webhookUrl: string = REAL_WEBHOOK_URL): Promise<void> {
+  const enc = await encryptSecretAesGcm(webhookUrl, firmId, KEY);
+  await store.setFirmTeamsWebhook(env.DB, firmId, enc.ciphertextBase64, enc.ivBase64);
+}
+
+function testExecutionContext(): ExecutionContext {
+  return { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext;
+}
+
+/** Direct worker.fetch() with env overrides, not SELF.fetch() -- needed for
+ * PATCH /firm/integrations/teams' success path since TOTP_ENCRYPTION_KEY is
+ * a real deploy secret this test env's wrangler.toml doesn't set. Same
+ * pattern as billing.spec.ts's own workerFetch() for STRIPE_SECRET_KEY. */
+async function workerFetch(request: Request, envOverrides: Record<string, unknown> = {}): Promise<Response> {
+  const worker = (await import("../src/index")).default;
+  return worker.fetch(request, { ...env, ...envOverrides } as never, testExecutionContext());
+}
 
 async function newFirm(label: string): Promise<{ firmId: string; memberId: string }> {
   const adminEmail = `${label}-${Date.now()}-${Math.floor(performance.now())}@examplefirm.com`;
@@ -88,19 +120,46 @@ describe("PATCH /firm/integrations/teams", () => {
     expect(resp.status).toBe(401);
   });
 
-  it("sets a valid webhook URL and reports connected", async () => {
+  it("sets a valid webhook URL, encrypted at rest, and reports connected", async () => {
     const { firmId, memberId } = await newFirm("teamspatch-ok");
-    const resp = await SELF.fetch(`${BASE}/firm/integrations/teams`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.20", Cookie: await sessionCookieFor(firmId, memberId) },
-      body: JSON.stringify({ webhook_url: REAL_WEBHOOK_URL }),
-    });
+    const resp = await workerFetch(
+      new Request(`${BASE}/firm/integrations/teams`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.20", Cookie: await sessionCookieFor(firmId, memberId) },
+        body: JSON.stringify({ webhook_url: REAL_WEBHOOK_URL }),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
     expect(resp.status).toBe(200);
     const body = (await resp.json()) as { teams_connected: boolean };
     expect(body.teams_connected).toBe(true);
 
+    // AuditLab SLACK-1: ciphertext at rest, not the plaintext URL -- and it
+    // decrypts back to exactly what was sent.
+    const row = await env.DB
+      .prepare(`SELECT teams_webhook_url, teams_webhook_url_iv FROM firms WHERE id = ?1`)
+      .bind(firmId)
+      .first<{ teams_webhook_url: string | null; teams_webhook_url_iv: string | null }>();
+    expect(row?.teams_webhook_url).not.toBe(REAL_WEBHOOK_URL);
+    expect(row?.teams_webhook_url_iv).toBeTruthy();
+    const { decryptSecretAesGcm } = await import("../src/totp");
+    const decrypted = await decryptSecretAesGcm(row!.teams_webhook_url!, row!.teams_webhook_url_iv!, firmId, KEY);
+    expect(decrypted).toBe(REAL_WEBHOOK_URL);
+  });
+
+  it("503s (fails closed) when TOTP_ENCRYPTION_KEY isn't configured -- never stores plaintext", async () => {
+    const { firmId, memberId } = await newFirm("teamspatch-nokey");
+    const resp = await workerFetch(
+      new Request(`${BASE}/firm/integrations/teams`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.23", Cookie: await sessionCookieFor(firmId, memberId) },
+        body: JSON.stringify({ webhook_url: REAL_WEBHOOK_URL }),
+      }),
+      { TOTP_ENCRYPTION_KEY: undefined }
+    );
+    expect(resp.status).toBe(503);
     const row = await env.DB.prepare(`SELECT teams_webhook_url FROM firms WHERE id = ?1`).bind(firmId).first<{ teams_webhook_url: string | null }>();
-    expect(row?.teams_webhook_url).toBe(REAL_WEBHOOK_URL);
+    expect(row?.teams_webhook_url).toBeNull();
   });
 
   it("400s on an invalid/non-Microsoft URL and stores nothing", async () => {
@@ -117,7 +176,7 @@ describe("PATCH /firm/integrations/teams", () => {
 
   it("clears via webhook_url: null", async () => {
     const { firmId, memberId } = await newFirm("teamspatch-clear");
-    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    await seedTeamsWebhook(firmId);
     const resp = await SELF.fetch(`${BASE}/firm/integrations/teams`, {
       method: "PATCH",
       headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.22", Cookie: await sessionCookieFor(firmId, memberId) },
@@ -134,7 +193,7 @@ describe("PATCH /firm/integrations/teams", () => {
 describe("GET /firm/licenses bootstrap -- teams_connected field", () => {
   it("reports connected status, never the webhook url itself", async () => {
     const { firmId, memberId } = await newFirm("teamsboot-ok");
-    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    await seedTeamsWebhook(firmId);
     const resp = await SELF.fetch(`${BASE}/firm/licenses`, {
       headers: { Cookie: await sessionCookieFor(firmId, memberId) },
     });
@@ -149,13 +208,13 @@ describe("runTeamsAlertPass", () => {
     const { runTeamsAlertPass } = await import("../src/scheduler");
     const asOf = freshAsOf(1000);
     const { firmId } = await newFirm("teamse2e-bundle");
-    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    await seedTeamsWebhook(firmId);
     const due = isoDaysFromUtcMidnight(asOf, 30);
     await addRosterSubscriber(firmId, "ohio", due);
     await addRosterSubscriber(firmId, "texas", due);
 
     const posted: { webhookUrl: string; text: string }[] = [];
-    const summary = await runTeamsAlertPass(env, {
+    const summary = await runTeamsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, {
       asOf,
       send: async (webhookUrl, text) => {
         posted.push({ webhookUrl, text });
@@ -179,7 +238,7 @@ describe("runTeamsAlertPass", () => {
     await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
 
     let posts = 0;
-    await runTeamsAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    await runTeamsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf, send: async () => { posts += 1; return true; } });
     expect(posts).toBe(0);
   });
 
@@ -187,11 +246,11 @@ describe("runTeamsAlertPass", () => {
     const { runTeamsAlertPass } = await import("../src/scheduler");
     const asOf = freshAsOf(3000);
     const { firmId } = await newFirm("teamse2e-quiet");
-    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    await seedTeamsWebhook(firmId);
     await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 90));
 
     let posts = 0;
-    await runTeamsAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    await runTeamsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf, send: async () => { posts += 1; return true; } });
     expect(posts).toBe(0);
   });
 
@@ -199,13 +258,13 @@ describe("runTeamsAlertPass", () => {
     const { runTeamsAlertPass } = await import("../src/scheduler");
     const asOf = freshAsOf(4000);
     const { firmId } = await newFirm("teamse2e-race");
-    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    await seedTeamsWebhook(firmId);
     const sub = await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
     const claimed = await store.claimTeamsThresholdNotification(env.DB, sub.id, 30);
     expect(claimed).toBe(true);
 
     let posts = 0;
-    const summary = await runTeamsAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    const summary = await runTeamsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf, send: async () => { posts += 1; return true; } });
     expect(posts).toBe(0);
     expect(summary.itemsClaimed).toBe(0);
   });
@@ -214,7 +273,7 @@ describe("runTeamsAlertPass", () => {
     const { runTeamsAlertPass } = await import("../src/scheduler");
     const asOf = freshAsOf(5000);
     const { firmId } = await newFirm("teamse2e-independent");
-    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    await seedTeamsWebhook(firmId);
     const sub = await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
     const emailClaimed = await store.claimReminderThreshold(env.DB, sub.id, "[]", 30);
     expect(emailClaimed).toBe(true);
@@ -222,7 +281,7 @@ describe("runTeamsAlertPass", () => {
     expect(slackClaimed).toBe(true);
 
     let posts = 0;
-    await runTeamsAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    await runTeamsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf, send: async () => { posts += 1; return true; } });
     expect(posts).toBe(1);
   });
 
@@ -231,11 +290,11 @@ describe("runTeamsAlertPass", () => {
     const asOf = freshAsOf(6000);
     const { firmId } = await newFirm("teamse2e-demo");
     await env.DB.prepare(`UPDATE firms SET demo_locked = 1 WHERE id = ?1`).bind(firmId).run();
-    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    await seedTeamsWebhook(firmId);
     const sub = await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
 
     let posts = 0;
-    const summary = await runTeamsAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    const summary = await runTeamsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf, send: async () => { posts += 1; return true; } });
     expect(posts).toBe(0);
     expect(summary.digestsSent).toBe(0);
     const claimedAfter = await store.claimTeamsThresholdNotification(env.DB, sub.id, 30);
@@ -247,11 +306,11 @@ describe("runTeamsAlertPass", () => {
     const asOf = freshAsOf(7000);
     const { firmId } = await newFirm("teamse2e-thresholds");
     await store.setReminderThresholds(env.DB, firmId, JSON.stringify([1]));
-    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    await seedTeamsWebhook(firmId);
     await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 7));
 
     let posts = 0;
-    await runTeamsAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    await runTeamsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf, send: async () => { posts += 1; return true; } });
     expect(posts).toBe(0);
   });
 
@@ -262,7 +321,7 @@ describe("runTeamsAlertPass", () => {
     await checkAndCountTeamsAlertSend(env.DB, 1);
 
     const { firmId } = await newFirm("teamse2e-cap");
-    await store.setFirmTeamsWebhook(env.DB, firmId, REAL_WEBHOOK_URL);
+    await seedTeamsWebhook(firmId);
     const sub = await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
 
     let posts = 0;

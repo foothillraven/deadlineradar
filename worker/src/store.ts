@@ -1193,22 +1193,24 @@ export interface FirmRow {
   rule_change_alerts_enabled: number;
   // migration 0052 (roadmap #20). NULL slack_webhook_url = not connected --
   // the single source of truth read everywhere "is Slack on" matters.
-  // access_token is encrypted at rest (totp.ts's encryptSecretAesGcm(),
-  // contextId = firm id) since it's a live bearer credential, needed only
-  // so disconnect can call Slack's auth.revoke -- posting itself only ever
-  // uses slack_webhook_url. Never serialized to the client, same posture
-  // as password_hash.
+  // AuditLab SLACK-1 (2026-08-09): slack_webhook_url is AES-GCM encrypted
+  // at rest (migration 0056), same primitive and contextId=firm-id
+  // convention as slack_access_token_encrypted already used -- a webhook
+  // URL is itself a live bearer credential (possession alone posts to that
+  // channel), not just an address. Never serialized to the client, same
+  // posture as password_hash.
   slack_webhook_url: string | null;
+  slack_webhook_url_iv: string | null;
   slack_access_token_encrypted: string | null;
   slack_access_token_iv: string | null;
   slack_team_name: string | null;
   slack_channel_name: string | null;
-  // migration 0053 (roadmap #21). NULL = not connected, same posture as
-  // slack_webhook_url -- no access-token/encryption columns needed at all,
-  // since there's no OAuth flow here (see teams.ts's own docstring). Never
-  // serialized to the client -- a Teams webhook URL is as much a bearer
-  // secret as a Slack one, even though this one is firm-admin-supplied.
+  // migration 0053 (roadmap #21), encrypted per SLACK-1/migration 0056 --
+  // same reasoning as slack_webhook_url above, arguably more acute here
+  // since this is the ONLY credential Teams has (no OAuth access token).
+  // NULL = not connected. Never serialized to the client.
   teams_webhook_url: string | null;
+  teams_webhook_url_iv: string | null;
 }
 
 export interface FirmLoginTokenRow {
@@ -4510,7 +4512,11 @@ export async function listAllFirmsBasicInfo(db: D1Database): Promise<FirmBasicIn
 export interface FirmSlackConnectedInfo {
   id: string;
   name: string;
+  // AuditLab SLACK-1: ciphertext + IV now, not a raw webhook URL -- the
+  // caller (runSlackAlertPass()) decrypts with decryptSecretAesGcm()
+  // (contextId = firm id) right before use.
   slack_webhook_url: string;
+  slack_webhook_url_iv: string | null;
   // JSON array string or null -- same "raw column value, caller decides"
   // posture as FirmBasicInfo.reminder_thresholds above. runSlackAlertPass()
   // reuses the SAME firm-then-subscriber threshold resolution
@@ -4523,7 +4529,7 @@ export interface FirmSlackConnectedInfo {
 export async function listFirmsWithSlackConnected(db: D1Database): Promise<FirmSlackConnectedInfo[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, name, slack_webhook_url, reminder_thresholds, demo_locked
+      `SELECT id, name, slack_webhook_url, slack_webhook_url_iv, reminder_thresholds, demo_locked
          FROM firms
         WHERE slack_webhook_url IS NOT NULL`
     )
@@ -4532,7 +4538,12 @@ export async function listFirmsWithSlackConnected(db: D1Database): Promise<FirmS
 }
 
 export interface SetFirmSlackIntegrationInput {
-  webhookUrl: string;
+  // AuditLab SLACK-1: ciphertext + IV, encrypted by the CALLER
+  // (handleFirmSlackConnectCallback(), which has env.TOTP_ENCRYPTION_KEY)
+  // before this store function ever sees it -- same division of
+  // responsibility accessTokenEncrypted already had.
+  webhookUrlEncrypted: string;
+  webhookUrlIv: string;
   // Null when TOTP_ENCRYPTION_KEY isn't configured at connect time --
   // posting alerts only ever needs webhookUrl, so a missing encryption key
   // degrades ONLY the disconnect-time auth.revoke call (best-effort
@@ -4548,13 +4559,14 @@ export async function setFirmSlackIntegration(db: D1Database, firmId: string, in
     .prepare(
       `UPDATE firms
           SET slack_webhook_url = ?1,
-              slack_access_token_encrypted = ?2,
-              slack_access_token_iv = ?3,
-              slack_team_name = ?4,
-              slack_channel_name = ?5
-        WHERE id = ?6`
+              slack_webhook_url_iv = ?2,
+              slack_access_token_encrypted = ?3,
+              slack_access_token_iv = ?4,
+              slack_team_name = ?5,
+              slack_channel_name = ?6
+        WHERE id = ?7`
     )
-    .bind(input.webhookUrl, input.accessTokenEncrypted, input.accessTokenIv, input.teamName, input.channelName, firmId)
+    .bind(input.webhookUrlEncrypted, input.webhookUrlIv, input.accessTokenEncrypted, input.accessTokenIv, input.teamName, input.channelName, firmId)
     .run();
 }
 
@@ -4563,6 +4575,7 @@ export async function clearFirmSlackIntegration(db: D1Database, firmId: string):
     .prepare(
       `UPDATE firms
           SET slack_webhook_url = NULL,
+              slack_webhook_url_iv = NULL,
               slack_access_token_encrypted = NULL,
               slack_access_token_iv = NULL,
               slack_team_name = NULL,
@@ -4625,7 +4638,10 @@ export async function listSlackNotifiedThresholds(db: D1Database, subscriberId: 
 export interface FirmTeamsConnectedInfo {
   id: string;
   name: string;
+  // AuditLab SLACK-1 (extends to Teams -- migration 0056's own docstring):
+  // ciphertext + IV, decrypted by the caller right before use.
   teams_webhook_url: string;
+  teams_webhook_url_iv: string | null;
   reminder_thresholds: string | null;
   demo_locked: number;
 }
@@ -4633,7 +4649,7 @@ export interface FirmTeamsConnectedInfo {
 export async function listFirmsWithTeamsConnected(db: D1Database): Promise<FirmTeamsConnectedInfo[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, name, teams_webhook_url, reminder_thresholds, demo_locked
+      `SELECT id, name, teams_webhook_url, teams_webhook_url_iv, reminder_thresholds, demo_locked
          FROM firms
         WHERE teams_webhook_url IS NOT NULL`
     )
@@ -4641,12 +4657,20 @@ export async function listFirmsWithTeamsConnected(db: D1Database): Promise<FirmT
   return results;
 }
 
-export async function setFirmTeamsWebhook(db: D1Database, firmId: string, webhookUrl: string): Promise<void> {
-  await db.prepare(`UPDATE firms SET teams_webhook_url = ?1 WHERE id = ?2`).bind(webhookUrl, firmId).run();
+/** webhookUrlEncrypted/webhookUrlIv -- encrypted by the CALLER
+ * (handleFirmTeamsWebhookSet(), which has env.TOTP_ENCRYPTION_KEY) before
+ * this store function ever sees it. AuditLab SLACK-1: this is arguably
+ * MORE acute than Slack's own webhook URL, since it's the only credential
+ * Teams has at all -- no OAuth access token to also protect. */
+export async function setFirmTeamsWebhook(db: D1Database, firmId: string, webhookUrlEncrypted: string, webhookUrlIv: string): Promise<void> {
+  await db
+    .prepare(`UPDATE firms SET teams_webhook_url = ?1, teams_webhook_url_iv = ?2 WHERE id = ?3`)
+    .bind(webhookUrlEncrypted, webhookUrlIv, firmId)
+    .run();
 }
 
 export async function clearFirmTeamsWebhook(db: D1Database, firmId: string): Promise<void> {
-  await db.prepare(`UPDATE firms SET teams_webhook_url = NULL WHERE id = ?1`).bind(firmId).run();
+  await db.prepare(`UPDATE firms SET teams_webhook_url = NULL, teams_webhook_url_iv = NULL WHERE id = ?1`).bind(firmId).run();
 }
 
 /** Same INSERT-with-UNIQUE-conflict dedup shape as claimSlackThresholdNotification()

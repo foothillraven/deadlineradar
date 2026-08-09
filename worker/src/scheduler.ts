@@ -68,6 +68,7 @@ import {
 import { sendToSlack } from "./slack";
 import { sendToTeams } from "./teams";
 import { sendSms, isWithinSmsQuietHours } from "./sms";
+import { decryptSecretAesGcm } from "./totp";
 import cpaDataForDripCourse from "./cpa_deadlines.json";
 import regChangeEventsData from "./reg_change_events.json";
 
@@ -1140,15 +1141,24 @@ export async function runSlackAlertPass(env: Env, opts: RunSlackAlertOptions = {
         break;
       }
 
+      // AuditLab SLACK-1: decrypt right before use -- never held in a
+      // wider-scoped variable than this. A decrypt failure (missing
+      // TOTP_ENCRYPTION_KEY, tampered ciphertext, or a pre-migration-0056
+      // plaintext value that no longer parses as ciphertext) fails closed
+      // exactly like a failed send -- claims are released, retried next
+      // pass once/if the key is restored.
+      const webhookUrl = firm.slack_webhook_url_iv && env.TOTP_ENCRYPTION_KEY
+        ? await decryptSecretAesGcm(firm.slack_webhook_url, firm.slack_webhook_url_iv, firm.id, env.TOTP_ENCRYPTION_KEY)
+        : null;
       const text = buildSlackDigestText(firm.name, items);
-      const ok = await send(firm.slack_webhook_url, text);
+      const ok = webhookUrl ? await send(webhookUrl, text) : false;
       if (ok) {
         summary.digestsSent += 1;
       } else {
         for (const { subscriberId, threshold } of claimed) {
           await store.unclaimSlackThresholdNotification(env.DB, subscriberId, threshold);
         }
-        summary.errors.push({ firm_id: firm.id, error: "send returned false" });
+        summary.errors.push({ firm_id: firm.id, error: webhookUrl ? "send returned false" : "failed to decrypt webhook URL" });
       }
     } catch (err) {
       for (const { subscriberId, threshold } of claimed) {
@@ -1318,15 +1328,20 @@ export async function runTeamsAlertPass(env: Env, opts: RunTeamsAlertOptions = {
         break;
       }
 
+      // AuditLab SLACK-1 (extends to Teams): same decrypt-right-before-use,
+      // fail-closed-on-decrypt-failure posture as runSlackAlertPass() above.
+      const webhookUrl = firm.teams_webhook_url_iv && env.TOTP_ENCRYPTION_KEY
+        ? await decryptSecretAesGcm(firm.teams_webhook_url, firm.teams_webhook_url_iv, firm.id, env.TOTP_ENCRYPTION_KEY)
+        : null;
       const text = buildTeamsDigestText(firm.name, items);
-      const ok = await send(firm.teams_webhook_url, text);
+      const ok = webhookUrl ? await send(webhookUrl, text) : false;
       if (ok) {
         summary.digestsSent += 1;
       } else {
         for (const { subscriberId, threshold } of claimed) {
           await store.unclaimTeamsThresholdNotification(env.DB, subscriberId, threshold);
         }
-        summary.errors.push({ firm_id: firm.id, error: "send returned false" });
+        summary.errors.push({ firm_id: firm.id, error: webhookUrl ? "send returned false" : "failed to decrypt webhook URL" });
       }
     } catch (err) {
       for (const { subscriberId, threshold } of claimed) {

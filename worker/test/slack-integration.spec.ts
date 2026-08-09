@@ -18,9 +18,43 @@
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import * as store from "../src/store";
+import { encryptSecretAesGcm } from "../src/totp";
 
 const BASE = "https://deadline-radar.com";
 const MS_PER_DAY = 86_400_000;
+
+// AuditLab SLACK-1 (2026-08-09): slack_webhook_url is now AES-GCM
+// encrypted at rest, same posture as TOTP_ENCRYPTION_KEY tests elsewhere
+// (firm-2fa.spec.ts) -- this test env's wrangler.toml deliberately doesn't
+// set the real secret, so it's supplied per-call via env override.
+const KEY = randomKeyBase64();
+
+function randomKeyBase64(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+/** Encrypts webhookUrl (contextId = firmId, same AAD convention as
+ * production) and seeds a connected Slack integration for tests that don't
+ * exercise the real OAuth callback. */
+async function seedSlackIntegration(
+  firmId: string,
+  webhookUrl: string,
+  extra: Partial<Omit<store.SetFirmSlackIntegrationInput, "webhookUrlEncrypted" | "webhookUrlIv">> = {}
+): Promise<void> {
+  const enc = await encryptSecretAesGcm(webhookUrl, firmId, KEY);
+  await store.setFirmSlackIntegration(env.DB, firmId, {
+    webhookUrlEncrypted: enc.ciphertextBase64,
+    webhookUrlIv: enc.ivBase64,
+    accessTokenEncrypted: null,
+    accessTokenIv: null,
+    teamName: "Acme Co",
+    channelName: "general",
+    ...extra,
+  });
+}
 
 async function newFirm(label: string): Promise<{ firmId: string; memberId: string }> {
   const adminEmail = `${label}-${Date.now()}-${Math.floor(performance.now())}@examplefirm.com`;
@@ -162,13 +196,7 @@ describe("POST /firm/integrations/slack/disconnect", () => {
 
   it("clears every slack_* column and reports disconnected", async () => {
     const { firmId, memberId } = await newFirm("slackdc-ok");
-    await store.setFirmSlackIntegration(env.DB, firmId, {
-      webhookUrl: "https://hooks.slack.com/services/T000/B000/xxx",
-      accessTokenEncrypted: null,
-      accessTokenIv: null,
-      teamName: "Acme Co",
-      channelName: "general",
-    });
+    await seedSlackIntegration(firmId, "https://hooks.slack.com/services/T000/B000/xxx");
 
     const resp = await SELF.fetch(`${BASE}/firm/integrations/slack/disconnect`, {
       method: "POST",
@@ -201,12 +229,9 @@ describe("POST /firm/integrations/slack/disconnect", () => {
 describe("GET /firm/licenses bootstrap -- slack_connected fields", () => {
   it("reports connected status and display fields, never the webhook url or token", async () => {
     const { firmId, memberId } = await newFirm("slackboot-ok");
-    await store.setFirmSlackIntegration(env.DB, firmId, {
-      webhookUrl: "https://hooks.slack.com/services/T000/B000/xxx",
+    await seedSlackIntegration(firmId, "https://hooks.slack.com/services/T000/B000/xxx", {
       accessTokenEncrypted: "ciphertext",
       accessTokenIv: "iv",
-      teamName: "Acme Co",
-      channelName: "general",
     });
     const resp = await SELF.fetch(`${BASE}/firm/licenses`, {
       headers: { Cookie: await sessionCookieFor(firmId, memberId) },
@@ -225,10 +250,7 @@ describe("runSlackAlertPass", () => {
     const { runSlackAlertPass } = await import("../src/scheduler");
     const asOf = freshAsOf(1000);
     const { firmId } = await newFirm("slacke2e-bundle");
-    await store.setFirmSlackIntegration(env.DB, firmId, {
-      webhookUrl: "https://hooks.slack.com/services/T000/B000/bundle",
-      accessTokenEncrypted: null,
-      accessTokenIv: null,
+    await seedSlackIntegration(firmId, "https://hooks.slack.com/services/T000/B000/bundle", {
       teamName: "Bundle Co",
       channelName: "alerts",
     });
@@ -237,7 +259,7 @@ describe("runSlackAlertPass", () => {
     await addRosterSubscriber(firmId, "texas", due);
 
     const posted: { webhookUrl: string; text: string }[] = [];
-    const summary = await runSlackAlertPass(env, {
+    const summary = await runSlackAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, {
       asOf,
       send: async (webhookUrl, text) => {
         posted.push({ webhookUrl, text });
@@ -261,7 +283,7 @@ describe("runSlackAlertPass", () => {
     await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
 
     let posts = 0;
-    await runSlackAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    await runSlackAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf, send: async () => { posts += 1; return true; } });
     // Not scoped to summary.firmsChecked === 0 -- other tests in this file
     // (or a shared test DB) may have connected other firms; this firm's own
     // roster item is what must never be posted, checked via `posts` above
@@ -274,17 +296,14 @@ describe("runSlackAlertPass", () => {
     const { runSlackAlertPass } = await import("../src/scheduler");
     const asOf = freshAsOf(3000);
     const { firmId } = await newFirm("slacke2e-quiet");
-    await store.setFirmSlackIntegration(env.DB, firmId, {
-      webhookUrl: "https://hooks.slack.com/services/T000/B000/quiet",
-      accessTokenEncrypted: null,
-      accessTokenIv: null,
+    await seedSlackIntegration(firmId, "https://hooks.slack.com/services/T000/B000/quiet", {
       teamName: "Quiet Co",
       channelName: "alerts",
     });
     await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 90)); // outside every threshold
 
     let posts = 0;
-    await runSlackAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    await runSlackAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf, send: async () => { posts += 1; return true; } });
     expect(posts).toBe(0);
   });
 
@@ -292,10 +311,7 @@ describe("runSlackAlertPass", () => {
     const { runSlackAlertPass } = await import("../src/scheduler");
     const asOf = freshAsOf(4000);
     const { firmId } = await newFirm("slacke2e-race");
-    await store.setFirmSlackIntegration(env.DB, firmId, {
-      webhookUrl: "https://hooks.slack.com/services/T000/B000/race",
-      accessTokenEncrypted: null,
-      accessTokenIv: null,
+    await seedSlackIntegration(firmId, "https://hooks.slack.com/services/T000/B000/race", {
       teamName: "Race Co",
       channelName: "alerts",
     });
@@ -304,7 +320,7 @@ describe("runSlackAlertPass", () => {
     expect(claimed).toBe(true);
 
     let posts = 0;
-    const summary = await runSlackAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    const summary = await runSlackAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf, send: async () => { posts += 1; return true; } });
     expect(posts).toBe(0);
     expect(summary.itemsClaimed).toBe(0);
   });
@@ -313,10 +329,7 @@ describe("runSlackAlertPass", () => {
     const { runSlackAlertPass } = await import("../src/scheduler");
     const asOf = freshAsOf(5000);
     const { firmId } = await newFirm("slacke2e-independent");
-    await store.setFirmSlackIntegration(env.DB, firmId, {
-      webhookUrl: "https://hooks.slack.com/services/T000/B000/indep",
-      accessTokenEncrypted: null,
-      accessTokenIv: null,
+    await seedSlackIntegration(firmId, "https://hooks.slack.com/services/T000/B000/indep", {
       teamName: "Indep Co",
       channelName: "alerts",
     });
@@ -326,7 +339,7 @@ describe("runSlackAlertPass", () => {
     expect(emailClaimed).toBe(true);
 
     let posts = 0;
-    await runSlackAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    await runSlackAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf, send: async () => { posts += 1; return true; } });
     expect(posts).toBe(1);
   });
 
@@ -335,17 +348,14 @@ describe("runSlackAlertPass", () => {
     const asOf = freshAsOf(6000);
     const { firmId } = await newFirm("slacke2e-demo");
     await env.DB.prepare(`UPDATE firms SET demo_locked = 1 WHERE id = ?1`).bind(firmId).run();
-    await store.setFirmSlackIntegration(env.DB, firmId, {
-      webhookUrl: "https://hooks.slack.com/services/T000/B000/demo",
-      accessTokenEncrypted: null,
-      accessTokenIv: null,
+    await seedSlackIntegration(firmId, "https://hooks.slack.com/services/T000/B000/demo", {
       teamName: "Demo Co",
       channelName: "alerts",
     });
     const sub = await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
 
     let posts = 0;
-    const summary = await runSlackAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    const summary = await runSlackAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf, send: async () => { posts += 1; return true; } });
     expect(posts).toBe(0);
     expect(summary.digestsSent).toBe(0);
     const row = await env.DB.prepare(`SELECT reminders_sent FROM subscribers WHERE id = ?1`).bind(sub.id).first<{ reminders_sent: string }>();
@@ -362,10 +372,7 @@ describe("runSlackAlertPass", () => {
     const asOf = freshAsOf(7000);
     const { firmId } = await newFirm("slacke2e-thresholds");
     await store.setReminderThresholds(env.DB, firmId, JSON.stringify([1])); // only the final-day tier
-    await store.setFirmSlackIntegration(env.DB, firmId, {
-      webhookUrl: "https://hooks.slack.com/services/T000/B000/thresh",
-      accessTokenEncrypted: null,
-      accessTokenIv: null,
+    await seedSlackIntegration(firmId, "https://hooks.slack.com/services/T000/B000/thresh", {
       teamName: "Thresh Co",
       channelName: "alerts",
     });
@@ -373,7 +380,7 @@ describe("runSlackAlertPass", () => {
     await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 7));
 
     let posts = 0;
-    await runSlackAlertPass(env, { asOf, send: async () => { posts += 1; return true; } });
+    await runSlackAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf, send: async () => { posts += 1; return true; } });
     expect(posts).toBe(0);
   });
 
@@ -384,10 +391,7 @@ describe("runSlackAlertPass", () => {
     await checkAndCountSlackAlertSend(env.DB, 1); // consumes the only slot for today
 
     const { firmId } = await newFirm("slacke2e-cap");
-    await store.setFirmSlackIntegration(env.DB, firmId, {
-      webhookUrl: "https://hooks.slack.com/services/T000/B000/cap",
-      accessTokenEncrypted: null,
-      accessTokenIv: null,
+    await seedSlackIntegration(firmId, "https://hooks.slack.com/services/T000/B000/cap", {
       teamName: "Cap Co",
       channelName: "alerts",
     });
@@ -395,7 +399,7 @@ describe("runSlackAlertPass", () => {
 
     let posts = 0;
     const summary = await runSlackAlertPass(
-      { ...env, SLACK_ALERT_DAILY_SEND_CAP: "1" },
+      { ...env, TOTP_ENCRYPTION_KEY: KEY, SLACK_ALERT_DAILY_SEND_CAP: "1" },
       { asOf, send: async () => { posts += 1; return true; } }
     );
     expect(posts).toBe(0);

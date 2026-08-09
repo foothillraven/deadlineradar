@@ -227,6 +227,47 @@ describe("runDripCoursePass() -- end to end", () => {
     expect(JSON.parse(row!.steps_sent)).toEqual([0, 7]);
   });
 
+  it("AuditLab DRIP-2: unsubscribing from reminders (permanent suppression) stops the drip too, not just steps_sent", async () => {
+    const { email } = await newConfirmedFreeSubscriber("e2e-drip2-suppressed", "texas");
+    await runDripCoursePass(env, { send: async () => true }); // enrolls + sends step 0
+
+    // The reminder-side unsubscribe, NOT the drip's own opted_out_at column
+    // -- this is exactly the "stop the course, keep my renewal reminders"
+    // token being a DIFFERENT mechanism than "stop emailing me entirely".
+    const subRow = await env.DB.prepare("SELECT unsubscribe_token FROM subscribers WHERE LOWER(TRIM(email)) = ?1")
+      .bind(store.normalizeEmail(email))
+      .first<{ unsubscribe_token: string }>();
+    await store.stop(env.DB, subRow!.unsubscribe_token, "unsubscribed");
+    expect(await store.isPermanentlySuppressed(env.DB, email)).toBe(true);
+
+    // The drip's own column is untouched -- suppression is a SEPARATE,
+    // cross-cutting check, not something that flows through opted_out_at.
+    const enrBefore = await env.DB.prepare("SELECT opted_out_at FROM drip_course_enrollments WHERE email_normalized = ?1")
+      .bind(store.normalizeEmail(email))
+      .first<{ opted_out_at: string | null }>();
+    expect(enrBefore!.opted_out_at).toBeNull();
+
+    await env.DB.prepare("UPDATE drip_course_enrollments SET started_at = ?1 WHERE email_normalized = ?2")
+      .bind(new Date(Date.now() - 7 * 86_400_000).toISOString(), store.normalizeEmail(email))
+      .run();
+
+    let sentAfterSuppression = false;
+    await runDripCoursePass(env, {
+      send: async (to) => {
+        if (to === email) sentAfterSuppression = true;
+        return true;
+      },
+    });
+    expect(sentAfterSuppression).toBe(false);
+
+    // Not claimed either -- a skipped-for-suppression send must not burn
+    // the step (per the fix's own docstring in scheduler.ts).
+    const row = await env.DB.prepare("SELECT steps_sent FROM drip_course_enrollments WHERE email_normalized = ?1")
+      .bind(store.normalizeEmail(email))
+      .first<{ steps_sent: string }>();
+    expect(JSON.parse(row!.steps_sent)).toEqual([0]);
+  });
+
   it("claim/unclaim prevents a double-send when two passes race on the same due step", async () => {
     const email = `e2e-race-${Date.now()}@example.com`;
     await store.enrollDripCourseLead(env.DB, { email, first_name: null, state_slug: "texas" });

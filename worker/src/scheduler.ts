@@ -536,6 +536,16 @@ export async function runDripCoursePass(env: Env, opts: RunReminderOptions = {})
     const step = nextDueDripStep(daysSinceStart, alreadySent);
     if (step === null) continue;
 
+    // AuditLab DRIP-2 (MEDIUM, 2026-08-09): enrollment checks permanent
+    // suppression (findEligibleDripCourseLeads()) but the send loop never
+    // did, so unsubscribing from a REMINDER after enrolling didn't stop the
+    // marketing drip -- up to three more sends over the next three weeks,
+    // the exact thing runReminderPass() itself refuses to do. Checked here,
+    // before claiming a step, so a skipped send doesn't burn a step the
+    // person would otherwise never get credit for (irrelevant once
+    // suppressed, but keeps steps_sent an honest record either way).
+    if (await store.isPermanentlySuppressed(env.DB, enr.email)) continue;
+
     let claimedStep = false;
     try {
       const unsubscribeUrl = `${actionBase}/drip-course/unsubscribe?token=${encodeURIComponent(enr.unsubscribe_token)}`;

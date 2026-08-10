@@ -1789,12 +1789,16 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
     expect(body.data_stale).toBe(false);
   });
 
-  it("GET /firm/licenses discloses seat_cap (dashboard-polish #1, 2026-08-05) so the client can show usage against the 25-staff cap before a firm actually hits it", async () => {
-    const { cookie } = await createFirmWithSession("Seat Cap Firm", `seatcap-${Date.now()}@example.com`);
+  it("GET /firm/licenses discloses seat_cap (dashboard-polish #1, 2026-08-05) so the client can show usage against the cap before a firm actually hits it -- 25 for a GRANDFATHERED (pre-roadmap-#151-cutover) firm", async () => {
+    const { firmId, cookie } = await createFirmWithSession("Seat Cap Firm", `seatcap-${Date.now()}@example.com`);
+    await env.DB.prepare("UPDATE firms SET created_at = '2020-01-01T00:00:00Z' WHERE id = ?1").bind(firmId).run();
     const body = (await (await getFirmLicenses(cookie)).json()) as { seat_cap: number };
     // Same constant POST /firm/licenses's own 402 enforcement reads
     // (SELF_SERVE_SEAT_CAP) -- asserting the literal value, not importing
-    // it, so this test also catches the constant silently changing.
+    // it, so this test also catches the constant silently changing. A
+    // firm that signs up AFTER the roadmap #151 cutover gets a different,
+    // narrower cap instead -- see that feature's own dedicated describe
+    // block for the new-signup case.
     expect(body.seat_cap).toBe(25);
   });
 
@@ -2065,7 +2069,19 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
   });
 });
 
-describe("POST /firm/licenses -- BILL-1 seat cap (25 staff, matches the advertised self-serve plan)", () => {
+describe("POST /firm/licenses -- BILL-1 seat cap (25 staff, GRANDFATHERED firms only as of roadmap #151, 2026-08-10)", () => {
+  // Roadmap #151 Phase 2 (2026-08-10): the free-tier seat cap is now 25
+  // ONLY for a firm that signed up before VALUE_LINE_CUTOVER_DATE -- these
+  // tests' own intent (the 25-cap boundary, the "over cap" freeze, seat
+  // reuse) predates #151 and is about that BOUNDARY, not about which
+  // number applies to which firm -- so each firm here is explicitly
+  // backdated to keep testing the same boundary under its new,
+  // grandfathered-only meaning. A parallel describe block below covers the
+  // NEW default (cap 3) for a firm that signs up after the cutover.
+  async function backdateFirm(firmId: string): Promise<void> {
+    await env.DB.prepare("UPDATE firms SET created_at = '2020-01-01T00:00:00Z' WHERE id = ?1").bind(firmId).run();
+  }
+
   // Fills a firm's roster directly via store.ts (bypassing the HTTP layer,
   // and the CREATE rate limit + email-send path with it) -- these tests are
   // about the seat-cap boundary condition, not about re-proving 25 ordinary
@@ -2092,6 +2108,7 @@ describe("POST /firm/licenses -- BILL-1 seat cap (25 staff, matches the advertis
 
   it("the 26th staff member is refused once 25 are already on the roster", async () => {
     const { firmId, cookie } = await createFirmWithSession("Seat Cap Firm", `seatcap-${Date.now()}@example.com`);
+    await backdateFirm(firmId);
     await fillRoster(firmId, 25, "seatcap-fill");
     expect(await store.countFirmLicenses(env.DB, firmId)).toBe(25);
 
@@ -2111,6 +2128,7 @@ describe("POST /firm/licenses -- BILL-1 seat cap (25 staff, matches the advertis
 
   it("a firm already over 25 (grandfathered) keeps its existing roster untouched but still can't add more", async () => {
     const { firmId, cookie } = await createFirmWithSession("Grandfathered Firm", `grandfather-${Date.now()}@example.com`);
+    await backdateFirm(firmId);
     await fillRoster(firmId, 30, "grandfather-preexisting");
 
     const beforeCount = await store.countFirmLicenses(env.DB, firmId);
@@ -2131,6 +2149,7 @@ describe("POST /firm/licenses -- BILL-1 seat cap (25 staff, matches the advertis
 
   it("removing a staff member frees a seat -- the cap is a live count, not a lifetime total", async () => {
     const { firmId, cookie } = await createFirmWithSession("Seat Reuse Firm", `seatreuse-${Date.now()}@example.com`);
+    await backdateFirm(firmId);
     const ids = await fillRoster(firmId, 25, "seatreuse-fill");
 
     const stillBlocked = await postFirmLicense(cookie, {
@@ -2155,6 +2174,49 @@ describe("POST /firm/licenses -- BILL-1 seat cap (25 staff, matches the advertis
       license_type_id: "ga-individual",
     });
     expect(nowAllowed.status).toBe(201);
+  });
+});
+
+/**
+ * Roadmap #151 Phase 2 (2026-08-10): a firm that signs up AFTER the
+ * value-line cutover gets the new, narrower free-tier seat cap (3), not
+ * the grandfathered 25 the describe block above still covers.
+ * createFirmWithSession() stamps a real "now" created_at, which is always
+ * after VALUE_LINE_CUTOVER_DATE by construction (a fixed past timestamp),
+ * so these firms are post-cutover with no extra setup needed.
+ */
+describe("POST /firm/licenses -- roadmap #151 Phase 2: new-signup seat cap (3)", () => {
+  it("the 4th staff member is refused once 3 are already on the roster", async () => {
+    const { cookie } = await createFirmWithSession("New Signup Seat Cap Firm", `newsignupseatcap-${Date.now()}@example.com`);
+    for (let i = 0; i < 3; i++) {
+      const resp = await postFirmLicense(cookie, {
+        email: `newsignupseatcap-${i}-${Date.now()}@example.com`,
+        state_slug: "georgia",
+        license_type_id: "ga-individual",
+      });
+      expect(resp.status).toBe(201);
+    }
+    const blocked = await postFirmLicense(cookie, {
+      email: `newsignupseatcap-4th-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    expect(blocked.status).toBe(402);
+    const body = (await blocked.json()) as { error: string };
+    expect(body.error).toContain("3");
+  });
+
+  it("GET /firm/licenses discloses the new seat_cap (3), not the grandfathered 25", async () => {
+    const { cookie } = await createFirmWithSession("New Signup Disclosure Firm", `newsignupdisclose-${Date.now()}@example.com`);
+    const body = (await (await getFirmLicenses(cookie)).json()) as { seat_cap: number };
+    expect(body.seat_cap).toBe(3);
+  });
+
+  it("a paid tier's own seat cap is unaffected by signup date", async () => {
+    const { firmId, cookie } = await createFirmWithSession("New Signup Paid Firm", `newsignuppaid-${Date.now()}@example.com`);
+    await env.DB.prepare("UPDATE firms SET plan_tier = 'firm_starter' WHERE id = ?1").bind(firmId).run();
+    const body = (await (await getFirmLicenses(cookie)).json()) as { seat_cap: number };
+    expect(body.seat_cap).toBe(5);
   });
 });
 

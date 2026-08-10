@@ -4917,9 +4917,12 @@ def _pricing_feature_table_rows_html() -> str:
       connect/webhook-set handlers (requireFirmRole, not
       requireFirmSessionAndPaidTier) AND the actual scheduler send passes
       (runSlackAlertPass/runTeamsAlertPass) have no plan_tier check anywhere.
-    - Document storage is FREE on every tier, flat 2MB/file and 50MB/firm
-      cap regardless of tier (store.ts's DOCUMENT_MAX_FILE_BYTES/
-      DOCUMENT_MAX_FIRM_TOTAL_BYTES) -- not a paid-tier perk.
+    - Document storage moved behind the paid tier for NEW signups (roadmap
+      #151, 2026-08-10) -- existing free firms keep it (grandfathered),
+      but a firm signing up today does not get it free. No solo-account
+      exception here (unlike Map/PPC below) -- it's a flat paid-vs-free
+      split by signup date, same 2MB/file, 50MB/firm cap either way
+      (store.ts's DOCUMENT_MAX_FILE_BYTES/DOCUMENT_MAX_FIRM_TOTAL_BYTES).
     - The referral program is functionally PAID-ONLY even though nothing in
       entitlements.ts names it explicitly: store.mintReferralCode()'s only
       two callers are both inside handleStripeWebhook, tied to a real paid
@@ -4928,8 +4931,9 @@ def _pricing_feature_table_rows_html() -> str:
       dashboard as "no active code yet."
     - Inviting a SECOND team member login is its OWN paid-only gate
       (handleFirmMemberInvite 402s a free-tier firm outright) -- separate
-      from, and stricter than, the 25-seat roster-of-LICENSES cap, which is
-      free on every tier. Listed as its own row so the two aren't conflated.
+      from, and stricter than, the roster-of-LICENSES cap itself (3 for a
+      new signup as of roadmap #151, 2026-08-10; existing free firms keep
+      their prior 25). Listed as its own row so the two aren't conflated.
     - Map / Practice Privilege Check / the firm-level registration check
       (roadmap #318) all carry the same solo-free exception (2026-08-09):
       a genuinely one-person free account gets them too. Marked with the
@@ -4937,12 +4941,12 @@ def _pricing_feature_table_rows_html() -> str:
       inaccurate.
     """
     rows = [
-        ("Roster &amp; staff license tracking", "Up to 25 staff", "Up to 35 staff (Enterprise)"),
+        ("Roster &amp; staff license tracking", "Up to 3 staff", "Up to 35 staff (Enterprise)"),
         ("Calendar view", "Yes", "Yes"),
         ("CPE-hour tracking", "Yes", "Yes"),
         ("Email renewal reminders", "Yes", "Yes"),
         ("Slack &amp; Teams deadline alerts", "Yes", "Yes"),
-        ("Document storage (2MB/file, 50MB/firm)", "Yes", "Yes"),
+        ("Document storage (2MB/file, 50MB/firm)", "&mdash;", "Yes"),
         ("Invite teammates to sign in", "Just you", "Yes"),
         ("Multistate Map view", "Solo accounts only*", "Yes"),
         ("Individual Practice Privilege Check", "Solo accounts only*", "Yes"),

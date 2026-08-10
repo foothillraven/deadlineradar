@@ -5104,7 +5104,7 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     admin_email: session.firm.admin_email,
     data_as_of: freshness.as_of_date,
     data_stale: freshness.stale,
-    seat_cap: seatCapForFirmTier(session.firm.plan_tier),
+    seat_cap: seatCapForFirmTier(session.firm.plan_tier, session.firm.created_at),
     // Self-serve cancellation UI (migration 0021) reads these three to
     // decide what the Account tab's billing panel shows -- see
     // handleFirmBillingCancellationToggle()'s own docstring for why
@@ -6000,7 +6000,7 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
   // firm at whatever it already had, which was the explicit instruction
   // rather than either force-removing rows down to the cap or silently
   // exempting them from it going forward.
-  const seatCap = seatCapForFirmTier(session.firm.plan_tier);
+  const seatCap = seatCapForFirmTier(session.firm.plan_tier, session.firm.created_at);
   const currentSeatCount = await store.countFirmLicenses(env.DB, session.firmId);
   if (currentSeatCount >= seatCap) {
     return jsonResponse(402, {

@@ -5,23 +5,35 @@ import {
   firmTierForSeatCount,
   seatCapForFirmTier,
   stripePriceIdForTier,
+  NEW_SIGNUP_FREE_SEAT_CAP,
 } from "../src/tiers";
 import { SELF_SERVE_SEAT_CAP } from "../src/validation";
+import { VALUE_LINE_CUTOVER_DATE } from "../src/entitlements";
 
-describe("seatCapForFirmTier -- unchanged behavior for free/unrecognised", () => {
-  it("falls back to today's SELF_SERVE_SEAT_CAP for the free tier", () => {
-    expect(seatCapForFirmTier("free")).toBe(SELF_SERVE_SEAT_CAP);
+const PRE_CUTOVER = "2020-01-01T00:00:00Z";
+const POST_CUTOVER = new Date(new Date(VALUE_LINE_CUTOVER_DATE).getTime() + 1000).toISOString();
+
+describe("seatCapForFirmTier -- named tiers unaffected, free/unrecognised split by roadmap #151 cutover", () => {
+  it("a pre-cutover-signup free firm falls back to the grandfathered SELF_SERVE_SEAT_CAP", () => {
+    expect(seatCapForFirmTier("free", PRE_CUTOVER)).toBe(SELF_SERVE_SEAT_CAP);
   });
 
-  it("falls back to SELF_SERVE_SEAT_CAP for an unrecognised tier", () => {
-    expect(seatCapForFirmTier("nonsense")).toBe(SELF_SERVE_SEAT_CAP);
+  it("a post-cutover-signup free firm falls back to the new, narrower NEW_SIGNUP_FREE_SEAT_CAP", () => {
+    expect(seatCapForFirmTier("free", POST_CUTOVER)).toBe(NEW_SIGNUP_FREE_SEAT_CAP);
   });
 
-  it("returns each named tier's own cap", () => {
-    expect(seatCapForFirmTier("firm_starter")).toBe(5);
-    expect(seatCapForFirmTier("firm_growth")).toBe(10);
-    expect(seatCapForFirmTier("firm_standard")).toBe(20);
-    expect(seatCapForFirmTier("firm_scale")).toBe(35);
+  it("an unrecognised tier follows the same pre/post-cutover split as free", () => {
+    expect(seatCapForFirmTier("nonsense", PRE_CUTOVER)).toBe(SELF_SERVE_SEAT_CAP);
+    expect(seatCapForFirmTier("nonsense", POST_CUTOVER)).toBe(NEW_SIGNUP_FREE_SEAT_CAP);
+  });
+
+  it("returns each named tier's own cap regardless of signup date", () => {
+    for (const createdAt of [PRE_CUTOVER, POST_CUTOVER]) {
+      expect(seatCapForFirmTier("firm_starter", createdAt)).toBe(5);
+      expect(seatCapForFirmTier("firm_growth", createdAt)).toBe(10);
+      expect(seatCapForFirmTier("firm_standard", createdAt)).toBe(20);
+      expect(seatCapForFirmTier("firm_scale", createdAt)).toBe(35);
+    }
   });
 });
 

@@ -173,7 +173,14 @@ describe("POST /firm/billing/checkout", () => {
   });
 
   it("a firm can never buy a tier smaller than its live roster requires", async () => {
-    const { cookie } = await createFirmWithSession("Checkout Firm C", `checkoutc-${Date.now()}@example.com`);
+    const { firmId, cookie } = await createFirmWithSession("Checkout Firm C", `checkoutc-${Date.now()}@example.com`);
+    // Roadmap #151 (2026-08-10): a firm signing up today gets a 3-seat free
+    // cap, which would block this test's own setup (6 staff) before it
+    // ever reaches the checkout-validation property under test. Backdated
+    // to the grandfathered 25-seat cap so setup behaves like it always
+    // did -- this test is about checkout tier-vs-roster validation, not
+    // about the free-tier seat cap itself.
+    await env.DB.prepare("UPDATE firms SET created_at = '2020-01-01T00:00:00Z' WHERE id = ?1").bind(firmId).run();
     for (let i = 0; i < 6; i++) {
       const created = await postFirmLicense(cookie, {
         staff_label: `Staff ${i}`,

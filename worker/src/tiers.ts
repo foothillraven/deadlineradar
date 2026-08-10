@@ -13,6 +13,14 @@
 
 import type { Env } from "./env";
 import { SELF_SERVE_SEAT_CAP } from "./validation";
+import { isPreCutoverSignup } from "./entitlements";
+
+/** Roadmap #151 (2026-08-10): the free-tier seat cap for a firm that signs
+ * up AFTER the value-line cutover -- SELF_SERVE_SEAT_CAP (25) stays the cap
+ * for every firm that signed up BEFORE it (isPreCutoverSignup() in
+ * seatCapForFirmTier() below), same grandfather mechanism as the other
+ * four #151 gates. */
+export const NEW_SIGNUP_FREE_SEAT_CAP = 3;
 
 export interface FirmTierDef {
   planTier: string;
@@ -49,11 +57,15 @@ const FIRM_TIER_SEAT_CAPS: Record<string, number> = Object.fromEntries(
   FIRM_TIERS.map((t) => [t.planTier, t.seatCap])
 );
 
-/** Today's pilot ceiling (SELF_SERVE_SEAT_CAP) is the fallback for `pilot`
- * and any unrecognised tier -- unchanged behavior for every firm that hasn't
- * converted to a named paid tier yet. */
-export function seatCapForFirmTier(planTier: string): number {
-  return FIRM_TIER_SEAT_CAPS[planTier] ?? SELF_SERVE_SEAT_CAP;
+/** The fallback for `free`/`pilot`/any unrecognised tier -- SELF_SERVE_SEAT_CAP
+ * (25) for a firm that signed up before the roadmap #151 value-line
+ * cutover (grandfathered), NEW_SIGNUP_FREE_SEAT_CAP (3) for one that
+ * signed up after. A named paid tier's own FIRM_TIER_SEAT_CAPS entry is
+ * unaffected either way -- this only changes what the FREE fallback means. */
+export function seatCapForFirmTier(planTier: string, createdAt: string): number {
+  const namedCap = FIRM_TIER_SEAT_CAPS[planTier];
+  if (namedCap !== undefined) return namedCap;
+  return isPreCutoverSignup(createdAt) ? SELF_SERVE_SEAT_CAP : NEW_SIGNUP_FREE_SEAT_CAP;
 }
 
 /** The cheapest firm tier whose seat cap covers `seatCount`, or null if no

@@ -175,6 +175,38 @@ describe("runAdminDigestAlertPass", () => {
     }
   });
 
+  it("AuditLab UNSUB-2 (2026-08-10): carries a real one-click List-Unsubscribe header, and the link actually turns the digest off", async () => {
+    const { runAdminDigestAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(10600);
+    const { firmId, adminEmail } = await newFirm("digeste2e-unsub2");
+    await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
+
+    let targetHeaders: Record<string, string> = {};
+    await runAdminDigestAlertPass(env, {
+      asOf,
+      send: async (to, built) => {
+        if (to === adminEmail) targetHeaders = built.headers;
+        return true;
+      },
+    });
+
+    expect(targetHeaders["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+    const match = /<(https:\/\/[^>]+)>/.exec(targetHeaders["List-Unsubscribe"] ?? "");
+    expect(match).not.toBeNull();
+    const unsubUrl = match![1]!;
+    expect(unsubUrl).toContain("/firm-admin-unsubscribe/digest?token=");
+
+    const resp = await SELF.fetch(unsubUrl, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.95" },
+      body: "List-Unsubscribe=One-Click",
+    });
+    expect(resp.status).toBe(200);
+
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.admin_digest_enabled).toBe(0);
+  });
+
   it("a firm with nothing newly due gets no email at all", async () => {
     const { runAdminDigestAlertPass } = await import("../src/scheduler");
     const asOf = freshAsOf(11000);

@@ -1124,6 +1124,11 @@ export function buildRuleChangeAdminAlertEmail(
   citationUrl: string | null,
   calendarUrl: string,
   accountSettingsUrl: string,
+  // AuditLab UNSUB-2 (2026-08-10): a real one-click List-Unsubscribe target
+  // (migration 0062's firms.admin_unsubscribe_token) -- turns OFF
+  // rule_change_alerts_enabled specifically, the same toggle
+  // accountSettingsUrl above already points an admin at manually.
+  unsubscribeUrl: string,
   // AuditLab ALERT-1 secondary finding (2026-08-09): the dashboard modal
   // renders "· confidence: <value>" next to every event; this email
   // asserted the same claim with the label stripped off. Carried through
@@ -1147,6 +1152,7 @@ export function buildRuleChangeAdminAlertEmail(
     `staff in this state" yourself if it's relevant:\n${calendarUrl}\n\n` +
     `You're getting this because proactive rule-change alerts are on for your account (on by ` +
     `default). Turn them off any time from your Account settings:\n${accountSettingsUrl}\n\n` +
+    `Or unsubscribe from just this alert type, one click, no sign-in:\n${unsubscribeUrl}\n\n` +
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
@@ -1173,7 +1179,9 @@ export function buildRuleChangeAdminAlertEmail(
       p(
         `You're getting this because proactive rule-change alerts are on for your account (on by ` +
           `default). <a href="${esc(accountSettingsUrl)}" style="color:${LIGHT.accent};">Turn them ` +
-          `off</a> any time from your Account settings.`,
+          `off</a> any time from your Account settings, or ` +
+          `<a href="${esc(unsubscribeUrl)}" style="color:${LIGHT.accent};">unsubscribe from just this ` +
+          `alert type</a>, one click, no sign-in.`,
         13,
         LIGHT.muted
       ),
@@ -1181,7 +1189,7 @@ export function buildRuleChangeAdminAlertEmail(
       `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
   );
 
-  return { subject, textBody, htmlBody, headers: {} };
+  return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
 }
 
 export interface AdminDigestItem {
@@ -1208,7 +1216,15 @@ export interface AdminDigestItem {
  * is carried over from buildDigestEmail() above. Never sent empty, same
  * "no filler" rule as buildDigestEmail().
  */
-export function buildAdminDigestEmail(firmName: string, items: AdminDigestItem[], accountSettingsUrl: string): BuiltEmail {
+export function buildAdminDigestEmail(
+  firmName: string,
+  items: AdminDigestItem[],
+  accountSettingsUrl: string,
+  // AuditLab UNSUB-2 (2026-08-10): same firms.admin_unsubscribe_token
+  // (migration 0062) target as buildRuleChangeAdminAlertEmail() above --
+  // turns OFF admin_digest_enabled specifically.
+  unsubscribeUrl: string
+): BuiltEmail {
   if (items.length === 0) {
     throw new Error("buildAdminDigestEmail: items must be non-empty -- a digest is never sent with nothing to report");
   }
@@ -1231,6 +1247,7 @@ export function buildAdminDigestEmail(firmName: string, items: AdminDigestItem[]
     `Nothing to do for anyone not listed above -- we'll include them here once their own renewal is actually due.\n\n` +
     `You're getting this because firm-wide digest alerts are on for your account (on by default for an ` +
     `eligible plan). Turn them off any time from your Account settings:\n${accountSettingsUrl}\n\n` +
+    `Or unsubscribe from just this digest, one click, no sign-in:\n${unsubscribeUrl}\n\n` +
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlItems = items
@@ -1253,7 +1270,9 @@ export function buildAdminDigestEmail(firmName: string, items: AdminDigestItem[]
       p(
         `You're getting this because firm-wide digest alerts are on for your account (on by default for an ` +
           `eligible plan). <a href="${esc(accountSettingsUrl)}" style="color:${LIGHT.accent};">Turn them off</a> ` +
-          `any time from your Account settings.`,
+          `any time from your Account settings, or ` +
+          `<a href="${esc(unsubscribeUrl)}" style="color:${LIGHT.accent};">unsubscribe from just this digest</a>, ` +
+          `one click, no sign-in.`,
         13,
         LIGHT.muted
       ),
@@ -1261,7 +1280,7 @@ export function buildAdminDigestEmail(firmName: string, items: AdminDigestItem[]
       `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
   );
 
-  return { subject, textBody, htmlBody, headers: {} };
+  return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
 }
 
 /**

@@ -150,6 +150,33 @@ describe("runRuleChangeAlertPass() -- end to end", () => {
     }
   });
 
+  it("AuditLab UNSUB-2 (2026-08-10): carries a real one-click List-Unsubscribe header, and the link actually turns rule-change alerts off", async () => {
+    const { firmId, adminEmail } = await newFirmWithRosterLicense("e2e-unsub2", REAL_EVENT_STATE);
+    let capturedHeaders: Record<string, string> = {};
+    await runRuleChangeAlertPass(env, {
+      send: async (to, built) => {
+        if (to === adminEmail) capturedHeaders = built.headers;
+        return true;
+      },
+    });
+
+    expect(capturedHeaders["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+    const match = /<(https:\/\/[^>]+)>/.exec(capturedHeaders["List-Unsubscribe"] ?? "");
+    expect(match).not.toBeNull();
+    const unsubUrl = match![1]!;
+    expect(unsubUrl).toContain("/firm-admin-unsubscribe/rule-change?token=");
+
+    const resp = await SELF.fetch(unsubUrl, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.96" },
+      body: "List-Unsubscribe=One-Click",
+    });
+    expect(resp.status).toBe(200);
+
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.rule_change_alerts_enabled).toBe(0);
+  });
+
   it("does not re-send on a second pass for the same firm/event", async () => {
     const { adminEmail } = await newFirmWithRosterLicense("e2e-no-resend", REAL_EVENT_STATE);
     await runRuleChangeAlertPass(env, { send: async () => true });

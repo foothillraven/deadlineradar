@@ -1070,6 +1070,14 @@ export async function setFirmAdminDigestEnabled(db: D1Database, firmId: string, 
   await db.prepare(`UPDATE firms SET admin_digest_enabled = ?1 WHERE id = ?2`).bind(enabled ? 1 : 0, firmId).run();
 }
 
+/** AuditLab UNSUB-2 (migration 0062). Backs the new unauthenticated
+ * GET /firm-admin-unsubscribe route -- same shape as looking a subscriber
+ * up by unsubscribe_token, just against firms.admin_unsubscribe_token. */
+export async function findFirmByAdminUnsubscribeToken(db: D1Database, token: string): Promise<FirmRow | null> {
+  const row = await db.prepare(`SELECT * FROM firms WHERE admin_unsubscribe_token = ?1`).bind(token).first<FirmRow>();
+  return row ?? null;
+}
+
 /**
  * migration 0007. A firm_leads row -- NOT a subscriber. This table has no
  * confirm/unsubscribe/renewed lifecycle at all: it just records that someone
@@ -1289,6 +1297,13 @@ export interface FirmRow {
   // rule_change_alerts_enabled above (the closest existing precedent: the
   // only other email that bundles roster-wide state to firm.admin_email).
   admin_digest_enabled: number;
+  // migration 0062 (AuditLab UNSUB-2). One persistent, never-rotating
+  // per-firm token backing the List-Unsubscribe header on
+  // buildRuleChangeAdminAlertEmail/buildAdminDigestEmail -- same
+  // never-expires-by-design reasoning as subscribers.unsubscribe_token.
+  // Always non-null in practice: every existing firm was backfilled by
+  // migration 0062 itself, and createFirm() sets it on every new row.
+  admin_unsubscribe_token: string;
 }
 
 export interface FirmLoginTokenRow {
@@ -1762,8 +1777,8 @@ export async function createFirm(db: D1Database, input: CreateFirmInput): Promis
   // that (see handleFirmLicensesList in index.ts).
   await db
     .prepare(
-      `INSERT INTO firms (id, name, admin_email, admin_name, plan_tier, status, created_at, tos_accepted_version, referred_by_firm_id, signup_ip)
-       VALUES (?1,?2,?3,?4,'free','active',?5,?6,?7,?8)`
+      `INSERT INTO firms (id, name, admin_email, admin_name, plan_tier, status, created_at, tos_accepted_version, referred_by_firm_id, signup_ip, admin_unsubscribe_token)
+       VALUES (?1,?2,?3,?4,'free','active',?5,?6,?7,?8,?9)`
     )
     .bind(
       id,
@@ -1773,7 +1788,8 @@ export async function createFirm(db: D1Database, input: CreateFirmInput): Promis
       nowIso(),
       input.tosAcceptedVersion ?? null,
       input.referredByFirmId ?? null,
-      input.signupIp ?? null
+      input.signupIp ?? null,
+      newToken()
     )
     .run();
   // migration 0045 (roadmap #11/#13/#14/#51): every firm now needs a
@@ -4795,12 +4811,16 @@ export interface FirmBasicInfo {
   // same query, two more columns.
   admin_email: string;
   admin_digest_enabled: number;
+  // AuditLab UNSUB-2 (2026-08-10, migration 0062): runAdminDigestAlertPass()
+  // needs this to build a real List-Unsubscribe target -- same "free to
+  // add" reasoning as the two fields above.
+  admin_unsubscribe_token: string;
 }
 
 export async function listAllFirmsBasicInfo(db: D1Database): Promise<FirmBasicInfo[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, name, reply_to_email, reminder_thresholds, demo_locked, plan_tier, created_at, status, admin_email, admin_digest_enabled
+      `SELECT id, name, reply_to_email, reminder_thresholds, demo_locked, plan_tier, created_at, status, admin_email, admin_digest_enabled, admin_unsubscribe_token
          FROM firms`
     )
     .all<FirmBasicInfo>();

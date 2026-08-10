@@ -103,6 +103,17 @@ function actionBaseUrl(env: Env): string {
   return env.ACTION_BASE_URL || ACTION_BASE_URL;
 }
 
+// AuditLab UNSUB-2 (2026-08-10): one-click List-Unsubscribe target for the
+// two admin-facing passes below, backed by firms.admin_unsubscribe_token
+// (migration 0062). Two distinct literal paths (not a query-string
+// `channel` param) so this rides the SAME generic ACTION_PAGES/ACTION_PATHS
+// GET-renders-a-page/POST-changes-state machinery every other action link
+// in this file already uses, unmodified -- each path flips its own single
+// toggle, same as their Account-settings equivalents already do.
+function adminUnsubscribeUrl(env: Env, token: string, channel: "rule-change" | "digest"): string {
+  return `${actionBaseUrl(env)}/firm-admin-unsubscribe/${channel}?token=${encodeURIComponent(token)}`;
+}
+
 // AuditLab LINK-1 (2026-08-10, HIGH -- live customer email, fixed same day):
 // the static site's own absolute origin, same "why a browser-redirect-style
 // relative fallback is WRONG here" reasoning as index.ts's own
@@ -800,6 +811,7 @@ export async function runRuleChangeAlertPass(env: Env, opts: RunReminderOptions 
           event.citation_url && event.citation_url.startsWith("https://") ? event.citation_url : null,
           calendarUrl,
           accountSettingsUrl,
+          adminUnsubscribeUrl(env, firm.admin_unsubscribe_token, "rule-change"),
           event.confidence || "unverified"
         );
 
@@ -1829,7 +1841,12 @@ export async function runAdminDigestAlertPass(env: Env, opts: RunAdminDigestAler
         break;
       }
 
-      const built = buildAdminDigestEmail(firm.name, items, accountSettingsUrl);
+      const built = buildAdminDigestEmail(
+        firm.name,
+        items,
+        accountSettingsUrl,
+        adminUnsubscribeUrl(env, firm.admin_unsubscribe_token, "digest")
+      );
       const ok = await send(firm.admin_email, built);
       if (ok) {
         summary.digestsSent += 1;

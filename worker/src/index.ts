@@ -340,6 +340,23 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
     intro: "Click below to stop the rest of this email series. Your actual renewal-deadline reminders are unaffected either way.",
     button: "Unsubscribe me from this series",
   },
+  // AuditLab UNSUB-2 (2026-08-10, migration 0062): one-click unsubscribe
+  // targets for the two admin-facing passes (buildRuleChangeAdminAlertEmail/
+  // buildAdminDigestEmail, scheduler.ts) that previously had no
+  // List-Unsubscribe at all. Two literal paths, not one path with a
+  // `channel` param -- each toggle is independent (same as their
+  // Account-settings equivalents), and this rides the existing generic
+  // GET-renders/POST-changes-state machinery unmodified.
+  "/firm-admin-unsubscribe/rule-change": {
+    heading: "Unsubscribe from rule-change alerts",
+    intro: "Click below to stop proactive rule-change alert emails for this firm. Your dashboard and every other notification channel are unaffected.",
+    button: "Unsubscribe this firm",
+  },
+  "/firm-admin-unsubscribe/digest": {
+    heading: "Unsubscribe from the admin digest",
+    intro: "Click below to stop the firm-wide admin digest emails for this firm. Your dashboard and every other notification channel are unaffected.",
+    button: "Unsubscribe this firm",
+  },
   "/renewed": {
     heading: "Stop reminders entirely",
     intro: "Click below to stop all further reminders for this deadline, permanently.",
@@ -7148,6 +7165,29 @@ async function handleDripCourseUnsubscribe(env: Env, token: string | null): Prom
   );
 }
 
+/**
+ * AuditLab UNSUB-2 (2026-08-10, migration 0062). Backs the two
+ * /firm-admin-unsubscribe/(rule-change|digest) action paths -- looks the
+ * firm up by admin_unsubscribe_token (never expires or rotates, same as
+ * subscribers.unsubscribe_token) and flips exactly ONE of the two
+ * independent admin-facing toggles, matching the specific email the
+ * recipient actually clicked. Idempotent, same repeat-visit posture as
+ * every other action route here -- a second hit just re-confirms an
+ * already-off toggle rather than erroring.
+ */
+async function handleFirmAdminUnsubscribe(env: Env, token: string | null, channel: "rule-change" | "digest"): Promise<Response> {
+  if (!token) return errorPage(400, "Missing unsubscribe link.");
+  const firm = await store.findFirmByAdminUnsubscribeToken(env.DB, token);
+  if (!firm) return errorPage(404, "That link is invalid.");
+  if (channel === "rule-change") {
+    await store.setFirmRuleChangeAlertsEnabled(env.DB, firm.id, false);
+  } else {
+    await store.setFirmAdminDigestEnabled(env.DB, firm.id, false);
+  }
+  const what = channel === "rule-change" ? "rule-change alert emails" : "admin digest emails";
+  return htmlResponse(200, htmlPage("Unsubscribed", `<h1>Done</h1><p>${escapeHtml(firm.name)} is unsubscribed from ${what}, instantly. Every other notification channel is unaffected.</p>`));
+}
+
 async function handleRenewed(env: Env, token: string | null): Promise<Response> {
   if (!token) return errorPage(400, "Missing link.");
   const subscriber = await store.stop(env.DB, token, "renewed");
@@ -8210,6 +8250,10 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
               return await handleUnsubscribe(env, token);
             case "/drip-course/unsubscribe":
               return await handleDripCourseUnsubscribe(env, token);
+            case "/firm-admin-unsubscribe/rule-change":
+              return await handleFirmAdminUnsubscribe(env, token, "rule-change");
+            case "/firm-admin-unsubscribe/digest":
+              return await handleFirmAdminUnsubscribe(env, token, "digest");
             case "/renewed":
               return await handleRenewed(env, token);
             case "/renewed-next-cycle":

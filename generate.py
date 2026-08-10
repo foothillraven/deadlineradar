@@ -1214,6 +1214,15 @@ PAGE_CSS = """
      individual card already agree. */
   .dr-verdict-pointer { font-size: 0.85rem; font-weight: 600; color: var(--gold); margin: 0.5rem 0 0; }
   .dr-verdict-disclaimer { font-size: 0.78rem; color: var(--faint); margin-top: 0.6rem; font-style: italic; }
+  /* 2026-08-10: "Mark requirements met" now renders INSIDE whichever card
+     actually carries the action_required verdict (was its own trailing
+     block after both cards, unattached to either) -- same divider
+     treatment .dr-verdict-cite already uses so it reads as a distinct
+     action row, not a run-on continuation of the italic disclaimer above it.
+     Class, not the #dr-mob-complete-wrap id (still kept for the click
+     handler's getElementById lookup) -- this file styles by class only,
+     never a bare id selector. */
+  .dr-mob-complete-wrap { margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid var(--border); }
   .dr-nav-soon { color: #6e8296; cursor: default; }
   .dr-soon-badge {
     margin-left: auto; font-size: 0.6rem; letter-spacing: 0.04em; text-transform: uppercase;
@@ -13884,7 +13893,7 @@ _MOBILITY_JS_HTML = """<script>
   // Citation and disclaimer are read straight from the API payload rather
   // than reconstructed here. The server sends them with EVERY determination
   // precisely so this function cannot render a verdict without them.
-  function findingHtml(title, f) {
+  function findingHtml(title, f, actionBtnHtml) {
     var reqs = '';
     if (f.requirements && f.requirements.length) {
       reqs = '<ul class="dr-verdict-reqs">' +
@@ -13931,7 +13940,8 @@ _MOBILITY_JS_HTML = """<script>
     // customer-facing render of the raw text is removed here.
     return '<div class="dr-verdict"><h3>' + esc(title) + '</h3>' + badge(f.verdict) +
       '<p>' + esc(f.summary) + '</p>' + reqs + cite +
-      '<p class="dr-verdict-disclaimer">' + esc(f.disclaimer) + '</p></div>';
+      '<p class="dr-verdict-disclaimer">' + esc(f.disclaimer) + '</p>' +
+      (actionBtnHtml || '') + '</div>';
   }
 
   form.addEventListener('submit', function (ev) {
@@ -13976,25 +13986,38 @@ _MOBILITY_JS_HTML = """<script>
         var overallPointer = (data.overall === 'action_required' && data.individual && data.individual.verdict === 'clear')
           ? '<p class="dr-verdict-pointer">This comes from a firm-level requirement, not the individual CPA &mdash; see "The firm" below.</p>'
           : '';
-        var html = '<h2>' + esc(data.home_state) + ' &rarr; ' + esc(data.target_state) + '</h2>' +
-          '<div class="dr-verdict dr-verdict-overall"><h3>Overall</h3>' +
-          badge(data.overall) + '<p>' + esc(overallText(data.overall)) + '</p>' + overallPointer + '</div>' +
-          findingHtml('The individual CPA', data.individual) +
-          findingHtml('The firm', data.firm);
         // "Mark requirements met" -- only offered when there is something to
         // mark (action_required) AND a real roster record to attach it to
         // (a staff member was picked, not the anonymous "just checking"
         // default). Records ONLY that the firm says it handled this, never
         // a re-verification -- see migration 0016's own comment for why
         // this is a deliberately distinct signal from the engine's verdict.
+        //
+        // 2026-08-10, Devin's own live-test report: this used to always
+        // render in its own block AFTER both cards, regardless of which one
+        // actually carried the action_required verdict -- reading as
+        // disconnected from what it resolves when only "The firm" needed
+        // action. Now built once and handed to whichever findingHtml() call
+        // below actually owns the action_required verdict, so it renders
+        // attached to that specific card. overall === 'action_required'
+        // guarantees at least one of the two IS action_required (see
+        // evaluateMobility()'s own not_verified-first precedence), so
+        // exactly one of the two branches below ever gets it.
         var staffId = document.getElementById('dr-mob-staff').value;
+        var actionBtnHtml = '';
         if (data.overall === 'action_required' && staffId) {
-          html += '<div class="dr-verdict" id="dr-mob-complete-wrap">' +
-            '<button type="button" id="dr-mob-complete-btn" data-subscriber-id="' + esc(staffId) +
+          actionBtnHtml = '<div class="dr-mob-complete-wrap" id="dr-mob-complete-wrap">' +
+            '<button type="button" class="dr-btn-save" id="dr-mob-complete-btn" data-subscriber-id="' + esc(staffId) +
             '" data-target-state-slug="' + esc(body.target_state_slug) + '" data-service-type="' + esc(body.service_type) + '">' +
             'Mark requirements met</button>' +
             '<p class="field-hint">Records that your firm handled this -- not a re-check. Also updates the Map.</p></div>';
         }
+        var individualIsAction = data.individual && data.individual.verdict === 'action_required';
+        var html = '<h2>' + esc(data.home_state) + ' &rarr; ' + esc(data.target_state) + '</h2>' +
+          '<div class="dr-verdict dr-verdict-overall"><h3>Overall</h3>' +
+          badge(data.overall) + '<p>' + esc(overallText(data.overall)) + '</p>' + overallPointer + '</div>' +
+          findingHtml('The individual CPA', data.individual, individualIsAction ? actionBtnHtml : '') +
+          findingHtml('The firm', data.firm, individualIsAction ? '' : actionBtnHtml);
         if (resultEl) { resultEl.innerHTML = html; resultEl.hidden = false; }
         renderTrialNote(data);
       });

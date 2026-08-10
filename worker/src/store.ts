@@ -1064,6 +1064,12 @@ export async function setFirmRuleChangeAlertsEnabled(db: D1Database, firmId: str
   await db.prepare(`UPDATE firms SET rule_change_alerts_enabled = ?1 WHERE id = ?2`).bind(enabled ? 1 : 0, firmId).run();
 }
 
+/** migration 0061 (roadmap #151 Phase 5). Same shape as
+ * setFirmRuleChangeAlertsEnabled() above. */
+export async function setFirmAdminDigestEnabled(db: D1Database, firmId: string, enabled: boolean): Promise<void> {
+  await db.prepare(`UPDATE firms SET admin_digest_enabled = ?1 WHERE id = ?2`).bind(enabled ? 1 : 0, firmId).run();
+}
+
 /**
  * migration 0007. A firm_leads row -- NOT a subscriber. This table has no
  * confirm/unsubscribe/renewed lifecycle at all: it just records that someone
@@ -1278,6 +1284,11 @@ export interface FirmRow {
   // conditional UPDATE, same shape as referral_code_uses above. A solo
   // free firm or a paid firm never reads or increments this -- 0 forever.
   mobility_trial_uses: number;
+  // migration 0061 (roadmap #151 Phase 5). Opt-out, defaults to 1 (enabled)
+  // for an eligible firm -- same on-by-default reasoning as
+  // rule_change_alerts_enabled above (the closest existing precedent: the
+  // only other email that bundles roster-wide state to firm.admin_email).
+  admin_digest_enabled: number;
 }
 
 export interface FirmLoginTokenRow {
@@ -4778,11 +4789,20 @@ export interface FirmBasicInfo {
   plan_tier: string;
   created_at: string;
   status: string;
+  // Roadmap #151 Phase 5 (2026-08-10): runAdminDigestAlertPass() reads
+  // these two -- the recipient address, and the firm's own opt-out
+  // (migration 0061, on by default for an eligible firm). Free to add:
+  // same query, two more columns.
+  admin_email: string;
+  admin_digest_enabled: number;
 }
 
 export async function listAllFirmsBasicInfo(db: D1Database): Promise<FirmBasicInfo[]> {
   const { results } = await db
-    .prepare(`SELECT id, name, reply_to_email, reminder_thresholds, demo_locked, plan_tier, created_at, status FROM firms`)
+    .prepare(
+      `SELECT id, name, reply_to_email, reminder_thresholds, demo_locked, plan_tier, created_at, status, admin_email, admin_digest_enabled
+         FROM firms`
+    )
     .all<FirmBasicInfo>();
   return results;
 }
@@ -5003,6 +5023,45 @@ export async function unclaimTeamsThresholdNotification(db: D1Database, subscrib
 export async function listTeamsNotifiedThresholds(db: D1Database, subscriberId: string): Promise<number[]> {
   const { results } = await db
     .prepare(`SELECT threshold FROM firm_teams_notified_thresholds WHERE subscriber_id = ?1`)
+    .bind(subscriberId)
+    .all<{ threshold: number }>();
+  return results.map((r) => r.threshold);
+}
+
+// ---------------------------------------------------------------------------
+// Firm-wide admin digest (2026-08-10, roadmap #151 Phase 5). Same
+// INSERT-with-UNIQUE-conflict dedup shape as claimSlackThresholdNotification()/
+// claimTeamsThresholdNotification() -- independent of reminders_sent AND
+// both chat channels' own dedup tables, see migration 0061's own docstring.
+// ---------------------------------------------------------------------------
+
+export async function claimAdminDigestThresholdNotification(db: D1Database, subscriberId: string, threshold: number): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `INSERT INTO firm_admin_digest_notified_thresholds (id, subscriber_id, threshold, notified_at) VALUES (?1, ?2, ?3, ?4)
+       ON CONFLICT (subscriber_id, threshold) DO NOTHING`
+    )
+    .bind(newToken(), subscriberId, threshold, nowIso())
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+/** Reverts a claimAdminDigestThresholdNotification() claim after a failed
+ * send, same at-least-once-delivery reasoning as the Slack/Teams
+ * equivalents. */
+export async function unclaimAdminDigestThresholdNotification(db: D1Database, subscriberId: string, threshold: number): Promise<void> {
+  await db
+    .prepare(`DELETE FROM firm_admin_digest_notified_thresholds WHERE subscriber_id = ?1 AND threshold = ?2`)
+    .bind(subscriberId, threshold)
+    .run();
+}
+
+/** Same shape as listSlackNotifiedThresholds()/listTeamsNotifiedThresholds()
+ * -- used by runAdminDigestAlertPass() for its own independent
+ * escalation-ordering, never reminders_sent. */
+export async function listAdminDigestNotifiedThresholds(db: D1Database, subscriberId: string): Promise<number[]> {
+  const { results } = await db
+    .prepare(`SELECT threshold FROM firm_admin_digest_notified_thresholds WHERE subscriber_id = ?1`)
     .bind(subscriberId)
     .all<{ threshold: number }>();
   return results.map((r) => r.threshold);

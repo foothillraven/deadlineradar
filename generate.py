@@ -12170,6 +12170,47 @@ function drSubmitRuleChangeAlerts(form) {
   });
 }
 
+// Roadmap #151 Phase 5 (2026-08-10): firm-wide admin digest, opt-out
+// (defaults on for an eligible firm) -- same load/render/submit shape as
+// drRenderRuleChangeAlerts()/drSubmitRuleChangeAlerts() just above.
+function drRenderAdminDigest(enabled) {
+  var box = document.getElementById('dr-admin-digest-checkbox');
+  if (box) box.checked = enabled !== false;
+}
+
+function drSubmitAdminDigest(form) {
+  var okEl = document.getElementById('dr-admin-digest-ok');
+  var errEl = document.getElementById('dr-admin-digest-error');
+  if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+
+  var box = document.getElementById('dr-admin-digest-checkbox');
+  var enabled = box ? box.checked : true;
+  var submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
+
+  fetch('/api/firm/admin-digest', {
+    method: 'PATCH', credentials: 'include',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({enabled: enabled})
+  }).then(function(res) {
+    if (submitBtn) submitBtn.disabled = false;
+    if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+    return drReadJsonSafe(res).then(function(data) {
+      if (!res.ok) {
+        var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+        if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        return;
+      }
+      drRenderAdminDigest(data.admin_digest_enabled);
+      if (okEl) { okEl.textContent = 'Saved.'; okEl.hidden = false; }
+    });
+  }).catch(function() {
+    if (submitBtn) submitBtn.disabled = false;
+    if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  });
+}
+
 // Roadmap #20 (2026-08-08): Slack integration. Unlike every other
 // Account-tab panel, "connect" is a plain top-level navigation (an <a
 // href> to the OAuth start route, not a fetch) -- Slack's own consent
@@ -12510,6 +12551,8 @@ function drLoadLicenses() {
       drRenderReminderCadence(data.reminder_thresholds || null);
       // Roadmap #9/#319: same note.
       drRenderRuleChangeAlerts(data.rule_change_alerts_enabled);
+      // Roadmap #151 Phase 5: same note.
+      drRenderAdminDigest(data.admin_digest_enabled);
       // Roadmap #20: same note.
       drRenderSlackIntegration(Boolean(data.slack_connected), data.slack_team_name, data.slack_channel_name);
       // Roadmap #21: same note.
@@ -13405,6 +13448,14 @@ document.addEventListener('DOMContentLoaded', function() {
     ruleChangeAlertsForm.addEventListener('submit', function(ev) {
       ev.preventDefault();
       drSubmitRuleChangeAlerts(ruleChangeAlertsForm);
+    });
+  }
+
+  var adminDigestForm = document.getElementById('dr-admin-digest-form');
+  if (adminDigestForm) {
+    adminDigestForm.addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      drSubmitAdminDigest(adminDigestForm);
     });
   }
 
@@ -15111,6 +15162,21 @@ def build_firm_dashboard_page(
         </form>
         <p id="dr-rule-change-alerts-ok" class="dr-account-ok" hidden></p>
         <p id="dr-rule-change-alerts-error" role="alert" class="dr-account-err" hidden></p>
+      </div>
+
+      <div class="dr-account-panel">
+        <h2>Firm-wide digest</h2>
+        <p class="signup-microcopy">A periodic email bundling every newly-due renewal across your
+        WHOLE roster, sent to you as the firm admin -- on by default for an eligible plan. Nobody's
+        own individual reminder is affected either way; this is in addition to those, not instead of
+        them.</p>
+        <form id="dr-admin-digest-form">
+          <label><input type="checkbox" id="dr-admin-digest-checkbox" checked> Email me a firm-wide
+          digest of newly-due renewals</label>
+          <button type="submit">Save</button>
+        </form>
+        <p id="dr-admin-digest-ok" class="dr-account-ok" hidden></p>
+        <p id="dr-admin-digest-error" role="alert" class="dr-account-err" hidden></p>
       </div>
 
       <div class="dr-account-panel">

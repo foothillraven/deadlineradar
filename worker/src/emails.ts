@@ -1184,6 +1184,86 @@ export function buildRuleChangeAdminAlertEmail(
   return { subject, textBody, htmlBody, headers: {} };
 }
 
+export interface AdminDigestItem {
+  staffLabel: string;
+  stateName: string;
+  daysRemaining: number;
+}
+
+/**
+ * Roadmap #151 Phase 5 (2026-08-10, "move the value line"): the firm-wide
+ * counterpart to buildDigestEmail() above -- bundles newly-due items across
+ * the WHOLE roster (not one subscriber's own items) into one email to
+ * firm.admin_email, closing the gap /for-firms/'s own copy names directly:
+ * "the partner who actually carries the regulatory risk never sees any of
+ * this -- only the individual licensee's own inbox gets the reminder."
+ * Unlike buildSlackDigestText() (scheduler.ts, a lighter heads-up with no
+ * staff name -- state name only), this DOES include staffLabel, since the
+ * whole point of an admin-facing digest is "who," not just "which state."
+ *
+ * Admin-framed voice and the on-by-default opt-out mention are carried over
+ * from buildRuleChangeAdminAlertEmail() above (nobody asked for this
+ * specific email, same as that one) -- the per-item bundle structure
+ * (subject count, per-item loop, "nothing to do for anything not listed")
+ * is carried over from buildDigestEmail() above. Never sent empty, same
+ * "no filler" rule as buildDigestEmail().
+ */
+export function buildAdminDigestEmail(firmName: string, items: AdminDigestItem[], accountSettingsUrl: string): BuiltEmail {
+  if (items.length === 0) {
+    throw new Error("buildAdminDigestEmail: items must be non-empty -- a digest is never sent with nothing to report");
+  }
+  const addr = mailingAddress();
+  const safeFirmName = firmName.replace(/[\r\n]+/g, " ");
+  const count = items.length;
+  const subject =
+    count === 1
+      ? `${safeFirmName}: 1 renewal newly due across your roster`
+      : `${safeFirmName}: ${count} renewals newly due across your roster`;
+
+  const textItems = items
+    .map((it) => `- ${it.staffLabel} (${it.stateName}): due ${daysPhrase(it.daysRemaining)}`)
+    .join("\n");
+
+  const textBody =
+    `${safeFirmName},\n\n` +
+    `${count === 1 ? "One renewal" : `${count} renewals`} across your roster ${count === 1 ? "is" : "are"} newly due:\n\n` +
+    `${textItems}\n\n` +
+    `Nothing to do for anyone not listed above -- we'll include them here once their own renewal is actually due.\n\n` +
+    `You're getting this because firm-wide digest alerts are on for your account (on by default for an ` +
+    `eligible plan). Turn them off any time from your Account settings:\n${accountSettingsUrl}\n\n` +
+    `---\n${SENDER_LINE}\n${addr}`;
+
+  const htmlItems = items
+    .map(
+      (it) =>
+        `<div style="margin:0 0 12px;padding:0 0 12px;border-bottom:1px solid ${LIGHT.border};">` +
+        `<p class="dr-fg" style="margin:0 0 4px;font-size:15px;font-weight:700;color:${LIGHT.fg};">${esc(it.staffLabel)}</p>` +
+        `<p class="dr-fg" style="margin:0;font-size:14px;color:${LIGHT.fg};">${esc(it.stateName)} &mdash; due ${esc(daysPhrase(it.daysRemaining))}</p>` +
+        `</div>`
+    )
+    .join("");
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `${esc(count === 1 ? "1 renewal" : `${count} renewals`)} newly due across your roster</h1>` +
+      p(`${esc(safeFirmName)}, here's who's newly due:`) +
+      htmlItems +
+      p("Nothing to do for anyone not listed above -- we'll include them here once their own renewal is actually due.", 13, LIGHT.muted) +
+      p(
+        `You're getting this because firm-wide digest alerts are on for your account (on by default for an ` +
+          `eligible plan). <a href="${esc(accountSettingsUrl)}" style="color:${LIGHT.accent};">Turn them off</a> ` +
+          `any time from your Account settings.`,
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
 /**
  * Sent whenever a firm's password is set or changed (2026-07-30, from the
  * security review).

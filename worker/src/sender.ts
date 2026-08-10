@@ -190,6 +190,24 @@ export async function checkAndCountSmsSend(db: D1Database, cap: number): Promise
   return (result.meta.changes ?? 0) > 0;
 }
 
+/** Roadmap #151 Phase 5 (2026-08-10): a NINTH independent daily circuit
+ * breaker, same identical shape as the eight above, against its own
+ * `admin_digest_send_counters` table (migration 0061) -- same cron-vs-
+ * request-triggered isolation reasoning as the other cron passes. */
+export const DEFAULT_DAILY_ADMIN_DIGEST_SEND_CAP = 100;
+
+export async function checkAndCountAdminDigestSend(db: D1Database, cap: number): Promise<boolean> {
+  const day = todayUtc();
+  const result = await db
+    .prepare(
+      `INSERT INTO admin_digest_send_counters (day, count) VALUES (?1, 1)
+       ON CONFLICT(day) DO UPDATE SET count = count + 1 WHERE count < ?2`
+    )
+    .bind(day, cap)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
 /**
  * Case-insensitive, trimmed membership check against a comma-separated
  * allowlist string (env.EMAIL_ALLOWLIST). Returns null when `raw` is

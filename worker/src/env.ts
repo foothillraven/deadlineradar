@@ -109,6 +109,7 @@ export interface Env {
   TWILIO_AUTH_TOKEN?: string;
   TWILIO_FROM_NUMBER?: string;
   SMS_DAILY_SEND_CAP?: string;
+  ADMIN_DIGEST_DAILY_SEND_CAP?: string;
   SENDGRID_WEBHOOK_PUBLIC_KEY?: string;
   EMAIL_ALLOWLIST?: string;
   ACTION_BASE_URL?: string;

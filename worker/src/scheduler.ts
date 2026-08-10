@@ -47,6 +47,8 @@ import {
   buildRuleChangeAdminAlertEmail,
   buildDigestEmail,
   type DigestItem,
+  buildAdminDigestEmail,
+  type AdminDigestItem,
 } from "./emails";
 import {
   DEFAULT_DAILY_SEND_CAP,
@@ -63,6 +65,8 @@ import {
   checkAndCountTeamsAlertSend,
   DEFAULT_DAILY_SMS_SEND_CAP,
   checkAndCountSmsSend,
+  DEFAULT_DAILY_ADMIN_DIGEST_SEND_CAP,
+  checkAndCountAdminDigestSend,
   sendViaSendGrid,
 } from "./sender";
 import { sendToSlack } from "./slack";
@@ -1626,6 +1630,198 @@ export async function runSmsAlertPass(env: Env, opts: RunSmsAlertOptions = {}): 
         await store.unclaimSmsThresholdNotification(env.DB, sub.id, threshold).catch(() => {});
       }
       summary.errors.push({ subscriber_id: sub.id, error: `unexpected error: ${String(err)}` });
+    }
+  }
+
+  return summary;
+}
+
+// ---------------------------------------------------------------------------
+// Firm-wide admin digest (2026-08-10, roadmap #151 Phase 5, "move the value
+// line" -- the last of five phases). Same firm-centric daily-digest shape
+// as runSlackAlertPass()/runTeamsAlertPass() (own roster scan, own
+// threshold resolution, own dedup table, ONE bundled message per firm), but
+// delivered by email (like runRuleChangeAlertPass()) rather than a chat
+// webhook, since firm.admin_email is always known -- no "connect" step
+// exists for this channel the way Slack/Teams need one. Closes the gap
+// /for-firms/'s own copy names directly: "the partner who actually carries
+// the regulatory risk never sees any of this -- only the individual
+// licensee's own inbox gets the reminder."
+// ---------------------------------------------------------------------------
+
+export interface AdminDigestAlertSummary {
+  firmsChecked: number;
+  itemsClaimed: number;
+  digestsSent: number;
+  errors: { firm_id: string; error: string }[];
+}
+
+export interface RunAdminDigestAlertOptions {
+  asOf?: Date;
+  send?: ReminderSendFn;
+}
+
+function dailyAdminDigestSendCap(env: Env): number {
+  const n = Number.parseInt(env.ADMIN_DIGEST_DAILY_SEND_CAP ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_ADMIN_DIGEST_SEND_CAP;
+}
+
+export async function runAdminDigestAlertPass(env: Env, opts: RunAdminDigestAlertOptions = {}): Promise<AdminDigestAlertSummary> {
+  const asOf = opts.asOf ?? new Date();
+  const freshnessToday = opts.asOf ? new Date() : asOf;
+  checkDataFreshness(freshnessToday);
+  const asOfDay = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate()));
+  const todayIso = asOfDay.toISOString().slice(0, 10);
+
+  const send: ReminderSendFn =
+    opts.send ??
+    ((to, built) => {
+      if (!env.SENDGRID_API_KEY) return Promise.resolve(false);
+      return sendViaSendGrid(env.SENDGRID_API_KEY, to, built, env.EMAIL_ALLOWLIST);
+    });
+  const cap = dailyAdminDigestSendCap(env);
+  const staticBase = env.STATIC_SITE_BASE_URL || "";
+  const accountSettingsUrl = `${staticBase}/firm-dashboard/#account`;
+
+  const summary: AdminDigestAlertSummary = { firmsChecked: 0, itemsClaimed: 0, digestsSent: 0, errors: [] };
+
+  const firms = await store.listAllFirmsBasicInfo(env.DB);
+
+  let capReached = false;
+  for (const firm of firms) {
+    if (capReached) break;
+    // Every ACTIVE firm is a candidate (no "connect" step like Slack/Teams
+    // -- admin_email always exists), so firmsChecked is meaningfully larger
+    // here than the chat-channel passes'.
+    if (firm.status !== "active") continue;
+    summary.firmsChecked += 1;
+
+    // Same AuditLab DEMO-5 reasoning as every other pass -- checked before
+    // any claiming, without claiming.
+    if (firm.demo_locked) {
+      summary.errors.push({ firm_id: firm.id, error: "SKIPPED: firm is demo_locked -- no email sent from the shared demo account." });
+      continue;
+    }
+
+    // Roadmap #151 Phase 5's own send-time gate -- same hasValueLineAccess()
+    // check Phase 3 already uses for Slack/Teams/SMS.
+    if (!hasValueLineAccess(firm)) {
+      summary.errors.push({ firm_id: firm.id, error: "SKIPPED: firm no longer has value-line access to the firm-wide admin digest." });
+      continue;
+    }
+
+    // Opt-out (migration 0061, on by default for an eligible firm) --
+    // checked here, not folded into hasValueLineAccess(), since it's a
+    // firm PREFERENCE, not an entitlement.
+    if (!firm.admin_digest_enabled) continue;
+
+    // Same AuditLab ALERT-2 reasoning as runRuleChangeAlertPass() -- the one
+    // signal that means "stop emailing me" globally, checked before
+    // claiming, without claiming.
+    if (await store.isPermanentlySuppressed(env.DB, firm.admin_email)) {
+      summary.errors.push({ firm_id: firm.id, error: "BLOCKED: admin_email is permanently suppressed -- refusing despite an active account." });
+      continue;
+    }
+
+    let thresholds: number[] = ESCALATION_THRESHOLDS_DAYS;
+    if (firm.reminder_thresholds) {
+      try {
+        const parsed = JSON.parse(firm.reminder_thresholds);
+        if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+      } catch {
+        // Same fall-through posture as runReminderPass() above.
+      }
+    }
+
+    const roster = await store.listFirmLicenses(env.DB, firm.id);
+    const items: AdminDigestItem[] = [];
+    const claimed: { subscriberId: string; threshold: number }[] = [];
+
+    try {
+      for (const sub of roster) {
+        if (sub.status !== store.STATUS_CONFIRMED) continue;
+        if (sub.snoozed_until && sub.snoozed_until >= todayIso) continue;
+
+        let deadline: Date | null;
+        let fields: Record<string, string>;
+        try {
+          fields = JSON.parse(sub.deadline_fields || "{}");
+          deadline =
+            sub.deadline_source === store.DEADLINE_SOURCE_USER && sub.user_deadline
+              ? new Date(`${sub.user_deadline}T00:00:00Z`)
+              : computeSubscriberDeadline(sub.state_slug, fields, asOf);
+        } catch (err) {
+          summary.errors.push({ firm_id: firm.id, error: `subscriber ${sub.id}: ${String(err)}` });
+          continue;
+        }
+        if (deadline === null) continue;
+        const stateName = stateNameForSlug(sub.state_slug);
+        if (stateName === null) continue;
+
+        const daysRemaining = Math.round((deadline.getTime() - asOfDay.getTime()) / MS_PER_DAY);
+        // Independent of reminders_sent AND every other channel's own dedup
+        // table -- see migration 0061's own docstring.
+        const alreadySent = await store.listAdminDigestNotifiedThresholds(env.DB, sub.id);
+        const neverNotified = alreadySent.length === 0;
+
+        let effectiveThresholds = thresholds;
+        if (sub.reminder_thresholds) {
+          try {
+            const parsed = JSON.parse(sub.reminder_thresholds);
+            if (Array.isArray(parsed) && parsed.length > 0) effectiveThresholds = parsed;
+          } catch {
+            // Same fall-through posture as above.
+          }
+        }
+
+        let threshold: number | null;
+        if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
+          if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
+            threshold = Math.min(...effectiveThresholds);
+          } else {
+            continue;
+          }
+        } else {
+          threshold = nextDueThreshold(daysRemaining, alreadySent, effectiveThresholds);
+          if (threshold === null) continue;
+        }
+
+        const wasClaimed = await store.claimAdminDigestThresholdNotification(env.DB, sub.id, threshold);
+        if (!wasClaimed) continue;
+        claimed.push({ subscriberId: sub.id, threshold });
+        summary.itemsClaimed += 1;
+        items.push({ staffLabel: sub.staff_label || sub.email, stateName, daysRemaining });
+      }
+
+      // Nothing newly due for this firm -- no email, same "no filler"
+      // posture as every other digest pass.
+      if (items.length === 0) continue;
+
+      const underCap = await checkAndCountAdminDigestSend(env.DB, cap);
+      if (!underCap) {
+        for (const { subscriberId, threshold } of claimed) {
+          await store.unclaimAdminDigestThresholdNotification(env.DB, subscriberId, threshold);
+        }
+        summary.errors.push({ firm_id: firm.id, error: "daily send cap reached -- halting further sends today." });
+        capReached = true;
+        break;
+      }
+
+      const built = buildAdminDigestEmail(firm.name, items, accountSettingsUrl);
+      const ok = await send(firm.admin_email, built);
+      if (ok) {
+        summary.digestsSent += 1;
+      } else {
+        for (const { subscriberId, threshold } of claimed) {
+          await store.unclaimAdminDigestThresholdNotification(env.DB, subscriberId, threshold);
+        }
+        summary.errors.push({ firm_id: firm.id, error: "send returned false" });
+      }
+    } catch (err) {
+      for (const { subscriberId, threshold } of claimed) {
+        await store.unclaimAdminDigestThresholdNotification(env.DB, subscriberId, threshold).catch(() => {});
+      }
+      summary.errors.push({ firm_id: firm.id, error: `unexpected error: ${String(err)}` });
     }
   }
 

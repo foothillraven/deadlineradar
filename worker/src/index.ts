@@ -91,6 +91,7 @@ import {
   RATE_LIMIT_FIRM_REPLY_TO_SET,
   RATE_LIMIT_FIRM_REMINDER_CADENCE_SET,
   RATE_LIMIT_FIRM_RULE_CHANGE_ALERTS_SET,
+  RATE_LIMIT_FIRM_ADMIN_DIGEST_SET,
   RATE_LIMIT_FIRM_SLACK_CONNECT,
   RATE_LIMIT_FIRM_SLACK_DISCONNECT,
   RATE_LIMIT_FIRM_TEAMS_SET,
@@ -191,6 +192,7 @@ import {
   runSlackAlertPass,
   runTeamsAlertPass,
   runSmsAlertPass,
+  runAdminDigestAlertPass,
 } from "./scheduler";
 import { isUsFederalHoliday } from "./holidays";
 import {
@@ -5164,6 +5166,9 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     // Roadmap #9/#319: opt-out, defaults true -- see migration 0050's own
     // docstring for why on-by-default is the deliberate call here.
     rule_change_alerts_enabled: session.firm.rule_change_alerts_enabled !== 0,
+    // Roadmap #151 Phase 5: same opt-out shape, defaults true -- see
+    // migration 0061's own docstring.
+    admin_digest_enabled: session.firm.admin_digest_enabled !== 0,
     // Roadmap #20: connection status only -- slack_webhook_url and the
     // encrypted access token are NEVER serialized to the client, same
     // posture as password_hash. team/channel names are just display copy
@@ -5546,6 +5551,45 @@ async function handleRuleChangeAlertsSet(request: Request, env: Env): Promise<Re
 
   await store.setFirmRuleChangeAlertsEnabled(env.DB, session.firmId, body.enabled);
   return jsonResponse(200, { rule_change_alerts_enabled: body.enabled });
+}
+
+/** PATCH /firm/admin-digest -- roadmap #151 Phase 5. Body: { enabled:
+ * boolean }. Toggles the opt-out, on-by-default firm-wide digest setting --
+ * see migration 0061's own docstring for why it defaults on. Same shape as
+ * handleRuleChangeAlertsSet() above -- always available to toggle
+ * regardless of the firm's own #151 entitlement, same as every other
+ * account preference in this codebase; the practical effect is simply null
+ * for an ungated firm until it becomes eligible (a real paid tier, or the
+ * cutover grandfather), since runAdminDigestAlertPass() checks
+ * hasValueLineAccess() independently at send time. */
+async function handleAdminDigestSet(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
+  if (session instanceof Response) return session;
+
+  if (!originAllowed(request, env)) {
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+  }
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "firm_admin_digest_set", RATE_LIMIT_FIRM_ADMIN_DIGEST_SET);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) return jsonResponse(400, { error: "Request too large." });
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  if (typeof body.enabled !== "boolean") {
+    return jsonResponse(400, { error: "Missing or invalid 'enabled' value." });
+  }
+
+  await store.setFirmAdminDigestEnabled(env.DB, session.firmId, body.enabled);
+  return jsonResponse(200, { admin_digest_enabled: body.enabled });
 }
 
 // ---------------------------------------------------------------------------
@@ -7598,6 +7642,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (url.pathname === "/firm/rule-change-alerts") {
         try {
           return await handleRuleChangeAlertsSet(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+      if (url.pathname === "/firm/admin-digest") {
+        try {
+          return await handleAdminDigestSet(request, env);
         } catch {
           return jsonResponse(400, { error: "Something went wrong processing that request." });
         }
@@ -10294,6 +10345,29 @@ export default {
             console.log(`[digest-cron] paused -- stale reference data: ${err.message}`);
           } else {
             console.log(`[digest-cron] error: ${String(err)}`);
+          }
+        }
+      })()
+    );
+
+    // Roadmap #151 Phase 5 (2026-08-10): same independent-pass shape as
+    // rule-change/digest above -- not deadline-urgency-sensitive (a
+    // periodic roster bundle, not itself a specific day-count reminder), so
+    // no holiday skip. HOLD: this block ships in code but the worker
+    // deploy carrying it is deliberately held pending Devin's review of
+    // buildAdminDigestEmail()'s actual copy (emails.ts) -- same "code
+    // shipped, deploy held" posture the drip-course/rule-change-alert
+    // features used before their own first real send.
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const summary = await runAdminDigestAlertPass(env);
+          console.log(`[admin-digest-cron] ${JSON.stringify(summary)}`);
+        } catch (err) {
+          if (err instanceof SchedulerStaleDataError) {
+            console.log(`[admin-digest-cron] paused -- stale reference data: ${err.message}`);
+          } else {
+            console.log(`[admin-digest-cron] error: ${String(err)}`);
           }
         }
       })()

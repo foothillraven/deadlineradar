@@ -599,6 +599,10 @@ export const RATE_LIMIT_FIRM_REMINDER_CADENCE_SET: RateLimit = { max: 30, window
 // shape and same modest cap as the three above.
 export const RATE_LIMIT_FIRM_RULE_CHANGE_ALERTS_SET: RateLimit = { max: 30, windowSeconds: 86400 };
 
+// PATCH /firm/admin-digest (roadmap #151 Phase 5, 2026-08-10) -- same shape
+// and same modest cap as the settings routes above.
+export const RATE_LIMIT_FIRM_ADMIN_DIGEST_SET: RateLimit = { max: 30, windowSeconds: 86400 };
+
 // GET /firm/integrations/slack/connect and POST .../disconnect (roadmap
 // #20, 2026-08-08) -- same modest cap as the settings routes above; connect
 // additionally mints an OAuth state row per request, so this also bounds

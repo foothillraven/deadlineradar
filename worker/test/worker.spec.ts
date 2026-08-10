@@ -5748,6 +5748,25 @@ async function firmOnTier(tier: string, createdAt: string): Promise<{ firmId: st
   return { firmId: id, cookie: `dr_firm_session=${rawSessionToken}` };
 }
 
+/** store.createFirm() always creates exactly one (founding-partner)
+ * firm_member -- so a bare firmOnTier() firm is, by construction, a
+ * genuinely solo account. Individual-tier-fold (2026-08-09) means a solo
+ * FREE firm now legitimately gets paid-feature access (see
+ * requireFirmSessionAndPaidTier()'s own solo-free exception in index.ts,
+ * and individual-tier-fold.spec.ts for that behavior's own dedicated
+ * tests). Tests below whose actual intent is "prove the FREE TIER ITSELF
+ * is blocked" (not "prove solo status matters") need a genuinely
+ * multi-person firm to still exercise that path -- this adds the second
+ * member. */
+async function addSecondMember(firmId: string): Promise<void> {
+  await store.createFirmMember(env.DB, {
+    firmId,
+    email: `mobility-second-${Date.now()}-${Math.floor(Math.random() * 1e6)}@examplefirm.com`,
+    role: "staff",
+    alreadyJoined: true,
+  });
+}
+
 const VALID_CHECK = {
   home_state_slug: "california",
   target_state_slug: "texas",
@@ -5761,15 +5780,20 @@ describe("POST /firm/mobility/check -- pay gate", () => {
     expect((await postMobilityCheck(VALID_CHECK, null)).status).toBe(401);
   });
 
-  it("BLOCKS a brand-new free-tier firm -- no trial exception, ever (2026-08-06 policy change)", async () => {
-    const { cookie } = await firmOnTier("free", new Date().toISOString());
+  it("BLOCKS a brand-new free-tier MULTI-PERSON firm -- no trial exception, ever (2026-08-06 policy change)", async () => {
+    // A solo free-tier firm is a SEPARATE, deliberate exception (2026-08-09
+    // individual-tier fold) -- this test's own intent is the general free-
+    // tier rule, so it needs a second member to still exercise that path.
+    const { firmId, cookie } = await firmOnTier("free", new Date().toISOString());
+    await addSecondMember(firmId);
     const resp = await postMobilityCheck(VALID_CHECK, cookie);
     expect(resp.status).toBe(403);
   });
 
-  it("BLOCKS a long-standing free-tier firm too, and returns no determination at all", async () => {
+  it("BLOCKS a long-standing free-tier MULTI-PERSON firm too, and returns no determination at all", async () => {
     const longAgo = new Date(Date.now() - 90 * 86_400_000).toISOString();
-    const { cookie } = await firmOnTier("free", longAgo);
+    const { firmId, cookie } = await firmOnTier("free", longAgo);
+    await addSecondMember(firmId);
     const resp = await postMobilityCheck(VALID_CHECK, cookie);
     expect(resp.status).toBe(403);
     const body = await resp.json<{ reason: string; individual?: unknown; overall?: unknown }>();
@@ -5777,6 +5801,12 @@ describe("POST /firm/mobility/check -- pay gate", () => {
     // The determination must not leak in the denial payload.
     expect(body.individual).toBeUndefined();
     expect(body.overall).toBeUndefined();
+  });
+
+  it("ALLOWS a genuinely solo (1-member) free-tier firm -- the 2026-08-09 individual-tier-fold exception", async () => {
+    const { cookie } = await firmOnTier("free", new Date().toISOString());
+    const resp = await postMobilityCheck(VALID_CHECK, cookie);
+    expect(resp.status).toBe(200);
   });
 
   it("allows a paid tier regardless of account age", async () => {
@@ -5806,8 +5836,9 @@ describe("POST /firm/mobility/check -- pay gate", () => {
     expect(body).toContain("sort it out");
   });
 
-  it("gates the COVERAGE endpoint too -- the premium dataset's shape is not free", async () => {
-    const { cookie } = await firmOnTier("free", new Date().toISOString());
+  it("gates the COVERAGE endpoint too -- the premium dataset's shape is not free, for a multi-person free firm", async () => {
+    const { firmId, cookie } = await firmOnTier("free", new Date().toISOString());
+    await addSecondMember(firmId);
     const resp = await SELF.fetch("https://deadline-radar.com/firm/mobility/coverage", {
       headers: { Cookie: cookie, "cf-connecting-ip": "203.0.113.251" },
     });
@@ -5910,8 +5941,9 @@ describe("POST /firm/mobility/check-batch -- same gate, same engine, no target l
     expect((await postMobilityCheckBatch(VALID_BATCH_CHECK, null)).status).toBe(401);
   });
 
-  it("gates on the same paid-feature entitlement as the single check", async () => {
-    const { cookie } = await firmOnTier("free", new Date().toISOString());
+  it("gates on the same paid-feature entitlement as the single check, for a multi-person free firm", async () => {
+    const { firmId, cookie } = await firmOnTier("free", new Date().toISOString());
+    await addSecondMember(firmId);
     const resp = await postMobilityCheckBatch(VALID_BATCH_CHECK, cookie);
     expect(resp.status).toBe(403);
     const body = await resp.json<{ reason: string; results?: unknown }>();

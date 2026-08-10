@@ -4757,11 +4757,11 @@ def build_terms_page(updated: date) -> str:
     rewritten: every claim below describes real, shipped behavior (checked
     against tiers.ts, the billing-cancellation handler, and the actual
     live pricing copy on /for-firms/ while writing this), not aspirational
-    copy. Deliberately does NOT mention the $39/year individual tier --
-    HANDOFF's own record is explicit that checkout for it was never built,
-    so promising terms for a product that doesn't exist yet would be the
-    exact kind of overclaim this site's own /methodology/ page exists to
-    rule out. Cancellation terms quote the dashboard's own confirm-dialog
+    copy. Does NOT mention a separate paid Individual tier -- the $39/year
+    Individual tier was folded into the free tier 2026-08-09 (it never had
+    a real checkout path; see tiers.ts/entitlements.ts's own comments) --
+    a solo CPA's account is just a free firm account with Practice
+    Privilege Check included at no cost. Cancellation terms quote the dashboard's own confirm-dialog
     wording verbatim (generate.py's drToggleCancellation()) rather than a
     paraphrase that could drift from what the product actually does."""
     body = f"""<h1>Terms of Service</h1>
@@ -4796,9 +4796,9 @@ upgrade to a paid firm plan for the multistate map and Practice Privilege Check.
 <p>Paid firm plans (Essentials, Growth, Professional, and Enterprise, priced by staff-count capacity &mdash; every tier has
 the identical feature set) are billed annually in advance through Stripe. We never see or store your card
 number; Stripe processes payment directly. By subscribing to a paid plan, you authorize us to charge your
-payment method on file for each renewal period until you cancel. An Individual plan is also available for
-a single CPA's own CPE tracking and Practice Privilege Check &mdash; that plan is arranged directly with
-us rather than through self-serve checkout; the billing and cancellation terms below apply to it too.</p>
+payment method on file for each renewal period until you cancel. A solo CPA tracking only their own
+license gets Practice Privilege Check included on the free tier, at no cost &mdash; no separate paid plan
+or billing relationship for that case.</p>
 
 <h2>5. Cancellation and refunds</h2>
 <p>You can cancel a paid subscription at any time from your account's Billing tab. <strong>Cancelling
@@ -4879,19 +4879,23 @@ href="/privacy/">Privacy Policy</a>.</p>
 def build_pricing_page() -> str:
     """Task #8 (2026-08-06): a dedicated /pricing/ page. Devin's rationale (the
     task's own record): an individual visitor may never click into
-    /for-firms/, so today they never see ANY pricing, including the $39/yr
-    Individual tier that's relevant to them specifically. This is the one
-    canonical pricing surface with all 4 rows -- /for-firms/'s own pricing
+    /for-firms/, so today they never see ANY pricing. This is the one
+    canonical pricing surface with all rows -- /for-firms/'s own pricing
     list stays as-is (that sub-question wasn't part of what Devin decided,
     only that firm-tier buttons should go straight into real checkout), but
     now links here too instead of being the only place pricing lives.
 
     Firm-tier buttons always attempt a REAL Stripe checkout first (Devin's
     explicit call, see _PRICING_CHECKOUT_JS_HTML's own comment for the
-    anonymous-visitor fallback). The Individual tier stays lead-capture only
-    -- its own checkout was never built (same fact build_terms_page()
-    deliberately avoids promising terms for), so this page doesn't imply a
-    working purchase flow that doesn't exist.
+    anonymous-visitor fallback).
+
+    Individual tier FOLDED INTO FREE 2026-08-09 (Devin's decision): the old
+    $39/yr Individual card had a dead "checkout isn't live yet" mailto CTA
+    -- rather than build real checkout for a tier nobody could ever
+    actually buy, it's gone. A solo CPA (a firm account that never invites
+    a second person) gets Practice Privilege Check at no cost -- see
+    entitlements.ts's own solo-free exception. The card below reflects
+    that: free, a real signup link, no mailto dead end.
     """
     body = f"""<h1>Pricing</h1>
 <p class="intro">Roster, calendar, and CPE-hours tracking are <strong>free for any firm</strong>, no
@@ -4904,10 +4908,10 @@ is held back on a cheaper plan.</p>
 <div class="pricing-grid">
   <div class="pricing-card">
     <h2>Individual</h2>
-    <p class="price">$39<span>/year</span></p>
-    <p class="detail">Your own CPE-hour tracking and Practice Privilege Check. Checkout for this tier
-    isn't live yet.</p>
-    <a class="dr-paywall-tier-btn" href="mailto:{esc(CONTACT_EMAIL)}">Get in touch</a>
+    <p class="price">Free</p>
+    <p class="detail">Your own CPE-hour tracking and Practice Privilege Check &mdash; included at no
+    cost for a solo CPA tracking just your own license.</p>
+    <a class="dr-paywall-tier-btn" href="/firm-login/#dr-view-signup">Create a free account</a>
     <p class="detail">Just want free renewal reminders? <a href="/#remind">Sign up free</a> &mdash; no
     account needed.</p>
   </div>
@@ -4951,8 +4955,9 @@ for that tier, same as the dashboard's own upgrade panel.</p>
 """
     return page_shell(
         f"Pricing — {SITE_NAME}",
-        "DeadlineRadar pricing: free individual reminders, a $39/year Individual plan, and firm plans "
-        "from $199/year for up to 5 staff, up to $549/year for up to 35. Every firm tier has the identical feature set.",
+        "DeadlineRadar pricing: free individual reminders, free Practice Privilege Check for a solo CPA, "
+        "and firm plans from $199/year for up to 5 staff, up to $549/year for up to 35. Every firm tier "
+        "has the identical feature set.",
         body,
         home_href="../",
         canonical_path="/pricing/",
@@ -6066,10 +6071,10 @@ the real product design, not a mockup of a different one.</p>"""
 _INDIVIDUAL_FAQ = [
     (
         "Is this actually free?",
-        "Yes. Individual reminders are free, no card required, no time limit. There's also a paid "
-        "firm tier for a firm tracking multiple staff CPAs, and a $39/year individual plan with CPE "
-        "tracking and a Practice Privilege Check for a single CPA who wants more than reminders -- "
-        "but the reminder service itself, for anyone, stays free.",
+        "Yes. Individual reminders are free, no card required, no time limit. CPE-hour tracking and "
+        "Practice Privilege Check are also free for a solo CPA tracking just your own license. Paid "
+        "firm plans exist for a firm tracking multiple staff CPAs -- but the reminder service itself, "
+        "and a single CPA's own tools, stay free.",
     ),
     (
         "How do you actually verify the dates?",
@@ -6173,9 +6178,9 @@ _FIRM_FAQ = [
         "I'm a single CPA, not a firm — is this for me?",
         "This page is about the firm tier: a roster for whoever is tracking multiple staff CPAs. If "
         "you're only tracking your own license, the free individual reminders on our homepage "
-        "already cover that at no cost, unchanged. There's also a $39/year Individual plan for a "
-        "single CPA's own CPE tracking and Practice Privilege Check &mdash; get in touch if you "
-        "want it.",
+        "already cover that at no cost, unchanged. CPE-hour tracking and Practice Privilege Check are "
+        "also free for a solo CPA &mdash; <a href=\"/firm-login/#dr-view-signup\">create a free "
+        "account</a> to use them.",
     ),
     (
         "Do you track CPE hours too?",
@@ -6291,11 +6296,11 @@ cheaper plan.</p>
   <li><strong>Enterprise</strong> &mdash; $549/year, up to 35 staff</li>
   <li><strong>More than 35 staff?</strong> <a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a>.</li>
 </ul>
-<p><a href="/pricing/">See full pricing, including the individual plan &rarr;</a></p>
+<p><a href="/pricing/">See full pricing &rarr;</a></p>
 <p><strong>Tracking just your own license, not a firm roster?</strong> The free individual reminders
-on our homepage already cover that at no cost, unchanged. There's also a <strong>$39/year Individual
-plan</strong> for a single CPA's own CPE tracking and Practice Privilege Check &mdash;
-<a href="mailto:{esc(CONTACT_EMAIL)}?subject=Individual%20plan">get in touch</a> if you want it.</p>
+on our homepage already cover that at no cost, unchanged. CPE-hour tracking and Practice Privilege
+Check are also <strong>free</strong> for a solo CPA &mdash;
+<a href="/firm-login/#dr-view-signup">create a free account</a> to use them.</p>
 
 <div class="remind-panel" id="firm-signup">
   <div>
@@ -6365,9 +6370,8 @@ invoice; a self-serve card-payment option is coming soon. Not ready to create an
     return page_shell(
         f"For Firms — {SITE_NAME}",
         "CPA firm license tracking: roster, calendar, and CPE hours free forever, plus paid plans "
-        "from $199/year (5 staff) to $549/year (35 staff) for the map and Practice Privilege Check, "
-        "or a $39/year individual plan. Sourced to the same codified state law DeadlineRadar "
-        "verifies for every state.",
+        "from $199/year (5 staff) to $549/year (35 staff) for the map and Practice Privilege Check -- "
+        "free for a solo CPA. Sourced to the same codified state law DeadlineRadar verifies for every state.",
         body,
         home_href="../",
         canonical_path="/for-firms/",

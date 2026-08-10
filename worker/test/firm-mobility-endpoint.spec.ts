@@ -30,6 +30,21 @@ async function postFirmCheck(body: Record<string, unknown>, cookie: string | nul
   return SELF.fetch(`${BASE}/firm/mobility/firm-check`, { method: "POST", headers, body: JSON.stringify(body) });
 }
 
+/** store.createFirm() always creates exactly one firm_member, so a bare
+ * firmOnTier("free") firm is a genuinely solo account and now legitimately
+ * gets paid-feature access (2026-08-09 individual-tier fold -- see
+ * individual-tier-fold.spec.ts for that exception's own dedicated tests).
+ * Tests here whose intent is the general "free tier is blocked" rule need
+ * a second member to still exercise that path. */
+async function addSecondMember(firmId: string): Promise<void> {
+  await store.createFirmMember(env.DB, {
+    firmId,
+    email: `firmmobility-second-${Date.now()}-${Math.floor(Math.random() * 1e6)}@examplefirm.com`,
+    role: "staff",
+    alreadyJoined: true,
+  });
+}
+
 const VALID_CHECK = { firm_home_state_slug: "california", target_state_slug: "texas", has_physical_office: false };
 
 describe("POST /firm/mobility/firm-check -- pay gate", () => {
@@ -37,9 +52,15 @@ describe("POST /firm/mobility/firm-check -- pay gate", () => {
     expect((await postFirmCheck(VALID_CHECK, null)).status).toBe(401);
   });
 
-  it("BLOCKS a free-tier firm", async () => {
-    const { cookie } = await firmOnTier("free");
+  it("BLOCKS a multi-person free-tier firm", async () => {
+    const { firmId, cookie } = await firmOnTier("free");
+    await addSecondMember(firmId);
     expect((await postFirmCheck(VALID_CHECK, cookie)).status).toBe(403);
+  });
+
+  it("ALLOWS a genuinely solo (1-member) free-tier firm -- the 2026-08-09 individual-tier-fold exception", async () => {
+    const { cookie } = await firmOnTier("free");
+    expect((await postFirmCheck(VALID_CHECK, cookie)).status).toBe(200);
   });
 
   it("BLOCKS an unrecognised tier -- the gate fails closed", async () => {
@@ -52,8 +73,9 @@ describe("POST /firm/mobility/firm-check -- pay gate", () => {
     expect((await postFirmCheck(VALID_CHECK, cookie)).status).toBe(200);
   });
 
-  it("gates the firm-coverage endpoint too, same as the individual coverage endpoint", async () => {
-    const { cookie } = await firmOnTier("free");
+  it("gates the firm-coverage endpoint too, same as the individual coverage endpoint, for a multi-person free firm", async () => {
+    const { firmId, cookie } = await firmOnTier("free");
+    await addSecondMember(firmId);
     const resp = await SELF.fetch(`${BASE}/firm/mobility/firm-coverage`, {
       headers: { Cookie: cookie, "cf-connecting-ip": "203.0.113.241" },
     });

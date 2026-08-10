@@ -2644,6 +2644,20 @@ async function handleFirmMemberMakePrimary(request: Request, env: Env, memberId:
  * entitlement check at all. Always 403 (no read/write 402 split anymore --
  * that existed for roster mutations, which are no longer pay-gated; every
  * remaining caller of this wrapper is GET-or-GET-shaped).
+ *
+ * Solo-free exception (2026-08-09, Individual tier folded into free --
+ * Devin's decision, orchestrator 14:25 block): a genuinely solo firm --
+ * free tier, active, and never invited a second person -- gets the SAME
+ * Map/Practice Privilege Check access a paid tier would, at no cost. This
+ * is deliberately an OR bolted onto checkPaidFeatureAccess()'s own result
+ * here in the gate WRAPPER, not a rewrite of that function -- tiers.ts's
+ * own design principle is "one module owns what a tier IS, the other owns
+ * whether this session gets through the gate," and entitlements.ts stays a
+ * pure "is this a recognized paid tier" check. "Solo" is measured by
+ * firm_members count, not roster/license count -- a real CPA can hold
+ * licenses in multiple states, and that shouldn't disqualify a true
+ * one-person account. Checked only when the plain tier check already
+ * failed, so this never adds a query to the common paid-firm path.
  */
 async function requireFirmSessionAndPaidTier(
   request: Request,
@@ -2660,11 +2674,17 @@ async function requireFirmSessionAndPaidTier(
 
   const access = checkPaidFeatureAccess(firm);
   if (!access.allowed) {
-    return jsonResponse(403, {
-      error: paidFeatureDenialMessage(access.reason),
-      reason: access.reason,
-      pay_now_url: "/firm-dashboard/#account",
-    });
+    const soloFree =
+      access.reason === "tier_not_paid" &&
+      firm.plan_tier === "free" &&
+      (await store.listFirmMembers(env.DB, firm.id)).length === 1;
+    if (!soloFree) {
+      return jsonResponse(403, {
+        error: paidFeatureDenialMessage(access.reason),
+        reason: access.reason,
+        pay_now_url: "/firm-dashboard/#account",
+      });
+    }
   }
 
   return { ...session, firm };
@@ -3229,7 +3249,22 @@ async function handleStripeWebhook(request: Request, env: Env): Promise<Response
   if (event.type === "checkout.session.completed") {
     const metadata = (object.metadata as Record<string, unknown> | undefined) ?? {};
     const firmId = typeof metadata.firm_id === "string" ? metadata.firm_id : null;
-    const targetPlanTier = typeof metadata.target_plan_tier === "string" ? metadata.target_plan_tier : null;
+    // Adversarial-review-style finding (2026-08-09, Individual-tier
+    // scoping pass): this raw metadata value used to be written straight
+    // to firms.plan_tier with NO allowlist check at all -- the only
+    // validation anywhere in the checkout flow lives in
+    // handleFirmBillingCheckout() (via firmTierByPlanTier()), which this
+    // webhook never re-runs. A crafted or stale Stripe object (dashboard/
+    // API access required -- not customer-reachable) could have written
+    // ANY string onto a real firm's plan_tier, including a tier that no
+    // longer exists (e.g. the just-removed "individual"). An invalid tier
+    // is now treated exactly like a MISSING one -- the whole block below
+    // silently no-ops, same as it already did for absent metadata.
+    const targetPlanTierRaw = typeof metadata.target_plan_tier === "string" ? metadata.target_plan_tier : null;
+    const targetPlanTier = targetPlanTierRaw && firmTierByPlanTier(targetPlanTierRaw) ? targetPlanTierRaw : null;
+    if (targetPlanTierRaw && !targetPlanTier) {
+      console.log(`[stripe-webhook] rejected unrecognised target_plan_tier "${targetPlanTierRaw}" for firm ${firmId ?? "unknown"}`);
+    }
     const customerId = typeof object.customer === "string" ? object.customer : null;
     const subscriptionId = typeof object.subscription === "string" ? object.subscription : null;
 

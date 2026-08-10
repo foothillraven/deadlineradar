@@ -87,18 +87,20 @@ describe("stripePriceIdForTier", () => {
       STRIPE_PRICE_FIRM_GROWTH: "price_growth_test",
       STRIPE_PRICE_FIRM_STANDARD: "price_standard_test",
       STRIPE_PRICE_FIRM_SCALE: "price_scale_test",
-      STRIPE_PRICE_INDIVIDUAL: "price_individual_test",
     } as any;
     expect(stripePriceIdForTier(env, "firm_starter")).toBe("price_starter_test");
     expect(stripePriceIdForTier(env, "firm_growth")).toBe("price_growth_test");
     expect(stripePriceIdForTier(env, "firm_standard")).toBe("price_standard_test");
     expect(stripePriceIdForTier(env, "firm_scale")).toBe("price_scale_test");
-    expect(stripePriceIdForTier(env, "individual")).toBe("price_individual_test");
   });
 
   it("returns null when the env var isn't set (not configured) or the tier is unrecognised", () => {
     expect(stripePriceIdForTier({} as any, "firm_starter")).toBeNull();
     expect(stripePriceIdForTier({} as any, "firm_scale")).toBeNull();
     expect(stripePriceIdForTier({} as any, "free")).toBeNull();
+  });
+
+  it("individual is no longer a recognised tier -- folded into free 2026-08-09", () => {
+    expect(stripePriceIdForTier({ STRIPE_PRICE_FIRM_STARTER: "x" } as any, "individual")).toBeNull();
   });
 });

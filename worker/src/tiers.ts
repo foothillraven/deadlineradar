@@ -45,8 +45,6 @@ export const FIRM_TIERS: FirmTierDef[] = [
   { planTier: "firm_scale", label: "Enterprise", priceUsd: 549, seatCap: 35 },
 ];
 
-export const INDIVIDUAL_TIER = { planTier: "individual", label: "Individual", priceUsd: 39 } as const;
-
 const FIRM_TIER_SEAT_CAPS: Record<string, number> = Object.fromEntries(
   FIRM_TIERS.map((t) => [t.planTier, t.seatCap])
 );
@@ -73,7 +71,15 @@ export function firmTierByPlanTier(planTier: string): FirmTierDef | null {
 /** Which Env secret holds this tier's Stripe Price id. Test-mode and
  * live-mode prices are different ids on the same Stripe account, so this
  * indirection (rather than a hardcoded id) is what makes the Gate 1 -> Gate 2
- * swap a pure secret rotation. Returns null for an unrecognised tier. */
+ * swap a pure secret rotation. Returns null for an unrecognised tier.
+ *
+ * `INDIVIDUAL_TIER`/`"individual"` REMOVED 2026-08-09 (Devin's decision):
+ * the $39/yr Individual tier never had a real checkout path (this switch's
+ * own "individual" case was unreachable from handleFirmBillingCheckout(),
+ * which resolves tiers via firmTierByPlanTier() -- FIRM_TIERS only, never
+ * included INDIVIDUAL_TIER) and zero real rows ever held plan_tier=
+ * 'individual' (confirmed against prod D1 before removing). Folded into
+ * the free tier -- see entitlements.ts's own solo-free exception. */
 export function stripePriceIdForTier(env: Env, planTier: string): string | null {
   switch (planTier) {
     case "firm_starter":
@@ -84,8 +90,6 @@ export function stripePriceIdForTier(env: Env, planTier: string): string | null 
       return env.STRIPE_PRICE_FIRM_STANDARD ?? null;
     case "firm_scale":
       return env.STRIPE_PRICE_FIRM_SCALE ?? null;
-    case "individual":
-      return env.STRIPE_PRICE_INDIVIDUAL ?? null;
     default:
       return null;
   }

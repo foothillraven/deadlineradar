@@ -45,18 +45,22 @@ describe("paid tiers", () => {
       "firm_growth",
       "firm_standard",
       "firm_scale",
-      "individual",
     ]) {
       const res = checkPaidFeatureAccess(firm({ plan_tier: tier }));
       expect(res.allowed, `tier "${tier}" should grant access`).toBe(true);
     }
   });
 
-  it("an individual_accounts-shaped row (not a FirmRow) satisfies checkPaidFeatureAccess structurally", () => {
-    // No `id`/`admin_email`/password fields -- proves the parameter type is
-    // genuinely structural, not accidentally still FirmRow-specific.
-    const individualAccount = { plan_tier: "individual", status: "active" };
-    expect(checkPaidFeatureAccess(individualAccount).allowed).toBe(true);
+  it("individual is no longer a recognised paid tier -- folded into free 2026-08-09 (see worker.spec.ts for the solo-free exception, which lives in index.ts's gate wrapper, not here)", () => {
+    const res = checkPaidFeatureAccess(firm({ plan_tier: "individual" }));
+    expect(res.allowed).toBe(false);
+  });
+
+  it("a structurally FirmRow-shaped-but-not-literal row still satisfies checkPaidFeatureAccess (the parameter type is structural, not FirmRow-specific)", () => {
+    // No `id`/`admin_email`/password fields -- proves the parameter type
+    // genuinely only needs plan_tier/status, not a real FirmRow.
+    const minimalSubject = { plan_tier: "firm", status: "active" };
+    expect(checkPaidFeatureAccess(minimalSubject).allowed).toBe(true);
   });
 
   it("a paid tier is not time-bounded -- there is no expiration to check at all anymore", () => {

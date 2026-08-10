@@ -54,14 +54,25 @@ export type EntitlementSubject = Pick<FirmRow, "plan_tier" | "status">;
 
 /** Tiers that unlock Map/Practice Privilege Check. `free` (the renamed
  * `pilot`) is deliberately NOT here -- the free tier never includes these
- * two features, regardless of how long the firm has had an account.
- * `firm`/`firm_annual`/`premium` are the original manually-set tiers (still
- * honored -- no existing row is migrated off them); `firm_starter`/
- * `firm_growth`/`firm_standard`/`firm_scale`/`individual` are the
- * Stripe-backed tiers (2026-08-05, see tiers.ts; `firm_scale` added in the
- * 2026-08-09 seat-cliff re-tier). All paid firm tiers carry the identical
- * PAID feature set -- this set gates access to Map/Practice Privilege
- * Check specifically, not to the free features at all. */
+ * two features via THIS check, regardless of how long the firm has had an
+ * account (see requireFirmSessionAndPaidTier() in index.ts for the one
+ * additional, separate exception: a genuinely solo -- exactly one
+ * firm_member -- free-tier firm, 2026-08-09). `firm`/`firm_annual`/
+ * `premium` are the original manually-set tiers (still honored -- no
+ * existing row is migrated off them); `firm_starter`/`firm_growth`/
+ * `firm_standard`/`firm_scale` are the Stripe-backed tiers (2026-08-05, see
+ * tiers.ts; `firm_scale` added in the 2026-08-09 seat-cliff re-tier). All
+ * paid firm tiers carry the identical PAID feature set -- this set gates
+ * access to Map/Practice Privilege Check specifically, not to the free
+ * features at all.
+ *
+ * `"individual"` REMOVED 2026-08-09 (Devin's decision, orchestrator 14:25
+ * block): the $39/yr Individual tier had no live checkout anywhere in this
+ * Worker (confirmed: firmTierByPlanTier("individual") already returned
+ * null, so the self-serve checkout path 400'd on it) and zero real rows
+ * ever had this value (confirmed against prod D1 before removing). Folded
+ * into the free tier instead of ever being built -- see the solo-free
+ * exception above. */
 const PAID_PLAN_TIERS = new Set([
   "firm",
   "firm_annual",
@@ -70,7 +81,6 @@ const PAID_PLAN_TIERS = new Set([
   "firm_growth",
   "firm_standard",
   "firm_scale",
-  "individual",
 ]);
 
 export type PaidFeatureDenialReason = "firm_inactive" | "tier_not_paid";

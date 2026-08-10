@@ -41,14 +41,18 @@ import sys
 import urllib.error
 import urllib.request
 
-# Mirrors worker/src/tiers.ts's FIRM_TIERS + INDIVIDUAL_TIER exactly. Kept as
-# a literal duplicate here (not parsed out of the .ts file) -- four numbers
-# is cheap to keep in sync by eye, and a Python->TypeScript parser would be
-# more code and more failure modes than the thing it's guarding against. If
+# Mirrors worker/src/tiers.ts's FIRM_TIERS exactly. Kept as a literal
+# duplicate here (not parsed out of the .ts file) -- four numbers is cheap
+# to keep in sync by eye, and a Python->TypeScript parser would be more
+# code and more failure modes than the thing it's guarding against. If
 # this ever drifts from tiers.ts, that IS the bug this script exists to
 # catch on the OTHER side (Stripe) -- keep both sides honest by hand.
+#
+# STRIPE_PRICE_INDIVIDUAL removed 2026-08-09 -- the $39/yr Individual tier
+# was folded into free (see tiers.ts/entitlements.ts's own comments); it
+# never had a real checkout path, so there's no live Stripe price left to
+# reconcile against.
 EXPECTED_TIERS = {
-    "STRIPE_PRICE_INDIVIDUAL": {"label": "Individual", "price_usd": 39},
     "STRIPE_PRICE_FIRM_STARTER": {"label": "Starter", "price_usd": 199},
     "STRIPE_PRICE_FIRM_GROWTH": {"label": "Growth", "price_usd": 299},
     "STRIPE_PRICE_FIRM_STANDARD": {"label": "Standard", "price_usd": 399},

@@ -176,7 +176,7 @@ export interface Env {
    * swapping to live values at Gate 2 is a pure secret rotation, zero code
    * diff, by design (PRO_TIER_SPEC / the paid-tiers plan).
    *
-   * The five STRIPE_PRICE_* values are Stripe Price ids, not secrets (Stripe
+   * The STRIPE_PRICE_* values are Stripe Price ids, not secrets (Stripe
    * price ids are safe to expose client-side), but are still env-sourced
    * rather than hardcoded because test-mode and live-mode prices are
    * DIFFERENT ids on the same Stripe account -- hardcoding would break the
@@ -190,10 +190,15 @@ export interface Env {
    * firm_growth/firm_standard to be recreated (Prices are immutable) and
    * their secrets rotated in lockstep with this deploy -- see the deploy
    * runbook note this change ships alongside.
+   *
+   * STRIPE_PRICE_INDIVIDUAL REMOVED 2026-08-09 (Individual tier folded into
+   * free -- see entitlements.ts/tiers.ts's own comments). The Stripe Price
+   * object itself is untouched in the Stripe dashboard (nothing here
+   * deletes it); the `wrangler secret` value is now orphaned and safe to
+   * remove at Devin's convenience -- not touched by this change directly.
    */
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
-  STRIPE_PRICE_INDIVIDUAL?: string;
   STRIPE_PRICE_FIRM_STARTER?: string;
   STRIPE_PRICE_FIRM_GROWTH?: string;
   STRIPE_PRICE_FIRM_STANDARD?: string;

@@ -32,6 +32,7 @@ function verifiedPermissiveRule(over: Partial<MobilityRuleRow> = {}): MobilityRu
     equivalence_test: "individual_criteria",
     rule_in_flux: false,
     flux_note: null,
+    flux_summary: null,
     rule_changes_on: null,
     home_state_substantially_equivalent: null,
     home_state_substantially_equivalent_note: null,
@@ -110,6 +111,7 @@ describe("SAFETY: the engine must never assert a clearance it cannot cite", () =
       equivalence_test: null,
       rule_in_flux: null,
       flux_note: null,
+      flux_summary: null,
       rule_changes_on: null,
       home_state_substantially_equivalent: null,
       home_state_substantially_equivalent_note: null,
@@ -480,6 +482,31 @@ describe("flux SEVERITY split (2026-08-03): rule_changes_on vs today, not one bl
     const res = evaluateMobility(input(), rule);
     expect(res.individual.verdict).toBe("not_verified");
     expect(res.individual.summary.toLowerCase()).toMatch(/mid-change|disagree/);
+  });
+
+  it("roadmap #317 Phase 2: a blocked flux rule's requirements use flux_summary, and NEVER the raw flux_note", () => {
+    // flux_note is internal research prose (dated verifier updates,
+    // citation-checking asides) -- it must never reach a customer-facing
+    // requirements list. flux_summary is the customer-safe distillation.
+    const rawResearchNote = "UPDATE (verifier): REFUTED true -> set null. Internal citation check follows.";
+    const customerSafeSummary = "This state's rule changed recently and the board hasn't finished updating its own regulations to match. Confirm with the board.";
+    const rule = verifiedPermissiveRule({
+      rule_in_flux: true,
+      rule_changes_on: null,
+      flux_note: rawResearchNote,
+      flux_summary: customerSafeSummary,
+    });
+    const res = evaluateMobility(input(), rule);
+    expect(res.individual.requirements).toContain(customerSafeSummary);
+    expect(res.individual.requirements.join(" ")).not.toContain(rawResearchNote);
+    expect(res.individual.requirements.join(" ")).not.toMatch(/REFUTED|UPDATE \(verifier\)/);
+  });
+
+  it("roadmap #317 Phase 2: a flux row with NO flux_summary falls back to a generic (still non-empty) requirement", () => {
+    const rule = verifiedPermissiveRule({ rule_in_flux: true, rule_changes_on: null, flux_summary: null });
+    const res = evaluateMobility(input(), rule);
+    expect(res.individual.requirements.length).toBeGreaterThan(0);
+    expect(res.individual.requirements[0]).toBeTruthy();
   });
 
   it("the home-state (not_applicable) branch never gets the caveat -- flux doesn't apply to your own state", () => {

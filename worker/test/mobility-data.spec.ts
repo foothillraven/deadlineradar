@@ -137,6 +137,20 @@ describe("every record survives normalizeRuleRow() with nothing silently dropped
         expect(row.flux_note, `${slug} is rule_in_flux with no flux_note`).not.toBeNull();
       }
     });
+
+    it(`${slug}: a genuinely-ambiguous flux row (no known changeover date) carries a customer-safe flux_summary`, () => {
+      // Roadmap #317 Phase 2 (2026-08-10): blockingRuleCondition() renders
+      // flux_summary, never the raw flux_note (internal research prose) --
+      // a row with rule_changes_on === null is the genuinely unresolved
+      // case (a real disagreement, unenacted legislation, or "no evidence
+      // either way", as opposed to a known future changeover date already
+      // covered by the flux_note-explains-why test above), so THIS is the
+      // shape that actually needs the customer-facing distillation.
+      const row = normalizeRuleRow(raw) as MobilityRuleRow;
+      if (row.rule_in_flux === true && row.rule_changes_on === null) {
+        expect(row.flux_summary, `${slug} is rule_in_flux with no rule_changes_on and no flux_summary`).not.toBeNull();
+      }
+    });
   }
 });
 

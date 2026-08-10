@@ -147,6 +147,7 @@ export function normalizeRuleRow(raw: unknown): MobilityRuleRow | null {
         : null,
     rule_in_flux: strictTriState(r.rule_in_flux),
     flux_note: str(r.flux_note),
+    flux_summary: str(r.flux_summary),
     rule_changes_on: str(r.rule_changes_on),
     home_state_substantially_equivalent: strictTriState(r.home_state_substantially_equivalent),
     home_state_substantially_equivalent_note: str(r.home_state_substantially_equivalent_note),
@@ -222,9 +223,32 @@ export interface MobilityRuleRow {
    */
   rule_in_flux: boolean | null;
 
-  /** Explanation of the conflict/change, shown to the user when
-   * rule_in_flux is set. */
+  /** Full internal research trail for the flux -- multi-paragraph prose
+   * written for a researcher/verifier (dated updates, citation-checking
+   * asides, "REFUTED true -> set null" style notes), NEVER shown to a
+   * customer directly. Same "internal methodology, not customer copy"
+   * posture generate.py's own docstring already established for
+   * data_gap_note. Kept for audit trail / the source paragraph flux_summary
+   * below is distilled from. */
   flux_note: string | null;
+
+  /**
+   * Roadmap #317 Phase 2 (2026-08-10). Short (2-4 sentence), customer-safe
+   * plain-English explanation of WHY this specific row is unverified --
+   * required precisely because flux_note above is not fit for that purpose
+   * (before this field existed, blockingRuleCondition() showed the entire
+   * raw flux_note as a "requirement", including internal-researcher prose
+   * like "UPDATE (verifier): REFUTED true -> set null"). Not every
+   * rule_in_flux row has the same SHAPE of uncertainty (a genuine
+   * disagreement between two live sources, e.g. Guam; a bill that hasn't
+   * passed yet, e.g. Michigan; a law that's already in effect but whose
+   * implementing board rule hasn't caught up yet, e.g. Louisiana; or
+   * "no evidence of a change, but can't rule one out either", e.g. USVI) --
+   * this field is deliberately free text, not a rigid two-source schema,
+   * so each row's real shape can be stated accurately rather than forced
+   * into a template that doesn't fit it. null falls back to the generic
+   * sentence in blockingRuleCondition(). */
+  flux_summary: string | null;
 
   /** A known future date on which this state's rule changes, so the product
    * can warn ahead of time instead of silently going stale on the morning
@@ -387,7 +411,12 @@ function blockingRuleCondition(rule: MobilityRuleRow, now: Date): MobilityFindin
       summary:
         "This state's rule is mid-change, or its primary sources currently disagree with each other. " +
         "We are not going to pick a side. Confirm directly with the state board before relying on this.",
-      requirements: [rule.flux_note ?? "The governing rule is in transition or disputed between sources."],
+      // Roadmap #317 Phase 2: flux_summary, never the raw flux_note --
+      // flux_note is internal research prose (dated updates, citation-
+      // checking asides), not something written for a customer to read.
+      // flux_summary is null-safe here (falls back to a generic sentence)
+      // for the rare case a flux row hasn't been distilled yet.
+      requirements: [rule.flux_summary ?? "The governing rule is in transition or disputed between sources -- ask the board what specifically is unresolved."],
       citation: rule.citation,
       citationUrl: rule.citation_url,
       sourceUrl: rule.source_url,

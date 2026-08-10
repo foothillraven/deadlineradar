@@ -1870,6 +1870,19 @@ PAGE_CSS = """
     .dr-cal-day { min-height: 3rem; font-size: 0.68rem; }
     .dr-cal-item { display: none; }
     .dr-cal-day--has-item::after { content: "\\2022"; color: var(--accent); font-size: 1.1rem; line-height: 1; }
+    /* 2026-08-09, Devin's live report ("the blue dots still don't say
+       anything") -- at this width .dr-cal-item is hidden above and replaced
+       by the bare ::after dot, which (being a pseudo-element, and on a
+       touch device with no hover) could never carry a tooltip or any other
+       info. Tap-to-expand: drRenderCalendar() now only adds --has-item (and
+       so only draws a dot) for a day with real staff items, and the click
+       delegation in the main script toggles --expanded on tap, which
+       un-hides the actual labeled .dr-cal-item rows for that one day and
+       swaps the dot off so it doesn't look like there's still more hidden. */
+    .dr-cal-day--has-item { cursor: pointer; }
+    .dr-cal-day--expanded { min-height: auto; }
+    .dr-cal-day--expanded .dr-cal-item { display: block; }
+    .dr-cal-day--expanded.dr-cal-day--has-item::after { content: none; }
   }
   .dr-agenda-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
   .dr-agenda-panel h2 { font-size: 1.05rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
@@ -9994,8 +10007,22 @@ function drRenderCalendar() {
         'aria-label="Rule change: ' + drEscapeHtml(e.jurisdiction) + '">' +
         drEscapeHtml(e.jurisdiction) + ': rule change</button>';
     }).join('');
+    // 2026-08-09, Devin's live report ("the blue dots still don't say
+    // anything"): --has-item now only goes on days with real hidden STAFF
+    // items -- a rule-change-only day already shows its own visible,
+    // labeled button at every width (see .dr-cal-item--rule-change above,
+    // never covered by the sub-640px .dr-cal-item{display:none} rule), so
+    // giving it an unlabeled dot too would just be a second, redundant,
+    // uninformative mark on the same cell. aria-label carries the same
+    // summary a screen reader would otherwise get from the now-hidden
+    // .dr-cal-item titles, independent of the tap-to-expand CSS above.
+    var dayAriaLabel = items.length
+      ? drEscapeHtml(items.slice(0, 3).map(function(item) { return item.staff_label || item.email; }).join(', ') +
+          (items.length > 3 ? ', and ' + (items.length - 3) + ' more' : '') + ' due this day -- tap for details')
+      : '';
     html += '<div class="dr-cal-day' + (iso === todayIso ? ' dr-cal-day--today' : '') +
-      ((items.length || ruleEvents.length) ? ' dr-cal-day--has-item' : '') + '">' +
+      (items.length ? ' dr-cal-day--has-item' : '') + '"' +
+      (items.length ? ' role="button" tabindex="0" aria-label="' + dayAriaLabel + '"' : '') + '>' +
       '<span class="dr-cal-daynum">' + day + '</span>' + cellItems + '</div>';
   }
   grid.innerHTML = html;
@@ -12445,7 +12472,21 @@ function drLoadLicenses() {
       // Complete() doesn't need this ordering since drMobilityCompletions
       // is already populated by then.
       drLoadMobilityCompletions().then(drRenderMapForSelection);
-      drLoadCpeEntries().then(drRenderOnboardingChecklist);
+      // 2026-08-09, Devin's live report ("this notification keeps coming up
+      // after I dismiss it, when I leave the dashboard and come back"):
+      // drRenderNotifications() just above runs off whatever drCpeEntries
+      // held BEFORE this load started -- on a fresh page visit that's still
+      // [] (drCpeEntries only becomes real data once THIS fetch resolves),
+      // so every subscriber with a CPE requirement looks like they've
+      // logged 0 hours and gets a bogus "behind on CPE hours" notification
+      // stamped with sig "0:0". That sig never matches a real dismissal
+      // (e.g. "38:2"), so a genuinely-dismissed item reappears on every
+      // single page load, and nothing ever re-rendered it correctly once
+      // the real entries arrived. Chained onto the same
+      // drLoadCpeEntries().then() the onboarding checklist already uses
+      // right below for this exact "needs drCpeEntries, not loaded yet"
+      // reason.
+      drLoadCpeEntries().then(function() { drRenderOnboardingChecklist(); drRenderNotifications(); });
       drLoadActivity();
       drLoadAuditTrail();
       drLoadTeam();
@@ -13191,12 +13232,34 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   var calGrid = document.getElementById('dr-cal-grid');
   if (calGrid) {
+    // 2026-08-09, Devin's live report ("the blue dots still don't say
+    // anything"): a day cell with hidden staff items (.dr-cal-day--has-item,
+    // only drawn on screens <=640px, see that CSS rule's own comment) is now
+    // tappable -- toggles --expanded, which un-hides the real labeled
+    // .dr-cal-item rows for that one cell instead of leaving a bare,
+    // unexplained dot. Checked ahead of the existing rule-change-button
+    // handling below so a tap on the rule-change pill itself still only
+    // opens ITS OWN modal, not both.
+    function drToggleCalDayExpanded(day) {
+      day.classList.toggle('dr-cal-day--expanded');
+    }
     calGrid.addEventListener('click', function(ev) {
-      var btn = ev.target.closest ? ev.target.closest('.dr-cal-item--rule-change') : null;
-      if (!btn) return;
-      var id = btn.getAttribute('data-rule-change-id');
-      var event = DR_RULE_CHANGE_EVENTS.filter(function(e) { return e.id === id; })[0];
-      if (event) drOpenRuleChangeModal(event, btn);
+      var ruleBtn = ev.target.closest ? ev.target.closest('.dr-cal-item--rule-change') : null;
+      if (ruleBtn) {
+        var id = ruleBtn.getAttribute('data-rule-change-id');
+        var event = DR_RULE_CHANGE_EVENTS.filter(function(e) { return e.id === id; })[0];
+        if (event) drOpenRuleChangeModal(event, ruleBtn);
+        return;
+      }
+      var day = ev.target.closest ? ev.target.closest('.dr-cal-day--has-item') : null;
+      if (day) drToggleCalDayExpanded(day);
+    });
+    calGrid.addEventListener('keydown', function(ev) {
+      if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      var day = ev.target.closest ? ev.target.closest('.dr-cal-day--has-item') : null;
+      if (!day) return;
+      ev.preventDefault();
+      drToggleCalDayExpanded(day);
     });
   }
 

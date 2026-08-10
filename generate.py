@@ -9898,6 +9898,19 @@ function drRenderStalenessBanner(dataAsOf, dataStale) {
   el.hidden = false;
 }
 
+// ValueLab customer-walkthrough finding (2026-08-10): a successful demo
+// login's ONLY visible signal was "Dashboard" quietly replacing "Sign In"
+// in the header nav -- easy to miss, reads as if the click failed. This
+// makes a successful demo session unmistakable regardless of how the
+// visitor got here (the "View the demo" button, a bookmarked link, a
+// shared URL) -- demo_locked is already sent on every /firm/licenses
+// response (Account-tab lockdown, 2026-08-06), just never surfaced as its
+// own banner until now.
+function drRenderDemoBanner(demoLocked) {
+  var el = document.getElementById('dr-demo-banner');
+  if (el) el.hidden = !demoLocked;
+}
+
 // ---------------------------------------------------------------------------
 // Calendar + Map views (2026-07-30, BUILD v2 Phase D) -- both render from the
 // SAME drLicenses array the roster view already fetched; no new endpoint,
@@ -12553,11 +12566,23 @@ function drCloseNotifications() {
   if (btn) btn.setAttribute('aria-expanded', 'false');
 }
 
-function drLoadLicenses() {
-  drClearError();
-  fetch('/api/firm/licenses', {credentials: 'include'})
+// ValueLab customer-walkthrough finding (2026-08-10): a fresh login
+// (including the demo) landing straight on this page's first
+// /firm/licenses call sometimes 401s once, immediately after a genuinely
+// successful login, then bounces to /firm-login/ with no explanation --
+// the session IS real (confirmed: D1 rows exist, a retried request or a
+// subsequent page load succeeds) so this reads as a transient race, not
+// an actually-invalid session. One retry after a short delay before
+// concluding the session is really gone -- costs ~300ms only on this
+// already-rare error path, never affects the normal case.
+function drLoadLicensesInner(isRetry) {
+  return fetch('/api/firm/licenses', {credentials: 'include'})
     .then(function(res) {
       if (res.status === 401) {
+        if (!isRetry) {
+          return new Promise(function(resolve) { setTimeout(resolve, 300); })
+            .then(function() { return drLoadLicensesInner(true); });
+        }
         window.location.href = '/firm-login/';
         return null;
       }
@@ -12570,7 +12595,12 @@ function drLoadLicenses() {
         return null;
       }
       return res.json();
-    })
+    });
+}
+
+function drLoadLicenses() {
+  drClearError();
+  drLoadLicensesInner(false)
     .then(function(data) {
       if (!data) return;
       // Roadmap #29: real data always wins -- a stale sample view (e.g. a
@@ -12602,6 +12632,7 @@ function drLoadLicenses() {
       drRenderFirmName(data.firm_name);
       drRenderCurrentEmail(data.admin_email);
       drRenderStalenessBanner(data.data_as_of, data.data_stale);
+      drRenderDemoBanner(Boolean(data.demo_locked));
       drRenderAccountLockdown();
       // Task #19 (2026-08-06): one-time post-signup feature-request prompt.
       // Checked on every load (not just the very first) since
@@ -14952,6 +14983,11 @@ def build_firm_dashboard_page(
     <div id="dr-dash-success" class="callout" style="border-left-color:var(--verified-green);" role="status" hidden></div>
     <div id="dr-dash-warning" class="callout" style="border-left-color:var(--gold);" role="status" hidden></div>
     <div id="dr-staleness-banner" class="callout" style="border-left-color:#b8860b;" hidden></div>
+    <div id="dr-demo-banner" class="callout" style="border-left-color:var(--accent);" role="status" hidden>
+      You&rsquo;re signed in to the <strong>shared live demo</strong> firm &mdash; this is real data
+      other visitors also see, not a private account. <a href="/for-firms/#firm-signup">Create your
+      own firm account</a> to try this with your own roster.
+    </div>
     <div id="dr-sample-mode-banner" class="callout dr-sample-mode-banner" style="border-left-color:var(--accent);" role="status" hidden>
       You&rsquo;re viewing sample data &mdash; nothing here is real, and no reminders will be sent for it.
       <button type="button" class="dr-link-btn" id="dr-sample-mode-exit-btn">Exit sample view</button>

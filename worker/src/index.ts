@@ -113,6 +113,7 @@ import {
   RATE_LIMIT_FIRM_MOBILITY_CHECK,
   RATE_LIMIT_MOBILITY_CHECK_BATCH,
   RATE_LIMIT_MOBILITY_CHECK_UNMETERED,
+  RATE_LIMIT_MOBILITY_CHECK_ROSTER,
   RATE_LIMIT_FIRM_LICENSE_CREATE,
   RATE_LIMIT_FIRM_LICENSE_PATCH,
   RATE_LIMIT_FIRM_LICENSE_DELETE,
@@ -8028,6 +8029,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
       }
 
+      if (url.pathname === "/firm/mobility/check-roster") {
+        try {
+          return await handleMobilityCheckRoster(request, env);
+        } catch {
+          return jsonResponse(400, { error: "Something went wrong processing that request." });
+        }
+      }
+
       if (url.pathname === "/firm/logout") {
         try {
           return await handleFirmLogout(request, env, ip);
@@ -10093,6 +10102,108 @@ async function handleMobilityCheckBatch(request: Request, env: Env): Promise<Res
   return jsonResponse(200, {
     home_state: stateNameForSlug(homeStateSlug),
     service_type: serviceTypeRaw,
+    results,
+    disclaimer: MOBILITY_DISCLAIMER,
+  });
+}
+
+/**
+ * POST /firm/mobility/check-roster (roadmap #320, 2026-08-10) -- the WHOLE
+ * ROSTER against ONE target state, the orthogonal axis from
+ * handleMobilityCheckBatch() above (one person against every target
+ * state). Real customer ask: a checkbox on the feature-request modal every
+ * new firm sees ("Run one check across your whole roster at once instead
+ * of one staffer/state pair at a time").
+ *
+ * Body: { target_state_slug, service_type }. No home_state_slug (each
+ * roster row supplies its own via subscribers.state_slug) and no
+ * per-person license_in_good_standing/substantially_equivalent (no
+ * per-person attestation is persisted anywhere today -- see #317 Phase
+ * 2's own scoping note on this exact gap) -- both self-attestations are
+ * defaulted to true for every person, same precedent
+ * handleMobilityCheckBatch() already established for its own Map-tab
+ * batch, disclosed in the response so the client can show the assumption
+ * rather than imply we verified it.
+ *
+ * PAID-ONLY, deliberately NO multi-person free-trial access (unlike
+ * handleMobilityCheck()'s own allowMultiPersonFreeTrial: true) -- the
+ * trial's 3 lifetime queries exist so a firm can SAMPLE the product
+ * before paying; a whole-roster batch would let one query return every
+ * staffer's determination at once, turning a sample into a full
+ * substitute for paying. Same call shape handleMobilityCheckBatch() above
+ * already uses for the same reason.
+ */
+async function handleMobilityCheckRoster(request: Request, env: Env): Promise<Response> {
+  const session = await requireFirmSessionAndPaidTier(request, env);
+  if (session instanceof Response) return session;
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return jsonResponse(400, { error: "Request too large or empty." });
+  }
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return jsonResponse(400, { error: "Something went wrong processing that request." });
+  }
+
+  const targetStateSlug = typeof body.target_state_slug === "string" ? body.target_state_slug : "";
+  const serviceTypeRaw = typeof body.service_type === "string" ? body.service_type : "";
+
+  const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_check_roster", RATE_LIMIT_MOBILITY_CHECK_ROSTER);
+  if (!allowed) {
+    return jsonResponse(429, { error: "Too many requests. Please try again later." });
+  }
+
+  if (!stateNameForSlug(targetStateSlug)) {
+    return jsonResponse(400, { error: "Please choose a target state." });
+  }
+  if (!isValidServiceType(serviceTypeRaw)) {
+    return jsonResponse(400, { error: "Please choose a service type." });
+  }
+
+  const roster = await store.listFirmLicenses(env.DB, session.firmId);
+  const targetRule = MOBILITY_RULES_BY_SLUG[targetStateSlug] ?? null;
+
+  const results = roster.map((r) => {
+    const result = evaluateMobility(
+      {
+        homeStateSlug: r.state_slug,
+        targetStateSlug,
+        serviceType: serviceTypeRaw,
+        licenseInGoodStanding: true,
+        substantiallyEquivalent: true,
+      },
+      targetRule,
+      undefined,
+      MOBILITY_RULES_BY_SLUG[r.state_slug] ?? null
+    );
+    return {
+      subscriber_id: r.id,
+      staff_label: r.staff_label || r.email,
+      home_state: stateNameForSlug(r.state_slug),
+      home_state_slug: r.state_slug,
+      overall: result.overall,
+      individual: result.individual,
+      firm: result.firm,
+    };
+  });
+
+  return jsonResponse(200, {
+    target_state: stateNameForSlug(targetStateSlug),
+    target_state_slug: targetStateSlug,
+    service_type: serviceTypeRaw,
+    assumed_license_good_standing: true,
+    assumed_substantially_equivalent: true,
     results,
     disclaimer: MOBILITY_DISCLAIMER,
   });

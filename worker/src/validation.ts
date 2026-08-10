@@ -941,6 +941,20 @@ export const RATE_LIMIT_MOBILITY_CHECK_BATCH: RateLimit = { max: 120, windowSeco
  * workflow. Deliberately high and shared by both /check and /check-batch. */
 export const RATE_LIMIT_MOBILITY_CHECK_UNMETERED: RateLimit = { max: 500, windowSeconds: 3600 };
 
+/** Roadmap #320 (2026-08-10, batch practice-privilege check across the
+ * WHOLE ROSTER against one target state -- the orthogonal axis from
+ * RATE_LIMIT_MOBILITY_CHECK_BATCH above, which fans ONE person across
+ * every target state). Own bucket, not shared with the others: a
+ * genuinely different query shape (up to 35 people, the largest tier's
+ * seatCap, per call) that shouldn't compete with or be capped by an
+ * unrelated feature's budget. Same 120/hour ceiling as
+ * RATE_LIMIT_MOBILITY_CHECK_BATCH is deliberately generous here too: this
+ * call does LESS work per call (<=35 evaluations) than that one does
+ * (~50 states), so the existing order-of-magnitude reasoning against
+ * harvesting (120 * ~50 = 6,000/hour) already covers this with room to
+ * spare. */
+export const RATE_LIMIT_MOBILITY_CHECK_ROSTER: RateLimit = { max: 120, windowSeconds: 3600 };
+
 /** Returns true if this request is ALLOWED, false if it should be blocked. */
 export async function checkRateLimit(
   db: D1Database,

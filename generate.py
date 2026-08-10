@@ -761,6 +761,16 @@ PAGE_CSS = """
   @media (max-width: 860px) { .hero-grid { grid-template-columns: 1fr; } }
   .hero-accent { color: var(--accent); }
   .hero-lede { color: var(--muted); font-size: 1.05rem; line-height: 1.6; max-width: 60ch; margin: 1.1rem 0 0; }
+  .hero-lede strong { color: var(--fg); }
+  /* Task #152 (2026-08-09, ValueLab's own pick for "sharpest competitive
+     sentence in the whole site"): promoted from /for-firms/ to the
+     homepage's second line, ahead of the original hero-lede -- that
+     sentence didn't disappear, just moved down a line under its own
+     lighter style so both messages (why this beats a CPE tracker, why the
+     dates themselves are trustworthy) still show without competing for
+     the same visual weight. Same faint/46ch pattern .trust-footnote
+     already uses for a secondary supporting line under the primary one. */
+  .hero-subtext { color: var(--faint); font-size: 0.88rem; line-height: 1.5; max-width: 55ch; margin: 0.6rem 0 0; }
   .lookup { margin-top: 1.6rem; max-width: 30rem; }
   .lookup-label {
     display: block; font-size: 0.76rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
@@ -4650,7 +4660,9 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
 <div class="hero-left">
   <h1>Know exactly when your license is due &mdash;<br>
   <span class="hero-accent">and see the rule that says so.</span></h1>
-  <p class="hero-lede">Every date traced to your state board's own statute or rule, and stamped with
+  <p class="hero-lede"><strong>Finishing every CPE hour and still missing the filing deadline is a
+  real, common failure mode</strong> &mdash; this product is about the filing, not the hours.</p>
+  <p class="hero-subtext">Every date traced to your state board's own statute or rule, and stamped with
   the day we last checked it.</p>
 {search_html}
   <div class="trust-row">

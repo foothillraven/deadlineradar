@@ -543,3 +543,76 @@ describe("runSmsAlertPass", () => {
     expect(sends).toBe(0);
   });
 });
+
+/**
+ * Roadmap #151 Phase 3 (2026-08-10): unlike Slack/Teams, SMS's own
+ * connect step (phone verification) is deliberately left ungated -- a
+ * standalone individual subscriber (firm_id IS NULL, the shape every
+ * OTHER test above already uses) isn't a firm-billing entity at all. The
+ * ONE #151 check for SMS is send-time, and ONLY for a subscriber actually
+ * attached to a firm.
+ */
+describe("runSmsAlertPass -- roadmap #151 value-line gate", () => {
+  it("a firm-less subscriber (firm_id IS NULL) is completely unaffected by the gate", async () => {
+    const { runSmsAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(9000);
+    const safeAsOf = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate(), 18, 0, 0));
+    const email = `smsgate-firmless-${Date.now()}@example.com`;
+    await seedConfirmedSubscriber("ohio", isoDaysFromUtcMidnight(safeAsOf, 30), email);
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110010", "sms-consent-2026-08-09", "203.0.113.99");
+
+    let sends = 0;
+    const summary = await runSmsAlertPass(env, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
+    expect(sends).toBe(1);
+    expect(summary.sent).toBe(1);
+  });
+
+  it("a subscriber attached to a post-cutover free firm is skipped", async () => {
+    const { runSmsAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(9100);
+    const safeAsOf = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate(), 18, 0, 0));
+    const { id: firmId } = await store.createFirm(env.DB, { name: "SMS Gate Firm", adminEmail: `smsgatefirm-${Date.now()}@example.com` });
+    const email = `smsgate-blocked-${Date.now()}@example.com`;
+    await store.addPending(env.DB, {
+      email,
+      stateSlug: "ohio",
+      deadlineFields: {},
+      deadlineSource: store.DEADLINE_SOURCE_USER,
+      userDeadline: isoDaysFromUtcMidnight(safeAsOf, 30),
+      firstName: null,
+      firmId,
+      skipConfirmation: true,
+    });
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110011", "sms-consent-2026-08-09", "203.0.113.99");
+
+    let sends = 0;
+    const summary = await runSmsAlertPass(env, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
+    expect(sends).toBe(0);
+    expect(summary.errors.some((e) => e.error.includes("value-line access"))).toBe(true);
+  });
+
+  it("a subscriber attached to a pre-cutover (grandfathered) free firm still gets texted", async () => {
+    const { runSmsAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(9200);
+    const safeAsOf = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate(), 18, 0, 0));
+    const { id: firmId } = await store.createFirm(env.DB, { name: "SMS Grandfathered Firm", adminEmail: `smsgategrand-${Date.now()}@example.com` });
+    await env.DB.prepare("UPDATE firms SET created_at = '2020-01-01T00:00:00Z' WHERE id = ?1").bind(firmId).run();
+    const email = `smsgate-allowed-${Date.now()}@example.com`;
+    await store.addPending(env.DB, {
+      email,
+      stateSlug: "ohio",
+      deadlineFields: {},
+      deadlineSource: store.DEADLINE_SOURCE_USER,
+      userDeadline: isoDaysFromUtcMidnight(safeAsOf, 30),
+      firstName: null,
+      firmId,
+      skipConfirmation: true,
+    });
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110012", "sms-consent-2026-08-09", "203.0.113.99");
+
+    let sends = 0;
+    const summary = await runSmsAlertPass(env, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
+    expect(sends).toBe(1);
+    expect(summary.sent).toBe(1);
+  });
+});

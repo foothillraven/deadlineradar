@@ -4770,11 +4770,19 @@ export interface FirmBasicInfo {
   // scope was index.ts's handle* functions; the cron lives in
   // scheduler.ts). 0/1 as returned by D1, coerced by the caller.
   demo_locked: number;
+  // Roadmap #151 Phase 3 (2026-08-10): runSmsAlertPass() reads these three
+  // (hasValueLineAccess() needs status too, not just plan_tier/created_at)
+  // to gate the SEND, not just the earlier connect step -- closes the gap
+  // where downgrading after connecting never clears anything on its own.
+  // Free to add: same query, three more columns.
+  plan_tier: string;
+  created_at: string;
+  status: string;
 }
 
 export async function listAllFirmsBasicInfo(db: D1Database): Promise<FirmBasicInfo[]> {
   const { results } = await db
-    .prepare(`SELECT id, name, reply_to_email, reminder_thresholds, demo_locked FROM firms`)
+    .prepare(`SELECT id, name, reply_to_email, reminder_thresholds, demo_locked, plan_tier, created_at, status FROM firms`)
     .all<FirmBasicInfo>();
   return results;
 }
@@ -4805,12 +4813,18 @@ export interface FirmSlackConnectedInfo {
   reminder_thresholds: string | null;
   // Same AuditLab DEMO-5 reasoning as FirmBasicInfo.demo_locked above.
   demo_locked: number;
+  // Roadmap #151 Phase 3: same reasoning as FirmBasicInfo.plan_tier/
+  // created_at/status above -- runSlackAlertPass() gates the SEND with
+  // these, not just the connect step.
+  plan_tier: string;
+  created_at: string;
+  status: string;
 }
 
 export async function listFirmsWithSlackConnected(db: D1Database): Promise<FirmSlackConnectedInfo[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, name, slack_webhook_url, slack_webhook_url_iv, reminder_thresholds, demo_locked
+      `SELECT id, name, slack_webhook_url, slack_webhook_url_iv, reminder_thresholds, demo_locked, plan_tier, created_at, status
          FROM firms
         WHERE slack_webhook_url IS NOT NULL`
     )
@@ -4925,12 +4939,18 @@ export interface FirmTeamsConnectedInfo {
   teams_webhook_url_iv: string | null;
   reminder_thresholds: string | null;
   demo_locked: number;
+  // Roadmap #151 Phase 3: same reasoning as FirmBasicInfo.plan_tier/
+  // created_at/status above -- runTeamsAlertPass() gates the SEND with
+  // these, not just the connect step.
+  plan_tier: string;
+  created_at: string;
+  status: string;
 }
 
 export async function listFirmsWithTeamsConnected(db: D1Database): Promise<FirmTeamsConnectedInfo[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, name, teams_webhook_url, teams_webhook_url_iv, reminder_thresholds, demo_locked
+      `SELECT id, name, teams_webhook_url, teams_webhook_url_iv, reminder_thresholds, demo_locked, plan_tier, created_at, status
          FROM firms
         WHERE teams_webhook_url IS NOT NULL`
     )

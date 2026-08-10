@@ -5590,6 +5590,20 @@ async function handleFirmSlackConnectStart(request: Request, env: Env): Promise<
     return errorPage(400, "Slack isn't available on this shared demo account.");
   }
 
+  // Roadmap #151 Phase 3 (2026-08-10): multi-channel alerts move behind the
+  // paid tier for new signups -- existing free firms keep it via the
+  // grandfather check. This is defense LAYER 1 (stops new connections);
+  // layer 2 is the send-time check in runSlackAlertPass() (scheduler.ts),
+  // needed because downgrading after connecting never clears
+  // slack_webhook_url on its own.
+  if (!hasValueLineAccess(session.firm)) {
+    const access = checkPaidFeatureAccess(session.firm);
+    return errorPage(403, paidFeatureDenialMessage(access.allowed ? "tier_not_paid" : access.reason), {
+      href: "/firm-dashboard/#account",
+      text: "See plans",
+    });
+  }
+
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_slack_connect", RATE_LIMIT_FIRM_SLACK_CONNECT);
   if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
 
@@ -5632,6 +5646,15 @@ async function handleFirmSlackConnectCallback(request: Request, env: Env): Promi
   // above -- this is the step that actually PERSISTS the webhook credential.
   if (session.firm.demo_locked) {
     return redirectTo(`${dashboardUrl}?slack_connect_failed=not_configured`);
+  }
+
+  // Roadmap #151 Phase 3 (2026-08-10): defense-in-depth alongside the same
+  // check in handleFirmSlackConnectStart above -- this is the step that
+  // actually PERSISTS the webhook credential, same "check again at the
+  // step that matters" posture the demo_locked check just above already
+  // uses for this exact function.
+  if (!hasValueLineAccess(session.firm)) {
+    return redirectTo(`${dashboardUrl}?slack_connect_failed=paid_plan_required`);
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_slack_connect", RATE_LIMIT_FIRM_SLACK_CONNECT);
@@ -5773,6 +5796,15 @@ async function handleFirmTeamsWebhookSet(request: Request, env: Env): Promise<Re
     await store.clearFirmTeamsWebhook(env.DB, session.firmId);
     return jsonResponse(200, { teams_connected: false });
   }
+
+  // Roadmap #151 Phase 3 (2026-08-10): only gates SETTING a real webhook --
+  // clearing one (above) is always allowed, same "turning a paid feature
+  // off is never itself gated" posture the rest of this codebase uses.
+  // Layer 1 of 2 (send-time in runTeamsAlertPass is layer 2, closing the
+  // downgrade-after-connect gap) -- see requireFirmSessionAndPaidTier's own
+  // docstring for the parallel Map/PPC precedent this mirrors.
+  const valueLineDenial = valueLineDenialResponse(session.firm);
+  if (valueLineDenial) return valueLineDenial;
 
   const webhookUrlRaw = typeof body.webhook_url === "string" ? body.webhook_url.trim() : "";
   if (!isTeamsWebhookUrl(webhookUrlRaw)) {

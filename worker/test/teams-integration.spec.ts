@@ -49,9 +49,13 @@ async function workerFetch(request: Request, envOverrides: Record<string, unknow
   return worker.fetch(request, { ...env, ...envOverrides } as never, testExecutionContext());
 }
 
+// Roadmap #151 Phase 3 (2026-08-10): backdated so this file's existing
+// tests keep testing webhook mechanics/alert-pass logic, not the new
+// value-line gate -- that gets its own dedicated describe block below.
 async function newFirm(label: string): Promise<{ firmId: string; memberId: string }> {
   const adminEmail = `${label}-${Date.now()}-${Math.floor(performance.now())}@examplefirm.com`;
   const { id: firmId, memberId } = await store.createFirm(env.DB, { name: `${label} LLP`, adminEmail });
+  await env.DB.prepare("UPDATE firms SET created_at = '2020-01-01T00:00:00Z' WHERE id = ?1").bind(firmId).run();
   return { firmId, memberId };
 }
 
@@ -334,5 +338,78 @@ describe("runTeamsAlertPass", () => {
 
     const claimedAfter = await store.claimTeamsThresholdNotification(env.DB, sub.id, 30);
     expect(claimedAfter).toBe(true);
+  });
+});
+
+/**
+ * Roadmap #151 Phase 3 (2026-08-10): same shape as slack-integration.spec.ts's
+ * own "roadmap #151 value-line gate" describe block -- connect-time (SETTING
+ * a webhook, not clearing one) plus the send-time downgrade-after-connect
+ * closure.
+ */
+describe("Teams -- roadmap #151 value-line gate", () => {
+  async function postCutoverFreeFirm(label: string): Promise<{ firmId: string; memberId: string }> {
+    const adminEmail = `${label}-${Date.now()}-${Math.floor(performance.now())}@examplefirm.com`;
+    const { id: firmId, memberId } = await store.createFirm(env.DB, { name: `${label} LLP`, adminEmail });
+    return { firmId, memberId }; // real "now" created_at -- genuinely post-cutover
+  }
+
+  it("a post-cutover free firm is refused when SETTING a webhook", async () => {
+    const { firmId, memberId } = await postCutoverFreeFirm("teamsgate-connect");
+    const resp = await workerFetch(
+      new Request(`${BASE}/firm/integrations/teams`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.21", Cookie: await sessionCookieFor(firmId, memberId) },
+        body: JSON.stringify({ webhook_url: REAL_WEBHOOK_URL }),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
+    expect(resp.status).toBe(403);
+  });
+
+  it("clearing a webhook (webhook_url: null) is NEVER gated, even for a post-cutover free firm", async () => {
+    const { firmId, memberId } = await postCutoverFreeFirm("teamsgate-clear");
+    const resp = await workerFetch(
+      new Request(`${BASE}/firm/integrations/teams`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.22", Cookie: await sessionCookieFor(firmId, memberId) },
+        body: JSON.stringify({ webhook_url: null }),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
+    expect(resp.status).toBe(200);
+  });
+
+  it("a pre-cutover (grandfathered) free firm can still set a webhook", async () => {
+    const { firmId, memberId } = await newFirm("teamsgate-grandfathered");
+    const resp = await workerFetch(
+      new Request(`${BASE}/firm/integrations/teams`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.23", Cookie: await sessionCookieFor(firmId, memberId) },
+        body: JSON.stringify({ webhook_url: REAL_WEBHOOK_URL }),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
+    expect(resp.status).toBe(200);
+  });
+
+  it("send-time gate closes the downgrade-after-connect gap", async () => {
+    const asOf = freshAsOf(8100);
+    const { firmId } = await newFirm("teamsgate-downgrade"); // pre-cutover by construction
+    await env.DB.prepare("UPDATE firms SET plan_tier = 'firm_starter' WHERE id = ?1").bind(firmId).run();
+    await seedTeamsWebhook(firmId);
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    await env.DB.prepare("UPDATE firms SET plan_tier = 'free', created_at = ?1 WHERE id = ?2").bind(future, firmId).run();
+
+    await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
+
+    const { runTeamsAlertPass } = await import("../src/scheduler");
+    let posts = 0;
+    const summary = await runTeamsAlertPass(
+      { ...env, TOTP_ENCRYPTION_KEY: KEY },
+      { asOf, send: async () => { posts += 1; return true; } }
+    );
+    expect(posts).toBe(0);
+    expect(summary.errors.some((e) => e.error.includes("value-line access"))).toBe(true);
   });
 });

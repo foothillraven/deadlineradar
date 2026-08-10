@@ -69,6 +69,7 @@ import { sendToSlack } from "./slack";
 import { sendToTeams } from "./teams";
 import { sendSms, isWithinSmsQuietHours } from "./sms";
 import { decryptSecretAesGcm } from "./totp";
+import { hasValueLineAccess } from "./entitlements";
 import cpaDataForDripCourse from "./cpa_deadlines.json";
 import regChangeEventsData from "./reg_change_events.json";
 
@@ -1111,6 +1112,18 @@ export async function runSlackAlertPass(env: Env, opts: RunSlackAlertOptions = {
       continue;
     }
 
+    // Roadmap #151 Phase 3 (2026-08-10): layer 2 of the multi-channel gate
+    // -- handleFirmSlackConnectCallback() (index.ts) already stops a NEW
+    // post-cutover free firm from connecting, but downgrading AFTER
+    // connecting (customer.subscription.deleted) never clears
+    // slack_webhook_url on its own, so this send-time check is what
+    // actually closes that gap. Skip, don't error -- same posture as the
+    // demo_locked check just above.
+    if (!hasValueLineAccess(firm)) {
+      summary.errors.push({ firm_id: firm.id, error: "SKIPPED: firm no longer has value-line access to multi-channel alerts (downgraded since connecting)." });
+      continue;
+    }
+
     let thresholds: number[] = ESCALATION_THRESHOLDS_DAYS;
     if (firm.reminder_thresholds) {
       try {
@@ -1309,6 +1322,13 @@ export async function runTeamsAlertPass(env: Env, opts: RunTeamsAlertOptions = {
 
     if (firm.demo_locked) {
       summary.errors.push({ firm_id: firm.id, error: "SKIPPED: firm is demo_locked -- no Teams post from the shared demo account." });
+      continue;
+    }
+
+    // Roadmap #151 Phase 3 (2026-08-10): same layer-2 gate as
+    // runSlackAlertPass() above -- see its own comment.
+    if (!hasValueLineAccess(firm)) {
+      summary.errors.push({ firm_id: firm.id, error: "SKIPPED: firm no longer has value-line access to multi-channel alerts (downgraded since connecting)." });
       continue;
     }
 
@@ -1564,6 +1584,19 @@ export async function runSmsAlertPass(env: Env, opts: RunSmsAlertOptions = {}): 
       // before claiming, without claiming.
       if (firmInfo?.demo_locked) {
         summary.errors.push({ subscriber_id: sub.id, error: "SKIPPED: firm is demo_locked -- no SMS sent from the shared demo account." });
+        continue;
+      }
+
+      // Roadmap #151 Phase 3 (2026-08-10): SAME send-time gate as Slack/
+      // Teams, but ONLY for a subscriber attached to a firm -- a firm-less
+      // subscriber (firmInfo === null, sub.firm_id IS NULL) has no
+      // meaningful signup date or tier to gate on at all, since this
+      // feature is a FIRM-tier economics lever and a standalone individual
+      // subscriber isn't a firm-billing entity. SMS's own connect step
+      // (phone verification) is deliberately left ungated for the same
+      // reason -- this is the one and only #151 check for SMS.
+      if (firmInfo && !hasValueLineAccess(firmInfo)) {
+        summary.errors.push({ subscriber_id: sub.id, error: "SKIPPED: firm no longer has value-line access to multi-channel alerts (downgraded since connecting)." });
         continue;
       }
 

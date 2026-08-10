@@ -56,9 +56,15 @@ async function seedSlackIntegration(
   });
 }
 
+// Roadmap #151 Phase 3 (2026-08-10): backdated so this file's existing
+// tests (OAuth flow mechanics, disconnect, dashboard fields, the alert-pass
+// logic itself) keep exercising what they always did rather than getting
+// redirected into testing the new value-line gate instead -- that gate
+// gets its own dedicated describe block below, using a real "now" firm.
 async function newFirm(label: string): Promise<{ firmId: string; memberId: string }> {
   const adminEmail = `${label}-${Date.now()}-${Math.floor(performance.now())}@examplefirm.com`;
   const { id: firmId, memberId } = await store.createFirm(env.DB, { name: `${label} LLP`, adminEmail });
+  await env.DB.prepare("UPDATE firms SET created_at = '2020-01-01T00:00:00Z' WHERE id = ?1").bind(firmId).run();
   return { firmId, memberId };
 }
 
@@ -407,5 +413,76 @@ describe("runSlackAlertPass", () => {
 
     const claimedAfter = await store.claimSlackThresholdNotification(env.DB, sub.id, 30);
     expect(claimedAfter).toBe(true); // claim was reverted, not left dangling
+  });
+});
+
+/**
+ * Roadmap #151 Phase 3 (2026-08-10): multi-channel alerts move behind the
+ * paid tier for firms that sign up AFTER the value-line cutover -- two
+ * layers, connect-time (this describe block's first two tests) and
+ * send-time (the third, proving the downgrade-after-connect gap is closed).
+ */
+describe("Slack -- roadmap #151 value-line gate", () => {
+  async function postCutoverFreeFirm(label: string): Promise<{ firmId: string; memberId: string }> {
+    const adminEmail = `${label}-${Date.now()}-${Math.floor(performance.now())}@examplefirm.com`;
+    const { id: firmId, memberId } = await store.createFirm(env.DB, { name: `${label} LLP`, adminEmail });
+    // Real "now" created_at (createFirm's own default) is always after the
+    // fixed-in-the-past VALUE_LINE_CUTOVER_DATE -- genuinely post-cutover,
+    // no extra setup needed.
+    return { firmId, memberId };
+  }
+
+  it("a post-cutover free firm is refused at GET /firm/integrations/slack/connect", async () => {
+    const { firmId, memberId } = await postCutoverFreeFirm("slackgate-connect");
+    const worker = (await import("../src/index")).default;
+    const resp = await worker.fetch(
+      new Request(`${BASE}/firm/integrations/slack/connect`, {
+        headers: { Cookie: await sessionCookieFor(firmId, memberId) },
+      }),
+      { ...env, SLACK_OAUTH_CLIENT_ID: "test-client-id", SLACK_OAUTH_CLIENT_SECRET: "test-secret" } as never,
+      { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
+    );
+    expect(resp.status).toBe(403);
+  });
+
+  it("a pre-cutover (grandfathered) free firm still gets through to the real Slack redirect", async () => {
+    const { firmId, memberId } = await newFirm("slackgate-grandfathered");
+    const worker = (await import("../src/index")).default;
+    const resp = await worker.fetch(
+      new Request(`${BASE}/firm/integrations/slack/connect`, {
+        headers: { Cookie: await sessionCookieFor(firmId, memberId) },
+      }),
+      { ...env, SLACK_OAUTH_CLIENT_ID: "test-client-id", SLACK_OAUTH_CLIENT_SECRET: "test-secret" } as never,
+      { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
+    );
+    expect(resp.status).toBe(302);
+  });
+
+  it("send-time gate closes the downgrade-after-connect gap -- a firm that connected while paid then downgraded no longer gets posts", async () => {
+    const asOf = freshAsOf(300);
+    const { firmId } = await newFirm("slackgate-downgrade"); // pre-cutover by construction (newFirm backdates)
+    // Simulate: connected while genuinely paid...
+    await env.DB.prepare("UPDATE firms SET plan_tier = 'firm_starter' WHERE id = ?1").bind(firmId).run();
+    await seedSlackIntegration(firmId, "https://hooks.slack.com/services/T000/B000/downgrade", {
+      teamName: "Downgrade Co",
+      channelName: "alerts",
+    });
+    // ...then downgraded AND moved to a post-cutover created_at, so neither
+    // OR-condition in hasValueLineAccess() holds anymore -- this is exactly
+    // the gap connect-time-only gating would miss (nothing ever clears
+    // slack_webhook_url on downgrade).
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    await env.DB.prepare("UPDATE firms SET plan_tier = 'free', created_at = ?1 WHERE id = ?2").bind(future, firmId).run();
+
+    await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
+
+    const { runSlackAlertPass } = await import("../src/scheduler");
+    let posts = 0;
+    const summary = await runSlackAlertPass(
+      { ...env, TOTP_ENCRYPTION_KEY: KEY },
+      { asOf, send: async () => { posts += 1; return true; } }
+    );
+    expect(posts).toBe(0);
+    expect(summary.errors.some((e) => e.error.includes("value-line access"))).toBe(true);
   });
 });

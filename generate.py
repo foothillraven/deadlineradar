@@ -4913,10 +4913,13 @@ def _pricing_feature_table_rows_html() -> str:
       scheduler.ts's runSmsAlertPass() pulls from the `subscribers` table),
       not a firm-roster feature at all. Listing it here would be exactly the
       kind of inaccurate-comparison-table mistake this table exists to fix.
-    - Slack/Teams alerts are FREE on every tier -- confirmed both the
-      connect/webhook-set handlers (requireFirmRole, not
-      requireFirmSessionAndPaidTier) AND the actual scheduler send passes
-      (runSlackAlertPass/runTeamsAlertPass) have no plan_tier check anywhere.
+    - Slack/Teams alerts moved behind the paid tier for NEW signups
+      (roadmap #151 Phase 3, 2026-08-10) -- same grandfather mechanism as
+      document storage below. Gated in two places: the connect/webhook-set
+      handlers (stops a new post-cutover free firm from connecting) AND the
+      scheduler send passes runSlackAlertPass/runTeamsAlertPass (closes the
+      gap where downgrading after connecting never clears the stored
+      webhook on its own).
     - Document storage moved behind the paid tier for NEW signups (roadmap
       #151, 2026-08-10) -- existing free firms keep it (grandfathered),
       but a firm signing up today does not get it free. No solo-account
@@ -4945,7 +4948,7 @@ def _pricing_feature_table_rows_html() -> str:
         ("Calendar view", "Yes", "Yes"),
         ("CPE-hour tracking", "Yes", "Yes"),
         ("Email renewal reminders", "Yes", "Yes"),
-        ("Slack &amp; Teams deadline alerts", "Yes", "Yes"),
+        ("Slack &amp; Teams deadline alerts", "&mdash;", "Yes"),
         ("Document storage (2MB/file, 50MB/firm)", "&mdash;", "Yes"),
         ("Invite teammates to sign in", "Just you", "Yes"),
         ("Multistate Map view", "Solo accounts only*", "Yes"),
@@ -5105,7 +5108,7 @@ def build_compare_page() -> str:
         ),
         (
             "Slack &amp; Teams deadline alerts",
-            "Yes",
+            "&mdash;",
             "Yes",
             "No.",
             "Not CPA-specific; varies by tool.",
@@ -6391,7 +6394,7 @@ codified statute or rule we verify for every free state page on this site &mdash
 get free reminders on their own; what a firm gets here is the roster-level accountability view nobody's
 personal inbox provides, in one place. Reminders aren't limited to email either &mdash; connect Slack or
 Microsoft Teams and your admin gets a daily digest of newly-due renewals posted straight to the channel
-your team already watches, free on every tier.</p>
+your team already watches, included on every paid plan.</p>
 
 {_firm_dashboard_mockup_html(by_slug, as_of)}
 
@@ -13168,6 +13171,8 @@ document.addEventListener('DOMContentLoaded', function() {
     drShowError('That email address was claimed by another account before you confirmed. Nothing changed — try a different address.');
   } else if (hashParams.get('slack_connected') === '1') {
     drShowSuccess('Slack connected — expect a daily digest of newly-due renewals.');
+  } else if (hashParams.get('slack_connect_failed') === 'paid_plan_required') {
+    drShowError('Slack alerts are part of a paid firm plan. Pick a plan to continue.');
   } else if (hashParams.get('slack_connect_failed')) {
     drShowError('Slack connection failed. Please try again.');
   }

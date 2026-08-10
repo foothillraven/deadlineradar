@@ -2220,6 +2220,35 @@ describe("POST /firm/licenses -- roadmap #151 Phase 2: new-signup seat cap (3)",
   });
 });
 
+/**
+ * Roadmap #151 Phase 4 (2026-08-10): GET /firm/licenses' dashboard_synthesis_
+ * included field -- a UI-convenience gate, not a real access boundary (see
+ * hasValueLineAccess()'s own docstring in entitlements.ts). No worker test
+ * for the client-side render itself (generate.py, verified via a local
+ * server + sample-mode toggle instead, same pattern as #150/#152/#153).
+ */
+describe("GET /firm/licenses -- roadmap #151 Phase 4: dashboard_synthesis_included", () => {
+  it("false for a post-cutover free firm", async () => {
+    const { cookie } = await createFirmWithSession("Synthesis Gated Firm", `synthesisgated-${Date.now()}@example.com`);
+    const body = (await (await getFirmLicenses(cookie)).json()) as { dashboard_synthesis_included: boolean };
+    expect(body.dashboard_synthesis_included).toBe(false);
+  });
+
+  it("true for a pre-cutover (grandfathered) free firm", async () => {
+    const { firmId, cookie } = await createFirmWithSession("Synthesis Grandfathered Firm", `synthesisgrand-${Date.now()}@example.com`);
+    await env.DB.prepare("UPDATE firms SET created_at = '2020-01-01T00:00:00Z' WHERE id = ?1").bind(firmId).run();
+    const body = (await (await getFirmLicenses(cookie)).json()) as { dashboard_synthesis_included: boolean };
+    expect(body.dashboard_synthesis_included).toBe(true);
+  });
+
+  it("true for a paid tier, regardless of signup date", async () => {
+    const { firmId, cookie } = await createFirmWithSession("Synthesis Paid Firm", `synthesispaid-${Date.now()}@example.com`);
+    await env.DB.prepare("UPDATE firms SET plan_tier = 'firm_starter' WHERE id = ?1").bind(firmId).run();
+    const body = (await (await getFirmLicenses(cookie)).json()) as { dashboard_synthesis_included: boolean };
+    expect(body.dashboard_synthesis_included).toBe(true);
+  });
+});
+
 describe("Cross-firm ownership -- the single most important test in this build", () => {
   // Firm A must NEVER be able to read, edit, delete, or renew Firm B's
   // license via GET/PATCH/DELETE/POST .../renew, and the failure mode for

@@ -1230,6 +1230,14 @@ PAGE_CSS = """
   .dr-stat-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 0.3rem; }
   .dr-stat-value { font-family: var(--font-display); font-size: 1.55rem; font-weight: 650; color: var(--fg); line-height: 1.1; }
   .dr-stat-sub { font-size: 0.76rem; color: var(--muted); margin-top: 0.2rem; }
+  /* Roadmap #151 Phase 4: spans the full 3-column stat row when the
+     synthesis rollup is gated (post-cutover free firm) -- same card
+     chrome as .dr-stat-card so it doesn't look like a layout break. */
+  .dr-stat-upsell {
+    grid-column: 1 / -1; background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px;
+    padding: 1.05rem 1.15rem; color: var(--muted); font-size: 0.88rem;
+  }
+  .dr-stat-upsell a { color: var(--accent); }
 
   .dr-ring-wrap { position: relative; width: 58px; height: 58px; flex: none; }
   .dr-ring-wrap svg { transform: rotate(-90deg); display: block; }
@@ -8269,6 +8277,18 @@ var drSeatCap = null;
 // Self-serve cancellation (2026-08-05, migration 0021). Same "null until
 // the first real load" posture as drSeatCap above.
 var drBilling = null;
+
+// Roadmap #151 Phase 4 (2026-08-10): server-computed (index.ts's
+// handleFirmLicensesList) so the client never reimplements the cutover-date
+// math itself. Starts true (not null/false) so the brief pre-load window
+// never flashes a false upsell before the real value arrives. Set once,
+// from drLoadLicenses()'s response, right before drRenderStats()/
+// drRenderAtRisk() (both read this at their own top) are called.
+// drEnterSampleMode()/drExitSampleMode() deliberately do NOT touch this --
+// sample mode mirrors the REAL firm's own entitlement rather than always
+// showing the full paid view, so a free-tier firm previewing sample data
+// sees the same upsell it would with real data, not a confusing mismatch.
+var drDashboardSynthesisIncluded = true;
 var DR_PLAN_TIER_LABELS = {
   firm_starter: 'Essentials', firm_growth: 'Growth', firm_standard: 'Professional', firm_scale: 'Enterprise'
 };
@@ -9179,6 +9199,14 @@ function drDonutSvg(counts, total, order, colors, labels) {
 function drRenderStats() {
   var row = document.getElementById('dr-stat-row');
   if (!row) return;
+  // Roadmap #151 Phase 4: UI convenience gate, not a real access boundary --
+  // every field this function reads is already sent to every tier in the
+  // /firm/licenses response (required so the plain roster list stays free).
+  if (!drDashboardSynthesisIncluded) {
+    row.innerHTML = '<div class="dr-stat-upsell">Coverage %, roster-status breakdown, and the ' +
+      '"due soon" count are part of a paid firm plan. <a href="/pricing/">See plans</a></div>';
+    return;
+  }
   var total = drLicenses.length;
   var counts = {active: 0, pending: 0, 'needs-attention': 0, opted_out: 0};
   var proximity = {active: 0, due_soon: 0, overdue: 0};
@@ -9264,6 +9292,13 @@ function drRenderRenewalFeeRollup() {
 function drRenderAtRisk() {
   var el = document.getElementById('dr-at-risk-list');
   if (!el) return;
+  // Roadmap #151 Phase 4: same gate as drRenderStats() -- see its own
+  // comment. <li>, not <div>, since this container is a <ul>.
+  if (!drDashboardSynthesisIncluded) {
+    el.innerHTML = '<li class="dr-panel-empty">The at-risk ranking is part of a paid firm plan. ' +
+      '<a href="/pricing/">See plans</a></li>';
+    return;
+  }
   // AuditLab VIS-1 (MEDIUM, 2026-08-04, per product decision): opted-out staff
   // used to be filtered out of this list entirely -- the one person the
   // firm's automated reminders will NEVER reach was also the one person
@@ -12422,6 +12457,10 @@ function drLoadLicenses() {
       drPreviousLoginAt = data.previous_login_at || null;
       drNpsPromptDue = Boolean(data.nps_prompt_due);
       drSeatCap = typeof data.seat_cap === 'number' ? data.seat_cap : null;
+      // Roadmap #151 Phase 4: real server-computed value, replacing the
+      // optimistic `true` default set above -- read by drRenderStats()/
+      // drRenderAtRisk() below.
+      drDashboardSynthesisIncluded = Boolean(data.dashboard_synthesis_included);
       drBilling = {
         planTier: data.plan_tier || 'free',
         cancelAtPeriodEnd: Boolean(data.cancel_at_period_end),

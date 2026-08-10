@@ -5105,6 +5105,16 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     data_as_of: freshness.as_of_date,
     data_stale: freshness.stale,
     seat_cap: seatCapForFirmTier(session.firm.plan_tier, session.firm.created_at),
+    // Roadmap #151 Phase 4 (2026-08-10): the Roster tab's "Coverage
+    // overview" rollup (coverage %, at-risk ranking, status summary) is
+    // gated for a post-cutover free firm -- computed server-side and sent
+    // as one boolean so the client isn't reimplementing date math, and
+    // isn't itself a real access boundary (the raw per-license status/
+    // next_deadline below is unconditionally sent to every tier, so any
+    // client could already recompute the same rollup -- this is a UI
+    // convenience gate, matching the spec's own "soft pull" framing, not
+    // a hard wall like the other four #151 gates).
+    dashboard_synthesis_included: hasValueLineAccess(session.firm),
     // Self-serve cancellation UI (migration 0021) reads these three to
     // decide what the Account tab's billing panel shows -- see
     // handleFirmBillingCancellationToggle()'s own docstring for why

@@ -4876,6 +4876,57 @@ href="/privacy/">Privacy Policy</a>.</p>
     )
 
 
+def _pricing_feature_table_rows_html() -> str:
+    """Free-vs-paid feature grid (2026-08-09, Devin-greenlit, ValueLab's #1 site
+    fix -- "you are underselling a better product than you appear to have").
+    Every row below is checked directly against the shipped code, not
+    assumed from memory of what was BUILT to be true -- see the session's own
+    verification pass before writing this:
+
+    - SMS is deliberately NOT a row here: it's a capability of the separate
+      free public individual-subscriber product (worker/src/sms.ts,
+      scheduler.ts's runSmsAlertPass() pulls from the `subscribers` table),
+      not a firm-roster feature at all. Listing it here would be exactly the
+      kind of inaccurate-comparison-table mistake this table exists to fix.
+    - Slack/Teams alerts are FREE on every tier -- confirmed both the
+      connect/webhook-set handlers (requireFirmRole, not
+      requireFirmSessionAndPaidTier) AND the actual scheduler send passes
+      (runSlackAlertPass/runTeamsAlertPass) have no plan_tier check anywhere.
+    - Document storage is FREE on every tier, flat 2MB/file and 50MB/firm
+      cap regardless of tier (store.ts's DOCUMENT_MAX_FILE_BYTES/
+      DOCUMENT_MAX_FIRM_TOTAL_BYTES) -- not a paid-tier perk.
+    - The referral program is functionally PAID-ONLY even though nothing in
+      entitlements.ts names it explicitly: store.mintReferralCode()'s only
+      two callers are both inside handleStripeWebhook, tied to a real paid
+      Stripe invoice (checkout.session.completed / invoice.created) -- a
+      free-tier firm's referral_code stays null forever, shown on the
+      dashboard as "no active code yet."
+    - Inviting a SECOND team member login is its OWN paid-only gate
+      (handleFirmMemberInvite 402s a free-tier firm outright) -- separate
+      from, and stricter than, the 25-seat roster-of-LICENSES cap, which is
+      free on every tier. Listed as its own row so the two aren't conflated.
+    - Map / Practice Privilege Check / the firm-level registration check
+      (roadmap #318) all carry the same solo-free exception (2026-08-09):
+      a genuinely one-person free account gets them too. Marked with the
+      page's own footnote rather than a plain "Paid only" that would now be
+      inaccurate.
+    """
+    rows = [
+        ("Roster &amp; staff license tracking", "Up to 25 staff", "Up to 35 staff (Enterprise)"),
+        ("Calendar view", "Yes", "Yes"),
+        ("CPE-hour tracking", "Yes", "Yes"),
+        ("Email renewal reminders", "Yes", "Yes"),
+        ("Slack &amp; Teams deadline alerts", "Yes", "Yes"),
+        ("Document storage (2MB/file, 50MB/firm)", "Yes", "Yes"),
+        ("Invite teammates to sign in", "Just you", "Yes"),
+        ("Multistate Map view", "Solo accounts only*", "Yes"),
+        ("Individual Practice Privilege Check", "Solo accounts only*", "Yes"),
+        ("Firm-level registration check", "Solo accounts only*", "Yes"),
+        ("Refer a firm, both get 10% off", "&mdash;", "Yes"),
+    ]
+    return "\n".join(f"  <tr><td>{label}</td><td>{free_cell}</td><td>{paid_cell}</td></tr>" for label, free_cell, paid_cell in rows)
+
+
 def build_pricing_page() -> str:
     """Task #8 (2026-08-06): a dedicated /pricing/ page. Devin's rationale (the
     task's own record): an individual visitor may never click into
@@ -4950,6 +5001,26 @@ The buttons above are for the paid map + Practice Privilege Check tiers: if you 
 firm account, they start free signup first; if you're already signed in, they go straight to checkout
 for that tier, same as the dashboard's own upgrade panel.</p>
 
+<h2>What's actually included, free vs. paid</h2>
+<p class="intro">Every paid tier (Essentials through Enterprise) has the identical feature set, priced
+only by staff count. This table is the real, code-verified breakdown &mdash; not a marketing summary.</p>
+
+<div class="table-wrap">
+<table class="compare-table">
+  <caption class="dr-visually-hidden">Free vs. paid firm plan feature comparison</caption>
+  <thead>
+    <tr><th scope="col">Feature</th><th scope="col">Free</th><th scope="col">Paid (any tier)</th></tr>
+  </thead>
+  <tbody>
+{_pricing_feature_table_rows_html()}
+  </tbody>
+</table>
+</div>
+<p class="field-hint">* A solo account (you're the only person signed in, no team invited) gets the Map,
+Practice Privilege Check, and the firm-level registration check free too &mdash; inviting a teammate is
+itself a paid-tier feature, so a genuinely one-person account is where "free" and "everything included"
+overlap.</p>
+
 <p class="backlink">See exactly <a href="/methodology/">how we verify every deadline</a>, or read the
 <a href="/for-firms/">full firm-tier breakdown</a>.</p>
 """
@@ -4982,48 +5053,66 @@ def build_compare_page() -> str:
     shipped feature set (verifiable in this repo) or a self-evident, widely
     true statement about spreadsheets/generic tools that names no one.
     """
+    # Free/Paid split added 2026-08-09 (Devin, alongside the /pricing/
+    # feature table this mirrors) -- the single "DeadlineRadar" column used
+    # to claim "Yes" unconditionally for the Map/Practice Privilege Check
+    # row, which was already inaccurate the moment those became paid-tier
+    # features. Splitting into Free/Paid fixes that instead of just adding
+    # a column that repeats the same wrong claim twice.
     rows = [
         (
             "Sourced, cited renewal dates for all 55 U.S. jurisdictions",
-            "Yes &mdash; every date traces to codified law, not a summary (see How We Verify).",
+            "Yes",
+            "Yes",
             "You research and maintain this yourself, state by state.",
             "Usually generic scheduling, not built around real CPA renewal rules.",
         ),
         (
             "Automated email reminders before a deadline",
-            "Yes, out of the box.",
+            "Yes",
+            "Yes",
             "Only if you build your own reminder system on top of it.",
             "Varies by tool; rarely tuned to a CPA renewal cycle specifically.",
         ),
         (
+            "Slack &amp; Teams deadline alerts",
+            "Yes",
+            "Yes",
+            "No.",
+            "Not CPA-specific; varies by tool.",
+        ),
+        (
             "Multistate practice-privilege / mobility check",
-            "Yes &mdash; Map view plus a per-person Practice Privilege Check.",
+            "Solo accounts only*",
+            "Yes &mdash; Map view plus a per-person and firm-level Practice Privilege Check.",
             "No, you would have to research each state's mobility rule yourself.",
             "Not CPA-specific, so this generally does not exist.",
         ),
         (
             "CPE-hour tracking against the real requirement for each state",
-            "Yes, with a data-gap note whenever a state's rule is not yet codified.",
+            "Yes",
+            "Yes",
             "Manual, and easy to lose track of across a whole roster.",
             "Usually a generic hour counter, not tied to actual state CPE rules.",
         ),
         (
             "Setup effort",
+            "Minutes",
             "Minutes &mdash; add a staff member and their state, done.",
             "Hours of your own research, plus ongoing upkeep as rules change.",
             "Some setup, but you still have to supply the CPA-specific rules yourself.",
         ),
         (
             "Cost",
-            "Roster, calendar, and CPE-hour tracking are free for any firm. Paid tiers add the map and "
-            "Practice Privilege Check.",
+            "$0, no card required, no time limit.",
+            "$199&ndash;$549/year, priced by staff count (see full pricing).",
             "Free license cost, but your own time is the real cost.",
             "Varies; often priced for general use, not firm-specific compliance tracking.",
         ),
     ]
     table_rows_html = "\n".join(
-        f"  <tr><td>{esc(label)}</td><td>{dr_cell}</td><td>{esc(spreadsheet_cell)}</td><td>{esc(generic_cell)}</td></tr>"
-        for label, dr_cell, spreadsheet_cell, generic_cell in rows
+        f"  <tr><td>{esc(label)}</td><td>{esc(free_cell)}</td><td>{paid_cell}</td><td>{esc(spreadsheet_cell)}</td><td>{esc(generic_cell)}</td></tr>"
+        for label, free_cell, paid_cell, spreadsheet_cell, generic_cell in rows
     )
     body = f"""<h1>DeadlineRadar vs. a Spreadsheet vs. a Generic Tracker</h1>
 <p class="intro">An honest, feature-by-feature look at the three ways firms actually track CPA license
@@ -5034,15 +5123,17 @@ every renewal date).</p>
 
 <div class="table-wrap">
 <table class="compare-table">
-  <caption class="dr-visually-hidden">Feature comparison: DeadlineRadar, a spreadsheet, and a generic tracking tool</caption>
+  <caption class="dr-visually-hidden">Feature comparison: DeadlineRadar free tier, DeadlineRadar paid tier, a spreadsheet, and a generic tracking tool</caption>
   <thead>
-    <tr><th scope="col">Feature</th><th scope="col">DeadlineRadar</th><th scope="col">A spreadsheet</th><th scope="col">A generic tracking tool</th></tr>
+    <tr><th scope="col">Feature</th><th scope="col">DeadlineRadar Free</th><th scope="col">DeadlineRadar Paid</th><th scope="col">A spreadsheet</th><th scope="col">A generic tracking tool</th></tr>
   </thead>
   <tbody>
 {table_rows_html}
   </tbody>
 </table>
 </div>
+<p class="field-hint">* A solo account (you're the only person signed in, no team invited) gets the paid
+column's mobility features free too &mdash; see the <a href="/pricing/">full free-vs-paid breakdown</a>.</p>
 
 <h2>Where a spreadsheet is genuinely fine</h2>
 <p>If your firm has one or two staff and someone is already diligent about checking renewal dates by
@@ -6269,7 +6360,9 @@ to act before a deadline &mdash; for every staff CPA and the firm's own registra
 codified statute or rule we verify for every free state page on this site &mdash;
 <a href="../methodology/">see exactly how we verify every deadline</a>. Any individual CPA can already
 get free reminders on their own; what a firm gets here is the roster-level accountability view nobody's
-personal inbox provides, in one place.</p>
+personal inbox provides, in one place. Reminders aren't limited to email either &mdash; connect Slack or
+Microsoft Teams and your admin gets a daily digest of newly-due renewals posted straight to the channel
+your team already watches, free on every tier.</p>
 
 {_firm_dashboard_mockup_html(by_slug, as_of)}
 

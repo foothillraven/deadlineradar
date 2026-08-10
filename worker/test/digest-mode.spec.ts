@@ -217,6 +217,31 @@ describe("runDigestPass", () => {
     }
   });
 
+  it("AuditLab LINK-1 (2026-08-10): the manage-notifications link is an absolute URL even with STATIC_SITE_BASE_URL unset (real production shape)", async () => {
+    const { runDigestPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(1500);
+    const email = `digeste2e-link1-absolute-${Date.now()}@example.com`;
+    await seedUserDate(email, "ohio", isoDaysFromUtcMidnight(asOf, 30));
+    await store.setSubscriberNotificationMode(env.DB, store.normalizeEmail(email), store.NOTIFICATION_MODE_DIGEST);
+
+    const target = store.normalizeEmail(email);
+    let targetHtml = "";
+    await runDigestPass(env, {
+      asOf,
+      send: async (toEmail, built) => {
+        if (toEmail === target) targetHtml = built.htmlBody;
+        return true;
+      },
+    });
+
+    expect(targetHtml).not.toBe("");
+    const hrefs = [...targetHtml.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const href of hrefs) {
+      expect(href).toMatch(/^https:\/\//);
+    }
+  });
+
   it("a digest subscriber with nothing due yet gets nothing, and digest_next_send_at stays untouched", async () => {
     const { runDigestPass } = await import("../src/scheduler");
     const asOf = freshAsOf(2000);

@@ -103,6 +103,28 @@ function actionBaseUrl(env: Env): string {
   return env.ACTION_BASE_URL || ACTION_BASE_URL;
 }
 
+// AuditLab LINK-1 (2026-08-10, HIGH -- live customer email, fixed same day):
+// the static site's own absolute origin, same "why a browser-redirect-style
+// relative fallback is WRONG here" reasoning as index.ts's own
+// staticSiteAbsoluteBaseUrl()/SITE_ORIGIN (index.ts:721-735, built
+// 2026-08-05 for the identical bug class against Stripe's Checkout Session
+// API) -- an email client has no browser context to resolve a relative
+// href against, so `env.STATIC_SITE_BASE_URL || ""` rendered a bare path
+// like `/my/` as a dead link in every one of runDigestPass/
+// runRuleChangeAlertPass/runAdminDigestAlertPass's real emails.
+// STATIC_SITE_BASE_URL is unset in production (confirmed live by AuditLab
+// via the session-cookie SameSite oracle), so this was live, not
+// theoretical -- do NOT fix by setting the env var directly, it also flips
+// firmSessionCookieSameSite() to SameSite=None site-wide (index.ts's own
+// docstring on that function). Kept as its own local copy, same
+// "duplicate rather than import from index.ts" precedent as
+// actionBaseUrl() above (importing FROM index.ts would be a circular
+// import -- index.ts already imports this module's own passes).
+const STATIC_SITE_ORIGIN = "https://deadline-radar.com";
+function staticSiteAbsoluteBaseUrl(env: Env): string {
+  return env.STATIC_SITE_BASE_URL || STATIC_SITE_ORIGIN;
+}
+
 const MS_PER_DAY = 86_400_000;
 
 /**
@@ -711,7 +733,7 @@ export async function runRuleChangeAlertPass(env: Env, opts: RunReminderOptions 
 
   const summary: RuleChangeAlertSummary = { eventsChecked: 0, firmsChecked: 0, sent: 0, errors: [] };
   const cap = dailyRuleChangeAlertSendCap(env);
-  const staticBase = env.STATIC_SITE_BASE_URL || "";
+  const staticBase = staticSiteAbsoluteBaseUrl(env);
   const calendarUrl = `${staticBase}/firm-dashboard/#calendar`;
   const accountSettingsUrl = `${staticBase}/firm-dashboard/#account`;
 
@@ -850,7 +872,7 @@ export async function runDigestPass(env: Env, opts: RunReminderOptions = {}): Pr
 
   const firmsById = new Map((await store.listAllFirmsBasicInfo(env.DB)).map((f) => [f.id, f]));
   const cap = dailyDigestSendCap(env);
-  const staticBase = env.STATIC_SITE_BASE_URL || "";
+  const staticBase = staticSiteAbsoluteBaseUrl(env);
   const manageUrl = `${staticBase}/my/`;
 
   const summary: DigestSummary = { emailsChecked: 0, itemsClaimed: 0, digestsSent: 0, errors: [] };
@@ -1680,7 +1702,7 @@ export async function runAdminDigestAlertPass(env: Env, opts: RunAdminDigestAler
       return sendViaSendGrid(env.SENDGRID_API_KEY, to, built, env.EMAIL_ALLOWLIST);
     });
   const cap = dailyAdminDigestSendCap(env);
-  const staticBase = env.STATIC_SITE_BASE_URL || "";
+  const staticBase = staticSiteAbsoluteBaseUrl(env);
   const accountSettingsUrl = `${staticBase}/firm-dashboard/#account`;
 
   const summary: AdminDigestAlertSummary = { firmsChecked: 0, itemsClaimed: 0, digestsSent: 0, errors: [] };

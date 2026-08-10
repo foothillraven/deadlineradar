@@ -152,6 +152,29 @@ describe("runAdminDigestAlertPass", () => {
     expect(summary.itemsClaimed).toBe(2);
   });
 
+  it("AuditLab LINK-1 (2026-08-10): the account-settings link is an absolute URL even with STATIC_SITE_BASE_URL unset (real production shape)", async () => {
+    const { runAdminDigestAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(10500);
+    const { firmId, adminEmail } = await newFirm("digeste2e-link1-absolute");
+    await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
+
+    let targetHtml = "";
+    await runAdminDigestAlertPass(env, {
+      asOf,
+      send: async (to, built) => {
+        if (to === adminEmail) targetHtml = built.htmlBody;
+        return true;
+      },
+    });
+
+    expect(targetHtml).not.toBe("");
+    const hrefs = [...targetHtml.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const href of hrefs) {
+      expect(href).toMatch(/^https:\/\//);
+    }
+  });
+
   it("a firm with nothing newly due gets no email at all", async () => {
     const { runAdminDigestAlertPass } = await import("../src/scheduler");
     const asOf = freshAsOf(11000);

@@ -133,6 +133,23 @@ describe("runRuleChangeAlertPass() -- end to end", () => {
     expect(row).not.toBeNull();
   });
 
+  it("AuditLab LINK-1 (2026-08-10): account-settings link is an absolute URL even with STATIC_SITE_BASE_URL unset (real production shape)", async () => {
+    const { adminEmail } = await newFirmWithRosterLicense("e2e-link1-absolute", REAL_EVENT_STATE);
+    let capturedHtml = "";
+    await runRuleChangeAlertPass(env, {
+      send: async (to, built) => {
+        if (to === adminEmail) capturedHtml = built.htmlBody;
+        return true;
+      },
+    });
+    expect(capturedHtml).not.toBe("");
+    const hrefs = [...capturedHtml.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const href of hrefs) {
+      expect(href).toMatch(/^https:\/\//);
+    }
+  });
+
   it("does not re-send on a second pass for the same firm/event", async () => {
     const { adminEmail } = await newFirmWithRosterLicense("e2e-no-resend", REAL_EVENT_STATE);
     await runRuleChangeAlertPass(env, { send: async () => true });

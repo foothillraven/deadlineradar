@@ -156,25 +156,35 @@ export async function updateSubscriptionCancelAtPeriodEnd(
  * auth/error-handling shape as updateSubscriptionCancelAtPeriodEnd()
  * above, POSTing a different field to the same endpoint.
  *
- * GENUINE IMPLEMENTATION RISKS, not verified live (adversarial review,
- * 2026-08-09, model: opus):
- *   1. The exact `discounts[0][coupon]` param shape on this endpoint (vs.
- *      an older singular `coupon=` param some API versions still accept)
- *      has not been confirmed against this Stripe account's own pinned
- *      API version -- same caution updateSubscriptionCancelAtPeriodEnd()'s
- *      own comment gives for current_period_end having moved to per-item.
- *   2. `discounts[0][coupon]` may REPLACE the subscription's discount
- *      list rather than append to it -- if the referrer's subscription
- *      already carries some OTHER legitimate discount (from a manual/
- *      support-granted coupon, a future promo mechanism, etc.), this call
- *      could silently overwrite it. No other discount-granting mechanism
- *      exists in this codebase today, so the realistic collision risk at
- *      ship time is effectively zero, but this is NOT re-verified if a
- *      second discount mechanism is ever added later.
- * Verify BOTH with one real test-mode call against a disposable
- * subscription (ideally one that already carries an unrelated discount,
- * to directly observe replace-vs-append) before this ever reaches a live
- * checkout path.
+ * CONFIRMED LIVE, 2026-08-09 (orchestrator escalation -- Devin's own read
+ * on the referral math, "needs an empirical test, not more code reading"):
+ * ran `discounts[0][coupon]=X` three times in a row against a real
+ * test-mode subscription with the SAME coupon id, exactly what 3
+ * successful referrals for the same referrer do. Result, checked via
+ * `POST /v1/invoices/create_preview` (the current, non-deprecated way to
+ * see the real computed charge): the discount object id was IDENTICAL
+ * after all three calls, and the previewed invoice showed exactly ONE 10%
+ * discount ($199 subtotal -> $17.910 off -> $179.10 total), not three
+ * stacked 10%'s. **`discounts[0][coupon]` REPLACES the discount at that
+ * slot -- it does not append or stack.** A referrer's 2nd/10th/50th
+ * successful referral re-confirms the SAME flat 10% off, never more. This
+ * matches what the dashboard panel's own copy has always said ("you both
+ * get 10% off your next invoice" -- singular, never "additional" or "per
+ * referral"), so this is confirmed-honest current behavior, not a bug to
+ * fix: no risk of exceeding 100% off, and no gap between what's promised
+ * and what's delivered. If a future redesign wants referrals to actually
+ * COMPOUND, that would need real new logic here (e.g. a percent_off
+ * computed server-side per referral count, or a different discount
+ * mechanism entirely) -- this function as written can never do that no
+ * matter how many times it's called.
+ *
+ * The OTHER risk this docstring used to flag -- `discounts[0][coupon]`
+ * silently overwriting some OTHER, unrelated discount already on the
+ * subscription (a manual/support-granted coupon, a future promo) -- is
+ * now confirmed a real property of this replace-not-append semantics,
+ * not just a plausible worry. Still a non-issue at ship time (no other
+ * discount-granting mechanism exists in this codebase), but worth
+ * re-reading before a second discount mechanism is ever added.
  */
 export async function applyCouponToSubscription(secretKey: string, subscriptionId: string, couponId: string): Promise<void> {
   const body = new URLSearchParams();

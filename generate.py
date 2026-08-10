@@ -1206,6 +1206,13 @@ PAGE_CSS = """
   .dr-verdict-reqs li { margin-bottom: 0.3rem; }
   .dr-verdict-cite { font-size: 0.8rem; color: var(--muted); margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px solid var(--border); }
   .dr-verdict-overall { border-width: 2px; border-color: var(--border-strong); }
+  /* 2026-08-10, Devin's own live-test report ("what is this saying?"):
+     Overall can read ACTION REQUIRED directly above an individual card
+     that says CLEAR, with nothing at the top explaining WHY -- shown only
+     when that specific contradiction is real (the firm-level card is
+     what's actually driving it), so it never appears when Overall and the
+     individual card already agree. */
+  .dr-verdict-pointer { font-size: 0.85rem; font-weight: 600; color: var(--gold); margin: 0.5rem 0 0; }
   .dr-verdict-disclaimer { font-size: 0.78rem; color: var(--faint); margin-top: 0.6rem; font-style: italic; }
   .dr-nav-soon { color: #6e8296; cursor: default; }
   .dr-soon-badge {
@@ -10456,7 +10463,18 @@ function drApplyMobilityResults(homeStateSlug, entry, gen, subscriberId) {
     else if (completed) path.classList.add('dr-map-state--complete');
     else if (verdict === 'action_required') path.classList.add('dr-map-state--action');
     // not_verified (or anything else): no color class, stays default gray.
-    var tipText = r.individual && r.individual.summary ? r.individual.summary : 'Not verified for this state.';
+    // 2026-08-10, same root issue as /firm-mobility/'s own Overall pointer
+    // fix (Devin's live-test report): this tooltip used to read
+    // individual.summary ALONE, so an orange (action_required) state could
+    // show a clear-sounding individual summary while a firm-level
+    // requirement was the real driver -- reversed here: when overall is
+    // action_required but the individual side is clear, the firm-level
+    // finding IS the story, so lead with that instead of the
+    // clear-sounding individual text.
+    var firmDriven = verdict === 'action_required' && r.individual && r.individual.verdict === 'clear';
+    var tipText = firmDriven && r.firm && r.firm.summary
+      ? 'Firm-level requirement: ' + r.firm.summary
+      : (r.individual && r.individual.summary ? r.individual.summary : 'Not verified for this state.');
     if (completed) tipText += ' Marked complete by your firm.';
     if (verdict !== 'action_required' || !completed) {
       // Deep-link into Practice Privilege Check with the same home/target/
@@ -13948,9 +13966,19 @@ _MOBILITY_JS_HTML = """<script>
         // unverified individual card. Review found this field was being
         // discarded by the only caller, which made that safeguard dead code
         // exactly where it mattered.
+        // 2026-08-10, Devin's own live-test report: Overall can read ACTION
+        // REQUIRED directly above an individual card that says CLEAR, with
+        // nothing at the top explaining why -- the real driver (a firm-level
+        // requirement) is real and correct, just buried in the third card
+        // below with no pointer to it. Only shown for that EXACT
+        // contradiction (never when Overall and the individual verdict
+        // already agree), so it never fires as noise on an ordinary result.
+        var overallPointer = (data.overall === 'action_required' && data.individual && data.individual.verdict === 'clear')
+          ? '<p class="dr-verdict-pointer">This comes from a firm-level requirement, not the individual CPA &mdash; see "The firm" below.</p>'
+          : '';
         var html = '<h2>' + esc(data.home_state) + ' &rarr; ' + esc(data.target_state) + '</h2>' +
           '<div class="dr-verdict dr-verdict-overall"><h3>Overall</h3>' +
-          badge(data.overall) + '<p>' + esc(overallText(data.overall)) + '</p></div>' +
+          badge(data.overall) + '<p>' + esc(overallText(data.overall)) + '</p>' + overallPointer + '</div>' +
           findingHtml('The individual CPA', data.individual) +
           findingHtml('The firm', data.firm);
         // "Mark requirements met" -- only offered when there is something to

@@ -1270,6 +1270,14 @@ export interface FirmRow {
   // same raw-IP-for-fraud-evidence precedent as migration 0057's
   // consent_ip. Null for any firm created before this migration.
   signup_ip: string | null;
+  // migration 0060 (roadmap #153, "usage-boxed trial"). Lifetime counter of
+  // how many POST /firm/mobility/check calls a MULTI-person free-tier firm
+  // has spent against its 3-query trial budget -- see
+  // requireFirmSessionAndPaidTier()'s own docstring in index.ts. Never
+  // resets, no expiry. Capped by incrementMobilityTrialUse()'s atomic
+  // conditional UPDATE, same shape as referral_code_uses above. A solo
+  // free firm or a paid firm never reads or increments this -- 0 forever.
+  mobility_trial_uses: number;
 }
 
 export interface FirmLoginTokenRow {
@@ -2763,6 +2771,23 @@ export async function incrementReferralCodeUse(db: D1Database, firmId: string, c
   const result = await db
     .prepare(`UPDATE firms SET referral_code_uses = referral_code_uses + 1 WHERE id = ?1 AND referral_code = ?2 AND referral_code_uses < 10`)
     .bind(firmId, code)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+/**
+ * Atomic, capped increment for a multi-person free-tier firm's lifetime
+ * Practice Privilege Check trial budget (roadmap #153). Same shape as
+ * incrementReferralCodeUse() above -- the WHERE clause is what makes this
+ * safe under concurrent requests; a race can never push the stored count
+ * past `limit`. Returns whether it actually incremented (false only if the
+ * cap was already hit, which the caller should not normally see since
+ * handleMobilityCheck() checks the cap before doing any determination work).
+ */
+export async function incrementMobilityTrialUse(db: D1Database, firmId: string, limit: number): Promise<boolean> {
+  const result = await db
+    .prepare(`UPDATE firms SET mobility_trial_uses = mobility_trial_uses + 1 WHERE id = ?1 AND mobility_trial_uses < ?2`)
+    .bind(firmId, limit)
     .run();
   return (result.meta.changes ?? 0) > 0;
 }

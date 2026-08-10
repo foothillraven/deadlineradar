@@ -33,18 +33,24 @@ describe("solo-free exception for paid-gated routes (Map / Practice Privilege Ch
     expect(resp.status).toBe(200);
   });
 
-  it("a free-tier firm with a SECOND member does NOT get the exception -- 403 exactly as before", async () => {
-    const { firmId, cookie } = await soloFreeFirm("multi-blocked");
+  it("a free-tier firm with a SECOND member does NOT get the SOLO-free exception -- but now passes via the roadmap #153 trial instead (coverage is unmetered for it), not a 403", async () => {
+    // Superseded 2026-08-09 (roadmap #153, "usage-boxed trial"): coverage
+    // used to 403 a multi-person free firm outright; it's now deliberately
+    // unmetered/unlocked for one (part of "read-only Map"), via a SEPARATE
+    // opt-in path from the solo-free exception this describe block is
+    // otherwise about -- see requireFirmSessionAndPaidTier()'s own
+    // docstring. The solo-free branch specifically still does not apply
+    // here (memberCount !== 1), which is the property this test still
+    // proves; it just no longer means an outright block.
+    const { firmId, cookie } = await soloFreeFirm("multi-trial");
     await store.createFirmMember(env.DB, {
       firmId,
-      email: `multi-blocked-second-${Date.now()}@examplefirm.com`,
+      email: `multi-trial-second-${Date.now()}@examplefirm.com`,
       role: "staff",
       alreadyJoined: true,
     });
     const resp = await SELF.fetch(`${BASE}/firm/mobility/coverage`, { headers: { Cookie: cookie } });
-    expect(resp.status).toBe(403);
-    const body = (await resp.json()) as { reason: string };
-    expect(body.reason).toBe("tier_not_paid");
+    expect(resp.status).toBe(200);
   });
 
   it("a suspended solo firm still gets refused -- requireFirmSession() itself blocks it before the solo-free exception is ever reached", async () => {

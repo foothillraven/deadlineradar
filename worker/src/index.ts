@@ -2658,12 +2658,36 @@ async function handleFirmMemberMakePrimary(request: Request, env: Env, memberId:
  * licenses in multiple states, and that shouldn't disqualify a true
  * one-person account. Checked only when the plain tier check already
  * failed, so this never adds a query to the common paid-firm path.
+ *
+ * Multi-person free-tier trial (2026-08-09, roadmap #153, "usage-boxed
+ * trial"): a SECOND, opt-in OR-condition alongside soloFree above, for the
+ * other free population -- a 2+-person free firm. Opt-in via
+ * `opts.allowMultiPersonFreeTrial` rather than unconditional, because this
+ * wrapper is shared by the firm-level (#318) routes too
+ * (handleFirmMobilityCoverage/handleFirmMobilityFirmCheck), which must stay
+ * fully excluded -- the trial is specifically for the individual-mobility
+ * surface (coverage/check/check-batch). `mobilityAccessBasis` on the
+ * returned session tells the CALLER which of the three paths let this
+ * request through, so handleMobilityCheck() can decide whether to meter
+ * this specific call -- the gate wrapper itself never touches
+ * mobility_trial_uses; only a successful individual check does (see that
+ * function's own docstring for why: check-batch/coverage are deliberately
+ * unmetered, that's what "read-only Map" means for this feature).
  */
 async function requireFirmSessionAndPaidTier(
   request: Request,
-  env: Env
+  env: Env,
+  opts: { allowMultiPersonFreeTrial?: boolean } = {}
 ): Promise<
-  | { firmId: string; sessionId: string; memberId: string; role: store.FirmMemberRole; passwordResetAuthorized: boolean; firm: store.FirmRow }
+  | {
+      firmId: string;
+      sessionId: string;
+      memberId: string;
+      role: store.FirmMemberRole;
+      passwordResetAuthorized: boolean;
+      firm: store.FirmRow;
+      mobilityAccessBasis: "paid" | "solo_free" | "trial";
+    }
   | Response
 > {
   const session = await requireFirmSession(request, env);
@@ -2673,12 +2697,20 @@ async function requireFirmSessionAndPaidTier(
   if (!firm) return jsonResponse(404, { error: "Not found." });
 
   const access = checkPaidFeatureAccess(firm);
+  let mobilityAccessBasis: "paid" | "solo_free" | "trial" = "paid";
   if (!access.allowed) {
-    const soloFree =
-      access.reason === "tier_not_paid" &&
-      firm.plan_tier === "free" &&
-      (await store.listFirmMembers(env.DB, firm.id)).length === 1;
-    if (!soloFree) {
+    let passed = false;
+    if (access.reason === "tier_not_paid" && firm.plan_tier === "free") {
+      const memberCount = (await store.listFirmMembers(env.DB, firm.id)).length;
+      if (memberCount === 1) {
+        passed = true;
+        mobilityAccessBasis = "solo_free";
+      } else if (opts.allowMultiPersonFreeTrial) {
+        passed = true;
+        mobilityAccessBasis = "trial";
+      }
+    }
+    if (!passed) {
       return jsonResponse(403, {
         error: paidFeatureDenialMessage(access.reason),
         reason: access.reason,
@@ -2687,7 +2719,7 @@ async function requireFirmSessionAndPaidTier(
     }
   }
 
-  return { ...session, firm };
+  return { ...session, firm, mobilityAccessBasis };
 }
 
 // ---------------------------------------------------------------------------
@@ -8326,7 +8358,10 @@ for (const raw of (mobilityRulesData.records ?? []) as unknown[]) {
  * competitive intelligence for the incumbents this feature competes with.
  */
 async function handleMobilityCoverage(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionAndPaidTier(request, env);
+  // Roadmap #153: unmetered for a multi-person free-tier trial firm, same
+  // as check-batch below -- this is "which states we have data for," not a
+  // determination, and it's part of what "read-only Map" unlocks.
+  const session = await requireFirmSessionAndPaidTier(request, env, { allowMultiPersonFreeTrial: true });
   if (session instanceof Response) return session;
 
   const covered = Object.values(MOBILITY_RULES_BY_SLUG).map((r) => ({
@@ -9559,6 +9594,11 @@ async function handleFirmSessionRevoke(request: Request, env: Env, id: string): 
  * verify either, and the response wording never implies we did -- see
  * mobility.ts. They are inputs to the determination, not facts we assert.
  */
+// Roadmap #153: a multi-person free-tier firm's lifetime Practice
+// Privilege Check trial budget. 3, per Devin's directive (relayed via
+// orchestrator, ValueLab's rec #4.5) -- no expiry, never resets.
+const MOBILITY_TRIAL_QUERY_LIMIT = 3;
+
 async function handleMobilityCheck(request: Request, env: Env, ip: string): Promise<Response> {
   // Keyed on the AUTHENTICATED FIRM, not the caller's IP. The stated threat
   // is "harvesting by a subscriber", which an IP key does not bound (rotate
@@ -9569,8 +9609,21 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
   //
   // Entitlement BEFORE any work: a non-paying firm must not receive a
   // determination under any circumstances.
-  const session = await requireFirmSessionAndPaidTier(request, env);
+  const session = await requireFirmSessionAndPaidTier(request, env, { allowMultiPersonFreeTrial: true });
   if (session instanceof Response) return session;
+
+  // Roadmap #153: a trial firm that has already spent its lifetime budget
+  // is denied here, before any work -- same "entitlement before any work"
+  // posture as the gate itself just above. Reuses the EXACT existing
+  // paid-gate denial shape (no new reason value), so the client's error
+  // handling needs no special case for this vs. the ordinary 403.
+  if (session.mobilityAccessBasis === "trial" && session.firm.mobility_trial_uses >= MOBILITY_TRIAL_QUERY_LIMIT) {
+    return jsonResponse(403, {
+      error: paidFeatureDenialMessage("tier_not_paid"),
+      reason: "tier_not_paid",
+      pay_now_url: "/firm-dashboard/#account",
+    });
+  }
 
   let raw: string;
   try {
@@ -9639,6 +9692,22 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
     MOBILITY_RULES_BY_SLUG[homeStateSlug] ?? null
   );
 
+  // Roadmap #153: budget consumption happens ONLY here, after a real
+  // determination actually ran -- never on a 400/429 above, matching this
+  // same function's rate-limit code just above ("don't burn budget on a
+  // failure"). The atomic capped UPDATE (incrementMobilityTrialUse) is the
+  // real enforcement; trialQueriesUsed here is a best-effort DISPLAY value
+  // computed from the pre-request read, same posture
+  // referral_code_uses_remaining already uses elsewhere in this file -- a
+  // genuine concurrent double-submit could rarely under-report this by one
+  // in one of the two responses, but the stored column can never be pushed
+  // past the cap regardless of what any single response displays.
+  let trialQueriesUsed: number | null = null;
+  if (session.mobilityAccessBasis === "trial") {
+    await store.incrementMobilityTrialUse(env.DB, session.firmId, MOBILITY_TRIAL_QUERY_LIMIT);
+    trialQueriesUsed = Math.min(MOBILITY_TRIAL_QUERY_LIMIT, session.firm.mobility_trial_uses + 1);
+  }
+
   return jsonResponse(200, {
     home_state: stateNameForSlug(homeStateSlug),
     target_state: stateNameForSlug(targetStateSlug),
@@ -9647,6 +9716,13 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
     individual: result.individual,
     firm: result.firm,
     disclaimer: MOBILITY_DISCLAIMER,
+    // Roadmap #153: lets the client distinguish "solo -- unlimited", "paid
+    // -- unlimited", and "trial -- N of 3 used" so it never shows a fake
+    // countdown to a firm that isn't actually limited. used/limit are both
+    // null unless basis is "trial".
+    mobility_access_basis: session.mobilityAccessBasis,
+    mobility_trial_queries_used: trialQueriesUsed,
+    mobility_trial_queries_limit: session.mobilityAccessBasis === "trial" ? MOBILITY_TRIAL_QUERY_LIMIT : null,
   });
 }
 
@@ -9741,16 +9817,24 @@ async function handleFirmMobilityFirmCheck(request: Request, env: Env): Promise<
  * exactly the kind of drift risk this codebase avoids elsewhere (see
  * _mobility_covered_slugs()'s own comment on the same principle).
  *
- * Same pay gate as the single check. `license_in_good_standing` and
- * `substantially_equivalent` are still self-attestations, not data this
- * endpoint reads from the roster -- the caller (the Map tab) is expected to
- * default them to true and disclose that assumption in the UI, since the
- * roster does not store per-person attestations. This endpoint does not
- * bake that default in itself, so a future caller with real per-person
- * attestation data is not stuck with this one's assumption.
+ * Same pay gate as the single check, PLUS unmetered access for a
+ * multi-person free-tier trial firm (roadmap #153) -- `license_in_good_
+ * standing`/`substantially_equivalent` are ASSUMED true here, not
+ * user-attested per person, so this is deliberately the coarser "read-only
+ * Map" view the trial promises, never the thing the 3-query budget meters.
+ * See requireFirmSessionAndPaidTier()'s own docstring for why that budget
+ * is enforced only in handleMobilityCheck(), not here.
+ *
+ * `license_in_good_standing` and `substantially_equivalent` are still
+ * self-attestations, not data this endpoint reads from the roster -- the
+ * caller (the Map tab) is expected to default them to true and disclose
+ * that assumption in the UI, since the roster does not store per-person
+ * attestations. This endpoint does not bake that default in itself, so a
+ * future caller with real per-person attestation data is not stuck with
+ * this one's assumption.
  */
 async function handleMobilityCheckBatch(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionAndPaidTier(request, env);
+  const session = await requireFirmSessionAndPaidTier(request, env, { allowMultiPersonFreeTrial: true });
   if (session instanceof Response) return session;
 
   let raw: string;

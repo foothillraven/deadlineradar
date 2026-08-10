@@ -13725,6 +13725,24 @@ _MOBILITY_JS_HTML = """<script>
   if (!form) return;
   var errEl = document.getElementById('dr-mobility-error');
   var resultEl = document.getElementById('dr-mobility-result');
+  var trialNoteEl = document.getElementById('dr-mobility-trial-note');
+
+  // Roadmap #153 ("usage-boxed trial"): only a multi-person free firm ever
+  // has a real used/limit pair (basis === 'trial') -- solo-free and paid
+  // firms get null/null, so this never shows a fake countdown to a firm
+  // that isn't actually limited.
+  function renderTrialNote(data) {
+    if (!trialNoteEl) return;
+    if (data && data.mobility_access_basis === 'trial' && data.mobility_trial_queries_used != null) {
+      var remaining = data.mobility_trial_queries_limit - data.mobility_trial_queries_used;
+      trialNoteEl.textContent = remaining > 0
+        ? (data.mobility_trial_queries_used + ' of ' + data.mobility_trial_queries_limit + ' free checks used -- ' + remaining + ' left.')
+        : 'That was your last free check. Upgrade for unlimited Practice Privilege Check.';
+      trialNoteEl.hidden = false;
+    } else {
+      trialNoteEl.hidden = true;
+    }
+  }
 
   function esc(v) {
     return String(v == null ? '' : v)
@@ -13851,6 +13869,7 @@ _MOBILITY_JS_HTML = """<script>
             '<p class="field-hint">Records that your firm handled this -- not a re-check. Also updates the Map.</p></div>';
         }
         if (resultEl) { resultEl.innerHTML = html; resultEl.hidden = false; }
+        renderTrialNote(data);
       });
     }).catch(function () {
       if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
@@ -14306,6 +14325,7 @@ first? Every answer is tied to the rule it came from.</p>
 </div>
 
 <div id="dr-mobility-result" hidden></div>
+<p id="dr-mobility-trial-note" class="field-hint" hidden></p>
 
 <hr style="margin:2.5rem 0;">
 

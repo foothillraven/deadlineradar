@@ -1,0 +1,17 @@
+-- Roadmap #153 ("usage-boxed trial", 2026-08-09): a MULTI-person free-tier
+-- firm (2+ firm_members) gets 3 free LIFETIME individual Practice
+-- Privilege Check queries (POST /firm/mobility/check specifically -- Map/
+-- check-batch/coverage are unlocked outright and unmetered instead, see
+-- requireFirmSessionAndPaidTier()'s own docstring in index.ts). Lifetime,
+-- never resets, no expiry column -- counts forever, matching the spec's
+-- "no expiry, no reset" requirement.
+--
+-- Separate column from referral_code_uses (migration 0059): unrelated
+-- counters, different caps (3 vs 10), different reset semantics --
+-- referral_code_uses resets on every code rotation, this one never resets.
+--
+-- Meaningless (stays 0, never read for an access decision) for a solo free
+-- firm (already unconditional/unlimited via the existing solo-free
+-- exception) or a paid firm (also unlimited) -- only a genuinely
+-- multi-person free-tier firm ever increments this.
+ALTER TABLE firms ADD COLUMN mobility_trial_uses INTEGER NOT NULL DEFAULT 0;

@@ -5118,18 +5118,21 @@ def build_compare_page() -> str:
     """Roadmap #33 (2026-08-07, roadmap_items table, IMMEDIATE RELEASE):
     "Comparison page (DeadlineRadar vs. spreadsheet vs. competitor)."
 
-    Deliberately does NOT name or characterize any specific real competitor
-    product -- this file has no verified, current facts about any named
-    third party's actual pricing or feature set, and publishing unverified
-    claims about a real business is both a false-advertising risk and flatly
-    against this site's own two-source-verification standard (see
-    build_methodology_page() -- the same "we do not guess or infer a claim
-    we can't back up" rule applies to marketing copy, not just deadline
-    dates). "Competitor" in the roadmap item's own phrasing becomes a
-    generic, unnamed "subscription-tracking tool" category instead --
-    everything below is either a fact about DeadlineRadar's own actually-
-    shipped feature set (verifiable in this repo) or a self-evident, widely
-    true statement about spreadsheets/generic tools that names no one.
+    Named real competitors added 2026-08-10 (ValueLab's customer-walkthrough
+    report, independently spot-checked by the orchestrator) -- the ORIGINAL
+    build deliberately named no one because this file had no verified,
+    current facts about any named third party's actual pricing, and
+    publishing unverified claims about a real business is both a
+    false-advertising risk and flatly against this site's own
+    two-source-verification standard (build_methodology_page()). That
+    constraint hasn't changed in principle -- only the FACT SET has: pricing
+    for a 6-person firm and the single feature-absence claim "does not track
+    a staff CPA license" are now independently verified (ValueLab + a second
+    check), so those two claims are named. Everything else about those
+    products (their full feature set, their own roadmap, anything not
+    checked above) is still unverified here and stays out -- the feature
+    table below still uses a generic, unnamed "tracking tool" column for
+    every claim this file cannot independently back up.
     """
     # Free/Paid split added 2026-08-09 (Devin, alongside the /pricing/
     # feature table this mirrors) -- the single "DeadlineRadar" column used
@@ -5192,12 +5195,47 @@ def build_compare_page() -> str:
         f"  <tr><td>{esc(label)}</td><td>{esc(free_cell)}</td><td>{paid_cell}</td><td>{esc(spreadsheet_cell)}</td><td>{esc(generic_cell)}</td></tr>"
         for label, free_cell, paid_cell, spreadsheet_cell, generic_cell in rows
     )
-    body = f"""<h1>DeadlineRadar vs. a Spreadsheet vs. a Generic Tracker</h1>
-<p class="intro">An honest, feature-by-feature look at the three ways firms actually track CPA license
-renewals today. This page does not name or characterize any specific competing product &mdash; we have
-no verified, current facts about any one company's pricing or features, and this site does not publish
-claims it cannot back up (see <a href="/methodology/">How We Verify</a> for the same standard applied to
-every renewal date).</p>
+    body = f"""<h1>DeadlineRadar vs. Practice-Management Suites vs. a Spreadsheet</h1>
+<p class="intro">Every one of those other trackers makes <em>you</em> type in the expiration date and
+takes it on faith. We compute it from the codified statute or board rule and show you the citation
+&mdash; that's the one sentence that actually separates this from a CPE vendor, a practice-management
+suite's generic renewals tab, or a spreadsheet: <a href="/methodology/">see exactly how we verify every
+date</a>.</p>
+
+<h2>What a 6-person firm pays elsewhere</h2>
+<p>None of these track an individual staff CPA's license renewal &mdash; they're practice-management
+suites with a generic reminders/tasks feature, not a sourced compliance tool. Prices below are each
+product's own published rate for a 6-person firm, checked directly against their current pricing pages:</p>
+<div class="table-wrap">
+<table class="compare-table">
+  <caption class="dr-visually-hidden">Annual cost for a 6-person firm, DeadlineRadar vs. named practice-management suites</caption>
+  <thead><tr><th scope="col">Product</th><th scope="col">Annual cost, 6-person firm</th><th scope="col">Tracks a staff CPA's license?</th></tr></thead>
+  <tbody>
+    <tr><td><strong>DeadlineRadar</strong></td><td>$299/year (Growth tier, up to 10 staff)</td><td>Yes</td></tr>
+    <tr><td>Canopy (Standard)</td><td>~$5,328/year</td><td>No</td></tr>
+    <tr><td>Karbon (Business)</td><td>~$6,408/year</td><td>No</td></tr>
+    <tr><td>TaxDome (Pro)</td><td>~$6,000/year</td><td>No</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="field-hint">These are broad practice-management platforms &mdash; client portals, workflow,
+document management &mdash; and license tracking is a reasonable thing for them not to specialize in.
+The point isn't that they're bad products; it's that a firm already paying one of them still has no
+sourced answer to "when does Alex's CPA license renew" without something like this alongside it.</p>
+
+<h2>The one competitor close enough in price to actually confuse</h2>
+<p><strong>MYCPE ONE</strong> lists at $199/year &mdash; the same headline price our old Individual tier
+used to carry. Worth naming specifically because it's the one product priced close enough to cause real
+confusion, but it does a different job: it's a CPE-hours platform (tracking completed continuing-education
+credits), not a license-renewal filing tracker. Both matter to a CPA; they're not the same problem, and
+DeadlineRadar's own CPE Hours tab is free, not a $199 add-on.</p>
+
+<h2>Feature-by-feature, DeadlineRadar vs. a spreadsheet vs. a generic tool</h2>
+<p class="intro">The table above names real products for the two facts we've independently verified
+(price, and whether they track a staff license). For everything else &mdash; what's actually inside a
+generic subscription-tracking tool, feature by feature &mdash; this file has no verified, current facts
+about any one company, so the comparison below stays honest about that and names no one (see
+<a href="/methodology/">How We Verify</a> for the same standard applied to every renewal date).</p>
 
 <div class="table-wrap">
 <table class="compare-table">
@@ -5223,9 +5261,9 @@ renewal on a spreadsheet no one opened that week.</p>
 breakdown</a>.</p>
 """
     return page_shell(
-        f"DeadlineRadar vs. a Spreadsheet — {SITE_NAME}",
-        "An honest, feature-by-feature comparison of DeadlineRadar against a spreadsheet and generic "
-        "tracking tools for CPA license renewal management.",
+        f"DeadlineRadar vs. Canopy, Karbon, TaxDome, and a Spreadsheet — {SITE_NAME}",
+        "What a 6-person firm pays for Canopy, Karbon, and TaxDome vs. DeadlineRadar, plus an honest "
+        "feature-by-feature comparison against a spreadsheet and generic tracking tools.",
         body,
         home_href="../",
         canonical_path="/compare/",

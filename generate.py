@@ -1178,6 +1178,21 @@ PAGE_CSS = """
   .dr-mobility-callout { background: var(--row-alt); border-left: 3px solid var(--border-strong); border-radius: 6px; padding: 0.9rem 1.1rem; margin-bottom: 1.4rem; font-size: 0.88rem; line-height: 1.55; }
   .dr-mob-check { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0.7rem 0; font-size: 0.9rem; font-weight: 400; }
   .dr-mob-check input { margin-top: 0.2rem; flex: 0 0 auto; }
+  /* Roadmap #320 (2026-08-10): "Check one person" / "Check whole roster"
+     mode toggle on /firm-mobility/ -- same accent/on-accent pairing as
+     .dr-btn-save for the active state, outlined for the inactive one, same
+     paired-buttons convention .dr-modal-actions already established. */
+  .dr-mob-mode-toggle { display: flex; gap: 0.5rem; margin-bottom: 1.4rem; }
+  .dr-mob-mode-btn {
+    background: transparent; color: var(--muted); border: 1px solid var(--border-strong);
+    border-radius: 999px; cursor: pointer; padding: 0.45rem 1.1rem; font-size: 0.87rem;
+    font-weight: 600; font-family: inherit;
+  }
+  .dr-mob-mode-btn--active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .dr-mob-roster-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .dr-mob-roster-table th { text-align: left; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border-strong); }
+  .dr-mob-roster-table td { padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .dr-mob-roster-table tr:last-child td { border-bottom: none; }
   .dr-questionnaire-check { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0.5rem 0; font-size: 0.88rem; font-weight: 400; }
   .dr-questionnaire-check input { margin-top: 0.2rem; flex: 0 0 auto; }
   .dr-nps-scale { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.9rem 0; }
@@ -14061,6 +14076,107 @@ _MOBILITY_JS_HTML = """<script>
       });
     });
   }
+
+  // Roadmap #320 (2026-08-10): "Check one person" / "Check whole roster"
+  // mode toggle -- swaps which panel is visible, nothing else. Individual
+  // mode stays the default (matches the deep-link prefill from the Map,
+  // which always targets the individual form's own fields).
+  var modeIndividualBtn = document.getElementById('dr-mob-mode-individual');
+  var modeRosterBtn = document.getElementById('dr-mob-mode-roster');
+  var individualPanel = document.getElementById('dr-mob-individual-panel');
+  var rosterPanel = document.getElementById('dr-mob-roster-panel');
+  function setMobMode(mode) {
+    var isRoster = mode === 'roster';
+    if (individualPanel) individualPanel.hidden = isRoster;
+    if (rosterPanel) rosterPanel.hidden = !isRoster;
+    if (modeIndividualBtn) {
+      modeIndividualBtn.classList.toggle('dr-mob-mode-btn--active', !isRoster);
+      modeIndividualBtn.setAttribute('aria-pressed', String(!isRoster));
+    }
+    if (modeRosterBtn) {
+      modeRosterBtn.classList.toggle('dr-mob-mode-btn--active', isRoster);
+      modeRosterBtn.setAttribute('aria-pressed', String(isRoster));
+    }
+  }
+  if (modeIndividualBtn) modeIndividualBtn.addEventListener('click', function () { setMobMode('individual'); });
+  if (modeRosterBtn) modeRosterBtn.addEventListener('click', function () { setMobMode('roster'); });
+
+  // Roadmap #320: whole-roster batch check. Reuses badge()/esc()/
+  // overallText() already defined above in this same scope -- one engine,
+  // one set of render helpers, just a different result shape (a list of
+  // per-person findings instead of one individual+firm pair).
+  var rosterForm = document.getElementById('dr-mobility-roster-form');
+  var rosterErrEl = document.getElementById('dr-mobility-roster-error');
+  var rosterResultEl = document.getElementById('dr-mobility-roster-result');
+  // Worst-first, same convention the dashboard's own "Staff at risk" panel
+  // already uses -- what needs attention surfaces before what doesn't.
+  // Starts at 1, not 0: the `|| 9` unknown-verdict fallback below would
+  // otherwise silently treat action_required's own rank of 0 as falsy and
+  // fall through to 9, sorting it LAST instead of first (caught live by
+  // testing all three severities together, not just one at a time).
+  var ROSTER_SEVERITY_RANK = {action_required: 1, not_verified: 2, clear: 3, not_applicable: 4};
+  if (rosterForm) {
+    rosterForm.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      if (rosterErrEl) { rosterErrEl.hidden = true; rosterErrEl.textContent = ''; }
+      if (rosterResultEl) { rosterResultEl.hidden = true; rosterResultEl.innerHTML = ''; }
+
+      var targetStateSlug = document.getElementById('dr-mob-roster-target').value;
+      var serviceType = document.getElementById('dr-mob-roster-service').value;
+
+      fetch('/api/firm/mobility/check-roster', {
+        method: 'POST', credentials: 'include',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({target_state_slug: targetStateSlug, service_type: serviceType})
+      }).then(function (res) {
+        if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+        return res.json().catch(function () { return null; }).then(function (data) {
+          if (!res.ok) {
+            var msg = (data && data.error) ? data.error : 'Something went wrong, please try again.';
+            if (rosterErrEl) { rosterErrEl.textContent = msg; rosterErrEl.hidden = false; }
+            return;
+          }
+          if (!data) return;
+
+          if (!data.results || data.results.length === 0) {
+            if (rosterResultEl) {
+              rosterResultEl.innerHTML = '<p class="dr-panel-empty">No one is on your roster yet.</p>';
+              rosterResultEl.hidden = false;
+            }
+            return;
+          }
+
+          var sorted = data.results.slice().sort(function (a, b) {
+            return (ROSTER_SEVERITY_RANK[a.overall] || 9) - (ROSTER_SEVERITY_RANK[b.overall] || 9);
+          });
+          var rowsHtml = sorted.map(function (r) {
+            var detailsUrl = '/firm-mobility/?home=' + encodeURIComponent(r.home_state_slug) +
+              '&target=' + encodeURIComponent(data.target_state_slug) +
+              '&service=' + encodeURIComponent(data.service_type) +
+              '&staff=' + encodeURIComponent(r.subscriber_id) + '#dr-mobility-form';
+            return '<tr>' +
+              '<td>' + esc(r.staff_label) + '</td>' +
+              '<td>' + esc(r.home_state) + '</td>' +
+              '<td>' + badge(r.overall) + '</td>' +
+              '<td><a href="' + esc(detailsUrl) + '">Details &rarr;</a></td>' +
+              '</tr>';
+          }).join('');
+          var assumptionNote = (data.assumed_license_good_standing && data.assumed_substantially_equivalent)
+            ? '<p class="field-hint">Assumes every person\\'s license is active and in good standing, and meets substantial equivalence -- click a row\\'s Details link to verify someone\\'s actual attestation.</p>'
+            : '';
+          if (rosterResultEl) {
+            rosterResultEl.innerHTML = '<h2>' + esc(data.target_state) + ' &mdash; whole roster</h2>' +
+              '<table class="dr-mob-roster-table"><thead><tr><th>Staff</th><th>Home state</th><th>Overall</th><th></th></tr></thead>' +
+              '<tbody>' + rowsHtml + '</tbody></table>' + assumptionNote +
+              '<p class="dr-verdict-disclaimer">' + esc(data.disclaimer) + '</p>';
+            rosterResultEl.hidden = false;
+          }
+        });
+      }).catch(function () {
+        if (rosterErrEl) { rosterErrEl.textContent = 'Something went wrong, please try again.'; rosterErrEl.hidden = false; }
+      });
+    });
+  }
 })();
 </script>"""
 
@@ -14421,6 +14537,12 @@ first? Every answer is tied to the rule it came from.</p>
   Confirm with the state board before you rely on any answer here.
 </div>
 
+<div class="dr-mob-mode-toggle" role="tablist">
+  <button type="button" id="dr-mob-mode-individual" class="dr-mob-mode-btn dr-mob-mode-btn--active" aria-pressed="true">Check one person</button>
+  <button type="button" id="dr-mob-mode-roster" class="dr-mob-mode-btn" aria-pressed="false">Check whole roster</button>
+</div>
+
+<div id="dr-mob-individual-panel">
 <div class="signup-form">
   <form id="dr-mobility-form">
     <div class="signup-form-row">
@@ -14476,6 +14598,41 @@ first? Every answer is tied to the rule it came from.</p>
 
 <div id="dr-mobility-result" hidden></div>
 <p id="dr-mobility-trial-note" class="field-hint" hidden></p>
+</div>
+
+<div id="dr-mob-roster-panel" hidden>
+<p class="subhead">Roadmap #320: run every roster member's own home state against ONE target state at
+once, instead of picking each person one at a time above.</p>
+<div class="signup-form">
+  <form id="dr-mobility-roster-form">
+    <label for="dr-mob-roster-target">Target state (where the work happens)</label>
+    <select id="dr-mob-roster-target" name="target_state_slug" required>
+      <option value="">Select state</option>
+      {target_state_options}
+    </select>
+    <p class="field-hint">{coverage_line}</p>
+
+    <label for="dr-mob-roster-service">Service type</label>
+    <select id="dr-mob-roster-service" name="service_type" required>
+      <option value="">Select service type</option>
+      <option value="tax">Tax</option>
+      <option value="attest">Attest (audit, review, other attest)</option>
+      <option value="other_non_attest">Other non-attest (consulting, advisory)</option>
+    </select>
+    <p class="field-hint">Attest work frequently triggers a firm-registration requirement where tax work
+    doesn't &mdash; that gap is the most common real-world mobility mistake.</p>
+
+    <p class="field-hint">Assumes every staff member's own license is active and in good standing, and
+    meets substantial equivalence. Switch to &ldquo;Check one person&rdquo; above to verify an
+    individual's actual attestation, or use a result row's own &ldquo;Details&rdquo; link below.</p>
+
+    <button type="submit">Run check across the roster</button>
+  </form>
+  <p id="dr-mobility-roster-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
+</div>
+
+<div id="dr-mobility-roster-result" hidden></div>
+</div>
 
 <hr style="margin:2.5rem 0;">
 

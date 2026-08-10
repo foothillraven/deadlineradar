@@ -9,8 +9,14 @@ import * as store from "../src/store";
 
 const BASE = "https://deadline-radar.com";
 
+// Roadmap #151 (2026-08-10): document storage is now gated for firms that
+// sign up AFTER the value-line cutover -- backdated here since this
+// file's own tests are about upload/list/download/delete MECHANICS, not
+// about the entitlement gate itself (that gets its own dedicated describe
+// block below, using the real "now" default this helper used to have).
 async function createFirmWithSession(name: string, adminEmail: string): Promise<{ firmId: string; cookie: string }> {
   const firm = await store.createFirm(env.DB, { name, adminEmail });
+  await env.DB.prepare("UPDATE firms SET created_at = '2020-01-01T00:00:00Z' WHERE id = ?1").bind(firm.id).run();
   const { rawSessionToken } = await store.createSession(env.DB, firm.id);
   return { firmId: firm.id, cookie: `dr_firm_session=${rawSessionToken}` };
 }
@@ -349,5 +355,87 @@ describe("POST /firm/cpe with document_id", () => {
       document_id: uploaded.document.id,
     });
     expect(resp.status).toBe(400);
+  });
+});
+
+/**
+ * Roadmap #151 ("move the value line", 2026-08-10, Phase 1): document
+ * storage moves behind the paid tier for firms that sign up AFTER
+ * VALUE_LINE_CUTOVER_DATE -- existing free firms keep full access via
+ * hasValueLineAccess()'s grandfather half. Same firmOnTier(tier, createdAt)
+ * shape worker.spec.ts's mobility tests already use.
+ */
+describe("document storage -- roadmap #151 value-line gate", () => {
+  async function firmOnTier(tier: string, createdAt: string): Promise<{ firmId: string; cookie: string }> {
+    const firm = await store.createFirm(env.DB, {
+      name: `Doc Gate ${tier} Firm`,
+      adminEmail: `docgate-${tier}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`,
+    });
+    await env.DB.prepare("UPDATE firms SET plan_tier = ?1, created_at = ?2 WHERE id = ?3").bind(tier, createdAt, firm.id).run();
+    const { rawSessionToken } = await store.createSession(env.DB, firm.id);
+    return { firmId: firm.id, cookie: `dr_firm_session=${rawSessionToken}` };
+  }
+
+  it("a pre-cutover free firm keeps full upload access", async () => {
+    const { cookie } = await firmOnTier("free", "2020-01-01T00:00:00Z");
+    const staff = await addStaff(cookie, {
+      staff_label: "Grandfathered Staff",
+      email: `docgate-grandfathered-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    const resp = await uploadDocument(cookie, staff.id, pdfBytes());
+    expect(resp.status).toBe(201);
+  });
+
+  it("a post-cutover free firm is BLOCKED from uploading", async () => {
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    const { cookie } = await firmOnTier("free", future);
+    const staff = await addStaff(cookie, {
+      staff_label: "New Signup Staff",
+      email: `docgate-newsignup-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    const resp = await uploadDocument(cookie, staff.id, pdfBytes());
+    expect(resp.status).toBe(403);
+    const body = (await resp.json()) as { reason: string };
+    expect(body.reason).toBe("tier_not_paid");
+  });
+
+  it("a paid-tier firm is never gated, regardless of signup date", async () => {
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    const { cookie } = await firmOnTier("firm_starter", future);
+    const staff = await addStaff(cookie, {
+      staff_label: "Paid Staff",
+      email: `docgate-paid-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    const resp = await uploadDocument(cookie, staff.id, pdfBytes());
+    expect(resp.status).toBe(201);
+  });
+
+  it("gates LIST, DOWNLOAD, and DELETE too, not just upload, for a post-cutover free firm", async () => {
+    // Uploaded while pre-cutover (so a real document exists to try against),
+    // then the firm's own created_at is moved to post-cutover to isolate
+    // exactly what this test means to prove -- the gate re-checks live on
+    // every request, not just at upload time.
+    const { firmId, cookie } = await firmOnTier("free", "2020-01-01T00:00:00Z");
+    const staff = await addStaff(cookie, {
+      staff_label: "Later Gated Staff",
+      email: `docgate-later-${Date.now()}@example.com`,
+      state_slug: "georgia",
+      license_type_id: "ga-individual",
+    });
+    const uploadResp = await uploadDocument(cookie, staff.id, pdfBytes());
+    const uploaded = (await uploadResp.json()) as { document: { id: string } };
+
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    await env.DB.prepare("UPDATE firms SET created_at = ?1 WHERE id = ?2").bind(future, firmId).run();
+
+    expect((await SELF.fetch(`${BASE}/firm/licenses/${staff.id}/documents`, { headers: { Cookie: cookie } })).status).toBe(403);
+    expect((await SELF.fetch(`${BASE}/firm/documents/${uploaded.document.id}/download`, { headers: { Cookie: cookie } })).status).toBe(403);
+    expect((await SELF.fetch(`${BASE}/firm/documents/${uploaded.document.id}`, { method: "DELETE", headers: { Cookie: cookie } })).status).toBe(403);
   });
 });

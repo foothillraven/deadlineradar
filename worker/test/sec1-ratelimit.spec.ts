@@ -14,8 +14,14 @@ import * as store from "../src/store";
 
 const BASE = "https://deadline-radar.com";
 
+// Roadmap #151 (2026-08-10): backdated so the DELETE /firm/documents/:id
+// rate-limit test below still reaches that handler's actual code (past the
+// new value-line gate) rather than getting redirected into testing the gate
+// instead of the rate limit -- this file's own tests are about rate-limit
+// enforcement, not entitlement.
 async function createFirmWithSession(name: string, adminEmail: string): Promise<{ firmId: string; cookie: string }> {
   const firm = await store.createFirm(env.DB, { name, adminEmail });
+  await env.DB.prepare("UPDATE firms SET created_at = '2020-01-01T00:00:00Z' WHERE id = ?1").bind(firm.id).run();
   const { rawSessionToken } = await store.createSession(env.DB, firm.id);
   return { firmId: firm.id, cookie: `dr_firm_session=${rawSessionToken}` };
 }

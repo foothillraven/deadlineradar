@@ -117,3 +117,45 @@ export function paidFeatureDenialMessage(reason: PaidFeatureDenialReason): strin
       return "This feature is part of a paid firm plan. Pick a plan to continue.";
   }
 }
+
+/**
+ * Roadmap #151 ("move the value line", 2026-08-10). Devin's own instruction,
+ * relayed via orchestrator: the new, narrower free tier (seat cap 3,
+ * document storage gated, multi-channel alerts gated, admin-dashboard
+ * synthesis gated, firm-wide reminders gated) applies to NEW SIGNUPS ONLY --
+ * "grandfather existing free accounts at their current entitlements."
+ *
+ * A firm's grandfather status is keyed on `created_at` vs. this ONE fixed
+ * cutover, set once (the moment Phase 0 of #151 shipped) and never
+ * redefined by any later phase -- so a firm's status can never depend on
+ * which of the five gated features happened to ship first. This is a
+ * THIRD, structurally simpler kind of free-tier exception alongside the
+ * existing two in requireFirmSessionAndPaidTier() (solo-free member-count,
+ * roadmap #153's query-budget trial): no extra DB query, since `created_at`
+ * is already on every loaded FirmRow.
+ *
+ * Every one of the five #151 gates becomes the same shape:
+ * `checkPaidFeatureAccess(firm).allowed || isPreCutoverSignup(firm.created_at)`.
+ * Deliberately NOT folded into checkPaidFeatureAccess() itself -- same
+ * "pure tier check stays pure, exceptions get bolted on at each call site"
+ * principle this file's own docstring already establishes for the solo-free
+ * exception.
+ */
+export const VALUE_LINE_CUTOVER_DATE = "2026-08-10T03:05:00Z";
+
+export function isPreCutoverSignup(createdAt: string): boolean {
+  return createdAt < VALUE_LINE_CUTOVER_DATE;
+}
+
+/** The shared OR every one of #151's five gates uses -- a real paid tier, OR
+ * grandfathered by signup date. One function so every call site (document
+ * handlers, Slack/Teams connect + send passes, the dashboard-synthesis
+ * response flag, the seat-cap lookup) audits identically, matching this
+ * file's own "one thing to change when the rule changes" principle. NOT
+ * used by Map/Practice Privilege Check -- those keep their own, different
+ * exceptions (solo-free member-count, roadmap #153's query-budget trial) in
+ * requireFirmSessionAndPaidTier(), which this function has no relationship
+ * to. */
+export function hasValueLineAccess(firm: EntitlementSubject & { created_at: string }): boolean {
+  return checkPaidFeatureAccess(firm).allowed || isPreCutoverSignup(firm.created_at);
+}

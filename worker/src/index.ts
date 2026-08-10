@@ -233,7 +233,7 @@ import {
 } from "./mobility";
 import firmMobilityRulesData from "./firm_mobility_rules.json";
 import { evaluateFirmMobility, normalizeFirmRuleRow, type FirmMobilityRuleRow } from "./firm_mobility";
-import { checkPaidFeatureAccess, paidFeatureDenialMessage } from "./entitlements";
+import { checkPaidFeatureAccess, paidFeatureDenialMessage, hasValueLineAccess, isPreCutoverSignup } from "./entitlements";
 import { firmTierByPlanTier, firmTierForSeatCount, seatCapForFirmTier, stripePriceIdForTier } from "./tiers";
 import {
   createCheckoutSession,
@@ -2720,6 +2720,27 @@ async function requireFirmSessionAndPaidTier(
   }
 
   return { ...session, firm, mobilityAccessBasis };
+}
+
+/**
+ * Roadmap #151 ("move the value line", 2026-08-10). Shared 403 for any of
+ * the FIVE value-line gates (document storage, multi-channel connect,
+ * multi-channel send-time, ...) -- deliberately separate from
+ * requireFirmSessionAndPaidTier() above, which is Map/Practice Privilege
+ * Check specific with its own different exceptions. Reuses
+ * checkPaidFeatureAccess()'s own denial reason/message, so there is no new
+ * reason value or copy to maintain for this feature. Returns null when
+ * access is allowed (a real paid tier, or a pre-cutover-signup grandfather
+ * via hasValueLineAccess()) so callers read as `if (denied) return denied;`.
+ */
+function valueLineDenialResponse(firm: store.FirmRow): Response | null {
+  const access = checkPaidFeatureAccess(firm);
+  if (access.allowed || isPreCutoverSignup(firm.created_at)) return null;
+  return jsonResponse(403, {
+    error: paidFeatureDenialMessage(access.reason),
+    reason: access.reason,
+    pay_now_url: "/firm-dashboard/#account",
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -6772,6 +6793,15 @@ async function handleDocumentUpload(request: Request, env: Env, subscriberId: st
   const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
+  // Roadmap #151 (2026-08-10): document storage moves behind the paid tier
+  // for new signups -- migration 0032's own header called free-tier
+  // storage a deliberate choice at the time (same reasoning CPE-hour
+  // tracking still gets); this reverses that specific call, not silently.
+  // A pre-cutover free firm keeps full access via valueLineDenialResponse()'s
+  // grandfather check.
+  const valueLineDenial = valueLineDenialResponse(session.firm);
+  if (valueLineDenial) return valueLineDenial;
+
   if (!originAllowed(request, env)) {
     return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
   }
@@ -6853,6 +6883,11 @@ async function handleDocumentList(request: Request, env: Env, subscriberId: stri
   const session = await requireFirmSessionWithFirm(request, env);
   if (session instanceof Response) return session;
 
+  // Roadmap #151 (2026-08-10): same gate as handleDocumentUpload -- see its
+  // own comment.
+  const valueLineDenial = valueLineDenialResponse(session.firm);
+  if (valueLineDenial) return valueLineDenial;
+
   const existing = await store.getFirmLicense(env.DB, session.firmId, subscriberId);
   if (!existing) return jsonResponse(404, { error: "Not found." });
 
@@ -6870,6 +6905,12 @@ async function handleDocumentList(request: Request, env: Env, subscriberId: stri
 async function handleDocumentDownload(request: Request, env: Env, id: string): Promise<Response> {
   const session = await requireFirmSessionWithFirm(request, env);
   if (session instanceof Response) return session;
+
+  // Roadmap #151 (2026-08-10): same gate as handleDocumentUpload -- see its
+  // own comment. Checked before the R2 read, not after, matching this
+  // file's own "entitlement before any work" convention.
+  const valueLineDenial = valueLineDenialResponse(session.firm);
+  if (valueLineDenial) return valueLineDenial;
 
   const doc = await store.getDocumentForFirm(env.DB, session.firmId, id);
   if (!doc) return jsonResponse(404, { error: "Not found." });
@@ -6894,6 +6935,11 @@ async function handleDocumentDelete(request: Request, env: Env, id: string): Pro
   // migration 0045 (roadmap #11/#13/#14): Staff stays read-only.
   const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
+
+  // Roadmap #151 (2026-08-10): same gate as handleDocumentUpload -- see its
+  // own comment.
+  const valueLineDenial = valueLineDenialResponse(session.firm);
+  if (valueLineDenial) return valueLineDenial;
 
   if (!originAllowed(request, env)) {
     return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });

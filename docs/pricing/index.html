@@ -1503,10 +1503,10 @@
   <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>
 </header>
 <h1>Pricing</h1>
-<p class="intro">Roster, calendar, and CPE-hours tracking are <strong>free for any firm</strong>, no
-card required, no time limit. Paid firm plans add the multistate map and Practice Privilege Check
-&mdash; every paid tier has the identical feature set, priced only by how many staff it covers; nothing
-is held back on a cheaper plan.</p>
+<p class="intro">Roster, calendar, and CPE-hours tracking are <strong>free for any firm, up to 3
+staff</strong>, no card required, no time limit. Paid firm plans add the multistate map and Practice
+Privilege Check &mdash; every paid tier has the identical feature set, priced only by how many staff
+it covers; nothing is held back on a cheaper plan.</p>
 
 <p id="dr-pricing-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
 
@@ -1550,10 +1550,10 @@ is held back on a cheaper plan.</p>
   </div>
 </div>
 
-<p>Roster, calendar, and CPE-hours tracking are free for any firm, no card required, no time limit.
-The buttons above are for the paid map + Practice Privilege Check tiers: if you don't already have a
-firm account, they start free signup first; if you're already signed in, they go straight to checkout
-for that tier, same as the dashboard's own upgrade panel.</p>
+<p>Roster, calendar, and CPE-hours tracking are free for any firm, up to 3 staff, no card required,
+no time limit. The buttons above are for the paid map + Practice Privilege Check tiers: if you don't
+already have a firm account, they start free signup first; if you're already signed in, they go
+straight to checkout for that tier, same as the dashboard's own upgrade panel.</p>
 
 <h2>What's actually included, free vs. paid</h2>
 <p class="intro">Every paid tier (Essentials through Enterprise) has the identical feature set, priced
@@ -1650,7 +1650,7 @@ overlap.</p>
         headers: {'content-type': 'application/json'},
         body: JSON.stringify({tier: tier})
       }).then(function(res) {
-        if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+        if (res.status === 401) { window.location.href = '/firm-login/#dr-view-signup'; return null; }
         return res.json().catch(function() { return null; }).then(function(data) {
           if (!res.ok) {
             if (errEl) {

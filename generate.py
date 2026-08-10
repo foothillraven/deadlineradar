@@ -2332,11 +2332,18 @@ _NAV_TOGGLE_JS_HTML = """<script>
 # already has a firm session (free tier or already paid), this is one click
 # straight into Stripe, identical to the dashboard's own billing-panel
 # upgrade prompt. For an anonymous visitor, POST /firm/billing/checkout
-# 401s (requireFirmSession gates it) and this redirects to /firm-login/ to
-# create a free account first -- same fallback drStartCheckout() (the
-# dashboard's own version of this) already uses, just without that
-# function's seat-cap filtering, which doesn't apply to a visitor with no
-# roster yet.
+# 401s (requireFirmSession gates it) and this sends them to create a free
+# account first.
+#
+# ValueLab customer-walkthrough finding (2026-08-10): this used to redirect
+# to bare /firm-login/ (the SIGN-IN view) -- an anonymous visitor who just
+# clicked "Get Essentials" has no account to sign into yet, so this landed
+# every buy-path click on the wrong form. Fixed to the signup view directly
+# (#dr-view-signup, the same anchor /pricing/'s own free-tier CTA above
+# already uses). Deliberately NOT the same fix as drStartCheckout() below --
+# that one is dashboard-only, reachable only by an ALREADY-authenticated
+# session whose cookie merely expired mid-use, so sign-IN is the correct
+# landing there, not signup.
 _PRICING_CHECKOUT_JS_HTML = f"""<script>
 (function() {{
   var buttons = document.querySelectorAll('.dr-pricing-tier-btn');
@@ -2353,7 +2360,7 @@ _PRICING_CHECKOUT_JS_HTML = f"""<script>
         headers: {{'content-type': 'application/json'}},
         body: JSON.stringify({{tier: tier}})
       }}).then(function(res) {{
-        if (res.status === 401) {{ window.location.href = '/firm-login/'; return null; }}
+        if (res.status === 401) {{ window.location.href = '/firm-login/#dr-view-signup'; return null; }}
         return res.json().catch(function() {{ return null; }}).then(function(data) {{
           if (!res.ok) {{
             if (errEl) {{
@@ -4771,10 +4778,10 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   whole firm's staff across multiple states, the firm dashboard below is the same sourced-to-codified-
   law data in one roster view &mdash; who's current, who's at risk, and who needs to act.</p>
   {_firm_dashboard_mockup_html(by_slug, as_of)}
-  <p class="how-it-works"><strong>Roster, calendar, and CPE tracking are free</strong>, no card required,
-  no time limit. Firm plans from $199/year (up to 5 staff) to $549/year (up to 35 staff) add the
-  multistate map and practice-privilege check &mdash; every paid tier has the identical feature set,
-  gated only by staff count. <a href="for-firms/" style="font-weight:600;">See the firm overview
+  <p class="how-it-works"><strong>Roster, calendar, and CPE tracking are free, up to 3 staff</strong>,
+  no card required, no time limit. Firm plans from $199/year (up to 5 staff) to $549/year (up to 35
+  staff) add the multistate map and practice-privilege check &mdash; every paid tier has the identical
+  feature set, gated only by staff count. <a href="for-firms/" style="font-weight:600;">See the firm overview
   &rarr;</a> &middot; <a href="pricing/">Full pricing (incl. individual) &rarr;</a></p>
 </section>"""
 
@@ -5020,10 +5027,10 @@ def build_pricing_page() -> str:
     that: free, a real signup link, no mailto dead end.
     """
     body = f"""<h1>Pricing</h1>
-<p class="intro">Roster, calendar, and CPE-hours tracking are <strong>free for any firm</strong>, no
-card required, no time limit. Paid firm plans add the multistate map and Practice Privilege Check
-&mdash; every paid tier has the identical feature set, priced only by how many staff it covers; nothing
-is held back on a cheaper plan.</p>
+<p class="intro">Roster, calendar, and CPE-hours tracking are <strong>free for any firm, up to 3
+staff</strong>, no card required, no time limit. Paid firm plans add the multistate map and Practice
+Privilege Check &mdash; every paid tier has the identical feature set, priced only by how many staff
+it covers; nothing is held back on a cheaper plan.</p>
 
 <p id="dr-pricing-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
 
@@ -5067,10 +5074,10 @@ is held back on a cheaper plan.</p>
   </div>
 </div>
 
-<p>Roster, calendar, and CPE-hours tracking are free for any firm, no card required, no time limit.
-The buttons above are for the paid map + Practice Privilege Check tiers: if you don't already have a
-firm account, they start free signup first; if you're already signed in, they go straight to checkout
-for that tier, same as the dashboard's own upgrade panel.</p>
+<p>Roster, calendar, and CPE-hours tracking are free for any firm, up to 3 staff, no card required,
+no time limit. The buttons above are for the paid map + Practice Privilege Check tiers: if you don't
+already have a firm account, they start free signup first; if you're already signed in, they go
+straight to checkout for that tier, same as the dashboard's own upgrade panel.</p>
 
 <h2>What's actually included, free vs. paid</h2>
 <p class="intro">Every paid tier (Essentials through Enterprise) has the identical feature set, priced
@@ -6220,7 +6227,9 @@ def _firm_dashboard_mockup_html(by_slug: dict[str, list[dict]], as_of: date) -> 
 </div>
 <p class="mock-caption">Illustrative example &mdash; not a real firm. Dates shown are the actual
 current deadlines for these states, computed the same way as every free page on this site. This is
-the real product design, not a mockup of a different one.</p>"""
+the real product design, not a mockup of a different one. 6 staff shown here to also illustrate firm
+registration (a separate feature, 2 of the rows above) &mdash; the free tier itself covers up to
+3 staff; paid tiers cover more.</p>"""
 
 
 # Roadmap #58 (2026-08-07): the homepage (the free individual funnel --
@@ -6449,10 +6458,10 @@ separate from the sourced renewal dates. We won't blur the two &mdash; self-repo
 sourced dates staying visibly distinct is the whole reason to trust this site.</p>
 
 <h2>Pricing</h2>
-<p>Roster, Calendar, and CPE Hours are <strong>free for any firm</strong>, no card required, no time
-limit. Paid tiers add the Map and Practice Privilege Check &mdash; every paid tier gets the identical
-feature set; the only difference between them is how many staff it covers, nothing is held back on a
-cheaper plan.</p>
+<p>Roster, Calendar, and CPE Hours are <strong>free for any firm, up to 3 staff</strong>, no card
+required, no time limit. Paid tiers add the Map and Practice Privilege Check &mdash; every paid tier
+gets the identical feature set; the only difference between them is how many staff it covers, nothing
+is held back on a cheaper plan.</p>
 <ul class="firm-pricing-list">
   <li><strong>Essentials</strong> &mdash; $199/year, up to 5 staff</li>
   <li><strong>Growth</strong> &mdash; $299/year, up to 10 staff</li>
@@ -6477,7 +6486,7 @@ Check are also <strong>free</strong> for a solo CPA &mdash;
     prominent one-click opt-out.</p>
     <p class="remind-promise">Free, no time limit, no card collected anywhere in this flow.</p>
   </div>
-  <p><a class="cta-button" id="dr-firms-cta" href="../firm-login/">Create your firm account &rarr;</a></p>
+  <p><a class="cta-button" id="dr-firms-cta" href="../firm-login/#dr-view-signup">Create your firm account &rarr;</a></p>
   <p class="field-hint">By creating an account, you agree to our <a href="../terms/">Terms of
   Service</a> and <a href="../privacy/">Privacy Policy</a>.</p>
 </div>

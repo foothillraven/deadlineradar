@@ -414,6 +414,16 @@
   .dr-pain-col p { margin: 0; font-size: 0.9rem; line-height: 1.55; }
 
   
+  .dr-segment-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.9rem; margin: 1rem 0 1.4rem; }
+  .dr-segment-card {
+    display: block; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.1rem; text-decoration: none; color: var(--fg);
+  }
+  .dr-segment-card:hover { border-color: var(--border-strong); }
+  .dr-segment-name { font-weight: 700; font-size: 0.92rem; margin-bottom: 0.25rem; }
+  .dr-segment-detail { font-size: 0.85rem; color: var(--muted); }
+
+  
   .remind-panel {
     background: var(--panel-dark); color: var(--panel-dark-fg); border-radius: 12px; padding: 1.8rem;
     display: grid; grid-template-columns: 1.1fr 1fr; gap: 1.6rem; align-items: center; margin: 1.75rem 0;

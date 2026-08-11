@@ -893,6 +893,21 @@ PAGE_CSS = """
   .dr-pain-icon { width: 28px; height: 28px; color: var(--accent); margin-bottom: 0.7rem; }
   .dr-pain-col p { margin: 0; font-size: 0.9rem; line-height: 1.55; }
 
+  /* Roadmap #331 (2026-08-11, ValueLab design-pattern-mining #9): firm-size
+     segmentation CARDS only, explicitly not dedicated landing pages -- each
+     card is a plain anchor link into /pricing/'s own matching tier card
+     (see the `id` attributes added there), not a new page. Same
+     .state-card-ish treatment as everywhere else on the site rather than a
+     new visual language. */
+  .dr-segment-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.9rem; margin: 1rem 0 1.4rem; }
+  .dr-segment-card {
+    display: block; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.1rem; text-decoration: none; color: var(--fg);
+  }
+  .dr-segment-card:hover { border-color: var(--border-strong); }
+  .dr-segment-name { font-weight: 700; font-size: 0.92rem; margin-bottom: 0.25rem; }
+  .dr-segment-detail { font-size: 0.85rem; color: var(--muted); }
+
   /* ---- reminder panel: two-column dark treatment ---- */
   .remind-panel {
     background: var(--panel-dark); color: var(--panel-dark-fg); border-radius: 12px; padding: 1.8rem;
@@ -5328,37 +5343,36 @@ own upgrade panel.</p>
 <p id="dr-pricing-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
 
 <div class="pricing-grid">
-  <div class="pricing-card">
+  <div class="pricing-card" id="individual">
     <h2>Individual</h2>
     <p class="price">Free</p>
     <p class="detail">Your own CPE-hour tracking and Practice Privilege Check &mdash; included at no
-    cost for a solo CPA tracking just your own license.</p>
+    cost for a solo CPA tracking just your own license. Just want free renewal reminders?
+    <a href="/#remind">Sign up free</a> &mdash; no account needed.</p>
     <a class="dr-paywall-tier-btn" href="/firm-login/#dr-view-signup">Create a free account</a>
-    <p class="detail">Just want free renewal reminders? <a href="/#remind">Sign up free</a> &mdash; no
-    account needed.</p>
   </div>
-  <div class="pricing-card">
+  <div class="pricing-card" id="essentials">
     <h2>Essentials</h2>
     <p class="price">$199<span>/year</span></p>
     <p class="detail">Up to 5 staff.</p>
     {_PAID_TIER_INCLUDES_HTML}
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_starter">Get Essentials</button>
   </div>
-  <div class="pricing-card">
+  <div class="pricing-card" id="growth">
     <h2>Growth</h2>
     <p class="price">$299<span>/year</span></p>
     <p class="detail">Up to 10 staff.</p>
     {_PAID_TIER_INCLUDES_HTML}
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_growth">Get Growth</button>
   </div>
-  <div class="pricing-card">
+  <div class="pricing-card" id="professional">
     <h2>Professional</h2>
     <p class="price">$399<span>/year</span></p>
     <p class="detail">Up to 20 staff.</p>
     {_PAID_TIER_INCLUDES_HTML}
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_standard">Get Professional</button>
   </div>
-  <div class="pricing-card">
+  <div class="pricing-card" id="enterprise">
     <h2>Enterprise</h2>
     <p class="price">$549<span>/year</span></p>
     <p class="detail">Up to 35 staff.</p>
@@ -7168,13 +7182,33 @@ sourced dates staying visibly distinct is the whole reason to trust this site.</
 up to 3 staff</strong>, no card required, no time limit. Paid tiers add the Map and the firm-level
 registration check &mdash; every paid tier gets the identical feature set; the only difference between
 them is how many staff it covers, nothing is held back on a cheaper plan.</p>
-<ul class="firm-pricing-list">
-  <li><strong>Essentials</strong> &mdash; $199/year, up to 5 staff</li>
-  <li><strong>Growth</strong> &mdash; $299/year, up to 10 staff</li>
-  <li><strong>Professional</strong> &mdash; $399/year, up to 20 staff</li>
-  <li><strong>Enterprise</strong> &mdash; $549/year, up to 35 staff</li>
-  <li><strong>More than 35 staff?</strong> <a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a>.</li>
-</ul>
+<p class="field-hint">Which one is you?</p>
+<div class="dr-segment-grid">
+  <a class="dr-segment-card" href="/pricing/#individual">
+    <div class="dr-segment-name">Just you</div>
+    <div class="dr-segment-detail">Free &mdash; your own license, CPE tracking, and Practice Privilege Check.</div>
+  </a>
+  <a class="dr-segment-card" href="/pricing/#essentials">
+    <div class="dr-segment-name">Small firm, up to 5 staff</div>
+    <div class="dr-segment-detail">Essentials &mdash; $199/year.</div>
+  </a>
+  <a class="dr-segment-card" href="/pricing/#growth">
+    <div class="dr-segment-name">Growing firm, up to 10 staff</div>
+    <div class="dr-segment-detail">Growth &mdash; $299/year.</div>
+  </a>
+  <a class="dr-segment-card" href="/pricing/#professional">
+    <div class="dr-segment-name">Established firm, up to 20 staff</div>
+    <div class="dr-segment-detail">Professional &mdash; $399/year.</div>
+  </a>
+  <a class="dr-segment-card" href="/pricing/#enterprise">
+    <div class="dr-segment-name">Larger firm, up to 35 staff</div>
+    <div class="dr-segment-detail">Enterprise &mdash; $549/year.</div>
+  </a>
+  <a class="dr-segment-card" href="mailto:{esc(CONTACT_EMAIL)}">
+    <div class="dr-segment-name">More than 35 staff?</div>
+    <div class="dr-segment-detail">Contact us &mdash; no formula, we'll work out what fits.</div>
+  </a>
+</div>
 <p><a href="/pricing/">See full pricing &rarr;</a></p>
 <p><strong>Tracking just your own license, not a firm roster?</strong> The free individual reminders
 on our homepage already cover that at no cost, unchanged. CPE-hour tracking and Practice Privilege

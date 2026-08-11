@@ -414,6 +414,16 @@
   .dr-pain-col p { margin: 0; font-size: 0.9rem; line-height: 1.55; }
 
   
+  .dr-segment-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.9rem; margin: 1rem 0 1.4rem; }
+  .dr-segment-card {
+    display: block; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.1rem; text-decoration: none; color: var(--fg);
+  }
+  .dr-segment-card:hover { border-color: var(--border-strong); }
+  .dr-segment-name { font-weight: 700; font-size: 0.92rem; margin-bottom: 0.25rem; }
+  .dr-segment-detail { font-size: 0.85rem; color: var(--muted); }
+
+  
   .remind-panel {
     background: var(--panel-dark); color: var(--panel-dark-fg); border-radius: 12px; padding: 1.8rem;
     display: grid; grid-template-columns: 1.1fr 1fr; gap: 1.6rem; align-items: center; margin: 1.75rem 0;
@@ -1615,16 +1625,15 @@ own upgrade panel.</p>
 <p id="dr-pricing-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
 
 <div class="pricing-grid">
-  <div class="pricing-card">
+  <div class="pricing-card" id="individual">
     <h2>Individual</h2>
     <p class="price">Free</p>
     <p class="detail">Your own CPE-hour tracking and Practice Privilege Check &mdash; included at no
-    cost for a solo CPA tracking just your own license.</p>
+    cost for a solo CPA tracking just your own license. Just want free renewal reminders?
+    <a href="/#remind">Sign up free</a> &mdash; no account needed.</p>
     <a class="dr-paywall-tier-btn" href="/firm-login/#dr-view-signup">Create a free account</a>
-    <p class="detail">Just want free renewal reminders? <a href="/#remind">Sign up free</a> &mdash; no
-    account needed.</p>
   </div>
-  <div class="pricing-card">
+  <div class="pricing-card" id="essentials">
     <h2>Essentials</h2>
     <p class="price">$199<span>/year</span></p>
     <p class="detail">Up to 5 staff.</p>
@@ -1637,7 +1646,7 @@ own upgrade panel.</p>
     </ul>
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_starter">Get Essentials</button>
   </div>
-  <div class="pricing-card">
+  <div class="pricing-card" id="growth">
     <h2>Growth</h2>
     <p class="price">$299<span>/year</span></p>
     <p class="detail">Up to 10 staff.</p>
@@ -1650,7 +1659,7 @@ own upgrade panel.</p>
     </ul>
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_growth">Get Growth</button>
   </div>
-  <div class="pricing-card">
+  <div class="pricing-card" id="professional">
     <h2>Professional</h2>
     <p class="price">$399<span>/year</span></p>
     <p class="detail">Up to 20 staff.</p>
@@ -1663,7 +1672,7 @@ own upgrade panel.</p>
     </ul>
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_standard">Get Professional</button>
   </div>
-  <div class="pricing-card">
+  <div class="pricing-card" id="enterprise">
     <h2>Enterprise</h2>
     <p class="price">$549<span>/year</span></p>
     <p class="detail">Up to 35 staff.</p>

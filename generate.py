@@ -5238,6 +5238,57 @@ overlap.</p>
     ) + _PRICING_CHECKOUT_JS_HTML
 
 
+# Roadmap #335 (2026-08-10, ValueLab's 137-page Canopy-comparison-page
+# walkthrough): named practice-management-suite competitors, priced for a
+# 6-person firm -- the SAME two facts /compare/ has independently verified
+# per competitor (2026-08-10 pricing-page check + the "does not track a
+# staff CPA license" observation), pulled into one canonical list so the
+# overview table and each competitor's own dedicated page can't drift apart.
+# Deliberately NOT 5 -- ValueLab's item asked for "5, not Canopy's 18" as an
+# upper bound, but this file only has independently verified facts for 3 of
+# that shape (Canopy/Karbon/TaxDome) plus MYCPE ONE (a different shape, see
+# below) -- inventing a 5th competitor's numbers to hit a round number would
+# violate the exact honesty standard the item itself invoked. Flagged to the
+# orchestrator rather than guessed.
+COMPETITOR_FACTS = [
+    {
+        "slug": "canopy",
+        "name": "Canopy",
+        "plan_name": "Standard",
+        "annual_cost_6_person": "~$5,328/year",
+        "cost_basis": "$74/user/mo",
+    },
+    {
+        "slug": "karbon",
+        "name": "Karbon",
+        "plan_name": "Business",
+        "annual_cost_6_person": "~$6,408/year",
+        "cost_basis": "$89/user/mo",
+    },
+    {
+        "slug": "taxdome",
+        "name": "TaxDome",
+        "plan_name": "Pro",
+        "annual_cost_6_person": "~$6,000/year",
+        "cost_basis": "$1,000/seat/yr, 1-yr term",
+    },
+]
+
+# MYCPE ONE is a different shape (a CPE-hours platform, not a practice-
+# management suite) so it doesn't fit COMPETITOR_FACTS' 6-person-firm cost
+# table -- kept as its own fact record for the same reason: one canonical
+# source both /compare/ and its own dedicated page read from.
+MYCPE_ONE_FACTS = {
+    "slug": "mycpe-one",
+    "name": "MYCPE ONE",
+    "annual_cost": "$199/year",
+}
+
+# Populated by main()'s build loop, same pattern as FIRM_LANDING_PAGES --
+# build_sitemap() reads this once it's known.
+COMPETITOR_COMPARE_PAGES: list[dict] = []
+
+
 def build_compare_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
     """Roadmap #33 (2026-08-07, roadmap_items table, IMMEDIATE RELEASE):
     "Comparison page (DeadlineRadar vs. spreadsheet vs. competitor)."
@@ -5329,6 +5380,11 @@ def build_compare_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
     _verified_recent, _total_citations = _citation_freshness_stat(
         [r for recs in by_slug.values() for r in recs], as_of
     )
+    competitor_rows_html = "\n".join(
+        f'    <tr><td><a href="{esc(c["slug"])}/">{esc(c["name"])} ({esc(c["plan_name"])})</a></td>'
+        f'<td>{esc(c["annual_cost_6_person"])}</td><td>No</td></tr>'
+        for c in COMPETITOR_FACTS
+    )
     body = f"""<h1>DeadlineRadar vs. Practice-Management Suites vs. a Spreadsheet</h1>
 <p class="intro">Every one of those other trackers makes <em>you</em> type in the expiration date and
 takes it on faith. We compute it from the codified statute or board rule and show you the citation
@@ -5350,9 +5406,7 @@ since.</p>
   <thead><tr><th scope="col">Product</th><th scope="col">Annual cost, 6-person firm</th><th scope="col">Tracks a staff CPA's license?</th></tr></thead>
   <tbody>
     <tr><td><strong>DeadlineRadar</strong></td><td>$299/year (Growth tier, up to 10 staff)</td><td>Yes</td></tr>
-    <tr><td>Canopy (Standard)</td><td>~$5,328/year</td><td>No</td></tr>
-    <tr><td>Karbon (Business)</td><td>~$6,408/year</td><td>No</td></tr>
-    <tr><td>TaxDome (Pro)</td><td>~$6,000/year</td><td>No</td></tr>
+{competitor_rows_html}
   </tbody>
 </table>
 </div>
@@ -5362,11 +5416,12 @@ The point isn't that they're bad products; it's that a firm already paying one o
 sourced answer to "when does Alex's CPA license renew" without something like this alongside it.</p>
 
 <h2>The one competitor close enough in price to actually confuse</h2>
-<p><strong>MYCPE ONE</strong> lists at $199/year &mdash; the same headline price our old Individual tier
-used to carry. Worth naming specifically because it's the one product priced close enough to cause real
-confusion, but it does a different job: it's a CPE-hours platform (tracking completed continuing-education
-credits), not a license-renewal filing tracker. Both matter to a CPA; they're not the same problem, and
-DeadlineRadar's own CPE Hours tab is free, not a $199 add-on.</p>
+<p><strong><a href="{esc(MYCPE_ONE_FACTS["slug"])}/">MYCPE ONE</a></strong> lists at {esc(MYCPE_ONE_FACTS["annual_cost"])}
+&mdash; the same headline price our old Individual tier used to carry. Worth naming specifically because
+it's the one product priced close enough to cause real confusion, but it does a different job: it's a
+CPE-hours platform (tracking completed continuing-education credits), not a license-renewal filing
+tracker. Both matter to a CPA; they're not the same problem, and DeadlineRadar's own CPE Hours tab is
+free, not a $199 add-on.</p>
 
 <h2>Feature-by-feature, DeadlineRadar vs. a spreadsheet vs. a generic tool</h2>
 <p class="intro">The table above names real products for the two facts we've independently verified
@@ -5408,6 +5463,101 @@ breakdown</a>.</p>
         canonical_path="/compare/",
         has_remind_anchor=False,
     )
+
+
+def build_competitor_compare_page(c: dict) -> tuple[str, str, str]:
+    """Roadmap #335 -- one dedicated page per named practice-management-suite
+    competitor, split out of /compare/'s single combined page. Reuses the
+    exact same COMPETITOR_FACTS entry /compare/'s own table reads from, so
+    the two pages can't drift on price. Returns (slug, title, html_body)."""
+    title = f"DeadlineRadar vs. {c['name']} — CPA License Renewal Tracking"
+    meta_description = (
+        f"DeadlineRadar vs. {c['name']} for a 6-person CPA firm: {c['annual_cost_6_person']} vs. "
+        f"$299/year, and whether either one tracks an individual staff CPA's license renewal."
+    )
+    body = f"""<h1>{esc(title)}</h1>
+<p class="intro">{esc(c['name'])} ({esc(c['plan_name'])}) is a practice-management suite &mdash; client
+portals, workflow, document management. It's a genuinely different product than DeadlineRadar, not a
+head-to-head rival, and a firm can reasonably run both. This page exists for the one question that
+actually overlaps: does either one track when an individual staff CPA's <em>license itself</em> is due
+for renewal.</p>
+
+<div class="table-wrap">
+<table class="compare-table">
+  <caption class="dr-visually-hidden">Annual cost for a 6-person firm, DeadlineRadar vs. {esc(c['name'])}</caption>
+  <thead><tr><th scope="col">Product</th><th scope="col">Annual cost, 6-person firm</th><th scope="col">Tracks a staff CPA's license?</th></tr></thead>
+  <tbody>
+    <tr><td><strong>DeadlineRadar</strong></td><td>$299/year (Growth tier, up to 10 staff)</td><td>Yes</td></tr>
+    <tr><td>{esc(c['name'])} ({esc(c['plan_name'])})</td><td>{esc(c['annual_cost_6_person'])}</td><td>No</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="field-hint">{esc(c['name'])}'s price above is its own published rate ({esc(c['cost_basis'])}),
+verified 2026-08-10 against its current pricing page &mdash; it may have changed since. DeadlineRadar's
+sourced, cited renewal dates for all 55 U.S. jurisdictions are described in full on our
+<a href="../../methodology/">verification methodology page</a>.</p>
+
+<h2>Why this isn't really a competitive comparison</h2>
+<p>{esc(c['name'])} solves client-facing workflow &mdash; the day-to-day of running client engagements.
+DeadlineRadar solves one narrow, specific compliance problem: knowing, with a citation, exactly when
+every staff CPA's license and firm registration is due, and getting reminded before it lapses. Most
+firms using {esc(c['name'])} still have no sourced answer to "when does this person's license renew"
+inside it &mdash; that's not a criticism, license tracking just isn't what it's built for.</p>
+
+<p class="backlink">See the <a href="../">full comparison page</a>, or <a href="../../pricing/">DeadlineRadar
+pricing</a>.</p>
+"""
+    html = page_shell(
+        f"{title} — {SITE_NAME}", meta_description, body, home_href="../../",
+        canonical_path=f"/compare/{c['slug']}/", has_remind_anchor=False,
+    )
+    return c["slug"], title, html
+
+
+def build_mycpe_one_compare_page() -> tuple[str, str, str]:
+    """Roadmap #335 -- MYCPE ONE's own dedicated page. Kept separate from
+    build_competitor_compare_page() since it's a different shape (a CPE-hours
+    platform, not a practice-management suite) with a different comparison
+    (CPE tracking scope, not a 6-person-firm cost table)."""
+    c = MYCPE_ONE_FACTS
+    title = f"DeadlineRadar vs. {c['name']} — CPE Tracking vs. License Renewal Tracking"
+    meta_description = (
+        f"DeadlineRadar vs. {c['name']}: {c['name']} tracks completed CPE hours for {c['annual_cost']}. "
+        f"DeadlineRadar's CPE Hours tracking is free, and also tracks the license renewal itself."
+    )
+    body = f"""<h1>{esc(title)}</h1>
+<p class="intro">{esc(c['name'])} lists at {esc(c['annual_cost'])} &mdash; close enough to our old
+Individual tier's own headline price to cause real confusion. But it does a different job: it's a
+CPE-hours platform, tracking completed continuing-education credits. DeadlineRadar tracks the license
+renewal filing itself &mdash; a genuinely different deadline, on a genuinely different clock in most
+states.</p>
+
+<div class="table-wrap">
+<table class="compare-table">
+  <caption class="dr-visually-hidden">DeadlineRadar vs. {esc(c['name'])}</caption>
+  <thead><tr><th scope="col">Product</th><th scope="col">Price</th><th scope="col">What it tracks</th></tr></thead>
+  <tbody>
+    <tr><td><strong>DeadlineRadar</strong></td><td>Free (individual)</td>
+      <td>License renewal deadline, sourced and cited &mdash; plus free CPE-hour tracking against the
+      real requirement for your state.</td></tr>
+    <tr><td>{esc(c['name'])}</td><td>{esc(c['annual_cost'])}</td>
+      <td>Completed CPE hours/credits.</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="field-hint">Both matter to a working CPA &mdash; missing your CPE hours and missing your
+license renewal are two different ways to end up out of compliance, covered in more depth in our
+<a href="../../blog/cpe-vs-license-renewal/">CPE vs. license renewal</a> guide. DeadlineRadar's own
+CPE Hours tab is free, not a paid add-on.</p>
+
+<p class="backlink">See the <a href="../">full comparison page</a>, or <a href="../../pricing/">DeadlineRadar
+pricing</a>.</p>
+"""
+    html = page_shell(
+        f"{title} — {SITE_NAME}", meta_description, body, home_href="../../",
+        canonical_path=f"/compare/{c['slug']}/", has_remind_anchor=False,
+    )
+    return c["slug"], title, html
 
 
 def build_roadmap_page() -> str:
@@ -17180,6 +17330,11 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/{esc(p['slug'])}/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""")
+    for p in COMPETITOR_COMPARE_PAGES:
+        urls.append(f"""  <url>
+    <loc>{SITE_BASE_URL}/{esc(p['slug'])}/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""")
     for s in sorted(states, key=lambda s: s["state_slug"]):
         urls.append(f"""  <url>
     <loc>{SITE_BASE_URL}/{esc(s['state_slug'])}/</loc>
@@ -17363,9 +17518,21 @@ def main() -> None:
         REINSTATEMENT_PAGES.append({"slug": slug, "state_name": reinstatement_record["state"]})
         print(f"wrote {SITE_DIR.name}/{slug}/index.html  ({title})")
 
-    # sitemap.xml (below) reads FIRM_LANDING_PAGES, CPE_HOURS_PAGES, and
-    # REINSTATEMENT_PAGES, so it
-    # must be written AFTER both loops above populate them.
+    COMPETITOR_COMPARE_PAGES.clear()
+    for competitor_page_builder in (
+        [lambda c=c: build_competitor_compare_page(c) for c in COMPETITOR_FACTS]
+        + [build_mycpe_one_compare_page]
+    ):
+        c_slug, c_title, c_html = competitor_page_builder()
+        c_dir = SITE_DIR / "compare" / c_slug
+        c_dir.mkdir(parents=True, exist_ok=True)
+        (c_dir / "index.html").write_text(c_html, encoding="utf-8")
+        COMPETITOR_COMPARE_PAGES.append({"slug": f"compare/{c_slug}"})
+        print(f"wrote {SITE_DIR.name}/compare/{c_slug}/index.html  ({c_title})")
+
+    # sitemap.xml (below) reads FIRM_LANDING_PAGES, CPE_HOURS_PAGES,
+    # REINSTATEMENT_PAGES, and COMPETITOR_COMPARE_PAGES, so it must be
+    # written AFTER every loop above populates them.
     (SITE_DIR / "sitemap.xml").write_text(build_sitemap(built, as_of), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/sitemap.xml")
 

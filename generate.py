@@ -16877,14 +16877,27 @@ def _cpe_hours_reverse_link_html(state_slug: str, cpe_hours_by_slug: dict[str, d
     """Reverse cross-link (renewal page -> CPE-hours page), per the orchestrator's
     go-live checklist: cross-link integrity in BOTH directions, not just CPE-hours
     page -> renewal page. Renders nothing if this state has no verified CPE-hours
-    record yet (most states, until the cluster grows past this first tranche)."""
+    record yet (most states, until the cluster grows past this first tranche).
+
+    2026-08-11 (14:30 item #6, ValueLab's customer walkthrough): this used to be
+    a bare link ("How many CPE hours does X require?") -- LicenseClock, a lower-
+    verification-standard free competitor, was out-answering this exact lookup
+    by showing the actual hour count directly on its own renewal page, no click
+    required. Now shows the real number inline (total_hours/period_years/
+    ethics_hours, the same already-verified fields build_cpe_hours_page() uses)
+    before linking out for the full citation -- same data, just surfaced instead
+    of hidden behind a click."""
     cpe_record = cpe_hours_by_slug.get(state_slug)
     if not cpe_record:
         return ""
     slug = f"{state_slug}-cpa-cpe-requirements"
+    hours_word = "hour" if cpe_record["total_hours"] == 1 else "hours"
+    years_word = "year" if cpe_record["period_years"] == 1 else "years"
+    ethics_word = "hour" if cpe_record["ethics_hours"] == 1 else "hours"
     return (
-        f'<p class="backlink-cross"><a href="../{esc(slug)}/">How many CPE hours does '
-        f'{esc(cpe_record["state"])} require? &rarr;</a></p>'
+        f'<p class="backlink-cross"><strong>CPE required:</strong> {cpe_record["total_hours"]} {hours_word} '
+        f'every {cpe_record["period_years"]} {years_word} ({cpe_record["ethics_hours"]} ethics {ethics_word}). '
+        f'<a href="../{esc(slug)}/">Full CPE requirements &rarr;</a></p>'
     )
 
 

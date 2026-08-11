@@ -732,6 +732,17 @@
   .dr-mob-roster-table th { text-align: left; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border-strong); }
   .dr-mob-roster-table td { padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
   .dr-mob-roster-table tr:last-child td { border-bottom: none; }
+
+  
+  .dr-showcase-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+  .dr-showcase-tab {
+    background: transparent; color: var(--muted); border: 1px solid var(--border-strong);
+    border-radius: 999px; cursor: pointer; padding: 0.45rem 1.1rem; font-size: 0.85rem;
+    font-weight: 600; font-family: inherit;
+  }
+  .dr-showcase-tab--active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .dr-showcase-frame { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--card-bg); }
+  .dr-showcase-frame img { display: block; width: 100%; height: auto; }
   .dr-questionnaire-check { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0.5rem 0; font-size: 0.88rem; font-weight: 400; }
   .dr-questionnaire-check input { margin-top: 0.2rem; flex: 0 0 auto; }
   .dr-nps-scale { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.9rem 0; }
@@ -1589,111 +1600,24 @@ free on every tier, for any account &mdash; a free signup is all it takes, no ca
 required; <a href="../pricing/">the firm-level check and the multistate coverage map are part of a
 paid plan</a>.</p>
 
-<div class="mock-dashboard">
-  <div class="mock-chrome">
-    <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
-    <span class="mock-url">deadline-radar.com/firm-dashboard/</span>
+<div class="dr-showcase">
+  <div class="dr-showcase-tabs" role="tablist">
+  <button type="button" class="dr-showcase-tab dr-showcase-tab--active" data-showcase="roster" aria-pressed="true">Roster</button>
+  <button type="button" class="dr-showcase-tab" data-showcase="calendar" aria-pressed="false">Calendar</button>
+  <button type="button" class="dr-showcase-tab" data-showcase="map" aria-pressed="false">Map</button>
+  <button type="button" class="dr-showcase-tab" data-showcase="cpe" aria-pressed="false">CPE Hours</button>
+  <button type="button" class="dr-showcase-tab" data-showcase="reports" aria-pressed="false">Reports</button>
+  <button type="button" class="dr-showcase-tab" data-showcase="mobility" aria-pressed="false">Practice Privilege Check</button>
   </div>
-  <div class="mock-body">
-  <div class="dr-dash-shell">
-    <aside class="dr-sidebar">
-      <div class="dr-firm-name">Example Firm, LLC</div>
-      <ul class="dr-nav">
-        <li><a href="#" class="is-active" tabindex="-1">Roster</a></li>
-        <li><a href="#" tabindex="-1">Calendar</a></li>
-        <li><a href="#" tabindex="-1">Map</a></li>
-        <li><a href="#" tabindex="-1">CPE Hours</a></li>
-        <li><a href="#" tabindex="-1">Reports</a></li>
-        <li><a href="/firm-mobility/">Practice Privilege Check</a></li>
-        <li><a href="#" tabindex="-1">Account</a></li>
-      </ul>
-    </aside>
-    <div class="dr-main">
-      <div class="dr-stat-row">
-        <div class="dr-stat-card"><div class="dr-ring-wrap">
-  <svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">
-    <circle class="dr-ring-track" cx="29" cy="29" r="24"></circle>
-    <circle class="dr-ring-value" cx="29" cy="29" r="24" stroke-dasharray="101.0 150.8"></circle>
-  </svg>
-  <div class="dr-ring-pct">67%</div>
-</div>
-          <div><div class="dr-stat-label">Coverage</div><div class="dr-stat-value">67%</div>
-          <div class="dr-stat-sub">4 of 6 active</div></div></div>
-        <div class="dr-stat-card"><div class="dr-donut-wrap">
-  <div style="width:58px;height:58px;border-radius:50%;flex:none;display:flex;align-items:center;
-  justify-content:center;background:conic-gradient(#1f9e5c 0.0deg 240.0deg, #c33737 240.0deg 300.0deg, #8595a3 300.0deg 360.0deg);" aria-hidden="true">
-    <div style="width:30px;height:30px;border-radius:50%;background:var(--card-bg);"></div>
+  <div class="dr-showcase-frame">
+    <img src="/showcase/roster.jpg" alt="Coverage overview: who&#x27;s current, who&#x27;s at risk, at a glance." id="dr-showcase-img" width="1568" height="778" loading="lazy">
   </div>
-  <ul class="dr-donut-legend"><li><span class="swatch" style="background:#1f9e5c"></span>Active (4)</li>
-<li><span class="swatch" style="background:#c33737"></span>Needs attention (1)</li>
-<li><span class="swatch" style="background:#8595a3"></span>Opted out (1)</li></ul>
+  <p class="mock-caption" id="dr-showcase-caption">Coverage overview: who&#x27;s current, who&#x27;s at risk, at a glance. Real screenshot of our own shared
+  live demo account &mdash; the same one you land on if you click "Live Demo" above &mdash; not a mockup.</p>
 </div>
-          <div><div class="dr-stat-label">Roster status</div><div class="dr-stat-value">6</div>
-          <div class="dr-stat-sub">staff tracked</div></div></div>
-        <div class="dr-stat-card"><div class="dr-ring-wrap">
-  <svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">
-    <circle class="dr-ring-track" cx="29" cy="29" r="24"></circle>
-    <circle class="dr-ring-value" cx="29" cy="29" r="24" stroke-dasharray="0.0 150.8"></circle>
-  </svg>
-  <div class="dr-ring-pct">0%</div>
-</div>
-          <div><div class="dr-stat-label">Due soon</div><div class="dr-stat-value">0</div>
-          <div class="dr-stat-sub">due within 30 days or unresolved</div></div></div>
-      </div>
-      <div class="table-wrap">
-      <table>
-        <thead><tr><th>Staff</th><th>State</th><th>Status</th><th>Next deadline</th></tr></thead>
-        <tbody>
-        <tr>
-  <td>Alex R.</td>
-  <td>Georgia</td>
-  <td><span class="mock-status mock-status--ok">Active</span></td>
-  <td>December 31, 2027</td>
-</tr>
-<tr>
-  <td>Jordan M.</td>
-  <td>Alabama</td>
-  <td><span class="mock-status mock-status--ok">Active</span></td>
-  <td>December 31, 2026</td>
-</tr>
-<tr>
-  <td>Sam K.</td>
-  <td>Illinois</td>
-  <td><span class="mock-status mock-status--pending">Opted out</span></td>
-  <td>September 30, 2027</td>
-</tr>
-<tr>
-  <td>Taylor B.</td>
-  <td>Missouri</td>
-  <td><span class="mock-status mock-status--risk">Needs attention</span></td>
-  <td>September 30, 2027</td>
-</tr>
-<tr>
-  <td>Morgan P. — Firm Registration</td>
-  <td>Louisiana</td>
-  <td><span class="mock-status mock-status--ok">Active</span></td>
-  <td>December 31, 2026</td>
-</tr>
-<tr>
-  <td>Casey T. — Firm Registration</td>
-  <td>Missouri</td>
-  <td><span class="mock-status mock-status--ok">Active</span></td>
-  <td>October 31, 2026</td>
-</tr>
-        </tbody>
-      </table>
-      </div>
-    </div>
-  </div>
-  </div>
-</div>
-<p class="mock-caption">Illustrative example &mdash; not a real firm. Dates shown are the actual
-current deadlines for these states, computed the same way as every free page on this site. This is
-the real product design, not a mockup of a different one. 6 staff shown here to also illustrate firm
-registration (a separate feature, 2 of the rows above) &mdash; the free tier itself covers up to
-3 staff; paid tiers cover more.</p>
+<script>(function(){var data={roster:{src:"/showcase/roster.jpg",caption:"Coverage overview: who&#x27;s current, who&#x27;s at risk, at a glance."},calendar:{src:"/showcase/calendar.jpg",caption:"Every upcoming renewal, by date, with an .ics feed to export."},map:{src:"/showcase/map.jpg",caption:"Which states your firm has staff licensed in, and who&#x27;s at risk."},cpe:{src:"/showcase/cpe-hours.jpg",caption:"Completed continuing-education hours, tracked per staff member against each state&#x27;s own requirement."},reports:{src:"/showcase/reports.jpg",caption:"A printable compliance summary and audit trail, for a board inquiry or your own file."},mobility:{src:"/showcase/mobility.jpg",caption:"A real result: can this CPA provide this service in this state, and what has to happen first."}};var img=document.getElementById("dr-showcase-img");var caption=document.getElementById("dr-showcase-caption");var tabs=document.querySelectorAll(".dr-showcase-tab");tabs.forEach(function(tab){tab.addEventListener("click",function(){var key=tab.getAttribute("data-showcase");var entry=data[key];if(!entry||!img)return;img.src=entry.src;img.alt=entry.caption;if(caption){caption.textContent=entry.caption+' Real screenshot of our own shared live demo account -- the same one you land on if you click "Live Demo" above -- not a mockup.'}tabs.forEach(function(t){t.classList.toggle("dr-showcase-tab--active",t===tab);t.setAttribute("aria-pressed",t===tab?"true":"false")})})})})();</script>
 
-<p class="how-it-works"><strong>Want to click around for real instead of a mockup?</strong>
+<p class="how-it-works"><strong>Want to click around for real instead of screenshots?</strong>
 <a href="/api/firm/demo-login" style="font-weight:600;">Try the live demo &rarr;</a> A shared
 account, seeded with sample staff &mdash; one click, no signup, no credentials to type.</p>
 

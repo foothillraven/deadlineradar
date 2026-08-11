@@ -732,6 +732,17 @@
   .dr-mob-roster-table th { text-align: left; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border-strong); }
   .dr-mob-roster-table td { padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
   .dr-mob-roster-table tr:last-child td { border-bottom: none; }
+
+  
+  .dr-showcase-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+  .dr-showcase-tab {
+    background: transparent; color: var(--muted); border: 1px solid var(--border-strong);
+    border-radius: 999px; cursor: pointer; padding: 0.45rem 1.1rem; font-size: 0.85rem;
+    font-weight: 600; font-family: inherit;
+  }
+  .dr-showcase-tab--active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .dr-showcase-frame { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--card-bg); }
+  .dr-showcase-frame img { display: block; width: 100%; height: auto; }
   .dr-questionnaire-check { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0.5rem 0; font-size: 0.88rem; font-weight: 400; }
   .dr-questionnaire-check input { margin-top: 0.2rem; flex: 0 0 auto; }
   .dr-nps-scale { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.9rem 0; }

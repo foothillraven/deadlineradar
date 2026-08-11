@@ -1217,6 +1217,20 @@ PAGE_CSS = """
   .dr-mob-roster-table th { text-align: left; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border-strong); }
   .dr-mob-roster-table td { padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
   .dr-mob-roster-table tr:last-child td { border-bottom: none; }
+
+  /* Roadmap #323 (2026-08-10): six-tab product showcase on /for-firms/,
+     real screenshots of the shared demo account. Tab-button shape reused
+     verbatim from .dr-mob-mode-btn above -- same visual language, not a
+     new component style. */
+  .dr-showcase-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+  .dr-showcase-tab {
+    background: transparent; color: var(--muted); border: 1px solid var(--border-strong);
+    border-radius: 999px; cursor: pointer; padding: 0.45rem 1.1rem; font-size: 0.85rem;
+    font-weight: 600; font-family: inherit;
+  }
+  .dr-showcase-tab--active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .dr-showcase-frame { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--card-bg); }
+  .dr-showcase-frame img { display: block; width: 100%; height: auto; }
   .dr-questionnaire-check { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0.5rem 0; font-size: 0.88rem; font-weight: 400; }
   .dr-questionnaire-check input { margin-top: 0.2rem; flex: 0 0 auto; }
   .dr-nps-scale { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.9rem 0; }
@@ -6332,6 +6346,74 @@ registration (a separate feature, 2 of the rows above) &mdash; the free tier its
 3 staff; paid tiers cover more.</p>"""
 
 
+# Roadmap #323 (2026-08-10, ValueLab design-pattern-mining #3, TOP PRIORITY):
+# six-tab product showcase on /for-firms/, replacing the single static
+# roster-only mockup above with REAL screenshots across every dashboard view
+# plus Practice Privilege Check. NOT mockups (see _firm_dashboard_mockup_html
+# above for that, still used on the homepage's own lighter teaser) -- these
+# are actual screenshots of the shared live demo account (the same one
+# /firm/demo-login signs a visitor into), captured 2026-08-10, saved to
+# assets/showcase/*.jpg and copied verbatim into the built site (see the
+# asset-copy loop in main()). Same "real data, shared account, not a private
+# one" disclosure the demo-login banner itself already carries -- these
+# screenshots show exactly what a fresh visitor sees clicking "Live Demo",
+# nothing staged beyond picking which of the 6 nav views to capture.
+_PRODUCT_SHOWCASE_TABS = [
+    ("roster", "Roster", "showcase/roster.jpg", "Coverage overview: who's current, who's at risk, at a glance."),
+    ("calendar", "Calendar", "showcase/calendar.jpg", "Every upcoming renewal, by date, with an .ics feed to export."),
+    ("map", "Map", "showcase/map.jpg", "Which states your firm has staff licensed in, and who's at risk."),
+    ("cpe", "CPE Hours", "showcase/cpe-hours.jpg", "Completed continuing-education hours, tracked per staff member against each state's own requirement."),
+    ("reports", "Reports", "showcase/reports.jpg", "A printable compliance summary and audit trail, for a board inquiry or your own file."),
+    ("mobility", "Practice Privilege Check", "showcase/mobility.jpg", "A real result: can this CPA provide this service in this state, and what has to happen first."),
+]
+
+
+def _product_showcase_html() -> str:
+    tabs_html = "\n  ".join(
+        f'<button type="button" class="dr-showcase-tab{" dr-showcase-tab--active" if i == 0 else ""}" '
+        f'data-showcase="{esc(key)}" aria-pressed="{"true" if i == 0 else "false"}">{esc(label)}</button>'
+        for i, (key, label, _src, _caption) in enumerate(_PRODUCT_SHOWCASE_TABS)
+    )
+    first_src, first_caption = _PRODUCT_SHOWCASE_TABS[0][2], _PRODUCT_SHOWCASE_TABS[0][3]
+    data_map = ", ".join(
+        f'{key}: {{src: "/{esc(src)}", caption: "{esc(caption)}"}}' for key, _label, src, caption in _PRODUCT_SHOWCASE_TABS
+    )
+    return f"""<div class="dr-showcase">
+  <div class="dr-showcase-tabs" role="tablist">
+  {tabs_html}
+  </div>
+  <div class="dr-showcase-frame">
+    <img src="/{esc(first_src)}" alt="{esc(first_caption)}" id="dr-showcase-img" width="1568" height="778" loading="lazy">
+  </div>
+  <p class="mock-caption" id="dr-showcase-caption">{esc(first_caption)} Real screenshot of our own shared
+  live demo account &mdash; the same one you land on if you click "Live Demo" above &mdash; not a mockup.</p>
+</div>
+<script>
+(function () {{
+  var data = {{{data_map}}};
+  var img = document.getElementById('dr-showcase-img');
+  var caption = document.getElementById('dr-showcase-caption');
+  var tabs = document.querySelectorAll('.dr-showcase-tab');
+  tabs.forEach(function (tab) {{
+    tab.addEventListener('click', function () {{
+      var key = tab.getAttribute('data-showcase');
+      var entry = data[key];
+      if (!entry || !img) return;
+      img.src = entry.src;
+      img.alt = entry.caption;
+      if (caption) {{
+        caption.textContent = entry.caption + ' Real screenshot of our own shared live demo account -- the same one you land on if you click "Live Demo" above -- not a mockup.';
+      }}
+      tabs.forEach(function (t) {{
+        t.classList.toggle('dr-showcase-tab--active', t === tab);
+        t.setAttribute('aria-pressed', t === tab ? 'true' : 'false');
+      }});
+    }});
+  }});
+}})();
+</script>"""
+
+
 # Roadmap #58 (2026-08-07): the homepage (the free individual funnel --
 # this site's primary distribution surface) had no FAQ at all; only
 # /for-firms/ did. Every answer below restates a fact already established
@@ -6586,9 +6668,9 @@ free on every tier, for any account &mdash; a free signup is all it takes, no ca
 required; <a href="../pricing/">the firm-level check and the multistate coverage map are part of a
 paid plan</a>.</p>
 
-{_firm_dashboard_mockup_html(by_slug, as_of)}
+{_product_showcase_html()}
 
-<p class="how-it-works"><strong>Want to click around for real instead of a mockup?</strong>
+<p class="how-it-works"><strong>Want to click around for real instead of screenshots?</strong>
 <a href="{REMINDER_BACKEND_BASE_URL}/firm/demo-login" style="font-weight:600;">Try the live demo &rarr;</a> A shared
 account, seeded with sample staff &mdash; one click, no signup, no credentials to type.</p>
 
@@ -17105,6 +17187,18 @@ def main() -> None:
     og_image_src = ROOT / "assets" / "og-image.png"
     (SITE_DIR / "og-image.png").write_bytes(og_image_src.read_bytes())
     print(f"wrote {SITE_DIR.name}/og-image.png")
+
+    # Roadmap #323 (2026-08-10, ValueLab design-pattern-mining #3): real
+    # screenshots of the live demo firm's own dashboard, for the /for-firms/
+    # product showcase (_PRODUCT_SHOWCASE_TABS below) -- not mockups, not
+    # stock UI, not fabricated. Same copy-verbatim pattern as the font/
+    # og-image above.
+    showcase_src_dir = ROOT / "assets" / "showcase"
+    showcase_dst_dir = SITE_DIR / "showcase"
+    showcase_dst_dir.mkdir(parents=True, exist_ok=True)
+    for showcase_file in sorted(showcase_src_dir.glob("*.jpg")):
+        (showcase_dst_dir / showcase_file.name).write_bytes(showcase_file.read_bytes())
+    print(f"wrote {SITE_DIR.name}/showcase/ ({len(list(showcase_src_dir.glob('*.jpg')))} images)")
 
     built = []
     for slug, recs in by_slug.items():

@@ -1149,6 +1149,29 @@ PAGE_CSS = """
   .foot-links a { color: var(--muted); text-decoration: none; }
   .foot-links a:hover { color: var(--fg); }
   .disc { font-size: 0.78rem; color: var(--faint); line-height: 1.6; }
+  /* Roadmap #329 (2026-08-11, ValueLab design-pattern-mining #7): a small,
+     specific, independently-verifiable trust chip -- pattern source is
+     Vanta's persistent pill ("Opt-Out Signal Honored"), scoped down to a
+     plain footer line rather than a fixed-position floating element (this
+     item's own title says "footer trust chip," not "floating pill," and a
+     new fixed-position element sitewide is a bigger UI-overlap risk than
+     this claim's value justifies). Links to /security/, which already
+     makes the same claim in its own body copy ("we do not run advertising
+     or cross-site tracking of any kind"), so this chip and that page can't
+     drift out of sync -- same claim, two places. CRITICAL: this is only
+     honest while the tracker list stays genuinely empty (verified 2026-08-11
+     via a full generate.py grep for every common ad/analytics script --
+     none found; the only third-party requests are Cloudflare's own
+     Turnstile challenge and Web Analytics beacon, both edge-injected and
+     already disclosed on /security/). Must be re-verified and pulled
+     immediately if any tracking script is ever added -- see this comment
+     before adding one. */
+  .foot-trust-chip { margin: 0 0 0.7rem; }
+  .foot-trust-chip a {
+    display: inline-block; font-size: 0.76rem; color: var(--muted); text-decoration: none;
+    border: 1px solid var(--border); border-radius: 999px; padding: 0.25em 0.75em;
+  }
+  .foot-trust-chip a:hover { color: var(--fg); border-color: var(--border-strong); }
   .disc strong { color: var(--muted); }
   .brand-glyph { flex: none; }
   code { background: rgba(127,127,127,0.15); padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.9em; }
@@ -2659,6 +2682,7 @@ def site_footer() -> str:
       <a href="/for-firms/">For Firms</a>
     </div>
   </div>
+  <p class="foot-trust-chip"><a href="/security/">No ad or social trackers. Cookieless analytics only.</a></p>
   <p class="disc"><strong>{esc(SITE_NAME)} is an independent reminder service operated by {esc(BRAND_NAME)}.</strong> It is not
   affiliated with, endorsed by, or connected to NASBA, the AICPA, or any state board of
   accountancy. Renewal dates are compiled from public sources for informational purposes only

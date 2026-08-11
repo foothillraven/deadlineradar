@@ -5134,7 +5134,7 @@ def _pricing_feature_table_rows_html() -> str:
         ("Invite teammates to sign in", "Just you", "Yes"),
         ("Multistate Map view", "Solo accounts only*", "Yes"),
         ("Firm-level registration check", "Solo accounts only*", "Yes"),
-        ("Refer a firm, both get 10% off", "&mdash;", "Yes"),
+        ("Refer firms: 10% off per referral, up to 100%", "&mdash;", "Yes"),
     ]
     return "\n".join(f"  <tr><td>{label}</td><td>{free_cell}</td><td>{paid_cell}</td></tr>" for label, free_cell, paid_cell in rows)
 
@@ -15936,9 +15936,11 @@ def build_firm_dashboard_page(
 
       <div class="dr-account-panel" id="dr-referral-panel">
         <h2>Refer a firm</h2>
-        <p class="signup-microcopy">Share your link with another CPA firm. When they sign up for a
-        paid plan, you both get 10% off your next invoice. A new code with up to 10 uses arrives
-        on every paid invoice, replacing the old one.</p>
+        <p class="signup-microcopy">Share your link with another CPA firm. Each firm that signs up for
+        a paid plan through it gets 10% off THEIR next invoice, and adds another 10% to YOUR discount
+        &mdash; up to 10 successful referrals, 100% off. Referrals beyond the 10th don't add anything
+        further; your discount stays capped at 100%. A new code with up to 10 uses arrives on every
+        paid invoice, replacing the old one.</p>
         <div id="dr-referral-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
       </div>
 

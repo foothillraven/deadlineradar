@@ -6499,6 +6499,22 @@ personal inbox provides, in one place. Reminders aren't limited to email either 
 Microsoft Teams and your admin gets a daily digest of newly-due renewals posted straight to the channel
 your team already watches, included on every paid plan.</p>
 
+<h2>What Practice Privilege Check actually does</h2>
+<p>A different question from renewal dates: can this CPA provide this specific service in this specific
+state right now, without a local license &mdash; and what has to happen first? Pick a service type (Tax;
+Attest &mdash; audit, review, or other attest; or Other non-attest &mdash; consulting, advisory). Attest
+work frequently triggers a firm-registration requirement where tax work doesn't &mdash; that gap is the
+most common real-world mobility mistake, and this catches it. The determination needs two inputs only
+you can attest to &mdash; that the license is active and in good standing, and that the CPA meets
+substantial equivalence (150 semester hours, one year of experience, the Uniform CPA Exam) &mdash; we
+can't verify either one ourselves, so the answer is only as good as what you tell it, same honesty
+standard as every renewal date on this site. Verified in all 55 U.S. jurisdictions today, both for the
+individual question above and a separate firm-level registration check (does the FIRM itself need to
+register somewhere it has no office, even when the individual CPA is covered). The individual check is
+free on every tier, for any account &mdash; a free signup is all it takes, no card, no paid plan
+required; <a href="../pricing/">the firm-level check and the multistate coverage map are part of a
+paid plan</a>.</p>
+
 {_firm_dashboard_mockup_html(by_slug, as_of)}
 
 <p class="how-it-works"><strong>Want to click around for real instead of a mockup?</strong>

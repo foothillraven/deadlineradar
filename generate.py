@@ -2570,6 +2570,7 @@ def site_footer() -> str:
     <div class="foot-links">
       <a href="/">All {JURISDICTION_COUNT} jurisdictions</a>
       <a href="/methodology/">How We Verify</a>
+      <a href="/practice-privilege-check/">Practice Privilege Check</a>
       <a href="/rule-changes/">Mobility Rule Changes</a>
       <a href="/blog/">Guides</a>
       <a href="/pricing/">Pricing</a>
@@ -15245,6 +15246,67 @@ mistakes.</p>
     )
 
 
+def build_practice_privilege_landing_page() -> str:
+    """Roadmap #339: Practice Privilege Check gets its own page. The actual
+    tool lives at /firm-mobility/, but that page is noindex (it's built as a
+    dashboard-shell screen, same family as /firm-dashboard/ -- see that
+    page's own docstring), so nothing indexable currently explains what
+    practice privilege / CPA mobility even means as its own topic; /for-firms/
+    covers it but framed as one feature of a firm-wide product, not the
+    concept's own landing page. This is a clean, standalone, always-public
+    explainer -- reuses the exact existing explainer paragraph and the
+    exact existing "informational, not legal advice" callout verbatim from
+    /for-firms/ and /firm-mobility/ respectively (no new marketing copy
+    invented), and sends anyone who wants to actually run a check to the
+    real tool at /firm-mobility/.
+    """
+    body = f"""<h1>Practice Privilege Check: Can a CPA Work in Another State Without a License?</h1>
+<p class="subhead">Can this CPA provide this service in this state &mdash; and what has to happen
+first? Every answer is tied to the rule it came from.</p>
+
+<div class="dr-mobility-callout">
+  <strong>Informational, not legal advice.</strong> Practice-privilege rules change, and they depend on
+  facts we can't see. We show you the rule and where it came from so you can check it yourself &mdash;
+  and where we haven't verified something against a primary source, we say so instead of guessing.
+  Confirm with the state board before you rely on any answer here.
+</div>
+
+<h2>What Practice Privilege Check actually does</h2>
+<p>A different question from renewal dates: can this CPA provide this specific service in this specific
+state right now, without a local license &mdash; and what has to happen first? Pick a service type (Tax;
+Attest &mdash; audit, review, or other attest; or Other non-attest &mdash; consulting, advisory). Attest
+work frequently triggers a firm-registration requirement where tax work doesn't &mdash; that gap is the
+most common real-world mobility mistake, and this catches it. The determination needs two inputs only
+you can attest to &mdash; that the license is active and in good standing, and that the CPA meets
+substantial equivalence (150 semester hours, one year of experience, the Uniform CPA Exam) &mdash; we
+can't verify either one ourselves, so the answer is only as good as what you tell it, same honesty
+standard as every renewal date on this site. Verified in all 55 U.S. jurisdictions today, both for the
+individual question above and a separate firm-level registration check (does the FIRM itself need to
+register somewhere it has no office, even when the individual CPA is covered). The individual check is
+free on every tier, for any account &mdash; a free signup is all it takes, no card, no paid plan
+required; <a href="/pricing/">the firm-level check and the multistate coverage map are part of a paid
+plan</a>.</p>
+
+<p><a class="cta-button" href="{REMINDER_BACKEND_BASE_URL}/firm/demo-login">Run a free check now &rarr;</a></p>
+
+<p><strong>Tracking a whole firm's roster, not just one lookup?</strong> See the
+<a href="/for-firms/">firm overview</a> &mdash; Roster, Calendar, CPE tracking, and individual Practice
+Privilege Check are free there too; paid tiers add the multistate map and the firm-level registration
+check. See <a href="/pricing/">full pricing</a>.</p>
+
+<p class="backlink"><a href="/">&larr; Back to all states</a></p>
+"""
+    return page_shell(
+        f"Practice Privilege Check — {SITE_NAME}",
+        "What CPA practice privilege (mobility) means, how substantial equivalence works, and how to "
+        "check whether a CPA can serve a client in another state without a local license -- free, "
+        "verified in all 55 U.S. jurisdictions.",
+        body,
+        home_href="../",
+        canonical_path="/practice-privilege-check/",
+        has_remind_anchor=False,
+    )
+
 
 def build_firm_dashboard_page(
     by_slug: dict[str, list[dict]], as_of: date, cpe_hours_by_slug: dict[str, dict]
@@ -17289,6 +17351,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/compare/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/practice-privilege-check/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/roadmap/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
@@ -17571,6 +17636,11 @@ def main() -> None:
     compare_dir.mkdir(parents=True, exist_ok=True)
     (compare_dir / "index.html").write_text(build_compare_page(by_slug, as_of), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/compare/index.html")
+
+    ppc_dir = SITE_DIR / "practice-privilege-check"
+    ppc_dir.mkdir(parents=True, exist_ok=True)
+    (ppc_dir / "index.html").write_text(build_practice_privilege_landing_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/practice-privilege-check/index.html")
 
     roadmap_dir = SITE_DIR / "roadmap"
     roadmap_dir.mkdir(parents=True, exist_ok=True)

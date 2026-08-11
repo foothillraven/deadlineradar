@@ -1228,7 +1228,10 @@
     .dr-cal-day--has-item::after { content: "•"; color: var(--accent); font-size: 1.1rem; line-height: 1; }
     
     .dr-cal-day--has-item { cursor: pointer; }
-    .dr-cal-day--expanded { min-height: auto; }
+    .dr-cal-day--expanded {
+      min-height: auto; grid-column: 1 / -1;
+      
+    }
     .dr-cal-day--expanded .dr-cal-item { display: block; }
     .dr-cal-day--expanded.dr-cal-day--has-item::after { content: none; }
     

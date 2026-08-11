@@ -1967,7 +1967,18 @@ PAGE_CSS = """
        un-hides the actual labeled .dr-cal-item rows for that one day and
        swaps the dot off so it doesn't look like there's still more hidden. */
     .dr-cal-day--has-item { cursor: pointer; }
-    .dr-cal-day--expanded { min-height: auto; }
+    .dr-cal-day--expanded {
+      min-height: auto; grid-column: 1 / -1;
+      /* grid-column span (2026-08-10) -- an expanded cell still stuck in its
+         normal ~50px-wide grid column left every .dr-cal-item's own
+         white-space:nowrap/text-overflow:ellipsis truncating it just as hard
+         as the collapsed dot did (measured live: "Missouri: rule change"
+         still clipped to ~33px post-expand, scrollWidth 115 vs clientWidth
+         33) -- tap-to-expand looked like it worked but never actually
+         revealed the name. Spanning the full row gives every item's own
+         100%-width rule ~350-390px to render against instead, which is
+         enough for any real item text on this site to show in full. */
+    }
     .dr-cal-day--expanded .dr-cal-item { display: block; }
     .dr-cal-day--expanded.dr-cal-day--has-item::after { content: none; }
     /* 2026-08-10, Devin's live report ("I clicked the 27th to see the

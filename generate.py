@@ -449,6 +449,16 @@ PAGE_CSS = """
       --trust-bg: #26210f; --trust-border: #5a4a20; --row-alt: #171b21;
       --map-fixed: #2c4a72; --map-fixed-hover: #7fb0ff;
       --map-variable: #262b32; --map-variable-hover: #545e6c;
+      /* 2026-08-11, Devin's live report ("cards read flat, not designed"):
+         --shadow was never redefined here, so every card using it (.sheet,
+         .hfc-card, the lookup field...) kept the LIGHT-mode shadow color
+         (rgba(23,33,43,...), a dark navy) against this theme's near-black
+         #12151a page background -- a dark shadow on a dark page is
+         essentially invisible, so cards read as flat 1px-border boxes with
+         no depth even though the shadow rule was firing the whole time.
+         Same shadow shape (soft, two-layer), just a light-on-dark color so
+         it actually reads as elevation here. */
+      --shadow: 0 1px 2px rgba(0,0,0,.35), 0 8px 26px rgba(0,0,0,.4);
     }
   }
   * { box-sizing: border-box; }
@@ -5154,12 +5164,12 @@ def _pricing_feature_table_rows_html() -> str:
         ("CPE-hour tracking", "Yes", "Yes"),
         ("Email renewal reminders", "Yes", "Yes"),
         ("Individual Practice Privilege Check", "Yes", "Yes"),
-        ("Slack &amp; Teams deadline alerts", "&mdash;", "Yes"),
-        ("Document storage (2MB/file, 50MB/firm)", "&mdash;", "Yes"),
+        ("Slack &amp; Teams deadline alerts", "No", "Yes"),
+        ("Document storage (2MB/file, 50MB/firm)", "No", "Yes"),
         ("Invite teammates to sign in", "Just you", "Yes"),
         ("Multistate Map view", "Solo accounts only*", "Yes"),
         ("Firm-level registration check", "Solo accounts only*", "Yes"),
-        ("Refer firms: 10% off per referral, up to 100%", "&mdash;", "Yes"),
+        ("Refer firms: 10% off per referral, up to 100%", "No", "Yes"),
     ]
     return "\n".join(f"  <tr><td>{label}</td><td>{free_cell}</td><td>{paid_cell}</td></tr>" for label, free_cell, paid_cell in rows)
 
@@ -5352,7 +5362,7 @@ def build_compare_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
         ),
         (
             "Slack &amp; Teams deadline alerts",
-            "&mdash;",
+            "No",
             "Yes",
             "No.",
             "Not CPA-specific; varies by tool.",

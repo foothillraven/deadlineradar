@@ -653,6 +653,19 @@
     display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem 1.6rem;
     padding-bottom: 1.1rem; margin-bottom: 1.1rem; border-bottom: 1px solid var(--border);
   }
+  
+  .foot-columns {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem 1.6rem;
+    padding-bottom: 1.1rem; margin-bottom: 1.1rem; border-bottom: 1px solid var(--border);
+  }
+  @media (max-width: 620px) { .foot-columns { grid-template-columns: 1fr; } }
+  .foot-col { display: flex; flex-direction: column; gap: 0.4rem; }
+  .foot-col h3 {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+    color: var(--faint); margin: 0 0 0.2rem;
+  }
+  .foot-col a { color: var(--muted); text-decoration: none; }
+  .foot-col a:hover { color: var(--fg); }
   .foot-links { display: flex; flex-wrap: wrap; gap: 0.4rem 1.3rem; }
   .foot-links a { color: var(--muted); text-decoration: none; }
   .foot-links a:hover { color: var(--fg); }
@@ -1648,24 +1661,39 @@ itself, never a guess.</p>
 </svg>
       <span class="wordmark">DeadlineRadar</span>
     </div>
-    <div class="foot-links">
-      <a href="/">All 55 jurisdictions</a>
+  </div>
+  <!-- Roadmap #332 (2026-08-11, ValueLab report section 10): same 17 links
+       as before, grouped under 3 real category headings instead of one flat
+       list -- no new links, no new pages, no new categories beyond these 3.
+       Explicitly NOT Canopy's 11-category mega-footer (most of those
+       categories -- Careers, Press Room, Partner Hub -- would point at
+       programs that don't exist for us). -->
+  <div class="foot-columns">
+    <div class="foot-col">
+      <h3>Data &amp; Method</h3>
       <a href="/methodology/">How We Verify</a>
+      <a href="/rule-changes/">Mobility Rule Changes</a>
       <a href="/practice-privilege-check/">Practice Privilege Check</a>
       <a href="/multi-state-firms/">Multi-State Firms</a>
-      <a href="/rule-changes/">Mobility Rule Changes</a>
-      <a href="/blog/cpe-vs-license-renewal/">CPE vs. License Renewal</a>
-      <a href="/blog/">Guides</a>
+    </div>
+    <div class="foot-col">
+      <h3>Product</h3>
+      <a href="/">All 55 jurisdictions</a>
+      <a href="/for-firms/">For Firms</a>
       <a href="/pricing/">Pricing</a>
       <a href="/compare/">Compare</a>
       <a href="/cost-calculator/">Cost Calculator</a>
+      <a href="/blog/">Guides</a>
+      <a href="/blog/cpe-vs-license-renewal/">CPE vs. License Renewal</a>
       <a href="/roadmap/">Roadmap</a>
-      <a href="/privacy/">Privacy</a>
-      <a href="/terms/">Terms</a>
+    </div>
+    <div class="foot-col">
+      <h3>Company</h3>
+      <a href="/contact/">Contact</a>
       <a href="/security/">Security</a>
       <a href="/status/">Status</a>
-      <a href="/contact/">Contact</a>
-      <a href="/for-firms/">For Firms</a>
+      <a href="/terms/">Terms</a>
+      <a href="/privacy/">Privacy</a>
     </div>
   </div>
   <p class="foot-trust-chip"><a href="/security/">No ad or social trackers. Cookieless analytics only.</a></p>

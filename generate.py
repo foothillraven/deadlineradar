@@ -4860,25 +4860,26 @@ that person's behalf.</p>
 <h2>3. Free tier and paid firm plans</h2>
 <p>Individual reminder signups are free, with no card required, for as long as you stay subscribed. New
 firm accounts start on a <strong>standing free tier</strong> &mdash; roster, calendar, and CPE-hours
-tracking, with no card required and no time limit. Nothing is charged unless and until you choose to
-upgrade to a paid firm plan for the multistate map and Practice Privilege Check.</p>
+tracking, with no card required and no time limit. Individual Practice Privilege Check (one person, one
+target state) is also free on every tier. Nothing is charged unless and until you choose to upgrade to a
+paid firm plan for the multistate map and the firm-level registration check.</p>
 
 <h2>4. Paid firm plans and billing</h2>
 <p>Paid firm plans (Essentials, Growth, Professional, and Enterprise, priced by staff-count capacity &mdash; every tier has
 the identical feature set) are billed annually in advance through Stripe. We never see or store your card
 number; Stripe processes payment directly. By subscribing to a paid plan, you authorize us to charge your
 payment method on file for each renewal period until you cancel. A solo CPA tracking only their own
-license gets Practice Privilege Check included on the free tier, at no cost &mdash; no separate paid plan
-or billing relationship for that case.</p>
+license gets the multistate map and firm-level registration check included on the free tier too, at no
+cost &mdash; no separate paid plan or billing relationship for that case.</p>
 
 <h2>5. Cancellation and refunds</h2>
 <p>You can cancel a paid subscription at any time from your account's Billing tab. <strong>Cancelling
 stops future renewal charges but does not refund the current period</strong> &mdash; you keep full access
 to your plan through the end of the period you already paid for, then your account reverts to the free
-tier (roster, calendar, and CPE-hours tracking remain available; the map and Practice Privilege Check do
-not). You can resume a subscription you've scheduled to cancel at any point before that period ends, and
-billing continues normally. Cancelling alone is not prorated or refunded; deleting your account instead
-of just cancelling is &mdash; see Section 11.</p>
+tier (roster, calendar, CPE-hours tracking, and individual Practice Privilege Check remain available; the
+map and firm-level registration check do not). You can resume a subscription you've scheduled to cancel
+at any point before that period ends, and billing continues normally. Cancelling alone is not prorated or
+refunded; deleting your account instead of just cancelling is &mdash; see Section 11.</p>
 
 <h2>6. Acceptable use</h2>
 <p>You agree not to: use the service to violate any law; attempt to access another firm's account, staff
@@ -4983,22 +4984,27 @@ def _pricing_feature_table_rows_html() -> str:
       from, and stricter than, the roster-of-LICENSES cap itself (3 for a
       new signup as of roadmap #151, 2026-08-10; existing free firms keep
       their prior 25). Listed as its own row so the two aren't conflated.
-    - Map / Practice Privilege Check / the firm-level registration check
-      (roadmap #318) all carry the same solo-free exception (2026-08-09):
-      a genuinely one-person free account gets them too. Marked with the
-      page's own footnote rather than a plain "Paid only" that would now be
-      inaccurate.
+    - Map / the firm-level registration check (roadmap #318) both carry the
+      same solo-free exception (2026-08-09): a genuinely one-person free
+      account gets them too. Marked with the page's own footnote rather
+      than a plain "Paid only" that would now be inaccurate.
+    - Individual Practice Privilege Check (one person, one target state) is
+      its OWN row, free for every tier since 2026-08-10 (Devin's decision,
+      matching NASBA's own CPAmobility.org giving the identical lookup away
+      free/unlimited) -- NOT the same solo-free exception as the two rows
+      above, so it can't share their asterisk without implying a firm with
+      teammates doesn't get it too. It does.
     """
     rows = [
         ("Roster &amp; staff license tracking", "Up to 3 staff", "Up to 35 staff (Enterprise)"),
         ("Calendar view", "Yes", "Yes"),
         ("CPE-hour tracking", "Yes", "Yes"),
         ("Email renewal reminders", "Yes", "Yes"),
+        ("Individual Practice Privilege Check", "Yes", "Yes"),
         ("Slack &amp; Teams deadline alerts", "&mdash;", "Yes"),
         ("Document storage (2MB/file, 50MB/firm)", "&mdash;", "Yes"),
         ("Invite teammates to sign in", "Just you", "Yes"),
         ("Multistate Map view", "Solo accounts only*", "Yes"),
-        ("Individual Practice Privilege Check", "Solo accounts only*", "Yes"),
         ("Firm-level registration check", "Solo accounts only*", "Yes"),
         ("Refer a firm, both get 10% off", "&mdash;", "Yes"),
     ]
@@ -5027,10 +5033,10 @@ def build_pricing_page() -> str:
     that: free, a real signup link, no mailto dead end.
     """
     body = f"""<h1>Pricing</h1>
-<p class="intro">Roster, calendar, and CPE-hours tracking are <strong>free for any firm, up to 3
-staff</strong>, no card required, no time limit. Paid firm plans add the multistate map and Practice
-Privilege Check &mdash; every paid tier has the identical feature set, priced only by how many staff
-it covers; nothing is held back on a cheaper plan.</p>
+<p class="intro">Roster, calendar, CPE-hours tracking, and individual Practice Privilege Check are
+<strong>free for any firm, up to 3 staff</strong>, no card required, no time limit. Paid firm plans add
+the multistate map and the firm-level registration check &mdash; every paid tier has the identical
+feature set, priced only by how many staff it covers; nothing is held back on a cheaper plan.</p>
 
 <p id="dr-pricing-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
 
@@ -5074,10 +5080,11 @@ it covers; nothing is held back on a cheaper plan.</p>
   </div>
 </div>
 
-<p>Roster, calendar, and CPE-hours tracking are free for any firm, up to 3 staff, no card required,
-no time limit. The buttons above are for the paid map + Practice Privilege Check tiers: if you don't
-already have a firm account, they start free signup first; if you're already signed in, they go
-straight to checkout for that tier, same as the dashboard's own upgrade panel.</p>
+<p>Roster, calendar, CPE-hours tracking, and individual Practice Privilege Check are free for any firm,
+up to 3 staff, no card required, no time limit. The buttons above are for the paid map + firm-level
+registration check tiers: if you don't already have a firm account, they start free signup first; if
+you're already signed in, they go straight to checkout for that tier, same as the dashboard's own
+upgrade panel.</p>
 
 <h2>What's actually included, free vs. paid</h2>
 <p class="intro">Every paid tier (Essentials through Enterprise) has the identical feature set, priced
@@ -5094,9 +5101,9 @@ only by staff count. This table is the real, code-verified breakdown &mdash; not
   </tbody>
 </table>
 </div>
-<p class="field-hint">* A solo account (you're the only person signed in, no team invited) gets the Map,
-Practice Privilege Check, and the firm-level registration check free too &mdash; inviting a teammate is
-itself a paid-tier feature, so a genuinely one-person account is where "free" and "everything included"
+<p class="field-hint">* A solo account (you're the only person signed in, no team invited) gets the Map
+and the firm-level registration check free too &mdash; inviting a teammate is itself a paid-tier
+feature, so a genuinely one-person account is where "free" and "everything included"
 overlap.</p>
 
 <p class="backlink">See exactly <a href="/methodology/">how we verify every deadline</a>, or read the
@@ -5104,9 +5111,9 @@ overlap.</p>
 """
     return page_shell(
         f"Pricing — {SITE_NAME}",
-        "DeadlineRadar pricing: free individual reminders, free Practice Privilege Check for a solo CPA, "
-        "and firm plans from $199/year for up to 5 staff, up to $549/year for up to 35. Every firm tier "
-        "has the identical feature set.",
+        "DeadlineRadar pricing: free individual reminders and free Practice Privilege Check for any "
+        "firm, and firm plans from $199/year for up to 5 staff, up to $549/year for up to 35. Every "
+        "firm tier has the identical feature set.",
         body,
         home_href="../",
         canonical_path="/pricing/",
@@ -5163,9 +5170,16 @@ def build_compare_page() -> str:
             "Not CPA-specific; varies by tool.",
         ),
         (
-            "Multistate practice-privilege / mobility check",
+            "Individual Practice Privilege Check (one person, one target state)",
+            "Yes",
+            "Yes",
+            "No, you would have to research each state's mobility rule yourself.",
+            "Not CPA-specific, so this generally does not exist.",
+        ),
+        (
+            "Multistate coverage Map, and firm-level registration check",
             "Solo accounts only*",
-            "Yes &mdash; Map view plus a per-person and firm-level Practice Privilege Check.",
+            "Yes &mdash; Map view plus a firm-level registration check.",
             "No, you would have to research each state's mobility rule yourself.",
             "Not CPA-specific, so this generally does not exist.",
         ),
@@ -5248,8 +5262,9 @@ about any one company, so the comparison below stays honest about that and names
   </tbody>
 </table>
 </div>
-<p class="field-hint">* A solo account (you're the only person signed in, no team invited) gets the paid
-column's mobility features free too &mdash; see the <a href="/pricing/">full free-vs-paid breakdown</a>.</p>
+<p class="field-hint">* A solo account (you're the only person signed in, no team invited) gets the Map and
+firm-level registration check free too &mdash; see the <a href="/pricing/">full free-vs-paid breakdown</a>.
+The individual check above is free for every account regardless.</p>
 
 <h2>Where a spreadsheet is genuinely fine</h2>
 <p>If your firm has one or two staff and someone is already diligent about checking renewal dates by
@@ -6280,10 +6295,10 @@ registration (a separate feature, 2 of the rows above) &mdash; the free tier its
 _INDIVIDUAL_FAQ = [
     (
         "Is this actually free?",
-        "Yes. Individual reminders are free, no card required, no time limit. CPE-hour tracking and "
-        "Practice Privilege Check are also free for a solo CPA tracking just your own license. Paid "
-        "firm plans exist for a firm tracking multiple staff CPAs -- but the reminder service itself, "
-        "and a single CPA's own tools, stay free.",
+        "Yes. Individual reminders, CPE-hour tracking, and individual Practice Privilege Check "
+        "(one person, one target state) are all free, no card required, no time limit -- for any "
+        "account, solo or with a whole firm's roster. Paid firm plans exist for the multistate Map "
+        "and firm-level registration check.",
     ),
     (
         "How do you actually verify the dates?",
@@ -6310,8 +6325,9 @@ _INDIVIDUAL_FAQ = [
     ),
     (
         "I'm tracking a whole firm's staff, not just my own license -- is there something for that?",
-        "Yes -- see the <a href=\"for-firms/\">firm overview</a>. Roster, calendar, and CPE tracking "
-        "are free there too; paid tiers add a multistate map and Practice Privilege Check.",
+        "Yes -- see the <a href=\"for-firms/\">firm overview</a>. Roster, calendar, CPE tracking, and "
+        "individual Practice Privilege Check are free there too; paid tiers add a multistate map and "
+        "the firm-level registration check.",
     ),
 ]
 
@@ -6370,10 +6386,11 @@ _FIRM_FAQ = [
     ),
     (
         "Can I cancel anytime?",
-        "Yes. Roster, calendar, and CPE Hours are free with no card required and no time limit. If "
-        "you upgrade for the map and Practice Privilege Check, you can cancel that subscription at "
-        "any point &mdash; there's no contract to get out of, and your account just drops back to "
-        "the free tier at the end of the period you already paid for.",
+        "Yes. Roster, calendar, CPE Hours, and individual Practice Privilege Check are free with no "
+        "card required and no time limit. If you upgrade for the map and firm-level registration "
+        "check, you can cancel that subscription at any point &mdash; there's no contract to get out "
+        "of, and your account just drops back to the free tier at the end of the period you already "
+        "paid for.",
     ),
     (
         "Which plan should my firm pick?",
@@ -6496,10 +6513,10 @@ separate from the sourced renewal dates. We won't blur the two &mdash; self-repo
 sourced dates staying visibly distinct is the whole reason to trust this site.</p>
 
 <h2>Pricing</h2>
-<p>Roster, Calendar, and CPE Hours are <strong>free for any firm, up to 3 staff</strong>, no card
-required, no time limit. Paid tiers add the Map and Practice Privilege Check &mdash; every paid tier
-gets the identical feature set; the only difference between them is how many staff it covers, nothing
-is held back on a cheaper plan.</p>
+<p>Roster, Calendar, CPE Hours, and individual Practice Privilege Check are <strong>free for any firm,
+up to 3 staff</strong>, no card required, no time limit. Paid tiers add the Map and the firm-level
+registration check &mdash; every paid tier gets the identical feature set; the only difference between
+them is how many staff it covers, nothing is held back on a cheaper plan.</p>
 <ul class="firm-pricing-list">
   <li><strong>Essentials</strong> &mdash; $199/year, up to 5 staff</li>
   <li><strong>Growth</strong> &mdash; $299/year, up to 10 staff</li>
@@ -6580,9 +6597,10 @@ invoice; a self-serve card-payment option is coming soon. Not ready to create an
 """
     return page_shell(
         f"For Firms — {SITE_NAME}",
-        "CPA firm license tracking: roster, calendar, and CPE hours free forever, plus paid plans "
-        "from $199/year (5 staff) to $549/year (35 staff) for the map and Practice Privilege Check -- "
-        "free for a solo CPA. Sourced to the same codified state law DeadlineRadar verifies for every state.",
+        "CPA firm license tracking: roster, calendar, CPE hours, and individual Practice Privilege "
+        "Check free forever, plus paid plans from $199/year (5 staff) to $549/year (35 staff) for the "
+        "map and firm-level registration check. Sourced to the same codified state law DeadlineRadar "
+        "verifies for every state.",
         body,
         home_href="../",
         canonical_path="/for-firms/",
@@ -9758,8 +9776,10 @@ function drRenderBillingPanel() {
   if (!tierDef) {
     // Task #12 (2026-08-05): a real, always-visible upgrade trigger on the
     // Account tab, rather than making a free-tier firm discover paid plans
-    // only by clicking into Map/Practice Privilege Check and hitting the
-    // 403 denial there. POST /firm/billing/checkout (drStartCheckout) has
+    // only by clicking into the Map and hitting the 403 denial there (the
+    // individual Practice Privilege Check itself no longer 403s at all,
+    // 2026-08-10 -- see handleMobilityCheck()'s own docstring). POST
+    // /firm/billing/checkout (drStartCheckout) has
     // always accepted a free-tier firm. Same tier-fit filtering the old
     // whole-dashboard paywall panel used (courtesy only -- checkout
     // re-checks the real roster count server-side either way).
@@ -9777,7 +9797,7 @@ function drRenderBillingPanel() {
     var moreThanTopTierHtml = '<p style="font-size:0.85rem; color:var(--muted); margin-top:0.7rem;">' +
       'More than 35 staff? <a href="/for-firms/">Contact us</a>.</p>';
     body.innerHTML = '<p class="dr-panel-empty">You are on the free tier. Upgrade any time for the ' +
-      'map and Practice Privilege Check.</p>' + tiersHtml + moreThanTopTierHtml;
+      'map and firm-level registration check.</p>' + tiersHtml + moreThanTopTierHtml;
     if (drBilling.demoLocked) body.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
     return;
   }
@@ -13931,7 +13951,10 @@ _FIRM_DASHBOARD_JS_HTML = _FIRM_DASHBOARD_JS_HTML.replace("'/api/firm", f"'{REMI
 
 
 # ---------------------------------------------------------------------------
-# Practice-privilege (mobility) checker -- PAY-GATED tool page (2026-07-30).
+# Practice-privilege (mobility) checker (2026-07-30). Individual check is free
+# on every tier since 2026-08-10; the firm-level check further down the same
+# page is still paid (solo-free exception aside) -- see handleMobilityCheck()'s
+# own docstring in index.ts for the full reasoning.
 #
 # Plain (non-f) string with a post-hoc .replace() for the backend base,
 # exactly like _FIRM_DASHBOARD_JS_HTML below. Necessary, not stylistic: JS
@@ -13944,24 +13967,6 @@ _MOBILITY_JS_HTML = """<script>
   if (!form) return;
   var errEl = document.getElementById('dr-mobility-error');
   var resultEl = document.getElementById('dr-mobility-result');
-  var trialNoteEl = document.getElementById('dr-mobility-trial-note');
-
-  // Roadmap #153 ("usage-boxed trial"): only a multi-person free firm ever
-  // has a real used/limit pair (basis === 'trial') -- solo-free and paid
-  // firms get null/null, so this never shows a fake countdown to a firm
-  // that isn't actually limited.
-  function renderTrialNote(data) {
-    if (!trialNoteEl) return;
-    if (data && data.mobility_access_basis === 'trial' && data.mobility_trial_queries_used != null) {
-      var remaining = data.mobility_trial_queries_limit - data.mobility_trial_queries_used;
-      trialNoteEl.textContent = remaining > 0
-        ? (data.mobility_trial_queries_used + ' of ' + data.mobility_trial_queries_limit + ' free checks used -- ' + remaining + ' left.')
-        : 'That was your last free check. Upgrade for unlimited Practice Privilege Check.';
-      trialNoteEl.hidden = false;
-    } else {
-      trialNoteEl.hidden = true;
-    }
-  }
 
   function esc(v) {
     return String(v == null ? '' : v)
@@ -14112,7 +14117,6 @@ _MOBILITY_JS_HTML = """<script>
           findingHtml('The individual CPA', data.individual, individualIsAction ? actionBtnHtml : '') +
           findingHtml('The firm', data.firm, individualIsAction ? '' : actionBtnHtml);
         if (resultEl) { resultEl.innerHTML = html; resultEl.hidden = false; }
-        renderTrialNote(data);
       });
     }).catch(function () {
       if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
@@ -14508,7 +14512,14 @@ def _dashboard_sidebar_html(active: str, tabs_live_here: bool) -> str:
 
 
 def build_firm_mobility_page(by_slug: dict[str, list[dict]]) -> str:
-    """Practice-privilege (mobility) checker -- a PAY-GATED tool page.
+    """Practice-privilege (mobility) checker. The individual check (top of
+    the page, one person/one target state) is FREE on every tier since
+    2026-08-10 -- matching NASBA's own CPAmobility.org giving the identical
+    lookup away free/unlimited (Devin's decision, relayed via orchestrator).
+    The firm-level registration check further down the SAME page is still
+    paid (solo-free exception aside) -- see handleMobilityCheck()'s own
+    docstring in index.ts for the full reasoning on why only the individual
+    check dropped its gate.
 
     Deliberately a standalone page rather than a dashboard tab, for one
     product reason and one practical one:
@@ -14675,7 +14686,6 @@ first? Every answer is tied to the rule it came from.</p>
 </div>
 
 <div id="dr-mobility-result" hidden></div>
-<p id="dr-mobility-trial-note" class="field-hint" hidden></p>
 </div>
 
 <div id="dr-mob-roster-panel" hidden>
@@ -15253,18 +15263,21 @@ def build_firm_dashboard_page(
     <div id="dr-view-map" class="dr-view" role="tabpanel" hidden>
       <h1>Map</h1>
       <p class="subhead">Where your firm has staff licensed, and who's at risk.</p>
-      <!-- Roadmap #42: a free-tier firm previously only learned Map/Practice
-           Privilege Check were paid by clicking in and hitting a denial
-           (#dr-map-mobility-note's "part of the paid firm plan" text below,
-           which still fires -- Task #12's 2026-08-05 design intentionally
-           kept that as the reactive explanation). This adds the proactive
-           "why you'd want this" framing before that point, shown/hidden by
-           drRenderMapValueCallout() once billing status is known. -->
+      <!-- Roadmap #42: a free-tier firm previously only learned the Map was
+           paid by clicking in and hitting a denial (#dr-map-mobility-note's
+           "part of the paid firm plan" text below, which still fires --
+           Task #12's 2026-08-05 design intentionally kept that as the
+           reactive explanation). This adds the proactive "why you'd want
+           this" framing before that point, shown/hidden by
+           drRenderMapValueCallout() once billing status is known.
+           2026-08-10: individual Practice Privilege Check dropped OUT of
+           this pitch -- it's free on every tier now, so listing it as
+           something upgrading unlocks would be actively wrong. -->
       <div class="callout" id="dr-map-value-callout" hidden>
         <p><strong>What upgrading unlocks:</strong> a color-coded map of exactly which states your
-        team can practice in today without a local license, plus Practice Privilege Check to confirm
-        one person's eligibility for one state and service before they take on the work. Roster,
-        calendar, and CPE-hour tracking stay free either way.
+        team can practice in today without a local license, plus a firm-level registration check for
+        attest work where your firm itself (not just the individual CPA) needs to register. Roster,
+        calendar, CPE-hour tracking, and individual Practice Privilege Check stay free either way.
         <a href="#" data-view="account">See plans</a>.</p>
       </div>
       <div class="dr-map-controls">

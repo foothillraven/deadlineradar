@@ -1,0 +1,42 @@
+{
+  "_meta": {
+    "status": "LIVE on main -- 3 practice-management-suite competitors (Canopy/Karbon/TaxDome) + 1 CPE-hours platform (MYCPE ONE), each independently verified against the vendor's own published pricing page.",
+    "staleness_threshold_days": 90,
+    "note": "per_seat_annual_usd is DERIVED math (cost_basis converted to a per-seat annual figure), not a separately-sourced claim -- cross-checked against the vendor's own 6-person-firm total already published elsewhere on this site (annual_cost_6_person / 6 == per_seat_annual_usd for all 3, confirmed at the time this file was created). Re-verify per_seat_annual_usd alongside cost_basis on every recheck, not just one or the other."
+  },
+  "records": [
+    {
+      "slug": "canopy",
+      "name": "Canopy",
+      "plan_name": "Standard",
+      "annual_cost_6_person": "~$5,328/year",
+      "cost_basis": "$74/user/mo",
+      "per_seat_annual_usd": 888,
+      "verified_date": "2026-08-10"
+    },
+    {
+      "slug": "karbon",
+      "name": "Karbon",
+      "plan_name": "Business",
+      "annual_cost_6_person": "~$6,408/year",
+      "cost_basis": "$89/user/mo",
+      "per_seat_annual_usd": 1068,
+      "verified_date": "2026-08-10"
+    },
+    {
+      "slug": "taxdome",
+      "name": "TaxDome",
+      "plan_name": "Pro",
+      "annual_cost_6_person": "~$6,000/year",
+      "cost_basis": "$1,000/seat/yr, 1-yr term",
+      "per_seat_annual_usd": 1000,
+      "verified_date": "2026-08-10"
+    }
+  ],
+  "mycpe_one": {
+    "slug": "mycpe-one",
+    "name": "MYCPE ONE",
+    "annual_cost": "$199/year",
+    "verified_date": "2026-08-10"
+  }
+}

@@ -2602,6 +2602,7 @@ def site_footer() -> str:
       <a href="/blog/">Guides</a>
       <a href="/pricing/">Pricing</a>
       <a href="/compare/">Compare</a>
+      <a href="/cost-calculator/">Cost Calculator</a>
       <a href="/roadmap/">Roadmap</a>
       <a href="/privacy/">Privacy</a>
       <a href="/terms/">Terms</a>
@@ -5281,47 +5282,27 @@ own upgrade panel.</p>
 # walkthrough): named practice-management-suite competitors, priced for a
 # 6-person firm -- the SAME two facts /compare/ has independently verified
 # per competitor (2026-08-10 pricing-page check + the "does not track a
-# staff CPA license" observation), pulled into one canonical list so the
-# overview table and each competitor's own dedicated page can't drift apart.
-# Deliberately NOT 5 -- ValueLab's item asked for "5, not Canopy's 18" as an
-# upper bound, but this file only has independently verified facts for 3 of
-# that shape (Canopy/Karbon/TaxDome) plus MYCPE ONE (a different shape, see
-# below) -- inventing a 5th competitor's numbers to hit a round number would
-# violate the exact honesty standard the item itself invoked. Flagged to the
-# orchestrator rather than guessed.
-COMPETITOR_FACTS = [
-    {
-        "slug": "canopy",
-        "name": "Canopy",
-        "plan_name": "Standard",
-        "annual_cost_6_person": "~$5,328/year",
-        "cost_basis": "$74/user/mo",
-    },
-    {
-        "slug": "karbon",
-        "name": "Karbon",
-        "plan_name": "Business",
-        "annual_cost_6_person": "~$6,408/year",
-        "cost_basis": "$89/user/mo",
-    },
-    {
-        "slug": "taxdome",
-        "name": "TaxDome",
-        "plan_name": "Pro",
-        "annual_cost_6_person": "~$6,000/year",
-        "cost_basis": "$1,000/seat/yr, 1-yr term",
-    },
-]
+# staff CPA license" observation), pulled into one canonical DATA FILE
+# (data/competitor_prices.json, roadmap #336 -- moved out of a Python
+# literal 2026-08-11 so it carries a verified_date preship_gate.py can
+# actually check staleness against, same convention as every other
+# dataset in this file) so the overview table, each competitor's own
+# dedicated page, and the cost calculator can't drift apart. Deliberately
+# NOT 5 competitors -- ValueLab's item asked for "5, not Canopy's 18" as
+# an upper bound, but this file only has independently verified facts for
+# 3 of that shape (Canopy/Karbon/TaxDome) plus MYCPE ONE (a different
+# shape, see below) -- inventing a 5th competitor's numbers to hit a round
+# number would violate the exact honesty standard the item itself
+# invoked. Flagged to the orchestrator rather than guessed.
+_COMPETITOR_PRICES_PATH = ROOT / "data" / "competitor_prices.json"
+_competitor_prices_data = json.loads(_COMPETITOR_PRICES_PATH.read_text(encoding="utf-8"))
+COMPETITOR_FACTS = _competitor_prices_data["records"]
 
 # MYCPE ONE is a different shape (a CPE-hours platform, not a practice-
 # management suite) so it doesn't fit COMPETITOR_FACTS' 6-person-firm cost
 # table -- kept as its own fact record for the same reason: one canonical
 # source both /compare/ and its own dedicated page read from.
-MYCPE_ONE_FACTS = {
-    "slug": "mycpe-one",
-    "name": "MYCPE ONE",
-    "annual_cost": "$199/year",
-}
+MYCPE_ONE_FACTS = _competitor_prices_data["mycpe_one"]
 
 # Populated by main()'s build loop, same pattern as FIRM_LANDING_PAGES --
 # build_sitemap() reads this once it's known.
@@ -5438,7 +5419,8 @@ suites with a generic reminders/tasks feature, not a sourced compliance tool. Pr
 product's own published rate for a 6-person firm, checked directly against their current pricing pages.
 Competitor prices verified 2026-08-10 against each vendor's published pricing page (Canopy Standard
 $74/user/mo; Karbon Business $89/user/mo; TaxDome Pro $1,000/seat/yr, 1-yr term); they may have changed
-since.</p>
+since. Different firm size? <a href="/cost-calculator/">Use the cost calculator</a> to compute these
+same rates at your actual staff count.</p>
 <div class="table-wrap">
 <table class="compare-table">
   <caption class="dr-visually-hidden">Annual cost for a 6-person firm, DeadlineRadar vs. named practice-management suites</caption>
@@ -5598,6 +5580,126 @@ pricing</a>.</p>
         canonical_path=f"/compare/{c['slug']}/", has_remind_anchor=False,
     )
     return c["slug"], title, html
+
+
+def build_cost_calculator_page() -> str:
+    """Roadmap #336: a REAL "do the math" cost calculator -- ValueLab's own
+    finding was that Canopy's version has zero real numbers on the page.
+    This one computes against the SAME already-verified per-seat prices
+    COMPETITOR_FACTS already backs (data/competitor_prices.json), so it
+    can't drift from what /compare/'s own table says. Shipped only after
+    Devin's price-recheck-cadence condition was resolved (90 days,
+    2026-08-11) -- see check_competitor_price_currency() in
+    scripts/preship_gate.py, which now hard-fails the build the moment any
+    of these prices goes stale, same as every other dated claim on this
+    site.
+
+    per_seat_annual_usd is derived math (cost_basis converted to an
+    annual per-seat figure), not a new fact -- cross-checked against each
+    competitor's own already-published 6-person-firm total at file-creation
+    time (see competitor_prices.json's own _meta note). DeadlineRadar's own
+    tier table is duplicated here as a plain JS array (same "kept in sync
+    by eye" convention as EXPECTED_TIERS in
+    scripts/check_stripe_price_reconciliation.py) rather than importing
+    worker/src/tiers.ts, which this Python build has no way to read.
+    """
+    verified_dates = [r["verified_date"] for r in COMPETITOR_FACTS]
+    prices_as_of = max(verified_dates) if verified_dates else "unknown"
+    competitors_js = ",\n      ".join(
+        f'{{name: {json.dumps(c["name"])}, perSeatAnnual: {c["per_seat_annual_usd"]}}}'
+        for c in COMPETITOR_FACTS
+    )
+    body = f"""<h1>CPA Firm Software Cost Calculator</h1>
+<p class="intro">Enter your firm's staff count. Every number below is real, sourced pricing &mdash;
+DeadlineRadar's own published tiers, and each competitor's own per-seat rate, the same figures already
+on <a href="/compare/">the full comparison page</a>. Nothing here is estimated or invented.</p>
+<p class="field-hint">Competitor prices as of <strong>{esc(prices_as_of)}</strong>, re-checked against
+each vendor's own pricing page at least every 90 days &mdash; <a href="/compare/">see the full
+breakdown</a> for each one's own sourcing.</p>
+
+<div class="signup-form">
+  <label for="dr-calc-staff">Firm size (staff CPAs)</label>
+  <input type="number" id="dr-calc-staff" name="staff" min="1" max="200" value="6" inputmode="numeric">
+</div>
+
+<div class="table-wrap">
+<table class="compare-table">
+  <caption class="dr-visually-hidden">Computed annual cost by staff count</caption>
+  <thead><tr><th scope="col">Product</th><th scope="col">Annual cost at this staff count</th><th scope="col">vs. DeadlineRadar</th></tr></thead>
+  <tbody id="dr-calc-body"></tbody>
+</table>
+</div>
+
+<p class="field-hint">DeadlineRadar's cost is the cheapest tier that actually covers your staff count --
+<a href="/pricing/">see the full tier breakdown</a>. Above 35 staff, DeadlineRadar has no fixed
+self-serve tier; <a href="mailto:{esc(CONTACT_EMAIL)}">contact us</a> and we'll work out what fits, so
+the table shows "Contact us" there instead of guessing a number.</p>
+
+<h2>Why this isn't quite an apples-to-apples number</h2>
+<p>Canopy, Karbon, and TaxDome are full practice-management suites &mdash; client portals, workflow,
+document management. DeadlineRadar solves one narrow, specific problem: knowing, with a citation, when
+every staff CPA's license and firm registration is due. A firm running one of those suites may
+reasonably keep it AND add DeadlineRadar alongside it for license tracking specifically, rather than
+switching away from either. The numbers above are real and comparable on price; they're not a claim
+that the products do the same job.</p>
+
+<p class="backlink">See the <a href="/compare/">full comparison page</a>, or
+<a href="/pricing/">DeadlineRadar pricing</a>.</p>
+
+<script>
+(function() {{
+  var DR_TIERS = [
+    {{cap: 5, price: 199, label: 'Essentials'}},
+    {{cap: 10, price: 299, label: 'Growth'}},
+    {{cap: 20, price: 399, label: 'Professional'}},
+    {{cap: 35, price: 549, label: 'Enterprise'}}
+  ];
+  var COMPETITORS = [
+      {competitors_js}
+  ];
+  function drCalcTier(staff) {{
+    for (var i = 0; i < DR_TIERS.length; i++) {{
+      if (staff <= DR_TIERS[i].cap) return DR_TIERS[i];
+    }}
+    return null;
+  }}
+  function drFmtUsd(n) {{
+    return '$' + n.toLocaleString('en-US');
+  }}
+  function drRenderCalc() {{
+    var input = document.getElementById('dr-calc-staff');
+    var body = document.getElementById('dr-calc-body');
+    if (!input || !body) return;
+    var staff = parseInt(input.value, 10);
+    if (!staff || staff < 1) staff = 1;
+    if (staff > 200) staff = 200;
+    var tier = drCalcTier(staff);
+    var drCost = tier ? tier.price : null;
+    var rows = '<tr><td><strong>DeadlineRadar' + (tier ? ' (' + tier.label + ')' : '') + '</strong></td><td>' +
+      (drCost !== null ? drFmtUsd(drCost) + '/year' : 'Contact us') + '</td><td>&mdash;</td></tr>';
+    COMPETITORS.forEach(function(c) {{
+      var cost = c.perSeatAnnual * staff;
+      var diff = drCost !== null ? cost - drCost : null;
+      var diffCell = diff === null ? 'N/A' :
+        (diff >= 0 ? drFmtUsd(diff) + '/year more' : drFmtUsd(Math.abs(diff)) + '/year less');
+      rows += '<tr><td>' + c.name + '</td><td>' + drFmtUsd(cost) + '/year</td><td>' + diffCell + '</td></tr>';
+    }});
+    body.innerHTML = rows;
+  }}
+  var calcInput = document.getElementById('dr-calc-staff');
+  if (calcInput) {{
+    calcInput.addEventListener('input', drRenderCalc);
+    drRenderCalc();
+  }}
+}})();
+</script>
+"""
+    return page_shell(
+        f"CPA Firm Software Cost Calculator — {SITE_NAME}",
+        "Real numbers, not estimates: see what DeadlineRadar costs vs. Canopy, Karbon, and TaxDome at "
+        "your firm's actual staff count, computed from each vendor's own published pricing.",
+        body, home_href="../", canonical_path="/cost-calculator/", has_remind_anchor=False,
+    )
 
 
 def build_roadmap_page() -> str:
@@ -17552,6 +17654,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/multi-state-firms/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/cost-calculator/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/roadmap/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
@@ -17860,6 +17965,11 @@ def main() -> None:
     multi_state_dir.mkdir(parents=True, exist_ok=True)
     (multi_state_dir / "index.html").write_text(build_multi_state_firms_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/multi-state-firms/index.html")
+
+    calc_dir = SITE_DIR / "cost-calculator"
+    calc_dir.mkdir(parents=True, exist_ok=True)
+    (calc_dir / "index.html").write_text(build_cost_calculator_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/cost-calculator/index.html")
 
     roadmap_dir = SITE_DIR / "roadmap"
     roadmap_dir.mkdir(parents=True, exist_ok=True)

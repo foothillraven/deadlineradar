@@ -394,6 +394,49 @@ def check_reinstatement_currency(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_competitor_price_currency(repo_root: Path) -> list[str]:
+    """Roadmap #336 (2026-08-11, the real cost calculator): Devin's own
+    condition before shipping a calculator that names real competitor
+    prices was a price-recheck cadence commitment, not just a one-time
+    check -- "90 days it is." Same promote-to-hard-gate shape as
+    check_deadline_currency() above: a competitor's published price can
+    change at any time, and nothing else re-derives verified_date, so a
+    stale figure would otherwise sit silently on /compare/, its per-
+    competitor pages, and the calculator forever. Small, self-contained
+    dataset (4 records total) -- inlined directly rather than a separate
+    staleness-check module, matching check_deadline_currency()'s own
+    simpler shape rather than the bigger datasets' import-a-script
+    indirection (those also serve a standalone advisory script; this one
+    doesn't need one yet)."""
+    data_path = repo_root / "data" / "competitor_prices.json"
+    if not data_path.exists():
+        return []
+    data = json.loads(data_path.read_text(encoding="utf-8"))
+    threshold_days = data.get("_meta", {}).get("staleness_threshold_days", 90)
+    today = date.today()
+    errors = []
+    records = list(data.get("records", []))
+    if data.get("mycpe_one"):
+        records.append(data["mycpe_one"])
+    for r in records:
+        vd = r.get("verified_date")
+        if not vd:
+            errors.append(f"[PRICE][{r.get('slug')}] {r.get('name')} -- verified_date is missing entirely -- treat as stale")
+            continue
+        try:
+            age_days = (today - date.fromisoformat(vd)).days
+        except ValueError:
+            errors.append(f"[PRICE][{r.get('slug')}] {r.get('name')} -- verified_date={vd!r} is unparseable -- treat as stale")
+            continue
+        if age_days > threshold_days:
+            errors.append(
+                f"[PRICE][{r.get('slug')}] {r.get('name')} -- verified_date={vd} is {age_days}d old, "
+                f"past the {threshold_days}-day recheck cadence -- re-verify the published price against "
+                f"the vendor's own pricing page and bump verified_date before shipping"
+            )
+    return errors
+
+
 def check_terms_version_sync(repo_root: Path) -> list[str]:
     """Roadmap #56 (2026-08-07): generate.py's TERMS_LAST_CHANGED (the
     "Last updated" date shown on /terms/) and worker/src/validation.ts's
@@ -1050,6 +1093,7 @@ def main():
     all_errors += check_deadline_currency(data_path)
     all_errors += check_cpe_hours_currency(repo_root)
     all_errors += check_reinstatement_currency(repo_root)
+    all_errors += check_competitor_price_currency(repo_root)
     all_errors += check_field_computed_states_sync(repo_root)
     all_errors += check_json_copies_identical(repo_root)
     all_errors += check_terms_version_sync(repo_root)

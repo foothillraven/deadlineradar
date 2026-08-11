@@ -3,24 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Utah CPA CPE Requirements: How Many Hours, By When — DeadlineRadar</title>
-<meta name="description" content="How many CPE hours does Utah require for CPAs, and by when? 80 hours every 2 years, including 3 ethics hours, verified against the state&#x27;s own rule.">
-<link rel="canonical" href="https://deadline-radar.com/utah-cpa-cpe-requirements/">
+<title>CPA Firm Software Cost Calculator — DeadlineRadar</title>
+<meta name="description" content="Real numbers, not estimates: see what DeadlineRadar costs vs. Canopy, Karbon, and TaxDome at your firm&#x27;s actual staff count, computed from each vendor&#x27;s own published pricing.">
+<link rel="canonical" href="https://deadline-radar.com/cost-calculator/">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta property="og:title" content="Utah CPA CPE Requirements: How Many Hours, By When — DeadlineRadar">
-<meta property="og:description" content="How many CPE hours does Utah require for CPAs, and by when? 80 hours every 2 years, including 3 ethics hours, verified against the state&#x27;s own rule.">
-<meta property="og:url" content="https://deadline-radar.com/utah-cpa-cpe-requirements/">
+<meta property="og:title" content="CPA Firm Software Cost Calculator — DeadlineRadar">
+<meta property="og:description" content="Real numbers, not estimates: see what DeadlineRadar costs vs. Canopy, Karbon, and TaxDome at your firm&#x27;s actual staff count, computed from each vendor&#x27;s own published pricing.">
+<meta property="og:url" content="https://deadline-radar.com/cost-calculator/">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="DeadlineRadar">
 <meta property="og:image" content="https://deadline-radar.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Utah CPA CPE Requirements: How Many Hours, By When — DeadlineRadar">
-<meta name="twitter:description" content="How many CPE hours does Utah require for CPAs, and by when? 80 hours every 2 years, including 3 ethics hours, verified against the state&#x27;s own rule.">
+<meta name="twitter:title" content="CPA Firm Software Cost Calculator — DeadlineRadar">
+<meta name="twitter:description" content="Real numbers, not estimates: see what DeadlineRadar costs vs. Canopy, Karbon, and TaxDome at your firm&#x27;s actual staff count, computed from each vendor&#x27;s own published pricing.">
 <meta name="twitter:image" content="https://deadline-radar.com/og-image.png">
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "DeadlineRadar", "item": "https://deadline-radar.com/"}, {"@type": "ListItem", "position": 2, "name": "Utah CPA CPE Requirements", "item": "https://deadline-radar.com/utah-cpa-cpe-requirements/"}]}</script>
+
 
 <style>
 
@@ -1535,7 +1535,7 @@
       <a href="/for-firms/">For Firms</a>
       <a href="/api/firm/demo-login">Live Demo</a>
       <a href="/signin/" class="nav-quiet" id="dr-nav-signin">Sign In</a>
-      <a href="#remind" class="cta">Get reminders</a>
+      <a href="../#remind" class="cta">Get reminders</a>
     </div>
   </div>
 </nav>
@@ -1545,53 +1545,44 @@
 <header class="site-header">
   <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>
 </header>
-<h1>Utah CPA CPE Requirements: How Many Hours, By When</h1>
-<p class="intro">How much continuing professional education a Utah CPA actually
-needs &mdash; sourced the same way every fact on this site is: a board page plus the codified rule
-itself, never a guess.</p>
+<h1>CPA Firm Software Cost Calculator</h1>
+<p class="intro">Enter your firm's staff count. Every number below is real, sourced pricing &mdash;
+DeadlineRadar's own published tiers, and each competitor's own per-seat rate, the same figures already
+on <a href="/compare/">the full comparison page</a>. Nothing here is estimated or invented.</p>
+<p class="field-hint">Competitor prices as of <strong>2026-08-10</strong>, re-checked against
+each vendor's own pricing page at least every 90 days &mdash; <a href="/compare/">see the full
+breakdown</a> for each one's own sourcing.</p>
 
-<div class="callout">
-  
-  <div class="label">CPE Hour Requirement</div>
-  <div class="date">80 hours every 2 years</div>
-  <ul>
-    
-    <li><strong>3 ethics hours</strong>, within that same total.</li>
-  </ul>
-  <div class="source-cite">
-  <span class="cite-label">Source of record</span>
-  <span class="cite-stamp">Utah Admin. Code R156-26a-303b(1)-(2)</span>
-  <a href="https://www.law.cornell.edu/regulations/utah/Utah-Admin-Code-R156-26a-303b" class="cite-link">read the rule &rarr;</a>
-</div>
-  <p class="disclosure">Sourcing note: The board&#x27;s own CPA CPE FAQ (Utah DOPL, rev. 2025-07-10) states these figures, but its web domain currently blocks automated access, so this specific fact could not be freshly re-confirmed by an automated check at publish time -- only by matching search-engine copies of the same page. The codified rule text itself (linked above) was fetched and confirmed directly and states the same figures. Recommend a manual check of the board&#x27;s page if you want to see it firsthand.</p>
+<div class="signup-form">
+  <label for="dr-calc-staff">Firm size (staff CPAs)</label>
+  <input type="number" id="dr-calc-staff" name="staff" min="1" max="200" value="6" inputmode="numeric">
 </div>
 
-<p>Utah CPAs must complete 80 CPE hours every two-year cycle (ending Dec 31 of even-numbered years), with no hours due at a licensee&#x27;s first renewal after initial licensure. Within that 80, the rule sets two separate requirements: 3 hours of ethics education plus a separate 1 hour covering Utah CPA law and rules -- these are two distinct categories, not one combined 4-hour ethics figure.</p>
-
-<div class="signup-form signup-form--compact" id="remind">
-  <form method="post" action="/api/subscribe">
-    <input type="hidden" name="state" value="utah">
-    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website">Leave this field blank</label><input type="text" id="hp_website" name="hp_website" tabindex="-1" autocomplete="off"></div>
-    <div class="cf-turnstile" data-sitekey="0x4AAAAAADvxskBA78YAubz_" data-appearance="interaction-only"></div>
-    <label for="cpe-email-utah" class="signup-form-compact-label">
-      CPE hours and your renewal are on related clocks &mdash; get reminded before
-      Utah's renewal date too:
-    </label>
-    <div class="signup-form-row">
-      <input type="email" id="cpe-email-utah" name="email" required placeholder="you@example.com">
-      <button type="submit">Remind me</button>
-    </div>
-    
-  </form>
+<div class="table-wrap">
+<table class="compare-table">
+  <caption class="dr-visually-hidden">Computed annual cost by staff count</caption>
+  <thead><tr><th scope="col">Product</th><th scope="col">Annual cost at this staff count</th><th scope="col">vs. DeadlineRadar</th></tr></thead>
+  <tbody id="dr-calc-body"></tbody>
+</table>
 </div>
 
+<p class="field-hint">DeadlineRadar's cost is the cheapest tier that actually covers your staff count --
+<a href="/pricing/">see the full tier breakdown</a>. Above 35 staff, DeadlineRadar has no fixed
+self-serve tier; <a href="mailto:support@deadline-radar.com">contact us</a> and we'll work out what fits, so
+the table shows "Contact us" there instead of guessing a number.</p>
 
+<h2>Why this isn't quite an apples-to-apples number</h2>
+<p>Canopy, Karbon, and TaxDome are full practice-management suites &mdash; client portals, workflow,
+document management. DeadlineRadar solves one narrow, specific problem: knowing, with a citation, when
+every staff CPA's license and firm registration is due. A firm running one of those suites may
+reasonably keep it AND add DeadlineRadar alongside it for license tracking specifically, rather than
+switching away from either. The numbers above are real and comparable on price; they're not a claim
+that the products do the same job.</p>
 
-<p class="backlink-cross"><a href="../utah-cpa-license-reinstatement/">What does it cost to reinstate a lapsed Utah license? &rarr;</a></p>
+<p class="backlink">See the <a href="/compare/">full comparison page</a>, or
+<a href="/pricing/">DeadlineRadar pricing</a>.</p>
 
-<p class="backlink-cross"><a href="../utah/">See Utah&#x27;s CPA license renewal deadline &rarr;</a></p>
-
-<p class="backlink"><a href="../">&larr; Back to all states</a></p>
+<script>(function(){var DR_TIERS=[{cap:5,price:199,label:"Essentials"},{cap:10,price:299,label:"Growth"},{cap:20,price:399,label:"Professional"},{cap:35,price:549,label:"Enterprise"}];var COMPETITORS=[{name:"Canopy",perSeatAnnual:888},{name:"Karbon",perSeatAnnual:1068},{name:"TaxDome",perSeatAnnual:1e3}];function drCalcTier(staff){for(var i=0;i<DR_TIERS.length;i++){if(staff<=DR_TIERS[i].cap)return DR_TIERS[i]}return null}function drFmtUsd(n){return"$"+n.toLocaleString("en-US")}function drRenderCalc(){var input=document.getElementById("dr-calc-staff");var body=document.getElementById("dr-calc-body");if(!input||!body)return;var staff=parseInt(input.value,10);if(!staff||staff<1)staff=1;if(staff>200)staff=200;var tier=drCalcTier(staff);var drCost=tier?tier.price:null;var rows="<tr><td><strong>DeadlineRadar"+(tier?" ("+tier.label+")":"")+"</strong></td><td>"+(drCost!==null?drFmtUsd(drCost)+"/year":"Contact us")+"</td><td>&mdash;</td></tr>";COMPETITORS.forEach(function(c){var cost=c.perSeatAnnual*staff;var diff=drCost!==null?cost-drCost:null;var diffCell=diff===null?"N/A":diff>=0?drFmtUsd(diff)+"/year more":drFmtUsd(Math.abs(diff))+"/year less";rows+="<tr><td>"+c.name+"</td><td>"+drFmtUsd(cost)+"/year</td><td>"+diffCell+"</td></tr>"});body.innerHTML=rows}var calcInput=document.getElementById("dr-calc-staff");if(calcInput){calcInput.addEventListener("input",drRenderCalc);drRenderCalc()}})();</script>
 
 </div>
 <footer class="site-footer">

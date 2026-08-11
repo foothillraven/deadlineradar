@@ -9786,36 +9786,31 @@ async function handleFirmSessionRevoke(request: Request, env: Env, id: string): 
  * verify either, and the response wording never implies we did -- see
  * mobility.ts. They are inputs to the determination, not facts we assert.
  */
-// Roadmap #153: a multi-person free-tier firm's lifetime Practice
-// Privilege Check trial budget. 3, per Devin's directive (relayed via
-// orchestrator, ValueLab's rec #4.5) -- no expiry, never resets.
-const MOBILITY_TRIAL_QUERY_LIMIT = 3;
+// Roadmap #153's trial budget (mobility_trial_uses, MOBILITY_TRIAL_QUERY_LIMIT)
+// governed the INDIVIDUAL check specifically -- see the 2026-08-10 removal
+// note on handleMobilityCheck() below for why that gate is gone entirely
+// now. The column/store plumbing (incrementMobilityTrialUse etc.) is left
+// in place, just unused by this route -- a bigger cleanup than asked for.
 
+/**
+ * 2026-08-10 (Devin, via orchestrator, ValueLab's finding): individual
+ * Practice Privilege Check -- one person, one target state -- is now FREE
+ * AND UNMETERED for every firm, solo or multi-person, paid or free tier.
+ * NASBA's own CPAmobility.org already gives this exact lookup away for
+ * free, unlimited, no login; matching that (and holding the line on
+ * firm-level registration, #318, which stays paid -- that's the
+ * defensible half nobody else gives away) beats trying to charge for
+ * something a competitor already gives away. This REPLACES the previous
+ * gate entirely: no requireFirmSessionAndPaidTier() paid-tier check, no
+ * roadmap #153 trial budget (mobility_trial_uses/MOBILITY_TRIAL_QUERY_LIMIT
+ * are gone from this route) -- any authenticated firm session is enough.
+ * Firm-level (#318, handleFirmMobilityFirmCheck below) and the roster
+ * batch checks (check-batch, check-roster) are UNCHANGED -- this route
+ * only.
+ */
 async function handleMobilityCheck(request: Request, env: Env, ip: string): Promise<Response> {
-  // Keyed on the AUTHENTICATED FIRM, not the caller's IP. The stated threat
-  // is "harvesting by a subscriber", which an IP key does not bound (rotate
-  // IPs and it never binds) while it DOES punish a whole firm behind one
-  // office NAT. Matches RATE_LIMIT_FIRM_LICENSE_CREATE's convention for
-  // authenticated routes. Also moved after the entitlement check so an
-  // unentitled session cannot burn a paying firm's budget.
-  //
-  // Entitlement BEFORE any work: a non-paying firm must not receive a
-  // determination under any circumstances.
-  const session = await requireFirmSessionAndPaidTier(request, env, { allowMultiPersonFreeTrial: true });
+  const session = await requireFirmSessionWithFirm(request, env);
   if (session instanceof Response) return session;
-
-  // Roadmap #153: a trial firm that has already spent its lifetime budget
-  // is denied here, before any work -- same "entitlement before any work"
-  // posture as the gate itself just above. Reuses the EXACT existing
-  // paid-gate denial shape (no new reason value), so the client's error
-  // handling needs no special case for this vs. the ordinary 403.
-  if (session.mobilityAccessBasis === "trial" && session.firm.mobility_trial_uses >= MOBILITY_TRIAL_QUERY_LIMIT) {
-    return jsonResponse(403, {
-      error: paidFeatureDenialMessage("tier_not_paid"),
-      reason: "tier_not_paid",
-      pay_now_url: "/firm-dashboard/#account",
-    });
-  }
 
   let raw: string;
   try {
@@ -9884,22 +9879,6 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
     MOBILITY_RULES_BY_SLUG[homeStateSlug] ?? null
   );
 
-  // Roadmap #153: budget consumption happens ONLY here, after a real
-  // determination actually ran -- never on a 400/429 above, matching this
-  // same function's rate-limit code just above ("don't burn budget on a
-  // failure"). The atomic capped UPDATE (incrementMobilityTrialUse) is the
-  // real enforcement; trialQueriesUsed here is a best-effort DISPLAY value
-  // computed from the pre-request read, same posture
-  // referral_code_uses_remaining already uses elsewhere in this file -- a
-  // genuine concurrent double-submit could rarely under-report this by one
-  // in one of the two responses, but the stored column can never be pushed
-  // past the cap regardless of what any single response displays.
-  let trialQueriesUsed: number | null = null;
-  if (session.mobilityAccessBasis === "trial") {
-    await store.incrementMobilityTrialUse(env.DB, session.firmId, MOBILITY_TRIAL_QUERY_LIMIT);
-    trialQueriesUsed = Math.min(MOBILITY_TRIAL_QUERY_LIMIT, session.firm.mobility_trial_uses + 1);
-  }
-
   return jsonResponse(200, {
     home_state: stateNameForSlug(homeStateSlug),
     target_state: stateNameForSlug(targetStateSlug),
@@ -9908,13 +9887,6 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
     individual: result.individual,
     firm: result.firm,
     disclaimer: MOBILITY_DISCLAIMER,
-    // Roadmap #153: lets the client distinguish "solo -- unlimited", "paid
-    // -- unlimited", and "trial -- N of 3 used" so it never shows a fake
-    // countdown to a firm that isn't actually limited. used/limit are both
-    // null unless basis is "trial".
-    mobility_access_basis: session.mobilityAccessBasis,
-    mobility_trial_queries_used: trialQueriesUsed,
-    mobility_trial_queries_limit: session.mobilityAccessBasis === "trial" ? MOBILITY_TRIAL_QUERY_LIMIT : null,
   });
 }
 

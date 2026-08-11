@@ -5866,38 +5866,46 @@ const VALID_CHECK = {
   substantially_equivalent: true,
 };
 
-describe("POST /firm/mobility/check -- pay gate", () => {
+describe("POST /firm/mobility/check -- free and unmetered for every firm (2026-08-10)", () => {
   it("requires a session", async () => {
     expect((await postMobilityCheck(VALID_CHECK, null)).status).toBe(401);
   });
 
-  it("a brand-new free-tier MULTI-PERSON firm's FIRST check succeeds via the trial, not blocked (roadmap #153)", async () => {
-    // A solo free-tier firm is a SEPARATE, deliberate exception (2026-08-09
-    // individual-tier fold) -- this test's own intent is the general
-    // multi-person-free rule, so it needs a second member to still exercise
-    // that path. Superseded 2026-08-09 (roadmap #153, usage-boxed trial):
-    // multi-person free firms now get 3 lifetime queries before the block.
+  it("a brand-new free-tier MULTI-PERSON firm's check succeeds, no trial fields in the response", async () => {
+    // 2026-08-10 (Devin, via orchestrator, ValueLab's finding): individual
+    // PPC dropped its paid-tier gate AND roadmap #153's trial budget
+    // entirely -- matching NASBA's own CPAmobility.org giving the
+    // identical lookup away free/unlimited. Superseded #153's own "3
+    // lifetime queries" mechanic for this route specifically (check-batch
+    // below is UNCHANGED, still has its own trial gate).
     const { firmId, cookie } = await firmOnTier("free", new Date().toISOString());
     await addSecondMember(firmId);
     const resp = await postMobilityCheck(VALID_CHECK, cookie);
     expect(resp.status).toBe(200);
-    const body = await resp.json<{ mobility_access_basis: string; mobility_trial_queries_used: number; mobility_trial_queries_limit: number }>();
-    expect(body.mobility_access_basis).toBe("trial");
-    expect(body.mobility_trial_queries_used).toBe(1);
-    expect(body.mobility_trial_queries_limit).toBe(3);
+    const body = await resp.json<Record<string, unknown>>();
+    expect(body.mobility_access_basis).toBeUndefined();
+    expect(body.mobility_trial_queries_used).toBeUndefined();
+    expect(body.mobility_trial_queries_limit).toBeUndefined();
   });
 
-  it("a long-standing free-tier MULTI-PERSON firm gets the same trial -- account age is irrelevant to this gate", async () => {
-    const longAgo = new Date(Date.now() - 90 * 86_400_000).toISOString();
-    const { firmId, cookie } = await firmOnTier("free", longAgo);
+  it("a multi-person free-tier firm is NEVER blocked, even after many calls -- no lifetime cap anymore", async () => {
+    const { firmId, cookie } = await firmOnTier("free", new Date().toISOString());
     await addSecondMember(firmId);
-    const resp = await postMobilityCheck(VALID_CHECK, cookie);
-    expect(resp.status).toBe(200);
-    const body = await resp.json<{ mobility_access_basis: string }>();
-    expect(body.mobility_access_basis).toBe("trial");
+    for (const target of ["texas", "alabama", "kansas", "florida", "ohio"]) {
+      expect((await postMobilityCheck({ ...VALID_CHECK, target_state_slug: target }, cookie)).status).toBe(200);
+    }
   });
 
-  it("ALLOWS a genuinely solo (1-member) free-tier firm -- the 2026-08-09 individual-tier-fold exception", async () => {
+  it("check-batch keeps its OWN separate gate, untouched by the individual check's change -- still gets a multi-person free firm in via the trial basis, and stays unmetered (mobility_trial_uses never moves, matching its own docstring)", async () => {
+    const { firmId, cookie } = await firmOnTier("free", new Date().toISOString());
+    await addSecondMember(firmId);
+    const resp = await postMobilityCheckBatch(VALID_BATCH_CHECK, cookie, "203.0.113.249");
+    expect(resp.status).toBe(200);
+    const firm = await env.DB.prepare("SELECT mobility_trial_uses FROM firms WHERE id = ?1").bind(firmId).first<{ mobility_trial_uses: number }>();
+    expect(firm?.mobility_trial_uses).toBe(0);
+  });
+
+  it("ALLOWS a genuinely solo (1-member) free-tier firm", async () => {
     const { cookie } = await firmOnTier("free", new Date().toISOString());
     const resp = await postMobilityCheck(VALID_CHECK, cookie);
     expect(resp.status).toBe(200);
@@ -5908,10 +5916,10 @@ describe("POST /firm/mobility/check -- pay gate", () => {
     expect((await postMobilityCheck(VALID_CHECK, cookie)).status).toBe(200);
   });
 
-  it("BLOCKS an unrecognised tier -- the gate fails closed", async () => {
+  it("ALLOWS an unrecognised tier too -- there is no tier check left on this route at all", async () => {
     const { cookie } = await firmOnTier("enterprise_typo", new Date().toISOString());
     const resp = await postMobilityCheck(VALID_CHECK, cookie);
-    expect(resp.status).toBe(403);
+    expect(resp.status).toBe(200);
   });
 
   it("BLOCKS an inactive firm even on a paid tier", async () => {
@@ -6092,75 +6100,7 @@ describe("POST /firm/mobility/check-batch -- same gate, same engine, no target l
   // firm-members-crud.spec.ts).
 });
 
-/**
- * Roadmap #153 (2026-08-09, "usage-boxed trial"): a multi-person free-tier
- * firm's 3-lifetime-query Practice Privilege Check budget, and the
- * deliberately unmetered Map (check-batch/coverage) that sits alongside it.
- * Direct template: individual-tier-fold.spec.ts's own solo-free describe
- * block, same firmOnTier/addSecondMember helpers.
- */
-describe("multi-person free-tier trial (roadmap #153)", () => {
-  it("accumulates budget across 3 separate requests: used=1, then 2, then 3", async () => {
-    const { firmId, cookie } = await firmOnTier("free", new Date().toISOString());
-    await addSecondMember(firmId);
-    const targets = ["texas", "alabama", "kansas"];
-    for (let i = 0; i < targets.length; i++) {
-      const resp = await postMobilityCheck({ ...VALID_CHECK, target_state_slug: targets[i] }, cookie);
-      expect(resp.status).toBe(200);
-      const body = await resp.json<{ mobility_trial_queries_used: number }>();
-      expect(body.mobility_trial_queries_used).toBe(i + 1);
-    }
-  });
-
-  it("the 4th check is denied with the exact existing paid-gate 403 shape -- no new denial reason", async () => {
-    const { firmId, cookie } = await firmOnTier("free", new Date().toISOString());
-    await addSecondMember(firmId);
-    for (const target of ["texas", "alabama", "kansas"]) {
-      expect((await postMobilityCheck({ ...VALID_CHECK, target_state_slug: target }, cookie)).status).toBe(200);
-    }
-    const resp = await postMobilityCheck({ ...VALID_CHECK, target_state_slug: "florida" }, cookie);
-    expect(resp.status).toBe(403);
-    const body = await resp.json<{ reason: string; individual?: unknown }>();
-    expect(body.reason).toBe("tier_not_paid");
-    expect(body.individual).toBeUndefined();
-  });
-
-  it("check-batch does NOT consume trial budget -- calling it repeatedly never reduces what /check reports remaining", async () => {
-    const { firmId, cookie } = await firmOnTier("free", new Date().toISOString());
-    await addSecondMember(firmId);
-    for (let i = 0; i < 5; i++) {
-      expect((await postMobilityCheckBatch(VALID_BATCH_CHECK, cookie, `203.0.113.${160 + i}`)).status).toBe(200);
-    }
-    const resp = await postMobilityCheck(VALID_CHECK, cookie);
-    const body = await resp.json<{ mobility_trial_queries_used: number }>();
-    expect(body.mobility_trial_queries_used).toBe(1); // still the FIRST /check call, batch spent nothing
-  });
-
-  it("a solo free firm reports basis=solo_free with used/limit both null -- never a fake countdown", async () => {
-    const { cookie } = await firmOnTier("free", new Date().toISOString());
-    const resp = await postMobilityCheck(VALID_CHECK, cookie);
-    const body = await resp.json<{ mobility_access_basis: string; mobility_trial_queries_used: number | null; mobility_trial_queries_limit: number | null }>();
-    expect(body.mobility_access_basis).toBe("solo_free");
-    expect(body.mobility_trial_queries_used).toBeNull();
-    expect(body.mobility_trial_queries_limit).toBeNull();
-  });
-
-  it("a paid-tier firm reports basis=paid with used/limit both null", async () => {
-    const { cookie } = await firmOnTier("firm", new Date().toISOString());
-    const resp = await postMobilityCheck(VALID_CHECK, cookie);
-    const body = await resp.json<{ mobility_access_basis: string; mobility_trial_queries_used: number | null; mobility_trial_queries_limit: number | null }>();
-    expect(body.mobility_access_basis).toBe("paid");
-    expect(body.mobility_trial_queries_used).toBeNull();
-    expect(body.mobility_trial_queries_limit).toBeNull();
-  });
-
-  it("budget is truly LIFETIME -- a firm created long ago starts fresh, then still exhausts after 3, no reset", async () => {
-    const longAgo = new Date(Date.now() - 400 * 86_400_000).toISOString();
-    const { firmId, cookie } = await firmOnTier("free", longAgo);
-    await addSecondMember(firmId);
-    for (const target of ["texas", "alabama", "kansas"]) {
-      expect((await postMobilityCheck({ ...VALID_CHECK, target_state_slug: target }, cookie)).status).toBe(200);
-    }
-    expect((await postMobilityCheck({ ...VALID_CHECK, target_state_slug: "florida" }, cookie)).status).toBe(403);
-  });
-});
+// Roadmap #153's own "multi-person free-tier trial" describe block lived
+// here -- removed 2026-08-10 along with the /check route's trial gate
+// itself (see the describe block above). check-batch's OWN trial mechanism
+// is untouched and covered there now too.

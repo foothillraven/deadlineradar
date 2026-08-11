@@ -5440,8 +5440,9 @@ The point isn't that they're bad products; it's that a firm already paying one o
 sourced answer to "when does Alex's CPA license renew" without something like this alongside it.</p>
 
 <h2>The one competitor close enough in price to actually confuse</h2>
-<p><strong><a href="{esc(MYCPE_ONE_FACTS["slug"])}/">MYCPE ONE</a></strong> lists at {esc(MYCPE_ONE_FACTS["annual_cost"])}
-&mdash; the same headline price our old Individual tier used to carry. Worth naming specifically because
+<p><strong><a href="{esc(MYCPE_ONE_FACTS["slug"])}/">MYCPE ONE</a></strong>'s published price as of
+2026-08-10 is {esc(MYCPE_ONE_FACTS["annual_cost"])} &mdash; the same headline price our old Individual
+tier used to carry. Worth naming specifically because
 it's the one product priced close enough to cause real confusion, but it does a different job: it's a
 CPE-hours platform (tracking completed continuing-education credits), not a license-renewal filing
 tracker. Both matter to a CPA; they're not the same problem, and DeadlineRadar's own CPE Hours tab is
@@ -5550,11 +5551,11 @@ def build_mycpe_one_compare_page() -> tuple[str, str, str]:
         f"DeadlineRadar's CPE Hours tracking is free, and also tracks the license renewal itself."
     )
     body = f"""<h1>{esc(title)}</h1>
-<p class="intro">{esc(c['name'])} lists at {esc(c['annual_cost'])} &mdash; close enough to our old
-Individual tier's own headline price to cause real confusion. But it does a different job: it's a
-CPE-hours platform, tracking completed continuing-education credits. DeadlineRadar tracks the license
-renewal filing itself &mdash; a genuinely different deadline, on a genuinely different clock in most
-states.</p>
+<p class="intro">{esc(c['name'])}'s published price as of 2026-08-10 is {esc(c['annual_cost'])} &mdash;
+close enough to our old Individual tier's own headline price to cause real confusion. But it does a
+different job: it's a CPE-hours platform, tracking completed continuing-education credits. DeadlineRadar
+tracks the license renewal filing itself &mdash; a genuinely different deadline, on a genuinely
+different clock in most states.</p>
 
 <div class="table-wrap">
 <table class="compare-table">

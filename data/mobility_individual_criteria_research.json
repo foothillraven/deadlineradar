@@ -1,0 +1,305 @@
+{
+  "_meta": {
+    "purpose": "Roadmap #317 Phase 2 Part A staging artifact -- NOT yet wired into generate.py, the worker, or any page. Structured extraction (not new legal research) of the qualifying-criteria and grandfather-date facts already present in worker/src/mobility_rules.json's own notes/flux_note fields for the 25 'individual_criteria' mobility states. Produced 2026-08-11 via 5 parallel extraction passes (Read-only, no web fetches -- every fact traces back to the already dual-source-verified prose in mobility_rules.json). This is the 'one sourcing pass against the actual rule text' the roadmap item's own text called for before designing the exact new Add Staff/CSV import fields.",
+    "extracted_at": "2026-08-11",
+    "source_file": "worker/src/mobility_rules.json",
+    "state_count": 25,
+    "clear_count": 16,
+    "ambiguous_count": 9,
+    "ambiguous_states": [
+      "Delaware", "Georgia", "Louisiana", "Mississippi", "New Hampshire",
+      "Northern Mariana Islands", "Rhode Island", "West Virginia", "Wisconsin"
+    ],
+    "key_finding": "9 of 25 states (36%) have genuinely unresolved statute-vs-rule conflicts or incompletely-itemized pathways in the source data itself -- these are NOT extraction errors, they're real live conditions in the underlying law (a board rule not yet conformed to a new statute, or a board that hasn't adopted implementing criteria yet). Any UI/product design for this feature needs an honest 'we can't give a definitive answer for this state yet' path for these 9, matching this codebase's existing 'we withhold when sources disagree' pattern (mobility.ts's flux_summary/rule_in_flux machinery) -- NOT a binary checkbox that silently produces a false-definitive answer for a third of these states.",
+    "next_steps_not_yet_done": [
+      "Design the exact 1-2 new Add Staff/CSV import fields (e.g. a 'met qualifying pathway at licensure' attestation, possibly a grandfather-date comparison against license issue date already on the roster row) -- a real product/UX decision, not made here.",
+      "New migration column(s) on subscribers/licenses for whatever field shape is chosen.",
+      "CSV import wiring for the new field(s), reusing the existing drParseCsv()/DR_CSV_KNOWN_COLUMNS pattern.",
+      "Wire worker/src/mobility.ts's evaluateMobility() to consume the new field(s) for individual_criteria states and produce a definitive verdict instead of the current generic handling -- with an explicit 'unresolved, ambiguous state' branch for the 9 ambiguous states above, not a forced yes/no.",
+      "Tests: at minimum one clear-state pass, one ambiguous-state pass, one grandfathered-CPA pass, per the mobility test suite's existing conventions."
+    ]
+  },
+  "states": [
+    {
+      "state": "Arkansas", "state_slug": "arkansas",
+      "qualifying_pathways": [
+        "Post-baccalaureate degree + 1 year of experience",
+        "Bachelor's degree + 30 additional semester hours (150 total) + 1 year of experience",
+        "Bachelor's degree + 2 years of experience"
+      ],
+      "exam_required": true, "grandfather_date": "2025-12-31",
+      "grandfather_note": "Out-of-state CPAs who held a valid active license in any state and already had Arkansas practice privileges as of December 31, 2025 retain those privileges without needing to meet the new individual-criteria pathways.",
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "Ark. Code Ann. §§ 17-12-311 (as rewritten by Act 428 of 2025), 17-12-401, 17-12-508; 17 CAR §§ 236-501 to 236-503 (board rules eff. 2026-03-05)"
+    },
+    {
+      "state": "Connecticut", "state_slug": "connecticut",
+      "qualifying_pathways": [
+        "Bachelor's degree with an accounting concentration + 2 years of experience",
+        "Bachelor's degree + 30 additional semester hours (150 total) + 1 year of experience",
+        "Post-baccalaureate degree + 1 year of experience"
+      ],
+      "exam_required": true, "grandfather_date": "2025-09-30",
+      "grandfather_note": "CPAs who passed the CPA exam on or before September 30, 2025 and held a license in good standing as of September 30, 2025 retain practice privileges without meeting the new individual-criteria requirements.",
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "Conn. Gen. Stat. § 20-281n (repealed and replaced by P.A. 25-36, § 4, eff. Oct. 1, 2025); Conn. Gen. Stat. §§ 20-281e(g)-(i), 20-281(b)"
+    },
+    {
+      "state": "Delaware", "state_slug": "delaware",
+      "qualifying_pathways": [
+        "Bachelor's or higher degree with an accounting concentration + passing the Uniform CPA Exam + 1 year of qualifying experience (per § 107(f))"
+      ],
+      "exam_required": true, "grandfather_date": "2024-12-31",
+      "grandfather_note": "Individuals who held a valid CPA license from any state and already had Delaware practice privileges as of December 31, 2024 continue to have those privileges without meeting the new individual-criteria requirements.",
+      "extraction_confidence": "ambiguous",
+      "ambiguity_note": "Delaware's compiled administrative rule (24 Del. Admin. Code 100 § 8.1.1) still conditioned the practice privilege on NASBA/NQAS state-level substantial-equivalence verification as of the source record's verification date, directly conflicting with the amended statute (§ 109, eff. 2026-07-01), which imposes individual criteria only. A conforming rule change was in progress (final adoption ~2026-08-01, effective ~2026-08-11) but not confirmed fully reconciled as of source verification.",
+      "citation": "24 Del. C. § 109 (practice privileges); 24 Del. C. § 111(a), (b), (m) (firm permits; peer review); 24 Del. C. § 102(6); 24 Del. Admin. Code 100 §§ 8.0, 10.1, 10.3, 10.4, 10.12"
+    },
+    {
+      "state": "Georgia", "state_slug": "georgia",
+      "qualifying_pathways": [
+        "No board rule has yet been adopted establishing the specific education/experience pathway(s) required under 43-3-18(b)(1)(A) ('as the board... may establish by rule'); the interim operative individual criteria are a current license in good standing from any other state plus having passed the Uniform CPA Examination"
+      ],
+      "exam_required": true, "grandfather_date": null, "grandfather_note": null,
+      "extraction_confidence": "ambiguous",
+      "ambiguity_note": "Georgia's statute delegates education/experience criteria to the board 'by rule,' but as of source verification the board had not finalized conforming rulemaking; the board's still-compiled rules and 2015 Statement of Policy also directly conflict with the new statute by continuing to describe the superseded state-level test.",
+      "citation": "O.C.G.A. 43-3-18(b), 43-3-16(b), 43-3-17, as amended by 2025 Ga. Laws Act 87 (HB 148), eff. 2026-01-01; Ga. Comp. R. & Regs. 20-3-.09, 20-8-.01, 20-8-.02"
+    },
+    {
+      "state": "Idaho", "state_slug": "idaho",
+      "qualifying_pathways": [
+        "Post-baccalaureate degree with an accounting concentration + 1 year of verified experience",
+        "Baccalaureate degree + 30 additional semester credit hours (150 total) + 1 year of verified experience",
+        "Baccalaureate degree alone + 2 years of verified experience"
+      ],
+      "exam_required": false, "grandfather_date": "2024-12-31",
+      "grandfather_note": "Out-of-state CPAs who held a valid active license and already had Idaho practice privileges under the prior version of section 54-227 as of December 31, 2024 continue to have those privileges without needing to meet the new 54-207/54-209 individual education-and-experience criteria.",
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "Idaho Code sec. 54-227, repealed and re-enacted by 2026 Idaho Sess. Laws ch. 48, secs. 5-6 (H0563), eff. July 1, 2026; secs. 54-214, 54-220(4), 54-212; IDAPA 24.30.01"
+    },
+    {
+      "state": "Kansas", "state_slug": "kansas",
+      "qualifying_pathways": [
+        "Bachelor's degree + 2 years of experience",
+        "Bachelor's degree + 30 additional semester hours (150 total) + 1 year of experience",
+        "Post-baccalaureate degree + 1 year of experience"
+      ],
+      "exam_required": true, "grandfather_date": "2025-12-31",
+      "grandfather_note": "Out-of-state CPAs who already held Kansas practice privileges as of 2025-12-31 retain them without needing to meet the new individual-criteria pathways.",
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "K.S.A. 1-322 (as amended by 2026 HB 2573, eff. 2026-04-23); K.S.A. 1-308; K.S.A. 1-501; K.A.R. 74-11-7"
+    },
+    {
+      "state": "Kentucky", "state_slug": "kentucky",
+      "qualifying_pathways": [
+        "At initial licensure, passed a board-approved exam and met the education and experience requirements of KRS 325.261(3) and (5) (source references this statute generically, does not itemize separate degree/experience pathways)"
+      ],
+      "exam_required": true, "grandfather_date": "2025-06-30",
+      "grandfather_note": "Preserves practice privileges for any individual who, as of June 30, 2025, held a CPA license from any state and already had Kentucky practice privileges under the prior law.",
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "KRS 325.282 and KRS 325.301, Ky. Rev. Stat. ch. 325; KRS 325.282 as amended by 2026 Ky. Acts ch. 21, sec. 2 (HB 45), effective July 15, 2026"
+    },
+    {
+      "state": "Louisiana", "state_slug": "louisiana",
+      "qualifying_pathways": [
+        "Baccalaureate degree + 30 additional semester hours (150 total) + 1 year of experience",
+        "Post-baccalaureate degree + 1 year of experience",
+        "Baccalaureate degree + 2 years of experience"
+      ],
+      "exam_required": true, "grandfather_date": "2024-12-31",
+      "grandfather_note": "Preserves practice privileges for any individual licensed as of December 31, 2024 who already held Louisiana practice privileges on that date.",
+      "extraction_confidence": "ambiguous",
+      "ambiguity_note": "Source's own flux_summary explicitly calls this entry 'unverified' -- the new individual-criteria statute (Act 653, eff. 2026-08-01) is clear, but the Board's own rules (LAC 46:XIX.1105(E)) had not yet been conformed to it as of source verification.",
+      "citation": "La. R.S. 37:94; La. R.S. 37:77; LAC 46:XIX.1105(E); LAC 46:XIX.1501(B)"
+    },
+    {
+      "state": "Minnesota", "state_slug": "minnesota",
+      "qualifying_pathways": [
+        "Good-standing out-of-state license + bachelor's degree or higher with an accounting concentration (or board-determined equivalent) + passed the Uniform CPA Exam"
+      ],
+      "exam_required": true, "grandfather_date": null, "grandfather_note": null,
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "Minn. Stat. § 326A.14 (as amended by Laws of Minnesota 2025, ch. 39, art. 4, § 16); Minn. Stat. § 326A.05, subd. 1; Minn. R. 1105.7900"
+    },
+    {
+      "state": "Mississippi", "state_slug": "mississippi",
+      "qualifying_pathways": [
+        "Passed all sections of the Uniform CPA Exam + met the education/experience requirements of Miss. Code Ann. § 73-33-5(2)-(3), including at least a bachelor's degree (120 semester hours) + 2 years of experience pathway; source does not fully enumerate other pathways within 73-33-5(2)-(3)"
+      ],
+      "exam_required": true, "grandfather_date": "2025-12-31",
+      "grandfather_note": "Preserves practice privileges for out-of-state CPAs who held privileges on or before December 31, 2025.",
+      "extraction_confidence": "ambiguous",
+      "ambiguity_note": "Board's compiled Rules & Regulations still state the pre-HB-1137 state-level test, conflicting with the current statute's individual-criteria test; source also flags an open interpretive question on how the board will actually apply the education/experience requirement, since no post-HB1137 board guidance exists yet.",
+      "citation": "Miss. Code Ann. § 73-33-17 (as amended by H.B. 1137, 2026 Reg. Sess., ch. 315, eff. July 1, 2026); Miss. Code Ann. § 73-33-1(3)"
+    },
+    {
+      "state": "Nebraska", "state_slug": "nebraska",
+      "qualifying_pathways": [
+        "Master's degree + 1 year experience",
+        "Bachelor's degree + 30 additional semester hours (150 total) + 1 year experience",
+        "Bachelor's degree + 2 years experience"
+      ],
+      "exam_required": true, "grandfather_date": "2024-12-31",
+      "grandfather_note": "Individuals who already held Nebraska practice privileges as of 2024-12-31 keep them under 288 NAC 7-001.02B without meeting the new individual-criteria pathways.",
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "Neb. Rev. Stat. § 1-125.01 (as amended by Laws 2026, LB718, § 5, eff. 2026-07-18); §§ 1-126, 1-134, 1-135, 1-136, 1-153; 288 Neb. Admin. Code ch. 13 § 004.01, ch. 7 § 001.02"
+    },
+    {
+      "state": "New Hampshire", "state_slug": "new-hampshire",
+      "qualifying_pathways": [
+        "Post-baccalaureate degree + 1 year experience",
+        "Bachelor's degree + 30 additional credit hours (150 total) + 1 year experience",
+        "Bachelor's degree alone + 2 years experience"
+      ],
+      "exam_required": true, "grandfather_date": "2026-04-22",
+      "grandfather_note": "Anyone who, as of 2026-04-22, already held New Hampshire practice privileges under the state's prior substantial-equivalency provisions keeps those privileges without meeting the new individual-criteria pathways.",
+      "extraction_confidence": "ambiguous",
+      "ambiguity_note": "Genuine hybrid: the new individual-criteria test applies prospectively, but the grandfather clause preserves a separate cohort still operating under the old state-based test. Source also flags the statute's cross-references still point to a repealed section rather than the new one.",
+      "citation": "RSA 309-B:6-a, as enacted by N.H. Laws 2026, ch. 34, sec. 34:5 (HB 1259), eff. Apr. 22, 2026; RSA 309-B:8, 309-B:14; N.H. Admin. R. Ac 302.05, Ac 303.05, Ac 405.02"
+    },
+    {
+      "state": "New Jersey", "state_slug": "new-jersey",
+      "qualifying_pathways": [
+        "Valid CPA license from any state + passage of the Uniform CPA Exam (or board-approved exam) + 1 year of experience"
+      ],
+      "exam_required": true, "grandfather_date": "2026-02-19",
+      "grandfather_note": "Individuals licensed in another state before the act's effective date (2026-02-19) who already held New Jersey practice privileges at that time keep those privileges.",
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "N.J.S.A. 45:2B-50.1 (as amended by P.L.2025, c.384, s.3); N.J.S.A. 45:2B-54; N.J.A.C. 13:29-4.1, 13:29-4.2, 13:29-5.4"
+    },
+    {
+      "state": "New Mexico", "state_slug": "new-mexico",
+      "qualifying_pathways": [
+        "Licensed by a state requiring bachelor's degree + 30 additional semester hours (150 total) + 1 year experience",
+        "Licensed by a state requiring bachelor's with accounting concentration + 2 years experience",
+        "Licensed by a state requiring master's degree + 1 year experience",
+        "Valid U.S.-jurisdiction license issued on an exam-passing basis, plus education/experience meeting the 61-28B-8(D) level",
+        "Any valid U.S.-jurisdiction CPA license issued on a qualifying-exam basis, no separate education/experience condition (61-28B-11(B), a broader near-CPA=CPA route)"
+      ],
+      "exam_required": true, "grandfather_date": null, "grandfather_note": null,
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "NMSA 1978 §§ 61-28B-26, 61-28B-11(B), 61-28B-13, as amended by Laws 2025, ch. 105 (HB 296), eff. Jan. 1, 2026; NMAC 16.60.3.14, 16.60.4.8(F)"
+    },
+    {
+      "state": "Northern Mariana Islands", "state_slug": "northern-mariana-islands",
+      "qualifying_pathways": [
+        "Discretionary Board approval only (NMIAC 1-10-801(c) -- the Board 'MAY' authorize privileges, not an as-of-right grant), conditioned on active out-of-state license, '5-in-10' experience (5 years practice outside CNMI in preceding 10), notice to the Board, and consent to terms"
+      ],
+      "exam_required": false, "grandfather_date": null, "grandfather_note": null,
+      "extraction_confidence": "ambiguous",
+      "ambiguity_note": "The codified CNMI statute contains NO practice-privilege or substantial-equivalency provision at all -- only reciprocal certificate issuance. The Board's rule describes a discretionary pathway as if resting on a statutory standard that does not exist. Source explicitly recommends treating this as null/not-verified pending direct Board confirmation.",
+      "citation": "4 CMC §§ 3401-3440 (Accountancy Act of 2002, PL 13-52); NMIAC §§ 1-10-801, 1-10-2301 to 1-10-2310, 1-10-1605"
+    },
+    {
+      "state": "Ohio", "state_slug": "ohio",
+      "qualifying_pathways": [
+        "Baccalaureate or higher degree with an accounting concentration + passage of all parts of the Uniform CPA Exam (no separate experience requirement stated)"
+      ],
+      "exam_required": true, "grandfather_date": null, "grandfather_note": null,
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "Ohio Rev. Code 4701.14(I), as amended by H.B. 238, 135th G.A.; 4701.14(E), 4701.04; Ohio Admin. Code 4701-13-02"
+    },
+    {
+      "state": "Pennsylvania", "state_slug": "pennsylvania",
+      "qualifying_pathways": [
+        "Bachelor's degree + 150 semester hours (including accounting-related credits) + 1 year experience",
+        "Bachelor's degree with accounting-related credits + 2 years experience"
+      ],
+      "exam_required": true, "grandfather_date": "2025-06-30",
+      "grandfather_note": "Preserves practice privileges for out-of-state CPAs whose licenses were already valid to practice in Pennsylvania as of the June 30, 2025 effective date.",
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "CPA Law, Act of May 26, 1947 (P.L.318, No.140), as amended by Act 27 of 2025 (P.L.85, SB 719); 63 P.S. § 9.5d, § 9.8h; 49 Pa. Code 11.5"
+    },
+    {
+      "state": "Rhode Island", "state_slug": "rhode-island",
+      "qualifying_pathways": [
+        "Post-baccalaureate degree + 1 year experience",
+        "Bachelor's degree + 30 additional semester hours (150 total) + 1 year experience",
+        "Bachelor's degree + 2 years experience"
+      ],
+      "exam_required": false, "grandfather_date": "2024-12-31",
+      "grandfather_note": "Preserves practice privileges for individuals who held an active out-of-state license in good standing and already had Rhode Island practice privileges as of December 31, 2024.",
+      "extraction_confidence": "ambiguous",
+      "ambiguity_note": "Source lists only the three education/experience pathways and never explicitly restates a Uniform CPA Exam requirement, unlike the parallel language used for other states in this dataset. Whether exam passage is a distinct, confirmed element of Rhode Island's test cannot be established from the source alone.",
+      "citation": "R.I. Gen. Laws § 5-3.1-5(f), § 5-3.1-9(b),(c),(l), as amended by P.L. 2026, ch. 408/409, eff. 06/23/2026; § 5-3.1-9(h), § 5-3.1-10; 400-RICR-00-00-1 § 1.9.1(B)"
+    },
+    {
+      "state": "South Dakota", "state_slug": "south-dakota",
+      "qualifying_pathways": [
+        "Bachelor's degree + 2 years experience",
+        "Bachelor's degree + 30 additional semester hours (150 total) + 1 year experience",
+        "Graduate degree + 1 year experience"
+      ],
+      "exam_required": true, "grandfather_date": "2024-12-31",
+      "grandfather_note": "Preserves privileges for practitioners already exercising South Dakota practice privileges under the prior statute on or before December 31, 2024.",
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "SDCL 36-20B-66, 36-20B-67, 36-20B-68, 36-20B-32.1(3), 36-20B-70, 36-20B-32.2, 36-20B-32.3, 36-20B-36; ARSD 20:75:07:02, 20:75:07:03, 20:75:03:08. Amended by 2026 HB 1035 = SL 2026, ch 160 (eff. 2026-07-01)."
+    },
+    {
+      "state": "Tennessee", "state_slug": "tennessee",
+      "qualifying_pathways": [
+        "Valid out-of-state CPA license in good standing + evidence of passing the Uniform CPA Exam at time of licensure (no additional education/experience pathway specified; near-automatic CPA=CPA mobility)"
+      ],
+      "exam_required": true, "grandfather_date": null, "grandfather_note": null,
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "Tenn. Code Ann. § 62-1-117, as rewritten by 2025 Tenn. Pub. Ch. 524 (SB 1316/HB 1330), § 38, eff. 2025-07-01; §§ 62-1-108, 62-1-113, 62-1-201(b); Tenn. Comp. R. & Regs. 0020-01-.11, 0020-01-.13, 0020-06-.04"
+    },
+    {
+      "state": "Texas", "state_slug": "texas",
+      "qualifying_pathways": [
+        "150-hour baccalaureate degree with accounting concentration + 1 year experience",
+        "Graduate degree with accounting concentration + 1 year experience",
+        "Baccalaureate degree with accounting concentration + 2 years experience"
+      ],
+      "exam_required": true, "grandfather_date": "2024-12-31",
+      "grandfather_note": "Individuals who, as of December 31, 2024, held an out-of-state license and were already practicing under Texas's practice privilege retain it without meeting the new SB 522 individual criteria.",
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "Tex. Occ. Code §§ 901.461, 901.462, 901.351(a-1), as amended by Acts 2025, 89th Leg., R.S., Ch. 40 (S.B. 522), § 2, eff. Sept. 1, 2025; 22 TAC § 517.2"
+    },
+    {
+      "state": "Vermont", "state_slug": "vermont",
+      "qualifying_pathways": [
+        "Post-baccalaureate degree with accounting concentration + 1 year public accounting experience",
+        "150+ semester hours including a baccalaureate and 42 accounting hours + 1 year experience",
+        "Baccalaureate degree with accounting concentration + 2 years experience"
+      ],
+      "exam_required": true, "grandfather_date": "2024-12-31",
+      "grandfather_note": "Anyone who held a valid active out-of-state CPA license and had Vermont practice privileges as of December 31, 2024 retains those privileges without meeting the new Act 119 individual criteria.",
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "26 V.S.A. §§ 74, 74c, as amended by 2026 Vt. Acts & Resolves No. 119 (H.588), Secs. 8-10, eff. June 8, 2026; § 75(c); Vt. Bd. of Public Accountancy Admin. Rules 6.1, 10.7"
+    },
+    {
+      "state": "Washington", "state_slug": "washington",
+      "qualifying_pathways": [
+        "Bachelor's degree + passed Uniform CPA Exam + 1 year experience (all met at initial licensure)"
+      ],
+      "exam_required": true, "grandfather_date": null, "grandfather_note": null,
+      "extraction_confidence": "clear", "ambiguity_note": null,
+      "citation": "RCW 18.04.350; RCW 18.04.195(1); WAC 4-30-090, as amended by WSR 25-10-028 eff. 2025-05-30"
+    },
+    {
+      "state": "West Virginia", "state_slug": "west-virginia",
+      "qualifying_pathways": [
+        "Post-baccalaureate degree + 1 year experience",
+        "Baccalaureate degree + 30 additional semester hours (150 total) + 1 year experience",
+        "Baccalaureate degree alone + 2 years experience"
+      ],
+      "exam_required": true, "grandfather_date": "2025-12-31",
+      "grandfather_note": "An individual whose principal place of business is outside West Virginia who held a valid CPA license from any state as of December 31, 2025 continues to have practice privileges regardless of the new §30-9-8 individual criteria (effectively CPA=CPA for the pre-2026 licensee population).",
+      "extraction_confidence": "ambiguous",
+      "ambiguity_note": "Unresolved statute-vs-rule conflict: the amended statute conditions privileges on meeting West Virginia's own individual-criteria test, but the still-compiled Board legislative rule still authorizes a UAA/NASBA-benchmarked, state-level determination. Source codes individual_criteria conservatively but flags the Board rule as unconformed until at least the 2027 legislative session.",
+      "citation": "W. Va. Code § 30-9-16, as amended by 2026 W. Va. Acts ch. 256 (H.B. 4088, eff. May 24, 2026); §§ 30-9-17, 30-9-19, 30-9-2(3); W. Va. C.S.R. § 1-1-10"
+    },
+    {
+      "state": "Wisconsin", "state_slug": "wisconsin",
+      "qualifying_pathways": [
+        "Requirements 'similar to' Wis. Stat. § 442.04(5)(b) (education/exam/experience), including at least a bachelor's degree + 2 years experience pathway"
+      ],
+      "exam_required": true, "grandfather_date": "2026-04-03",
+      "grandfather_note": "Anyone who had Wisconsin practice privileges under the 2023 statutes as of April 3, 2026 (the day before Act 166 took effect) retains those privileges without meeting the new individual-criteria test.",
+      "extraction_confidence": "ambiguous",
+      "ambiguity_note": "Source does not itemize the full set of qualifying pathways -- only characterizes the test as 'similar to' a cross-referenced statute. Source's own confidence is 'single_source': no corroborating board guidance exists for the Act 166 individual-criteria test, so the pathway detail rests on the codified statute's cross-reference alone.",
+      "citation": "Wis. Stat. § 442.025(4), as amended by 2025 Wis. Act 166; § 442.08(2), Wis. Admin. Code §§ Accy 5.101-5.102; § 442.087, Accy 6.101"
+    }
+  ]
+}

@@ -803,6 +803,18 @@ PAGE_CSS = """
   .trust-footnote { margin-top: 1rem; font-size: 0.82rem; color: var(--faint); line-height: 1.5; max-width: 46ch; }
   @media (max-width: 620px) { .trust-row { grid-template-columns: 1fr 1fr; } }
 
+  /* Roadmap #325 (2026-08-10, ValueLab design-pattern-mining #4): intent
+     chips directly under the hero -- pure routing, same pill shape as
+     .map-small-pill/.dr-mob-mode-btn elsewhere on the site, not a new
+     visual language. */
+  .dr-intent-chips { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 1.6rem 0 0; }
+  .dr-intent-chip {
+    display: inline-block; background: transparent; color: var(--fg); border: 1px solid var(--border-strong);
+    border-radius: 999px; padding: 0.5rem 1rem; font-size: 0.86rem; font-weight: 600; text-decoration: none;
+    cursor: pointer; font-family: inherit;
+  }
+  .dr-intent-chip:hover { border-color: var(--accent); color: var(--accent); }
+
   /* ---- hero-right: rotating verified-fact card, live proof of freshness ---- */
   .hfc-wrap { position: relative; min-height: 300px; }
   .hfc-card {
@@ -835,6 +847,18 @@ PAGE_CSS = """
   .mcard .step { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; color: var(--gold); font-weight: 600; }
   .mcard h3 { font-size: 1.05rem; margin: 0.6rem 0 0.4rem; font-family: var(--font-display); }
   .mcard p { margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.55; }
+
+  /* Roadmap #324 (2026-08-10, ValueLab design-pattern-mining #5): the same
+     three pain-point sentences /for-firms/ already had, re-laid-out as an
+     icon-led 3-column grid instead of stacked paragraphs -- same
+     .method-grid/.mcard shape this file already uses elsewhere, not a new
+     visual language. */
+  .dr-pain-headline { font-size: 1.5rem; margin: 0 0 0.3rem; }
+  .dr-pain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; margin: 1.4rem 0 1.8rem; }
+  @media (max-width: 700px) { .dr-pain-grid { grid-template-columns: 1fr; } }
+  .dr-pain-col { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.3rem 1.2rem; }
+  .dr-pain-icon { width: 28px; height: 28px; color: var(--accent); margin-bottom: 0.7rem; }
+  .dr-pain-col p { margin: 0; font-size: 0.9rem; line-height: 1.55; }
 
   /* ---- reminder panel: two-column dark treatment ---- */
   .remind-panel {
@@ -4721,7 +4745,30 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   You enter the date on your license and we track it. We would rather say that than round up.</p>
 </div>
 {hero_right_html}
-</div>"""
+</div>
+<div class="dr-intent-chips" role="navigation" aria-label="Jump to what you need">
+  <button type="button" class="dr-intent-chip" id="dr-intent-own-date">I just want my own renewal date</button>
+  <a class="dr-intent-chip" href="for-firms/">I track a whole firm's staff</a>
+  <a class="dr-intent-chip" href="firm-mobility/">Can my firm sign in another state?</a>
+  <a class="dr-intent-chip" href="rule-changes/">What's changing in 2026?</a>
+</div>
+<script>
+(function () {{
+  // Roadmap #325 (2026-08-10, ValueLab design-pattern-mining #4): the one
+  // chip that isn't a real navigation -- "your own renewal date" is
+  // already answerable by the search box sitting right above this row, so
+  // this just draws the visitor's eye back to it instead of duplicating
+  // the state-search UI a second time on the same page.
+  var chip = document.getElementById('dr-intent-own-date');
+  var input = document.getElementById('state-search-input');
+  if (chip && input) {{
+    chip.addEventListener('click', function () {{
+      input.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+      input.focus();
+    }});
+  }}
+}})();
+</script>"""
 
     method_band_html = """<section class="band-section">
   <p class="eyebrow">How we verify</p>
@@ -6475,19 +6522,43 @@ license stays current &mdash; across however many states they're licensed in. On
 down engagements and creates real regulatory risk, and most firms track it today by spreadsheet. A
 spreadsheet fails in three specific ways.</p>
 
-<h2>Where a spreadsheet (and an individual CPA's own inbox) falls short</h2>
-<p><strong>Multi-state blind spot.</strong> A state board only reminds a CPA about the license held
-<em>with that board</em> &mdash; nobody sends a nudge about the other one or two states the same person
-might also be licensed in. Nothing is watching the full multi-state picture except the CPA themselves,
-one inbox at a time.</p>
-<p><strong>No firm-level visibility.</strong> The partner or admin who actually carries the regulatory
-risk for the firm never sees any of this &mdash; only the individual licensee's own inbox gets the
-reminder. If that person doesn't forward it, changes their email, or leaves the firm, the firm has zero
-visibility until a renewal is already missed.</p>
-<p><strong>Filing vs. hours.</strong> CPE-hour tracking tools track whether staff completed their
-continuing-education hours. That's a different event from whether the actual renewal <em>filing</em>
-with the state board happened. Finishing every CPE hour and still missing the filing deadline is a
-real, common failure mode &mdash; this product is about the filing, not the hours.</p>
+<h2 class="dr-pain-headline">Every hour completed. The filing still missed.</h2>
+<p class="subhead">Where a spreadsheet (and an individual CPA's own inbox) falls short:</p>
+<div class="dr-pain-grid">
+  <div class="dr-pain-col">
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" class="dr-pain-icon">
+      <path d="M8 1.5c-2.2 0-4 1.8-4 4 0 3 4 9 4 9s4-6 4-9c0-2.2-1.8-4-4-4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+      <circle cx="8" cy="5.5" r="1.4" stroke="currentColor" stroke-width="1.3"/>
+    </svg>
+    <p><strong>Multi-state blind spot.</strong> A state board only reminds a CPA about the license held
+    <em>with that board</em> &mdash; nobody sends a nudge about the other one or two states the same
+    person might also be licensed in. Nothing is watching the full multi-state picture except the CPA
+    themselves, one inbox at a time.</p>
+  </div>
+  <div class="dr-pain-col">
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" class="dr-pain-icon">
+      <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+      <circle cx="8" cy="8" r="1.8" stroke="currentColor" stroke-width="1.3"/>
+      <line x1="2.5" y1="13" x2="13.5" y2="3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    </svg>
+    <p><strong>No firm-level visibility.</strong> The partner or admin who actually carries the
+    regulatory risk for the firm never sees any of this &mdash; only the individual licensee's own
+    inbox gets the reminder. If that person doesn't forward it, changes their email, or leaves the
+    firm, the firm has zero visibility until a renewal is already missed.</p>
+  </div>
+  <div class="dr-pain-col">
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" class="dr-pain-icon">
+      <path d="M4 1.5h5.5L11.5 3.5V14.5h-7.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+      <path d="M9.5 1.5v2h2" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+      <path d="M5.5 8.5l1.5 1.5 3-3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <p><strong>Filing vs. hours.</strong> CPE-hour tracking tools track whether staff completed their
+    continuing-education hours. That's a different event from whether the actual renewal
+    <em>filing</em> with the state board happened. Finishing every CPE hour and still missing the
+    filing deadline is a real, common failure mode &mdash; this product is about the filing, not the
+    hours.</p>
+  </div>
+</div>
 
 <h2>What you get</h2>
 <p>A firm-wide view that answers what a spreadsheet can't: who's current, who's at risk, and who needs

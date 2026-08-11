@@ -357,6 +357,15 @@
   @media (max-width: 620px) { .trust-row { grid-template-columns: 1fr 1fr; } }
 
   
+  .dr-intent-chips { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 1.6rem 0 0; }
+  .dr-intent-chip {
+    display: inline-block; background: transparent; color: var(--fg); border: 1px solid var(--border-strong);
+    border-radius: 999px; padding: 0.5rem 1rem; font-size: 0.86rem; font-weight: 600; text-decoration: none;
+    cursor: pointer; font-family: inherit;
+  }
+  .dr-intent-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+  
   .hfc-wrap { position: relative; min-height: 300px; }
   .hfc-card {
     position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: 1;
@@ -388,6 +397,14 @@
   .mcard .step { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; color: var(--gold); font-weight: 600; }
   .mcard h3 { font-size: 1.05rem; margin: 0.6rem 0 0.4rem; font-family: var(--font-display); }
   .mcard p { margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.55; }
+
+  
+  .dr-pain-headline { font-size: 1.5rem; margin: 0 0 0.3rem; }
+  .dr-pain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; margin: 1.4rem 0 1.8rem; }
+  @media (max-width: 700px) { .dr-pain-grid { grid-template-columns: 1fr; } }
+  .dr-pain-col { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.3rem 1.2rem; }
+  .dr-pain-icon { width: 28px; height: 28px; color: var(--accent); margin-bottom: 0.7rem; }
+  .dr-pain-col p { margin: 0; font-size: 0.9rem; line-height: 1.55; }
 
   
   .remind-panel {
@@ -1622,6 +1639,13 @@
 </div>
 <script>(function(){var wrap=document.getElementById("hfc-wrap");if(!wrap)return;var cards=wrap.querySelectorAll(".hfc-card");if(cards.length<2)return;var TZ_REGION_STATES={"America/New_York":["New York","Florida","Georgia","North Carolina","Ohio","Pennsylvania","Virginia","Massachusetts","New Jersey","Michigan","South Carolina","Tennessee","Maine","Connecticut","Vermont","New Hampshire","Rhode Island","Delaware","Maryland","West Virginia","Kentucky","Indiana","District of Columbia"],"America/Detroit":["Michigan","Ohio","Indiana"],"America/Indiana/Indianapolis":["Indiana","Ohio","Kentucky"],"America/Kentucky/Louisville":["Kentucky","Indiana","Ohio"],"America/Chicago":["Illinois","Texas","Wisconsin","Minnesota","Missouri","Louisiana","Oklahoma","Iowa","Kansas","Alabama","Mississippi","Arkansas","Tennessee","Nebraska","South Dakota","North Dakota"],"America/Denver":["Colorado","Utah","Montana","Wyoming","New Mexico","Idaho"],"America/Boise":["Idaho","Montana"],"America/Phoenix":["Arizona"],"America/Los_Angeles":["California","Washington","Oregon","Nevada"],"America/Anchorage":["Alaska"],"Pacific/Honolulu":["Hawaii"]};var tz="";try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||""}catch(e){}var candidates=TZ_REGION_STATES[tz]||null;var pool=Array.prototype.slice.call(cards);var matches=candidates?pool.filter(function(c){return candidates.indexOf(c.getAttribute("data-hfc-state"))!==-1}):[];var chosenFrom=matches.length?matches:pool;var chosen=chosenFrom[Math.floor(Math.random()*chosenFrom.length)];pool.forEach(function(c){c.classList.remove("is-active")});chosen.classList.add("is-active")})();</script>
 </div>
+<div class="dr-intent-chips" role="navigation" aria-label="Jump to what you need">
+  <button type="button" class="dr-intent-chip" id="dr-intent-own-date">I just want my own renewal date</button>
+  <a class="dr-intent-chip" href="for-firms/">I track a whole firm's staff</a>
+  <a class="dr-intent-chip" href="firm-mobility/">Can my firm sign in another state?</a>
+  <a class="dr-intent-chip" href="rule-changes/">What's changing in 2026?</a>
+</div>
+<script>(function(){var chip=document.getElementById("dr-intent-own-date");var input=document.getElementById("state-search-input");if(chip&&input){chip.addEventListener("click",function(){input.scrollIntoView({behavior:"smooth",block:"center"});input.focus()})}})();</script>
 <section class="band-section" style="border-top:0; padding-top:0; margin-top:0;">
   <p class="eyebrow">What a lookup actually gives you</p>
   <h2>A fact sheet you could hand to a partner.</h2>

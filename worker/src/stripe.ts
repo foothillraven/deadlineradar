@@ -149,42 +149,43 @@ export async function updateSubscriptionCancelAtPeriodEnd(
 }
 
 /**
- * Roadmap #31 (2026-08-09, referral program). Applies a Coupon to an
- * EXISTING subscription -- the referrer's own reward, fired from
- * handleStripeWebhook()'s checkout.session.completed branch once the
- * REFERRED firm's payment actually clears (never at signup). Same
- * auth/error-handling shape as updateSubscriptionCancelAtPeriodEnd()
- * above, POSTing a different field to the same endpoint.
+ * Roadmap #31 (2026-08-09, referral program; compounding tiers added
+ * 2026-08-11). Applies a Coupon to an EXISTING subscription -- the
+ * referrer's own reward, fired from handleStripeWebhook()'s
+ * checkout.session.completed branch once the REFERRED firm's payment
+ * actually clears (never at signup). Same auth/error-handling shape as
+ * updateSubscriptionCancelAtPeriodEnd() above, POSTing a different field to
+ * the same endpoint.
  *
  * CONFIRMED LIVE, 2026-08-09 (orchestrator escalation -- Devin's own read
  * on the referral math, "needs an empirical test, not more code reading"):
  * ran `discounts[0][coupon]=X` three times in a row against a real
- * test-mode subscription with the SAME coupon id, exactly what 3
- * successful referrals for the same referrer do. Result, checked via
+ * test-mode subscription with the SAME coupon id. Result, checked via
  * `POST /v1/invoices/create_preview` (the current, non-deprecated way to
  * see the real computed charge): the discount object id was IDENTICAL
- * after all three calls, and the previewed invoice showed exactly ONE 10%
- * discount ($199 subtotal -> $17.910 off -> $179.10 total), not three
- * stacked 10%'s. **`discounts[0][coupon]` REPLACES the discount at that
- * slot -- it does not append or stack.** A referrer's 2nd/10th/50th
- * successful referral re-confirms the SAME flat 10% off, never more. This
- * matches what the dashboard panel's own copy has always said ("you both
- * get 10% off your next invoice" -- singular, never "additional" or "per
- * referral"), so this is confirmed-honest current behavior, not a bug to
- * fix: no risk of exceeding 100% off, and no gap between what's promised
- * and what's delivered. If a future redesign wants referrals to actually
- * COMPOUND, that would need real new logic here (e.g. a percent_off
- * computed server-side per referral count, or a different discount
- * mechanism entirely) -- this function as written can never do that no
- * matter how many times it's called.
+ * after all three calls, and the previewed invoice showed exactly ONE
+ * discount, not stacked copies. **`discounts[0][coupon]` REPLACES the
+ * discount at that slot -- it does not append or stack.**
+ *
+ * 2026-08-11: this replace-not-append property is now the DELIBERATE
+ * mechanism for compounding, not a limitation. index.ts's
+ * applyReferralRewardIfEligible() computes the referrer's new cumulative
+ * tier (priorRewardCount + 1, capped at 10 via referralTierCouponId()) and
+ * calls this function with that tier's OWN coupon id (10% at tier 1, ...,
+ * 100% at tier 10) -- each call REPLACES the prior tier's discount with the
+ * new, larger one, which is exactly "grow the discount, don't stack
+ * duplicates of the old one." A single coupon id can never compound on its
+ * own (Stripe replaces, not adds) -- the compounding lives entirely in
+ * picking a DIFFERENT, larger coupon id each time, not in this function or
+ * in Stripe's own replace semantics.
  *
  * The OTHER risk this docstring used to flag -- `discounts[0][coupon]`
  * silently overwriting some OTHER, unrelated discount already on the
- * subscription (a manual/support-granted coupon, a future promo) -- is
- * now confirmed a real property of this replace-not-append semantics,
- * not just a plausible worry. Still a non-issue at ship time (no other
- * discount-granting mechanism exists in this codebase), but worth
- * re-reading before a second discount mechanism is ever added.
+ * subscription (a manual/support-granted coupon, a future promo) -- is a
+ * real property of this replace-not-append semantics, not just a plausible
+ * worry. Still a non-issue at ship time (no other discount-granting
+ * mechanism exists in this codebase), but worth re-reading before a second
+ * discount mechanism is ever added.
  */
 export async function applyCouponToSubscription(secretKey: string, subscriptionId: string, couponId: string): Promise<void> {
   const body = new URLSearchParams();

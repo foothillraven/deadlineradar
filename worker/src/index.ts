@@ -2769,6 +2769,16 @@ function valueLineDenialResponse(firm: store.FirmRow): Response | null {
 // calls the same way it hand-writes SendGrid/Turnstile.
 // ---------------------------------------------------------------------------
 
+/** Roadmap #31 compounding tiers (2026-08-11, Devin's spec): "10% off each
+ * time [a referral converts], up to 10 times, which is 100% off." Tier N
+ * (1-10) maps to the Nth successful referral -> N*10% off, capped at tier
+ * 10 (100%). See env.ts's own STRIPE_COUPON_REFERRAL docstring for why this
+ * is a prefix, not a single id, and MAX_REFERRAL_TIER for the cap. */
+const MAX_REFERRAL_TIER = 10;
+function referralTierCouponId(prefix: string, tier: number): string {
+  return `${prefix}${Math.max(1, Math.min(tier, MAX_REFERRAL_TIER))}`;
+}
+
 /**
  * POST /firm/billing/checkout -- creates a Stripe Checkout Session for the
  * signed-in firm to convert onto a paid tier, at ANY point: while free or
@@ -2860,10 +2870,12 @@ async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Re
   // both sides of one referral relationship resolve together, the moment
   // THIS checkout actually completes (see handleStripeWebhook's own
   // comment). Abandoning checkout here leaves eligibility untouched for a
-  // later real attempt.
+  // later real attempt. Always tier 1 (10% off) -- the REFERRED firm's own
+  // discount doesn't compound, only the referrer's side does (see
+  // applyReferralRewardIfEligible()).
   const referralCouponId =
     firm.referred_by_firm_id && !firm.referral_reward_applied_at && env.STRIPE_COUPON_REFERRAL
-      ? env.STRIPE_COUPON_REFERRAL
+      ? referralTierCouponId(env.STRIPE_COUPON_REFERRAL, 1)
       : undefined;
 
   const dashboardBase = `${staticSiteAbsoluteBaseUrl(env)}/firm-dashboard/`;
@@ -3251,15 +3263,18 @@ async function handleFirmAccountDelete(request: Request, env: Env): Promise<Resp
  * codebase doesn't yet handle.
  */
 async function applyReferralRewardIfEligible(env: Env, referredFirmId: string, checkoutSessionObject: Record<string, unknown>): Promise<void> {
-  // Follow-up verification (2026-08-09, model: opus): with STRIPE_COUPON_REFERRAL
-  // shipped as percent_off (10%), a checkout session is never fully free,
-  // so payment_status is always reachable via a real charge. If this
-  // coupon is EVER changed to a 100%-off / free-trial-style coupon,
-  // Stripe reports a $0 invoice as payment_status "no_payment_required",
-  // not "paid" -- that would silently reopen the exact "referred firm
-  // never gets claimed, coupon reusable forever" gap this function's own
-  // docstring describes fixing. Widen this check to accept
-  // "no_payment_required" too if the coupon is ever changed that way.
+  // Follow-up verification (2026-08-09, model: opus), still true after the
+  // 2026-08-11 compounding-tiers change: the REFERRED firm's own discount
+  // (this checkout, handleFirmBillingCheckout) is hardcoded to tier 1 (10%
+  // off, referralTierCouponId(prefix, 1)), never higher -- only the
+  // REFERRER's side below compounds. So a checkout session here is never
+  // fully free, and payment_status is always reachable via a real charge.
+  // If the referred-firm discount is EVER changed to apply a higher tier
+  // (or a 100%-off coupon some other way), Stripe reports a $0 invoice as
+  // payment_status "no_payment_required", not "paid" -- that would silently
+  // reopen the exact "referred firm never gets claimed, coupon reusable
+  // forever" gap this function's own docstring describes fixing. Widen this
+  // check to accept "no_payment_required" too if that ever changes.
   if (checkoutSessionObject.payment_status !== "paid") return;
 
   const firm = await store.getFirmById(env.DB, referredFirmId);
@@ -3275,8 +3290,18 @@ async function applyReferralRewardIfEligible(env: Env, referredFirmId: string, c
   const referrer = await store.getFirmById(env.DB, firm.referred_by_firm_id);
   if (!referrer || !referrer.stripe_subscription_id || referrer.demo_locked) return;
 
+  // Compounding tiers (2026-08-11, Devin's spec): this referral is the
+  // referrer's (priorRewardCount + 1)th successful one -- tier 1 = 10% off,
+  // tier 10 = 100% off, capped there regardless of how many more referrals
+  // convert afterward (referralTierCouponId() clamps). countRewardedReferrals()
+  // counts referrer_rewarded_at rows, which only include ALREADY-completed
+  // rewards -- this one hasn't been marked yet, so no off-by-one here.
+  const priorRewardCount = await store.countRewardedReferrals(env.DB, referrer.id);
+  const tier = priorRewardCount + 1;
+  const couponId = referralTierCouponId(env.STRIPE_COUPON_REFERRAL, tier);
+
   try {
-    await applyCouponToSubscription(env.STRIPE_SECRET_KEY, referrer.stripe_subscription_id, env.STRIPE_COUPON_REFERRAL);
+    await applyCouponToSubscription(env.STRIPE_SECRET_KEY, referrer.stripe_subscription_id, couponId);
     await store.markReferrerRewarded(env.DB, referredFirmId);
   } catch (err) {
     console.log(`[referral-reward] referrer coupon application failed for referrer ${referrer.id} (referred firm ${referredFirmId} already claimed): ${String(err)}`);

@@ -282,7 +282,9 @@ describe("POST /firm/billing/checkout -- referral coupon eligibility", () => {
       );
       expect(resp.status).toBe(200);
       const sentBody = (fetchSpy.mock.calls[0]![1] as RequestInit).body as string;
-      expect(sentBody).toContain(`discounts%5B0%5D%5Bcoupon%5D=${STRIPE_ENV.STRIPE_COUPON_REFERRAL}`);
+      // Always tier 1 (10% off) -- the REFERRED firm's own one-time
+      // discount doesn't compound, see referralTierCouponId()'s own comment.
+      expect(sentBody).toContain(`discounts%5B0%5D%5Bcoupon%5D=${STRIPE_ENV.STRIPE_COUPON_REFERRAL}1`);
     } finally {
       fetchSpy.mockRestore();
     }
@@ -380,11 +382,78 @@ describe("POST /stripe/webhook -- referral reward (referrer side)", () => {
       expect(referred?.plan_tier).toBe("firm_starter");
       expect(referred?.referral_reward_applied_at).not.toBeNull();
 
-      // The referrer's subscription got the coupon call.
+      // The referrer's subscription got the coupon call -- tier 1 (10%
+      // off), this being their FIRST successful referral.
       const couponCall = fetchSpy.mock.calls.find((c) => (c[0] as string).includes(`/subscriptions/sub_fires_referrer`));
       expect(couponCall).toBeTruthy();
       const couponBody = (couponCall![1] as RequestInit).body as string;
-      expect(couponBody).toContain(`discounts%5B0%5D%5Bcoupon%5D=${STRIPE_ENV.STRIPE_COUPON_REFERRAL}`);
+      expect(couponBody).toContain(`discounts%5B0%5D%5Bcoupon%5D=${STRIPE_ENV.STRIPE_COUPON_REFERRAL}1`);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("compounding tiers (2026-08-11): a referrer's SECOND successful referral applies tier 2 (20% off), not tier 1 again", async () => {
+    const { referrerId, referredId } = await setupReferralPair("tier2");
+    // Simulate one prior successful reward for this same referrer, exactly
+    // what markReferrerRewarded() left behind after a first real referral.
+    const priorReferred = await store.createFirm(env.DB, {
+      name: "tier2 prior referred",
+      adminEmail: `tier2-prior-${Date.now()}@example.com`,
+      referredByFirmId: referrerId,
+    });
+    await store.claimReferralReward(env.DB, priorReferred.id);
+    await store.markReferrerRewarded(env.DB, priorReferred.id);
+    expect(await store.countRewardedReferrals(env.DB, referrerId)).toBe(1);
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    try {
+      const eventId = `evt_tier2_${referredId}`;
+      const payload = await checkoutCompletedPayload(eventId, referredId);
+      const t = Math.floor(Date.now() / 1000);
+      const sig = await signPayload(SECRET, t, payload);
+      const resp = await postWebhook(payload, sig, STRIPE_ENV);
+      expect(resp.status).toBe(200);
+
+      const couponCall = fetchSpy.mock.calls.find((c) => (c[0] as string).includes(`/subscriptions/sub_tier2_referrer`));
+      expect(couponCall).toBeTruthy();
+      const couponBody = (couponCall![1] as RequestInit).body as string;
+      expect(couponBody).toContain(`discounts%5B0%5D%5Bcoupon%5D=${STRIPE_ENV.STRIPE_COUPON_REFERRAL}2`);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("compounding tiers (2026-08-11): a referrer already at 10 rewarded referrals stays at tier 10 (100% off) on an 11th -- never exceeds the cap", async () => {
+    const { referrerId, referredId } = await setupReferralPair("tiercap");
+    for (let i = 0; i < 10; i++) {
+      const priorReferred = await store.createFirm(env.DB, {
+        name: `tiercap prior referred ${i}`,
+        adminEmail: `tiercap-prior-${i}-${Date.now()}@example.com`,
+        referredByFirmId: referrerId,
+      });
+      await store.claimReferralReward(env.DB, priorReferred.id);
+      await store.markReferrerRewarded(env.DB, priorReferred.id);
+    }
+    expect(await store.countRewardedReferrals(env.DB, referrerId)).toBe(10);
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    try {
+      const eventId = `evt_tiercap_${referredId}`;
+      const payload = await checkoutCompletedPayload(eventId, referredId);
+      const t = Math.floor(Date.now() / 1000);
+      const sig = await signPayload(SECRET, t, payload);
+      const resp = await postWebhook(payload, sig, STRIPE_ENV);
+      expect(resp.status).toBe(200);
+
+      const couponCall = fetchSpy.mock.calls.find((c) => (c[0] as string).includes(`/subscriptions/sub_tiercap_referrer`));
+      expect(couponCall).toBeTruthy();
+      const couponBody = (couponCall![1] as RequestInit).body as string;
+      // Would be "tier 11" without the cap -- referralTierCouponId() clamps
+      // to MAX_REFERRAL_TIER (10), so an 11th referral re-applies the SAME
+      // 100%-off coupon, never a nonexistent (or over-100%) one.
+      expect(couponBody).toContain(`discounts%5B0%5D%5Bcoupon%5D=${STRIPE_ENV.STRIPE_COUPON_REFERRAL}10`);
+      expect(couponBody).not.toContain(`discounts%5B0%5D%5Bcoupon%5D=${STRIPE_ENV.STRIPE_COUPON_REFERRAL}11`);
     } finally {
       fetchSpy.mockRestore();
     }

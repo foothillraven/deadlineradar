@@ -205,16 +205,25 @@ export interface Env {
   STRIPE_PRICE_FIRM_STANDARD?: string;
   STRIPE_PRICE_FIRM_SCALE?: string;
   /**
-   * Roadmap #31 (2026-08-09, referral program). A Stripe Coupon id --
-   * OPTIONAL, same degrade-safely convention as the four STRIPE_PRICE_*
-   * values above: unset means handleFirmBillingCheckout() never requests a
-   * referral discount and the webhook's reward block never fires
-   * (checked, not assumed -- both read this var directly, neither
-   * fabricates a fallback id). Created once, out-of-band, in the Stripe
-   * Dashboard (percent_off, duration:"once") -- never by application code,
-   * so there is no `POST /v1/coupons` call anywhere in this codebase.
-   * Test-mode and live-mode Coupons are different ids on the same Stripe
-   * account, same Gate-1-to-Gate-2 swap reasoning as STRIPE_PRICE_* above.
+   * Roadmap #31 (2026-08-09, referral program; compounding tiers added
+   * 2026-08-11, Devin's own spec: "10% off each time [a referral converts],
+   * up to 10 times, which is 100% off"). A Stripe Coupon id PREFIX, not a
+   * single coupon id -- OPTIONAL, same degrade-safely convention as the
+   * four STRIPE_PRICE_* values above: unset means handleFirmBillingCheckout()
+   * never requests a referral discount and the webhook's reward block never
+   * fires (checked, not assumed -- both read this var directly, neither
+   * fabricates a fallback id).
+   *
+   * referralTierCouponId() (index.ts) appends a tier number 1-10 to this
+   * prefix to get the actual coupon id -- e.g. prefix "dr-referral-tier-"
+   * + tier 3 -> "dr-referral-tier-3" (30% off). All 10 coupons (10% through
+   * 100% off, each `duration: "once"`) are created once, out-of-band, same
+   * as before -- never by application code, so there is still no
+   * `POST /v1/coupons` call anywhere in this codebase. Test-mode and
+   * live-mode Coupons are different ids on the same Stripe account, same
+   * Gate-1-to-Gate-2 swap reasoning as STRIPE_PRICE_* above -- both
+   * environments must have the full 1-10 tier set created under whatever
+   * prefix this var points to.
    */
   STRIPE_COUPON_REFERRAL?: string;
   /**

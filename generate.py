@@ -2571,6 +2571,7 @@ def site_footer() -> str:
       <a href="/">All {JURISDICTION_COUNT} jurisdictions</a>
       <a href="/methodology/">How We Verify</a>
       <a href="/practice-privilege-check/">Practice Privilege Check</a>
+      <a href="/multi-state-firms/">Multi-State Firms</a>
       <a href="/rule-changes/">Mobility Rule Changes</a>
       <a href="/blog/">Guides</a>
       <a href="/pricing/">Pricing</a>
@@ -6895,7 +6896,9 @@ individual question above and a separate firm-level registration check (does the
 register somewhere it has no office, even when the individual CPA is covered). The individual check is
 free on every tier, for any account &mdash; a free signup is all it takes, no card, no paid plan
 required; <a href="../pricing/">the firm-level check and the multistate coverage map are part of a
-paid plan</a>.</p>
+paid plan</a>. Staff across more than one state? See how Map, Practice Privilege Check, and
+<a href="../rule-changes/">Rule Changes</a> work together on the
+<a href="../multi-state-firms/">multi-state firm overview</a>.</p>
 
 {_product_showcase_html()}
 
@@ -15308,6 +15311,55 @@ check. See <a href="/pricing/">full pricing</a>.</p>
     )
 
 
+def build_multi_state_firms_page() -> str:
+    """Roadmap #337: one page assembling Map + Practice Privilege Check +
+    Rule Changes for a firm whose staff span multiple states -- explicitly
+    ONE page, not six state-segment pages (the item's own instruction).
+    Each of the three pillars reuses existing, already-shipped copy
+    verbatim (the Map value-callout text from the dashboard, the rule-
+    changes feed's own intro sentence) rather than inventing new marketing
+    claims about features described precisely elsewhere."""
+    body = f"""<h1>Running a Multi-State CPA Firm? Here's the Full Picture.</h1>
+<p class="intro">A firm with staff licensed or practicing across more than one state has a genuinely
+different problem than a single-state firm: knowing where everyone can legally work, catching it before
+a rule changes underneath you, and keeping a citation behind every answer. Three pieces of this site
+work together for exactly that.</p>
+
+<h2>1. Map &mdash; see every state your team can practice in</h2>
+<p>A color-coded map of exactly which states your team can practice in today without a local license,
+plus a firm-level registration check for attest work where your firm itself (not just the individual
+CPA) needs to register. Part of a paid firm plan &mdash; <a href="/pricing/">see plans</a>.</p>
+
+<h2>2. Practice Privilege Check &mdash; verify before staff take on out-of-state work</h2>
+<p>Before a staff CPA takes on work in a state they're not locally licensed in, run the check: service
+type, home state, target state, and the answer comes back with the rule and citation behind it &mdash;
+never a guess. <a href="/practice-privilege-check/">Free for any account, no paid plan required</a>.</p>
+
+<h2>3. Rule Changes &mdash; a running feed, not a one-time check</h2>
+<p>A running feed of confirmed and pending changes to interstate CPA mobility rules &mdash; practice
+privileges, notice/fee requirements, and firm registration &mdash; sourced the same way as every other
+date on this site: a citation to the primary statute or rule, never a guess. Your firm's own calendar
+surfaces the changes that actually affect your roster's states.
+<a href="/rule-changes/">See the full public feed</a>.</p>
+
+<p><a class="cta-button" href="{REMINDER_BACKEND_BASE_URL}/firm/demo-login">Try the live demo &rarr;</a></p>
+
+<p><strong>New to DeadlineRadar?</strong> See the <a href="/for-firms/">full firm overview</a> for
+pricing, the whole feature set, and how renewal-date tracking fits alongside these three.</p>
+
+<p class="backlink"><a href="/">&larr; Back to all states</a></p>
+"""
+    return page_shell(
+        f"Multi-State CPA Firms: Map, Mobility Check, and Rule Changes — {SITE_NAME}",
+        "For a CPA firm with staff across multiple states: a coverage map, a free Practice Privilege "
+        "Check, and a running feed of mobility rule changes -- all sourced and cited.",
+        body,
+        home_href="../",
+        canonical_path="/multi-state-firms/",
+        has_remind_anchor=False,
+    )
+
+
 def build_firm_dashboard_page(
     by_slug: dict[str, list[dict]], as_of: date, cpe_hours_by_slug: dict[str, dict]
 ) -> str:
@@ -17354,6 +17406,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/practice-privilege-check/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/multi-state-firms/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/roadmap/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
@@ -17641,6 +17696,11 @@ def main() -> None:
     ppc_dir.mkdir(parents=True, exist_ok=True)
     (ppc_dir / "index.html").write_text(build_practice_privilege_landing_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/practice-privilege-check/index.html")
+
+    multi_state_dir = SITE_DIR / "multi-state-firms"
+    multi_state_dir.mkdir(parents=True, exist_ok=True)
+    (multi_state_dir / "index.html").write_text(build_multi_state_firms_page(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/multi-state-firms/index.html")
 
     roadmap_dir = SITE_DIR / "roadmap"
     roadmap_dir.mkdir(parents=True, exist_ok=True)

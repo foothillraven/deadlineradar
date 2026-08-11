@@ -1581,12 +1581,11 @@
       <a href="/blog/">Guides</a>
       <a href="/for-firms/">For Firms</a>
       <a href="/api/firm/demo-login">Live Demo</a>
-      <a href="/signin/" class="nav-quiet" id="dr-nav-signin">Sign In</a>
       <a href="../#remind" class="cta">Get reminders</a>
     </div>
   </div>
 </nav>
-<script>(function(){var link=document.getElementById("dr-nav-signin");if(!link)return;fetch("/api/firm/licenses",{credentials:"include"}).then(function(r){if(!r.ok)return;r.json().then(function(data){if(data&&data.demo_locked){fetch("/api/firm/logout",{method:"POST",credentials:"include"}).catch(function(){});return}link.textContent="Dashboard";link.href="/firm-dashboard/";link.classList.remove("nav-quiet");link.classList.add("cta")}).catch(function(){})}).catch(function(){})})();</script>
+
 <script>(function(){var btn=document.getElementById("dr-nav-toggle");var links=document.getElementById("dr-nav-links");if(!btn||!links)return;btn.addEventListener("click",function(){var open=links.classList.toggle("dr-nav-open");btn.setAttribute("aria-expanded",open?"true":"false")});links.addEventListener("click",function(ev){if(ev.target.tagName==="A"){links.classList.remove("dr-nav-open");btn.setAttribute("aria-expanded","false")}})})();</script>
 <div class="wrap">
 <header class="site-header">

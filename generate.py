@@ -15625,6 +15625,17 @@ mistakes.</p>
         home_href="../",
         canonical_path="/firm-mobility/",
         extra_head='<meta name="robots" content="noindex">',
+        # Live bug (2026-08-11, roadmap #321 verification): this is a
+        # signed-in dashboard-family page (own sidebar, own auth-redirect
+        # JS, same family as build_firm_dashboard_page() which already sets
+        # this) but was missing hide_signin=True. Without it, site_header()'s
+        # signin-swap script ran here too and, for a demo_locked session,
+        # logged the session out server-side the moment this page loaded
+        # (see that script's own 2026-08-11 comment) -- so clicking
+        # "Practice Privilege Check" from the dashboard sidebar silently
+        # kicked the demo out, exactly the "navigate away" case the fix was
+        # never meant to cover.
+        hide_signin=True,
     )
 
 

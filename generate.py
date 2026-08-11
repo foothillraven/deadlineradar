@@ -5280,7 +5280,10 @@ date</a>.</p>
 <h2>What a 6-person firm pays elsewhere</h2>
 <p>None of these track an individual staff CPA's license renewal &mdash; they're practice-management
 suites with a generic reminders/tasks feature, not a sourced compliance tool. Prices below are each
-product's own published rate for a 6-person firm, checked directly against their current pricing pages:</p>
+product's own published rate for a 6-person firm, checked directly against their current pricing pages.
+Competitor prices verified 2026-08-10 against each vendor's published pricing page (Canopy Standard
+$74/user/mo; Karbon Business $89/user/mo; TaxDome Pro $1,000/seat/yr, 1-yr term); they may have changed
+since.</p>
 <div class="table-wrap">
 <table class="compare-table">
   <caption class="dr-visually-hidden">Annual cost for a 6-person firm, DeadlineRadar vs. named practice-management suites</caption>
@@ -6717,9 +6720,11 @@ Check are also <strong>free</strong> for a solo CPA &mdash;
 
 <h2>How it actually works</h2>
 <p>Deadline accuracy comes from the same sourced-to-codified-law data every free page on this site
-already uses, not a recurring human check-in on each staff member's status. Billing today is a simple
-invoice; a self-serve card-payment option is coming soon. Not ready to create an account yet?
-<a href="#firm-lead">Leave your email instead</a> and we'll follow up.</p>
+already uses, not a recurring human check-in on each staff member's status. Self-serve card checkout
+through Stripe is live today for Essentials, Growth, and Professional -- pick a plan above and pay by
+card, no invoice or sales call required. Enterprise (35+ staff) currently needs a quick email first;
+<a href="mailto:{esc(CONTACT_EMAIL)}">contact us</a> and we'll get you set up. Not ready to create an
+account yet? <a href="#firm-lead">Leave your email instead</a> and we'll follow up.</p>
 
 <div class="remind-panel" id="firm-lead">
   <div>

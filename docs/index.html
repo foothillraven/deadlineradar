@@ -393,6 +393,13 @@
   
   .band-section { margin: 2.4rem 0 2rem; padding-top: 1.8rem; border-top: 1px solid var(--border); }
   .band-section h2 { font-size: 1.5rem; }
+  
+  .band-section--alt {
+    background: var(--row-alt); border-top: none;
+    margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);
+    padding-left: calc(50vw - 50%); padding-right: calc(50vw - 50%);
+    padding-bottom: 2rem;
+  }
   .method-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; margin: 1.6rem 0 1.8rem; }
   @media (max-width: 700px) { .method-grid { grid-template-columns: 1fr; } }
   .mcard { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.3rem 1.2rem; }
@@ -572,7 +579,7 @@
     .state-grid--mobile-fallback { display: grid; }
   }
   .state-card {
-    display: block; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 0.85rem;
+    display: block; border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 0.85rem;
     background: var(--card-bg); text-decoration: none; color: var(--fg);
     transition: opacity 0.15s ease;
   }
@@ -1573,14 +1580,6 @@
   <p class="field-hint">Run a whole firm's staff instead?
   <a href="/api/firm/demo-login" style="font-weight:600;">Try the live demo &rarr;</a>
   A shared account, seeded with sample staff &mdash; one click, no signup, no credentials to type.</p>
-  <div class="trust-row">
-    <div class="item"><span class="n">55</span><span class="lbl">jurisdictions listed</span></div>
-    <div class="item"><span class="n">41</span><span class="lbl">where we determine your exact date</span></div>
-    <div class="item"><span class="n">88 of 88</span><span class="lbl">citations re-checked in the last 30 days</span></div>
-  </div>
-  <p class="trust-footnote">In the remaining 14, renewal turns on a personal fact
-  &mdash; your birth month, cohort or issue date &mdash; or the board publishes no verifiable date.
-  You enter the date on your license and we track it. We would rather say that than round up.</p>
 </div>
 <div class="hero-right">
   <div class="hfc-wrap" id="hfc-wrap">
@@ -1677,6 +1676,16 @@
   <a class="dr-intent-chip" href="rule-changes/">What's changing in 2026?</a>
 </div>
 <script>(function(){var chip=document.getElementById("dr-intent-own-date");var input=document.getElementById("state-search-input");if(chip&&input){chip.addEventListener("click",function(){input.scrollIntoView({behavior:"smooth",block:"center"});input.focus()})}})();</script>
+<section class="band-section band-section--alt">
+  <div class="trust-row">
+    <div class="item"><span class="n">55</span><span class="lbl">jurisdictions listed</span></div>
+    <div class="item"><span class="n">41</span><span class="lbl">where we determine your exact date</span></div>
+    <div class="item"><span class="n">88 of 88</span><span class="lbl">citations re-checked in the last 30 days</span></div>
+  </div>
+  <p class="trust-footnote">In the remaining 14, renewal turns on a personal fact
+  &mdash; your birth month, cohort or issue date &mdash; or the board publishes no verifiable date.
+  You enter the date on your license and we track it. We would rather say that than round up.</p>
+</section>
 <section class="band-section" style="border-top:0; padding-top:0; margin-top:0;">
   <p class="eyebrow">What a lookup actually gives you</p>
   <h2>A fact sheet you could hand to a partner.</h2>
@@ -1838,7 +1847,7 @@
 <a class="state-card" href="wyoming/" data-state-name="Wyoming"><div class="state-name">Wyoming</div><div class="state-hint">December 31, 2026</div></a>
 </div>
 </div>
-<section class="band-section">
+<section class="band-section band-section--alt">
   <p class="eyebrow">How we verify</p>
   <h2>Two independent sources, or we don't publish a date.</h2>
   <p style="color:var(--muted); margin:0.7rem 0 0; font-size:1.02rem;">This site's verification
@@ -1985,7 +1994,7 @@ registration (a separate feature, 2 of the rows above) &mdash; the free tier its
 (or, where the rule depends on your birth month, a full lookup table) computed from the
 verified renewal rule, with a link back to the official source and a "last verified" date.</p>
 <p class="how-it-works">Also see our <a href="blog/">guides</a>: <a href="blog/cpe-vs-license-renewal/">CPE requirements vs. license renewal</a>, <a href="blog/common-cpa-renewal-mistakes/">common CPA renewal mistakes</a>, and the <a href="blog/missouri-cpa-license-renewal-guide/">Missouri renewal guide</a>.</p>
-<section class="band-section">
+<section class="band-section band-section--alt">
 <h2>Questions people ask before signing up</h2>
 <div class="faq-list">
 <details class="faq-item">

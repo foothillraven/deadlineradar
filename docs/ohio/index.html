@@ -392,6 +392,13 @@
   
   .band-section { margin: 2.4rem 0 2rem; padding-top: 1.8rem; border-top: 1px solid var(--border); }
   .band-section h2 { font-size: 1.5rem; }
+  
+  .band-section--alt {
+    background: var(--row-alt); border-top: none;
+    margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);
+    padding-left: calc(50vw - 50%); padding-right: calc(50vw - 50%);
+    padding-bottom: 2rem;
+  }
   .method-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; margin: 1.6rem 0 1.8rem; }
   @media (max-width: 700px) { .method-grid { grid-template-columns: 1fr; } }
   .mcard { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.3rem 1.2rem; }
@@ -571,7 +578,7 @@
     .state-grid--mobile-fallback { display: grid; }
   }
   .state-card {
-    display: block; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 0.85rem;
+    display: block; border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 0.85rem;
     background: var(--card-bg); text-decoration: none; color: var(--fg);
     transition: opacity 0.15s ease;
   }

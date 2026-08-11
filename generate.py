@@ -851,6 +851,22 @@ PAGE_CSS = """
   /* ---- "how we verify" 3-card band ---- */
   .band-section { margin: 2.4rem 0 2rem; padding-top: 1.8rem; border-top: 1px solid var(--border); }
   .band-section h2 { font-size: 1.5rem; }
+  /* Roadmap 2026-08-10 15:36 design-polish item #2 (Devin, vs. Vanta/Drata):
+     "the entire page is one flat near-black tone, header to footer, with no
+     visual break between sections." Full-bleed alternating background band
+     -- reuses --row-alt (already the sitewide "one step off --bg" token,
+     used for table stripes/hover states elsewhere) rather than inventing a
+     new color, and breaks out of .wrap's max-width via the standard
+     calc(50vw) technique so it reads as an edge-to-edge "chapter" band, not
+     another boxed panel nested inside an already-boxy page. border-top
+     removed here (the color change itself IS the section break now,
+     replacing the thin divider a bare .band-section still uses). */
+  .band-section--alt {
+    background: var(--row-alt); border-top: none;
+    margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);
+    padding-left: calc(50vw - 50%); padding-right: calc(50vw - 50%);
+    padding-bottom: 2rem;
+  }
   .method-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; margin: 1.6rem 0 1.8rem; }
   @media (max-width: 700px) { .method-grid { grid-template-columns: 1fr; } }
   .mcard { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.3rem 1.2rem; }
@@ -1053,7 +1069,7 @@ PAGE_CSS = """
     .state-grid--mobile-fallback { display: grid; }
   }
   .state-card {
-    display: block; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 0.85rem;
+    display: block; border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 0.85rem;
     background: var(--card-bg); text-decoration: none; color: var(--fg);
     transition: opacity 0.15s ease;
   }
@@ -4851,14 +4867,6 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   <p class="field-hint">Run a whole firm's staff instead?
   <a href="{esc(REMINDER_BACKEND_BASE_URL)}/firm/demo-login" style="font-weight:600;">Try the live demo &rarr;</a>
   A shared account, seeded with sample staff &mdash; one click, no signup, no credentials to type.</p>
-  <div class="trust-row">
-    <div class="item"><span class="n">{_cov["total"]}</span><span class="lbl">jurisdictions listed</span></div>
-    <div class="item"><span class="n">{_cov["determined"]}</span><span class="lbl">where we determine your exact date</span></div>
-    <div class="item"><span class="n">{_verified_recent} of {_total_citations}</span><span class="lbl">citations re-checked in the last {STALENESS_THRESHOLD_DAYS} days</span></div>
-  </div>
-  <p class="trust-footnote">In the remaining {_cov["byod"]}, renewal turns on a personal fact
-  &mdash; your birth month, cohort or issue date &mdash; or the board publishes no verifiable date.
-  You enter the date on your license and we track it. We would rather say that than round up.</p>
 </div>
 {hero_right_html}
 </div>
@@ -4886,7 +4894,24 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
 }})();
 </script>"""
 
-    method_band_html = """<section class="band-section">
+    # Roadmap 2026-08-10 15:36 design-polish item #2 (Devin, vs. Vanta/Drata):
+    # "Trim the hero... move the stats row and the explanatory paragraph out
+    # of the hero into their own section further down." Same numbers, same
+    # copy -- moved out of hero_html verbatim, just no longer competing with
+    # the headline/search box for the first-fold's attention. First alt-tone
+    # band on the page (see .band-section--alt's own comment).
+    stats_band_html = f"""<section class="band-section band-section--alt">
+  <div class="trust-row">
+    <div class="item"><span class="n">{_cov["total"]}</span><span class="lbl">jurisdictions listed</span></div>
+    <div class="item"><span class="n">{_cov["determined"]}</span><span class="lbl">where we determine your exact date</span></div>
+    <div class="item"><span class="n">{_verified_recent} of {_total_citations}</span><span class="lbl">citations re-checked in the last {STALENESS_THRESHOLD_DAYS} days</span></div>
+  </div>
+  <p class="trust-footnote">In the remaining {_cov["byod"]}, renewal turns on a personal fact
+  &mdash; your birth month, cohort or issue date &mdash; or the board publishes no verifiable date.
+  You enter the date on your license and we track it. We would rather say that than round up.</p>
+</section>"""
+
+    method_band_html = """<section class="band-section band-section--alt">
   <p class="eyebrow">How we verify</p>
   <h2>Two independent sources, or we don't publish a date.</h2>
   <p style="color:var(--muted); margin:0.7rem 0 0; font-size:1.02rem;">This site's verification
@@ -4949,6 +4974,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
 </section>"""
 
     body = f"""{hero_html}
+{stats_band_html}
 {demo_html}
 <div id="all-states">
 {build_us_map_html(by_slug)}
@@ -4962,7 +4988,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
 (or, where the rule depends on your birth month, a full lookup table) computed from the
 verified renewal rule, with a link back to the official source and a "last verified" date.</p>
 <p class="how-it-works">Also see our <a href="blog/">guides</a>: <a href="blog/cpe-vs-license-renewal/">CPE requirements vs. license renewal</a>, <a href="blog/common-cpa-renewal-mistakes/">common CPA renewal mistakes</a>, and the <a href="blog/missouri-cpa-license-renewal-guide/">Missouri renewal guide</a>.</p>
-<section class="band-section">
+<section class="band-section band-section--alt">
 {_individual_faq_html()}
 </section>
 {signup_form_homepage(by_slug, as_of)}

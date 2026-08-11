@@ -14912,6 +14912,61 @@ _MOBILITY_JS_HTML = """<script>
   if (modeIndividualBtn) modeIndividualBtn.addEventListener('click', function () { setMobMode('individual'); });
   if (modeRosterBtn) modeRosterBtn.addEventListener('click', function () { setMobMode('roster'); });
 
+  // Roadmap #321: "staff, state, status, citation, date-verified" export
+  // for a whole-roster mobility batch, for firms that need to show a
+  // regulator/client/insurer they checked. drCsvField()/drTriggerCsvDownload()
+  // duplicate the dashboard bundle's own versions (generate.py's
+  // drDownloadRosterCsv() family) -- this page loads independently with no
+  // shared module system, same reasoning _FIRM_MOBILITY_JS_HTML's own
+  // badge()/esc() duplication documents.
+  function drCsvField(value) {
+    var s = (value == null) ? '' : String(value);
+    if (['=', '+', '-', '@', '\\t'].indexOf(s.charAt(0)) !== -1) s = "'" + s;
+    if (/[",\\n\\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+  function drTriggerCsvDownload(filename, lines) {
+    var blob = new Blob(['\\uFEFF' + lines.join('\\r\\n') + '\\r\\n'], {type: 'text/csv;charset=utf-8;'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  var DR_ROSTER_VERDICT_LABELS = {clear: 'Clear', action_required: 'Action required', not_applicable: 'Not applicable', not_verified: 'Not verified'};
+  function drRosterVerdictLabel(v) { return DR_ROSTER_VERDICT_LABELS[v] || 'Not verified'; }
+  // Individual and firm each carry their own verdict/citation (mobility.ts's
+  // MobilityFinding shape) -- exported as distinct columns rather than
+  // collapsed into one "driving" verdict, which isn't always obvious and
+  // isn't a call this export should make silently.
+  function drDownloadMobilityComplianceCsv(data, sortedResults) {
+    var headers = ['Staff', 'Home state', 'Target state', 'Service type',
+      'Overall status', 'Individual status', 'Individual citation', 'Individual citation URL',
+      'Firm status', 'Firm citation', 'Firm citation URL',
+      'Rule last verified', 'Assumptions', 'Report generated'];
+    var assumptions = (data.assumed_license_good_standing && data.assumed_substantially_equivalent)
+      ? 'Assumes active license in good standing and substantial equivalence for every person -- not individually attested.'
+      : '';
+    var generated = new Date().toISOString().slice(0, 10);
+    var lines = [headers.map(drCsvField).join(',')];
+    sortedResults.forEach(function (r) {
+      var ind = r.individual || {};
+      var firm = r.firm || {};
+      var row = [
+        r.staff_label, r.home_state, data.target_state, data.service_type,
+        drRosterVerdictLabel(r.overall),
+        drRosterVerdictLabel(ind.verdict), ind.citation || '', ind.citationUrl || '',
+        drRosterVerdictLabel(firm.verdict), firm.citation || '', firm.citationUrl || '',
+        data.target_rule_verified_date || '', assumptions, generated
+      ];
+      lines.push(row.map(drCsvField).join(','));
+    });
+    drTriggerCsvDownload('deadlineradar-mobility-compliance-' + data.target_state_slug + '-' + generated + '.csv', lines);
+  }
+
   // Roadmap #320: whole-roster batch check. Reuses badge()/esc()/
   // overallText() already defined above in this same scope -- one engine,
   // one set of render helpers, just a different result shape (a list of
@@ -14919,6 +14974,7 @@ _MOBILITY_JS_HTML = """<script>
   var rosterForm = document.getElementById('dr-mobility-roster-form');
   var rosterErrEl = document.getElementById('dr-mobility-roster-error');
   var rosterResultEl = document.getElementById('dr-mobility-roster-result');
+  var lastRosterCheck = null;
   // Worst-first, same convention the dashboard's own "Staff at risk" panel
   // already uses -- what needs attention surfaces before what doesn't.
   // Starts at 1, not 0: the `|| 9` unknown-verdict fallback below would
@@ -14975,17 +15031,26 @@ _MOBILITY_JS_HTML = """<script>
           var assumptionNote = (data.assumed_license_good_standing && data.assumed_substantially_equivalent)
             ? '<p class="field-hint">Assumes every person\\'s license is active and in good standing, and meets substantial equivalence -- click a row\\'s Details link to verify someone\\'s actual attestation.</p>'
             : '';
+          lastRosterCheck = {data: data, sorted: sorted};
           if (rosterResultEl) {
             rosterResultEl.innerHTML = '<h2>' + esc(data.target_state) + ' &mdash; whole roster</h2>' +
               '<table class="dr-mob-roster-table"><thead><tr><th>Staff</th><th>Home state</th><th>Overall</th><th></th></tr></thead>' +
               '<tbody>' + rowsHtml + '</tbody></table>' + assumptionNote +
-              '<p class="dr-verdict-disclaimer">' + esc(data.disclaimer) + '</p>';
+              '<p class="dr-verdict-disclaimer">' + esc(data.disclaimer) + '</p>' +
+              '<button type="button" class="dr-btn-edit" id="dr-mob-roster-csv-btn">Download compliance record (CSV)</button>';
             rosterResultEl.hidden = false;
           }
         });
       }).catch(function () {
         if (rosterErrEl) { rosterErrEl.textContent = 'Something went wrong, please try again.'; rosterErrEl.hidden = false; }
       });
+    });
+  }
+  if (rosterResultEl) {
+    rosterResultEl.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('#dr-mob-roster-csv-btn');
+      if (!btn || !lastRosterCheck) return;
+      drDownloadMobilityComplianceCsv(lastRosterCheck.data, lastRosterCheck.sorted);
     });
   }
 })();

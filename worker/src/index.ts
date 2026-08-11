@@ -10201,6 +10201,12 @@ async function handleMobilityCheckRoster(request: Request, env: Env): Promise<Re
     service_type: serviceTypeRaw,
     assumed_license_good_standing: true,
     assumed_substantially_equivalent: true,
+    // Roadmap #321: downloadable compliance record needs a "date verified"
+    // per determination. Every row in this batch shares the SAME target
+    // state, so the target rule's own verified_date is one value for the
+    // whole response rather than a per-row field (which would just repeat
+    // the same date `results.length` times).
+    target_rule_verified_date: targetRule?.verified_date ?? null,
     results,
     disclaimer: MOBILITY_DISCLAIMER,
   });

@@ -119,6 +119,15 @@ describe("POST /firm/mobility/check-roster -- roadmap #320", () => {
     }
   });
 
+  it("includes the target rule's verified_date -- roadmap #321's downloadable compliance record needs a date-verified column", async () => {
+    const { cookie } = await firmOnTier("firm", new Date().toISOString());
+    const resp = await postCheckRoster({ target_state_slug: "texas", service_type: "tax" }, cookie);
+    expect(resp.status).toBe(200);
+    const body = await resp.json<{ target_rule_verified_date: string | null }>();
+    expect(typeof body.target_rule_verified_date).toBe("string");
+    expect(body.target_rule_verified_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
   it("rejects an unknown target state as a 400", async () => {
     const { cookie } = await firmOnTier("firm", new Date().toISOString());
     const resp = await postCheckRoster({ target_state_slug: "atlantis", service_type: "tax" }, cookie);

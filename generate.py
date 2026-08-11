@@ -1055,6 +1055,14 @@ PAGE_CSS = """
     border-style: dashed;
   }
   .state-card--variable .state-hint { font-style: italic; }
+  /* Roadmap #341 (2026-08-10): featured guide card on /blog/ -- accent
+     border + a small label, same accent color already used for badges
+     elsewhere on the site rather than inventing a new one. */
+  .guide-card--featured { border: 1px solid var(--accent); margin-bottom: 1rem; }
+  .guide-featured-label {
+    display: inline-block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--accent); margin-bottom: 0.3rem;
+  }
   /* Roadmap #50 (2026-08-07): shown only on the exception -- see the call
      site's own comment for why the majority case isn't repeated here. */
   .state-card .state-confidence {
@@ -2573,6 +2581,7 @@ def site_footer() -> str:
       <a href="/practice-privilege-check/">Practice Privilege Check</a>
       <a href="/multi-state-firms/">Multi-State Firms</a>
       <a href="/rule-changes/">Mobility Rule Changes</a>
+      <a href="/blog/cpe-vs-license-renewal/">CPE vs. License Renewal</a>
       <a href="/blog/">Guides</a>
       <a href="/pricing/">Pricing</a>
       <a href="/compare/">Compare</a>
@@ -17351,15 +17360,33 @@ link to the board page and codified rule, per our
 
 
 def build_blog_index_page(articles: list[dict]) -> str:
+    # Roadmap #341: promote the CPE-vs-renewal guide out of the undifferentiated
+    # chronological list -- it's this site's own core thesis (renewing your
+    # license does not mean your CPE hours are current), referenced from more
+    # other pages than any other guide. "Permanent structure" here means
+    # featured placement + a footer link (see site_footer()), not a URL move --
+    # this URL is already linked from elsewhere on the site and possibly
+    # indexed, and a move would need real redirect infrastructure this repo
+    # doesn't have yet. One page, no duplicate content, same URL.
+    featured = next((a for a in articles if a["slug"] == "cpe-vs-license-renewal"), None)
+    rest = [a for a in articles if a is not featured]
+    featured_html = ""
+    if featured:
+        featured_html = f"""<a class="state-card guide-card--featured" href="{esc(featured["slug"])}/">
+  <div class="guide-featured-label">Start here</div>
+  <div class="state-name">{esc(featured["title"])}</div>
+  <div class="state-hint">{esc(featured["meta_description"])}</div>
+</a>"""
     cards = "\n".join(
         f'<a class="state-card" href="{esc(a["slug"])}/">'
         f'<div class="state-name">{esc(a["title"])}</div>'
         f'<div class="state-hint">{esc(a["meta_description"])}</div></a>'
-        for a in articles
+        for a in rest
     )
     body = f"""<h1>Guides</h1>
 <p class="intro">Deeper explainers on CPA license renewal and CPE deadlines &mdash; sourced the same
 way as every state page on this site.</p>
+{featured_html}
 <div class="state-grid guide-grid">
 {cards}
 </div>

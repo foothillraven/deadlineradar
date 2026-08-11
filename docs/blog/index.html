@@ -581,6 +581,12 @@
   }
   .state-card--variable .state-hint { font-style: italic; }
   
+  .guide-card--featured { border: 1px solid var(--accent); margin-bottom: 1rem; }
+  .guide-featured-label {
+    display: inline-block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--accent); margin-bottom: 0.3rem;
+  }
+  
   .state-card .state-confidence {
     margin-top: 0.3rem; font-size: 0.72rem; color: var(--gold); font-weight: 600;
   }
@@ -1542,8 +1548,12 @@
 <h1>Guides</h1>
 <p class="intro">Deeper explainers on CPA license renewal and CPE deadlines &mdash; sourced the same
 way as every state page on this site.</p>
+<a class="state-card guide-card--featured" href="cpe-vs-license-renewal/">
+  <div class="guide-featured-label">Start here</div>
+  <div class="state-name">CPE Requirements vs. License Renewal — The Deadline CPAs Mix Up</div>
+  <div class="state-hint">CPE completion and license renewal are two different deadlines with two different rules. Here&#x27;s how they differ, state by state, and what happens if you miss either one.</div>
+</a>
 <div class="state-grid guide-grid">
-<a class="state-card" href="cpe-vs-license-renewal/"><div class="state-name">CPE Requirements vs. License Renewal — The Deadline CPAs Mix Up</div><div class="state-hint">CPE completion and license renewal are two different deadlines with two different rules. Here&#x27;s how they differ, state by state, and what happens if you miss either one.</div></a>
 <a class="state-card" href="common-cpa-renewal-mistakes/"><div class="state-name">The Most Common CPA License-Renewal Mistakes (and How to Avoid Them)</div><div class="state-hint">The renewal mistakes that trip up CPAs most often — wrong deadline, wrong cycle length, and the ones that assume renewal rules are the same everywhere. How to avoid each one.</div></a>
 <a class="state-card" href="missouri-cpa-license-renewal-guide/"><div class="state-name">How CPA License Renewal Works in Missouri: Dates, Fees, CPE, and Deadlines</div><div class="state-hint">Missouri CPA license renewal: the real dates for individual licenses and firm permits, CPE requirements, fees, and what happens if you miss a deadline.</div></a>
 <a class="state-card" href="arizona-cpa-license-renewal-guide/"><div class="state-name">How CPA License Renewal Works in Arizona: Birth-Month Cycles, Firm Registration, and Deadlines</div><div class="state-hint">Arizona CPA license renewal: how the birth-month/parity cycle works, why firm registration runs on a separate clock, and what happens if you miss the deadline.</div></a>
@@ -1575,6 +1585,7 @@ way as every state page on this site.</p>
       <a href="/practice-privilege-check/">Practice Privilege Check</a>
       <a href="/multi-state-firms/">Multi-State Firms</a>
       <a href="/rule-changes/">Mobility Rule Changes</a>
+      <a href="/blog/cpe-vs-license-renewal/">CPE vs. License Renewal</a>
       <a href="/blog/">Guides</a>
       <a href="/pricing/">Pricing</a>
       <a href="/compare/">Compare</a>

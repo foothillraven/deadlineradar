@@ -1,0 +1,571 @@
+{
+  "_meta": {
+    "status": "LIVE on main -- 50 of 55 states/territories have a confirmed flat individual renewal fee; the rest (Colorado, Delaware, Illinois, Iowa, Nevada) have no confirmable flat figure from an official source, disclosed via data_gap_note rather than guessed.",
+    "states_total": 55,
+    "confirmed_count": 50
+  },
+  "records": [
+    {
+      "id": "alabama-renewal-fee",
+      "state": "Alabama",
+      "state_slug": "alabama",
+      "fee_usd": 100,
+      "fee_notes": "Flat $100 annual permit fee for individual CPAs (firm fee is separately $130). Ala. Admin. Code Rule 30-X-3-.07(1).",
+      "source_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-3",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "alaska-renewal-fee",
+      "state": "Alaska",
+      "state_slug": "alaska",
+      "fee_usd": 300,
+      "fee_notes": "Flat $300 biennial renewal fee for CPAs licensed on/before Dec 31, 2024 (prorated $150 for newer licenses).",
+      "source_url": "https://www.commerce.alaska.gov/web/Portals/5/pub/cpa4060.pdf",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "arizona-renewal-fee",
+      "state": "Arizona",
+      "state_slug": "arizona",
+      "fee_usd": 300,
+      "fee_notes": "Flat $300 biennial certificate registration fee, plus a $50 late fee if applicable. A.A.C. R4-1-345(C)(2)(a).",
+      "source_url": "https://grrc.az.gov/sites/default/files/2024-11/Accountancy%20NPER%202%20A.A.C.%201%20Arts%202-4.pdf",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "arkansas-renewal-fee",
+      "state": "Arkansas",
+      "state_slug": "arkansas",
+      "fee_usd": 150,
+      "fee_notes": "Flat $150 annual renewal fee, deadline December 31 each year.",
+      "source_url": "https://portal.arkansas.gov/service/ar-certified-public-accountant-license-renewal/",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "california-renewal-fee",
+      "state": "California",
+      "state_slug": "california",
+      "fee_usd": 400,
+      "fee_notes": "$400 for licenses expiring after June 30, 2026 (current scheduled tier); $340 for licenses expiring before July 1, 2026.",
+      "source_url": "https://www.dca.ca.gov/cba/licensees/renewal-information.shtml",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "colorado-renewal-fee",
+      "state": "Colorado",
+      "state_slug": "colorado",
+      "fee_usd": null,
+      "fee_notes": null,
+      "source_url": null,
+      "confidence": "low",
+      "verified_date": "2026-08-11",
+      "data_gap_note": "Colorado's CPA fees are set under DORA's statewide fee schedule (Section 24-34-102, C.R.S.), not the Board's own rules (3 CCR 705-1, which contains no dollar amounts). The official dpo.colorado.gov pages and online licensing portal could not be independently confirmed (403/interactive-only); third-party sites cite conflicting figures ($77-$110), none verifiable against a primary source, so no figure is published here."
+    },
+    {
+      "id": "connecticut-renewal-fee",
+      "state": "Connecticut",
+      "state_slug": "connecticut",
+      "fee_usd": 565,
+      "fee_notes": "Flat $565.00 individual CPA license renewal fee, stated directly on the official DCP renewal page.",
+      "source_url": "https://portal.ct.gov/dcp/license-services-division/license-division/cpa-renewal",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "dc-renewal-fee",
+      "state": "District of Columbia",
+      "state_slug": "dc",
+      "fee_usd": 110,
+      "fee_notes": "Flat $110 biennial renewal fee (expires Dec 31 of even-numbered years), plus a $50 late fee.",
+      "source_url": "https://dlcp.dc.gov/page/board-accountancy",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "delaware-renewal-fee",
+      "state": "Delaware",
+      "state_slug": "delaware",
+      "fee_usd": null,
+      "fee_notes": null,
+      "source_url": null,
+      "confidence": "high",
+      "verified_date": "2026-08-11",
+      "data_gap_note": "Delaware's official fee schedule explicitly states the renewal fee amount is communicated to each licensee at the time of renewal, not published as a flat figure -- confirmed against both the Division of Professional Regulation's own fee page and Delaware Admin. Code Title 24, which defers the amount to DPR rather than codifying it. High confidence that no flat fee is published; the amount itself is not independently confirmable from any official source."
+    },
+    {
+      "id": "florida-renewal-fee",
+      "state": "Florida",
+      "state_slug": "florida",
+      "fee_usd": 100,
+      "fee_notes": "Flat $100.00 license renewal fee (applies to both active and inactive renewal).",
+      "source_url": "https://www2.myfloridalicense.com/certified-public-accounting/renewing-and-maintaining-your-license/",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "georgia-renewal-fee",
+      "state": "Georgia",
+      "state_slug": "georgia",
+      "fee_usd": 100,
+      "fee_notes": "Flat $100.00 biennial renewal fee for individual CPA license. Ga. Comp. R. & Regs. Rule 20-10-.02.",
+      "source_url": "https://rules.sos.ga.gov/gac/20-10",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "guam-renewal-fee",
+      "state": "Guam",
+      "state_slug": "guam",
+      "fee_usd": 100,
+      "fee_notes": "Flat $100.00 annual renewal fee for an Active (or Inactive) individual CPA license. 25 GAR §2103(d)(2)(B)(i)-(ii).",
+      "source_url": "https://col.guamcourts.gov/sites/default/files/25GAR002.pdf",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "hawaii-renewal-fee",
+      "state": "Hawaii",
+      "state_slug": "hawaii",
+      "fee_usd": 152,
+      "fee_notes": "$52 biennial individual CPA license renewal fee (HAR §16-53-38(7)(A)) plus a mandatory $100 biennial Compliance Resolution Fund fee (HAR §16-53-38(12)(A)(iii)) -- $152 total each biennial renewal.",
+      "source_url": "https://cca.hawaii.gov/wp-content/uploads/2026/02/HAR_16-53_FeesOct-2016-1.pdf",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "idaho-renewal-fee",
+      "state": "Idaho",
+      "state_slug": "idaho",
+      "fee_usd": 120,
+      "fee_notes": "Flat $120 annual \"Active License\" fee. IDAPA 24.30.01 Rule 600. Idaho is transitioning to biennial licensure effective May 1, 2026, at which point the same rate becomes $240 for a 2-year period -- no underlying price change, just a longer billing cycle.",
+      "source_url": "https://dopl.idaho.gov/wp-content/uploads/2022/06/Accountancy-6.13.22.pdf",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "illinois-renewal-fee",
+      "state": "Illinois",
+      "state_slug": "illinois",
+      "fee_usd": null,
+      "fee_notes": "No single flat fee is codified -- 68 Ill. Admin. Code 1420.40 sets the rate at $40 per year of the renewal cycle (commonly reported elsewhere as ~$120 for the 3-year cycle, but the rule text itself only states the per-year rate, not a single total).",
+      "source_url": "https://www.ilga.gov/commission/jcar/admincode/068/068014200000400R.html",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "indiana-renewal-fee",
+      "state": "Indiana",
+      "state_slug": "indiana",
+      "fee_usd": 105,
+      "fee_notes": "Flat $105.00 renewal fee for individual CPA license.",
+      "source_url": "https://www.in.gov/pla/professions/accountancy-home/accountancy-licensing-information/",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "iowa-renewal-fee",
+      "state": "Iowa",
+      "state_slug": "iowa",
+      "fee_usd": null,
+      "fee_notes": null,
+      "source_url": null,
+      "confidence": "low",
+      "verified_date": "2026-08-11",
+      "data_gap_note": "Iowa Admin. Code rule 193A-5.3(542) confirms an annual renewal fee is charged, but the fee-table rule itself was recently relocated to a new administrative code chapter that could not be located or retrieved (broken links, unreadable PDFs) -- no dollar figure could be confirmed from an official source."
+    },
+    {
+      "id": "kansas-renewal-fee",
+      "state": "Kansas",
+      "state_slug": "kansas",
+      "fee_usd": 165,
+      "fee_notes": "$165.00 biennial renewal fee if received on or before July 1 of the renewal year (rises to $247.50 if filed late). K.A.R. 74-12-1(d).",
+      "source_url": "https://ksboa.kansas.gov/wp-content/uploads/article12.pdf",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "kentucky-renewal-fee",
+      "state": "Kentucky",
+      "state_slug": "kentucky",
+      "fee_usd": 100,
+      "fee_notes": "$100 online renewal fee (plus a separate administrative fee) for a two-year license; late renewal (after July 31) is $200 plus the admin fee.",
+      "source_url": "https://cpa.ky.gov/practicingcpas/Pages/License-Renewal.aspx",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "louisiana-renewal-fee",
+      "state": "Louisiana",
+      "state_slug": "louisiana",
+      "fee_usd": 120,
+      "fee_notes": "Individual certificate/license annual renewal fee is $120, due December 31.",
+      "source_url": "https://cpaboard.state.la.us/cpa-resources/",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "maine-renewal-fee",
+      "state": "Maine",
+      "state_slug": "maine",
+      "fee_usd": 35,
+      "fee_notes": "Annual renewal fee of $35 (renewal is annual, expiring September 30); $50 late fee if renewed after expiration.",
+      "source_url": "https://www.maine.gov/pfr/professionallicensing/professions/accountancy/licensing/public-accountant-and-certified-public-accountant",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "maryland-renewal-fee",
+      "state": "Maryland",
+      "state_slug": "maryland",
+      "fee_usd": 63,
+      "fee_notes": "Individual CPA renewal fee is $63 (firm renewal is separately $151).",
+      "source_url": "https://labor.maryland.gov/license/cpa/cpaaff.shtml",
+      "confidence": "medium",
+      "verified_date": "2026-08-11",
+      "data_gap_note": "Could not independently confirm the renewal cycle length (annual vs. biennial) from the Board's own site alongside the fee figure."
+    },
+    {
+      "id": "massachusetts-renewal-fee",
+      "state": "Massachusetts",
+      "state_slug": "massachusetts",
+      "fee_usd": 161,
+      "fee_notes": "$161 biennial renewal fee, due June 30 (odd or even year per license).",
+      "source_url": "https://licensing.reg.state.ma.us/public/dpl_fees/dpl_fees_results.asp?board_code=PA",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "michigan-renewal-fee",
+      "state": "Michigan",
+      "state_slug": "michigan",
+      "fee_usd": 200,
+      "fee_notes": "LARA's official fee table lists a $100/year individual license fee; Michigan CPA licenses renew on a 2-year cycle, so the total renewal fee is $200 ($20 more if late).",
+      "source_url": "https://www.michigan.gov/lara/bureau-list/bpl/occ/prof/accountancy/lic-info/license-fees",
+      "confidence": "high",
+      "verified_date": "2026-08-11",
+      "data_gap_note": "The narrative renewal-instructions page returned an automated-access block; this figure is confirmed via the official standalone fee table instead."
+    },
+    {
+      "id": "minnesota-renewal-fee",
+      "state": "Minnesota",
+      "state_slug": "minnesota",
+      "fee_usd": 100,
+      "fee_notes": "$100 per year for active-status renewal (Minn. Stat. § 326A.04, subd. 5); annual renewal due December 31; a separate $50/year delinquency fee applies if late.",
+      "source_url": "https://www.revisor.mn.gov/statutes/cite/326A.04",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "mississippi-renewal-fee",
+      "state": "Mississippi",
+      "state_slug": "mississippi",
+      "fee_usd": 110,
+      "fee_notes": "CPA license annual registration fee is $110.00/year; a $150 late fee applies if paid after January 1.",
+      "source_url": "https://www.msbpa.ms.gov/fees",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "missouri-renewal-fee",
+      "state": "Missouri",
+      "state_slug": "missouri",
+      "fee_usd": 80,
+      "fee_notes": "Biennial renewal fee is $80.00, per the Board's own official fee schedule.",
+      "source_url": "https://pr.mo.gov/accountancy-fees.asp",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "montana-renewal-fee",
+      "state": "Montana",
+      "state_slug": "montana",
+      "fee_usd": 125,
+      "fee_notes": "Flat $125 annual renewal fee (due December 31); the late fee adds 100% of the base fee.",
+      "source_url": "https://boards.bsd.dli.mt.gov/public-accountants/license-information/",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "nebraska-renewal-fee",
+      "state": "Nebraska",
+      "state_slug": "nebraska",
+      "fee_usd": 200,
+      "fee_notes": "Flat $200 fee for an Active Permit to Practice, renewed biennially by June 30. The statute (Neb. Rev. Stat. § 1-136) sets only a $300 biennial cap; the actual current amount is confirmed on the Board's own fee schedule.",
+      "source_url": "https://nbpa.nebraska.gov/individuals/fee-schedule",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "nevada-renewal-fee",
+      "state": "Nevada",
+      "state_slug": "nevada",
+      "fee_usd": null,
+      "fee_notes": null,
+      "source_url": null,
+      "confidence": "low",
+      "verified_date": "2026-08-11",
+      "data_gap_note": "No fixed dollar figure is codified -- NRS 628.380 delegates the amount to the Board, and NAC 628.016(3)(g) only caps it at \"not to exceed $200\" annually. The Board's actual current-year fee is not published on an official .gov page that could be confirmed; only third-party aggregators report a figure (~$120-$140), which this site does not use for a final claim."
+    },
+    {
+      "id": "new-hampshire-renewal-fee",
+      "state": "New Hampshire",
+      "state_slug": "new-hampshire",
+      "fee_usd": 201,
+      "fee_notes": "Flat $201 fee for individual CPA license \"initial, renewal, or reinstatement,\" per OPLC's own accountancy fee page.",
+      "source_url": "https://www.oplc.nh.gov/find-board/board-accountancy/accountancy-license-fees",
+      "confidence": "medium",
+      "verified_date": "2026-08-11",
+      "data_gap_note": "RSA 310-A / RSA 310:8 set only the general renewal framework, not the dollar amount -- the figure itself comes from OPLC's administrative fee page, not the codified statute directly."
+    },
+    {
+      "id": "new-jersey-renewal-fee",
+      "state": "New Jersey",
+      "state_slug": "new-jersey",
+      "fee_usd": 135,
+      "fee_notes": "Flat $135 triennial (3-year) registration fee for individual CPAs. N.J.A.C. 13:29-1.5.",
+      "source_url": "https://www.njconsumeraffairs.gov/accold/Pages/FAQ.aspx",
+      "confidence": "medium",
+      "verified_date": "2026-08-11",
+      "data_gap_note": "The fee schedule itself lives in the codified administrative rule (N.J.A.C. 13:29-1.5), not on the board's own FAQ page -- confirmed against the rule text, not the page originally cited for the renewal date."
+    },
+    {
+      "id": "new-mexico-renewal-fee",
+      "state": "New Mexico",
+      "state_slug": "new-mexico",
+      "fee_usd": 130,
+      "fee_notes": "Flat $130 annual renewal fee, due by the licensee's birth month.",
+      "source_url": "https://www.rld.nm.gov/boards-and-commissions/individual-boards-and-commissions/accountancy/faqs/",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "new-york-renewal-fee",
+      "state": "New York",
+      "state_slug": "new-york",
+      "fee_usd": 292,
+      "fee_notes": "Individual CPA \"Re-Registration\" total fee is $292 ($50 continuing-education fee + $242 registration fee) per triennial (3-year) cycle.",
+      "source_url": "https://www.op.nysed.gov/sites/op/files/documents/opfeechart.pdf",
+      "confidence": "medium",
+      "verified_date": "2026-08-11",
+      "data_gap_note": "The official fee chart PDF is dated as a 2021 revision -- the figure should be spot-checked against a more recent revision if one exists."
+    },
+    {
+      "id": "north-carolina-renewal-fee",
+      "state": "North Carolina",
+      "state_slug": "north-carolina",
+      "fee_usd": 60,
+      "fee_notes": "Flat $60 annual individual CPA license renewal fee, due before July 1 each year.",
+      "source_url": "https://nccpaboard.gov/resources/fee-schedule/",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "north-dakota-renewal-fee",
+      "state": "North Dakota",
+      "state_slug": "north-dakota",
+      "fee_usd": 85,
+      "fee_notes": "Base timely-renewal fee is $85 (April 15-June 30); a date-tiered schedule then rises to $185 if paid July 1-31 (license is involuntarily relinquished after August 1).",
+      "source_url": "https://www.ndsba.nd.gov/licensees/cpa-renewal-faq",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "northern-mariana-islands-renewal-fee",
+      "state": "Northern Mariana Islands",
+      "state_slug": "northern-mariana-islands",
+      "fee_usd": 100,
+      "fee_notes": "CNMI Admin. Code § 1-10-1605(b)(2)(i): \"Renewal/annual, Active: one hundred dollars ($100.00)\" for individual certification.",
+      "source_url": "https://cnmilaw.org/pdf/admincode/T01/T01-10.pdf",
+      "confidence": "medium",
+      "verified_date": "2026-08-11",
+      "data_gap_note": "Several third-party CPA-exam-prep sites claim a $355 triennial fee instead; that figure could not be corroborated in the official code text (which describes an annual, not triennial, cycle) -- using the codified figure, flagging the discrepancy rather than the unverified third-party number."
+    },
+    {
+      "id": "ohio-renewal-fee",
+      "state": "Ohio",
+      "state_slug": "ohio",
+      "fee_usd": 180,
+      "fee_notes": "Three-year Ohio Permit Fee: $180 (includes a $30 CPE-assistance-fund surcharge, OAC 4701-17-08), plus a $3.50 processing fee. A CPA holding only Registration (not an active practice permit) instead pays $85 per 3 years.",
+      "source_url": "https://acc.ohio.gov/about/fees/fees",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "oklahoma-renewal-fee",
+      "state": "Oklahoma",
+      "state_slug": "oklahoma",
+      "fee_usd": 75,
+      "fee_notes": "$75.00 registration fee for all individual certificate holders ($50 if 65+). A CPA who also holds a Permit to practice public accounting pays an additional $125 Permit Fee ($200/year total for practicing CPAs).",
+      "source_url": "https://oklahoma.gov/content/dam/ok/en/oab/documents/registration/OAB%20FORM%20R003%20-%202026%20Individual%20Registration%20Reporting%20Form.pdf",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "oregon-renewal-fee",
+      "state": "Oregon",
+      "state_slug": "oregon",
+      "fee_usd": 255,
+      "fee_notes": "Biennial renewal fee for an Active CPA/PA license is $255 (late renewal is the same $255). OAR 801-010-0010(3)(a).",
+      "source_url": "https://secure.sos.state.or.us/oard/viewSingleRule.action?ruleVrsnRsn=314982",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "pennsylvania-renewal-fee",
+      "state": "Pennsylvania",
+      "state_slug": "pennsylvania",
+      "fee_usd": 100,
+      "fee_notes": "Flat $100.00 biennial renewal fee for individual CPA license.",
+      "source_url": "https://www.pa.gov/agencies/dos/department-and-offices/bpoa/boards-commissions/accountancy-board/renewal-information",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "puerto-rico-renewal-fee",
+      "state": "Puerto Rico",
+      "state_slug": "puerto-rico",
+      "fee_usd": 225,
+      "fee_notes": "Individual renewal fee is $225 (late filing $275), per NASBA's Puerto Rico licensing page -- Puerto Rico's own Dept. of State delegates all licensing/renewal processing to NASBA and has no fee schedule of its own.",
+      "source_url": "https://nasba.org/licensure/nasbalicensing/puerto-rico-2/",
+      "confidence": "low",
+      "verified_date": "2026-08-11",
+      "data_gap_note": "Not a .gov page -- the codified 1945 statute (20 L.P.R.A. § 779) separately cites an outdated $50 figure that appears superseded by NASBA's current processing fee; neither source is a current, official Puerto Rico government fee schedule."
+    },
+    {
+      "id": "rhode-island-renewal-fee",
+      "state": "Rhode Island",
+      "state_slug": "rhode-island",
+      "fee_usd": 375,
+      "fee_notes": "Triennial License Renewal Fee: $375.00 -- the statutory maximum under R.I. Gen. Laws § 5-3.1-7(f). 400-RICR-00-00-1 § 1.13.",
+      "source_url": "https://rules.sos.ri.gov/regulations/part/400-00-00-1",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "south-carolina-renewal-fee",
+      "state": "South Carolina",
+      "state_slug": "south-carolina",
+      "fee_usd": 95,
+      "fee_notes": "Annual CPA/AP/PA renewal fee is $95, per LLR's official fee schedule.",
+      "source_url": "https://llr.sc.gov/acct/fees.aspx",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "south-dakota-renewal-fee",
+      "state": "South Dakota",
+      "state_slug": "south-dakota",
+      "fee_usd": 100,
+      "fee_notes": "Annual fee of $100.00 for Active status, per the Board's own July 2026 newsletter -- this supersedes the codified rule (ARSD 20:75:03:12), which cites a stale $50 figure.",
+      "source_url": "https://dlr.sd.gov/accountancy/newsletters/newsletter_july2026.pdf",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "tennessee-renewal-fee",
+      "state": "Tennessee",
+      "state_slug": "tennessee",
+      "fee_usd": 110,
+      "fee_notes": "Flat $110 renewal fee (active status); $100 late fee if delinquent.",
+      "source_url": "https://www.tn.gov/commerce/regboards/accountancy/license/renewal-requirements.html",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "texas-renewal-fee",
+      "state": "Texas",
+      "state_slug": "texas",
+      "fee_usd": 118,
+      "fee_notes": "Flat $118 annual individual license fee (includes a $10 scholarship fee), effective September 1, 2025 (up from $112). The Board raises this fee annually by resolution -- worth re-verifying near each September 1.",
+      "source_url": "https://www.tsbpa.texas.gov/news/individual-license-fee-increase/",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "us-virgin-islands-renewal-fee",
+      "state": "U.S. Virgin Islands",
+      "state_slug": "us-virgin-islands",
+      "fee_usd": 135,
+      "fee_notes": "Flat $135 individual CPA permit renewal fee; late fee $25/month up to $600 after the August 31 deadline.",
+      "source_url": "https://dlca.vi.gov/boardcertifications/steps/cparequirements/",
+      "confidence": "medium",
+      "verified_date": "2026-08-11",
+      "data_gap_note": "Sourced from the Board's own web page content, not a downloadable fee-schedule PDF or codified rule."
+    },
+    {
+      "id": "utah-renewal-fee",
+      "state": "Utah",
+      "state_slug": "utah",
+      "fee_usd": 63,
+      "fee_notes": "Flat $63 CPA renewal fee (CPA firm renewal is separately $52); no late fee amount stated on this page.",
+      "source_url": "https://commerce.utah.gov/dopl/accountancy/renew-a-license/",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "vermont-renewal-fee",
+      "state": "Vermont",
+      "state_slug": "vermont",
+      "fee_usd": 255,
+      "fee_notes": "Flat $255 biennial renewal fee for Certified Public Accountant (Reg #001), renews July 31 of odd years, per OPR's official statewide fee schedule.",
+      "source_url": "https://outside.vermont.gov/dept/sos/office_professional_regulation/general/initial_licensing_renewal_fees_dates_90-day_licensing_policy.pdf",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "virginia-renewal-fee",
+      "state": "Virginia",
+      "state_slug": "virginia",
+      "fee_usd": 60,
+      "fee_notes": "Flat $60 renewal fee, plus a $25 processing fee if paying by check; no late fee, but a $350 non-refundable fee applies to reinstate an expired license.",
+      "source_url": "https://boa.virginia.gov/individual-cpas/renew/",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "washington-renewal-fee",
+      "state": "Washington",
+      "state_slug": "washington",
+      "fee_usd": 230,
+      "fee_notes": "Flat $230 renewal fee; $100 late fee if submitted May 1-June 30.",
+      "source_url": "https://acb.wa.gov/individual-licensing/renewal",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "west-virginia-renewal-fee",
+      "state": "West Virginia",
+      "state_slug": "west-virginia",
+      "fee_usd": 85,
+      "fee_notes": "Flat $85 annual certificate renewal fee per the codified rule; $50 late filing fee if postmarked after the June 30 deadline.",
+      "source_url": "https://www.law.cornell.edu/regulations/west-virginia/W-Va-C-S-R-SS-1-1-18",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "wisconsin-renewal-fee",
+      "state": "Wisconsin",
+      "state_slug": "wisconsin",
+      "fee_usd": 43,
+      "fee_notes": "Flat $43 renewal fee (Reg Type 1, Certified Public Accountant), $68 with the late fee; renews December 14 of odd years, per DSPS's official statewide Renewal Dates and Fees schedule.",
+      "source_url": "https://dsps.wi.gov/Credentialing/Renewal/RenewalDatesFees.pdf",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    },
+    {
+      "id": "wyoming-renewal-fee",
+      "state": "Wyoming",
+      "state_slug": "wyoming",
+      "fee_usd": 190,
+      "fee_notes": "Flat $190 renewal fee for Active certificate status (Inactive $80, Retired age 65+ one-time $50); no late fee stated.",
+      "source_url": "https://cpaboard.wyo.gov/individuals/current-cpas/individual-renewal",
+      "confidence": "high",
+      "verified_date": "2026-08-11"
+    }
+  ]
+}

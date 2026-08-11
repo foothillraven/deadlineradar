@@ -63,6 +63,13 @@ CPE_HOURS_DATA_PATH = ROOT / "data" / "cpe_hours.json"
 # fee + penalty/catch-up CPE hours. Distinct from both datasets above, same
 # 2-source verification standard. See data/reinstatement.json's own _meta.
 REINSTATEMENT_DATA_PATH = ROOT / "data" / "reinstatement.json"
+# Separate dataset (2026-08-11, 14:30 item #6): the individual CPA license
+# RENEWAL FEE, distinct from the renewal DATE data above. ValueLab's
+# customer walkthrough found a lower-verification-standard free competitor
+# (LicenseClock) out-answering our own state pages on exactly this lookup.
+# Not every state has a confirmable flat fee -- see data/renewal_fees.json's
+# own _meta and each unconfirmed record's data_gap_note.
+RENEWAL_FEES_DATA_PATH = ROOT / "data" / "renewal_fees.json"
 # Separate dataset (2026-08-01/02): publishable rule-CHANGE events, built by
 # scripts/build_change_events.py from the mobility ruleset + DiffLab's live
 # monitoring. Deliberately independent of the mobility determination engine
@@ -4199,6 +4206,7 @@ def build_state_page(
     cpe_hours_by_slug: dict[str, dict] | None = None, reinstatement_by_slug: dict[str, dict] | None = None,
     guide_slugs_by_state: dict[str, str] | None = None,
     firm_landing_slugs_by_state: dict[str, str] | None = None,
+    renewal_fees_by_slug: dict[str, dict] | None = None,
 ) -> tuple[str, str]:
     """Returns (title, html_body) for a state's page."""
     state_name = records[0]["state"]
@@ -4273,6 +4281,9 @@ def build_state_page(
 
     related_html = _related_states_html(state_slug, records, by_slug) if by_slug else ""
     nearby_html = _nearby_states_html(state_slug, by_slug) if by_slug else ""
+    renewal_fee_html = (
+        _renewal_fee_html(state_slug, renewal_fees_by_slug) if renewal_fees_by_slug else ""
+    )
     cpe_hours_link_html = (
         _cpe_hours_reverse_link_html(state_slug, cpe_hours_by_slug) if cpe_hours_by_slug else ""
     )
@@ -4302,6 +4313,7 @@ def build_state_page(
 {_cpe_affiliate_html()}
 {related_html}
 {nearby_html}
+{renewal_fee_html}
 {cpe_hours_link_html}
 {reinstatement_link_html}
 {guide_link_html}
@@ -16573,6 +16585,20 @@ def load_cpe_hours_by_slug() -> dict[str, dict]:
 CPE_HOURS_PAGES: list[dict] = []
 
 
+def load_renewal_fees_by_slug() -> dict[str, dict]:
+    """Renewal-fee cluster (2026-08-11), same loading shape as
+    load_cpe_hours_by_slug() and for the same reason -- independent input
+    data, needed before the main per-state loop runs so build_state_page()
+    can surface it inline. Records with fee_usd=null (no confirmable flat
+    fee) are still returned -- callers check that field, not presence in
+    this dict, so an unconfirmed state can still render an honest
+    disclosure instead of silently showing nothing."""
+    if not RENEWAL_FEES_DATA_PATH.exists():
+        return {}
+    data = json.loads(RENEWAL_FEES_DATA_PATH.read_text(encoding="utf-8"))
+    return {r["state_slug"]: r for r in data["records"]}
+
+
 def load_reinstatement_by_slug() -> dict[str, dict]:
     """Reinstatement-cost cluster (2026-07-25): keyed by state_slug, same loading
     shape as load_cpe_hours_by_slug() and for the same reason -- independent input
@@ -16898,6 +16924,36 @@ def _cpe_hours_reverse_link_html(state_slug: str, cpe_hours_by_slug: dict[str, d
         f'<p class="backlink-cross"><strong>CPE required:</strong> {cpe_record["total_hours"]} {hours_word} '
         f'every {cpe_record["period_years"]} {years_word} ({cpe_record["ethics_hours"]} ethics {ethics_word}). '
         f'<a href="../{esc(slug)}/">Full CPE requirements &rarr;</a></p>'
+    )
+
+
+def _renewal_fee_html(state_slug: str, renewal_fees_by_slug: dict[str, dict]) -> str:
+    """Roadmap 2026-08-11 (14:30 item #6, ValueLab's customer walkthrough):
+    LicenseClock shows the renewal FEE directly on its own state pages, we
+    only showed the date. Renders nothing if this state has no renewal-fee
+    record loaded at all (data file missing/empty); a record with
+    fee_usd=None still renders -- an honest "no confirmable flat fee"
+    disclosure (data_gap_note) is the point, not silence, same "don't
+    fabricate, disclose the gap instead" rule as every other record-shape
+    check in this file."""
+    record = renewal_fees_by_slug.get(state_slug)
+    if not record:
+        return ""
+    if record["fee_usd"] is None:
+        gap_note = record.get("data_gap_note", "No confirmable flat renewal fee found from an official source.")
+        return (
+            f'<p class="backlink-cross"><strong>Renewal fee:</strong> not independently confirmable -- '
+            f'{esc(gap_note)}</p>'
+        )
+    confidence_note = (
+        f' <span class="state-confidence" title="{esc(record.get("data_gap_note", ""))}">Confidence: '
+        f'{esc(record["confidence"])}</span>'
+        if record["confidence"] != "high"
+        else ""
+    )
+    return (
+        f'<p class="backlink-cross"><strong>Renewal fee:</strong> ${record["fee_usd"]:,}. '
+        f'{esc(record["fee_notes"])}{confidence_note}</p>'
     )
 
 
@@ -17872,6 +17928,7 @@ def main() -> None:
 
     cpe_hours_by_slug = load_cpe_hours_by_slug()
     reinstatement_by_slug = load_reinstatement_by_slug()
+    renewal_fees_by_slug = load_renewal_fees_by_slug()
     guide_slugs_by_state = {
         a["slug"][: -len("-cpa-license-renewal-guide")]: a["slug"]
         for a in BLOG_ARTICLES if a["slug"].endswith("-cpa-license-renewal-guide")
@@ -17938,7 +17995,7 @@ def main() -> None:
     for slug, recs in by_slug.items():
         title, page_html = build_state_page(
             slug, recs, as_of, by_slug, cpe_hours_by_slug, reinstatement_by_slug, guide_slugs_by_state,
-            firm_landing_slugs_by_state,
+            firm_landing_slugs_by_state, renewal_fees_by_slug,
         )
         state_dir = SITE_DIR / slug
         state_dir.mkdir(parents=True, exist_ok=True)

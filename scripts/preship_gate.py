@@ -365,6 +365,36 @@ def check_cpe_hours_currency(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_renewal_fee_currency(repo_root: Path) -> list[str]:
+    """Roadmap 2026-08-11 (14:30 item #6): the state pages now show a public,
+    dated renewal-fee claim (or an honest "unconfirmed" disclosure) sourced
+    from data/renewal_fees.json -- same promote-to-hard-gate shape as
+    check_cpe_hours_currency() above, so this dataset can't silently drift
+    stale the way CPE hours briefly did before BADGE-1 caught it."""
+    sys.path.insert(0, str(repo_root / "scripts"))
+    try:
+        import renewal_fee_staleness_check as rfsc
+    except ImportError:
+        return []
+    data_path = repo_root / "data" / "renewal_fees.json"
+    if not data_path.exists():
+        return []
+    data = json.loads(data_path.read_text(encoding="utf-8"))
+    _fresh, stale, unparseable, missing = rfsc.collect_stale(data["records"])
+    errors = []
+    for r, age_days in stale:
+        errors.append(
+            f"[FEE][{r['id']}] {r.get('state')} -- verified_date={r['verified_date']} is {age_days}d old, "
+            f"past the {rfsc.STALENESS_THRESHOLD_DAYS}-day recheck cadence -- re-verify against the "
+            f"official source and bump verified_date before shipping"
+        )
+    for r in unparseable:
+        errors.append(f"[FEE][{r['id']}] {r.get('state')} -- verified_date={r.get('verified_date')!r} is unparseable -- treat as stale")
+    for r in missing:
+        errors.append(f"[FEE][{r['id']}] {r.get('state')} -- verified_date is missing entirely -- treat as stale")
+    return errors
+
+
 def check_reinstatement_currency(repo_root: Path) -> list[str]:
     """AuditLab BADGE-1 (MEDIUM, 2026-08-09): same promotion as
     check_cpe_hours_currency() above, for the sibling reinstatement dataset
@@ -1031,6 +1061,26 @@ def print_reinstatement_staleness_advisory(repo_root: Path) -> None:
         pass
 
 
+def print_renewal_fee_staleness_advisory(repo_root: Path) -> None:
+    """Surfaces renewal_fee_staleness_check.py (2026-08-11) as part of the
+    normal pre-ship run, same treatment as the CPE-hours/reinstatement
+    advisories above -- printed, never affects exit code (check_renewal_fee_currency()
+    above is the actual hard gate). renewal_fees.json has no runtime guard
+    of its own (inlined into static pages at build time), so this is the
+    only place its 55 verified_date stamps get a freshness check at all."""
+    sys.path.insert(0, str(repo_root / "scripts"))
+    try:
+        import renewal_fee_staleness_check as rfsc
+    except ImportError:
+        print("  (skipping renewal-fee-staleness advisory -- renewal_fee_staleness_check.py not importable)")
+        return
+    print("\n--- renewal-fee-staleness advisory (does not affect gate exit code) ---")
+    try:
+        rfsc.main()
+    except SystemExit:
+        pass
+
+
 def print_rule_change_monitoring_staleness_advisory(repo_root: Path) -> None:
     """Surfaces rule_change_monitoring_staleness_check.py (AuditLab MON-1,
     2026-08-04) as part of the normal pre-ship run, same treatment as the
@@ -1093,6 +1143,7 @@ def main():
     all_errors += check_deadline_currency(data_path)
     all_errors += check_cpe_hours_currency(repo_root)
     all_errors += check_reinstatement_currency(repo_root)
+    all_errors += check_renewal_fee_currency(repo_root)
     all_errors += check_competitor_price_currency(repo_root)
     all_errors += check_field_computed_states_sync(repo_root)
     all_errors += check_json_copies_identical(repo_root)
@@ -1111,6 +1162,7 @@ def main():
         print_cpa_deadlines_staleness_advisory(repo_root)
         print_cpe_hours_staleness_advisory(repo_root)
         print_reinstatement_staleness_advisory(repo_root)
+        print_renewal_fee_staleness_advisory(repo_root)
         print_rule_change_monitoring_staleness_advisory(repo_root)
         print_guide_review_staleness_advisory(repo_root)
         print_dual_credential_citation_advisory(repo_root)
@@ -1121,6 +1173,7 @@ def main():
     print_cpa_deadlines_staleness_advisory(repo_root)
     print_cpe_hours_staleness_advisory(repo_root)
     print_reinstatement_staleness_advisory(repo_root)
+    print_renewal_fee_staleness_advisory(repo_root)
     print_rule_change_monitoring_staleness_advisory(repo_root)
     print_guide_review_staleness_advisory(repo_root)
     print_dual_credential_citation_advisory(repo_root)

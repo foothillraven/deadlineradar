@@ -1780,7 +1780,7 @@ PAGE_CSS = """
      (checked -- every OTHER standalone `<a class="cta-button">` on this site
      is unintentionally plain-text; not this page's bug to fix, but not one
      to copy either). */
-  .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin: 1.4rem 0; }
+  .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1.4rem 0; }
   .pricing-card {
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
     padding: 1.2rem 1.1rem; display: flex; flex-direction: column; gap: 0.6rem;
@@ -2511,10 +2511,27 @@ def site_header(
   var link = document.getElementById('dr-nav-signin');
   if (!link) return;
   fetch('{REMINDER_BACKEND_BASE_URL}/firm/licenses', {{credentials: 'include'}}).then(function(r) {{
-    if (r.ok) {{
+    if (!r.ok) return;
+    // 2026-08-11, Devin's live report (screenshot: homepage nav still said
+    // "Dashboard" after visiting the shared demo firm): this swap can't
+    // tell a real firm's session from the shared demo one -- both return
+    // 200 here. Landing on "Dashboard" for a demo session is misleading
+    // (implies an ongoing signed-in account, not a public, shared demo)
+    // and clicking it just re-enters the same demo firm, never really
+    // "leaving." demo_locked is already in this same response (the
+    // dashboard's own shared-demo banner reads it) -- for a demo session,
+    // log out server-side instead of promoting the link, so navigating
+    // anywhere else on the site actually leaves the demo behind and shows
+    // the normal signed-out nav. Best-effort: a failed logout call just
+    // leaves "Sign In" as-is, same safe default as a 401/network hiccup.
+    r.json().then(function(data) {{
+      if (data && data.demo_locked) {{
+        fetch('{REMINDER_BACKEND_BASE_URL}/firm/logout', {{method: 'POST', credentials: 'include'}}).catch(function() {{}});
+        return;
+      }}
       link.textContent = 'Dashboard'; link.href = '/firm-dashboard/';
       link.classList.remove('nav-quiet'); link.classList.add('cta');
-    }}
+    }}).catch(function() {{}});
   }}).catch(function() {{}});
 }})();
 </script>"""
@@ -5179,6 +5196,30 @@ feature set, priced only by how many staff it covers; nothing is held back on a 
 were individually re-checked against their source within the last {STALENESS_THRESHOLD_DAYS} days
 &mdash; <a href="/methodology/">see exactly how we verify every deadline</a>.</p>
 
+<h2>What's actually included, free vs. paid</h2>
+<p class="intro">Every paid tier (Essentials through Enterprise) has the identical feature set, priced
+only by staff count. This table is the real, code-verified breakdown &mdash; not a marketing summary.</p>
+
+<div class="table-wrap">
+<table class="compare-table">
+  <caption class="dr-visually-hidden">Free vs. paid firm plan feature comparison</caption>
+  <thead>
+    <tr><th scope="col">Feature</th><th scope="col">Free</th><th scope="col">Paid (any tier)</th></tr>
+  </thead>
+  <tbody>
+{_pricing_feature_table_rows_html()}
+  </tbody>
+</table>
+</div>
+<p class="field-hint">* A solo account (you're the only person signed in, no team invited) gets the Map
+and the firm-level registration check free too &mdash; inviting a teammate is itself a paid-tier
+feature, so a genuinely one-person account is where "free" and "everything included"
+overlap.</p>
+
+<h2>Plans</h2>
+<p class="field-hint">If you don't already have a firm account, the buttons below start free signup
+first; if you're already signed in, they go straight to checkout for that tier, same as the dashboard's
+own upgrade panel.</p>
 <p id="dr-pricing-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
 
 <div class="pricing-grid">
@@ -5220,32 +5261,6 @@ were individually re-checked against their source within the last {STALENESS_THR
     <p class="detail"><a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a> &mdash; no formula, we'll work out what fits.</p>
   </div>
 </div>
-
-<p>Roster, calendar, CPE-hours tracking, and individual Practice Privilege Check are free for any firm,
-up to 3 staff, no card required, no time limit. The buttons above are for the paid map + firm-level
-registration check tiers: if you don't already have a firm account, they start free signup first; if
-you're already signed in, they go straight to checkout for that tier, same as the dashboard's own
-upgrade panel.</p>
-
-<h2>What's actually included, free vs. paid</h2>
-<p class="intro">Every paid tier (Essentials through Enterprise) has the identical feature set, priced
-only by staff count. This table is the real, code-verified breakdown &mdash; not a marketing summary.</p>
-
-<div class="table-wrap">
-<table class="compare-table">
-  <caption class="dr-visually-hidden">Free vs. paid firm plan feature comparison</caption>
-  <thead>
-    <tr><th scope="col">Feature</th><th scope="col">Free</th><th scope="col">Paid (any tier)</th></tr>
-  </thead>
-  <tbody>
-{_pricing_feature_table_rows_html()}
-  </tbody>
-</table>
-</div>
-<p class="field-hint">* A solo account (you're the only person signed in, no team invited) gets the Map
-and the firm-level registration check free too &mdash; inviting a teammate is itself a paid-tier
-feature, so a genuinely one-person account is where "free" and "everything included"
-overlap.</p>
 
 <p class="backlink">See exactly <a href="/methodology/">how we verify every deadline</a>, or read the
 <a href="/for-firms/">full firm-tier breakdown</a>.</p>

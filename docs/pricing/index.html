@@ -1076,7 +1076,7 @@
   .dr-paywall-tier-btn:hover { opacity: 0.9; }
   .dr-paywall-tier-btn:disabled { opacity: 0.6; cursor: default; }
   
-  .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin: 1.4rem 0; }
+  .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1.4rem 0; }
   .pricing-card {
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
     padding: 1.2rem 1.1rem; display: flex; flex-direction: column; gap: 0.6rem;
@@ -1539,7 +1539,7 @@
     </div>
   </div>
 </nav>
-<script>(function(){var link=document.getElementById("dr-nav-signin");if(!link)return;fetch("/api/firm/licenses",{credentials:"include"}).then(function(r){if(r.ok){link.textContent="Dashboard";link.href="/firm-dashboard/";link.classList.remove("nav-quiet");link.classList.add("cta")}}).catch(function(){})})();</script>
+<script>(function(){var link=document.getElementById("dr-nav-signin");if(!link)return;fetch("/api/firm/licenses",{credentials:"include"}).then(function(r){if(!r.ok)return;r.json().then(function(data){if(data&&data.demo_locked){fetch("/api/firm/logout",{method:"POST",credentials:"include"}).catch(function(){});return}link.textContent="Dashboard";link.href="/firm-dashboard/";link.classList.remove("nav-quiet");link.classList.add("cta")}).catch(function(){})}).catch(function(){})})();</script>
 <script>(function(){var btn=document.getElementById("dr-nav-toggle");var links=document.getElementById("dr-nav-links");if(!btn||!links)return;btn.addEventListener("click",function(){var open=links.classList.toggle("dr-nav-open");btn.setAttribute("aria-expanded",open?"true":"false")});links.addEventListener("click",function(ev){if(ev.target.tagName==="A"){links.classList.remove("dr-nav-open");btn.setAttribute("aria-expanded","false")}})})();</script>
 <div class="wrap">
 <header class="site-header">
@@ -1554,6 +1554,40 @@ feature set, priced only by how many staff it covers; nothing is held back on a 
 were individually re-checked against their source within the last 30 days
 &mdash; <a href="/methodology/">see exactly how we verify every deadline</a>.</p>
 
+<h2>What's actually included, free vs. paid</h2>
+<p class="intro">Every paid tier (Essentials through Enterprise) has the identical feature set, priced
+only by staff count. This table is the real, code-verified breakdown &mdash; not a marketing summary.</p>
+
+<div class="table-wrap">
+<table class="compare-table">
+  <caption class="dr-visually-hidden">Free vs. paid firm plan feature comparison</caption>
+  <thead>
+    <tr><th scope="col">Feature</th><th scope="col">Free</th><th scope="col">Paid (any tier)</th></tr>
+  </thead>
+  <tbody>
+  <tr><td>Roster &amp; staff license tracking</td><td>Up to 3 staff</td><td>Up to 35 staff (Enterprise)</td></tr>
+  <tr><td>Calendar view</td><td>Yes</td><td>Yes</td></tr>
+  <tr><td>CPE-hour tracking</td><td>Yes</td><td>Yes</td></tr>
+  <tr><td>Email renewal reminders</td><td>Yes</td><td>Yes</td></tr>
+  <tr><td>Individual Practice Privilege Check</td><td>Yes</td><td>Yes</td></tr>
+  <tr><td>Slack &amp; Teams deadline alerts</td><td>&mdash;</td><td>Yes</td></tr>
+  <tr><td>Document storage (2MB/file, 50MB/firm)</td><td>&mdash;</td><td>Yes</td></tr>
+  <tr><td>Invite teammates to sign in</td><td>Just you</td><td>Yes</td></tr>
+  <tr><td>Multistate Map view</td><td>Solo accounts only*</td><td>Yes</td></tr>
+  <tr><td>Firm-level registration check</td><td>Solo accounts only*</td><td>Yes</td></tr>
+  <tr><td>Refer firms: 10% off per referral, up to 100%</td><td>&mdash;</td><td>Yes</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="field-hint">* A solo account (you're the only person signed in, no team invited) gets the Map
+and the firm-level registration check free too &mdash; inviting a teammate is itself a paid-tier
+feature, so a genuinely one-person account is where "free" and "everything included"
+overlap.</p>
+
+<h2>Plans</h2>
+<p class="field-hint">If you don't already have a firm account, the buttons below start free signup
+first; if you're already signed in, they go straight to checkout for that tier, same as the dashboard's
+own upgrade panel.</p>
 <p id="dr-pricing-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
 
 <div class="pricing-grid">
@@ -1595,42 +1629,6 @@ were individually re-checked against their source within the last 30 days
     <p class="detail"><a href="mailto:support@deadline-radar.com">Contact us</a> &mdash; no formula, we'll work out what fits.</p>
   </div>
 </div>
-
-<p>Roster, calendar, CPE-hours tracking, and individual Practice Privilege Check are free for any firm,
-up to 3 staff, no card required, no time limit. The buttons above are for the paid map + firm-level
-registration check tiers: if you don't already have a firm account, they start free signup first; if
-you're already signed in, they go straight to checkout for that tier, same as the dashboard's own
-upgrade panel.</p>
-
-<h2>What's actually included, free vs. paid</h2>
-<p class="intro">Every paid tier (Essentials through Enterprise) has the identical feature set, priced
-only by staff count. This table is the real, code-verified breakdown &mdash; not a marketing summary.</p>
-
-<div class="table-wrap">
-<table class="compare-table">
-  <caption class="dr-visually-hidden">Free vs. paid firm plan feature comparison</caption>
-  <thead>
-    <tr><th scope="col">Feature</th><th scope="col">Free</th><th scope="col">Paid (any tier)</th></tr>
-  </thead>
-  <tbody>
-  <tr><td>Roster &amp; staff license tracking</td><td>Up to 3 staff</td><td>Up to 35 staff (Enterprise)</td></tr>
-  <tr><td>Calendar view</td><td>Yes</td><td>Yes</td></tr>
-  <tr><td>CPE-hour tracking</td><td>Yes</td><td>Yes</td></tr>
-  <tr><td>Email renewal reminders</td><td>Yes</td><td>Yes</td></tr>
-  <tr><td>Individual Practice Privilege Check</td><td>Yes</td><td>Yes</td></tr>
-  <tr><td>Slack &amp; Teams deadline alerts</td><td>&mdash;</td><td>Yes</td></tr>
-  <tr><td>Document storage (2MB/file, 50MB/firm)</td><td>&mdash;</td><td>Yes</td></tr>
-  <tr><td>Invite teammates to sign in</td><td>Just you</td><td>Yes</td></tr>
-  <tr><td>Multistate Map view</td><td>Solo accounts only*</td><td>Yes</td></tr>
-  <tr><td>Firm-level registration check</td><td>Solo accounts only*</td><td>Yes</td></tr>
-  <tr><td>Refer firms: 10% off per referral, up to 100%</td><td>&mdash;</td><td>Yes</td></tr>
-  </tbody>
-</table>
-</div>
-<p class="field-hint">* A solo account (you're the only person signed in, no team invited) gets the Map
-and the firm-level registration check free too &mdash; inviting a teammate is itself a paid-tier
-feature, so a genuinely one-person account is where "free" and "everything included"
-overlap.</p>
 
 <p class="backlink">See exactly <a href="/methodology/">how we verify every deadline</a>, or read the
 <a href="/for-firms/">full firm-tier breakdown</a>.</p>

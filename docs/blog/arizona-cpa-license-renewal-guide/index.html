@@ -1076,7 +1076,7 @@
   .dr-paywall-tier-btn:hover { opacity: 0.9; }
   .dr-paywall-tier-btn:disabled { opacity: 0.6; cursor: default; }
   
-  .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin: 1.4rem 0; }
+  .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1.4rem 0; }
   .pricing-card {
     background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
     padding: 1.2rem 1.1rem; display: flex; flex-direction: column; gap: 0.6rem;
@@ -1539,7 +1539,7 @@
     </div>
   </div>
 </nav>
-<script>(function(){var link=document.getElementById("dr-nav-signin");if(!link)return;fetch("/api/firm/licenses",{credentials:"include"}).then(function(r){if(r.ok){link.textContent="Dashboard";link.href="/firm-dashboard/";link.classList.remove("nav-quiet");link.classList.add("cta")}}).catch(function(){})})();</script>
+<script>(function(){var link=document.getElementById("dr-nav-signin");if(!link)return;fetch("/api/firm/licenses",{credentials:"include"}).then(function(r){if(!r.ok)return;r.json().then(function(data){if(data&&data.demo_locked){fetch("/api/firm/logout",{method:"POST",credentials:"include"}).catch(function(){});return}link.textContent="Dashboard";link.href="/firm-dashboard/";link.classList.remove("nav-quiet");link.classList.add("cta")}).catch(function(){})}).catch(function(){})})();</script>
 <script>(function(){var btn=document.getElementById("dr-nav-toggle");var links=document.getElementById("dr-nav-links");if(!btn||!links)return;btn.addEventListener("click",function(){var open=links.classList.toggle("dr-nav-open");btn.setAttribute("aria-expanded",open?"true":"false")});links.addEventListener("click",function(ev){if(ev.target.tagName==="A"){links.classList.remove("dr-nav-open");btn.setAttribute("aria-expanded","false")}})})();</script>
 <div class="wrap">
 <header class="site-header">

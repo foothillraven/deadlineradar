@@ -324,10 +324,8 @@
   .hero-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 2.5rem; align-items: center; }
   @media (max-width: 860px) { .hero-grid { grid-template-columns: 1fr; } }
   .hero-accent { color: var(--accent); }
-  .hero-lede { color: var(--muted); font-size: 1.05rem; line-height: 1.6; max-width: 60ch; margin: 1.1rem 0 0; }
-  .hero-lede strong { color: var(--fg); }
   
-  .hero-subtext { color: var(--faint); font-size: 0.88rem; line-height: 1.5; max-width: 55ch; margin: 0.6rem 0 0; }
+  .hero-subtext { color: var(--faint); font-size: 0.88rem; line-height: 1.5; max-width: 55ch; margin: 1.1rem 0 0; }
   .lookup { margin-top: 1.6rem; max-width: 30rem; }
   .lookup-label {
     display: block; font-size: 0.76rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
@@ -406,6 +404,11 @@
   .mcard .step { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; color: var(--gold); font-weight: 600; }
   .mcard h3 { font-size: 1.05rem; margin: 0.6rem 0 0.4rem; font-family: var(--font-display); }
   .mcard p { margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.55; }
+  
+  .mcard p.mcard-proof {
+    margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px dashed var(--border);
+    font-size: 0.85rem;
+  }
 
   
   .dr-pain-headline { font-size: 1.5rem; margin: 0 0 0.3rem; }
@@ -1598,8 +1601,15 @@
 <div class="hero-left">
   <h1>Know exactly when your license is due &mdash;<br>
   <span class="hero-accent">and see the rule that says so.</span></h1>
-  <p class="hero-lede"><strong>Finishing every CPE hour and still missing the filing deadline is a
-  real, common failure mode</strong> &mdash; this product is about the filing, not the hours.</p>
+  <!-- Roadmap #328 (2026-08-11, ValueLab design-pattern-mining #6, "hero
+       restraint"): cut down to headline + ONE line of subhead + search box.
+       The removed hero-lede sentence (CPE-hours-vs-filing-deadline) isn't
+       lost -- it's the literal headline of #324's /for-firms/ pain-point
+       section and the dedicated /blog/cpe-vs-license-renewal/ post, so
+       cutting it here is pure subtraction, not a message lost sitewide.
+       hero-subtext (the verification-rigor claim) is kept as the one
+       remaining line since it's this specific page's own core credibility
+       claim for a first-time, skeptical SEO visitor. -->
   <p class="hero-subtext">Every date traced to your state board's own statute or rule, and stamped with
   the day we last checked it.</p>
 <div class="state-search">
@@ -1719,6 +1729,7 @@
     <div class="item"><span class="n">55</span><span class="lbl">jurisdictions listed</span></div>
     <div class="item"><span class="n">41</span><span class="lbl">where we determine your exact date</span></div>
     <div class="item"><span class="n">88 of 88</span><span class="lbl">citations re-checked in the last 30 days</span></div>
+    
   </div>
   <p class="trust-footnote">In the remaining 14, renewal turns on a personal fact
   &mdash; your birth month, cohort or issue date &mdash; or the board publishes no verifiable date.
@@ -1908,6 +1919,7 @@
       <h3>Agree, or it's null</h3>
       <p>If the two don't agree, we don't guess &mdash; we mark it unverified rather than publish a
       date we can't stand behind.</p>
+      <p class="mcard-proof"><strong>Right now:</strong> Our two primary sources for District of Columbia currently disagree about its mobility rule. We withhold a determination rather than pick a side until this resolves. <a href="/rule-changes/">See all 7 &rarr;</a></p>
     </div>
   </div>
   <a href="/methodology/" style="font-weight:600;">Read our full verification standard &rarr;</a>

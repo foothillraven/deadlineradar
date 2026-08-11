@@ -47,7 +47,7 @@ import re
 import subprocess
 import tempfile
 import urllib.parse
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 # ---------------------------------------------------------------------------
 # Config
@@ -777,17 +777,11 @@ PAGE_CSS = """
   .hero-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 2.5rem; align-items: center; }
   @media (max-width: 860px) { .hero-grid { grid-template-columns: 1fr; } }
   .hero-accent { color: var(--accent); }
-  .hero-lede { color: var(--muted); font-size: 1.05rem; line-height: 1.6; max-width: 60ch; margin: 1.1rem 0 0; }
-  .hero-lede strong { color: var(--fg); }
-  /* Task #152 (2026-08-09, ValueLab's own pick for "sharpest competitive
-     sentence in the whole site"): promoted from /for-firms/ to the
-     homepage's second line, ahead of the original hero-lede -- that
-     sentence didn't disappear, just moved down a line under its own
-     lighter style so both messages (why this beats a CPE tracker, why the
-     dates themselves are trustworthy) still show without competing for
-     the same visual weight. Same faint/46ch pattern .trust-footnote
-     already uses for a secondary supporting line under the primary one. */
-  .hero-subtext { color: var(--faint); font-size: 0.88rem; line-height: 1.5; max-width: 55ch; margin: 0.6rem 0 0; }
+  /* .hero-lede (task #152's promoted CPE-vs-filing sentence) removed by
+     roadmap #328 (2026-08-11, hero restraint) -- see hero_html's own
+     comment. The message still lives on /for-firms/ and the dedicated
+     blog post, just not in this hero anymore, so its CSS rule is gone too. */
+  .hero-subtext { color: var(--faint); font-size: 0.88rem; line-height: 1.5; max-width: 55ch; margin: 1.1rem 0 0; }
   .lookup { margin-top: 1.6rem; max-width: 30rem; }
   .lookup-label {
     display: block; font-size: 0.76rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
@@ -880,6 +874,16 @@ PAGE_CSS = """
   .mcard .step { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; color: var(--gold); font-weight: 600; }
   .mcard h3 { font-size: 1.05rem; margin: 0.6rem 0 0.4rem; font-family: var(--font-display); }
   .mcard p { margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.55; }
+  /* Roadmap #326 (2026-08-11, ValueLab design-pattern-mining #1): a live,
+     real example of us actually withholding a determination, placed right
+     inside the card that makes the claim -- proof at the moment of doubt,
+     not three screens away in a testimonials section. `.mcard p.mcard-proof`
+     (not just `.mcard-proof`) so this out-specifies the plain `.mcard p`
+     rule above instead of needing !important. */
+  .mcard p.mcard-proof {
+    margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px dashed var(--border);
+    font-size: 0.85rem;
+  }
 
   /* Roadmap #324 (2026-08-10, ValueLab design-pattern-mining #5): the same
      three pain-point sentences /for-firms/ already had, re-laid-out as an
@@ -4848,6 +4852,53 @@ def _coverage_counts(by_slug: dict[str, list[dict]]) -> dict[str, int]:
     }
 
 def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[dict]]) -> str:
+    # Roadmap #326 (2026-08-11, ValueLab design-pattern-mining #1): pulled
+    # live at build time from the SAME data /rule-changes/ itself renders
+    # (build_rule_changes_page()'s own `conflicts` list) -- never a
+    # hardcoded jurisdiction/quote, since which state is currently disputed
+    # will drift as data updates. First entry (not random) so the build
+    # stays deterministic. Empty is handled honestly: if there are no live
+    # conflicts right now, the proof line is simply omitted rather than
+    # fabricated.
+    _reg_change_raw = json.loads(REG_CHANGE_EVENTS_PATH.read_text(encoding="utf-8"))
+    _live_conflicts = [e for e in _reg_change_raw.get("events", []) if e.get("kind") == "source_conflict"]
+    _live_pending_changes = [
+        e for e in _reg_change_raw.get("events", []) if e.get("kind") == "rule_change" and e.get("upcoming")
+    ]
+    # Roadmap #327 (2026-08-11, ValueLab design-pattern-mining #2): "these
+    # numbers need an actual refresh mechanism... a stale number is worse
+    # than no number." Both counts above are always an accurate reflection
+    # of whatever reg_change_events.json currently contains (same as every
+    # other stat on this page) -- the real risk isn't the count drifting
+    # from its own source, it's the daily MONITOR that feeds that source
+    # having silently stopped. That's exactly what
+    # rule_change_monitoring_staleness_check.py's own advisory already
+    # tracks (`last_checked_at` in rule_change_coverage_stats.json). Reusing
+    # that same signal here as a hard display gate -- not just an advisory
+    # print -- so a stalled monitor makes these two numbers disappear from
+    # the hero strip instead of freezing there indefinitely.
+    _monitoring_fresh = False
+    try:
+        _cov_stats = json.loads(RULE_CHANGE_COVERAGE_STATS_PATH.read_text(encoding="utf-8"))
+        _last_checked = datetime.fromisoformat(_cov_stats["last_checked_at"])
+        if _last_checked.tzinfo is None:
+            _last_checked = _last_checked.replace(tzinfo=timezone.utc)
+        _monitoring_fresh = (datetime.now(timezone.utc) - _last_checked).total_seconds() / 3600 <= 48
+    except (FileNotFoundError, KeyError, ValueError):
+        _monitoring_fresh = False
+
+    live_conflict_proof_html = ""
+    if _live_conflicts:
+        _c = _live_conflicts[0]
+        _c_summary = _c.get("summary_public") or (
+            f"Our two primary sources for {_c.get('jurisdiction', 'this jurisdiction')} currently "
+            f"disagree. We withhold a determination rather than pick a side."
+        )
+        live_conflict_proof_html = (
+            f'<p class="mcard-proof"><strong>Right now:</strong> {esc(_c_summary)} '
+            f'<a href="/rule-changes/">See all {len(_live_conflicts)} &rarr;</a></p>'
+        )
+
     # Derived at build time from the data + the engine's real capability, so
     # the public coverage claim cannot drift away from what we actually do.
     _cov = _coverage_counts(by_slug)
@@ -4954,8 +5005,15 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
 <div class="hero-left">
   <h1>Know exactly when your license is due &mdash;<br>
   <span class="hero-accent">and see the rule that says so.</span></h1>
-  <p class="hero-lede"><strong>Finishing every CPE hour and still missing the filing deadline is a
-  real, common failure mode</strong> &mdash; this product is about the filing, not the hours.</p>
+  <!-- Roadmap #328 (2026-08-11, ValueLab design-pattern-mining #6, "hero
+       restraint"): cut down to headline + ONE line of subhead + search box.
+       The removed hero-lede sentence (CPE-hours-vs-filing-deadline) isn't
+       lost -- it's the literal headline of #324's /for-firms/ pain-point
+       section and the dedicated /blog/cpe-vs-license-renewal/ post, so
+       cutting it here is pure subtraction, not a message lost sitewide.
+       hero-subtext (the verification-rigor claim) is kept as the one
+       remaining line since it's this specific page's own core credibility
+       claim for a first-time, skeptical SEO visitor. -->
   <p class="hero-subtext">Every date traced to your state board's own statute or rule, and stamped with
   the day we last checked it.</p>
 {search_html}
@@ -4995,18 +5053,34 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
     # copy -- moved out of hero_html verbatim, just no longer competing with
     # the headline/search box for the first-fold's attention. First alt-tone
     # band on the page (see .band-section--alt's own comment).
+    # Roadmap #327's own two new numbers, appended only while the monitor
+    # feeding them is fresh (see _monitoring_fresh above) -- explicitly NOT
+    # a customer count or logo wall (ValueLab's report flags that as the
+    # fastest way this page would read as fabricated; we have no real
+    # nameable customers).
+    _extra_stat_items_html = ""
+    if _monitoring_fresh:
+        _extra_stat_items_html = (
+            f'<div class="item"><span class="n">{len(_live_pending_changes)}</span>'
+            f'<span class="lbl">pending rule changes tracked</span></div>'
+            f'<div class="item"><span class="n">{len(_live_conflicts)}</span>'
+            f'<span class="lbl">jurisdiction{"s" if len(_live_conflicts) != 1 else ""} where we withhold '
+            f'a determination</span></div>'
+        )
+
     stats_band_html = f"""<section class="band-section band-section--alt">
   <div class="trust-row">
     <div class="item"><span class="n">{_cov["total"]}</span><span class="lbl">jurisdictions listed</span></div>
     <div class="item"><span class="n">{_cov["determined"]}</span><span class="lbl">where we determine your exact date</span></div>
     <div class="item"><span class="n">{_verified_recent} of {_total_citations}</span><span class="lbl">citations re-checked in the last {STALENESS_THRESHOLD_DAYS} days</span></div>
+    {_extra_stat_items_html}
   </div>
   <p class="trust-footnote">In the remaining {_cov["byod"]}, renewal turns on a personal fact
   &mdash; your birth month, cohort or issue date &mdash; or the board publishes no verifiable date.
   You enter the date on your license and we track it. We would rather say that than round up.</p>
 </section>"""
 
-    method_band_html = """<section class="band-section band-section--alt">
+    method_band_html = f"""<section class="band-section band-section--alt">
   <p class="eyebrow">How we verify</p>
   <h2>Two independent sources, or we don't publish a date.</h2>
   <p style="color:var(--muted); margin:0.7rem 0 0; font-size:1.02rem;">This site's verification
@@ -5029,6 +5103,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
       <h3>Agree, or it's null</h3>
       <p>If the two don't agree, we don't guess &mdash; we mark it unverified rather than publish a
       date we can't stand behind.</p>
+      {live_conflict_proof_html}
     </div>
   </div>
   <a href="/methodology/" style="font-weight:600;">Read our full verification standard &rarr;</a>

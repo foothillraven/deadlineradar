@@ -1970,6 +1970,29 @@ PAGE_CSS = """
     .dr-cal-day--expanded { min-height: auto; }
     .dr-cal-day--expanded .dr-cal-item { display: block; }
     .dr-cal-day--expanded.dr-cal-day--has-item::after { content: none; }
+    /* 2026-08-10, Devin's live report ("I clicked the 27th to see the
+       name, this is all that showed") -- .dr-cal-item--rule-change was
+       deliberately EXEMPTED from the .dr-cal-item{display:none} rule above
+       (see that class's own comment) so it would stay a labeled, tappable
+       button at every width. In practice a ~50px-wide cell leaves no room
+       for "Missouri: rule change" -- measured live at a 390px viewport, the
+       button renders at 33x17px showing "Mi..." (confirmed against
+       production, a firm with 3 Missouri rule-change events on one day
+       showed 3 of these, none legible or reliably tappable). Same fix as
+       the staff dot above: hide the button, mark the day with a dot via
+       --has-rule-change, and let tap-to-expand reveal the real, full-size,
+       legible button -- the modal it opens (drOpenRuleChangeModal) already
+       works fine once actually hit, this only fixes discoverability of the
+       tap target. Gold (not the staff dot's accent color) so a day mixing
+       both item types still reads as "something regulatory happened here";
+       --has-rule-change is checked after --has-item in the selector list
+       below so gold wins on a mixed day -- one dot, one color, no attempt
+       at rendering two overlapping dots in the same tiny cell. */
+    .dr-cal-item--rule-change { display: none; }
+    .dr-cal-day--has-rule-change::after { content: "\\2022"; color: var(--gold); font-size: 1.1rem; line-height: 1; }
+    .dr-cal-day--has-rule-change { cursor: pointer; }
+    .dr-cal-day--expanded .dr-cal-item--rule-change { display: block; }
+    .dr-cal-day--expanded.dr-cal-day--has-rule-change::after { content: none; }
   }
   .dr-agenda-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
   .dr-agenda-panel h2 { font-size: 1.05rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
@@ -4698,7 +4721,15 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   <p class="field-hint">Type your state and press Enter or select it to go straight to its page.</p>
 </div>"""
 
-    citation_count = sum(1 for recs in by_slug.values() for r in recs if r.get("citation"))
+    # Roadmap #334 (2026-08-10, ValueLab's Canopy-exhaustive report, RANK #2):
+    # sharpens the 3rd trust-row stat below from a static "kept current" claim
+    # into the same live, computed freshness figure /methodology/ already
+    # shows -- same slot, same hero footprint, a stronger and more specific
+    # claim (Canopy repeats one proof token across every page; this is our
+    # equivalent, verifiable and recomputed at every build, never hardcoded).
+    _verified_recent, _total_citations = _citation_freshness_stat(
+        [r for recs in by_slug.values() for r in recs], as_of
+    )
 
     all_fresh = _select_hero_rotation_pool(by_slug)
     rotation_pool = all_fresh[:_HERO_ROTATION_MAX]
@@ -4749,10 +4780,13 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   <p class="hero-subtext">Every date traced to your state board's own statute or rule, and stamped with
   the day we last checked it.</p>
 {search_html}
+  <p class="field-hint">Run a whole firm's staff instead?
+  <a href="{esc(REMINDER_BACKEND_BASE_URL)}/firm/demo-login" style="font-weight:600;">Try the live demo &rarr;</a>
+  A shared account, seeded with sample staff &mdash; one click, no signup, no credentials to type.</p>
   <div class="trust-row">
     <div class="item"><span class="n">{_cov["total"]}</span><span class="lbl">jurisdictions listed</span></div>
     <div class="item"><span class="n">{_cov["determined"]}</span><span class="lbl">where we determine your exact date</span></div>
-    <div class="item"><span class="n">{citation_count}</span><span class="lbl">codified citations kept current</span></div>
+    <div class="item"><span class="n">{_verified_recent} of {_total_citations}</span><span class="lbl">citations re-checked in the last {STALENESS_THRESHOLD_DAYS} days</span></div>
   </div>
   <p class="trust-footnote">In the remaining {_cov["byod"]}, renewal turns on a personal fact
   &mdash; your birth month, cohort or issue date &mdash; or the board publishes no verifiable date.
@@ -5072,7 +5106,7 @@ def _pricing_feature_table_rows_html() -> str:
     return "\n".join(f"  <tr><td>{label}</td><td>{free_cell}</td><td>{paid_cell}</td></tr>" for label, free_cell, paid_cell in rows)
 
 
-def build_pricing_page() -> str:
+def build_pricing_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
     """Task #8 (2026-08-06): a dedicated /pricing/ page. Devin's rationale (the
     task's own record): an individual visitor may never click into
     /for-firms/, so today they never see ANY pricing. This is the one
@@ -5093,11 +5127,17 @@ def build_pricing_page() -> str:
     entitlements.ts's own solo-free exception. The card below reflects
     that: free, a real signup link, no mailto dead end.
     """
+    _verified_recent, _total_citations = _citation_freshness_stat(
+        [r for recs in by_slug.values() for r in recs], as_of
+    )
     body = f"""<h1>Pricing</h1>
 <p class="intro">Roster, calendar, CPE-hours tracking, and individual Practice Privilege Check are
 <strong>free for any firm, up to 3 staff</strong>, no card required, no time limit. Paid firm plans add
 the multistate map and the firm-level registration check &mdash; every paid tier has the identical
 feature set, priced only by how many staff it covers; nothing is held back on a cheaper plan.</p>
+<p class="field-hint"><strong>{_verified_recent} of {_total_citations}</strong> citations on this site
+were individually re-checked against their source within the last {STALENESS_THRESHOLD_DAYS} days
+&mdash; <a href="/methodology/">see exactly how we verify every deadline</a>.</p>
 
 <p id="dr-pricing-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
 
@@ -5182,7 +5222,7 @@ overlap.</p>
     ) + _PRICING_CHECKOUT_JS_HTML
 
 
-def build_compare_page() -> str:
+def build_compare_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
     """Roadmap #33 (2026-08-07, roadmap_items table, IMMEDIATE RELEASE):
     "Comparison page (DeadlineRadar vs. spreadsheet vs. competitor)."
 
@@ -5270,12 +5310,16 @@ def build_compare_page() -> str:
         f"  <tr><td>{esc(label)}</td><td>{esc(free_cell)}</td><td>{paid_cell}</td><td>{esc(spreadsheet_cell)}</td><td>{esc(generic_cell)}</td></tr>"
         for label, free_cell, paid_cell, spreadsheet_cell, generic_cell in rows
     )
+    _verified_recent, _total_citations = _citation_freshness_stat(
+        [r for recs in by_slug.values() for r in recs], as_of
+    )
     body = f"""<h1>DeadlineRadar vs. Practice-Management Suites vs. a Spreadsheet</h1>
 <p class="intro">Every one of those other trackers makes <em>you</em> type in the expiration date and
 takes it on faith. We compute it from the codified statute or board rule and show you the citation
 &mdash; that's the one sentence that actually separates this from a CPE vendor, a practice-management
 suite's generic renewals tab, or a spreadsheet: <a href="/methodology/">see exactly how we verify every
-date</a>.</p>
+date</a>. <strong>{_verified_recent} of {_total_citations}</strong> of those citations were
+individually re-checked against their source within the last {STALENESS_THRESHOLD_DAYS} days.</p>
 
 <h2>What a 6-person firm pays elsewhere</h2>
 <p>None of these track an individual staff CPA's license renewal &mdash; they're practice-management
@@ -5796,21 +5840,18 @@ incidents) are tracked on our <a href="/changelog/">changelog</a>.</p>
     )
 
 
-def build_methodology_page(records: list[dict], real_today: date) -> str:
-    """How-we-verify-our-data page (2026-07-15, per the orchestrator's 'press the
-    validated bet' steer: apply the CPA-trust design lens by surfacing the sourcing
-    method itself as a first-class trust asset, the way established compliance/legal
-    reference sites do -- not by inventing any new claim, just making the standard
-    already enforced everywhere else in this file (citation + citation_url on every
-    record, honest null/gap-note when unverifiable) legible to a skeptical CPA
-    visitor in one place instead of leaving it implicit.
-
-    Roadmap #46 (2026-08-07): added a live, computed freshness statistic (how many of
-    the N citations were individually re-verified within the last 30 days, AS OF THIS
-    BUILD) rather than only the prose promise above -- same last_verified data and same
-    STALENESS_THRESHOLD_DAYS bar scripts/cpa_deadlines_staleness_check.py (roadmap #45)
-    now checks on every pre-ship run, so this number can never silently drift from what
-    that check would actually report."""
+def _citation_freshness_stat(records: list[dict], real_today: date) -> tuple[int, int]:
+    """Roadmap #46 (2026-08-07): live, computed freshness statistic (how many of the N
+    citations were individually re-verified within the last STALENESS_THRESHOLD_DAYS
+    days, AS OF THIS BUILD) -- same last_verified data and same bar
+    scripts/cpa_deadlines_staleness_check.py (roadmap #45) checks on every pre-ship run,
+    so this number can never silently drift from what that check would actually report.
+    Returns (verified_recent, total) so callers can render their own copy/placement
+    around it -- roadmap #334 (2026-08-10, ValueLab's Canopy-exhaustive report, RANK #2)
+    promotes this beyond its original single home on /methodology/ to the homepage hero,
+    /for-firms/, /compare/, and /pricing/, always via this SAME live computation, never a
+    copy-pasted static figure that would go stale the moment a citation's own
+    last_verified date does."""
     verified_recent = 0
     for r in records:
         lv = r.get("last_verified")
@@ -5822,12 +5863,24 @@ def build_methodology_page(records: list[dict], real_today: date) -> str:
             continue
         if age_days <= STALENESS_THRESHOLD_DAYS:
             verified_recent += 1
+    return verified_recent, len(records)
+
+
+def build_methodology_page(records: list[dict], real_today: date) -> str:
+    """How-we-verify-our-data page (2026-07-15, per the orchestrator's 'press the
+    validated bet' steer: apply the CPA-trust design lens by surfacing the sourcing
+    method itself as a first-class trust asset, the way established compliance/legal
+    reference sites do -- not by inventing any new claim, just making the standard
+    already enforced everywhere else in this file (citation + citation_url on every
+    record, honest null/gap-note when unverifiable) legible to a skeptical CPA
+    visitor in one place instead of leaving it implicit."""
+    verified_recent, total = _citation_freshness_stat(records, real_today)
     # Reuses the site's existing .callout box (no new CSS) -- same visual
     # treatment already used for the per-state "Verified" callouts, so this
     # rolled-up site-wide stat reads as the same kind of trust signal, not a
     # bespoke one-off.
     freshness_stat_html = (
-        f'<div class="callout"><p><strong>{verified_recent} of {len(records)}</strong> '
+        f'<div class="callout"><p><strong>{verified_recent} of {total}</strong> '
         f"citations on this site were individually re-checked against their source within the last "
         f"{STALENESS_THRESHOLD_DAYS} days, as of this page's last build ({real_today.isoformat()}). "
         f"Every state page's own \"Last verified\" line shows that specific citation's own date &mdash; "
@@ -6601,11 +6654,17 @@ def build_firms_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
     distinction (sourced vs. self-reported, not built vs. unbuilt) is the
     entire brand and must not blur on the paid tier."""
     firm_lead_action = f"{esc(REMINDER_BACKEND_BASE_URL)}/firm/lead"
+    _verified_recent, _total_citations = _citation_freshness_stat(
+        [r for recs in by_slug.values() for r in recs], as_of
+    )
     body = f"""<h1>CPA License Tracking for Your Whole Firm</h1>
 <p class="intro">Every accounting firm has someone who has to make sure every partner's and staff CPA's
 license stays current &mdash; across however many states they're licensed in. One missed renewal slows
 down engagements and creates real regulatory risk, and most firms track it today by spreadsheet. A
 spreadsheet fails in three specific ways.</p>
+<p class="field-hint"><strong>{_verified_recent} of {_total_citations}</strong> citations on this site
+were individually re-checked against their source within the last {STALENESS_THRESHOLD_DAYS} days
+&mdash; <a href="/methodology/">see exactly how we verify every deadline</a>.</p>
 
 <h2 class="dr-pain-headline">Every hour completed. The filing still missed.</h2>
 <p class="subhead">Where a spreadsheet (and an individual CPA's own inbox) falls short:</p>
@@ -10346,22 +10405,25 @@ function drRenderCalendar() {
         'aria-label="Rule change: ' + drEscapeHtml(e.jurisdiction) + '">' +
         drEscapeHtml(e.jurisdiction) + ': rule change</button>';
     }).join('');
-    // 2026-08-09, Devin's live report ("the blue dots still don't say
-    // anything"): --has-item now only goes on days with real hidden STAFF
-    // items -- a rule-change-only day already shows its own visible,
-    // labeled button at every width (see .dr-cal-item--rule-change above,
-    // never covered by the sub-640px .dr-cal-item{display:none} rule), so
-    // giving it an unlabeled dot too would just be a second, redundant,
-    // uninformative mark on the same cell. aria-label carries the same
-    // summary a screen reader would otherwise get from the now-hidden
-    // .dr-cal-item titles, independent of the tap-to-expand CSS above.
-    var dayAriaLabel = items.length
-      ? drEscapeHtml(items.slice(0, 3).map(function(item) { return item.staff_label || item.email; }).join(', ') +
-          (items.length > 3 ? ', and ' + (items.length - 3) + ' more' : '') + ' due this day -- tap for details')
-      : '';
+    // --has-item (staff) and --has-rule-change (regulatory) are separate
+    // classes so the sub-640px dot can be colored per type (see that CSS's
+    // own comment, updated 2026-08-10 -- rule-change buttons are now hidden
+    // at this width same as staff items, both revealed by tap-to-expand).
+    // aria-label carries the same summary a screen reader would otherwise
+    // get from the now-hidden item titles/buttons, independent of the CSS.
+    var dayAriaLabelParts = [];
+    if (items.length) {
+      dayAriaLabelParts.push(items.slice(0, 3).map(function(item) { return item.staff_label || item.email; }).join(', ') +
+        (items.length > 3 ? ', and ' + (items.length - 3) + ' more' : '') + ' due this day');
+    }
+    if (ruleEvents.length) {
+      dayAriaLabelParts.push(ruleEvents.map(function(e) { return e.jurisdiction; }).join(', ') + ' rule change' + (ruleEvents.length > 1 ? 's' : ''));
+    }
+    var dayAriaLabel = dayAriaLabelParts.length ? drEscapeHtml(dayAriaLabelParts.join(' -- ') + ' -- tap for details') : '';
     html += '<div class="dr-cal-day' + (iso === todayIso ? ' dr-cal-day--today' : '') +
-      (items.length ? ' dr-cal-day--has-item' : '') + '"' +
-      (items.length ? ' role="button" tabindex="0" aria-label="' + dayAriaLabel + '"' : '') + '>' +
+      (items.length ? ' dr-cal-day--has-item' : '') +
+      (ruleEvents.length ? ' dr-cal-day--has-rule-change' : '') + '"' +
+      (dayAriaLabelParts.length ? ' role="button" tabindex="0" aria-label="' + dayAriaLabel + '"' : '') + '>' +
       '<span class="dr-cal-daynum">' + day + '</span>' + cellItems + '</div>';
   }
   grid.innerHTML = html;
@@ -13656,7 +13718,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // .dr-cal-item rows for that one cell instead of leaving a bare,
     // unexplained dot. Checked ahead of the existing rule-change-button
     // handling below so a tap on the rule-change pill itself still only
-    // opens ITS OWN modal, not both.
+    // opens ITS OWN modal, not both. 2026-08-10: extended to
+    // --has-rule-change too, now that its own button is hidden the same
+    // way at this width -- see that class's CSS comment.
+    var DR_CAL_EXPANDABLE_SELECTOR = '.dr-cal-day--has-item, .dr-cal-day--has-rule-change';
     function drToggleCalDayExpanded(day) {
       day.classList.toggle('dr-cal-day--expanded');
     }
@@ -13668,12 +13733,18 @@ document.addEventListener('DOMContentLoaded', function() {
         if (event) drOpenRuleChangeModal(event, ruleBtn);
         return;
       }
-      var day = ev.target.closest ? ev.target.closest('.dr-cal-day--has-item') : null;
+      var day = ev.target.closest ? ev.target.closest(DR_CAL_EXPANDABLE_SELECTOR) : null;
       if (day) drToggleCalDayExpanded(day);
     });
     calGrid.addEventListener('keydown', function(ev) {
       if (ev.key !== 'Enter' && ev.key !== ' ') return;
-      var day = ev.target.closest ? ev.target.closest('.dr-cal-day--has-item') : null;
+      // A rule-change button nested inside an expanded day is itself
+      // keyboard-focusable (real <button>) -- let its own Enter/Space
+      // activation open the modal via the click handler above rather than
+      // also toggling the day (which would collapse the very button just
+      // activated) -- same guard the click handler already uses.
+      if (ev.target.closest && ev.target.closest('.dr-cal-item--rule-change')) return;
+      var day = ev.target.closest ? ev.target.closest(DR_CAL_EXPANDABLE_SELECTOR) : null;
       if (!day) return;
       ev.preventDefault();
       drToggleCalDayExpanded(day);
@@ -17289,12 +17360,12 @@ def main() -> None:
 
     pricing_dir = SITE_DIR / "pricing"
     pricing_dir.mkdir(parents=True, exist_ok=True)
-    (pricing_dir / "index.html").write_text(build_pricing_page(), encoding="utf-8")
+    (pricing_dir / "index.html").write_text(build_pricing_page(by_slug, as_of), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/pricing/index.html")
 
     compare_dir = SITE_DIR / "compare"
     compare_dir.mkdir(parents=True, exist_ok=True)
-    (compare_dir / "index.html").write_text(build_compare_page(), encoding="utf-8")
+    (compare_dir / "index.html").write_text(build_compare_page(by_slug, as_of), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/compare/index.html")
 
     roadmap_dir = SITE_DIR / "roadmap"

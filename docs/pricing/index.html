@@ -1231,6 +1231,12 @@
     .dr-cal-day--expanded { min-height: auto; }
     .dr-cal-day--expanded .dr-cal-item { display: block; }
     .dr-cal-day--expanded.dr-cal-day--has-item::after { content: none; }
+    
+    .dr-cal-item--rule-change { display: none; }
+    .dr-cal-day--has-rule-change::after { content: "•"; color: var(--gold); font-size: 1.1rem; line-height: 1; }
+    .dr-cal-day--has-rule-change { cursor: pointer; }
+    .dr-cal-day--expanded .dr-cal-item--rule-change { display: block; }
+    .dr-cal-day--expanded.dr-cal-day--has-rule-change::after { content: none; }
   }
   .dr-agenda-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
   .dr-agenda-panel h2 { font-size: 1.05rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
@@ -1535,6 +1541,9 @@
 <strong>free for any firm, up to 3 staff</strong>, no card required, no time limit. Paid firm plans add
 the multistate map and the firm-level registration check &mdash; every paid tier has the identical
 feature set, priced only by how many staff it covers; nothing is held back on a cheaper plan.</p>
+<p class="field-hint"><strong>88 of 88</strong> citations on this site
+were individually re-checked against their source within the last 30 days
+&mdash; <a href="/methodology/">see exactly how we verify every deadline</a>.</p>
 
 <p id="dr-pricing-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
 

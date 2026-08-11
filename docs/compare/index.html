@@ -1231,6 +1231,12 @@
     .dr-cal-day--expanded { min-height: auto; }
     .dr-cal-day--expanded .dr-cal-item { display: block; }
     .dr-cal-day--expanded.dr-cal-day--has-item::after { content: none; }
+    
+    .dr-cal-item--rule-change { display: none; }
+    .dr-cal-day--has-rule-change::after { content: "•"; color: var(--gold); font-size: 1.1rem; line-height: 1; }
+    .dr-cal-day--has-rule-change { cursor: pointer; }
+    .dr-cal-day--expanded .dr-cal-item--rule-change { display: block; }
+    .dr-cal-day--expanded.dr-cal-day--has-rule-change::after { content: none; }
   }
   .dr-agenda-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.1rem 1.2rem; margin-bottom: 1.2rem; }
   .dr-agenda-panel h2 { font-size: 1.05rem; margin: 0 0 0.85rem; font-family: var(--font-display); }
@@ -1535,7 +1541,8 @@
 takes it on faith. We compute it from the codified statute or board rule and show you the citation
 &mdash; that's the one sentence that actually separates this from a CPE vendor, a practice-management
 suite's generic renewals tab, or a spreadsheet: <a href="/methodology/">see exactly how we verify every
-date</a>.</p>
+date</a>. <strong>88 of 88</strong> of those citations were
+individually re-checked against their source within the last 30 days.</p>
 
 <h2>What a 6-person firm pays elsewhere</h2>
 <p>None of these track an individual staff CPA's license renewal &mdash; they're practice-management

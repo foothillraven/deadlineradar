@@ -4140,6 +4140,7 @@ def build_state_page(
     state_slug: str, records: list[dict], as_of: date, by_slug: dict[str, list[dict]] | None = None,
     cpe_hours_by_slug: dict[str, dict] | None = None, reinstatement_by_slug: dict[str, dict] | None = None,
     guide_slugs_by_state: dict[str, str] | None = None,
+    firm_landing_slugs_by_state: dict[str, str] | None = None,
 ) -> tuple[str, str]:
     """Returns (title, html_body) for a state's page."""
     state_name = records[0]["state"]
@@ -4223,6 +4224,10 @@ def build_state_page(
     guide_link_html = (
         _blog_guide_reverse_link_html(state_slug, state_name, guide_slugs_by_state) if guide_slugs_by_state else ""
     )
+    firm_landing_link_html = (
+        _firm_landing_reverse_link_html(state_slug, state_name, firm_landing_slugs_by_state)
+        if firm_landing_slugs_by_state else ""
+    )
     quick_search_html = _state_quick_search_html(by_slug) if by_slug else ""
     body = f"""<h1>{esc(title)}</h1>
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
@@ -4236,6 +4241,7 @@ def build_state_page(
 {cpe_hours_link_html}
 {reinstatement_link_html}
 {guide_link_html}
+{firm_landing_link_html}
 {quick_search_html}
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 """
@@ -16322,9 +16328,23 @@ var DR_RULE_CHANGE_EVENTS = {json.dumps(rule_change_events_json)};
 # citation data in cpa_deadlines.json -- no new legal research needed, this just
 # reframes already-vetted facts at a different reader (whoever owns the firm's own
 # registration, not an individual CPA tracking their personal license). Ordered by
-# deadline proximity: Idaho (Sep 30) is nearest, South Carolina (Feb 1) is furthest.
+# deadline proximity.
+#
+# 2026-08-10: expanded from the original Wave-1 6 to all 35 states that already
+# pass _firm_relevant_record() (a firm-type or 'all'-type record with a computed
+# date) -- Devin's go, following AuditLab's finding that the original 6 were an
+# arbitrary subset of already-verified data, not the full set. The remaining 20
+# states with NO firm-relevant record at all are a SEPARATE, still-open question
+# (does a distinct firm cycle exist there and we just haven't sourced it, or do
+# they genuinely bundle firm renewal into the individual license) -- not part of
+# this go, not included here, don't guess at those.
 FIRM_LANDING_STATE_SLUGS = [
-    "idaho", "missouri", "louisiana", "kansas", "alabama", "south-carolina",
+    "colorado", "idaho", "maine", "missouri", "alabama", "arkansas", "dc", "kansas",
+    "louisiana", "minnesota", "montana", "utah", "wyoming", "mississippi", "nevada",
+    "south-carolina", "delaware", "indiana", "iowa", "nebraska", "north-dakota",
+    "oklahoma", "us-virgin-islands", "virginia", "west-virginia", "north-carolina",
+    "south-dakota", "illinois", "wisconsin", "alaska", "florida", "hawaii", "oregon",
+    "georgia", "kentucky",
 ]
 
 # Populated by main() once by_slug is loaded (each entry: {"slug", "state_name"}) --
@@ -16696,6 +16716,23 @@ def _blog_guide_reverse_link_html(state_slug: str, state_name: str, guide_slugs_
     return (
         f'<p class="backlink-cross"><a href="../blog/{esc(guide_slug)}/">Read the full {esc(state_name)} '
         f'CPA renewal guide &rarr;</a></p>'
+    )
+
+
+def _firm_landing_reverse_link_html(state_slug: str, state_name: str, firm_landing_slugs_by_state: dict[str, str]) -> str:
+    """Reverse cross-link (renewal page -> firm-renewal landing page), same
+    bidirectional-cross-link discipline as the other _X_reverse_link_html()
+    functions. AuditLab's finding was as much about these missing links as
+    the missing pages themselves -- don't ship one without the other. Only
+    keyed for states where a firm landing page actually got built (see
+    main()'s own FIRM_LANDING_PAGES loop -- _firm_relevant_record() can
+    still return None even for a state in FIRM_LANDING_STATE_SLUGS)."""
+    firm_slug = firm_landing_slugs_by_state.get(state_slug)
+    if not firm_slug:
+        return ""
+    return (
+        f'<p class="backlink-cross"><a href="../{esc(firm_slug)}/">Does {esc(state_name)}\'s CPA FIRM '
+        f'(not just the individual license) need to register separately? &rarr;</a></p>'
     )
 
 
@@ -17613,10 +17650,26 @@ def main() -> None:
         (showcase_dst_dir / showcase_file.name).write_bytes(showcase_file.read_bytes())
     print(f"wrote {SITE_DIR.name}/showcase/ ({len(list(showcase_src_dir.glob('*.jpg')))} images)")
 
+    # Precomputed here (not read off FIRM_LANDING_PAGES, which the loop
+    # further below populates AFTER this state-page loop runs) so the
+    # reverse cross-link on each state page can be built in the same pass --
+    # same _firm_relevant_record() logic that loop uses to decide what
+    # actually gets built, just evaluated early.
+    firm_landing_slugs_by_state = {}
+    for state_slug in FIRM_LANDING_STATE_SLUGS:
+        recs_for_slug = by_slug.get(state_slug)
+        if not recs_for_slug:
+            continue
+        firm_record = _firm_relevant_record(recs_for_slug)
+        if firm_record is None:
+            continue
+        firm_landing_slugs_by_state[state_slug] = f"{state_slug}-cpa-firm-renewal"
+
     built = []
     for slug, recs in by_slug.items():
         title, page_html = build_state_page(
             slug, recs, as_of, by_slug, cpe_hours_by_slug, reinstatement_by_slug, guide_slugs_by_state,
+            firm_landing_slugs_by_state,
         )
         state_dir = SITE_DIR / slug
         state_dir.mkdir(parents=True, exist_ok=True)

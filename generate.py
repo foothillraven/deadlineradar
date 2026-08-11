@@ -4128,6 +4128,7 @@ def _flag_wrong_html(state_name: str, state_slug: str) -> str:
 def build_state_page(
     state_slug: str, records: list[dict], as_of: date, by_slug: dict[str, list[dict]] | None = None,
     cpe_hours_by_slug: dict[str, dict] | None = None, reinstatement_by_slug: dict[str, dict] | None = None,
+    guide_slugs_by_state: dict[str, str] | None = None,
 ) -> tuple[str, str]:
     """Returns (title, html_body) for a state's page."""
     state_name = records[0]["state"]
@@ -4208,6 +4209,9 @@ def build_state_page(
     reinstatement_link_html = (
         _reinstatement_reverse_link_html(state_slug, reinstatement_by_slug) if reinstatement_by_slug else ""
     )
+    guide_link_html = (
+        _blog_guide_reverse_link_html(state_slug, state_name, guide_slugs_by_state) if guide_slugs_by_state else ""
+    )
     quick_search_html = _state_quick_search_html(by_slug) if by_slug else ""
     body = f"""<h1>{esc(title)}</h1>
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
@@ -4220,6 +4224,7 @@ def build_state_page(
 {nearby_html}
 {cpe_hours_link_html}
 {reinstatement_link_html}
+{guide_link_html}
 {quick_search_html}
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 """
@@ -16406,6 +16411,21 @@ def _reinstatement_reverse_link_html(state_slug: str, reinstatement_by_slug: dic
     )
 
 
+def _blog_guide_reverse_link_html(state_slug: str, state_name: str, guide_slugs_by_state: dict[str, str]) -> str:
+    """Reverse cross-link (renewal page -> full renewal-guide blog post), same
+    bidirectional-cross-link discipline as _cpe_hours_reverse_link_html() --
+    every guide already links back to its state page, this closes the loop the
+    other way. Renders nothing if this state has no dedicated guide yet (6 of
+    55, as of 2026-08-10)."""
+    guide_slug = guide_slugs_by_state.get(state_slug)
+    if not guide_slug:
+        return ""
+    return (
+        f'<p class="backlink-cross"><a href="../blog/{esc(guide_slug)}/">Read the full {esc(state_name)} '
+        f'CPA renewal guide &rarr;</a></p>'
+    )
+
+
 def _reinstatement_fee_str(fee: float | int | None) -> str | None:
     """Single formatter for a reinstatement fee, shared by the page body and the
     meta description -- factored out after an adversarial RE-QA pass (2026-07-25)
@@ -17244,6 +17264,10 @@ def main() -> None:
 
     cpe_hours_by_slug = load_cpe_hours_by_slug()
     reinstatement_by_slug = load_reinstatement_by_slug()
+    guide_slugs_by_state = {
+        a["slug"][: -len("-cpa-license-renewal-guide")]: a["slug"]
+        for a in BLOG_ARTICLES if a["slug"].endswith("-cpa-license-renewal-guide")
+    }
 
     by_slug: dict[str, list[dict]] = {}
     state_meta: dict[str, dict] = {}
@@ -17289,7 +17313,9 @@ def main() -> None:
 
     built = []
     for slug, recs in by_slug.items():
-        title, page_html = build_state_page(slug, recs, as_of, by_slug, cpe_hours_by_slug, reinstatement_by_slug)
+        title, page_html = build_state_page(
+            slug, recs, as_of, by_slug, cpe_hours_by_slug, reinstatement_by_slug, guide_slugs_by_state,
+        )
         state_dir = SITE_DIR / slug
         state_dir.mkdir(parents=True, exist_ok=True)
         (state_dir / "index.html").write_text(page_html, encoding="utf-8")

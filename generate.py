@@ -1814,11 +1814,25 @@ PAGE_CSS = """
   .pricing-card h2 { font-size: 1.05rem; margin: 0; font-family: var(--font-display); }
   .pricing-card .price { font-size: 1.6rem; font-weight: 700; margin: 0; color: var(--fg); }
   .pricing-card .price span { font-size: 0.85rem; font-weight: 500; color: var(--muted); }
-  .pricing-card p.detail { color: var(--muted); font-size: 0.87rem; flex: 1; margin: 0; }
+  .pricing-card p.detail { color: var(--muted); font-size: 0.87rem; margin: 0; }
   .pricing-card .dr-paywall-tier-btn, .pricing-card a.dr-paywall-tier-btn {
     text-decoration: none; display: block; flex: 0 0 auto; margin-top: auto;
   }
   .pricing-card--wide { grid-column: 1 / -1; text-align: center; }
+  /* 2026-08-11 (see _PAID_TIER_INCLUDES_HTML's own comment): a short, honest
+     "what this tier includes" list -- real content filling the space that
+     used to be a stretched-blank .detail paragraph, not padding for its own
+     sake. Same font scale as .detail; a checkmark reuses --verified-green,
+     the same color this site already uses for "confirmed"/"included"
+     signals elsewhere (state pages, the feature table's Yes cells' spirit),
+     so it reads as affirmative rather than a plain bullet. */
+  .pricing-includes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+  .pricing-includes li {
+    font-size: 0.83rem; color: var(--muted); padding-left: 1.3rem; position: relative; line-height: 1.35;
+  }
+  .pricing-includes li::before {
+    content: "\\2713"; position: absolute; left: 0; color: var(--verified-green); font-weight: 700;
+  }
 
   /* Public roadmap (Task #19, 2026-08-06). */
   .dr-roadmap-list { display: flex; flex-direction: column; gap: 0.9rem; margin: 1.4rem 0; }
@@ -5200,6 +5214,24 @@ def _pricing_feature_table_rows_html() -> str:
     return "\n".join(f"  <tr><td>{label}</td><td>{free_cell}</td><td>{paid_cell}</td></tr>" for label, free_cell, paid_cell in rows)
 
 
+# 2026-08-11, Devin's live report ("still a lot of white space" -- screenshot of the
+# 4 paid-tier cards, each with a big empty gap between "Up to N staff" and the button):
+# root cause is .pricing-card p.detail's flex:1 stretching a single short sentence to
+# fill the whole card height once Individual (the tallest card, extra paragraph + link)
+# sets the row height every other card matches. Fix is real content, not padding --
+# since every paid tier has the IDENTICAL feature set (already stated in this page's own
+# intro), the same short list is honestly reusable across all 4 cards rather than
+# inventing a fake per-tier difference. Mirrors _pricing_feature_table_rows_html()'s own
+# paid-only rows above, just compacted.
+_PAID_TIER_INCLUDES_HTML = """<ul class="pricing-includes">
+      <li>Multistate Map</li>
+      <li>Firm-level registration check</li>
+      <li>Slack &amp; Teams alerts</li>
+      <li>Document storage</li>
+      <li>Referral discounts, up to 100%</li>
+    </ul>"""
+
+
 def build_pricing_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
     """Task #8 (2026-08-06): a dedicated /pricing/ page. Devin's rationale (the
     task's own record): an individual visitor may never click into
@@ -5273,24 +5305,28 @@ own upgrade panel.</p>
     <h2>Essentials</h2>
     <p class="price">$199<span>/year</span></p>
     <p class="detail">Up to 5 staff.</p>
+    {_PAID_TIER_INCLUDES_HTML}
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_starter">Get Essentials</button>
   </div>
   <div class="pricing-card">
     <h2>Growth</h2>
     <p class="price">$299<span>/year</span></p>
     <p class="detail">Up to 10 staff.</p>
+    {_PAID_TIER_INCLUDES_HTML}
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_growth">Get Growth</button>
   </div>
   <div class="pricing-card">
     <h2>Professional</h2>
     <p class="price">$399<span>/year</span></p>
     <p class="detail">Up to 20 staff.</p>
+    {_PAID_TIER_INCLUDES_HTML}
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_standard">Get Professional</button>
   </div>
   <div class="pricing-card">
     <h2>Enterprise</h2>
     <p class="price">$549<span>/year</span></p>
     <p class="detail">Up to 35 staff.</p>
+    {_PAID_TIER_INCLUDES_HTML}
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_scale">Get Enterprise</button>
   </div>
   <div class="pricing-card pricing-card--wide">

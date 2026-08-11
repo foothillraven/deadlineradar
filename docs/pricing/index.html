@@ -1093,11 +1093,19 @@
   .pricing-card h2 { font-size: 1.05rem; margin: 0; font-family: var(--font-display); }
   .pricing-card .price { font-size: 1.6rem; font-weight: 700; margin: 0; color: var(--fg); }
   .pricing-card .price span { font-size: 0.85rem; font-weight: 500; color: var(--muted); }
-  .pricing-card p.detail { color: var(--muted); font-size: 0.87rem; flex: 1; margin: 0; }
+  .pricing-card p.detail { color: var(--muted); font-size: 0.87rem; margin: 0; }
   .pricing-card .dr-paywall-tier-btn, .pricing-card a.dr-paywall-tier-btn {
     text-decoration: none; display: block; flex: 0 0 auto; margin-top: auto;
   }
   .pricing-card--wide { grid-column: 1 / -1; text-align: center; }
+  
+  .pricing-includes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+  .pricing-includes li {
+    font-size: 0.83rem; color: var(--muted); padding-left: 1.3rem; position: relative; line-height: 1.35;
+  }
+  .pricing-includes li::before {
+    content: "✓"; position: absolute; left: 0; color: var(--verified-green); font-weight: 700;
+  }
 
   
   .dr-roadmap-list { display: flex; flex-direction: column; gap: 0.9rem; margin: 1.4rem 0; }
@@ -1613,24 +1621,52 @@ own upgrade panel.</p>
     <h2>Essentials</h2>
     <p class="price">$199<span>/year</span></p>
     <p class="detail">Up to 5 staff.</p>
+    <ul class="pricing-includes">
+      <li>Multistate Map</li>
+      <li>Firm-level registration check</li>
+      <li>Slack &amp; Teams alerts</li>
+      <li>Document storage</li>
+      <li>Referral discounts, up to 100%</li>
+    </ul>
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_starter">Get Essentials</button>
   </div>
   <div class="pricing-card">
     <h2>Growth</h2>
     <p class="price">$299<span>/year</span></p>
     <p class="detail">Up to 10 staff.</p>
+    <ul class="pricing-includes">
+      <li>Multistate Map</li>
+      <li>Firm-level registration check</li>
+      <li>Slack &amp; Teams alerts</li>
+      <li>Document storage</li>
+      <li>Referral discounts, up to 100%</li>
+    </ul>
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_growth">Get Growth</button>
   </div>
   <div class="pricing-card">
     <h2>Professional</h2>
     <p class="price">$399<span>/year</span></p>
     <p class="detail">Up to 20 staff.</p>
+    <ul class="pricing-includes">
+      <li>Multistate Map</li>
+      <li>Firm-level registration check</li>
+      <li>Slack &amp; Teams alerts</li>
+      <li>Document storage</li>
+      <li>Referral discounts, up to 100%</li>
+    </ul>
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_standard">Get Professional</button>
   </div>
   <div class="pricing-card">
     <h2>Enterprise</h2>
     <p class="price">$549<span>/year</span></p>
     <p class="detail">Up to 35 staff.</p>
+    <ul class="pricing-includes">
+      <li>Multistate Map</li>
+      <li>Firm-level registration check</li>
+      <li>Slack &amp; Teams alerts</li>
+      <li>Document storage</li>
+      <li>Referral discounts, up to 100%</li>
+    </ul>
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_scale">Get Enterprise</button>
   </div>
   <div class="pricing-card pricing-card--wide">

@@ -5371,6 +5371,8 @@ own upgrade panel.</p>
   </div>
 </div>
 
+{_firm_faq_html()}
+
 <p class="backlink">See exactly <a href="/methodology/">how we verify every deadline</a>, or read the
 <a href="/for-firms/">full firm-tier breakdown</a>.</p>
 """

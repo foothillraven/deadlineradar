@@ -4229,6 +4229,12 @@ def build_state_page(
         if firm_landing_slugs_by_state else ""
     )
     quick_search_html = _state_quick_search_html(by_slug) if by_slug else ""
+    faq_html, faq_schema = _state_faq_html_and_schema(
+        state_slug, state_name, records,
+        cpe_hours_by_slug.get(state_slug) if cpe_hours_by_slug else None,
+        reinstatement_by_slug.get(state_slug) if reinstatement_by_slug else None,
+        firm_landing_slugs_by_state.get(state_slug) if firm_landing_slugs_by_state else None,
+    )
     body = f"""<h1>{esc(title)}</h1>
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
 {deadline_html}
@@ -4242,10 +4248,11 @@ def build_state_page(
 {reinstatement_link_html}
 {guide_link_html}
 {firm_landing_link_html}
+{faq_html}
 {quick_search_html}
 <p class="backlink"><a href="../">&larr; Back to all states</a></p>
 """
-    json_ld = [_breadcrumb_schema(state_name, state_slug)]
+    json_ld = [_breadcrumb_schema(state_name, state_slug), faq_schema]
     return title, page_shell(
         title, meta_description, body, home_href="../", canonical_path=f"/{state_slug}/",
         json_ld=json_ld, has_remind_anchor=True,
@@ -16736,6 +16743,60 @@ def _firm_landing_reverse_link_html(state_slug: str, state_name: str, firm_landi
         f'<p class="backlink-cross"><a href="../{esc(firm_slug)}/">Does {esc(state_name)}\'s CPA FIRM '
         f'(not just the individual license) need to register separately? &rarr;</a></p>'
     )
+
+
+def _state_faq_html_and_schema(
+    state_slug: str, state_name: str, records: list[dict],
+    cpe_record: dict | None, reinstatement_record: dict | None, firm_landing_slug: str | None,
+) -> tuple[str, dict]:
+    """Roadmap #340: narrow, genuinely per-state FAQ -- every answer reuses a
+    fact already verified and published elsewhere on this site
+    (cycle_description, CPE hours, reinstatement fee, firm-renewal
+    existence), never a templated paragraph with only the state name
+    swapped in. A state with only 1 of the 4 possible facts gets a 1-question
+    FAQ, not 4 padded ones -- same "don't fabricate, disclose the gap
+    instead" discipline as every other record-shape check in this file. Q1
+    (the renewal cycle itself) is the only unconditional one -- every state
+    has at least a records list to draw it from."""
+    primary = next((r for r in records if r.get("license_type") in ("individual", "individual_cpa", "all")), records[0])
+    qa: list[tuple[str, str]] = [
+        (f"How does {state_name}'s CPA license renewal cycle work?", primary["cycle_description"])
+    ]
+    if cpe_record:
+        hours_word = "hour" if cpe_record["total_hours"] == 1 else "hours"
+        years_word = "year" if cpe_record["period_years"] == 1 else "years"
+        ethics_word = "hour" if cpe_record["ethics_hours"] == 1 else "hours"
+        qa.append((
+            f"Does {state_name} require CPE hours to renew a CPA license?",
+            f"Yes -- {state_name} requires {cpe_record['total_hours']} {hours_word} of CPE every "
+            f"{cpe_record['period_years']} {years_word}, including {cpe_record['ethics_hours']} ethics "
+            f"{ethics_word}. See the full {state_name} CPE requirements page for the exact citation.",
+        ))
+    if reinstatement_record:
+        fee_str = _reinstatement_fee_str(reinstatement_record.get("reinstatement_fee_usd"))
+        fee_notes = reinstatement_record.get("reinstatement_fee_notes") or ""
+        qa.append((
+            f"What does it cost to reinstate a lapsed {state_name} CPA license?",
+            f"{fee_str}. {fee_notes}" if fee_str else fee_notes,
+        ))
+    if firm_landing_slug:
+        qa.append((
+            f"Does a CPA firm need to register separately in {state_name}?",
+            f"Yes -- {state_name} has its own firm-level registration or permit requirement, separate "
+            f"from an individual CPA's license renewal. See the full {state_name} firm renewal page for "
+            f"the exact cycle and citation.",
+        ))
+
+    items_html = "\n".join(f"<h3>{esc(q)}</h3>\n<p>{esc(a)}</p>" for q, a in qa)
+    html = f"<h2>Frequently asked questions</h2>\n{items_html}"
+    schema = {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in qa
+        ],
+    }
+    return html, schema
 
 
 def _reinstatement_fee_str(fee: float | int | None) -> str | None:

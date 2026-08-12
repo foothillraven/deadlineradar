@@ -2711,7 +2711,6 @@ def site_footer() -> str:
       <a href="/">All {JURISDICTION_COUNT} jurisdictions</a>
       <a href="/for-firms/">For Firms</a>
       <a href="/pricing/">Pricing</a>
-      <a href="/compare/">Compare</a>
       <a href="/deadline-calculator/">Deadline Calculator</a>
       <a href="/blog/">Guides</a>
       <a href="/blog/cpe-vs-license-renewal/">CPE vs. License Renewal</a>
@@ -5589,278 +5588,6 @@ MYCPE_ONE_FACTS = _competitor_prices_data["mycpe_one"]
 # Populated by main()'s build loop, same pattern as FIRM_LANDING_PAGES --
 # build_sitemap() reads this once it's known.
 COMPETITOR_COMPARE_PAGES: list[dict] = []
-
-
-def build_compare_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
-    """Roadmap #33 (2026-08-07, roadmap_items table, IMMEDIATE RELEASE):
-    "Comparison page (DeadlineRadar vs. spreadsheet vs. competitor)."
-
-    Named real competitors added 2026-08-10 (ValueLab's customer-walkthrough
-    report, independently spot-checked by the orchestrator) -- the ORIGINAL
-    build deliberately named no one because this file had no verified,
-    current facts about any named third party's actual pricing, and
-    publishing unverified claims about a real business is both a
-    false-advertising risk and flatly against this site's own
-    two-source-verification standard (build_methodology_page()). That
-    constraint hasn't changed in principle -- only the FACT SET has: pricing
-    for a 6-person firm and the single feature-absence claim "does not track
-    a staff CPA license" are now independently verified (ValueLab + a second
-    check), so those two claims are named. Everything else about those
-    products (their full feature set, their own roadmap, anything not
-    checked above) is still unverified here and stays out -- the feature
-    table below still uses a generic, unnamed "tracking tool" column for
-    every claim this file cannot independently back up.
-    """
-    # Free/Paid split added 2026-08-09 (Devin, alongside the /pricing/
-    # feature table this mirrors) -- the single "DeadlineRadar" column used
-    # to claim "Yes" unconditionally for the Map/Practice Privilege Check
-    # row, which was already inaccurate the moment those became paid-tier
-    # features. Splitting into Free/Paid fixes that instead of just adding
-    # a column that repeats the same wrong claim twice.
-    rows = [
-        (
-            "Sourced, cited renewal dates for all 55 U.S. jurisdictions",
-            "Yes",
-            "Yes",
-            "You research and maintain this yourself, state by state.",
-            "Usually generic scheduling, not built around real CPA renewal rules.",
-        ),
-        (
-            "Automated email reminders before a deadline",
-            "Yes",
-            "Yes",
-            "Only if you build your own reminder system on top of it.",
-            "Varies by tool; rarely tuned to a CPA renewal cycle specifically.",
-        ),
-        (
-            "Slack &amp; Teams deadline alerts",
-            "No",
-            "Yes",
-            "No.",
-            "Not CPA-specific; varies by tool.",
-        ),
-        (
-            "Individual Practice Privilege Check (one person, one target state)",
-            "Yes",
-            "Yes",
-            "No, you would have to research each state's mobility rule yourself.",
-            "Not CPA-specific, so this generally does not exist.",
-        ),
-        (
-            "Multistate coverage Map, and firm-level registration check",
-            "Solo accounts only*",
-            "Yes &mdash; Map view plus a firm-level registration check.",
-            "No, you would have to research each state's mobility rule yourself.",
-            "Not CPA-specific, so this generally does not exist.",
-        ),
-        (
-            "CPE-hour tracking against the real requirement for each state",
-            "Yes",
-            "Yes",
-            "Manual, and easy to lose track of across a whole roster.",
-            "Usually a generic hour counter, not tied to actual state CPE rules.",
-        ),
-        (
-            "Setup effort",
-            "Minutes",
-            "Minutes &mdash; add a staff member and their state, done.",
-            "Hours of your own research, plus ongoing upkeep as rules change.",
-            "Some setup, but you still have to supply the CPA-specific rules yourself.",
-        ),
-        (
-            "Cost",
-            "$0, no card required, no time limit.",
-            "$199&ndash;$549/year, priced by staff count (see full pricing).",
-            "Free license cost, but your own time is the real cost.",
-            "Varies; often priced for general use, not firm-specific compliance tracking.",
-        ),
-    ]
-    table_rows_html = "\n".join(
-        f"  <tr><td>{esc(label)}</td><td>{esc(free_cell)}</td><td>{paid_cell}</td><td>{esc(spreadsheet_cell)}</td><td>{esc(generic_cell)}</td></tr>"
-        for label, free_cell, paid_cell, spreadsheet_cell, generic_cell in rows
-    )
-    _verified_recent, _total_citations = _citation_freshness_stat(
-        [r for recs in by_slug.values() for r in recs], as_of
-    )
-    competitor_rows_html = "\n".join(
-        f'    <tr><td><a href="{esc(c["slug"])}/">{esc(c["name"])} ({esc(c["plan_name"])})</a></td>'
-        f'<td>{esc(c["annual_cost_6_person"])}</td><td>No</td></tr>'
-        for c in COMPETITOR_FACTS
-    )
-    body = f"""<h1>DeadlineRadar vs. Practice-Management Suites vs. a Spreadsheet</h1>
-<p class="intro">Every one of those other trackers makes <em>you</em> type in the expiration date and
-takes it on faith. We compute it from the codified statute or board rule and show you the citation
-&mdash; that's the one sentence that actually separates this from a CPE vendor, a practice-management
-suite's generic renewals tab, or a spreadsheet: <a href="/methodology/">see exactly how we verify every
-date</a>. <strong>{_verified_recent} of {_total_citations}</strong> of those citations were
-individually re-checked against their source within the last {STALENESS_THRESHOLD_DAYS} days.</p>
-
-<h2>What a 6-person firm pays elsewhere</h2>
-<p>None of these track an individual staff CPA's license renewal &mdash; they're practice-management
-suites with a generic reminders/tasks feature, not a sourced compliance tool. Prices below are each
-product's own published rate for a 6-person firm, checked directly against their current pricing pages.
-Competitor prices verified 2026-08-10 against each vendor's published pricing page (Canopy Standard
-$74/user/mo; Karbon Business $89/user/mo; TaxDome Pro $1,000/seat/yr, 1-yr term); they may have changed
-since.</p>
-<div class="table-wrap">
-<table class="compare-table">
-  <caption class="dr-visually-hidden">Annual cost for a 6-person firm, DeadlineRadar vs. named practice-management suites</caption>
-  <thead><tr><th scope="col">Product</th><th scope="col">Annual cost, 6-person firm</th><th scope="col">Tracks a staff CPA's license?</th></tr></thead>
-  <tbody>
-    <tr><td><strong>DeadlineRadar</strong></td><td>$299/year (Growth tier, up to 10 staff)</td><td>Yes</td></tr>
-{competitor_rows_html}
-  </tbody>
-</table>
-</div>
-<p class="field-hint">These are broad practice-management platforms &mdash; client portals, workflow,
-document management &mdash; and license tracking is a reasonable thing for them not to specialize in.
-The point isn't that they're bad products; it's that a firm already paying one of them still has no
-sourced answer to "when does Alex's CPA license renew" without something like this alongside it.</p>
-
-<h2>The one competitor close enough in price to actually confuse</h2>
-<p><strong><a href="{esc(MYCPE_ONE_FACTS["slug"])}/">MYCPE ONE</a></strong>'s published price as of
-2026-08-10 is {esc(MYCPE_ONE_FACTS["annual_cost"])} &mdash; the same headline price our old Individual
-tier used to carry. Worth naming specifically because
-it's the one product priced close enough to cause real confusion, but it does a different job: it's a
-CPE-hours platform (tracking completed continuing-education credits), not a license-renewal filing
-tracker. Both matter to a CPA; they're not the same problem, and DeadlineRadar's own CPE Hours tab is
-free, not a $199 add-on.</p>
-
-<h2>Feature-by-feature, DeadlineRadar vs. a spreadsheet vs. a generic tool</h2>
-<p class="intro">The table above names real products for the two facts we've independently verified
-(price, and whether they track a staff license). For everything else &mdash; what's actually inside a
-generic subscription-tracking tool, feature by feature &mdash; this file has no verified, current facts
-about any one company, so the comparison below stays honest about that and names no one (see
-<a href="/methodology/">How We Verify</a> for the same standard applied to every renewal date).</p>
-
-<div class="table-wrap">
-<table class="compare-table">
-  <caption class="dr-visually-hidden">Feature comparison: DeadlineRadar free tier, DeadlineRadar paid tier, a spreadsheet, and a generic tracking tool</caption>
-  <thead>
-    <tr><th scope="col">Feature</th><th scope="col">DeadlineRadar Free</th><th scope="col">DeadlineRadar Paid</th><th scope="col">A spreadsheet</th><th scope="col">A generic tracking tool</th></tr>
-  </thead>
-  <tbody>
-{table_rows_html}
-  </tbody>
-</table>
-</div>
-<p class="field-hint">* A solo account (you're the only person signed in, no team invited) gets the Map and
-firm-level registration check free too &mdash; see the <a href="/pricing/">full free-vs-paid breakdown</a>.
-The individual check above is free for every account regardless.</p>
-
-<h2>Where a spreadsheet is genuinely fine</h2>
-<p>If your firm has one or two staff and someone is already diligent about checking renewal dates by
-hand, a spreadsheet works. It gets harder as headcount grows, as staff move between states, and as CPE
-requirements pile up per person &mdash; the failure mode is never a dramatic one, it is a single missed
-renewal on a spreadsheet no one opened that week.</p>
-
-<p class="backlink">See <a href="/pricing/">pricing</a>, or <a href="/for-firms/">the full firm-tier
-breakdown</a>.</p>
-"""
-    return page_shell(
-        f"DeadlineRadar vs. Canopy, Karbon, TaxDome, and a Spreadsheet — {SITE_NAME}",
-        "What a 6-person firm pays for Canopy, Karbon, and TaxDome vs. DeadlineRadar, plus an honest "
-        "feature-by-feature comparison against a spreadsheet and generic tracking tools.",
-        body,
-        home_href="../",
-        canonical_path="/compare/",
-        has_remind_anchor=False,
-    )
-
-
-def build_competitor_compare_page(c: dict) -> tuple[str, str, str]:
-    """Roadmap #335 -- one dedicated page per named practice-management-suite
-    competitor, split out of /compare/'s single combined page. Reuses the
-    exact same COMPETITOR_FACTS entry /compare/'s own table reads from, so
-    the two pages can't drift on price. Returns (slug, title, html_body)."""
-    title = f"DeadlineRadar vs. {c['name']} — CPA License Renewal Tracking"
-    meta_description = (
-        f"DeadlineRadar vs. {c['name']} for a 6-person CPA firm: {c['annual_cost_6_person']} vs. "
-        f"$299/year, and whether either one tracks an individual staff CPA's license renewal."
-    )
-    body = f"""<h1>{esc(title)}</h1>
-<p class="intro">{esc(c['name'])} ({esc(c['plan_name'])}) is a practice-management suite &mdash; client
-portals, workflow, document management. It's a genuinely different product than DeadlineRadar, not a
-head-to-head rival, and a firm can reasonably run both. This page exists for the one question that
-actually overlaps: does either one track when an individual staff CPA's <em>license itself</em> is due
-for renewal.</p>
-
-<div class="table-wrap">
-<table class="compare-table">
-  <caption class="dr-visually-hidden">Annual cost for a 6-person firm, DeadlineRadar vs. {esc(c['name'])}</caption>
-  <thead><tr><th scope="col">Product</th><th scope="col">Annual cost, 6-person firm</th><th scope="col">Tracks a staff CPA's license?</th></tr></thead>
-  <tbody>
-    <tr><td><strong>DeadlineRadar</strong></td><td>$299/year (Growth tier, up to 10 staff)</td><td>Yes</td></tr>
-    <tr><td>{esc(c['name'])} ({esc(c['plan_name'])})</td><td>{esc(c['annual_cost_6_person'])}</td><td>No</td></tr>
-  </tbody>
-</table>
-</div>
-<p class="field-hint">{esc(c['name'])}'s price above is its own published rate ({esc(c['cost_basis'])}),
-verified 2026-08-10 against its current pricing page &mdash; it may have changed since. DeadlineRadar's
-sourced, cited renewal dates for all 55 U.S. jurisdictions are described in full on our
-<a href="../../methodology/">verification methodology page</a>.</p>
-
-<h2>Why this isn't really a competitive comparison</h2>
-<p>{esc(c['name'])} solves client-facing workflow &mdash; the day-to-day of running client engagements.
-DeadlineRadar solves one narrow, specific compliance problem: knowing, with a citation, exactly when
-every staff CPA's license and firm registration is due, and getting reminded before it lapses. Most
-firms using {esc(c['name'])} still have no sourced answer to "when does this person's license renew"
-inside it &mdash; that's not a criticism, license tracking just isn't what it's built for.</p>
-
-<p class="backlink">See the <a href="../">full comparison page</a>, or <a href="../../pricing/">DeadlineRadar
-pricing</a>.</p>
-"""
-    html = page_shell(
-        f"{title} — {SITE_NAME}", meta_description, body, home_href="../../",
-        canonical_path=f"/compare/{c['slug']}/", has_remind_anchor=False,
-    )
-    return c["slug"], title, html
-
-
-def build_mycpe_one_compare_page() -> tuple[str, str, str]:
-    """Roadmap #335 -- MYCPE ONE's own dedicated page. Kept separate from
-    build_competitor_compare_page() since it's a different shape (a CPE-hours
-    platform, not a practice-management suite) with a different comparison
-    (CPE tracking scope, not a 6-person-firm cost table)."""
-    c = MYCPE_ONE_FACTS
-    title = f"DeadlineRadar vs. {c['name']} — CPE Tracking vs. License Renewal Tracking"
-    meta_description = (
-        f"DeadlineRadar vs. {c['name']}: {c['name']} tracks completed CPE hours for {c['annual_cost']}. "
-        f"DeadlineRadar's CPE Hours tracking is free, and also tracks the license renewal itself."
-    )
-    body = f"""<h1>{esc(title)}</h1>
-<p class="intro">{esc(c['name'])}'s published price as of 2026-08-10 is {esc(c['annual_cost'])} &mdash;
-close enough to our old Individual tier's own headline price to cause real confusion. But it does a
-different job: it's a CPE-hours platform, tracking completed continuing-education credits. DeadlineRadar
-tracks the license renewal filing itself &mdash; a genuinely different deadline, on a genuinely
-different clock in most states.</p>
-
-<div class="table-wrap">
-<table class="compare-table">
-  <caption class="dr-visually-hidden">DeadlineRadar vs. {esc(c['name'])}</caption>
-  <thead><tr><th scope="col">Product</th><th scope="col">Price</th><th scope="col">What it tracks</th></tr></thead>
-  <tbody>
-    <tr><td><strong>DeadlineRadar</strong></td><td>Free (individual)</td>
-      <td>License renewal deadline, sourced and cited &mdash; plus free CPE-hour tracking against the
-      real requirement for your state.</td></tr>
-    <tr><td>{esc(c['name'])}</td><td>{esc(c['annual_cost'])}</td>
-      <td>Completed CPE hours/credits.</td></tr>
-  </tbody>
-</table>
-</div>
-<p class="field-hint">Both matter to a working CPA &mdash; missing your CPE hours and missing your
-license renewal are two different ways to end up out of compliance, covered in more depth in our
-<a href="../../blog/cpe-vs-license-renewal/">CPE vs. license renewal</a> guide. DeadlineRadar's own
-CPE Hours tab is free, not a paid add-on.</p>
-
-<p class="backlink">See the <a href="../">full comparison page</a>, or <a href="../../pricing/">DeadlineRadar
-pricing</a>.</p>
-"""
-    html = page_shell(
-        f"{title} — {SITE_NAME}", meta_description, body, home_href="../../",
-        canonical_path=f"/compare/{c['slug']}/", has_remind_anchor=False,
-    )
-    return c["slug"], title, html
 
 
 def build_roadmap_page() -> str:
@@ -17982,9 +17709,6 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/pricing/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
-    <loc>{SITE_BASE_URL}/compare/</loc>
-    <lastmod>{as_of.isoformat()}</lastmod>
-  </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/practice-privilege-check/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
@@ -18240,17 +17964,12 @@ def main() -> None:
         REINSTATEMENT_PAGES.append({"slug": slug, "state_name": reinstatement_record["state"]})
         print(f"wrote {SITE_DIR.name}/{slug}/index.html  ({title})")
 
-    COMPETITOR_COMPARE_PAGES.clear()
-    for competitor_page_builder in (
-        [lambda c=c: build_competitor_compare_page(c) for c in COMPETITOR_FACTS]
-        + [build_mycpe_one_compare_page]
-    ):
-        c_slug, c_title, c_html = competitor_page_builder()
-        c_dir = SITE_DIR / "compare" / c_slug
-        c_dir.mkdir(parents=True, exist_ok=True)
-        (c_dir / "index.html").write_text(c_html, encoding="utf-8")
-        COMPETITOR_COMPARE_PAGES.append({"slug": f"compare/{c_slug}"})
-        print(f"wrote {SITE_DIR.name}/compare/{c_slug}/index.html  ({c_title})")
+    # /compare/ (hub + per-competitor pages) removed 2026-08-12, Devin's decision
+    # ("for now" -- pending a rethink now that CPA QualityPro is a known real
+    # competitor). COMPETITOR_COMPARE_PAGES stays declared but empty, so the
+    # sitemap loop below is a harmless no-op -- reinstating this write-out loop
+    # is the only step needed to bring the pages back. COMPETITOR_FACTS/
+    # MYCPE_ONE_FACTS/the 90-day price-freshness gate are all left intact.
 
     # sitemap.xml (below) reads FIRM_LANDING_PAGES, CPE_HOURS_PAGES,
     # REINSTATEMENT_PAGES, and COMPETITOR_COMPARE_PAGES, so it must be
@@ -18288,11 +18007,6 @@ def main() -> None:
     pricing_dir.mkdir(parents=True, exist_ok=True)
     (pricing_dir / "index.html").write_text(build_pricing_page(by_slug, as_of), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/pricing/index.html")
-
-    compare_dir = SITE_DIR / "compare"
-    compare_dir.mkdir(parents=True, exist_ok=True)
-    (compare_dir / "index.html").write_text(build_compare_page(by_slug, as_of), encoding="utf-8")
-    print(f"wrote {SITE_DIR.name}/compare/index.html")
 
     ppc_dir = SITE_DIR / "practice-privilege-check"
     ppc_dir.mkdir(parents=True, exist_ok=True)

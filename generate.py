@@ -2718,6 +2718,7 @@ def site_footer() -> str:
       <a href="/pricing/">Pricing</a>
       <a href="/compare/">Compare</a>
       <a href="/cost-calculator/">Cost Calculator</a>
+      <a href="/deadline-calculator/">Deadline Calculator</a>
       <a href="/blog/">Guides</a>
       <a href="/blog/cpe-vs-license-renewal/">CPE vs. License Renewal</a>
       <a href="/roadmap/">Roadmap</a>
@@ -15894,6 +15895,52 @@ check. See <a href="/pricing/">full pricing</a>.</p>
     )
 
 
+def build_deadline_calculator_page(by_slug: dict[str, list[dict]]) -> str:
+    """Roadmap #125 ("free public tools -- no-signup deadline calculator").
+    Same "dedicated, SEO-targeted landing page pointing at an existing free
+    tool" pattern as build_practice_privilege_landing_page() and
+    build_cost_calculator_page() -- the homepage's own state-search box
+    already IS a free, no-signup deadline lookup (browsing any state page
+    has never required an account), but it has no page of its own targeting
+    "deadline calculator"-style search intent. Reuses
+    _state_quick_search_html() verbatim (same JS, same DR_STATES data, same
+    absolute-path drGoToState() navigation -- confirmed safe to embed on a
+    brand-new top-level page, not just state pages) rather than building a
+    second search widget. No new data, no new claims -- pure landing-page
+    framing around what already exists and is already free."""
+    body = f"""<h1>CPA License Renewal Deadline Calculator</h1>
+<p class="intro">Pick your state below and go straight to your exact renewal deadline &mdash; free,
+no signup, no account required. Every date is sourced to your state board's own statute or rule, the
+same verification standard applied to every page on this site &mdash; <a href="/methodology/">see
+exactly how</a>.</p>
+
+{_state_quick_search_html(by_slug)}
+
+<h2>How this actually works</h2>
+<p>There's no separate "calculator" logic running here &mdash; picking your state takes you straight
+to that state's own page, where your renewal date is either computed directly (most states) or, for
+the states whose rule depends on a personal fact like your birth month, walked through with the exact
+inputs that state's own rule actually uses. Either way, the date you get is never estimated or
+guessed &mdash; if we can't confirm it against a primary source, the page says so instead of showing a
+number.</p>
+
+<p><strong>Tracking a whole firm's staff, not just your own license?</strong> See the
+<a href="/for-firms/">firm overview</a> &mdash; the same free, sourced deadline data in one roster
+view instead of one state at a time.</p>
+
+<p class="backlink"><a href="/">&larr; Back to all states</a></p>
+"""
+    return page_shell(
+        f"CPA License Renewal Deadline Calculator — {SITE_NAME}",
+        "Free CPA license renewal deadline calculator -- pick your state, get your exact renewal "
+        "date, sourced to your state board's own rule. No signup required.",
+        body,
+        home_href="../",
+        canonical_path="/deadline-calculator/",
+        has_remind_anchor=False,
+    )
+
+
 def build_multi_state_firms_page() -> str:
     """Roadmap #337: one page assembling Map + Practice Privilege Check +
     Rule Changes for a firm whose staff span multiple states -- explicitly
@@ -18182,6 +18229,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
     <loc>{SITE_BASE_URL}/cost-calculator/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/deadline-calculator/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/roadmap/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
@@ -18496,6 +18546,11 @@ def main() -> None:
     calc_dir.mkdir(parents=True, exist_ok=True)
     (calc_dir / "index.html").write_text(build_cost_calculator_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/cost-calculator/index.html")
+
+    deadline_calc_dir = SITE_DIR / "deadline-calculator"
+    deadline_calc_dir.mkdir(parents=True, exist_ok=True)
+    (deadline_calc_dir / "index.html").write_text(build_deadline_calculator_page(by_slug), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/deadline-calculator/index.html")
 
     roadmap_dir = SITE_DIR / "roadmap"
     roadmap_dir.mkdir(parents=True, exist_ok=True)

@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Security &amp; Trust — DeadlineRadar</title>
-<meta name="description" content="How DeadlineRadar protects your firm&#x27;s data: encryption, access control, and incident response, explained in plain language with no compliance-theater claims.">
-<link rel="canonical" href="https://deadline-radar.com/security/">
+<title>CPA License Renewal Deadline Calculator — DeadlineRadar</title>
+<meta name="description" content="Free CPA license renewal deadline calculator -- pick your state, get your exact renewal date, sourced to your state board&#x27;s own rule. No signup required.">
+<link rel="canonical" href="https://deadline-radar.com/deadline-calculator/">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta property="og:title" content="Security &amp; Trust — DeadlineRadar">
-<meta property="og:description" content="How DeadlineRadar protects your firm&#x27;s data: encryption, access control, and incident response, explained in plain language with no compliance-theater claims.">
-<meta property="og:url" content="https://deadline-radar.com/security/">
+<meta property="og:title" content="CPA License Renewal Deadline Calculator — DeadlineRadar">
+<meta property="og:description" content="Free CPA license renewal deadline calculator -- pick your state, get your exact renewal date, sourced to your state board&#x27;s own rule. No signup required.">
+<meta property="og:url" content="https://deadline-radar.com/deadline-calculator/">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="DeadlineRadar">
 <meta property="og:image" content="https://deadline-radar.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Security &amp; Trust — DeadlineRadar">
-<meta name="twitter:description" content="How DeadlineRadar protects your firm&#x27;s data: encryption, access control, and incident response, explained in plain language with no compliance-theater claims.">
+<meta name="twitter:title" content="CPA License Renewal Deadline Calculator — DeadlineRadar">
+<meta name="twitter:description" content="Free CPA license renewal deadline calculator -- pick your state, get your exact renewal date, sourced to your state board&#x27;s own rule. No signup required.">
 <meta name="twitter:image" content="https://deadline-radar.com/og-image.png">
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
@@ -1595,57 +1595,39 @@
 <header class="site-header">
   <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>
 </header>
-<h1>Security &amp; Trust</h1>
-<p class="intro">What actually protects your firm's data on DeadlineRadar, in plain language --
-not a compliance-theater checklist. Every claim on this page describes something actually shipped in
-this product's code, not a policy aspiration.</p>
+<h1>CPA License Renewal Deadline Calculator</h1>
+<p class="intro">Pick your state below and go straight to your exact renewal deadline &mdash; free,
+no signup, no account required. Every date is sourced to your state board's own statute or rule, the
+same verification standard applied to every page on this site &mdash; <a href="/methodology/">see
+exactly how</a>.</p>
 
-<h2>Data handling</h2>
-<p>We collect only what the reminder and license-tracking service actually needs to work -- see the
-full breakdown on our <a href="/privacy/">Privacy Policy</a>. A firm's roster data (staff names,
-emails, license states, CPE hours, any documents uploaded) is scoped strictly to that firm: every
-storage query used to read or write it is filtered by the requesting firm's own account id, not just
-checked once at the door. We do not sell or share your data with third parties, and we do not run
-advertising or cross-site tracking of any kind (see our <a href="/privacy/">cookie disclosure</a>).</p>
+<div class="state-search">
+  <label for="state-search-input">Jump to another state</label>
+  <form id="state-search-form" role="search" onsubmit="return drGoToState(event)" autocomplete="off">
+    <div class="state-search-field">
+      <input type="text" id="state-search-input" name="state" placeholder="e.g. Texas, Illinois, Ohio…"
+        autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list"
+        aria-controls="state-search-dropdown">
+      <div class="state-search-dropdown" id="state-search-dropdown" role="listbox"></div>
+    </div>
+    <button type="submit" class="state-search-submit">Go</button>
+  </form>
+</div>
+<script>var DR_STATES=[{name:"Alabama",slug:"alabama"},{name:"Alaska",slug:"alaska"},{name:"Arizona",slug:"arizona"},{name:"Arkansas",slug:"arkansas"},{name:"California",slug:"california"},{name:"Colorado",slug:"colorado"},{name:"Connecticut",slug:"connecticut"},{name:"Delaware",slug:"delaware"},{name:"District of Columbia",slug:"dc"},{name:"Florida",slug:"florida"},{name:"Georgia",slug:"georgia"},{name:"Guam",slug:"guam"},{name:"Hawaii",slug:"hawaii"},{name:"Idaho",slug:"idaho"},{name:"Illinois",slug:"illinois"},{name:"Indiana",slug:"indiana"},{name:"Iowa",slug:"iowa"},{name:"Kansas",slug:"kansas"},{name:"Kentucky",slug:"kentucky"},{name:"Louisiana",slug:"louisiana"},{name:"Maine",slug:"maine"},{name:"Maryland",slug:"maryland"},{name:"Massachusetts",slug:"massachusetts"},{name:"Michigan",slug:"michigan"},{name:"Minnesota",slug:"minnesota"},{name:"Mississippi",slug:"mississippi"},{name:"Missouri",slug:"missouri"},{name:"Montana",slug:"montana"},{name:"Nebraska",slug:"nebraska"},{name:"Nevada",slug:"nevada"},{name:"New Hampshire",slug:"new-hampshire"},{name:"New Jersey",slug:"new-jersey"},{name:"New Mexico",slug:"new-mexico"},{name:"New York",slug:"new-york"},{name:"North Carolina",slug:"north-carolina"},{name:"North Dakota",slug:"north-dakota"},{name:"Northern Mariana Islands",slug:"northern-mariana-islands"},{name:"Ohio",slug:"ohio"},{name:"Oklahoma",slug:"oklahoma"},{name:"Oregon",slug:"oregon"},{name:"Pennsylvania",slug:"pennsylvania"},{name:"Puerto Rico",slug:"puerto-rico"},{name:"Rhode Island",slug:"rhode-island"},{name:"South Carolina",slug:"south-carolina"},{name:"South Dakota",slug:"south-dakota"},{name:"Tennessee",slug:"tennessee"},{name:"Texas",slug:"texas"},{name:"U.S. Virgin Islands",slug:"us-virgin-islands"},{name:"Utah",slug:"utah"},{name:"Vermont",slug:"vermont"},{name:"Virginia",slug:"virginia"},{name:"Washington",slug:"washington"},{name:"West Virginia",slug:"west-virginia"},{name:"Wisconsin",slug:"wisconsin"},{name:"Wyoming",slug:"wyoming"}];function drNormalize(s){return s.trim().toLowerCase()}function drMatches(typed){var norm=drNormalize(typed);if(!norm)return[];var starts=[],contains=[];DR_STATES.forEach(function(s){var n=drNormalize(s.name);if(n.indexOf(norm)===0)starts.push(s);else if(n.indexOf(norm)!==-1)contains.push(s)});return starts.concat(contains)}function drExactOrSingleMatch(typed){var norm=drNormalize(typed);if(!norm)return null;var exact=null;DR_STATES.forEach(function(s){if(drNormalize(s.name)===norm)exact=s});if(exact)return exact.slug;var matches=drMatches(typed);return matches.length===1?matches[0].slug:null}function drGoToState(event){if(event)event.preventDefault();var input=document.getElementById("state-search-input");var slug=drExactOrSingleMatch(input.value);if(slug){window.location.href="/"+slug+"/"}return false}function drFilterGrid(){var typed=drNormalize(document.getElementById("state-search-input").value);document.querySelectorAll(".state-card").forEach(function(card){var name=drNormalize(card.getAttribute("data-state-name"));var match=!typed||name.indexOf(typed)!==-1;card.classList.toggle("state-card--dimmed",!match)})}var drActiveIndex=-1;function drCloseDropdown(){var dropdown=document.getElementById("state-search-dropdown");var input=document.getElementById("state-search-input");dropdown.innerHTML="";dropdown.classList.remove("is-open");input.setAttribute("aria-expanded","false");drActiveIndex=-1}function drRenderDropdown(){var input=document.getElementById("state-search-input");var dropdown=document.getElementById("state-search-dropdown");var typed=input.value;if(!typed.trim()){drCloseDropdown();return}var matches=drMatches(typed);drActiveIndex=-1;if(matches.length===0){dropdown.innerHTML='<div class="state-search-empty">No matching state</div>';dropdown.classList.add("is-open");input.setAttribute("aria-expanded","true");return}dropdown.innerHTML=matches.map(function(s,i){return'<button type="button" class="state-search-option" data-slug="'+s.slug+'" data-index="'+i+'" role="option">'+s.name+"</button>"}).join("");dropdown.classList.add("is-open");input.setAttribute("aria-expanded","true")}function drSetActive(index){var options=document.querySelectorAll(".state-search-option");options.forEach(function(opt){opt.classList.remove("is-active")});if(index>=0&&index<options.length){options[index].classList.add("is-active");options[index].scrollIntoView({block:"nearest"})}drActiveIndex=index}document.addEventListener("DOMContentLoaded",function(){var input=document.getElementById("state-search-input");var dropdown=document.getElementById("state-search-dropdown");if(!input||!dropdown)return;input.addEventListener("input",function(){drRenderDropdown();drFilterGrid()});input.addEventListener("keydown",function(event){var options=document.querySelectorAll(".state-search-option");if(event.key==="ArrowDown"){event.preventDefault();if(options.length)drSetActive((drActiveIndex+1)%options.length)}else if(event.key==="ArrowUp"){event.preventDefault();if(options.length)drSetActive((drActiveIndex-1+options.length)%options.length)}else if(event.key==="Enter"){if(drActiveIndex>=0&&options[drActiveIndex]){event.preventDefault();window.location.href="/"+options[drActiveIndex].getAttribute("data-slug")+"/"}}else if(event.key==="Escape"){drCloseDropdown()}});dropdown.addEventListener("click",function(event){var opt=event.target.closest(".state-search-option");if(opt){window.location.href="/"+opt.getAttribute("data-slug")+"/"}});document.addEventListener("click",function(event){if(event.target!==input&&!dropdown.contains(event.target))drCloseDropdown()})});</script>
 
-<h2>Encryption</h2>
-<p>Every connection to DeadlineRadar is HTTPS-only -- we send an HTTP Strict-Transport-Security
-header instructing browsers to never downgrade to plain HTTP, on every response. Passwords are never
-stored in plain text: they're hashed with PBKDF2-HMAC-SHA256 at 100,000 iterations per password, each
-with its own random salt, using the same standard the U.S. federal government's own NIST password
-guidance describes. Session and login tokens are stored as one-way SHA-256 hashes, not the raw value a
-stolen database dump could reuse to sign in. Uploaded documents (license and CPE certificates) are
-served back only with <code>Content-Disposition: attachment</code> and
-<code>X-Content-Type-Options: nosniff</code> on every response, so a maliciously crafted file can never
-be interpreted as an inline webpage by a browser.</p>
+<h2>How this actually works</h2>
+<p>There's no separate "calculator" logic running here &mdash; picking your state takes you straight
+to that state's own page, where your renewal date is either computed directly (most states) or, for
+the states whose rule depends on a personal fact like your birth month, walked through with the exact
+inputs that state's own rule actually uses. Either way, the date you get is never estimated or
+guessed &mdash; if we can't confirm it against a primary source, the page says so instead of showing a
+number.</p>
 
-<h2>Access control</h2>
-<p>Sign-in cookies are marked <code>HttpOnly</code> (invisible to any page script, including a
-successful XSS payload), <code>Secure</code> (HTTPS-only transmission), and scoped with
-<code>SameSite</code>. Every request that changes data -- adding staff, editing a record, changing a
-password -- is checked against the Origin header the browser itself sends, rejecting cross-site
-forgery attempts before they reach the database. Every write endpoint is rate-limited -- keyed to your
-account where one's already established, or to your IP address for the handful of actions (like
-signing out) that happen before a session exists to key on -- so a compromised session or a scripting
-bug can't be abused to hammer the system. We send a Content-
-Security-Policy, X-Frame-Options, and X-Content-Type-Options header on every response as additional,
-independent layers against the same class of attack.</p>
+<p><strong>Tracking a whole firm's staff, not just your own license?</strong> See the
+<a href="/for-firms/">firm overview</a> &mdash; the same free, sourced deadline data in one roster
+view instead of one state at a time.</p>
 
-<h2>Incident response</h2>
-<p>We're a small, hands-on team, not a large enterprise with a dedicated security operations center --
-we won't claim otherwise. What that means in practice: a real person reviews this system regularly,
-security-relevant code changes go through the same scrutiny as everything else we ship, and if
-something ever goes wrong, we will tell affected firms directly and promptly, not bury it in a
-changelog. We do not currently hold a formal security certification (SOC 2, ISO 27001) or run a paid
-bug-bounty program -- if that changes, this page will say so, not before.</p>
-
-<h2>Found something?</h2>
-<p>If you believe you've found a security issue, email us directly at
-<a href="mailto:support@deadline-radar.com">support@deadline-radar.com</a> with what you found and how to reproduce
-it. A real person reads every message here -- see our <a href="/contact/">Contact page</a> for more.</p>
-
-<p class="how-it-works">See also our <a href="/privacy/">Privacy Policy</a> and
-<a href="/terms/">Terms of Service</a>.</p>
+<p class="backlink"><a href="/">&larr; Back to all states</a></p>
 
 </div>
 <footer class="site-footer">

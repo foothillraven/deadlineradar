@@ -417,6 +417,16 @@ const NOT_VERIFIED_SUMMARY =
   "We haven't verified this state's rule against a primary source yet, so we're not going to guess. " +
   "Confirm directly with the state board before providing services there.";
 
+// AuditLab MOB-6 (2026-08-11, LOW): the ic-ambiguous branch below is dual-source
+// verified (citation/citationUrl/verifiedDate are all populated) -- the gap is the
+// qualifying PATHWAY being unsettled in the underlying law, not a lack of
+// verification on our end. Reusing NOT_VERIFIED_SUMMARY there contradicted the
+// citation shown right beside it.
+const PATHWAY_UNSETTLED_SUMMARY =
+  "This state's rule is verified, but the specific qualifying pathway for out-of-state CPAs is still " +
+  "unsettled in the underlying law, so we're not going to guess. Confirm directly with the state board " +
+  "before providing services there.";
+
 /**
  * The guard that makes a wrong green answer structurally impossible: a
  * "clear" verdict without a citation is downgraded to "not_verified".
@@ -530,10 +540,10 @@ function blockingRuleCondition(rule: MobilityRuleRow, now: Date): MobilityFindin
   return null;
 }
 
-function notVerified(rule: MobilityRuleRow | null, reason: string): MobilityFinding {
+function notVerified(rule: MobilityRuleRow | null, reason: string, summary: string = NOT_VERIFIED_SUMMARY): MobilityFinding {
   return {
     verdict: "not_verified",
-    summary: NOT_VERIFIED_SUMMARY,
+    summary,
     requirements: [reason],
     citation: rule?.citation ?? null,
     citationUrl: rule?.citation_url ?? null,
@@ -725,7 +735,8 @@ function evaluateIndividualMobilityInner(
       return notVerified(
         rule,
         rule.individual_criteria_ambiguity_note ??
-          "This state's specific qualifying criteria for out-of-state CPAs are still unsettled. Confirm directly with the board."
+          "This state's specific qualifying criteria for out-of-state CPAs are still unsettled. Confirm directly with the board.",
+        PATHWAY_UNSETTLED_SUMMARY
       );
     }
 

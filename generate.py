@@ -4391,6 +4391,7 @@ def build_state_page(
         cpe_hours_by_slug.get(state_slug) if cpe_hours_by_slug else None,
         reinstatement_by_slug.get(state_slug) if reinstatement_by_slug else None,
         firm_landing_slugs_by_state.get(state_slug) if firm_landing_slugs_by_state else None,
+        renewal_fees_by_slug.get(state_slug) if renewal_fees_by_slug else None,
     )
     body = f"""<h1>{esc(title)}</h1>
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
@@ -17368,6 +17369,7 @@ def _firm_landing_reverse_link_html(state_slug: str, state_name: str, firm_landi
 def _state_faq_html_and_schema(
     state_slug: str, state_name: str, records: list[dict],
     cpe_record: dict | None, reinstatement_record: dict | None, firm_landing_slug: str | None,
+    renewal_fee_record: dict | None = None,
 ) -> tuple[str, dict]:
     """Roadmap #340: narrow, genuinely per-state FAQ -- every answer reuses a
     fact already verified and published elsewhere on this site
@@ -17377,11 +17379,32 @@ def _state_faq_html_and_schema(
     FAQ, not 4 padded ones -- same "don't fabricate, disclose the gap
     instead" discipline as every other record-shape check in this file. Q1
     (the renewal cycle itself) is the only unconditional one -- every state
-    has at least a records list to draw it from."""
+    has at least a records list to draw it from.
+
+    Roadmap #122 (2026-08-12, "state-specific FAQ content expansion"): added
+    the renewal-fee question, 5th fact type, reusing data/renewal_fees.json
+    (built earlier the same session this item was picked up -- zero new
+    research). Same honest-gap pattern as _renewal_fee_html() itself: a
+    state whose fee_usd is None still gets an FAQ entry, disclosing exactly
+    why no flat fee is confirmable rather than omitting the question."""
     primary = next((r for r in records if r.get("license_type") in ("individual", "individual_cpa", "all")), records[0])
     qa: list[tuple[str, str]] = [
         (f"How does {state_name}'s CPA license renewal cycle work?", primary["cycle_description"])
     ]
+    if renewal_fee_record:
+        if renewal_fee_record["fee_usd"] is None:
+            gap_note = renewal_fee_record.get(
+                "data_gap_note", "No confirmable flat renewal fee found from an official source."
+            )
+            qa.append((
+                f"How much does it cost to renew a CPA license in {state_name}?",
+                f"Not independently confirmable from an official source -- {gap_note}",
+            ))
+        else:
+            qa.append((
+                f"How much does it cost to renew a CPA license in {state_name}?",
+                f"${renewal_fee_record['fee_usd']:,}. {renewal_fee_record['fee_notes']}",
+            ))
     if cpe_record:
         hours_word = "hour" if cpe_record["total_hours"] == 1 else "hours"
         years_word = "year" if cpe_record["period_years"] == 1 else "years"

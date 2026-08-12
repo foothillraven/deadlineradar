@@ -489,31 +489,6 @@
   .guide-disclosure p { margin: 0; }
   .state-links { padding-left: 1.2rem; margin: 0.75rem 0 1.5rem; }
   .state-links li { margin-bottom: 0.3rem; }
-  .mock-dashboard {
-    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
-    margin: 1.5rem 0 0.6rem; box-shadow: 0 6px 20px rgba(20, 30, 45, 0.08);
-  }
-  .mock-chrome {
-    display: flex; align-items: center; gap: 0.4rem;
-    background: var(--row-alt); padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--border);
-  }
-  .mock-dot {
-    width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--border);
-    display: inline-block;
-  }
-  .mock-url {
-    margin-left: 0.6rem; font-size: 0.72rem; color: var(--muted);
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-  }
-  .mock-body { padding: 1.1rem 1.2rem 1.3rem; background: var(--bg); }
-  .mock-firm-name { font-weight: 700; margin-bottom: 0.8rem; }
-  .mock-firm-count { font-weight: 400; color: var(--muted); font-size: 0.88rem; }
-  .mock-dashboard .table-wrap { margin: 0; }
-  .mock-dashboard table { font-size: 0.86rem; }
-  
-  .mock-dashboard .dr-sidebar { position: static; }
-  .mock-dashboard .dr-dash-shell { margin: 0; }
-  .mock-dashboard .dr-nav a { pointer-events: none; }
   .mock-status {
     display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.01em;
     padding: 0.18em 0.6em; border-radius: 999px; white-space: nowrap;
@@ -1931,109 +1906,11 @@
   for tracking your own individual license, always at no cost. If you're the one keeping track of a
   whole firm's staff across multiple states, the firm dashboard below is the same sourced-to-codified-
   law data in one roster view &mdash; who's current, who's at risk, and who needs to act.</p>
-  <div class="mock-dashboard">
-  <div class="mock-chrome">
-    <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
-    <span class="mock-url">deadline-radar.com/firm-dashboard/</span>
+  <div class="dr-showcase-frame">
+    <img src="/showcase/roster.jpg" alt="Real screenshot of the DeadlineRadar firm roster: who's current, who's at risk, at a glance." width="1568" height="778" loading="lazy">
   </div>
-  <div class="mock-body">
-  <div class="dr-dash-shell">
-    <aside class="dr-sidebar">
-      <div class="dr-firm-name">Example Firm, LLC</div>
-      <ul class="dr-nav">
-        <li><a href="#" class="is-active" tabindex="-1">Roster</a></li>
-        <li><a href="#" tabindex="-1">Calendar</a></li>
-        <li><a href="#" tabindex="-1">Map</a></li>
-        <li><a href="#" tabindex="-1">CPE Hours</a></li>
-        <li><a href="#" tabindex="-1">Reports</a></li>
-        <li><a href="/firm-mobility/">Practice Privilege Check</a></li>
-        <li><a href="#" tabindex="-1">Account</a></li>
-      </ul>
-    </aside>
-    <div class="dr-main">
-      <div class="dr-stat-row">
-        <div class="dr-stat-card"><div class="dr-ring-wrap">
-  <svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">
-    <circle class="dr-ring-track" cx="29" cy="29" r="24"></circle>
-    <circle class="dr-ring-value" cx="29" cy="29" r="24" stroke-dasharray="101.0 150.8"></circle>
-  </svg>
-  <div class="dr-ring-pct">67%</div>
-</div>
-          <div><div class="dr-stat-label">Coverage</div><div class="dr-stat-value">67%</div>
-          <div class="dr-stat-sub">4 of 6 active</div></div></div>
-        <div class="dr-stat-card"><div class="dr-donut-wrap">
-  <div style="width:58px;height:58px;border-radius:50%;flex:none;display:flex;align-items:center;
-  justify-content:center;background:conic-gradient(#1f9e5c 0.0deg 240.0deg, #c33737 240.0deg 300.0deg, #8595a3 300.0deg 360.0deg);" aria-hidden="true">
-    <div style="width:30px;height:30px;border-radius:50%;background:var(--card-bg);"></div>
-  </div>
-  <ul class="dr-donut-legend"><li><span class="swatch" style="background:#1f9e5c"></span>Active (4)</li>
-<li><span class="swatch" style="background:#c33737"></span>Needs attention (1)</li>
-<li><span class="swatch" style="background:#8595a3"></span>Opted out (1)</li></ul>
-</div>
-          <div><div class="dr-stat-label">Roster status</div><div class="dr-stat-value">6</div>
-          <div class="dr-stat-sub">staff tracked</div></div></div>
-        <div class="dr-stat-card"><div class="dr-ring-wrap">
-  <svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">
-    <circle class="dr-ring-track" cx="29" cy="29" r="24"></circle>
-    <circle class="dr-ring-value" cx="29" cy="29" r="24" stroke-dasharray="0.0 150.8"></circle>
-  </svg>
-  <div class="dr-ring-pct">0%</div>
-</div>
-          <div><div class="dr-stat-label">Due soon</div><div class="dr-stat-value">0</div>
-          <div class="dr-stat-sub">due within 30 days or unresolved</div></div></div>
-      </div>
-      <div class="table-wrap">
-      <table>
-        <thead><tr><th>Staff</th><th>State</th><th>Status</th><th>Next deadline</th></tr></thead>
-        <tbody>
-        <tr>
-  <td>Alex R.</td>
-  <td>Georgia</td>
-  <td><span class="mock-status mock-status--ok">Active</span></td>
-  <td>December 31, 2027</td>
-</tr>
-<tr>
-  <td>Jordan M.</td>
-  <td>Alabama</td>
-  <td><span class="mock-status mock-status--ok">Active</span></td>
-  <td>December 31, 2026</td>
-</tr>
-<tr>
-  <td>Sam K.</td>
-  <td>Illinois</td>
-  <td><span class="mock-status mock-status--pending">Opted out</span></td>
-  <td>September 30, 2027</td>
-</tr>
-<tr>
-  <td>Taylor B.</td>
-  <td>Missouri</td>
-  <td><span class="mock-status mock-status--risk">Needs attention</span></td>
-  <td>September 30, 2027</td>
-</tr>
-<tr>
-  <td>Morgan P. — Firm Registration</td>
-  <td>Louisiana</td>
-  <td><span class="mock-status mock-status--ok">Active</span></td>
-  <td>December 31, 2026</td>
-</tr>
-<tr>
-  <td>Casey T. — Firm Registration</td>
-  <td>Missouri</td>
-  <td><span class="mock-status mock-status--ok">Active</span></td>
-  <td>October 31, 2026</td>
-</tr>
-        </tbody>
-      </table>
-      </div>
-    </div>
-  </div>
-  </div>
-</div>
-<p class="mock-caption">Illustrative example &mdash; not a real firm. Dates shown are the actual
-current deadlines for these states, computed the same way as every free page on this site. This is
-the real product design, not a mockup of a different one. 6 staff shown here to also illustrate firm
-registration (a separate feature, 2 of the rows above) &mdash; the free tier itself covers up to
-3 staff; paid tiers cover more.</p>
+  <p class="mock-caption">Real screenshot of our own shared live demo account &mdash; the same one
+  you land on if you click "Live Demo" above &mdash; not a mockup. <a href="for-firms/" style="font-weight:600;">See the full product tour &rarr;</a></p>
   <p class="how-it-works"><strong>Roster, calendar, and CPE tracking are free, up to 3 staff</strong>,
   no card required, no time limit. Firm plans from $199/year (up to 5 staff) to $549/year (up to 35
   staff) add the multistate map and practice-privilege check &mdash; every paid tier has the identical

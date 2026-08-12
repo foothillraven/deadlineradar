@@ -979,37 +979,6 @@ PAGE_CSS = """
   .guide-disclosure p { margin: 0; }
   .state-links { padding-left: 1.2rem; margin: 0.75rem 0 1.5rem; }
   .state-links li { margin-bottom: 0.3rem; }
-  .mock-dashboard {
-    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
-    margin: 1.5rem 0 0.6rem; box-shadow: 0 6px 20px rgba(20, 30, 45, 0.08);
-  }
-  .mock-chrome {
-    display: flex; align-items: center; gap: 0.4rem;
-    background: var(--row-alt); padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--border);
-  }
-  .mock-dot {
-    width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--border);
-    display: inline-block;
-  }
-  .mock-url {
-    margin-left: 0.6rem; font-size: 0.72rem; color: var(--muted);
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-  }
-  .mock-body { padding: 1.1rem 1.2rem 1.3rem; background: var(--bg); }
-  .mock-firm-name { font-weight: 700; margin-bottom: 0.8rem; }
-  .mock-firm-count { font-weight: 400; color: var(--muted); font-size: 0.88rem; }
-  .mock-dashboard .table-wrap { margin: 0; }
-  .mock-dashboard table { font-size: 0.86rem; }
-  /* The mockup embeds the REAL dashboard shell (.dr-*) so the marketing
-     preview is pixel-consistent with the real product (2026-07-30, BUILD v2
-     Phase C) -- these two overrides only fix things that don't make sense
-     inside a small decorative preview box: a sticky sidebar would try to
-     stick to PAGE scroll instead of staying inside the mock frame, and the
-     nested .table-wrap already gets .mock-dashboard's own margin/font-size
-     rules above. */
-  .mock-dashboard .dr-sidebar { position: static; }
-  .mock-dashboard .dr-dash-shell { margin: 0; }
-  .mock-dashboard .dr-nav a { pointer-events: none; }
   .mock-status {
     display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.01em;
     padding: 0.18em 0.6em; border-radius: 999px; white-space: nowrap;
@@ -5151,7 +5120,11 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   for tracking your own individual license, always at no cost. If you're the one keeping track of a
   whole firm's staff across multiple states, the firm dashboard below is the same sourced-to-codified-
   law data in one roster view &mdash; who's current, who's at risk, and who needs to act.</p>
-  {_firm_dashboard_mockup_html(by_slug, as_of)}
+  <div class="dr-showcase-frame">
+    <img src="/showcase/roster.jpg" alt="Real screenshot of the DeadlineRadar firm roster: who's current, who's at risk, at a glance." width="1568" height="778" loading="lazy">
+  </div>
+  <p class="mock-caption">Real screenshot of our own shared live demo account &mdash; the same one
+  you land on if you click "Live Demo" above &mdash; not a mockup. <a href="for-firms/" style="font-weight:600;">See the full product tour &rarr;</a></p>
   <p class="how-it-works"><strong>Roster, calendar, and CPE tracking are free, up to 3 staff</strong>,
   no card required, no time limit. Firm plans from $199/year (up to 5 staff) to $549/year (up to 35
   staff) add the multistate map and practice-privilege check &mdash; every paid tier has the identical
@@ -6719,192 +6692,6 @@ license. {len(FIRM_LANDING_PAGES)} states where we've published the firm-specifi
 </ul>"""
 
 
-# (fictional example name, state_slug, license_type, status) for the /for-firms/ dashboard
-# mockup (2026-07-10, per Devin's competitor-emulation directive: PE License Pro / CE Broker
-# both lead with a real product screenshot instead of describing the product in prose). Status
-# is illustrative copy, not derived from data. Dates are NOT hardcoded -- looked up live from
-# cpa_deadlines.json at build time via _mockup_record() below, so this never goes stale the way
-# a hand-typed date sitting on a marketing page silently would (the exact failure class this
-# site's own trust pitch is built around catching).
-_FIRM_MOCKUP_ROSTER = [
-    ("Alex R.", "georgia", "individual", "Active"),
-    ("Jordan M.", "alabama", "all", "Active"),
-    ("Sam K.", "illinois", "individual", "Opted out"),
-    ("Taylor B.", "missouri", "individual", "Needs attention"),
-    ("Morgan P. — Firm Registration", "louisiana", "firm", "Active"),
-    ("Casey T. — Firm Registration", "missouri", "firm", "Active"),
-]
-
-_MOCKUP_STATUS_CLASS = {
-    "Active": "mock-status--ok",
-    "Opted out": "mock-status--pending",
-    "Needs attention": "mock-status--risk",
-}
-
-
-def _mockup_record(by_slug: dict[str, list[dict]], state_slug: str, license_type: str) -> dict | None:
-    for r in by_slug.get(state_slug, []):
-        if r.get("license_type") == license_type and r.get("next_deadline_computed"):
-            return r
-    return None
-
-
-def _mock_ring_svg(pct: int, is_risk: bool) -> str:
-    """Server-rendered twin of the dashboard's own drRingSvg() (generate.py's
-    _FIRM_DASHBOARD_JS_HTML) -- same math, same CSS classes (.dr-ring-*), so
-    the marketing preview is pixel-consistent with the real product a
-    visitor will actually see after signing up, not a separately-styled
-    approximation of it."""
-    import math
-
-    r = 24.0
-    c = 2 * math.pi * r
-    clamped = max(0, min(100, pct))
-    dash = (clamped / 100) * c
-    risk_class = " is-risk" if is_risk else ""
-    return f"""<div class="dr-ring-wrap{risk_class}">
-  <svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">
-    <circle class="dr-ring-track" cx="29" cy="29" r="{r:g}"></circle>
-    <circle class="dr-ring-value" cx="29" cy="29" r="{r:g}" stroke-dasharray="{dash:.1f} {c:.1f}"></circle>
-  </svg>
-  <div class="dr-ring-pct">{clamped}%</div>
-</div>"""
-
-
-_MOCK_DONUT_COLORS = {
-    "Active": "#1f9e5c",
-    "Pending": "#9c7a12",
-    "Needs attention": "#c33737",
-    "Opted out": "#8595a3",
-}
-
-
-def _mock_donut_svg(counts: dict[str, int], total: int) -> str:
-    """Server-rendered twin of drDonutSvg() -- same conic-gradient approach, same
-    color mapping (matching DR_DONUT_COLORS in the real dashboard's JS)."""
-    if not total:
-        return ""
-    order = ["Active", "Pending", "Needs attention", "Opted out"]
-    acc = 0
-    segments = []
-    legend_items = []
-    for key in order:
-        n = counts.get(key, 0)
-        if not n:
-            continue
-        start = (acc / total) * 360
-        acc += n
-        end = (acc / total) * 360
-        segments.append(f"{_MOCK_DONUT_COLORS[key]} {start:.1f}deg {end:.1f}deg")
-        legend_items.append(
-            f'<li><span class="swatch" style="background:{_MOCK_DONUT_COLORS[key]}"></span>'
-            f"{esc(key)} ({n})</li>"
-        )
-    gradient = ", ".join(segments)
-    legend = "\n".join(legend_items)
-    return f"""<div class="dr-donut-wrap">
-  <div style="width:58px;height:58px;border-radius:50%;flex:none;display:flex;align-items:center;
-  justify-content:center;background:conic-gradient({gradient});" aria-hidden="true">
-    <div style="width:30px;height:30px;border-radius:50%;background:var(--card-bg);"></div>
-  </div>
-  <ul class="dr-donut-legend">{legend}</ul>
-</div>"""
-
-
-def _firm_dashboard_mockup_html(by_slug: dict[str, list[dict]], as_of: date) -> str:
-    """A labeled, illustrative dashboard mockup -- NOT a screenshot of a real product (none
-    exists yet) and NOT a real firm's data (every name is a fictional example, same honest
-    convention PE License Pro's own marketing mockup uses ("Cardinal Engineering Group") and CE
-    Broker's uses. Explicitly captioned as an example so this can never be mistaken for a claim
-    that a real customer exists. Every date shown is real, current, computed from
-    cpa_deadlines.json -- only the names and the roster grouping are invented.
-
-    2026-07-30 (BUILD v2 Phase C): rebuilt to match the REAL dashboard's redesigned shell
-    (build_firm_dashboard_page(), same tick) instead of the old plain-table mockup -- reuses
-    the exact .dr-* CSS classes (dark sidebar, coverage ring, status donut) so a visitor sees
-    the actual product, not a differently-styled placeholder of it."""
-    rows = []
-    status_counts: dict[str, int] = {}
-    due_soon = 0
-    for name, state_slug, license_type, status in _FIRM_MOCKUP_ROSTER:
-        record = _mockup_record(by_slug, state_slug, license_type)
-        if record is None:
-            continue
-        status_counts[status] = status_counts.get(status, 0) + 1
-        deadline = date.fromisoformat(record["next_deadline_computed"])
-        # Same definition drRenderStats() uses for the real dashboard's "Due
-        # soon" tile: within 30 days, excluding opted-out (an earlier version
-        # of this mockup counted the "Needs attention" STATUS instead, which
-        # is a different concept entirely and produced a number that
-        # disagreed with this exact sub-label's own text -- caught by
-        # adversarial review; every _FIRM_MOCKUP_ROSTER record always has a
-        # real computed date, so the real dashboard's "or unresolved" branch
-        # never applies here).
-        if status != "Opted out" and (deadline - as_of).days <= 30:
-            due_soon += 1
-        date_label = fmt_date(deadline)
-        status_class = _MOCKUP_STATUS_CLASS.get(status, "mock-status--ok")
-        rows.append(f"""<tr>
-  <td>{esc(name)}</td>
-  <td>{esc(record['state'])}</td>
-  <td><span class="mock-status {status_class}">{esc(status)}</span></td>
-  <td>{esc(date_label)}</td>
-</tr>""")
-    if not rows:
-        return ""
-    total = sum(status_counts.values())
-    active = status_counts.get("Active", 0)
-    coverage_pct = round((active / total) * 100) if total else 0
-    due_soon_pct = round((due_soon / total) * 100) if total else 0
-
-    return f"""<div class="mock-dashboard">
-  <div class="mock-chrome">
-    <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
-    <span class="mock-url">deadline-radar.com/firm-dashboard/</span>
-  </div>
-  <div class="mock-body">
-  <div class="dr-dash-shell">
-    <aside class="dr-sidebar">
-      <div class="dr-firm-name">Example Firm, LLC</div>
-      <ul class="dr-nav">
-        <li><a href="#" class="is-active" tabindex="-1">Roster</a></li>
-        <li><a href="#" tabindex="-1">Calendar</a></li>
-        <li><a href="#" tabindex="-1">Map</a></li>
-        <li><a href="#" tabindex="-1">CPE Hours</a></li>
-        <li><a href="#" tabindex="-1">Reports</a></li>
-        <li><a href="/firm-mobility/">Practice Privilege Check</a></li>
-        <li><a href="#" tabindex="-1">Account</a></li>
-      </ul>
-    </aside>
-    <div class="dr-main">
-      <div class="dr-stat-row">
-        <div class="dr-stat-card">{_mock_ring_svg(coverage_pct, False)}
-          <div><div class="dr-stat-label">Coverage</div><div class="dr-stat-value">{coverage_pct}%</div>
-          <div class="dr-stat-sub">{active} of {total} active</div></div></div>
-        <div class="dr-stat-card">{_mock_donut_svg(status_counts, total)}
-          <div><div class="dr-stat-label">Roster status</div><div class="dr-stat-value">{total}</div>
-          <div class="dr-stat-sub">staff tracked</div></div></div>
-        <div class="dr-stat-card">{_mock_ring_svg(due_soon_pct, due_soon > 0)}
-          <div><div class="dr-stat-label">Due soon</div><div class="dr-stat-value">{due_soon}</div>
-          <div class="dr-stat-sub">due within 30 days or unresolved</div></div></div>
-      </div>
-      <div class="table-wrap">
-      <table>
-        <thead><tr><th>Staff</th><th>State</th><th>Status</th><th>Next deadline</th></tr></thead>
-        <tbody>
-        {chr(10).join(rows)}
-        </tbody>
-      </table>
-      </div>
-    </div>
-  </div>
-  </div>
-</div>
-<p class="mock-caption">Illustrative example &mdash; not a real firm. Dates shown are the actual
-current deadlines for these states, computed the same way as every free page on this site. This is
-the real product design, not a mockup of a different one. 6 staff shown here to also illustrate firm
-registration (a separate feature, 2 of the rows above) &mdash; the free tier itself covers up to
-3 staff; paid tiers cover more.</p>"""
 
 
 # Roadmap #323 (2026-08-10, ValueLab design-pattern-mining #3, TOP PRIORITY):

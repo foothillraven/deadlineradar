@@ -6713,7 +6713,7 @@ def _firm_landing_links_html() -> str:
     )
     return f"""<h2>Firm-registration deadlines by state</h2>
 <p>Your firm's own registration or permit renews on a different clock than any individual staff CPA's
-license. A few states where we've published the firm-specific filing date:</p>
+license. {len(FIRM_LANDING_PAGES)} states where we've published the firm-specific filing date so far:</p>
 <ul class="state-links">
 {items}
 </ul>"""

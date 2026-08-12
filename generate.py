@@ -1285,6 +1285,10 @@ PAGE_CSS = """
     display: flex; align-items: center; gap: 0.55rem; padding: 0.55rem 0.6rem; border-radius: 7px;
     color: #b9cad9; text-decoration: none; font-size: 0.87rem; font-weight: 500;
   }
+  /* 2026-08-12, Devin design-quality directive (approved): icon+label to match
+     CPA QualityPro's sidebar pattern. currentColor means the icon automatically
+     follows .dr-nav a's own color changes (default/hover/is-active) for free. */
+  .dr-nav-icon { width: 16px; height: 16px; flex-shrink: 0; }
   .dr-nav a.is-active { background: rgba(255,255,255,.1); color: #fff; font-weight: 600; }
   .dr-nav a:hover { background: rgba(255,255,255,.06); color: #fff; }
   /* ---- Practice-privilege checker (2026-07-30, pay-gated) ---- */
@@ -15147,19 +15151,50 @@ def _dashboard_sidebar_html(active: str, tabs_live_here: bool) -> str:
     all, which silently landed on whichever tab the static markup defaults
     to -- Roster -- regardless of which link was actually clicked). Practice
     Privilege Check itself is a plain highlighted link, not a tab."""
+    # 2026-08-12, Devin design-quality directive (approved): one inline icon
+    # per nav item, same minimal stroke-based style as /for-firms/'s pain-grid
+    # icons (16x16 viewBox, stroke-width 1.3, currentColor). Map/Reports reuse
+    # the exact pain-grid icon shapes verbatim (location pin / document+check)
+    # since those meanings already fit this context, not just copy-paste.
+    _NAV_ICONS = {
+        "roster": '<circle cx="8" cy="5.3" r="2.3" stroke="currentColor" stroke-width="1.3"/>'
+        '<path d="M3.3 13.3c0-2.5 2.1-4.1 4.7-4.1s4.7 1.6 4.7 4.1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+        "calendar": '<rect x="2.5" y="3.5" width="11" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/>'
+        '<path d="M2.5 6.5h11" stroke="currentColor" stroke-width="1.3"/>'
+        '<path d="M5.5 2v3M10.5 2v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+        "map": '<path d="M8 1.5c-2.2 0-4 1.8-4 4 0 3 4 9 4 9s4-6 4-9c0-2.2-1.8-4-4-4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>'
+        '<circle cx="8" cy="5.5" r="1.4" stroke="currentColor" stroke-width="1.3"/>',
+        "cpe": '<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/>'
+        '<path d="M8 4.5V8l2.7 1.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
+        "reports": '<path d="M4 1.5h5.5L11.5 3.5V14.5h-7.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>'
+        '<path d="M9.5 1.5v2h2" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>'
+        '<path d="M5.5 8.5l1.5 1.5 3-3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
+        "mobility": '<path d="M8 1.5l5 2v4c0 3.5-2.2 6-5 7-2.8-1-5-3.5-5-7v-4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>'
+        '<path d="M5.8 8.2l1.6 1.6 3-3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
+        "account": '<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/>'
+        '<circle cx="8" cy="6.5" r="1.8" stroke="currentColor" stroke-width="1.3"/>'
+        '<path d="M4.5 12.5c0.6-2 2-3 3.5-3s2.9 1 3.5 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+    }
+
+    def _nav_icon(view: str) -> str:
+        return (
+            f'<svg viewBox="0 0 16 16" fill="none" aria-hidden="true" class="dr-nav-icon">{_NAV_ICONS[view]}</svg>'
+        )
+
     def item(view: str, label: str) -> str:
         is_current = active == view
         cls = ' class="is-active"' if is_current else ""
+        icon = _nav_icon(view)
         if view == "mobility":
-            return f'<li><a href="/firm-mobility/"{cls}>{esc(label)}</a></li>'
+            return f'<li><a href="/firm-mobility/"{cls}>{icon}{esc(label)}</a></li>'
         if tabs_live_here:
             aria = "true" if is_current else "false"
             # AuditLab A11Y-2 (MEDIUM, 2026-08-04): aria-controls links this tab
             # to the panel it opens -- the ARIA scaffolding (role=tab/tabpanel,
             # aria-selected) was otherwise already correct, this was the one
             # missing piece.
-            return f'<li><a href="#"{cls} data-view="{view}" role="tab" aria-selected="{aria}" aria-controls="dr-view-{view}">{esc(label)}</a></li>'
-        return f'<li><a href="/firm-dashboard/#{view}"{cls}>{esc(label)}</a></li>'
+            return f'<li><a href="#"{cls} data-view="{view}" role="tab" aria-selected="{aria}" aria-controls="dr-view-{view}">{icon}{esc(label)}</a></li>'
+        return f'<li><a href="/firm-dashboard/#{view}"{cls}>{icon}{esc(label)}</a></li>'
 
     nav_items = "\n      ".join(
         item(view, label)

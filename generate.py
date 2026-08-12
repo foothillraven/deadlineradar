@@ -5303,6 +5303,12 @@ def _pricing_feature_table_rows_html() -> str:
     assumed from memory of what was BUILT to be true -- see the session's own
     verification pass before writing this:
 
+    - Compliance Summary & audit trail export (2026-08-12, ValueLab #2 --
+      real shipped feature, GET /firm/audit-trail, that had zero marketing
+      mentions anywhere on the site) is checked against handleAuditTrail()'s
+      own gate: requireFirmSessionWithFirm(), NOT
+      requireFirmSessionAndPaidTier()/hasValueLineAccess() -- free on every
+      tier, same as CPE-hour tracking above it.
     - SMS is deliberately NOT a row here: it's a capability of the separate
       free public individual-subscriber product (worker/src/sms.ts,
       scheduler.ts's runSmsAlertPass() pulls from the `subscribers` table),
@@ -5347,6 +5353,7 @@ def _pricing_feature_table_rows_html() -> str:
         ("Roster &amp; staff license tracking", "Up to 3 staff", "Up to 35 staff (Enterprise)"),
         ("Calendar view", "Yes", "Yes"),
         ("CPE-hour tracking", "Yes", "Yes"),
+        ("Compliance Summary &amp; audit trail export", "Yes", "Yes"),
         ("Email renewal reminders", "Yes", "Yes"),
         ("Individual Practice Privilege Check", "Yes", "Yes"),
         ("Slack &amp; Teams deadline alerts", "No", "Yes"),
@@ -7005,6 +7012,11 @@ get free reminders on their own; what a firm gets here is the roster-level accou
 personal inbox provides, in one place. Reminders aren't limited to email either &mdash; connect Slack or
 Microsoft Teams and your admin gets a daily digest of newly-due renewals posted straight to the channel
 your team already watches, included on every paid plan.</p>
+
+<p>Preventing a missed deadline is the first job; being able to prove you tried is the second. The
+dashboard's Reports tab gives you a Compliance Summary and a full audit trail &mdash; a dated record of
+every roster change and every reminder actually sent &mdash; exportable for a board inquiry or your own
+file. Free on every tier, no export limit.</p>
 
 <h2>What Practice Privilege Check actually does</h2>
 <p>A different question from renewal dates: can this CPA provide this specific service in this specific

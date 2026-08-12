@@ -342,7 +342,7 @@ JURISDICTION_COUNT = 51  # overwritten in main() from the real record count once
 # TERMS_LAST_CHANGED -- enforced by preship_gate.py's
 # check_terms_version_sync().
 TERMS_LAST_CHANGED = date(2026, 8, 5)
-PRIVACY_LAST_CHANGED = date(2026, 8, 5)
+PRIVACY_LAST_CHANGED = date(2026, 8, 12)  # roadmap #59: added the Tawk.to live-chat disclosure
 
 
 def esc(s: str) -> str:
@@ -2742,6 +2742,21 @@ def site_footer() -> str:
 
 
 CONTACT_EMAIL = "support@deadline-radar.com"
+
+# Roadmap #59 (2026-08-12): live chat, via Tawk.to (free tier, Devin's own
+# account -- see the embed snippet's property/widget id pair). Loaded
+# LAZILY, only when a visitor clicks "Start a live chat" on /contact/, not
+# injected unconditionally on every page load -- Tawk's widget sets its own
+# cookie the moment its script runs (confirmed via their own privacy policy:
+# real third-party cookies/tracking tech, not the "strictly-necessary
+# session cookie" class this site's own privacy page otherwise promises).
+# Click-to-load keeps a visitor who never opens chat from picking up that
+# cookie at all, matching the site's existing "cookieless by default"
+# posture rather than quietly widening it. See build_privacy_page()'s own
+# "Cookies and analytics" section, updated in the same pass this constant
+# was added, for the disclosure this loading behavior is described by.
+TAWK_TO_PROPERTY_ID = "6a7ca6ff7972931d43691568"
+TAWK_TO_WIDGET_ID = "1jvreolls"
 
 # Task #33 (2026-08-06): public demo firm account -- Devin + orchestrator's
 # decision was "public link, no gate" (the competitive-snooping risk is
@@ -6210,15 +6225,23 @@ of service providers strictly to run the service:</p>
   details directly; we do not.</li>
   <li><strong>Google</strong> &mdash; only if you choose "Continue with Google" to sign in, to verify your
   identity.</li>
+  <li><strong>Tawk.to</strong> &mdash; only if you click "Start a live chat" on our <a
+  href="/contact/">Contact page</a>; if you do, anything you type in that chat (and standard technical
+  details like your IP address) is shared with Tawk.to to operate the chat. It never loads unless you
+  click that button first.</li>
 </ul>
 <p>These providers process your data only to deliver the service on our behalf, never for their own
 marketing.</p>
 
 <h2>Cookies and analytics</h2>
-<p>We do not use advertising cookies or cross-site trackers. Signed-in firm and individual sessions use a
-strictly-necessary cookie to keep you logged in &mdash; not for tracking. We may use privacy-first,
-cookie-less analytics (such as Cloudflare Web Analytics) to understand aggregate traffic &mdash; this
-does not track you across the web or identify you personally.</p>
+<p>We do not use advertising cookies or cross-site trackers, and nothing on this site sets a tracking
+cookie by default. Signed-in firm and individual sessions use a strictly-necessary cookie to keep you
+logged in &mdash; not for tracking. We may use privacy-first, cookie-less analytics (such as Cloudflare
+Web Analytics) to understand aggregate traffic &mdash; this does not track you across the web or identify
+you personally. The one exception: if you click "Start a live chat" on our <a href="/contact/">Contact
+page</a>, that loads a third-party chat widget (Tawk.to) which sets its own cookie to keep your
+conversation working &mdash; it only loads after that click, never on page load and never anywhere else
+on the site.</p>
 
 <h2>Your choices</h2>
 <p>Every reminder email includes a one-click link to stop all reminders instantly. Using it permanently
@@ -6709,6 +6732,14 @@ def build_contact_page() -> str:
 <p>We read every message and usually reply within a couple of business days. This is a small, independent
 project &mdash; there's a real person on the other end, not a support queue.</p>
 
+<h2>Live chat</h2>
+<p>Prefer to talk it through right now? Starting a chat loads a live-chat widget (Tawk.to) -- it isn't
+running on this page until you click the button below, so it never sets its own cookie unless you
+actually use it. See our <a href="/privacy/">Privacy Policy</a> for what that widget does and doesn't
+share.</p>
+<button type="button" class="dr-link-btn" id="dr-live-chat-btn">Start a live chat</button>
+<p class="field-hint" id="dr-live-chat-status" hidden>Loading chat&hellip;</p>
+
 <h2>Spotted a wrong date?</h2>
 <p>Deadlines are compiled from official state board sources and we work hard to keep them current, but
 rules change. If a date looks off, email us the state and what you're seeing and we'll verify it against
@@ -6722,11 +6753,34 @@ the source and fix it fast. Always confirm your exact deadline with your state b
 <p>{esc(SITE_NAME)} by {esc(BRAND_NAME)}<br>
 18121 E Hampden Ave, Unit C #1324<br>
 Aurora, CO 80013</p>
+
+<script>
+(function () {{
+  var btn = document.getElementById('dr-live-chat-btn');
+  var status = document.getElementById('dr-live-chat-status');
+  if (!btn) return;
+  btn.addEventListener('click', function () {{
+    btn.disabled = true;
+    if (status) status.hidden = false;
+    // Roadmap #59: script injected here, not on page load -- see
+    // TAWK_TO_PROPERTY_ID's own comment in generate.py for why this stays
+    // click-to-load rather than site-wide-on-every-page.
+    var s1 = document.createElement('script');
+    var s0 = document.getElementsByTagName('script')[0];
+    s1.async = true;
+    s1.src = 'https://embed.tawk.to/{esc(TAWK_TO_PROPERTY_ID)}/{esc(TAWK_TO_WIDGET_ID)}';
+    s1.charset = 'UTF-8';
+    s1.setAttribute('crossorigin', '*');
+    s1.onload = function () {{ if (status) status.hidden = true; }};
+    s0.parentNode.insertBefore(s1, s0);
+  }});
+}})();
+</script>
 """
     return page_shell(
         f"Contact — {SITE_NAME}",
         "Contact DeadlineRadar — questions, deadline corrections, or help with your CPA license "
-        "renewal reminders. Email us any time.",
+        "renewal reminders. Email us or start a live chat.",
         body,
         home_href="../",
         canonical_path="/contact/",

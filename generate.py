@@ -6738,7 +6738,7 @@ running on this page until you click the button below, so it never sets its own 
 actually use it. See our <a href="/privacy/">Privacy Policy</a> for what that widget does and doesn't
 share.</p>
 <button type="button" class="dr-link-btn" id="dr-live-chat-btn">Start a live chat</button>
-<p class="field-hint" id="dr-live-chat-status" hidden>Loading chat&hellip;</p>
+<p class="field-hint" id="dr-live-chat-status" hidden></p>
 
 <h2>Spotted a wrong date?</h2>
 <p>Deadlines are compiled from official state board sources and we work hard to keep them current, but
@@ -6761,7 +6761,17 @@ Aurora, CO 80013</p>
   if (!btn) return;
   btn.addEventListener('click', function () {{
     btn.disabled = true;
-    if (status) status.hidden = false;
+    // Live report (2026-08-12): the button just going quietly disabled read
+    // as "nothing happened" -- Tawk's widget can take a real, noticeable
+    // few seconds to actually render AFTER its script file finishes
+    // downloading (s1.onload firing is not the same moment as the widget
+    // being usable), so the button's own text is now the loud, impossible-
+    // to-miss cue, not a small line of text below it.
+    btn.textContent = 'Loading chat\\u2026';
+    if (status) {{
+      status.hidden = false;
+      status.textContent = 'This can take a few seconds on a slow connection.';
+    }}
     // Roadmap #59: script injected here, not on page load -- see
     // TAWK_TO_PROPERTY_ID's own comment in generate.py for why this stays
     // click-to-load rather than site-wide-on-every-page.
@@ -6771,7 +6781,31 @@ Aurora, CO 80013</p>
     s1.src = 'https://embed.tawk.to/{esc(TAWK_TO_PROPERTY_ID)}/{esc(TAWK_TO_WIDGET_ID)}';
     s1.charset = 'UTF-8';
     s1.setAttribute('crossorigin', '*');
-    s1.onload = function () {{ if (status) status.hidden = true; }};
+    var ready = false;
+    // Poll for the widget actually being usable, not just the script file
+    // having downloaded -- window.Tawk_API exists as soon as Tawk's own
+    // bootstrap runs, before the chat bubble itself has rendered, so this
+    // is the closest available "it's really here" signal without reaching
+    // into Tawk's own internals.
+    var poll = setInterval(function () {{
+      if (window.Tawk_API) {{
+        ready = true;
+        clearInterval(poll);
+        if (status) status.hidden = true;
+        btn.textContent = 'Chat loaded \\u2014 look for the bubble in the corner';
+      }}
+    }}, 300);
+    // Live report (2026-08-12): give up on the "it's loading" framing after
+    // 8s and point to email instead, rather than leaving someone staring at
+    // a button that never visibly resolves -- the poll above keeps running
+    // in the background regardless, so a slow-but-eventually-successful
+    // load still updates the text the moment it's ready.
+    setTimeout(function () {{
+      if (!ready && status) {{
+        status.textContent = "Still connecting -- if this doesn't finish in a few more seconds, " +
+          "email us instead: {esc(CONTACT_EMAIL)}";
+      }}
+    }}, 8000);
     s0.parentNode.insertBefore(s1, s0);
   }});
 }})();

@@ -432,17 +432,22 @@ def check_competitor_price_currency(repo_root: Path) -> list[str]:
     check_deadline_currency() above: a competitor's published price can
     change at any time, and nothing else re-derives verified_date, so a
     stale figure would otherwise sit silently on /compare/ and its per-
-    competitor pages forever (the dedicated /cost-calculator/ page this
-    gate also protected was removed 2026-08-12 -- see roadmap #336's own
-    entry -- but /compare/ still reads the same competitor_prices.json,
-    so this gate stays live for that surface). Small, self-contained
-    dataset (4 records total) -- inlined directly rather than a separate
-    staleness-check module, matching check_deadline_currency()'s own
-    simpler shape rather than the bigger datasets' import-a-script
-    indirection (those also serve a standalone advisory script; this one
-    doesn't need one yet)."""
+    competitor pages forever. /compare/ and /cost-calculator/ (the two
+    surfaces that ever rendered this data) were both removed 2026-08-12
+    (roadmap #336, #33) -- AuditLab's GATE-3 finding caught this docstring
+    still claiming a live surface after the removal. Auto-skips while
+    docs/compare/ doesn't exist so this can't silently block unrelated
+    ships over data nothing renders; reinstating the /compare/ write-out
+    loop in generate.py re-arms the check automatically, no manual flip
+    needed. Small, self-contained dataset (4 records total) -- inlined
+    directly rather than a separate staleness-check module, matching
+    check_deadline_currency()'s own simpler shape rather than the bigger
+    datasets' import-a-script indirection (those also serve a standalone
+    advisory script; this one doesn't need one yet)."""
     data_path = repo_root / "data" / "competitor_prices.json"
     if not data_path.exists():
+        return []
+    if not (repo_root / "docs" / "compare").exists():
         return []
     data = json.loads(data_path.read_text(encoding="utf-8"))
     threshold_days = data.get("_meta", {}).get("staleness_threshold_days", 90)

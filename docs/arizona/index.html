@@ -187,6 +187,12 @@
     .dr-skeleton-line { animation: none; }
   }
   
+  .js-reveal .dr-reveal {
+    opacity: 0; transform: translateY(18px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .js-reveal .dr-reveal--visible { opacity: 1; transform: none; }
+  
   .dr-cookie-notice {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
     background: var(--fg); color: var(--bg);
@@ -411,10 +417,18 @@
 
   
   .dr-pain-headline { font-size: 1.5rem; margin: 0 0 0.3rem; }
-  .dr-pain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; margin: 1.4rem 0 1.8rem; }
+  .dr-pain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4rem; margin: 1.6rem 0 1.8rem; }
   @media (max-width: 700px) { .dr-pain-grid { grid-template-columns: 1fr; } }
-  .dr-pain-col { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.3rem 1.2rem; }
-  .dr-pain-icon { width: 28px; height: 28px; color: var(--accent); margin-bottom: 0.7rem; }
+  
+  .dr-pain-col {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px;
+    padding: 1.7rem 1.6rem; box-shadow: var(--shadow);
+  }
+  .dr-pain-icon-badge {
+    width: 52px; height: 52px; border-radius: 50%; background: var(--accent-bg);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 1rem;
+  }
+  .dr-pain-icon { width: 24px; height: 24px; color: var(--accent); }
   .dr-pain-col p { margin: 0; font-size: 0.9rem; line-height: 1.55; }
 
   
@@ -1539,6 +1553,7 @@
   }
 
 </style>
+<script>if(!window.matchMedia("(prefers-reduced-motion: reduce)").matches&&"IntersectionObserver"in window){document.documentElement.classList.add("js-reveal")}</script>
 </head>
 <body>
 <nav class="mainnav">
@@ -1742,5 +1757,6 @@ up automatically, so we'll remind you based on the date you give us.</p>
   <button type="button" id="dr-cookie-notice-dismiss">Got it</button>
 </div>
 <script>(function(){try{if(window.localStorage.getItem("dr_cookie_notice_dismissed"))return}catch(e){return}var el=document.getElementById("dr-cookie-notice");if(!el)return;el.hidden=false;var btn=document.getElementById("dr-cookie-notice-dismiss");if(btn){btn.addEventListener("click",function(){el.hidden=true;try{window.localStorage.setItem("dr_cookie_notice_dismissed","1")}catch(e){}})}})();</script>
+<script>(function(){if(!document.documentElement.classList.contains("js-reveal"))return;var els=document.querySelectorAll(".dr-reveal");if(!els.length)return;var obs=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting){entry.target.classList.add("dr-reveal--visible");obs.unobserve(entry.target)}})},{threshold:.15,rootMargin:"0px 0px -40px 0px"});els.forEach(function(el){obs.observe(el)})})();</script>
 </body>
 </html>

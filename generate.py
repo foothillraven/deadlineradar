@@ -621,6 +621,17 @@ PAGE_CSS = """
   @media (prefers-reduced-motion: reduce) {
     .dr-skeleton-line { animation: none; }
   }
+  /* Scroll-triggered reveal (2026-08-12, Devin design-quality directive) --
+     gated behind .js-reveal (added by a tiny head script only when JS runs
+     and the visitor hasn't asked for reduced motion) so content already
+     stays fully visible in every other case: JS disabled, IntersectionObserver
+     unsupported, or reduced-motion preferred. See _SCROLL_REVEAL_HEAD_JS /
+     _SCROLL_REVEAL_BODY_JS. */
+  .js-reveal .dr-reveal {
+    opacity: 0; transform: translateY(18px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .js-reveal .dr-reveal--visible { opacity: 1; transform: none; }
   /* Roadmap #57: fixed bottom bar, deliberately unobtrusive (no overlay,
      doesn't block page content) since it's a notice, not a blocking gate. */
   .dr-cookie-notice {
@@ -891,10 +902,21 @@ PAGE_CSS = """
      .method-grid/.mcard shape this file already uses elsewhere, not a new
      visual language. */
   .dr-pain-headline { font-size: 1.5rem; margin: 0 0 0.3rem; }
-  .dr-pain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; margin: 1.4rem 0 1.8rem; }
+  .dr-pain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4rem; margin: 1.6rem 0 1.8rem; }
   @media (max-width: 700px) { .dr-pain-grid { grid-template-columns: 1fr; } }
-  .dr-pain-col { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.3rem 1.2rem; }
-  .dr-pain-icon { width: 28px; height: 28px; color: var(--accent); margin-bottom: 0.7rem; }
+  /* 2026-08-12, Devin design-quality directive (competitor benchmark: CPA
+     QualityPro's colored-circular-badge 3-card pattern) -- reuses the
+     existing --accent-bg/--shadow tokens rather than inventing new colors,
+     so this stays theme-consistent automatically instead of a one-off. */
+  .dr-pain-col {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px;
+    padding: 1.7rem 1.6rem; box-shadow: var(--shadow);
+  }
+  .dr-pain-icon-badge {
+    width: 52px; height: 52px; border-radius: 50%; background: var(--accent-bg);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 1rem;
+  }
+  .dr-pain-icon { width: 24px; height: 24px; color: var(--accent); }
   .dr-pain-col p { margin: 0; font-size: 0.9rem; line-height: 1.55; }
 
   /* Roadmap #331 (2026-08-11, ValueLab design-pattern-mining #9): firm-size
@@ -3477,6 +3499,35 @@ def _json_ld_html(schemas: list[dict] | None) -> str:
 # wrapper with a Show/Hide button that flips the input's type attribute.
 # Never touches the input's id/name/value/other attributes or any existing
 # JS that references it by id, so nothing else on any page needs to change.
+# Orchestrator directive (2026-08-12, Devin design-quality thread): scroll-triggered
+# reveal on marketing-page sections (.dr-reveal), additive only, respects
+# prefers-reduced-motion. Progressive enhancement: the hiding CSS only activates
+# under the "js-reveal" class the tiny head script below adds -- content stays
+# fully visible if JS is disabled/fails or the visitor prefers reduced motion, so
+# this can never leave a section permanently invisible.
+_SCROLL_REVEAL_HEAD_JS = """<script>
+if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+  document.documentElement.classList.add('js-reveal');
+}
+</script>"""
+
+_SCROLL_REVEAL_BODY_JS = """<script>
+(function () {
+  if (!document.documentElement.classList.contains('js-reveal')) return;
+  var els = document.querySelectorAll('.dr-reveal');
+  if (!els.length) return;
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('dr-reveal--visible');
+        obs.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+  els.forEach(function (el) { obs.observe(el); });
+})();
+</script>"""
+
 _SHOW_PASSWORD_TOGGLE_HTML = """<script>
 (function () {
   document.querySelectorAll('input[type="password"]').forEach(function (input) {
@@ -3574,6 +3625,7 @@ def page_shell(
 <style>
 {PAGE_CSS}
 </style>
+{_SCROLL_REVEAL_HEAD_JS}
 </head>
 <body>
 {site_header(home_href, hide_signin=hide_signin, has_remind_anchor=has_remind_anchor, sticky_top_nav=sticky_top_nav)}
@@ -3581,6 +3633,7 @@ def page_shell(
 {site_footer()}
 {_SHOW_PASSWORD_TOGGLE_HTML}
 {_COOKIE_NOTICE_HTML}
+{_SCROLL_REVEAL_BODY_JS}
 </body>
 </html>
 """
@@ -5053,7 +5106,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
             f'a determination</span></div>'
         )
 
-    stats_band_html = f"""<section class="band-section band-section--alt">
+    stats_band_html = f"""<section class="band-section band-section--alt dr-reveal">
   <div class="trust-row">
     <div class="item"><span class="n">{_cov["total"]}</span><span class="lbl">jurisdictions listed</span></div>
     <div class="item"><span class="n">{_cov["determined"]}</span><span class="lbl">where we determine your exact date</span></div>
@@ -5065,7 +5118,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   You enter the date on your license and we track it. We would rather say that than round up.</p>
 </section>"""
 
-    method_band_html = f"""<section class="band-section band-section--alt">
+    method_band_html = f"""<section class="band-section band-section--alt dr-reveal">
   <p class="eyebrow">How we verify</p>
   <h2>Two independent sources, or we don't publish a date.</h2>
   <p style="color:var(--muted); margin:0.7rem 0 0; font-size:1.02rem;">This site's verification
@@ -5102,7 +5155,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
     demo_records = [r for r in by_slug.get("illinois", []) if r.get("id") == "il-individual"]
     demo_html = ""
     if demo_records:
-        demo_html = f"""<section class="band-section" style="border-top:0; padding-top:0; margin-top:0;">
+        demo_html = f"""<section class="band-section dr-reveal" style="border-top:0; padding-top:0; margin-top:0;">
   <p class="eyebrow">What a lookup actually gives you</p>
   <h2>A fact sheet you could hand to a partner.</h2>
   <p style="color:var(--muted); margin:0.7rem 0 1.4rem; font-size:1.02rem;">Pick a state below.
@@ -5113,7 +5166,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   <a href="illinois/" style="font-weight:600;">Open the full Illinois fact sheet &rarr;</a></p>
 </section>"""
 
-    firm_preview_html = f"""<section class="band-section">
+    firm_preview_html = f"""<section class="band-section dr-reveal">
   <p class="eyebrow">Built for firms too</p>
   <h2>One roster, not twenty separate inboxes.</h2>
   <p style="color:var(--muted); margin:0.7rem 0 1.4rem; font-size:1.02rem;">Free reminders above are
@@ -5147,7 +5200,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
 (or, where the rule depends on your birth month, a full lookup table) computed from the
 verified renewal rule, with a link back to the official source and a "last verified" date.</p>
 <p class="how-it-works">Also see our <a href="blog/">guides</a>: <a href="blog/cpe-vs-license-renewal/">CPE requirements vs. license renewal</a>, <a href="blog/common-cpa-renewal-mistakes/">common CPA renewal mistakes</a>, and the <a href="blog/missouri-cpa-license-renewal-guide/">Missouri renewal guide</a>.</p>
-<section class="band-section band-section--alt">
+<section class="band-section band-section--alt dr-reveal">
 {_individual_faq_html()}
 </section>
 {signup_form_homepage(by_slug, as_of)}
@@ -6733,7 +6786,7 @@ def _product_showcase_html() -> str:
     data_map = ", ".join(
         f'{key}: {{src: "/{esc(src)}", caption: "{esc(caption)}"}}' for key, _label, src, caption in _PRODUCT_SHOWCASE_TABS
     )
-    return f"""<div class="dr-showcase">
+    return f"""<div class="dr-showcase dr-reveal">
   <div class="dr-showcase-tabs" role="tablist">
   {tabs_html}
   </div>
@@ -6967,34 +7020,34 @@ were individually re-checked against their source within the last {STALENESS_THR
 
 <h2 class="dr-pain-headline">Every hour completed. The filing still missed.</h2>
 <p class="subhead">Where a spreadsheet (and an individual CPA's own inbox) falls short:</p>
-<div class="dr-pain-grid">
+<div class="dr-pain-grid dr-reveal">
   <div class="dr-pain-col">
-    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" class="dr-pain-icon">
+    <span class="dr-pain-icon-badge"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true" class="dr-pain-icon">
       <path d="M8 1.5c-2.2 0-4 1.8-4 4 0 3 4 9 4 9s4-6 4-9c0-2.2-1.8-4-4-4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
       <circle cx="8" cy="5.5" r="1.4" stroke="currentColor" stroke-width="1.3"/>
-    </svg>
+    </svg></span>
     <p><strong>Multi-state blind spot.</strong> A state board only reminds a CPA about the license held
     <em>with that board</em> &mdash; nobody sends a nudge about the other one or two states the same
     person might also be licensed in. Nothing is watching the full multi-state picture except the CPA
     themselves, one inbox at a time.</p>
   </div>
   <div class="dr-pain-col">
-    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" class="dr-pain-icon">
+    <span class="dr-pain-icon-badge"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true" class="dr-pain-icon">
       <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
       <circle cx="8" cy="8" r="1.8" stroke="currentColor" stroke-width="1.3"/>
       <line x1="2.5" y1="13" x2="13.5" y2="3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-    </svg>
+    </svg></span>
     <p><strong>No firm-level visibility.</strong> The partner or admin who actually carries the
     regulatory risk for the firm never sees any of this &mdash; only the individual licensee's own
     inbox gets the reminder. If that person doesn't forward it, changes their email, or leaves the
     firm, the firm has zero visibility until a renewal is already missed.</p>
   </div>
   <div class="dr-pain-col">
-    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" class="dr-pain-icon">
+    <span class="dr-pain-icon-badge"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true" class="dr-pain-icon">
       <path d="M4 1.5h5.5L11.5 3.5V14.5h-7.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
       <path d="M9.5 1.5v2h2" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
       <path d="M5.5 8.5l1.5 1.5 3-3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
+    </svg></span>
     <p><strong>Filing vs. hours.</strong> CPE-hour tracking tools track whether staff completed their
     continuing-education hours. That's a different event from whether the actual renewal
     <em>filing</em> with the state board happened. Finishing every CPE hour and still missing the

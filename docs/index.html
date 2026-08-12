@@ -188,6 +188,12 @@
     .dr-skeleton-line { animation: none; }
   }
   
+  .js-reveal .dr-reveal {
+    opacity: 0; transform: translateY(18px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .js-reveal .dr-reveal--visible { opacity: 1; transform: none; }
+  
   .dr-cookie-notice {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
     background: var(--fg); color: var(--bg);
@@ -412,10 +418,18 @@
 
   
   .dr-pain-headline { font-size: 1.5rem; margin: 0 0 0.3rem; }
-  .dr-pain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; margin: 1.4rem 0 1.8rem; }
+  .dr-pain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4rem; margin: 1.6rem 0 1.8rem; }
   @media (max-width: 700px) { .dr-pain-grid { grid-template-columns: 1fr; } }
-  .dr-pain-col { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1.3rem 1.2rem; }
-  .dr-pain-icon { width: 28px; height: 28px; color: var(--accent); margin-bottom: 0.7rem; }
+  
+  .dr-pain-col {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px;
+    padding: 1.7rem 1.6rem; box-shadow: var(--shadow);
+  }
+  .dr-pain-icon-badge {
+    width: 52px; height: 52px; border-radius: 50%; background: var(--accent-bg);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 1rem;
+  }
+  .dr-pain-icon { width: 24px; height: 24px; color: var(--accent); }
   .dr-pain-col p { margin: 0; font-size: 0.9rem; line-height: 1.55; }
 
   
@@ -1540,6 +1554,7 @@
   }
 
 </style>
+<script>if(!window.matchMedia("(prefers-reduced-motion: reduce)").matches&&"IntersectionObserver"in window){document.documentElement.classList.add("js-reveal")}</script>
 </head>
 <body>
 <nav class="mainnav">
@@ -1699,7 +1714,7 @@
   <a class="dr-intent-chip" href="rule-changes/">What's changing in 2026?</a>
 </div>
 <script>(function(){var chip=document.getElementById("dr-intent-own-date");var input=document.getElementById("state-search-input");if(chip&&input){chip.addEventListener("click",function(){input.scrollIntoView({behavior:"smooth",block:"center"});input.focus()})}})();</script>
-<section class="band-section band-section--alt">
+<section class="band-section band-section--alt dr-reveal">
   <div class="trust-row">
     <div class="item"><span class="n">55</span><span class="lbl">jurisdictions listed</span></div>
     <div class="item"><span class="n">41</span><span class="lbl">where we determine your exact date</span></div>
@@ -1710,7 +1725,7 @@
   &mdash; your birth month, cohort or issue date &mdash; or the board publishes no verifiable date.
   You enter the date on your license and we track it. We would rather say that than round up.</p>
 </section>
-<section class="band-section" style="border-top:0; padding-top:0; margin-top:0;">
+<section class="band-section dr-reveal" style="border-top:0; padding-top:0; margin-top:0;">
   <p class="eyebrow">What a lookup actually gives you</p>
   <h2>A fact sheet you could hand to a partner.</h2>
   <p style="color:var(--muted); margin:0.7rem 0 1.4rem; font-size:1.02rem;">Pick a state below.
@@ -1871,7 +1886,7 @@
 <a class="state-card" href="wyoming/" data-state-name="Wyoming"><div class="state-name">Wyoming</div><div class="state-hint">December 31, 2026</div></a>
 </div>
 </div>
-<section class="band-section band-section--alt">
+<section class="band-section band-section--alt dr-reveal">
   <p class="eyebrow">How we verify</p>
   <h2>Two independent sources, or we don't publish a date.</h2>
   <p style="color:var(--muted); margin:0.7rem 0 0; font-size:1.02rem;">This site's verification
@@ -1899,7 +1914,7 @@
   </div>
   <a href="/methodology/" style="font-weight:600;">Read our full verification standard &rarr;</a>
 </section>
-<section class="band-section">
+<section class="band-section dr-reveal">
   <p class="eyebrow">Built for firms too</p>
   <h2>One roster, not twenty separate inboxes.</h2>
   <p style="color:var(--muted); margin:0.7rem 0 1.4rem; font-size:1.02rem;">Free reminders above are
@@ -1921,7 +1936,7 @@
 (or, where the rule depends on your birth month, a full lookup table) computed from the
 verified renewal rule, with a link back to the official source and a "last verified" date.</p>
 <p class="how-it-works">Also see our <a href="blog/">guides</a>: <a href="blog/cpe-vs-license-renewal/">CPE requirements vs. license renewal</a>, <a href="blog/common-cpa-renewal-mistakes/">common CPA renewal mistakes</a>, and the <a href="blog/missouri-cpa-license-renewal-guide/">Missouri renewal guide</a>.</p>
-<section class="band-section band-section--alt">
+<section class="band-section band-section--alt dr-reveal">
 <h2>Questions people ask before signing up</h2>
 <div class="faq-list">
 <details class="faq-item">
@@ -2326,5 +2341,6 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
   <button type="button" id="dr-cookie-notice-dismiss">Got it</button>
 </div>
 <script>(function(){try{if(window.localStorage.getItem("dr_cookie_notice_dismissed"))return}catch(e){return}var el=document.getElementById("dr-cookie-notice");if(!el)return;el.hidden=false;var btn=document.getElementById("dr-cookie-notice-dismiss");if(btn){btn.addEventListener("click",function(){el.hidden=true;try{window.localStorage.setItem("dr_cookie_notice_dismissed","1")}catch(e){}})}})();</script>
+<script>(function(){if(!document.documentElement.classList.contains("js-reveal"))return;var els=document.querySelectorAll(".dr-reveal");if(!els.length)return;var obs=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting){entry.target.classList.add("dr-reveal--visible");obs.unobserve(entry.target)}})},{threshold:.15,rootMargin:"0px 0px -40px 0px"});els.forEach(function(el){obs.observe(el)})})();</script>
 </body>
 </html>

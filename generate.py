@@ -5883,11 +5883,12 @@ the table shows "Contact us" there instead of guessing a number.</p>
 
 <h2>Why this isn't quite an apples-to-apples number</h2>
 <p>Canopy, Karbon, and TaxDome are full practice-management suites &mdash; client portals, workflow,
-document management. DeadlineRadar solves one narrow, specific problem: knowing, with a citation, when
-every staff CPA's license and firm registration is due. A firm running one of those suites may
-reasonably keep it AND add DeadlineRadar alongside it for license tracking specifically, rather than
-switching away from either. The numbers above are real and comparable on price; they're not a claim
-that the products do the same job.</p>
+document management &mdash; while DeadlineRadar solves one narrower, specific problem: knowing, with a
+citation, when every staff CPA's license and firm registration is due. If license tracking is the only
+reason a firm is paying for one of those suites, DeadlineRadar can replace that cost outright. If a firm
+relies on the rest of what those suites do, DeadlineRadar runs alongside it instead. The numbers above
+are real and comparable on price for the license-tracking job specifically &mdash; not a claim that
+every feature of these products overlaps.</p>
 
 <p class="backlink">See the <a href="/compare/">full comparison page</a>, or
 <a href="/pricing/">DeadlineRadar pricing</a>.</p>

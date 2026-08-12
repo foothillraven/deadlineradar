@@ -431,8 +431,11 @@ def check_competitor_price_currency(repo_root: Path) -> list[str]:
     check -- "90 days it is." Same promote-to-hard-gate shape as
     check_deadline_currency() above: a competitor's published price can
     change at any time, and nothing else re-derives verified_date, so a
-    stale figure would otherwise sit silently on /compare/, its per-
-    competitor pages, and the calculator forever. Small, self-contained
+    stale figure would otherwise sit silently on /compare/ and its per-
+    competitor pages forever (the dedicated /cost-calculator/ page this
+    gate also protected was removed 2026-08-12 -- see roadmap #336's own
+    entry -- but /compare/ still reads the same competitor_prices.json,
+    so this gate stays live for that surface). Small, self-contained
     dataset (4 records total) -- inlined directly rather than a separate
     staleness-check module, matching check_deadline_currency()'s own
     simpler shape rather than the bigger datasets' import-a-script

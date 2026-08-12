@@ -124,6 +124,15 @@ export interface SubscriberRow {
   // same free-text, no-implied-structure posture as staff_label. NULL means
   // untagged.
   office_tag: string | null;
+  // migration 0063 (roadmap #317 Phase 2 Part A). ISO YYYY-MM-DD or null,
+  // self-reported -- when this person was ORIGINALLY licensed. Used only as
+  // an informational grandfather-date HINT for individual-criteria mobility
+  // states (mobility.ts's own MobilityInput docstring explains why this can
+  // never drive a definitive verdict alone -- most grandfather clauses also
+  // require "already had privileges in THAT target state," a fact this
+  // field cannot prove). Same self-reported, never-verified posture as
+  // renewal_fee_cents/office_tag above.
+  license_issue_date: string | null;
   // migration 0040 (roadmap #26). ISO YYYY-MM-DD or null. Self-service,
   // fixed 14-day snooze -- see that migration's own docstring. scheduler.ts
   // skips threshold evaluation entirely while this is today-or-later;
@@ -409,6 +418,10 @@ export interface AddPendingInput {
   /** migration 0037 (roadmap #16). Optional office/department label, same
    * firm-dashboard-only posture as renewalFeeCents above. */
   officeTag?: string | null;
+  /** migration 0063 (roadmap #317 Phase 2 Part A). Optional, self-reported
+   * ISO date -- when this person was originally licensed. Same
+   * firm-dashboard-only, never-verified posture as officeTag above. */
+  licenseIssueDate?: string | null;
 }
 
 /**
@@ -463,6 +476,11 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     // actually elapsed), so AddPendingInput has no corresponding field.
     carryover_hours: null,
     office_tag: sanitizeFreeText(input.officeTag, MAX_OFFICE_TAG_LEN),
+    // Roadmap #317 Phase 2 Part A: caller (index.ts) has already validated
+    // this as a real, non-future ISO date via parseStrictIsoDate() -- no
+    // re-sanitization needed here since it's not free text, just passed
+    // through (or null if omitted).
+    license_issue_date: input.licenseIssueDate ?? null,
     // Roadmap #26: a new staffer starts un-snoozed, same as every other
     // brand-new record.
     snoozed_until: null,
@@ -494,8 +512,8 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
        (id, email, cooldown_key, state_slug, deadline_fields, first_name, status,
         confirm_token, unsubscribe_token, renewed_token, created_at, confirmed_at,
         stopped_at, stop_reason, reminders_sent, cycle, deadline_source, user_deadline,
-        last_resend_at, resend_count, firm_id, staff_label, renewal_fee_cents, office_tag)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24)`
+        last_resend_at, resend_count, firm_id, staff_label, renewal_fee_cents, office_tag, license_issue_date)
+       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25)`
     )
     .bind(
       record.id,
@@ -521,7 +539,8 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
       record.firm_id,
       record.staff_label,
       record.renewal_fee_cents,
-      record.office_tag
+      record.office_tag,
+      record.license_issue_date
     )
     .run();
   return record;
@@ -2990,6 +3009,11 @@ export interface UpdateFirmLicenseInput {
   /** migration 0041 (roadmap #68). Internal-only note. Same always-passed,
    * re-sanitized-here-independently convention as officeTag above. */
   internalNotes: string | null;
+  /** migration 0063 (roadmap #317 Phase 2 Part A). Optional, self-reported
+   * ISO date. Same always-passed, HTTP-layer-partial-update convention as
+   * officeTag above -- already validated as a real, non-future date by the
+   * caller. */
+  licenseIssueDate: string | null;
 }
 
 /**
@@ -3040,8 +3064,8 @@ export async function updateFirmLicense(
        SET email = ?1, cooldown_key = ?2, staff_label = ?3, state_slug = ?4, deadline_fields = ?5,
            deadline_source = ?6, user_deadline = ?7, status = ?8, confirmed_at = ?9, confirm_token = ?10,
            stopped_at = ?11, stop_reason = ?12, reminders_sent = ?13, last_edited_at = ?14, renewal_fee_cents = ?15,
-           carryover_hours = ?16, office_tag = ?17, internal_notes = ?18
-       WHERE id = ?19 AND firm_id = ?20`
+           carryover_hours = ?16, office_tag = ?17, internal_notes = ?18, license_issue_date = ?19
+       WHERE id = ?20 AND firm_id = ?21`
     )
     .bind(
       input.email,
@@ -3062,6 +3086,7 @@ export async function updateFirmLicense(
       input.carryoverHours,
       newOfficeTag,
       newInternalNotes,
+      input.licenseIssueDate,
       id,
       firmId
     )
@@ -3087,6 +3112,7 @@ export async function updateFirmLicense(
     carryover_hours: input.carryoverHours,
     office_tag: newOfficeTag,
     internal_notes: newInternalNotes,
+    license_issue_date: input.licenseIssueDate,
   };
 }
 

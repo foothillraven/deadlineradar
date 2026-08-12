@@ -5071,6 +5071,10 @@ function toFirmLicenseJson(row: store.SubscriberRow, asOf: Date): Record<string,
     office_tag: row.office_tag,
     // Roadmap #68: internal-only note -- see migration 0041's own docstring.
     internal_notes: row.internal_notes,
+    // Roadmap #317 Phase 2 Part A: self-reported original licensure date --
+    // see migration 0063's own docstring for why this is an informational
+    // hint only, never a verified fact.
+    license_issue_date: row.license_issue_date,
     // Roadmap #26: self-service snooze the subscriber set themselves from
     // a reminder email -- surfaced so the admin isn't left guessing why
     // someone stopped getting reminders. Read-only from the dashboard's
@@ -6173,6 +6177,21 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
   const officeTagRaw = (form.office_tag ?? "").trim();
   const officeTag = officeTagRaw.length > 0 ? officeTagRaw.slice(0, MAX_OFFICE_TAG_LEN) : null;
 
+  // Roadmap #317 Phase 2 Part A (2026-08-12): optional, self-reported --
+  // when this person was originally licensed. Same real-calendar-date
+  // validation as license_expiration_date above, but must NOT be in the
+  // future (a licensure date is necessarily in the past), so it can't reuse
+  // resolveDeadlineInput()'s own future-dated checks.
+  const licenseIssueDateRaw = (form.license_issue_date ?? "").trim();
+  let licenseIssueDate: string | null = null;
+  if (licenseIssueDateRaw.length > 0) {
+    const parsedIssueDate = parseStrictIsoDate(licenseIssueDateRaw);
+    if (!parsedIssueDate || parsedIssueDate.getTime() > Date.now()) {
+      return jsonResponse(400, { error: "Please enter a valid license issue date (today or earlier)." });
+    }
+    licenseIssueDate = licenseIssueDateRaw;
+  }
+
   const resolved = resolveDeadlineInput(stateSlug, form);
   if (resolved instanceof Response) {
     // resolveDeadlineInput() returns an HTML errorPage() Response (shared
@@ -6258,6 +6277,7 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
     skipConfirmation: true,
     renewalFeeCents,
     officeTag,
+    licenseIssueDate,
   });
 
   // AuditLab LC-1 (LOW, 2026-08-04): if this same person was previously
@@ -6415,6 +6435,24 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
     internalNotes = trimmed.length > 0 ? trimmed.slice(0, MAX_INTERNAL_NOTES_LEN) : null;
   }
 
+  // Roadmap #317 Phase 2 Part A (2026-08-12): optional license-issue date.
+  // Same present-but-empty-clears / absent-leaves-untouched partial-update
+  // semantics as office_tag above, plus the same non-future-date validation
+  // handleFirmLicenseCreate() applies.
+  let licenseIssueDate = existing.license_issue_date;
+  if (typeof parsed.license_issue_date === "string") {
+    const trimmed = parsed.license_issue_date.trim();
+    if (trimmed.length === 0) {
+      licenseIssueDate = null;
+    } else {
+      const parsedIssueDate = parseStrictIsoDate(trimmed);
+      if (!parsedIssueDate || parsedIssueDate.getTime() > Date.now()) {
+        return jsonResponse(400, { error: "Please enter a valid license issue date (today or earlier)." });
+      }
+      licenseIssueDate = trimmed;
+    }
+  }
+
   // Roadmap #7 (2026-08-07): self-reported, optional. Present-but-empty
   // explicitly clears it (matches staff_label's own empty-string-clears
   // convention above); absent from the body leaves the existing value
@@ -6538,6 +6576,7 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
     carryoverHours,
     officeTag,
     internalNotes,
+    licenseIssueDate,
     resetConfirmation: emailChanged,
   });
   if (!updated) return jsonResponse(404, { error: "Not found." });
@@ -9888,6 +9927,18 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
     return jsonResponse(400, { error: "Please choose a service type." });
   }
 
+  // Roadmap #317 Phase 2 Part A (2026-08-12): optional, same self-attestation
+  // trust level as license_in_good_standing/substantially_equivalent above
+  // -- never independently verified against a roster row here (the
+  // frontend already has this value from its own earlier GET /firm/licenses
+  // fetch when a staff member is selected, so no extra DB round-trip is
+  // needed), and MobilityInput.licenseIssueDate's own docstring is explicit
+  // that this can only ever produce an informational hint, never upgrade a
+  // verdict. A malformed value is simply dropped (undefined), never a 400 --
+  // this field is optional and non-authoritative on every path that reads it.
+  const licenseIssueDateRaw = typeof body.license_issue_date === "string" ? body.license_issue_date : "";
+  const licenseIssueDate = parseStrictIsoDate(licenseIssueDateRaw) ? licenseIssueDateRaw : undefined;
+
   const result = evaluateMobility(
     {
       homeStateSlug,
@@ -9895,6 +9946,7 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
       serviceType: serviceTypeRaw,
       licenseInGoodStanding: body.license_in_good_standing === true,
       substantiallyEquivalent: body.substantially_equivalent === true,
+      licenseIssueDate,
     },
     MOBILITY_RULES_BY_SLUG[targetStateSlug] ?? null,
     // Roadmap #317 Phase 1: `now` left at its default (undefined -> `new

@@ -2338,6 +2338,7 @@ describe("Cross-firm ownership -- the single most important test in this build",
         carryoverHours: null,
         officeTag: null,
         internalNotes: null,
+        licenseIssueDate: null,
         resetConfirmation: false,
       })
     ).toBeNull();

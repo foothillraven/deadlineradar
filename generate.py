@@ -9074,6 +9074,10 @@ def _firm_dashboard_add_staff_form_html(by_slug: dict[str, list[dict]], as_of: d
     <input type="text" inputmode="decimal" id="dr-add-fee" name="renewal_fee" placeholder="e.g. 199.00">
     <label for="dr-add-office">Office / department (optional)</label>
     <input type="text" id="dr-add-office" name="office_tag" maxlength="60" placeholder="e.g. Downtown office">
+    <label for="dr-add-issue-date">License issue date (optional)</label>
+    <input type="date" id="dr-add-issue-date" name="license_issue_date">
+    <p class="field-hint">When they were originally licensed. Used only to show a heads-up on
+    Practice Privilege Check if a target state has a grandfather cutoff -- never required.</p>
     <button type="submit">Add staff</button>
   </form>
   <p id="dr-add-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
@@ -9085,9 +9089,10 @@ def _firm_dashboard_add_staff_form_html(by_slug: dict[str, list[dict]], as_of: d
   minimum <code>email</code> and <code>state</code> (or <code>state_slug</code>). Optional columns:
   <code>staff_label</code>, <code>license_type_id</code>, <code>birth_month</code>,
   <code>birth_year</code>, <code>cohort_group</code>, <code>license_expiration_date</code>,
-  <code>renewal_fee</code>, <code>office_tag</code> -- same fields the form above accepts, so a state
-  needing more than email/state (about a third of them do) needs the matching column filled in or
-  that row will be skipped with the same reason the single Add Staff form would show.</p>
+  <code>renewal_fee</code>, <code>office_tag</code>, <code>license_issue_date</code> -- same fields
+  the form above accepts, so a state needing more than email/state (about a third of them do) needs
+  the matching column filled in or that row will be skipped with the same reason the single Add
+  Staff form would show.</p>
   <p class="signup-microcopy">Starting from an existing spreadsheet? <button type="button" class="dr-link-btn" id="dr-csv-template-btn">Download a blank template</button>
   with the exact column headers below, then copy your staff into it -- safer than retyping headers by hand.</p>
   <label for="dr-csv-import-file">CSV file</label>
@@ -9771,7 +9776,7 @@ function drApplyBulkTag() {
 // came from a real <form> submission or here).
 var DR_CSV_KNOWN_COLUMNS = [
   'email', 'staff_label', 'license_type_id', 'birth_month', 'birth_year',
-  'cohort_group', 'license_expiration_date', 'renewal_fee', 'office_tag'
+  'cohort_group', 'license_expiration_date', 'renewal_fee', 'office_tag', 'license_issue_date'
 ];
 
 // Minimal RFC4180-ish CSV parser -- handles quoted fields (embedded commas,
@@ -11941,8 +11946,8 @@ function drTriggerCsvDownload(filename, lines) {
 
 function drDownloadRosterCsv() {
   var headers = ['Staff', 'Email', 'State', 'License type', 'Status', 'Next deadline',
-    'Renewal fee', 'Office/department', 'CPE carryover hours', 'CPE total logged', 'CPE total required',
-    'CPE ethics logged', 'CPE ethics required'];
+    'Renewal fee', 'Office/department', 'License issue date', 'CPE carryover hours', 'CPE total logged',
+    'CPE total required', 'CPE ethics logged', 'CPE ethics required'];
   var lines = [headers.map(drCsvField).join(',')];
   drLicenses.forEach(function(item) {
     var licenseTypeIdForDisplay = item.license_type_id || DR_DEFAULT_LICENSE_TYPE_ID[item.state_slug];
@@ -11951,7 +11956,7 @@ function drDownloadRosterCsv() {
     var row = [
       item.staff_label || '', item.email, item.state_name || '',
       drPrettyLicenseType(licenseTypeIdForDisplay), DR_STATUS_LABELS[item.status] || item.status,
-      item.next_deadline || '', fee, item.office_tag || '',
+      item.next_deadline || '', fee, item.office_tag || '', item.license_issue_date || '',
       (typeof item.carryover_hours === 'number') ? item.carryover_hours : '',
       p.hasRequirement ? p.totalLogged : '', p.hasRequirement && p.totalRequired !== null ? p.totalRequired : '',
       p.hasRequirement ? p.ethicsLogged : '', p.hasRequirement && p.ethicsRequired !== null ? p.ethicsRequired : ''
@@ -11975,8 +11980,8 @@ function drDownloadRosterCsv() {
 // Import panel's own copy already explains when those are needed.
 function drDownloadCsvTemplate() {
   var headers = ['email', 'state', 'staff_label', 'license_type_id', 'birth_month',
-    'birth_year', 'cohort_group', 'license_expiration_date', 'renewal_fee', 'office_tag'];
-  var exampleRow = ['jane.doe@example.com', 'Georgia', 'Jane Doe', '', '', '', '', '', '199.00', 'Downtown office'];
+    'birth_year', 'cohort_group', 'license_expiration_date', 'renewal_fee', 'office_tag', 'license_issue_date'];
+  var exampleRow = ['jane.doe@example.com', 'Georgia', 'Jane Doe', '', '', '', '', '', '199.00', 'Downtown office', ''];
   var lines = [headers.map(drCsvField).join(','), exampleRow.map(drCsvField).join(',')];
   drTriggerCsvDownload('deadlineradar-import-template.csv', lines);
 }
@@ -13647,6 +13652,8 @@ function drOpenEditModal(item, triggerBtn) {
   }
   var officeInput = document.getElementById('dr-edit-modal-office');
   if (officeInput) officeInput.value = item.office_tag || '';
+  var issueDateInput = document.getElementById('dr-edit-modal-issue-date');
+  if (issueDateInput) issueDateInput.value = item.license_issue_date || '';
   var notesInput = document.getElementById('dr-edit-modal-notes');
   if (notesInput) notesInput.value = item.internal_notes || '';
   if (title) title.textContent = 'Edit ' + (item.staff_label || item.email);
@@ -13699,6 +13706,9 @@ function drSubmitEditModal(ev) {
   var officeInput = document.getElementById('dr-edit-modal-office');
   // Roadmap #16: same always-sent, empty-string-clears convention.
   body.office_tag = officeInput ? officeInput.value.trim() : '';
+  var issueDateInput = document.getElementById('dr-edit-modal-issue-date');
+  // Roadmap #317 Phase 2 Part A: same always-sent, empty-string-clears convention.
+  body.license_issue_date = issueDateInput ? issueDateInput.value.trim() : '';
   var notesInput = document.getElementById('dr-edit-modal-notes');
   // Roadmap #68: same always-sent, empty-string-clears convention.
   body.internal_notes = notesInput ? notesInput.value.trim() : '';
@@ -14858,6 +14868,18 @@ _MOBILITY_JS_HTML = """<script>
       license_in_good_standing: document.getElementById('dr-mob-standing').checked,
       substantially_equivalent: document.getElementById('dr-mob-equiv').checked
     };
+    // Roadmap #317 Phase 2 Part A: informational grandfather-date hint only
+    // (see MobilityInput.licenseIssueDate's own docstring) -- sourced from
+    // the SAME roster fetch drMobStaffLicenses already holds for the staff
+    // dropdown above, no second request. Omitted entirely for the
+    // anonymous "just checking" default or a staffer with none on file.
+    var selectedStaffId = document.getElementById('dr-mob-staff') ? document.getElementById('dr-mob-staff').value : '';
+    if (selectedStaffId) {
+      var selectedStaffRecord = drMobStaffLicenses.filter(function (l) { return l.id === selectedStaffId; })[0];
+      if (selectedStaffRecord && selectedStaffRecord.license_issue_date) {
+        body.license_issue_date = selectedStaffRecord.license_issue_date;
+      }
+    }
 
     fetch('/api/firm/mobility/check', {
       method: 'POST', credentials: 'include',
@@ -15645,6 +15667,12 @@ mistakes.</p>
 </div>
 
 <script>
+// Roadmap #317 Phase 2 Part A (2026-08-12): plain global (not inside the
+// IIFE below) so _MOBILITY_JS_HTML's own separate script/IIFE can look up
+// the selected staff member's license_issue_date at submit time without a
+// second fetch -- both scripts run in the same page, this is the one piece
+// of roster data that needs to cross that boundary.
+var drMobStaffLicenses = [];
 (function () {{
   var nameEl = document.getElementById('dr-firm-name-static');
   var staffSel = document.getElementById('dr-mob-staff');
@@ -15661,6 +15689,7 @@ mistakes.</p>
     // default so this remains a fully anonymous quick-lookup tool unless the
     // caller deliberately picks someone.
     if (staffSel && data.licenses) {{
+      drMobStaffLicenses = data.licenses;
       data.licenses.forEach(function (item) {{
         var opt = document.createElement('option');
         opt.value = item.id;
@@ -16182,6 +16211,9 @@ def build_firm_dashboard_page(
           <label for="dr-edit-modal-office">Office / department (optional)</label>
           <input type="text" id="dr-edit-modal-office" maxlength="60" placeholder="e.g. Downtown office">
           <p class="dr-modal-hint">Your own label for grouping staff -- shown on the roster, used by the bulk-tag tool below it. Leave blank if you don't need groups.</p>
+          <label for="dr-edit-modal-issue-date">License issue date (optional)</label>
+          <input type="date" id="dr-edit-modal-issue-date">
+          <p class="dr-modal-hint">When they were originally licensed. Used only to show a heads-up on Practice Privilege Check if a target state has a grandfather cutoff -- never required.</p>
           <label for="dr-edit-modal-notes">Internal notes (optional)</label>
           <textarea id="dr-edit-modal-notes" maxlength="500" rows="2" placeholder="e.g. Out on leave through March"></textarea>
           <p class="dr-modal-hint">For your own reference only -- never shown to this person or in any email they receive.</p>

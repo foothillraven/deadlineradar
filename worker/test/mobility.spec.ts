@@ -36,6 +36,12 @@ function verifiedPermissiveRule(over: Partial<MobilityRuleRow> = {}): MobilityRu
     rule_changes_on: null,
     home_state_substantially_equivalent: null,
     home_state_substantially_equivalent_note: null,
+    individual_criteria_pathways: null,
+    individual_criteria_exam_required: null,
+    individual_criteria_grandfather_date: null,
+    individual_criteria_grandfather_note: null,
+    individual_criteria_confirmed: true,
+    individual_criteria_ambiguity_note: null,
     ...over,
   };
 }
@@ -115,6 +121,12 @@ describe("SAFETY: the engine must never assert a clearance it cannot cite", () =
       rule_changes_on: null,
       home_state_substantially_equivalent: null,
       home_state_substantially_equivalent_note: null,
+      individual_criteria_pathways: null,
+      individual_criteria_exam_required: null,
+      individual_criteria_grandfather_date: null,
+      individual_criteria_grandfather_note: null,
+      individual_criteria_confirmed: null,
+      individual_criteria_ambiguity_note: null,
     };
     const res = evaluateMobility(input(), blank);
     expect(res.overall).toBe("not_verified");
@@ -288,6 +300,82 @@ describe("roadmap #317 Phase 1: sourced home-state equivalence overrides self-at
     const withoutHomeRule = evaluateIndividualMobility(input({ substantiallyEquivalent: false }), nasbaTargetRule());
     expect(withoutHomeRule.verdict).toBe("action_required");
     expect(withoutHomeRule.summary).not.toMatch(/NASBA/);
+  });
+});
+
+describe("roadmap #317 Phase 2 Part A: individual-criteria states get their own pathway-aware question", () => {
+  const confirmedRule = () =>
+    verifiedPermissiveRule({
+      equivalence_test: "individual_criteria",
+      individual_criteria_confirmed: true,
+      individual_criteria_pathways: ["Bachelor's degree + 2 years experience", "Post-baccalaureate degree + 1 year experience"],
+      individual_criteria_grandfather_date: "2024-12-31",
+      individual_criteria_grandfather_note: "Already-privileged CPAs as of that date keep their privilege.",
+    });
+
+  it("surfaces the state's ACTUAL pathways, not the generic 150-hour question, when self-attestation is false", () => {
+    const res = evaluateIndividualMobility(input({ substantiallyEquivalent: false }), confirmedRule());
+    expect(res.verdict).toBe("action_required");
+    expect(res.requirements.join(" ")).toMatch(/Bachelor's degree \+ 2 years experience/);
+    expect(res.requirements.join(" ")).not.toMatch(/150 semester hours/);
+  });
+
+  it("shows a grandfather-date hint only when the practitioner's own reported issue date predates the cutoff", () => {
+    const before = evaluateIndividualMobility(
+      input({ substantiallyEquivalent: false, licenseIssueDate: "2020-01-01" }),
+      confirmedRule()
+    );
+    expect(before.requirements.join(" ")).toMatch(/grandfather cutoff/);
+
+    const after = evaluateIndividualMobility(
+      input({ substantiallyEquivalent: false, licenseIssueDate: "2025-06-01" }),
+      confirmedRule()
+    );
+    expect(after.requirements.join(" ")).not.toMatch(/grandfather cutoff/);
+
+    const omitted = evaluateIndividualMobility(input({ substantiallyEquivalent: false }), confirmedRule());
+    expect(omitted.requirements.join(" ")).not.toMatch(/grandfather cutoff/);
+  });
+
+  it("the grandfather hint alone never upgrades the verdict to clear -- it's informational only", () => {
+    const res = evaluateIndividualMobility(
+      input({ substantiallyEquivalent: false, licenseIssueDate: "2020-01-01" }),
+      confirmedRule()
+    );
+    expect(res.verdict).toBe("action_required");
+  });
+
+  it("withholds a definitive verdict for a state whose board hasn't confirmed its own pathways yet (not_verified, never a guess)", () => {
+    const unconfirmedRule = verifiedPermissiveRule({
+      equivalence_test: "individual_criteria",
+      individual_criteria_confirmed: false,
+      individual_criteria_ambiguity_note: "The board hasn't adopted specific criteria yet.",
+    });
+    // Even a practitioner who self-attests TRUE must still be withheld --
+    // there is no settled pathway list to check ANY attestation against.
+    const res = evaluateIndividualMobility(input({ substantiallyEquivalent: true }), unconfirmedRule);
+    expect(res.verdict).toBe("not_verified");
+    expect(res.requirements).toContain("The board hasn't adopted specific criteria yet.");
+  });
+
+  it("a confirmed individual-criteria state still produces a real clear verdict when the pathway is met", () => {
+    const res = evaluateIndividualMobility(input({ substantiallyEquivalent: true }), confirmedRule());
+    expect(res.verdict).toBe("clear");
+  });
+
+  it("still honors blockingRuleCondition (flux/staleness) for individual-criteria states before the new gate runs", () => {
+    const fluxRule = confirmedRule();
+    fluxRule.rule_in_flux = true;
+    fluxRule.rule_changes_on = "2099-01-01"; // unsettled
+    const res = evaluateIndividualMobility(input({ substantiallyEquivalent: false }), fluxRule);
+    expect(res.verdict).toBe("not_verified");
+  });
+
+  it("non-individual_criteria states are completely unaffected -- generic gate wording unchanged", () => {
+    const nasbaRule = verifiedPermissiveRule({ equivalence_test: "nasba_state_level" });
+    const res = evaluateIndividualMobility(input({ substantiallyEquivalent: false }), nasbaRule);
+    expect(res.verdict).toBe("action_required");
+    expect(res.requirements).toContain("Confirm your substantial-equivalence status with the target state's board of accountancy.");
   });
 });
 

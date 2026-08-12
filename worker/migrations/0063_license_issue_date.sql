@@ -1,0 +1,13 @@
+-- Roadmap #317 Phase 2 Part A (2026-08-12): optional field so the mobility
+-- engine can automatically surface a grandfather-date hint for individual-
+-- criteria states (e.g. "you were licensed before Louisiana's 2024-12-31
+-- cutoff -- if you already had privileges there, you likely qualify
+-- regardless of the pathways above"). A single ISO date, same "cosmetic/
+-- informational optional field" shape as renewal_fee_cents (migration 0034)
+-- and office_tag (migration 0037) -- never used to assert a definitive
+-- verdict on its own, since most grandfather clauses also require "already
+-- had privileges in THAT target state as of the cutoff", a historical fact
+-- this field alone cannot prove. See mobility.ts's own MobilityInput
+-- docstring for why every mobility-relevant input here stays advisory, not
+-- authoritative.
+ALTER TABLE subscribers ADD COLUMN license_issue_date TEXT;

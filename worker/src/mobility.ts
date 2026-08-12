@@ -151,6 +151,19 @@ export function normalizeRuleRow(raw: unknown): MobilityRuleRow | null {
     rule_changes_on: str(r.rule_changes_on),
     home_state_substantially_equivalent: strictTriState(r.home_state_substantially_equivalent),
     home_state_substantially_equivalent_note: str(r.home_state_substantially_equivalent_note),
+    // Roadmap #317 Phase 2 Part A. A malformed/non-array pathways value is
+    // normalized to null (not verified) rather than trusting a partial or
+    // wrong-shaped value -- same "don't trust unchecked input" posture
+    // every other field on this row already follows.
+    individual_criteria_pathways:
+      Array.isArray(r.individual_criteria_pathways) && r.individual_criteria_pathways.every((p) => typeof p === "string")
+        ? (r.individual_criteria_pathways as string[])
+        : null,
+    individual_criteria_exam_required: strictTriState(r.individual_criteria_exam_required),
+    individual_criteria_grandfather_date: str(r.individual_criteria_grandfather_date),
+    individual_criteria_grandfather_note: str(r.individual_criteria_grandfather_note),
+    individual_criteria_confirmed: strictTriState(r.individual_criteria_confirmed),
+    individual_criteria_ambiguity_note: str(r.individual_criteria_ambiguity_note),
   };
 }
 
@@ -278,6 +291,59 @@ export interface MobilityRuleRow {
    * (currently: New York/Ohio's Legacy Pathway carve-out). null for every
    * other jurisdiction -- this is not a general-purpose notes field. */
   home_state_substantially_equivalent_note: string | null;
+
+  /**
+   * Roadmap #317 Phase 2 Part A (2026-08-12). Fixes a real gap in how
+   * `equivalence_test === "individual_criteria"` rows were being evaluated:
+   * `evaluateIndividualMobilityInner()` was asking every practitioner the
+   * SAME generic "150 hours, 1 year, exam" self-attestation question
+   * regardless of target state -- but individual-criteria states often
+   * publish SEVERAL alternative pathways (e.g. Ohio requires no experience
+   * at all; Idaho, Louisiana and others offer 3 alternative degree/
+   * experience combinations), so that generic question produces a wrong
+   * "you don't qualify" answer for anyone who meets an ALTERNATIVE pathway.
+   * These 5 fields (extracted 2026-08-11 from research already cited on
+   * this same row, not fresh research -- see
+   * data/mobility_individual_criteria_research.json for the source pass)
+   * let the engine ask the ACTUAL, state-specific question instead.
+   * null/empty for every non-individual_criteria row.
+   */
+  individual_criteria_pathways: string[] | null;
+  /** Whether passing the Uniform CPA Exam is a confirmed, separate element
+   * of this state's individual-criteria test (distinct from the pathways
+   * above, which are about degree/experience only). null = not verified. */
+  individual_criteria_exam_required: boolean | null;
+  /** ISO date, if this state's law grandfathers CPAs who already held
+   * privileges here before a cutoff -- informational only (see
+   * MobilityInput.licenseIssueDate's own docstring for why this can never
+   * drive a definitive verdict alone). null = no grandfather clause found,
+   * or not verified. */
+  individual_criteria_grandfather_date: string | null;
+  /** Plain-English description of who the grandfather clause covers, shown
+   * alongside the date above. null when grandfather_date is null. */
+  individual_criteria_grandfather_note: string | null;
+  /**
+   * true for the 16 of 25 individual-criteria states where the 2026-08-11
+   * extraction pass found the pathways/exam-requirement facts stated
+   * plainly and consistently. false for the 9 where the underlying law
+   * itself has a genuine, currently-unresolved conflict (most often: the
+   * legislature delegated the specific criteria to the board "by rule," but
+   * the board hasn't adopted conforming rules yet, so there IS no settled
+   * pathway list to check anyone against). null for every non-
+   * individual_criteria row. This is a NARROWLY-SCOPED flag, deliberately
+   * separate from the pre-existing rule_in_flux/rule_changes_on mechanism
+   * above (which serves several OTHER fields on this same row too, e.g.
+   * firm registration, and is calibrated for "has the underlying statute's
+   * effective date passed" -- not the same question as "has the board
+   * actually defined a checkable pathway list yet"). Consulted by
+   * evaluateIndividualMobilityInner() to withhold a definitive individual-
+   * criteria verdict honestly rather than silently answering a question
+   * the underlying law hasn't actually settled yet.
+   */
+  individual_criteria_confirmed: boolean | null;
+  /** Customer-safe (not raw research prose) explanation of what's unresolved,
+   * shown when individual_criteria_confirmed is false. null otherwise. */
+  individual_criteria_ambiguity_note: string | null;
 }
 
 /**
@@ -311,6 +377,19 @@ export interface MobilityInput {
    * experience, passed the Uniform CPA Exam). Self-attested for the same
    * reason. */
   substantiallyEquivalent: boolean;
+  /**
+   * Roadmap #317 Phase 2 Part A (2026-08-12). Optional ISO date -- when the
+   * practitioner was originally licensed, from the roster row's own
+   * self-reported subscribers.license_issue_date (migration 0063). Used
+   * ONLY to show an informational grandfather-date hint alongside an
+   * individual-criteria "action_required" finding -- NEVER to upgrade a
+   * verdict to "clear" on its own, because most grandfather clauses ALSO
+   * require "already had privileges in THAT target state as of the
+   * cutoff," a historical fact this single date cannot prove. undefined
+   * when no roster row is involved (an anonymous "just checking" query) or
+   * the field was never filled in.
+   */
+  licenseIssueDate?: string | null;
 }
 
 export interface MobilityFinding {
@@ -625,12 +704,82 @@ function evaluateIndividualMobilityInner(
     };
   }
 
-  // Roadmap #317 Phase 1: `sourcedEquivalence` means we already KNOW the
-  // answer from data (the home state's own NASBA-verified status), so the
-  // self-attestation checkbox is not the deciding factor for this pair --
-  // skip straight past it to the rule-based evaluation below, same as if
-  // the practitioner HAD checked the box.
-  if (!input.substantiallyEquivalent && !sourcedEquivalence) {
+  // Roadmap #317 Phase 2 Part A (2026-08-12). Individual-criteria states
+  // get their OWN, EARLIER gate here -- the generic substantial-equivalence
+  // question below asks the WRONG thing for them (see
+  // MobilityRuleRow.individual_criteria_pathways's own docstring for why:
+  // many of these states offer several alternative pathways, not the one
+  // "150 hours" test). Deliberately placed as an early special-case rather
+  // than reordering the existing checks below, so every OTHER
+  // equivalence_test (including a null rule, since `rule?.` is undefined
+  // there too) falls through to the untouched, byte-identical generic path.
+  if (rule?.equivalence_test === "individual_criteria") {
+    const blocked = blockingRuleCondition(rule, now);
+    if (blocked) return blocked;
+
+    // The board hasn't actually settled a checkable pathway list yet (a
+    // genuine, currently-unresolved gap in the underlying law -- see the
+    // field's own docstring) -- withhold rather than silently answer a
+    // question the law itself hasn't answered.
+    if (rule.individual_criteria_confirmed === false) {
+      return notVerified(
+        rule,
+        rule.individual_criteria_ambiguity_note ??
+          "This state's specific qualifying criteria for out-of-state CPAs are still unsettled. Confirm directly with the board."
+      );
+    }
+
+    if (!input.substantiallyEquivalent && !sourcedEquivalence) {
+      const pathways = rule.individual_criteria_pathways;
+      const pathwayText =
+        pathways && pathways.length > 0
+          ? "This state's specific qualifying pathways (met at your initial licensure): " + pathways.join("; ") + "."
+          : "Confirm your qualifying pathway with the target state's board of accountancy.";
+      const requirements = [pathwayText];
+      // Informational only -- see MobilityInput.licenseIssueDate's own
+      // docstring for why this is a hint, never grounds to upgrade the
+      // verdict. Shown ONLY when it's actually relevant (a real grandfather
+      // date exists and the practitioner's own reported issue date
+      // predates it), not as a blanket disclaimer on every action_required
+      // result.
+      if (
+        rule.individual_criteria_grandfather_date &&
+        input.licenseIssueDate &&
+        Date.parse(input.licenseIssueDate) < Date.parse(rule.individual_criteria_grandfather_date)
+      ) {
+        requirements.push(
+          "You were licensed before this state's grandfather cutoff of " +
+            rule.individual_criteria_grandfather_date +
+            (rule.individual_criteria_grandfather_note ? " (" + rule.individual_criteria_grandfather_note + ")" : "") +
+            " -- if you already had practice privilege here before that date, you likely still qualify " +
+            "regardless of the pathways above. Confirm with the board if you're not sure."
+        );
+      }
+      return {
+        verdict: "action_required",
+        summary:
+          "This state tests your OWN qualifying credentials directly, not just your license status. " +
+          "You've indicated you don't meet the pathways below, so this needs checking with the target " +
+          "state's board.",
+        requirements,
+        citation: rule.citation,
+        citationUrl: rule.citation_url,
+        sourceUrl: rule.source_url,
+        verifiedDate: rule.verified_date,
+        confidence: rule.confidence,
+        dataGapNote: rule.data_gap_note,
+        disclaimer: MOBILITY_DISCLAIMER,
+      };
+    }
+    // Meets a pathway (or sourcedEquivalence already established it) --
+    // fall through to the unchanged privilege-exists logic below, exactly
+    // like the generic path does.
+  } else if (!input.substantiallyEquivalent && !sourcedEquivalence) {
+    // Roadmap #317 Phase 1: `sourcedEquivalence` means we already KNOW the
+    // answer from data (the home state's own NASBA-verified status), so the
+    // self-attestation checkbox is not the deciding factor for this pair --
+    // skip straight past it to the rule-based evaluation below, same as if
+    // the practitioner HAD checked the box.
     return {
       verdict: "action_required",
       summary:

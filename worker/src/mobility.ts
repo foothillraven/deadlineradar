@@ -58,6 +58,68 @@ export type ServiceType = "attest" | "tax" | "other_non_attest";
 
 const SERVICE_TYPES = new Set<ServiceType>(["attest", "tax", "other_non_attest"]);
 
+/**
+ * Roadmap #342 (2026-08-12). Real primary-source research (a scoping pass,
+ * then per-state statute verification) found that a minority of states draw
+ * a genuine legal distinction WITHIN "attest" for FIRM REGISTRATION purposes
+ * (never for individual practice privilege -- verified that axis never
+ * varies by engagement sub-type, including in the Uniform Accountancy Act
+ * model text itself): SAS audits, SSAE examinations of prospective
+ * financial information, and PCAOB engagements ("core") commonly REQUIRE a
+ * no-office out-of-state firm to register, while SSARS reviews and
+ * compilations commonly do NOT (typically conditioned on peer review).
+ * "Other SSAE" engagements are kept as their OWN type rather than folded
+ * into either bucket -- confirmed states genuinely disagree on which side
+ * it falls (Connecticut: mandatory: West Virginia: exempt), so guessing a
+ * uniform placement would repeat exactly the fabrication risk this
+ * granularity exists to avoid. GAGAS is deliberately NOT a type here -- no
+ * evidence found anywhere in the 55-jurisdiction research corpus or the UAA
+ * model act that it is a distinct legal category (Yellow Book/GAGAS work is
+ * a SAS audit with an overlay, not a different mobility answer).
+ */
+export type AttestEngagementType =
+  | "sas_audit"
+  | "ssae_pfi_exam"
+  | "pcaob"
+  | "ssars_review"
+  | "compilation"
+  | "ssae_other";
+
+const ATTEST_ENGAGEMENT_TYPES = new Set<AttestEngagementType>([
+  "sas_audit",
+  "ssae_pfi_exam",
+  "pcaob",
+  "ssars_review",
+  "compilation",
+  "ssae_other",
+]);
+
+export function isValidAttestEngagementType(v: string): v is AttestEngagementType {
+  return ATTEST_ENGAGEMENT_TYPES.has(v as AttestEngagementType);
+}
+
+/** Which tier a raw engagement type maps to on a state's rule row.
+ *
+ * NOT a clean 2-way split, even though the feature that requested this was
+ * framed as one -- per-state verification (2026-08-12, 9 states directly
+ * fetched against primary statute text) found SSARS review and compilation
+ * genuinely diverge from each other in real states: New Jersey requires
+ * registration for SSARS review but exempts compilation; Connecticut has
+ * an unresolved internal statutory conflict specifically about SSARS
+ * review while compilation has none; Guam puts "other SSAE" in the
+ * MANDATORY tier while most other states exempt it. Bundling ssars_review
+ * and compilation into one field would have forced a wrong answer for New
+ * Jersey specifically -- so each raw type maps to its OWN tier here, and
+ * MobilityRuleRow carries an independent nullable field per tier. */
+function attestEngagementTier(
+  t: AttestEngagementType
+): "core" | "ssars_review" | "compilation" | "other_ssae" {
+  if (t === "sas_audit" || t === "ssae_pfi_exam" || t === "pcaob") return "core";
+  if (t === "ssars_review") return "ssars_review";
+  if (t === "compilation") return "compilation";
+  return "other_ssae";
+}
+
 export function isValidServiceType(v: string): v is ServiceType {
   return SERVICE_TYPES.has(v as ServiceType);
 }
@@ -164,6 +226,11 @@ export function normalizeRuleRow(raw: unknown): MobilityRuleRow | null {
     individual_criteria_grandfather_note: str(r.individual_criteria_grandfather_note),
     individual_criteria_confirmed: strictTriState(r.individual_criteria_confirmed),
     individual_criteria_ambiguity_note: str(r.individual_criteria_ambiguity_note),
+    firm_registration_attest_core: strictTriState(r.firm_registration_attest_core),
+    firm_registration_attest_ssars_review: strictTriState(r.firm_registration_attest_ssars_review),
+    firm_registration_attest_compilation: strictTriState(r.firm_registration_attest_compilation),
+    firm_registration_attest_other_ssae: strictTriState(r.firm_registration_attest_other_ssae),
+    firm_registration_attest_split_conditions: str(r.firm_registration_attest_split_conditions),
   };
 }
 
@@ -344,6 +411,41 @@ export interface MobilityRuleRow {
   /** Customer-safe (not raw research prose) explanation of what's unresolved,
    * shown when individual_criteria_confirmed is false. null otherwise. */
   individual_criteria_ambiguity_note: string | null;
+
+  /**
+   * Roadmap #342 (2026-08-12). FIRM-REGISTRATION-ONLY finer split within
+   * "attest" -- see AttestEngagementType's own docstring for the legal
+   * reasoning. Four independently nullable tiers, NOT a clean 2-way split
+   * (see attestEngagementTier()'s own docstring for why SSARS review and
+   * compilation could not safely be bundled into one field: per-state
+   * verification found them diverging in real states -- New Jersey requires
+   * registration for SSARS review but exempts compilation). A state can
+   * have `_core` resolved while `_other_ssae` stays null (not yet verified
+   * for that one engagement type), and each null still routes to
+   * not_verified, never to a guessed answer -- same discipline as every
+   * other field on this row. Presence of a non-null `_core` value is what
+   * signals "this state has a confirmed split" to evaluateFirmRegistration
+   * -- states without one keep using the flat `firm_registration_attest`
+   * boolean above, completely unchanged.
+   */
+  firm_registration_attest_core: boolean | null;
+  /** SSARS review, on its own -- see the field group's own docstring for
+   * why this isn't bundled with compilation. */
+  firm_registration_attest_ssars_review: boolean | null;
+  /** Compilation, on its own. */
+  firm_registration_attest_compilation: boolean | null;
+  /** "Other SSAE" engagements -- kept separate from every other tier because
+   * confirmed states genuinely disagree on which side it falls (e.g.
+   * Connecticut/Guam: mandatory; West Virginia: exempt). null = not verified
+   * for this state, which is the honest default until a state is
+   * individually confirmed either way. */
+  firm_registration_attest_other_ssae: boolean | null;
+  /** Plain-English condition attached to an exempt tier (e.g. "subject to
+   * peer review"), shown as a requirement even on an otherwise-clear verdict
+   * so the exemption's real condition is never silently dropped. Shared
+   * across whichever tier produced the exempt verdict -- null when no split
+   * is confirmed, or the exemption is unconditional. */
+  firm_registration_attest_split_conditions: string | null;
 }
 
 /**
@@ -390,6 +492,15 @@ export interface MobilityInput {
    * the field was never filled in.
    */
   licenseIssueDate?: string | null;
+  /**
+   * Roadmap #342 (2026-08-12). Optional -- only reads for
+   * `serviceType === "attest"` states with a confirmed
+   * `firm_registration_attest_core` split (most states ignore this
+   * entirely and keep using the flat `firm_registration_attest` boolean).
+   * undefined when the user hasn't specified one, which produces an honest
+   * not_verified for a split state rather than guessing which tier applies.
+   */
+  attestEngagementType?: AttestEngagementType;
 }
 
 export interface MobilityFinding {
@@ -426,6 +537,20 @@ const PATHWAY_UNSETTLED_SUMMARY =
   "This state's rule is verified, but the specific qualifying pathway for out-of-state CPAs is still " +
   "unsettled in the underlying law, so we're not going to guess. Confirm directly with the state board " +
   "before providing services there.";
+
+// Roadmap #342 (2026-08-12): this state's firm-registration answer genuinely depends
+// on which attest engagement type is being performed (see AttestEngagementType's own
+// docstring) -- distinct from "we haven't verified this state" (we HAVE verified it,
+// down to the engagement-type level) and distinct from "not verified for this specific
+// engagement type" (see ATTEST_ENGAGEMENT_TYPE_UNRESOLVED_SUMMARY below).
+const ATTEST_ENGAGEMENT_TYPE_NEEDED_SUMMARY =
+  "This state's firm-registration requirement for attest work depends on the specific engagement type " +
+  "(audit vs. review vs. compilation, etc.) -- select one to get a precise answer instead of a guess.";
+
+const ATTEST_ENGAGEMENT_TYPE_UNRESOLVED_SUMMARY =
+  "This state draws a real distinction by attest engagement type, but we haven't independently verified " +
+  "this specific one yet, so we're not going to guess. Confirm directly with the state board before " +
+  "providing this service there.";
 
 /**
  * The guard that makes a wrong green answer structurally impossible: a
@@ -923,22 +1048,51 @@ function evaluateFirmRegistrationInner(
   // consulting, advisory and compilation-adjacent work whose treatment
   // genuinely varies by state, so until the dataset carries its own field
   // it returns not_verified rather than borrowing tax's answer.
-  const required: boolean | null =
-    input.serviceType === "attest"
-      ? rule.firm_registration_attest
-      : input.serviceType === "tax"
-        ? rule.firm_registration_tax
-        : null;
+  //
+  // Roadmap #342 (2026-08-12): a confirmed-split state (non-null
+  // firm_registration_attest_core) uses the finer engagement-type-aware
+  // logic below INSTEAD of the flat firm_registration_attest boolean --
+  // every other state's behavior is completely unchanged, since this whole
+  // branch is gated on that one field being non-null.
+  let required: boolean | null;
+  let splitConditions: string | null = null;
+  let attestSplitUnresolvedTier = false;
+  if (input.serviceType === "attest" && rule.firm_registration_attest_core !== null) {
+    if (!input.attestEngagementType) {
+      return notVerified(rule, "Select an attest engagement type to get a precise answer for this state.", ATTEST_ENGAGEMENT_TYPE_NEEDED_SUMMARY);
+    }
+    const tier = attestEngagementTier(input.attestEngagementType);
+    required =
+      tier === "core"
+        ? rule.firm_registration_attest_core
+        : tier === "ssars_review"
+          ? rule.firm_registration_attest_ssars_review
+          : tier === "compilation"
+            ? rule.firm_registration_attest_compilation
+            : rule.firm_registration_attest_other_ssae;
+    attestSplitUnresolvedTier = required === null;
+    if (required === false) splitConditions = rule.firm_registration_attest_split_conditions;
+  } else {
+    required =
+      input.serviceType === "attest"
+        ? rule.firm_registration_attest
+        : input.serviceType === "tax"
+          ? rule.firm_registration_tax
+          : null;
+  }
 
   if (required === null) {
     return notVerified(
       rule,
-      input.serviceType === "attest"
-        ? "We haven't verified whether attest work requires firm registration here."
-        : input.serviceType === "tax"
-          ? "We haven't verified whether tax work requires firm registration here."
-          : "We don't hold a separate verified rule for non-attest services other than tax, and we " +
-            "won't infer one from the tax rule. Confirm with the board."
+      attestSplitUnresolvedTier
+        ? "We haven't independently verified this state's requirement for this specific attest engagement type yet."
+        : input.serviceType === "attest"
+          ? "We haven't verified whether attest work requires firm registration here."
+          : input.serviceType === "tax"
+            ? "We haven't verified whether tax work requires firm registration here."
+            : "We don't hold a separate verified rule for non-attest services other than tax, and we " +
+              "won't infer one from the tax rule. Confirm with the board.",
+      attestSplitUnresolvedTier ? ATTEST_ENGAGEMENT_TYPE_UNRESOLVED_SUMMARY : undefined
     );
   }
 
@@ -946,7 +1100,7 @@ function evaluateFirmRegistrationInner(
     return requireCitationOrDowngrade({
       verdict: "clear",
       summary: "We haven't identified a firm-registration requirement in this state for this service type.",
-      requirements: [],
+      requirements: splitConditions ? [splitConditions] : [],
       citation: rule.citation,
       citationUrl: rule.citation_url,
       sourceUrl: rule.source_url,

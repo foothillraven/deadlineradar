@@ -42,6 +42,11 @@ function verifiedPermissiveRule(over: Partial<MobilityRuleRow> = {}): MobilityRu
     individual_criteria_grandfather_note: null,
     individual_criteria_confirmed: true,
     individual_criteria_ambiguity_note: null,
+    firm_registration_attest_core: null,
+    firm_registration_attest_ssars_review: null,
+    firm_registration_attest_compilation: null,
+    firm_registration_attest_other_ssae: null,
+    firm_registration_attest_split_conditions: null,
     ...over,
   };
 }
@@ -127,6 +132,11 @@ describe("SAFETY: the engine must never assert a clearance it cannot cite", () =
       individual_criteria_grandfather_note: null,
       individual_criteria_confirmed: null,
       individual_criteria_ambiguity_note: null,
+      firm_registration_attest_core: null,
+      firm_registration_attest_ssars_review: null,
+      firm_registration_attest_compilation: null,
+      firm_registration_attest_other_ssae: null,
+      firm_registration_attest_split_conditions: null,
     };
     const res = evaluateMobility(input(), blank);
     expect(res.overall).toBe("not_verified");
@@ -421,6 +431,100 @@ describe("firm registration -- attest vs tax is the distinction that matters", (
     const rule = verifiedPermissiveRule({ firm_registration_attest: null, firm_registration_tax: false });
     expect(evaluateFirmRegistration(input({ serviceType: "attest" }), rule).verdict).toBe("not_verified");
     expect(evaluateFirmRegistration(input({ serviceType: "tax" }), rule).verdict).toBe("clear");
+  });
+});
+
+describe("roadmap #342: firm-registration attest engagement-type split", () => {
+  function splitRule(over: Partial<MobilityRuleRow> = {}): MobilityRuleRow {
+    return verifiedPermissiveRule({
+      // Deliberately the OPPOSITE of the flat boolean below, so a test that
+      // accidentally falls through to the old flat-boolean path fails loudly
+      // instead of silently passing for the wrong reason.
+      firm_registration_attest: true,
+      firm_registration_attest_core: true,
+      firm_registration_attest_ssars_review: false,
+      firm_registration_attest_compilation: false,
+      firm_registration_attest_other_ssae: null,
+      firm_registration_attest_split_conditions: "Subject to peer review.",
+      ...over,
+    });
+  }
+
+  it("withholds a verdict and asks for the engagement type when a split state gets no attestEngagementType", () => {
+    const res = evaluateFirmRegistration(input({ serviceType: "attest" }), splitRule());
+    expect(res.verdict).toBe("not_verified");
+    expect(res.summary).toMatch(/depends on the specific engagement type/i);
+  });
+
+  it("requires registration for a core-tier engagement type", () => {
+    const res = evaluateFirmRegistration(
+      input({ serviceType: "attest", attestEngagementType: "sas_audit" }),
+      splitRule()
+    );
+    expect(res.verdict).toBe("action_required");
+  });
+
+  it("requires registration for every core-tier raw type (pcaob, ssae_pfi_exam), not just sas_audit", () => {
+    for (const t of ["pcaob", "ssae_pfi_exam"] as const) {
+      const res = evaluateFirmRegistration(input({ serviceType: "attest", attestEngagementType: t }), splitRule());
+      expect(res.verdict, `attestEngagementType=${t}`).toBe("action_required");
+    }
+  });
+
+  it("clears SSARS review when the state's own field says exempt, and surfaces the exemption condition", () => {
+    const res = evaluateFirmRegistration(
+      input({ serviceType: "attest", attestEngagementType: "ssars_review" }),
+      splitRule()
+    );
+    expect(res.verdict).toBe("clear");
+    expect(res.requirements.join(" ")).toMatch(/peer review/i);
+  });
+
+  it("clears compilation independently of SSARS review -- the two tiers do not share one boolean", () => {
+    // Real-world case this test guards: New Jersey requires registration for
+    // SSARS review but exempts compilation. A schema that bundled the two
+    // into one field could not represent that state correctly.
+    const rule = splitRule({ firm_registration_attest_ssars_review: true, firm_registration_attest_compilation: false });
+    const ssars = evaluateFirmRegistration(input({ serviceType: "attest", attestEngagementType: "ssars_review" }), rule);
+    const compilation = evaluateFirmRegistration(
+      input({ serviceType: "attest", attestEngagementType: "compilation" }),
+      rule
+    );
+    expect(ssars.verdict).toBe("action_required");
+    expect(compilation.verdict).toBe("clear");
+  });
+
+  it("withholds (never guesses) an unresolved other_ssae tier even when core/ssars/compilation are all confirmed", () => {
+    const res = evaluateFirmRegistration(
+      input({ serviceType: "attest", attestEngagementType: "ssae_other" }),
+      splitRule() // firm_registration_attest_other_ssae is null in splitRule()
+    );
+    expect(res.verdict).toBe("not_verified");
+    expect(res.summary).toMatch(/haven't independently verified/i);
+  });
+
+  it("leaves every non-split state's flat-boolean behavior completely unchanged, attestEngagementType or not", () => {
+    // firm_registration_attest_core stays null -- this is the ~44-state
+    // majority path, which must be byte-identical to before this feature
+    // existed regardless of whether a client happens to send an
+    // attestEngagementType (most won't, since most states don't need it).
+    const flatRule = verifiedPermissiveRule({ firm_registration_attest: true });
+    const withoutType = evaluateFirmRegistration(input({ serviceType: "attest" }), flatRule);
+    const withType = evaluateFirmRegistration(
+      input({ serviceType: "attest", attestEngagementType: "sas_audit" }),
+      flatRule
+    );
+    expect(withoutType.verdict).toBe("action_required");
+    expect(withType).toEqual(withoutType);
+  });
+
+  it("never emits a permissive verdict for a split state without a citation", () => {
+    const rule = splitRule({ citation: null });
+    const res = evaluateFirmRegistration(
+      input({ serviceType: "attest", attestEngagementType: "ssars_review" }),
+      rule
+    );
+    expect(res.verdict).not.toBe("clear");
   });
 });
 

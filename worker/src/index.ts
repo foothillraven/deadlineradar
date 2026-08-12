@@ -231,6 +231,7 @@ import {
   MOBILITY_DISCLAIMER,
   evaluateMobility,
   isValidServiceType,
+  isValidAttestEngagementType,
   normalizeRuleRow,
   type MobilityRuleRow,
 } from "./mobility";
@@ -9939,6 +9940,14 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
   const licenseIssueDateRaw = typeof body.license_issue_date === "string" ? body.license_issue_date : "";
   const licenseIssueDate = parseStrictIsoDate(licenseIssueDateRaw) ? licenseIssueDateRaw : undefined;
 
+  // Roadmap #342 (2026-08-12): optional, same "malformed value silently
+  // dropped, never a 400" posture as licenseIssueDate above -- only a
+  // handful of states' firm_registration_attest_core split even reads this,
+  // so an unset/invalid value just means those states fall through to their
+  // honest not_verified branch, not an error for every other state.
+  const attestEngagementTypeRaw = typeof body.attest_engagement_type === "string" ? body.attest_engagement_type : "";
+  const attestEngagementType = isValidAttestEngagementType(attestEngagementTypeRaw) ? attestEngagementTypeRaw : undefined;
+
   const result = evaluateMobility(
     {
       homeStateSlug,
@@ -9947,6 +9956,7 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
       licenseInGoodStanding: body.license_in_good_standing === true,
       substantiallyEquivalent: body.substantially_equivalent === true,
       licenseIssueDate,
+      attestEngagementType,
     },
     MOBILITY_RULES_BY_SLUG[targetStateSlug] ?? null,
     // Roadmap #317 Phase 1: `now` left at its default (undefined -> `new
@@ -9960,6 +9970,7 @@ async function handleMobilityCheck(request: Request, env: Env, ip: string): Prom
     home_state: stateNameForSlug(homeStateSlug),
     target_state: stateNameForSlug(targetStateSlug),
     service_type: serviceTypeRaw,
+    attest_engagement_type: attestEngagementType ?? null,
     overall: result.overall,
     individual: result.individual,
     firm: result.firm,
@@ -10117,12 +10128,15 @@ async function handleMobilityCheckBatch(request: Request, env: Env): Promise<Res
   if (!isValidServiceType(serviceTypeRaw)) {
     return jsonResponse(400, { error: "Please choose a service type." });
   }
+  const attestEngagementTypeRaw = typeof body.attest_engagement_type === "string" ? body.attest_engagement_type : "";
+  const attestEngagementType = isValidAttestEngagementType(attestEngagementTypeRaw) ? attestEngagementTypeRaw : undefined;
 
   const input = {
     homeStateSlug,
     serviceType: serviceTypeRaw,
     licenseInGoodStanding: body.license_in_good_standing === true,
     substantiallyEquivalent: body.substantially_equivalent === true,
+    attestEngagementType,
   };
 
   // Roadmap #317 Phase 1: fixed across the whole batch (one home state
@@ -10151,6 +10165,7 @@ async function handleMobilityCheckBatch(request: Request, env: Env): Promise<Res
   return jsonResponse(200, {
     home_state: stateNameForSlug(homeStateSlug),
     service_type: serviceTypeRaw,
+    attest_engagement_type: attestEngagementType ?? null,
     results,
     disclaimer: MOBILITY_DISCLAIMER,
   });
@@ -10219,6 +10234,8 @@ async function handleMobilityCheckRoster(request: Request, env: Env): Promise<Re
   if (!isValidServiceType(serviceTypeRaw)) {
     return jsonResponse(400, { error: "Please choose a service type." });
   }
+  const attestEngagementTypeRaw = typeof body.attest_engagement_type === "string" ? body.attest_engagement_type : "";
+  const attestEngagementType = isValidAttestEngagementType(attestEngagementTypeRaw) ? attestEngagementTypeRaw : undefined;
 
   const roster = await store.listFirmLicenses(env.DB, session.firmId);
   const targetRule = MOBILITY_RULES_BY_SLUG[targetStateSlug] ?? null;
@@ -10231,6 +10248,7 @@ async function handleMobilityCheckRoster(request: Request, env: Env): Promise<Re
         serviceType: serviceTypeRaw,
         licenseInGoodStanding: true,
         substantiallyEquivalent: true,
+        attestEngagementType,
       },
       targetRule,
       undefined,
@@ -10251,6 +10269,7 @@ async function handleMobilityCheckRoster(request: Request, env: Env): Promise<Re
     target_state: stateNameForSlug(targetStateSlug),
     target_state_slug: targetStateSlug,
     service_type: serviceTypeRaw,
+    attest_engagement_type: attestEngagementType ?? null,
     assumed_license_good_standing: true,
     assumed_substantially_equivalent: true,
     // Roadmap #321: downloadable compliance record needs a "date verified"

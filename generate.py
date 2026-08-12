@@ -14333,6 +14333,17 @@ _MOBILITY_JS_HTML = """<script>
   var errEl = document.getElementById('dr-mobility-error');
   var resultEl = document.getElementById('dr-mobility-result');
 
+  // Roadmap #342: the attest-engagement-type question only matters once
+  // "Attest" is picked -- shown/hidden rather than always-visible so the
+  // common case (tax, or a state without the finer split) never has to see
+  // an irrelevant extra question.
+  (function () {
+    var svc = document.getElementById('dr-mob-service');
+    var wrap = document.getElementById('dr-mob-attest-type-wrap');
+    if (!svc || !wrap) return;
+    svc.addEventListener('change', function () { wrap.hidden = svc.value !== 'attest'; });
+  })();
+
   function esc(v) {
     return String(v == null ? '' : v)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -14419,6 +14430,8 @@ _MOBILITY_JS_HTML = """<script>
       license_in_good_standing: document.getElementById('dr-mob-standing').checked,
       substantially_equivalent: document.getElementById('dr-mob-equiv').checked
     };
+    var attestTypeEl = document.getElementById('dr-mob-attest-type');
+    if (attestTypeEl && attestTypeEl.value) { body.attest_engagement_type = attestTypeEl.value; }
     // Roadmap #317 Phase 2 Part A: informational grandfather-date hint only
     // (see MobilityInput.licenseIssueDate's own docstring) -- sourced from
     // the SAME roster fetch drMobStaffLicenses already holds for the staff
@@ -14630,6 +14643,12 @@ _MOBILITY_JS_HTML = """<script>
   // fall through to 9, sorting it LAST instead of first (caught live by
   // testing all three severities together, not just one at a time).
   var ROSTER_SEVERITY_RANK = {action_required: 1, not_verified: 2, clear: 3, not_applicable: 4};
+  (function () {
+    var svc = document.getElementById('dr-mob-roster-service');
+    var wrap = document.getElementById('dr-mob-roster-attest-type-wrap');
+    if (!svc || !wrap) return;
+    svc.addEventListener('change', function () { wrap.hidden = svc.value !== 'attest'; });
+  })();
   if (rosterForm) {
     rosterForm.addEventListener('submit', function (ev) {
       ev.preventDefault();
@@ -14638,11 +14657,14 @@ _MOBILITY_JS_HTML = """<script>
 
       var targetStateSlug = document.getElementById('dr-mob-roster-target').value;
       var serviceType = document.getElementById('dr-mob-roster-service').value;
+      var rosterAttestTypeEl = document.getElementById('dr-mob-roster-attest-type');
+      var checkBody = {target_state_slug: targetStateSlug, service_type: serviceType};
+      if (rosterAttestTypeEl && rosterAttestTypeEl.value) { checkBody.attest_engagement_type = rosterAttestTypeEl.value; }
 
       fetch('/api/firm/mobility/check-roster', {
         method: 'POST', credentials: 'include',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({target_state_slug: targetStateSlug, service_type: serviceType})
+        body: JSON.stringify(checkBody)
       }).then(function (res) {
         if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
         return res.json().catch(function () { return null; }).then(function (data) {
@@ -15135,6 +15157,22 @@ first? Every answer is tied to the rule it came from.</p>
     <p class="field-hint">Attest work frequently triggers a firm-registration requirement where tax work
     doesn't &mdash; that gap is the most common real-world mobility mistake.</p>
 
+    <div id="dr-mob-attest-type-wrap" hidden>
+      <label for="dr-mob-attest-type">Attest engagement type</label>
+      <select id="dr-mob-attest-type" name="attest_engagement_type">
+        <option value="">Not sure / doesn't matter</option>
+        <option value="sas_audit">Audit (SAS)</option>
+        <option value="ssae_pfi_exam">Examination of prospective financial information (SSAE)</option>
+        <option value="pcaob">PCAOB-related engagement</option>
+        <option value="ssars_review">Review (SSARS)</option>
+        <option value="compilation">Compilation</option>
+        <option value="ssae_other">Other attestation engagement (SSAE)</option>
+      </select>
+      <p class="field-hint">A handful of states require firm registration for some attest engagement
+      types (like audits) but not others (like reviews or compilations). Leave this blank if you're not
+      sure &mdash; we'll ask again only if the target state actually needs it.</p>
+    </div>
+
     <label for="dr-mob-staff">For which staff member? (optional)</label>
     <select id="dr-mob-staff" name="staff_subscriber_id">
       <option value="">Just checking &mdash; don't save this result</option>
@@ -15182,6 +15220,22 @@ once, instead of picking each person one at a time above.</p>
     </select>
     <p class="field-hint">Attest work frequently triggers a firm-registration requirement where tax work
     doesn't &mdash; that gap is the most common real-world mobility mistake.</p>
+
+    <div id="dr-mob-roster-attest-type-wrap" hidden>
+      <label for="dr-mob-roster-attest-type">Attest engagement type</label>
+      <select id="dr-mob-roster-attest-type" name="attest_engagement_type">
+        <option value="">Not sure / doesn't matter</option>
+        <option value="sas_audit">Audit (SAS)</option>
+        <option value="ssae_pfi_exam">Examination of prospective financial information (SSAE)</option>
+        <option value="pcaob">PCAOB-related engagement</option>
+        <option value="ssars_review">Review (SSARS)</option>
+        <option value="compilation">Compilation</option>
+        <option value="ssae_other">Other attestation engagement (SSAE)</option>
+      </select>
+      <p class="field-hint">A handful of states require firm registration for some attest engagement
+      types (like audits) but not others (like reviews or compilations). Leave this blank if you're not
+      sure &mdash; we'll ask again only if the target state actually needs it.</p>
+    </div>
 
     <p class="field-hint">Assumes every staff member's own license is active and in good standing, and
     meets substantial equivalence. Switch to &ldquo;Check one person&rdquo; above to verify an

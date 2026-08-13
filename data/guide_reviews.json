@@ -10,6 +10,9 @@
     "illinois-cpa-license-renewal-guide": { "last_reviewed": "2026-08-04", "reviewed_by": "auditlab-cross-check" },
     "connecticut-cpa-license-renewal-guide": { "last_reviewed": "2026-08-04", "reviewed_by": "auditlab-cross-check" },
     "wisconsin-cpa-license-renewal-guide": { "last_reviewed": "2026-08-04", "reviewed_by": "auditlab-cross-check" },
-    "florida-cpa-license-renewal-guide": { "last_reviewed": "2026-08-07", "reviewed_by": "authored-from-verified-datasets" }
+    "florida-cpa-license-renewal-guide": { "last_reviewed": "2026-08-07", "reviewed_by": "authored-from-verified-datasets" },
+    "new-york-to-new-jersey-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
+    "california-to-nevada-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
+    "texas-to-oklahoma-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" }
   }
 }

@@ -587,6 +587,36 @@ PAGE_CSS = """
     background: var(--card-bg); border: 1px solid var(--border);
   }
   tr.dr-bf-highlight { background: var(--card-bg); outline: 2px solid var(--accent); outline-offset: -2px; }
+  /* /deadline-calculator/'s own live, all-state widget (Devin, 2026-08-13:
+     "We can't add a calculator?"). One <select> for state, a dynamically
+     inserted follow-up field when the state's rule needs one (birth month,
+     birth year, cohort group), and a result panel -- reuses the same
+     card/select/field-hint styling as .dr-bf-result and .signup-form
+     above rather than introducing a third visual language for "pick an
+     input, see an answer" widgets. */
+  .dr-calc {
+    max-width: 30rem; margin: 1.2rem 0; padding: 1.1rem 1.2rem; border-radius: 10px;
+    background: var(--card-bg); border: 1px solid var(--border);
+  }
+  .dr-calc label { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.4rem; display: block; }
+  .dr-calc select, .dr-calc input {
+    width: 100%; padding: 0.65rem 0.75rem; border-radius: 7px; border: 1px solid var(--border-strong);
+    background: var(--bg); color: var(--fg); font-size: 0.95rem; font-family: inherit;
+  }
+  .dr-calc-followup { margin-top: 0.9rem; }
+  .dr-calc-followup:empty { margin-top: 0; }
+  .dr-calc-result {
+    font-size: 1.05rem; margin: 1rem 0 0; padding: 0.8rem 1rem; border-radius: 8px;
+    background: var(--bg); border: 1px solid var(--border);
+  }
+  .dr-calc-result strong { font-family: var(--font-display); font-weight: 620; }
+  .dr-calc-result p:first-child { margin-top: 0; }
+  .dr-calc-result p:last-child { margin-bottom: 0; font-size: 0.85rem; }
+  .calc-example-table { width: 100%; border-collapse: collapse; margin: 0.8rem 0 1.2rem; }
+  .calc-example-table th, .calc-example-table td {
+    text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border); font-size: 0.92rem;
+  }
+  .calc-example-table th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
   /* AuditLab A11Y-4 (LOW, 2026-08-04): standard visually-hidden pattern --
      present for screen readers (a <table> caption, in this case), removed
      from visual/document flow for sighted users who already have the
@@ -15649,7 +15679,178 @@ check. See <a href="/pricing/">full pricing</a>.</p>
     )
 
 
-def build_deadline_calculator_page(by_slug: dict[str, list[dict]]) -> str:
+def _deadline_calculator_widget_data(by_slug: dict[str, list[dict]], as_of: date) -> dict:
+    """Per-state payload for the LIVE calculator on /deadline-calculator/ (Devin,
+    live, 2026-08-13: "We can't add a calculator?" -- fair; the page's own name
+    promised one and the first enrichment pass still only pointed visitors at
+    state pages instead of answering on the spot). Every value here is read
+    straight off data that's already computed/verified elsewhere on the site --
+    next_deadline_computed, cohort_groups, build_california_table()/
+    build_texas_table(), the SAME _primary_individual_date() selection the
+    homepage grid already uses -- never a new formula, never a new claim.
+    'kind' tells the client JS which follow-up input to show:
+      computed -- one plain date, no personal fact needed (the common case)
+      ca / tx  -- birth-month (+ year for CA) picker, reusing the exact
+                  per-month tables California's/Texas's own pages render
+      cohort   -- a group picker (Ohio + the other cohort-split states)
+      gap      -- the honest "can't auto-compute this one," using the same
+                  data_gap_note / New York's own computation note that state's
+                  own page already shows -- never invents an answer"""
+    ca_table = build_california_table(as_of)
+    tx_table = build_texas_table(as_of)
+    out = {}
+    for slug, records in by_slug.items():
+        state_name = records[0]["state"]
+        individual = [r for r in records if r.get("license_type") not in _FIRM_ONLY_LICENSE_TYPES]
+        if not individual:
+            continue
+        if slug == "california":
+            out[slug] = {
+                "label": state_name,
+                "kind": "ca",
+                "months": [
+                    {"odd": r["odd_birth_year_next_deadline"], "even": r["even_birth_year_next_deadline"]}
+                    for r in ca_table
+                ],
+            }
+            continue
+        if slug == "texas":
+            out[slug] = {
+                "label": state_name,
+                "kind": "tx",
+                "months": [r["next_deadline"] for r in tx_table],
+            }
+            continue
+        primary_date = _primary_individual_date(records)
+        if primary_date:
+            out[slug] = {
+                "label": state_name,
+                "kind": "computed",
+                "date": fmt_date(date.fromisoformat(primary_date)),
+            }
+            continue
+        cohort_record = next((r for r in individual if r.get("cohort_groups")), None)
+        if cohort_record:
+            out[slug] = {
+                "label": state_name,
+                "kind": "cohort",
+                "groups": [
+                    {"group": g["group"], "date": fmt_date(date.fromisoformat(g["next_deadline"]))}
+                    for g in cohort_record["cohort_groups"]
+                ],
+            }
+            continue
+        gap_record = individual[0]
+        if gap_record.get("data_gap_note"):
+            note = gap_record["data_gap_note"]
+        elif gap_record.get("computation", {}).get("note"):
+            note = gap_record["computation"]["note"]
+        else:
+            note = (
+                "We can't auto-compute this one from public data alone -- check your license "
+                "certificate or the state board directly for your exact date."
+            )
+        out[slug] = {"label": state_name, "kind": "gap", "note": note}
+    return out
+
+
+_DEADLINE_CALC_JS = """
+(function() {
+  var MONTHS = ["January","February","March","April","May","June","July","August",
+    "September","October","November","December"];
+  var stateSel = document.getElementById('dr-calc-state');
+  var followup = document.getElementById('dr-calc-followup');
+  var result = document.getElementById('dr-calc-result');
+
+  function monthOptionsHtml() {
+    var out = '<option value="">Select&hellip;</option>';
+    for (var i = 0; i < 12; i++) out += '<option value="' + (i + 1) + '">' + MONTHS[i] + '</option>';
+    return out;
+  }
+
+  function showResult(text, slug, label) {
+    result.hidden = false;
+    result.innerHTML = '<p>' + text + '</p><p><a href="../' + slug + '/">See the full ' + label +
+      ' page &amp; set up a free reminder &rarr;</a></p>';
+  }
+
+  function render() {
+    var slug = stateSel.value;
+    followup.innerHTML = '';
+    result.hidden = true;
+    if (!slug) return;
+    var entry = DR_CALC_DATA[slug];
+    if (!entry) return;
+
+    if (entry.kind === 'computed') {
+      showResult('Your next ' + entry.label + ' renewal is due <strong>' + entry.date + '</strong>.', slug, entry.label);
+    } else if (entry.kind === 'gap') {
+      showResult(entry.note, slug, entry.label);
+    } else if (entry.kind === 'cohort') {
+      var html = '<label for="dr-calc-group">Your cohort group</label><select id="dr-calc-group">' +
+        '<option value="">Select your group&hellip;</option>';
+      entry.groups.forEach(function(g, i) { html += '<option value="' + i + '">' + g.group + '</option>'; });
+      html += '</select><p class="field-hint">Not sure which group applies to you? Check your ' +
+        'license certificate or the state board\\u2019s lookup.</p>';
+      followup.innerHTML = html;
+      document.getElementById('dr-calc-group').addEventListener('change', function() {
+        var g = entry.groups[this.value];
+        if (!g) { result.hidden = true; return; }
+        showResult('Your next ' + entry.label + ' renewal (' + g.group + ') is due <strong>' + g.date + '</strong>.', slug, entry.label);
+      });
+    } else if (entry.kind === 'tx') {
+      followup.innerHTML = '<label for="dr-calc-month">Your birth month</label><select id="dr-calc-month">' +
+        monthOptionsHtml() + '</select>';
+      document.getElementById('dr-calc-month').addEventListener('change', function() {
+        var m = parseInt(this.value, 10);
+        if (!m) { result.hidden = true; return; }
+        showResult('Your next ' + entry.label + ' renewal is due <strong>' + entry.months[m - 1] + '</strong>.', slug, entry.label);
+      });
+    } else if (entry.kind === 'ca') {
+      followup.innerHTML = '<div class="signup-form-row"><div><label for="dr-calc-month">Your birth month</label>' +
+        '<select id="dr-calc-month">' + monthOptionsHtml() + '</select></div>' +
+        '<div><label for="dr-calc-year">Your birth year</label><input type="number" id="dr-calc-year" ' +
+        'min="1900" max="2100" placeholder="e.g. 1985"></div></div>';
+      function update() {
+        var m = parseInt(document.getElementById('dr-calc-month').value, 10);
+        var y = parseInt(document.getElementById('dr-calc-year').value, 10);
+        if (!m || !y) { result.hidden = true; return; }
+        var isOdd = (y % 2) === 1;
+        var d = isOdd ? entry.months[m - 1].odd : entry.months[m - 1].even;
+        showResult('Your next ' + entry.label + ' renewal is due <strong>' + d + '</strong>.', slug, entry.label);
+      }
+      document.getElementById('dr-calc-month').addEventListener('change', update);
+      document.getElementById('dr-calc-year').addEventListener('input', update);
+    }
+  }
+
+  stateSel.addEventListener('change', render);
+})();
+"""
+
+
+def _deadline_calculator_widget_html(by_slug: dict[str, list[dict]], as_of: date) -> str:
+    data = _deadline_calculator_widget_data(by_slug, as_of)
+    state_options = "\n".join(
+        f'<option value="{esc(slug)}">{esc(entry["label"])}</option>'
+        for slug, entry in sorted(data.items(), key=lambda kv: kv[1]["label"])
+    )
+    return f"""<div class="dr-calc" id="dr-calc">
+  <label for="dr-calc-state">Your state</label>
+  <select id="dr-calc-state">
+    <option value="">Select your state&hellip;</option>
+    {state_options}
+  </select>
+  <div id="dr-calc-followup"></div>
+  <div id="dr-calc-result" class="dr-calc-result" hidden></div>
+</div>
+<script>
+var DR_CALC_DATA = {json.dumps(data)};
+{_DEADLINE_CALC_JS}
+</script>"""
+
+
+def build_deadline_calculator_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
     """Roadmap #125 ("free public tools -- no-signup deadline calculator").
     Same "dedicated, SEO-targeted landing page pointing at an existing free
     tool" pattern as build_practice_privilege_landing_page() -- the
@@ -15661,22 +15862,96 @@ def build_deadline_calculator_page(by_slug: dict[str, list[dict]]) -> str:
     absolute-path drGoToState() navigation -- confirmed safe to embed on a
     brand-new top-level page, not just state pages) rather than building a
     second search widget. No new data, no new claims -- pure landing-page
-    framing around what already exists and is already free."""
-    body = f"""<h1>CPA License Renewal Deadline Calculator</h1>
-<p class="intro">Pick your state below and go straight to your exact renewal deadline &mdash; free,
-no signup, no account required. Every date is sourced &mdash; to your state board's codified statute
-or rule where we could confirm it against primary law, and clearly labelled where we could only
-confirm it against the board's own page &mdash; <a href="/methodology/">see exactly how</a>.</p>
+    framing around what already exists and is already free.
 
-{_state_quick_search_html(by_slug)}
+    Devin, live (2026-08-13): "Why's nothing here, really?" -- fair. The
+    original version was one input box and two short paragraphs; technically
+    honest about not duplicating engineering, but genuinely thin for a page
+    meant to rank on "CPA deadline calculator"-type search intent and
+    reassure a visitor they're in the right place. Enriched with the same
+    trust-stat row the homepage/methodology already compute (no new claims,
+    same numbers) and a real worked-example table pulled directly from
+    already-verified cpa_deadlines.json records, chosen to show the actual
+    variety of cycle shapes this "calculator" handles -- still zero new data,
+    zero fabrication, just more of what already exists made visible here."""
+    cov = _coverage_counts(by_slug)
+    verified_recent, total_citations = _citation_freshness_stat(
+        [r for recs in by_slug.values() for r in recs], as_of
+    )
+
+    # Four real records, chosen to span the actual shapes this tool resolves
+    # (fixed calendar date, birth-month personal cycle, rotating cohort, and
+    # a genuine "we don't guess" gap) -- not cherry-picked for a nicer
+    # story, picked to be honest about the range of answers a visitor might
+    # actually get.
+    example_ids = ["il-individual", "tx-individual", "oh-individual", "fl-individual"]
+    by_id = {r["id"]: r for recs in by_slug.values() for r in recs}
+    example_rows = []
+    for rid in example_ids:
+        if rid not in by_id:
+            continue
+        r = by_id[rid]
+        nd = r.get("next_deadline_computed")
+        if nd:
+            answer = esc(fmt_date(date.fromisoformat(nd)))
+        elif r["renewal_pattern"] in ("birth_month", "fixed_calendar_cohort", "license_number_cohort"):
+            answer = "Depends on a personal fact &mdash; the calculator above asks for it, then answers"
+        else:
+            answer = "No public rule ties this to a knowable input &mdash; the calculator says so, honestly"
+        example_rows.append(
+            f"<tr><td>{esc(r['state'])}</td><td>{esc(r['renewal_pattern'].replace('_', ' '))}</td>"
+            f"<td>{answer}</td></tr>"
+        )
+
+    body = f"""<h1>CPA License Renewal Deadline Calculator</h1>
+<p class="intro">Select your state below &mdash; and your birth month or cohort group, if your state's
+rule needs one &mdash; to see your exact renewal deadline right here. Free, no signup, no account
+required. Every date is sourced &mdash; to your state board's codified statute or rule where we could
+confirm it against primary law, and clearly labelled where we could only confirm it against the
+board's own page &mdash; <a href="/methodology/">see exactly how</a>.</p>
+
+{_deadline_calculator_widget_html(by_slug, as_of)}
+
+<div class="trust-row">
+  <div class="item"><span class="n">{cov["total"]}</span><span class="lbl">jurisdictions covered</span></div>
+  <div class="item"><span class="n">{cov["determined"]}</span><span class="lbl">where we compute your exact date</span></div>
+  <div class="item"><span class="n">{verified_recent} of {total_citations}</span><span class="lbl">citations re-checked in the last 30 days</span></div>
+</div>
+
+<h2>What "calculated" actually looks like, state by state</h2>
+<p>This isn't one formula &mdash; every state renews on its own rule, and those rules take genuinely
+different shapes. A few real examples, straight from the same dataset the calculator above draws on:</p>
+<table class="calc-example-table">
+<thead><tr><th>State</th><th>Cycle type</th><th>What the tool returns</th></tr></thead>
+<tbody>
+{chr(10).join(example_rows)}
+</tbody>
+</table>
 
 <h2>How this actually works</h2>
-<p>There's no separate "calculator" logic running here &mdash; picking your state takes you straight
-to that state's own page, where your renewal date is either computed directly (most states) or, for
-the states whose rule depends on a personal fact like your birth month, walked through with the exact
+<p>Picking your state above looks itself up in the exact same dataset that state's own page renders
+from &mdash; there's no second, different formula running here. Most states resolve to one plain
+date immediately. States whose rule depends on a personal fact &mdash; your birth month, or which
+cohort group your license falls in &mdash; ask for that fact before answering, using the exact same
 inputs that state's own rule actually uses. Either way, the date you get is never estimated or
-guessed &mdash; if we can't confirm it against a primary source, the page says so instead of showing a
-number.</p>
+guessed &mdash; if we can't confirm it against a primary source, the calculator says so instead of
+showing a number, same as the Florida row above.</p>
+
+<p>Prefer to browse a state's full page directly instead of using the calculator above?</p>
+{_state_quick_search_html(by_slug)}
+
+<h2>Frequently asked</h2>
+<p><strong>Is this actually free?</strong> Yes &mdash; looking up your own renewal date has never
+required an account, a signup, or a fee. The paid tier is for firms tracking a whole staff roster in
+one place, not for an individual checking their own date.</p>
+<p><strong>Why does my state say "enter your date" instead of showing one?</strong> Some states'
+renewal cycles genuinely depend on a fact we don't have &mdash; when you were originally licensed,
+which cohort group you're in, or similar &mdash; and the state board itself doesn't publish a lookup
+we can compute from. Rather than guess, the page says so and lets you enter your own known date to
+track from there.</p>
+<p><strong>How do you know these dates are right?</strong> Every date traces to either the state
+board's own published page or the actual codified statute/rule, with the date we last confirmed it
+shown on that state's own page &mdash; see the <a href="/methodology/">full verification writeup</a>.</p>
 
 <p><strong>Tracking a whole firm's staff, not just your own license?</strong> See the
 <a href="/for-firms/">firm overview</a> &mdash; the same free, sourced deadline data in one roster
@@ -17867,6 +18142,188 @@ deadline) runs on its own separate clock.
 <a href="../../florida/">See the full sourcing and set a reminder for your Florida deadline here</a>.</p>
 """,
     },
+    {
+        "slug": "new-york-to-new-jersey-cpa-mobility",
+        "title": "New York CPA Practicing in New Jersey — What Actually Applies",
+        "meta_description": (
+            "New Jersey rewrote its practice-privilege rule in 2026 -- moving from an "
+            "NASBA-verified test to individual criteria. Here's exactly what a New York CPA "
+            "needs to qualify, sourced to the actual statute."
+        ),
+        "body_html": """
+<p class="intro">If you hold a New York CPA license and want to work with a New Jersey client &mdash;
+or just cross the river for a meeting &mdash; the question isn't really about New York at all. It's
+about what <em>New Jersey</em> requires of any out-of-state CPA who shows up at its door. That answer
+changed in a real, dated way in 2026, and a lot of what's still floating around online describes the
+old rule.</p>
+
+<h2>New Jersey's practice-privilege test changed on February 19, 2026</h2>
+<p>Until early 2026, New Jersey mobility ran on the older NASBA/NQAS substantial-equivalency framework
+&mdash; whether your home state's licensing standards were verified as equivalent to New Jersey's own.
+That changed with P.L.2025, c.384 (signed January 20, 2026, effective the 30th day after &mdash;
+February 19, 2026), which rewrote N.J.S.A. 45:2B-50.1 to an <strong>individual-criteria</strong> test
+instead: it no longer matters which state licensed you or whether that state's whole licensing regime
+was pre-verified. What matters is your own record.</p>
+
+<h2>What a New York CPA needs to qualify today</h2>
+<p>Under the current statute, an individual qualifies for New Jersey practice privilege by holding
+<strong>a valid, unrevoked CPA license from any state</strong> (New York included), having
+<strong>passed the Uniform CPA Exam</strong> (or a board-approved equivalent), and having
+<strong>at least one year of experience</strong>. If you're an active, in-good-standing New York CPA,
+you almost certainly clear this bar &mdash; New York's own licensure already requires the Exam and
+supervised experience. There's <strong>no notice filing and no fee</strong> required to exercise the
+privilege itself (N.J.S.A. 45:2B-50.1(a),(b)).</p>
+
+<p>One real wrinkle worth knowing: New Jersey's own compiled administrative code (N.J.A.C. 13:29-4.1)
+was readopted without amendment in late 2024 and still describes the <em>old</em> NASBA-based test on
+paper &mdash; it hasn't caught up to the 2026 statute yet. The statute controls when the two disagree,
+and New Jersey's regulatory affairs office confirmed no implementing rulemaking had been filed as of
+this page's last review. If a compliance officer or a stale web page tells you New Jersey still runs a
+state-level equivalency test, the statute itself now says otherwise.</p>
+
+<h2>If you're bringing a firm, not just yourself</h2>
+<p>This is where it gets more specific than most summaries. An out-of-state firm performing
+<strong>attest</strong> work with a New Jersey nexus generally needs to register &mdash; but New
+Jersey draws that line more narrowly than most states: audits, SSAE engagements, <em>and SSARS
+reviews</em> all trigger registration here, while <strong>compilation work is the one attest-adjacent
+service that's exempt</strong> if performed through a practice-privilege individual and lawful in that
+individual's home state (45:2B-54(a)(2)). Non-attest work &mdash; tax, consulting &mdash; needs no
+registration at all through a qualifying individual.</p>
+
+<h2>Grandfathering, if you were already working in New Jersey</h2>
+<p>If you already held New Jersey practice privileges under the old rule before February 19, 2026, you
+keep them &mdash; the new statute has an explicit grandfather clause (45:2B-50.1(f)) rather than
+resetting everyone to the new test.</p>
+
+<p><strong>The honest caveat</strong>: mobility law is drawn from statute and regulation, not a single
+plain-English source &mdash; New Jersey's own board publishes no dedicated mobility FAQ, so this is
+sourced directly to N.J.S.A. 45:2B-50.1 and 45:2B-54, cross-checked against the compiled administrative
+code. This is general orientation, not a determination for your specific engagement type. For a real
+answer against your own attest/tax/consulting split, run it through
+<a href="../../practice-privilege-check/">our Practice Privilege Check tool</a>, or confirm directly
+with the New Jersey State Board of Accountancy. And don't lose track of your own New York renewal
+while you're focused on New Jersey &mdash; <a href="../../new-york/">check your New York triennial
+registration date here</a>.</p>
+""",
+    },
+    {
+        "slug": "california-to-nevada-cpa-mobility",
+        "title": "California CPA Practicing in Nevada — What Actually Applies",
+        "meta_description": (
+            "Nevada runs one of the simplest mobility rules in the country -- open CPA=CPA, "
+            "no notice, no fee. Here's what actually applies for a California-licensed CPA, "
+            "and the one condition that trips people up on attest work."
+        ),
+        "body_html": """
+<p class="intro">Of all the state pairs a CPA might ask about, California-to-Nevada is one of the
+simpler ones &mdash; Nevada runs one of the most open mobility rules in the country. That doesn't
+mean there's nothing to check, though, especially if you're bringing attest work with you rather than
+just yourself.</p>
+
+<h2>Nevada's rule: open CPA=CPA, no notice, no fee</h2>
+<p>Nevada Revised Statutes 628.315(1) deems any individual with a valid CPA license in good standing
+from another state &mdash; California included &mdash; to be a Nevada CPA "for all purposes under the
+laws of this State other than this chapter." There's no NASBA substantial-equivalency test, no
+individual-criteria pathway check, none of the layered conditions some other states apply. The statute
+expressly waives Nevada's own certificate, permit, and firm-registration requirements for privilege
+holders (628.315(2)) &mdash; which means, in practice, <strong>no notice filing and no fee</strong> to
+exercise the privilege as an individual.</p>
+
+<p>The tradeoff for that simplicity: the privilege comes with real conditions, not none. You consent to
+the Nevada Board's jurisdiction and discipline authority, you have to comply with Nevada's own
+accountancy chapter and regulations, the privilege ends if your California license lapses, and your
+home board (California's) is treated as your agent for service of process (NRS 628.315(3)). None of
+that is unusual for a mobility statute, but it's worth knowing you're not operating in a jurisdiction
+you have zero obligations to.</p>
+
+<h2>The condition that actually matters: attest work and practice monitoring</h2>
+<p>Here's the part a plain "Nevada = open mobility" summary misses. Nevada's administrative code (NAC
+628.580, read together with NAC 628.010's definition of "practitioner") requires anyone performing
+audit, review, full-disclosure compilation, or other attestation-type services &mdash; including
+out-of-state privilege holders, not just Nevada-licensed CPAs &mdash; to enroll in a board-approved
+practice-monitoring (peer review) program. If your first Nevada attest engagement is coming up, the
+rule gives you a real window: notify the Board within 60 days of that first engagement and enroll in
+peer review within 18 months (NAC 628.580(4)). If you're not doing attest-type work in Nevada, this
+condition doesn't apply to you at all.</p>
+
+<h2>Firms: registration only if you open a Nevada office</h2>
+<p>Firm-level mobility is just as open as the individual rule &mdash; NRS 628.315(1) extends the same
+open recognition to out-of-state firms. Firm registration under NRS 628.335 only kicks in for a firm
+that actually has <strong>an office in Nevada</strong>, regardless of what service line that firm
+practices. A California firm with no physical Nevada office, working through practice-privilege
+individuals, doesn't need to register &mdash; open the office, and that changes.</p>
+
+<p><strong>The honest caveat</strong>: this is general orientation sourced to NRS 628.315, 628.335, and
+NAC 628.580/628.010, current as of this page's last review. It doesn't cover every fact pattern &mdash;
+particularly the peer-review timing rules if you're actively starting attest work in Nevada right now.
+For your specific situation, run it through
+<a href="../../practice-privilege-check/">our Practice Privilege Check tool</a>, or confirm with the
+Nevada State Board of Accountancy directly. And while you're at it, don't lose track of your own
+California renewal &mdash; it runs on a birth-month/odd-even cycle that's easy to misremember.
+<a href="../../california/">Check your California renewal date here</a>.</p>
+""",
+    },
+    {
+        "slug": "texas-to-oklahoma-cpa-mobility",
+        "title": "Texas CPA Practicing in Oklahoma — What Actually Applies (and What Changes Nov. 1, 2026)",
+        "meta_description": (
+            "Oklahoma's mobility rule is open today but rewrites itself to individual criteria "
+            "on November 1, 2026. Here's what a Texas CPA needs to know before and after that "
+            "date, sourced to the actual statute."
+        ),
+        "body_html": """
+<p class="intro">Oklahoma is a genuinely useful example of why "check the current rule, not what you
+remember" matters &mdash; because Oklahoma's own mobility rule is mid-transition. What applies to a
+Texas-licensed CPA working in Oklahoma <strong>today</strong> is not quite the same as what applies
+starting November 1, 2026.</p>
+
+<h2>The rule in effect right now, through October 31, 2026</h2>
+<p>Under the currently-operative version of 59 O.S. &sect; 15.12A (in force since a 2023 amendment),
+Oklahoma grants full practice privilege to out-of-state CPAs &mdash; Texas-licensed CPAs included
+&mdash; with <strong>no notice, no fee, and no submission required</strong>, under a hybrid framework:
+licensees of NASBA-verified substantially-equivalent states are covered, and so is a catch-all
+provision presuming licensees of non-verified jurisdictions are ALSO substantially equivalent.
+Effectively, this functions as open CPA=CPA mobility today, even though the statute's own structure is
+a substantial-equivalency test rather than an individual-criteria one.</p>
+
+<h2>What changes on November 1, 2026</h2>
+<p>Oklahoma's 2026 UAA 9th-edition rewrite (HB 4317, signed May 5, 2026, no emergency clause) takes
+effect <strong>November 1, 2026</strong> and replaces that substantial-equivalency scheme with true
+individual-criteria mobility: a valid out-of-state CPA/PA license, a passed Uniform CPA Exam, and one
+of three pathways met at initial licensure (a post-baccalaureate accounting degree plus 1 year of
+experience; a bachelor's plus 30 additional semester hours plus 1 year; or a bachelor's with an
+accounting concentration plus 2 years). If your original Texas licensure met any standard path to
+licensure, you should clear this without issue &mdash; but the underlying test itself genuinely
+changes, not just its wording. The no-notice/no-fee treatment for qualifying individuals carries
+forward into the new text.</p>
+
+<h2>Bringing a firm: registration only with an Oklahoma office</h2>
+<p>Firm-level mobility in Oklahoma is unusually explicit about this: the Board's own FAQ confirms full
+firm mobility since November 2023 "even if the work being performed is attestation-related," with
+registration required only if the firm has a <strong>physical office in Oklahoma</strong> (59 O.S.
+&sect; 15.15). A firm with no Oklahoma office can perform attest work without registering, but only if
+it meets specific conditions &mdash; CPA-majority ownership standards, compliance with Oklahoma's
+peer/quality review requirement (&sect; 15.30), performing the work through an individual holding
+15.12A practice privilege, and being able to lawfully perform that work in its home state. Miss any one
+of those conditions and the registration requirement comes back.</p>
+
+<h2>One practical trigger: moving your practice into Oklahoma</h2>
+<p>Mobility privilege covers out-of-state CPAs whose principal place of business stays outside
+Oklahoma. If you actually relocate your practice into the state, Oklahoma's administrative rules (OAC
+10:15-21-1) require a reciprocal certificate/permit application within 120 days &mdash; a different
+requirement than simply serving Oklahoma clients from Texas.</p>
+
+<p><strong>The honest caveat</strong>: this page describes two different rule states on either side of
+a real statutory deadline, sourced to 59 O.S. &sect;&sect; 15.12A, 15.15, 15.15C, and 15.30 as amended
+by the 2023 and 2026 acts. It's general orientation, not a determination for your specific attest/
+non-attest engagement mix. For your actual situation &mdash; especially anything time-sensitive around
+the November 2026 changeover &mdash; run it through
+<a href="../../practice-privilege-check/">our Practice Privilege Check tool</a> or confirm with the
+Oklahoma Accountancy Board directly. And keep your own Texas renewal on track while you're at it
+&mdash; it's due annually by your own birth month, easy to lose track of.
+<a href="../../texas/">Check your Texas renewal date here</a>.</p>
+""",
+    },
 ]
 
 
@@ -18308,7 +18765,7 @@ def main() -> None:
 
     deadline_calc_dir = SITE_DIR / "deadline-calculator"
     deadline_calc_dir.mkdir(parents=True, exist_ok=True)
-    (deadline_calc_dir / "index.html").write_text(build_deadline_calculator_page(by_slug), encoding="utf-8")
+    (deadline_calc_dir / "index.html").write_text(build_deadline_calculator_page(by_slug, as_of), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/deadline-calculator/index.html")
 
     roadmap_dir = SITE_DIR / "roadmap"

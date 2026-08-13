@@ -163,6 +163,30 @@
   }
   tr.dr-bf-highlight { background: var(--card-bg); outline: 2px solid var(--accent); outline-offset: -2px; }
   
+  .dr-calc {
+    max-width: 30rem; margin: 1.2rem 0; padding: 1.1rem 1.2rem; border-radius: 10px;
+    background: var(--card-bg); border: 1px solid var(--border);
+  }
+  .dr-calc label { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.4rem; display: block; }
+  .dr-calc select, .dr-calc input {
+    width: 100%; padding: 0.65rem 0.75rem; border-radius: 7px; border: 1px solid var(--border-strong);
+    background: var(--bg); color: var(--fg); font-size: 0.95rem; font-family: inherit;
+  }
+  .dr-calc-followup { margin-top: 0.9rem; }
+  .dr-calc-followup:empty { margin-top: 0; }
+  .dr-calc-result {
+    font-size: 1.05rem; margin: 1rem 0 0; padding: 0.8rem 1rem; border-radius: 8px;
+    background: var(--bg); border: 1px solid var(--border);
+  }
+  .dr-calc-result strong { font-family: var(--font-display); font-weight: 620; }
+  .dr-calc-result p:first-child { margin-top: 0; }
+  .dr-calc-result p:last-child { margin-bottom: 0; font-size: 0.85rem; }
+  .calc-example-table { width: 100%; border-collapse: collapse; margin: 0.8rem 0 1.2rem; }
+  .calc-example-table th, .calc-example-table td {
+    text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border); font-size: 0.92rem;
+  }
+  .calc-example-table th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  
   .dr-visually-hidden {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;

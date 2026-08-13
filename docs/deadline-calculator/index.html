@@ -162,6 +162,30 @@
   }
   tr.dr-bf-highlight { background: var(--card-bg); outline: 2px solid var(--accent); outline-offset: -2px; }
   
+  .dr-calc {
+    max-width: 30rem; margin: 1.2rem 0; padding: 1.1rem 1.2rem; border-radius: 10px;
+    background: var(--card-bg); border: 1px solid var(--border);
+  }
+  .dr-calc label { font-size: 0.85rem; font-weight: 600; margin: 0 0 0.4rem; display: block; }
+  .dr-calc select, .dr-calc input {
+    width: 100%; padding: 0.65rem 0.75rem; border-radius: 7px; border: 1px solid var(--border-strong);
+    background: var(--bg); color: var(--fg); font-size: 0.95rem; font-family: inherit;
+  }
+  .dr-calc-followup { margin-top: 0.9rem; }
+  .dr-calc-followup:empty { margin-top: 0; }
+  .dr-calc-result {
+    font-size: 1.05rem; margin: 1rem 0 0; padding: 0.8rem 1rem; border-radius: 8px;
+    background: var(--bg); border: 1px solid var(--border);
+  }
+  .dr-calc-result strong { font-family: var(--font-display); font-weight: 620; }
+  .dr-calc-result p:first-child { margin-top: 0; }
+  .dr-calc-result p:last-child { margin-bottom: 0; font-size: 0.85rem; }
+  .calc-example-table { width: 100%; border-collapse: collapse; margin: 0.8rem 0 1.2rem; }
+  .calc-example-table th, .calc-example-table td {
+    text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border); font-size: 0.92rem;
+  }
+  .calc-example-table th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  
   .dr-visually-hidden {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
@@ -1599,11 +1623,106 @@
   <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>
 </header>
 <h1>CPA License Renewal Deadline Calculator</h1>
-<p class="intro">Pick your state below and go straight to your exact renewal deadline &mdash; free,
-no signup, no account required. Every date is sourced &mdash; to your state board's codified statute
-or rule where we could confirm it against primary law, and clearly labelled where we could only
-confirm it against the board's own page &mdash; <a href="/methodology/">see exactly how</a>.</p>
+<p class="intro">Select your state below &mdash; and your birth month or cohort group, if your state's
+rule needs one &mdash; to see your exact renewal deadline right here. Free, no signup, no account
+required. Every date is sourced &mdash; to your state board's codified statute or rule where we could
+confirm it against primary law, and clearly labelled where we could only confirm it against the
+board's own page &mdash; <a href="/methodology/">see exactly how</a>.</p>
 
+<div class="dr-calc" id="dr-calc">
+  <label for="dr-calc-state">Your state</label>
+  <select id="dr-calc-state">
+    <option value="">Select your state&hellip;</option>
+    <option value="alabama">Alabama</option>
+<option value="alaska">Alaska</option>
+<option value="arizona">Arizona</option>
+<option value="arkansas">Arkansas</option>
+<option value="california">California</option>
+<option value="colorado">Colorado</option>
+<option value="connecticut">Connecticut</option>
+<option value="delaware">Delaware</option>
+<option value="dc">District of Columbia</option>
+<option value="florida">Florida</option>
+<option value="georgia">Georgia</option>
+<option value="guam">Guam</option>
+<option value="hawaii">Hawaii</option>
+<option value="idaho">Idaho</option>
+<option value="illinois">Illinois</option>
+<option value="indiana">Indiana</option>
+<option value="iowa">Iowa</option>
+<option value="kansas">Kansas</option>
+<option value="kentucky">Kentucky</option>
+<option value="louisiana">Louisiana</option>
+<option value="maine">Maine</option>
+<option value="maryland">Maryland</option>
+<option value="massachusetts">Massachusetts</option>
+<option value="michigan">Michigan</option>
+<option value="minnesota">Minnesota</option>
+<option value="mississippi">Mississippi</option>
+<option value="missouri">Missouri</option>
+<option value="montana">Montana</option>
+<option value="nebraska">Nebraska</option>
+<option value="nevada">Nevada</option>
+<option value="new-hampshire">New Hampshire</option>
+<option value="new-jersey">New Jersey</option>
+<option value="new-mexico">New Mexico</option>
+<option value="new-york">New York</option>
+<option value="north-carolina">North Carolina</option>
+<option value="north-dakota">North Dakota</option>
+<option value="northern-mariana-islands">Northern Mariana Islands</option>
+<option value="ohio">Ohio</option>
+<option value="oklahoma">Oklahoma</option>
+<option value="oregon">Oregon</option>
+<option value="pennsylvania">Pennsylvania</option>
+<option value="puerto-rico">Puerto Rico</option>
+<option value="rhode-island">Rhode Island</option>
+<option value="south-carolina">South Carolina</option>
+<option value="south-dakota">South Dakota</option>
+<option value="tennessee">Tennessee</option>
+<option value="texas">Texas</option>
+<option value="us-virgin-islands">U.S. Virgin Islands</option>
+<option value="utah">Utah</option>
+<option value="vermont">Vermont</option>
+<option value="virginia">Virginia</option>
+<option value="washington">Washington</option>
+<option value="west-virginia">West Virginia</option>
+<option value="wisconsin">Wisconsin</option>
+<option value="wyoming">Wyoming</option>
+  </select>
+  <div id="dr-calc-followup"></div>
+  <div id="dr-calc-result" class="dr-calc-result" hidden></div>
+</div>
+<script>var DR_CALC_DATA={florida:{label:"Florida",kind:"gap",note:"We previously listed this as two odd/even cohort records, but a 2026-07-05 recovery review found that framing was wrong: individual CPA expiration dates are per-licensee, tied to each person's own original certificate date -- not a public odd/even rule. The codified odd-year rule applies to FIRM licenses only (see Florida's firm page), not individuals. Confirm your exact personal expiration date using the Florida DBPR license-verification lookup (myfloridalicense.com) or on your license."},illinois:{label:"Illinois",kind:"computed",date:"September 30, 2027"},pennsylvania:{label:"Pennsylvania",kind:"computed",date:"December 31, 2027"},georgia:{label:"Georgia",kind:"computed",date:"December 31, 2027"},"north-carolina":{label:"North Carolina",kind:"computed",date:"July 1, 2027"},michigan:{label:"Michigan",kind:"gap",note:"The renewal rule itself is double-sourced (Michigan LARA's current licensing page plus a separately-hosted official LARA licensing-guide PDF both confirm: biennial, expires July 31), but neither document states which year of the 2-year cycle applies to a given license holder, so we cannot safely publish one 'next July 31' date for every visitor. Confirm your exact renewal date with the Michigan Board of Accountancy (LARA) or on your license. (2026-07-17 note: MCL 339.729's grace-period clause anchors to \"the date of his or her original license\" -- individual, not statewide -- and MICPA's own phrasing (\"expire July 31 two years after the last renewal\") reads as an individualized rolling cycle rather than one fixed statewide odd/even rule; this points toward Michigan working like California/Texas, i.e. personal rather than calendar-based, though that hasn't been independently confirmed against real license records. 2026-07-30: Michigan's official sources could not be reached to check again, so this record is unchanged, not newly resolved.)"},ohio:{label:"Ohio",kind:"cohort",groups:[{group:"Group 1",date:"December 31, 2026"},{group:"Group 2",date:"December 31, 2027"},{group:"Group 3",date:"December 31, 2028"}]},california:{label:"California",kind:"ca",months:[{odd:"January 31, 2027",even:"January 31, 2028"},{odd:"February 28, 2027",even:"February 29, 2028"},{odd:"March 31, 2027",even:"March 31, 2028"},{odd:"April 30, 2027",even:"April 30, 2028"},{odd:"May 31, 2027",even:"May 31, 2028"},{odd:"June 30, 2027",even:"June 30, 2028"},{odd:"July 31, 2027",even:"July 31, 2028"},{odd:"August 31, 2027",even:"August 31, 2026"},{odd:"September 30, 2027",even:"September 30, 2026"},{odd:"October 31, 2027",even:"October 31, 2026"},{odd:"November 30, 2027",even:"November 30, 2026"},{odd:"December 31, 2027",even:"December 31, 2026"}]},texas:{label:"Texas",kind:"tx",months:["January 31, 2027","February 28, 2027","March 31, 2027","April 30, 2027","May 31, 2027","June 30, 2027","July 31, 2027","August 31, 2026","September 30, 2026","October 31, 2026","November 30, 2026","December 31, 2026"]},"new-york":{label:"New York",kind:"gap",note:"Unlike California/Texas, this expiration date depends on the individual's own first-registration date, not birth month alone -- a personal fact we don't have. Confirm your registration renewal date with NYSED or on your registration certificate."},"new-jersey":{label:"New Jersey",kind:"gap",note:"NJ renews on a fixed triennial cycle ending December 31, but the specific current-cycle end date is not published at the state-board level. Confirm your exact expiration on your license certificate or with the New Jersey State Board of Accountancy. (2026-07-17 update: read the full codified text of N.J.A.C. 13:29-1.7 directly -- deliberately generic, \"three years from the last expiration date,\" no calendar year anywhere in the rule text. Found and read the actual NJ Register rule-adoption notice (57 N.J.R. 55(a)) -- a genuine official regulatory-register citation, but it's the chapter's routine 7-year sunset readoption, not a document fixing the current triennial cohort's dates. N.J.S.A. 45:1-7's stagger-provision doesn't apply (accountancy runs on its own separate Title 45:2B authority). Live license-verification portal attempted but not executable by current tooling. Two independent secondary sources (njcpa.org, NASBA's CPE registry) now converge on \"Jan 1, 2024-Dec 31, 2026,\" which matches the believed pattern and raises confidence -- but per this file's own fabrication-avoidance rule, secondary-source agreement alone does not upgrade this to a shippable citation.)"},virginia:{label:"Virginia",kind:"computed",date:"June 30, 2027"},massachusetts:{label:"Massachusetts",kind:"gap",note:"The official fee-schedule page confirms the biennial/June-30/odd-even-year split exists but does not state the assignment mechanism, and an independent orchestrator re-check found no primary-source support for a license-number-parity rule. Removed rather than shipped unverified."},washington:{label:"Washington",kind:"gap",note:"The Board confirms the renewal WINDOW (Jan 1-Apr 30) and CYCLE LENGTH (3 years) but does not publish a birth-month, last-name, or license-number rule for which of the three years a given individual falls into -- that lives only on the individual's own license record (via WA's CPA Verify lookup tool or the Board directly). Cannot be reduced to a lookup table from state-level facts alone."},maryland:{label:"Maryland",kind:"gap",note:"A previously drafted detail claiming reminder notices are sent at 60/45/30/15/5 days before expiration was checked directly against the source page and found NOT stated there -- removed rather than shipped unverified."},minnesota:{label:"Minnesota",kind:"computed",date:"December 31, 2026"},wisconsin:{label:"Wisconsin",kind:"computed",date:"December 15, 2027"},colorado:{label:"Colorado",kind:"computed",date:"November 30, 2027"},arizona:{label:"Arizona",kind:"gap",note:"We can't auto-compute this one from public data alone -- check your license certificate or the state board directly for your exact date."},missouri:{label:"Missouri",kind:"computed",date:"September 30, 2027"},tennessee:{label:"Tennessee",kind:"gap",note:"Tennessee assigns each licensee and firm to one of the two biennial years individually, so no single public date applies to everyone. Confirm your exact renewal date with the Tennessee Board of Accountancy or on your license."},indiana:{label:"Indiana",kind:"computed",date:"June 30, 2027"},connecticut:{label:"Connecticut",kind:"computed",date:"December 31, 2026"},louisiana:{label:"Louisiana",kind:"computed",date:"December 31, 2026"},oregon:{label:"Oregon",kind:"cohort",groups:[{group:"Even-numbered permit holders",date:"June 30, 2028"},{group:"Odd-numbered permit holders",date:"June 30, 2027"}]},"south-carolina":{label:"South Carolina",kind:"computed",date:"February 1, 2027"},alabama:{label:"Alabama",kind:"computed",date:"December 31, 2026"},kentucky:{label:"Kentucky",kind:"cohort",groups:[{group:"Even-numbered license holders",date:"July 31, 2028"},{group:"Odd-numbered license holders",date:"July 31, 2027"}]},oklahoma:{label:"Oklahoma",kind:"gap",note:"We can't auto-compute this one from public data alone -- check your license certificate or the state board directly for your exact date."},iowa:{label:"Iowa",kind:"computed",date:"June 30, 2027"},dc:{label:"District of Columbia",kind:"computed",date:"December 31, 2026"},utah:{label:"Utah",kind:"computed",date:"December 31, 2026"},kansas:{label:"Kansas",kind:"cohort",groups:[{group:"Odd-numbered certificate holders",date:"July 1, 2027"},{group:"Even-numbered certificate holders",date:"July 1, 2028"}]},nevada:{label:"Nevada",kind:"computed",date:"December 31, 2026"},arkansas:{label:"Arkansas",kind:"computed",date:"December 31, 2026"},nebraska:{label:"Nebraska",kind:"cohort",groups:[{group:"Even-birth-year cohort",date:"June 30, 2028"},{group:"Odd-birth-year cohort",date:"June 30, 2027"}]},"new-mexico":{label:"New Mexico",kind:"gap",note:"Your exact renewal date depends on your birth month -- we cannot determine that from state-level data alone. Confirm your renewal date with the New Mexico Regulation and Licensing Department or on your license."},mississippi:{label:"Mississippi",kind:"computed",date:"January 1, 2027"},idaho:{label:"Idaho",kind:"gap",note:"Idaho is in the middle of a licensure-cycle change (announced May 2026): the Board's site describes a new birth-year-parity biennial schedule, but the current administrative rule (IDAPA 24.30.01 § 108) still states annual June 30 renewal with no cohort/biennial language yet. We can't safely compute your next date during this transition. Confirm your exact renewal date with the Idaho Division of Occupational and Professional Licenses or on your license."},"west-virginia":{label:"West Virginia",kind:"computed",date:"June 30, 2027"},montana:{label:"Montana",kind:"computed",date:"December 31, 2026"},delaware:{label:"Delaware",kind:"computed",date:"June 30, 2027"},"north-dakota":{label:"North Dakota",kind:"computed",date:"June 30, 2027"},alaska:{label:"Alaska",kind:"computed",date:"December 31, 2027"},vermont:{label:"Vermont",kind:"computed",date:"July 31, 2027"},wyoming:{label:"Wyoming",kind:"computed",date:"December 31, 2026"},maine:{label:"Maine",kind:"computed",date:"September 30, 2026"},"south-dakota":{label:"South Dakota",kind:"computed",date:"August 1, 2027"},"rhode-island":{label:"Rhode Island",kind:"cohort",groups:[{group:"Cohort due 2027",date:"June 30, 2027"},{group:"Cohort due 2028",date:"June 30, 2028"},{group:"Cohort due 2029",date:"June 30, 2029"}]},hawaii:{label:"Hawaii",kind:"computed",date:"December 31, 2027"},"new-hampshire":{label:"New Hampshire",kind:"gap",note:"Your exact renewal date is exactly 2 years from when your license/permit was last issued or renewed -- a personal fact we can't determine from state-level data. Confirm your renewal date with the NH Office of Professional Licensure and Certification or on your license."},"us-virgin-islands":{label:"U.S. Virgin Islands",kind:"computed",date:"June 30, 2027"},"puerto-rico":{label:"Puerto Rico",kind:"gap",note:"Puerto Rico's own Board of Accountancy page confirms the governing law (Ley 293 of 1945) and that NASBA administers licensing/renewal on the Board's behalf, but does not itself publish the renewal cycle length or dates -- that detail is only corroborated via NASBA's PR renewal checklist and the Colegio de CPA (professional association, not the government board). Sources also conflict on the underlying mechanics: some describe a uniform triennial cycle for all licensees, others frame December 1 as a recurring annual deadline tied to each licensee's individual issuance-year cohort. Without a primary PR government source stating which 3-year cohort an individual licensee falls into, we cannot compute a single applicable next-renewal date. A visitor should check their actual PR license renewal notice or the NASBA Puerto Rico licensing portal rather than rely on a computed date."},guam:{label:"Guam",kind:"gap",note:"The Guam Board of Accountancy's own web presence (guamboa.org) is the only board-run site we could find, but it has an expired TLS certificate and the only dated document discoverable on it is from November 2011, so we could not treat it as a current, confirmable source of the renewal cycle. Guam's official Compiler of Laws confirms the codified Guam Accountancy Act of 2003 (22 GCA ch. 35) and Board regulations (25 GAR ch. 2) exist and empower the Board to set renewal terms, but those PDFs could not be parsed for the exact renewal-date text. Third-party CPA exam-prep sites (uncorroborated by the Board itself) claim a 3-year cycle expiring June 30. Since we cannot confirm the specific date against a current primary source, we are not publishing a computed date. A visitor should contact the Guam Board of Accountancy directly (per Guam government records: tel. 671-647-0813) rather than rely on a computed date. (citation_url/source_url updated 2026-08-03: the Judiciary of Guam relaunched its site 2026-05-01, breaking the old guamcourts.gov/compileroflaws/... path; col.guamcourts.gov is the working host, confirmed live and byte-matching the same document per the mobility dataset's own verification.)"},"northern-mariana-islands":{label:"Northern Mariana Islands",kind:"gap",note:"We could not locate any current, board-run website for the CNMI Board of Accountancy. The CNMI Board of Professional Licensing (cnmilicensing.gov.mp) explicitly does not cover accountancy -- it regulates only architecture, engineering, land surveying, landscape architecture, and real-property appraisal -- and no dedicated accountancy-board page was found under the Dept. of Commerce. The codified statute (Accountancy Act of 2002, Public Law 13-52, 4 CMC §§3401-3440) and its implementing rules (NMIAC tit. 1 ch. 10) exist via the CNMI Law Revision Commission's official site (cnmilaw.org, the judicial-branch agency that codifies CNMI law), but the underlying PDFs could not be parsed for exact renewal-date text. Third-party CPA exam-prep sites (uncorroborated by any board) describe a triennial cycle with a Sept 30 - Dec 31 window and $330 fee. Since we cannot confirm this against any primary board source, we are not publishing a computed date. A visitor should contact the CNMI Dept. of Commerce directly rather than rely on a computed date."}};(function(){var MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];var stateSel=document.getElementById("dr-calc-state");var followup=document.getElementById("dr-calc-followup");var result=document.getElementById("dr-calc-result");function monthOptionsHtml(){var out='<option value="">Select&hellip;</option>';for(var i=0;i<12;i++)out+='<option value="'+(i+1)+'">'+MONTHS[i]+"</option>";return out}function showResult(text,slug,label){result.hidden=false;result.innerHTML="<p>"+text+'</p><p><a href="../'+slug+'/">See the full '+label+" page &amp; set up a free reminder &rarr;</a></p>"}function render(){var slug=stateSel.value;followup.innerHTML="";result.hidden=true;if(!slug)return;var entry=DR_CALC_DATA[slug];if(!entry)return;if(entry.kind==="computed"){showResult("Your next "+entry.label+" renewal is due <strong>"+entry.date+"</strong>.",slug,entry.label)}else if(entry.kind==="gap"){showResult(entry.note,slug,entry.label)}else if(entry.kind==="cohort"){var html='<label for="dr-calc-group">Your cohort group</label><select id="dr-calc-group">'+'<option value="">Select your group&hellip;</option>';entry.groups.forEach(function(g,i){html+='<option value="'+i+'">'+g.group+"</option>"});html+='</select><p class="field-hint">Not sure which group applies to you? Check your '+"license certificate or the state board’s lookup.</p>";followup.innerHTML=html;document.getElementById("dr-calc-group").addEventListener("change",function(){var g=entry.groups[this.value];if(!g){result.hidden=true;return}showResult("Your next "+entry.label+" renewal ("+g.group+") is due <strong>"+g.date+"</strong>.",slug,entry.label)})}else if(entry.kind==="tx"){followup.innerHTML='<label for="dr-calc-month">Your birth month</label><select id="dr-calc-month">'+monthOptionsHtml()+"</select>";document.getElementById("dr-calc-month").addEventListener("change",function(){var m=parseInt(this.value,10);if(!m){result.hidden=true;return}showResult("Your next "+entry.label+" renewal is due <strong>"+entry.months[m-1]+"</strong>.",slug,entry.label)})}else if(entry.kind==="ca"){followup.innerHTML='<div class="signup-form-row"><div><label for="dr-calc-month">Your birth month</label>'+'<select id="dr-calc-month">'+monthOptionsHtml()+"</select></div>"+'<div><label for="dr-calc-year">Your birth year</label><input type="number" id="dr-calc-year" '+'min="1900" max="2100" placeholder="e.g. 1985"></div></div>';function update(){var m=parseInt(document.getElementById("dr-calc-month").value,10);var y=parseInt(document.getElementById("dr-calc-year").value,10);if(!m||!y){result.hidden=true;return}var isOdd=y%2===1;var d=isOdd?entry.months[m-1].odd:entry.months[m-1].even;showResult("Your next "+entry.label+" renewal is due <strong>"+d+"</strong>.",slug,entry.label)}document.getElementById("dr-calc-month").addEventListener("change",update);document.getElementById("dr-calc-year").addEventListener("input",update)}}stateSel.addEventListener("change",render)})();</script>
+
+<div class="trust-row">
+  <div class="item"><span class="n">55</span><span class="lbl">jurisdictions covered</span></div>
+  <div class="item"><span class="n">41</span><span class="lbl">where we compute your exact date</span></div>
+  <div class="item"><span class="n">88 of 88</span><span class="lbl">citations re-checked in the last 30 days</span></div>
+</div>
+
+<h2>What "calculated" actually looks like, state by state</h2>
+<p>This isn't one formula &mdash; every state renews on its own rule, and those rules take genuinely
+different shapes. A few real examples, straight from the same dataset the calculator above draws on:</p>
+<table class="calc-example-table">
+<thead><tr><th>State</th><th>Cycle type</th><th>What the tool returns</th></tr></thead>
+<tbody>
+<tr><td>Illinois</td><td>fixed calendar</td><td>September 30, 2027</td></tr>
+<tr><td>Texas</td><td>birth month</td><td>Depends on a personal fact &mdash; the calculator above asks for it, then answers</td></tr>
+<tr><td>Ohio</td><td>fixed calendar cohort</td><td>Depends on a personal fact &mdash; the calculator above asks for it, then answers</td></tr>
+<tr><td>Florida</td><td>other</td><td>No public rule ties this to a knowable input &mdash; the calculator says so, honestly</td></tr>
+</tbody>
+</table>
+
+<h2>How this actually works</h2>
+<p>Picking your state above looks itself up in the exact same dataset that state's own page renders
+from &mdash; there's no second, different formula running here. Most states resolve to one plain
+date immediately. States whose rule depends on a personal fact &mdash; your birth month, or which
+cohort group your license falls in &mdash; ask for that fact before answering, using the exact same
+inputs that state's own rule actually uses. Either way, the date you get is never estimated or
+guessed &mdash; if we can't confirm it against a primary source, the calculator says so instead of
+showing a number, same as the Florida row above.</p>
+
+<p>Prefer to browse a state's full page directly instead of using the calculator above?</p>
 <div class="state-search">
   <label for="state-search-input">Jump to another state</label>
   <form id="state-search-form" role="search" onsubmit="return drGoToState(event)" autocomplete="off">
@@ -1618,13 +1737,18 @@ confirm it against the board's own page &mdash; <a href="/methodology/">see exac
 </div>
 <script>var DR_STATES=[{name:"Alabama",slug:"alabama"},{name:"Alaska",slug:"alaska"},{name:"Arizona",slug:"arizona"},{name:"Arkansas",slug:"arkansas"},{name:"California",slug:"california"},{name:"Colorado",slug:"colorado"},{name:"Connecticut",slug:"connecticut"},{name:"Delaware",slug:"delaware"},{name:"District of Columbia",slug:"dc"},{name:"Florida",slug:"florida"},{name:"Georgia",slug:"georgia"},{name:"Guam",slug:"guam"},{name:"Hawaii",slug:"hawaii"},{name:"Idaho",slug:"idaho"},{name:"Illinois",slug:"illinois"},{name:"Indiana",slug:"indiana"},{name:"Iowa",slug:"iowa"},{name:"Kansas",slug:"kansas"},{name:"Kentucky",slug:"kentucky"},{name:"Louisiana",slug:"louisiana"},{name:"Maine",slug:"maine"},{name:"Maryland",slug:"maryland"},{name:"Massachusetts",slug:"massachusetts"},{name:"Michigan",slug:"michigan"},{name:"Minnesota",slug:"minnesota"},{name:"Mississippi",slug:"mississippi"},{name:"Missouri",slug:"missouri"},{name:"Montana",slug:"montana"},{name:"Nebraska",slug:"nebraska"},{name:"Nevada",slug:"nevada"},{name:"New Hampshire",slug:"new-hampshire"},{name:"New Jersey",slug:"new-jersey"},{name:"New Mexico",slug:"new-mexico"},{name:"New York",slug:"new-york"},{name:"North Carolina",slug:"north-carolina"},{name:"North Dakota",slug:"north-dakota"},{name:"Northern Mariana Islands",slug:"northern-mariana-islands"},{name:"Ohio",slug:"ohio"},{name:"Oklahoma",slug:"oklahoma"},{name:"Oregon",slug:"oregon"},{name:"Pennsylvania",slug:"pennsylvania"},{name:"Puerto Rico",slug:"puerto-rico"},{name:"Rhode Island",slug:"rhode-island"},{name:"South Carolina",slug:"south-carolina"},{name:"South Dakota",slug:"south-dakota"},{name:"Tennessee",slug:"tennessee"},{name:"Texas",slug:"texas"},{name:"U.S. Virgin Islands",slug:"us-virgin-islands"},{name:"Utah",slug:"utah"},{name:"Vermont",slug:"vermont"},{name:"Virginia",slug:"virginia"},{name:"Washington",slug:"washington"},{name:"West Virginia",slug:"west-virginia"},{name:"Wisconsin",slug:"wisconsin"},{name:"Wyoming",slug:"wyoming"}];function drNormalize(s){return s.trim().toLowerCase()}function drMatches(typed){var norm=drNormalize(typed);if(!norm)return[];var starts=[],contains=[];DR_STATES.forEach(function(s){var n=drNormalize(s.name);if(n.indexOf(norm)===0)starts.push(s);else if(n.indexOf(norm)!==-1)contains.push(s)});return starts.concat(contains)}function drExactOrSingleMatch(typed){var norm=drNormalize(typed);if(!norm)return null;var exact=null;DR_STATES.forEach(function(s){if(drNormalize(s.name)===norm)exact=s});if(exact)return exact.slug;var matches=drMatches(typed);return matches.length===1?matches[0].slug:null}function drGoToState(event){if(event)event.preventDefault();var input=document.getElementById("state-search-input");var slug=drExactOrSingleMatch(input.value);if(slug){window.location.href="/"+slug+"/"}return false}function drFilterGrid(){var typed=drNormalize(document.getElementById("state-search-input").value);document.querySelectorAll(".state-card").forEach(function(card){var name=drNormalize(card.getAttribute("data-state-name"));var match=!typed||name.indexOf(typed)!==-1;card.classList.toggle("state-card--dimmed",!match)})}var drActiveIndex=-1;function drCloseDropdown(){var dropdown=document.getElementById("state-search-dropdown");var input=document.getElementById("state-search-input");dropdown.innerHTML="";dropdown.classList.remove("is-open");input.setAttribute("aria-expanded","false");input.removeAttribute("aria-activedescendant");drActiveIndex=-1}function drRenderDropdown(){var input=document.getElementById("state-search-input");var dropdown=document.getElementById("state-search-dropdown");var typed=input.value;if(!typed.trim()){drCloseDropdown();return}var matches=drMatches(typed);drActiveIndex=-1;input.removeAttribute("aria-activedescendant");if(matches.length===0){dropdown.innerHTML='<div class="state-search-empty">No matching state</div>';dropdown.classList.add("is-open");input.setAttribute("aria-expanded","true");return}dropdown.innerHTML=matches.map(function(s,i){return'<button type="button" class="state-search-option" id="dr-search-opt-'+i+'" data-slug="'+s.slug+'" data-index="'+i+'" role="option" aria-selected="false">'+s.name+"</button>"}).join("");dropdown.classList.add("is-open");input.setAttribute("aria-expanded","true")}function drSetActive(index){var input=document.getElementById("state-search-input");var options=document.querySelectorAll(".state-search-option");options.forEach(function(opt){opt.classList.remove("is-active");opt.setAttribute("aria-selected","false")});if(index>=0&&index<options.length){options[index].classList.add("is-active");options[index].setAttribute("aria-selected","true");options[index].scrollIntoView({block:"nearest"});if(input)input.setAttribute("aria-activedescendant",options[index].id)}else if(input){input.removeAttribute("aria-activedescendant")}drActiveIndex=index}document.addEventListener("DOMContentLoaded",function(){var input=document.getElementById("state-search-input");var dropdown=document.getElementById("state-search-dropdown");if(!input||!dropdown)return;input.addEventListener("input",function(){drRenderDropdown();drFilterGrid();if(typeof window.drActivateHfcCardForTyped==="function"){window.drActivateHfcCardForTyped(input.value)}});input.addEventListener("keydown",function(event){var options=document.querySelectorAll(".state-search-option");if(event.key==="ArrowDown"){event.preventDefault();if(options.length)drSetActive((drActiveIndex+1)%options.length)}else if(event.key==="ArrowUp"){event.preventDefault();if(options.length)drSetActive((drActiveIndex-1+options.length)%options.length)}else if(event.key==="Enter"){if(drActiveIndex>=0&&options[drActiveIndex]){event.preventDefault();window.location.href="/"+options[drActiveIndex].getAttribute("data-slug")+"/"}}else if(event.key==="Escape"){drCloseDropdown()}});dropdown.addEventListener("click",function(event){var opt=event.target.closest(".state-search-option");if(opt){window.location.href="/"+opt.getAttribute("data-slug")+"/"}});document.addEventListener("click",function(event){if(event.target!==input&&!dropdown.contains(event.target))drCloseDropdown()})});</script>
 
-<h2>How this actually works</h2>
-<p>There's no separate "calculator" logic running here &mdash; picking your state takes you straight
-to that state's own page, where your renewal date is either computed directly (most states) or, for
-the states whose rule depends on a personal fact like your birth month, walked through with the exact
-inputs that state's own rule actually uses. Either way, the date you get is never estimated or
-guessed &mdash; if we can't confirm it against a primary source, the page says so instead of showing a
-number.</p>
+<h2>Frequently asked</h2>
+<p><strong>Is this actually free?</strong> Yes &mdash; looking up your own renewal date has never
+required an account, a signup, or a fee. The paid tier is for firms tracking a whole staff roster in
+one place, not for an individual checking their own date.</p>
+<p><strong>Why does my state say "enter your date" instead of showing one?</strong> Some states'
+renewal cycles genuinely depend on a fact we don't have &mdash; when you were originally licensed,
+which cohort group you're in, or similar &mdash; and the state board itself doesn't publish a lookup
+we can compute from. Rather than guess, the page says so and lets you enter your own known date to
+track from there.</p>
+<p><strong>How do you know these dates are right?</strong> Every date traces to either the state
+board's own published page or the actual codified statute/rule, with the date we last confirmed it
+shown on that state's own page &mdash; see the <a href="/methodology/">full verification writeup</a>.</p>
 
 <p><strong>Tracking a whole firm's staff, not just your own license?</strong> See the
 <a href="/for-firms/">firm overview</a> &mdash; the same free, sourced deadline data in one roster

@@ -4776,6 +4776,9 @@ function drCloseDropdown() {
   dropdown.innerHTML = '';
   dropdown.classList.remove('is-open');
   input.setAttribute('aria-expanded', 'false');
+  // AuditLab A11Y-5: the options this pointed at just got destroyed above --
+  // clear it rather than leaving a reference to a removed element.
+  input.removeAttribute('aria-activedescendant');
   drActiveIndex = -1;
 }
 
@@ -4786,6 +4789,11 @@ function drRenderDropdown() {
   if (!typed.trim()) { drCloseDropdown(); return; }
   var matches = drMatches(typed);
   drActiveIndex = -1;
+  // AuditLab A11Y-5: every branch below rebuilds the dropdown's children
+  // from scratch, so any aria-activedescendant from the previous render
+  // now points at a destroyed element -- clear it up front rather than
+  // per-branch.
+  input.removeAttribute('aria-activedescendant');
   if (matches.length === 0) {
     dropdown.innerHTML = '<div class="state-search-empty">No matching state</div>';
     dropdown.classList.add('is-open');
@@ -4793,19 +4801,35 @@ function drRenderDropdown() {
     return;
   }
   dropdown.innerHTML = matches.map(function(s, i) {
-    return '<button type="button" class="state-search-option" data-slug="' + s.slug +
-      '" data-index="' + i + '" role="option">' + s.name + '</button>';
+    return '<button type="button" class="state-search-option" id="dr-search-opt-' + i +
+      '" data-slug="' + s.slug + '" data-index="' + i + '" role="option" aria-selected="false">' +
+      s.name + '</button>';
   }).join('');
   dropdown.classList.add('is-open');
   input.setAttribute('aria-expanded', 'true');
 }
 
+// AuditLab A11Y-5 (LOW-MEDIUM, 2026-08-13, live): role="combobox"/
+// role="listbox"/role="option" were all correctly present, but arrow-key
+// navigation only ever moved a CSS class -- aria-activedescendant was never
+// set, so a screen reader announced nothing as the "selection" moved, and
+// Enter would navigate to a state the user was never told the name of.
+// Sets/clears aria-selected on the options and aria-activedescendant on the
+// input, same information the sighted is-active class already conveys.
 function drSetActive(index) {
+  var input = document.getElementById('state-search-input');
   var options = document.querySelectorAll('.state-search-option');
-  options.forEach(function(opt) { opt.classList.remove('is-active'); });
+  options.forEach(function(opt) {
+    opt.classList.remove('is-active');
+    opt.setAttribute('aria-selected', 'false');
+  });
   if (index >= 0 && index < options.length) {
     options[index].classList.add('is-active');
+    options[index].setAttribute('aria-selected', 'true');
     options[index].scrollIntoView({ block: 'nearest' });
+    if (input) input.setAttribute('aria-activedescendant', options[index].id);
+  } else if (input) {
+    input.removeAttribute('aria-activedescendant');
   }
   drActiveIndex = index;
 }

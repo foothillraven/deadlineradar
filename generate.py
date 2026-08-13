@@ -433,7 +433,12 @@ PAGE_CSS = """
     --on-accent: #fff;
     /* AuditLab UX-1: foreground for text painted on an --accent/--accent-deep background (buttons, table headers) -- pairs per-theme instead of a hardcoded color, which broke once dark mode inverted --accent from dark-navy to light-blue (was 2.47:1, WCAG AA needs 4.5). Dark-mode value is 7.25:1 against dark --accent and 9.5:1 against --accent-deep, verified with a standalone relative-luminance calc. */
     --panel-dark: #152c3e; --panel-dark-fg: #eaf1f7;
-    --gold: #8a6a33; --gold-line: #d8c9a6; --gold-bg: #f4eede;
+    /* AuditLab CONTRAST-3 (LOW, 2026-08-12): #8a6a33 on --gold-bg/--trust-bg
+       measured 4.33:1, just under the 4.5 bar for the small text (.cite,
+       calendar rule-change items, badges/pills) that actually uses this
+       pairing -- dark mode's --gold got the equivalent fix already, light
+       mode's never moved. 3% darker, same hue, gives 4.535:1. */
+    --gold: #866731; --gold-line: #d8c9a6; --gold-bg: #f4eede;
     --verified-green: #256a4b; --verified-green-bg: #e8f1ec;
     --trust-bg: #f4eede; --trust-border: #d8c9a6; --row-alt: #f6f8f9;
     --shadow: 0 1px 2px rgba(23,33,43,.05), 0 6px 22px rgba(23,33,43,.06);

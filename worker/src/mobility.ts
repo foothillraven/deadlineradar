@@ -70,9 +70,13 @@ const SERVICE_TYPES = new Set<ServiceType>(["attest", "tax", "other_non_attest"]
  * compilations commonly do NOT (typically conditioned on peer review).
  * "Other SSAE" engagements are kept as their OWN type rather than folded
  * into either bucket -- confirmed states genuinely disagree on which side
- * it falls (Connecticut: mandatory: West Virginia: exempt), so guessing a
- * uniform placement would repeat exactly the fabrication risk this
- * granularity exists to avoid. GAGAS is deliberately NOT a type here -- no
+ * it falls (Connecticut: mandatory; Arkansas/Kentucky/Wyoming: exempt, each
+ * via a general exemption or an exemption that expressly names the "other
+ * SSAE" clause; West Virginia: the statute names neither a mandatory nor an
+ * exempt path for it, so it is withheld as not_verified rather than guessed
+ * -- see ATTEST-4, 2026-08-12), so guessing a uniform placement would repeat
+ * exactly the fabrication risk this granularity exists to avoid. GAGAS is
+ * deliberately NOT a type here -- no
  * evidence found anywhere in the 55-jurisdiction research corpus or the UAA
  * model act that it is a distinct legal category (Yellow Book/GAGAS work is
  * a SAS audit with an overlay, not a different mobility answer).
@@ -436,9 +440,10 @@ export interface MobilityRuleRow {
   firm_registration_attest_compilation: boolean | null;
   /** "Other SSAE" engagements -- kept separate from every other tier because
    * confirmed states genuinely disagree on which side it falls (e.g.
-   * Connecticut/Guam: mandatory; West Virginia: exempt). null = not verified
-   * for this state, which is the honest default until a state is
-   * individually confirmed either way. */
+   * Connecticut/Guam: mandatory; Arkansas/Kentucky/Wyoming: exempt). null =
+   * not verified for this state (e.g. West Virginia, whose statute names
+   * neither side for this clause), which is the honest default until a
+   * state is individually confirmed either way. */
   firm_registration_attest_other_ssae: boolean | null;
   /** Plain-English condition attached to an exempt tier (e.g. "subject to
    * peer review"), shown as a requirement even on an otherwise-clear verdict

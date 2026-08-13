@@ -760,7 +760,7 @@
       "firm_registration_attest_core": true,
       "firm_registration_attest_ssars_review": false,
       "firm_registration_attest_compilation": false,
-      "firm_registration_attest_split_conditions": "Exempt from firm registration if the firm meets Miss. Code Ann. section 73-33-17(4)'s conditional-exemption criteria (peer review, practice-privilege performance)."
+      "firm_registration_attest_split_conditions": "Exempt from firm registration if the firm meets Miss. Code Ann. section 73-33-1(3)(b)'s conditions (the subsection (4) ownership qualifications, peer review per board rule, and performance through an individual with Section 73-33-17 practice privileges)."
     },
     {
       "state": "Missouri",

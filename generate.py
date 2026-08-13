@@ -664,8 +664,27 @@ PAGE_CSS = """
      alone, no !important needed. */
   .dr-cookie-notice[hidden] { display: none; }
   .table-wrap {
-    overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
+    position: relative; overflow-x: auto; margin: 1.1rem 0; border: 1px solid var(--border); border-radius: 8px;
     -webkit-overflow-scrolling: touch;
+  }
+  /* AuditLab COHORT-1 (MEDIUM, 2026-08-13): a wide table inside .table-wrap
+     is reachable by swiping, but had zero visual cue that there was
+     anything to swipe to -- on /california/ at mobile width the entire
+     third column (the "even birth year" deadline) sat off-screen with no
+     affordance, so a visitor read the one column that fit and could easily
+     take the WRONG YEAR for their own cohort. A small circular arrow badge,
+     not a background gradient -- .table-wrap content includes striped rows
+     (--row-alt on even rows), so a fade-to-solid-color gradient would show
+     a visible seam against every other row. The badge sits on its own
+     opaque --card-bg instead, so it reads correctly regardless of what's
+     underneath. JS below toggles .dr-scrollable only while there's
+     genuinely more to the right (not merely once the browser CAN scroll),
+     so it disappears once the user has actually scrolled to the end. */
+  .table-wrap.dr-scrollable::after {
+    content: "\\2192"; position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+    width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 50%;
+    background: var(--card-bg); color: var(--accent); font-size: 0.85rem; font-weight: 700;
+    box-shadow: var(--shadow); pointer-events: none;
   }
   table { border-collapse: collapse; width: 100%; font-size: 0.92rem; min-width: 420px; }
   th, td { padding: 0.6rem 0.8rem; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -3538,6 +3557,37 @@ _SCROLL_REVEAL_BODY_JS = """<script>
 })();
 </script>"""
 
+_TABLE_SCROLL_HINT_JS = """<script>
+(function () {
+  var wraps = document.querySelectorAll('.table-wrap');
+  if (!wraps.length) return;
+  function atEnd(wrap) { return wrap.scrollLeft + wrap.clientWidth >= wrap.scrollWidth - 1; }
+  // Some .table-wrap variants (e.g. .dr-roster-panel's mobile card layout)
+  // deliberately set overflow-x:hidden once their own reset makes content
+  // fit -- scrollWidth can still transiently read wider than clientWidth
+  // there, but the element genuinely can't be scrolled, so showing this
+  // hint would point at an affordance that doesn't work. Only hint where
+  // horizontal scrolling is actually enabled.
+  function canScroll(wrap) {
+    var overflowX = window.getComputedStyle(wrap).overflowX;
+    return overflowX === 'auto' || overflowX === 'scroll';
+  }
+  function update() {
+    wraps.forEach(function (wrap) {
+      var hasOverflow = canScroll(wrap) && wrap.scrollWidth > wrap.clientWidth + 1;
+      wrap.classList.toggle('dr-scrollable', hasOverflow && !atEnd(wrap));
+    });
+  }
+  update();
+  window.addEventListener('resize', update);
+  wraps.forEach(function (wrap) {
+    wrap.addEventListener('scroll', function () {
+      wrap.classList.toggle('dr-scrollable', !atEnd(wrap));
+    });
+  });
+})();
+</script>"""
+
 _SHOW_PASSWORD_TOGGLE_HTML = """<script>
 (function () {
   document.querySelectorAll('input[type="password"]').forEach(function (input) {
@@ -3644,6 +3694,7 @@ def page_shell(
 {_SHOW_PASSWORD_TOGGLE_HTML}
 {_COOKIE_NOTICE_HTML}
 {_SCROLL_REVEAL_BODY_JS}
+{_TABLE_SCROLL_HINT_JS}
 </body>
 </html>
 """

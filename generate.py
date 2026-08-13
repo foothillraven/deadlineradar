@@ -17850,6 +17850,23 @@ Sitemap: {SITE_BASE_URL}/sitemap.xml
 """
 
 
+def build_security_txt() -> str:
+    """AuditLab INFRA-1 (LOW, 2026-08-12): /security/'s vulnerability-
+    disclosure email is Cloudflare-obfuscated at the edge (Email Address
+    Obfuscation/Scrape Shield) and requires JS to reveal -- no fallback on
+    that page. RFC 9116's security.txt is the standard machine-readable
+    channel and is plain text, so no HTML-rewriting edge transform touches
+    it; recommended "regardless" of whatever the Scrape Shield toggle
+    decision ends up being. Expires is required by the RFC -- one year out,
+    regenerated every build so it never goes stale by accident."""
+    expires = (date.today() + timedelta(days=365)).isoformat() + "T00:00:00.000Z"
+    return f"""Contact: mailto:{CONTACT_EMAIL}
+Expires: {expires}
+Canonical: {SITE_BASE_URL}/.well-known/security.txt
+Preferred-Languages: en
+"""
+
+
 # ---------------------------------------------------------------------------
 # Main -- UNCHANGED this pass (data loading, staleness guards, file writes)
 # ---------------------------------------------------------------------------
@@ -18047,6 +18064,11 @@ def main() -> None:
 
     (SITE_DIR / f"{INDEXNOW_KEY}.txt").write_text(INDEXNOW_KEY, encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/{INDEXNOW_KEY}.txt (IndexNow key)")
+
+    well_known_dir = SITE_DIR / ".well-known"
+    well_known_dir.mkdir(parents=True, exist_ok=True)
+    (well_known_dir / "security.txt").write_text(build_security_txt(), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/.well-known/security.txt")
 
     privacy_dir = SITE_DIR / "privacy"
     privacy_dir.mkdir(parents=True, exist_ok=True)

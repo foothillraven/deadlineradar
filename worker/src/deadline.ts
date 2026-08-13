@@ -34,6 +34,7 @@ interface CpaRecord {
   state_slug: string;
   next_deadline_computed: string | null;
   cohort_groups?: { group: string; years: number[]; next_deadline: string }[];
+  last_verified: string;
 }
 
 interface CpaData {
@@ -105,6 +106,33 @@ function ageDaysFromAsOf(realToday: Date): number {
   return Math.round((realToday.getTime() - asOf.getTime()) / 86_400_000);
 }
 
+/** AuditLab STALE-5: `as_of_date` is a single whole-file stamp, but nothing
+ * ever forced it to move in lockstep with the per-record `last_verified`
+ * fields the public "N of 88 citations re-verified" stat is built from --
+ * a file touch that bumps `as_of_date` without actually re-verifying every
+ * record makes the guard read fresher than the data underneath it actually
+ * is. Fix: the guard is anchored on the WORSE (older) of `as_of_date`'s own
+ * age and the single oldest `last_verified` across every record, so it can
+ * only ever get tighter than `as_of_date` alone, never looser. Same
+ * fail-toward-refusing posture as `ageDaysFromAsOf`'s own unparseable case
+ * -- a record with a missing/unparseable `last_verified` counts as
+ * infinitely old rather than being silently skipped. */
+function worstRecordAgeDays(realToday: Date): number {
+  let worst = -Infinity;
+  for (const r of DATA.records) {
+    const verified = new Date(`${r.last_verified}T00:00:00Z`);
+    const age = Number.isNaN(verified.getTime())
+      ? Infinity
+      : Math.round((realToday.getTime() - verified.getTime()) / 86_400_000);
+    if (age > worst) worst = age;
+  }
+  return worst;
+}
+
+function combinedAgeDays(realToday: Date): number {
+  return Math.max(ageDaysFromAsOf(realToday), worstRecordAgeDays(realToday));
+}
+
 /** scheduler.py:68 `check_data_freshness()`. AuditLab ST-3: an unparseable
  * `as_of_date` used to produce `NaN` age, and `NaN > threshold` is `false` --
  * failing OPEN (signups allowed off data of unknown freshness) instead of
@@ -114,17 +142,19 @@ function ageDaysFromAsOf(realToday: Date): number {
  * data-integrity product has for this, so it must fail toward refusing, not
  * toward silently trusting unknown data. */
 export function checkDataFreshness(realToday: Date): void {
-  const ageDays = ageDaysFromAsOf(realToday);
-  if (Number.isNaN(ageDays)) {
+  const asOfAgeDays = ageDaysFromAsOf(realToday);
+  if (Number.isNaN(asOfAgeDays)) {
     throw new StaleDataError(
       `REFUSING: reference data's as_of_date ("${DATA.as_of_date}") is unparseable -- treating as ` +
         `stale rather than trusting data of unknown freshness. Every pass that depends on this data ` +
         `(signups and all outbound sends) is paused until it is re-verified.`
     );
   }
+  const ageDays = combinedAgeDays(realToday);
   if (ageDays > STALENESS_THRESHOLD_DAYS) {
+    const which = ageDays === asOfAgeDays ? "as_of_date" : "its single oldest record's last_verified date";
     throw new StaleDataError(
-      `REFUSING: reference data's as_of_date is ${ageDays} days old, past the ` +
+      `REFUSING: reference data is ${ageDays} days old (anchored on ${which}), past the ` +
         `${STALENESS_THRESHOLD_DAYS}-day freshness threshold. Every pass that depends on this data ` +
         `(signups and all outbound sends) is paused until it is re-verified.`
     );
@@ -142,8 +172,9 @@ export function checkDataFreshness(realToday: Date): void {
  * non-throwing read so API responses can carry a `data_as_of`/`data_stale`
  * signal instead of staying silent. */
 export function dataFreshnessInfo(realToday: Date): { as_of_date: string; age_days: number; stale: boolean } {
-  const ageDays = ageDaysFromAsOf(realToday);
-  const unparseable = Number.isNaN(ageDays);
+  const asOfAgeDays = ageDaysFromAsOf(realToday);
+  const unparseable = Number.isNaN(asOfAgeDays);
+  const ageDays = unparseable ? asOfAgeDays : combinedAgeDays(realToday);
   return {
     as_of_date: DATA.as_of_date,
     age_days: unparseable ? -1 : ageDays,

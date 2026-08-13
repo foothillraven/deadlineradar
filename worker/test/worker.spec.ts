@@ -3077,6 +3077,36 @@ describe("deadlines.ts", () => {
     expect(stale.stale).toBe(true);
     expect(() => checkDataFreshness(new Date("2030-01-01T00:00:00Z"))).toThrow(StaleDataError);
   });
+
+  it("AuditLab STALE-5: the guard is anchored on the WORSE of as_of_date and the single oldest per-record last_verified, not as_of_date alone", () => {
+    // Computed relative to the real dataset (not hardcoded dates) so this
+    // stays correct regardless of what as_of_date/last_verified happen to
+    // be on any given day -- same robustness pattern the existing
+    // "Staleness guard -- real HTTP + cron code paths" describe block below
+    // already uses for as_of_date itself.
+    const oldestLastVerified = cpaDeadlinesData.records
+      .map((r) => Date.parse(`${r.last_verified}T00:00:00Z`))
+      .reduce((oldest, t) => Math.min(oldest, t), Infinity);
+    const asOfTime = Date.parse(`${cpaDeadlinesData.as_of_date}T00:00:00Z`);
+
+    // A "today" placed just past the 30-day threshold from the OLDEST
+    // per-record last_verified, but still within 30 days of as_of_date
+    // itself (as_of_date is required to be >= every last_verified, so this
+    // window always exists when the two dates differ at all). If the guard
+    // only checked as_of_date, this would incorrectly read as fresh.
+    const justPastRecordThreshold = new Date(oldestLastVerified + (STALENESS_THRESHOLD_DAYS + 1) * 86_400_000);
+    if (justPastRecordThreshold.getTime() - asOfTime <= STALENESS_THRESHOLD_DAYS * 86_400_000) {
+      expect(dataFreshnessInfo(justPastRecordThreshold).stale).toBe(true);
+      expect(() => checkDataFreshness(justPastRecordThreshold)).toThrow(StaleDataError);
+    }
+
+    // A "today" comfortably within 30 days of BOTH as_of_date and every
+    // record's last_verified must still read fresh -- the tightened guard
+    // must never fire early for genuinely fresh data.
+    const bothFresh = new Date(Math.max(asOfTime, oldestLastVerified) + 1 * 86_400_000);
+    expect(dataFreshnessInfo(bothFresh).stale).toBe(false);
+    expect(() => checkDataFreshness(bothFresh)).not.toThrow();
+  });
 });
 
 describe("store.ts cooldownKey", () => {

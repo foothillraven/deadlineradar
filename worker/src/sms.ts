@@ -57,17 +57,23 @@ export function generateVerificationCode(): string {
 
 /**
  * Approximate PREDOMINANT standard-time (non-DST-adjusted) UTC offset per
- * licensing state -- close enough for a fixed-time daily cron that's
- * already deeply centered in the 8am-9pm window (18:00 UTC = 1pm ET/
- * 12pm CT/11am MT/10am PT, 3+ hours of margin on both sides even before
- * accounting for a state's own internal timezone spread or seasonal DST
- * drift). A jurisdiction genuinely incompatible with a single fixed daily
- * cron time (Guam/CNMI, UTC+10 -- the cron fires at ~4am their next local
- * day) is listed with its REAL offset rather than omitted, so the check
- * below correctly and consistently computes "outside quiet hours, skip"
- * for it every day, rather than hardcoding an exclusion. A jurisdiction
- * NOT listed here fails closed (isWithinSmsQuietHours returns false) --
- * never guessed.
+ * licensing state -- close enough for a fixed-time daily cron, given a
+ * subscriber's licensing state is the only geographic signal this product
+ * has at all. AuditLab SYNC-2 (2026-08-09, addendum 2026-08-13): an earlier
+ * version of this docstring claimed "3+ hours of margin on both sides" for
+ * the 18:00 UTC cron -- false by measurement (Hawaii sits exactly ON the
+ * 8am boundary, 0h of margin; Alaska has 1h). It's correct today only
+ * because isWithinSmsQuietHours()'s >= comparison is inclusive of 8:00 and
+ * Hawaii doesn't observe DST, not because of any real safety margin -- so
+ * don't trust a "there's room" intuition when touching the cron schedule;
+ * trust CRON_HOUR_UTC below and computeSmsUnavailableStateSlugs()'s actual
+ * output instead. A jurisdiction genuinely incompatible with a single fixed
+ * daily cron time (Guam/CNMI, UTC+10 -- the cron fires at ~4am their next
+ * local day) is listed with its REAL offset rather than omitted, so the
+ * check below correctly and consistently computes "outside quiet hours,
+ * skip" for it every day, rather than hardcoding an exclusion. A
+ * jurisdiction NOT listed here fails closed (isWithinSmsQuietHours returns
+ * false) -- never guessed.
  */
 export const STATE_TIMEZONE_UTC_OFFSET: Record<string, number> = {
   // Eastern (UTC-5)
@@ -96,20 +102,53 @@ export const STATE_TIMEZONE_UTC_OFFSET: Record<string, number> = {
 const QUIET_HOURS_START = 8; // 8am local, inclusive
 const QUIET_HOURS_END = 21; // 9pm local, exclusive
 
-/** AuditLab SMS-1 (MEDIUM, 2026-08-09): the two jurisdictions whose real
- * UTC+10 offset (see STATE_TIMEZONE_UTC_OFFSET's own docstring) puts them
- * OUTSIDE the 8am-9pm quiet-hours window every single day against the
- * fixed 18:00 UTC cron -- runSmsAlertPass() correctly never sends to them,
- * but nothing told the subscriber that before they completed opt-in.
- * Someone whose ONLY licensed state(s) are in this set could tick consent,
- * receive a working verification code (that send is on-demand, not
- * cron-gated, so it DOES arrive), get sms_opted_in=1, and then receive
- * nothing ever -- worse than never offering the channel, since they have
- * every reason to believe it's on and may rely on a text that never comes.
- * Used by handleSubscriberPhoneStartVerification() to refuse opt-in
- * upfront with an honest message, rather than silently accepting a
- * confirmation that can never be honored. */
-export const SMS_UNAVAILABLE_STATE_SLUGS = new Set(["guam", "northern-mariana-islands"]);
+/** The Worker's single daily SMS-pass cron hour, UTC -- MUST match the
+ * "0 18 * * *" cron trigger in BOTH worker/wrangler.toml and
+ * worker/wrangler.preview.toml (asserted equal to both by
+ * scripts/preship_gate.py's check_sms_cron_hour_matches_wrangler(),
+ * AuditLab SYNC-2). Existing as a named constant instead of being inlined
+ * is what makes that check possible -- a preship assertion can grep for
+ * this one number and compare it against the real schedule instead of
+ * trusting SMS_UNAVAILABLE_STATE_SLUGS to have been hand-updated whenever
+ * the cron moves. */
+export const CRON_HOUR_UTC = 18;
+
+/** AuditLab SYNC-2 (2026-08-09, fixed 2026-08-13): SMS_UNAVAILABLE_STATE_SLUGS
+ * used to be a hand-maintained literal -- correct at the 18:00 UTC cron by a
+ * two-hour margin on each side (quantified: 16:00 undercounts to 4 states
+ * including Alaska/Hawaii, 22:00 overcounts to 0), so any future cron-time
+ * change would silently desynchronize it. A cron move EARLIER makes this
+ * set under-report, which is the dangerous direction -- a subscriber in a
+ * newly-outside-quiet-hours state completes opt-in, gets a working
+ * verification code (that send is on-demand, not cron-gated), and then
+ * never receives an alert, exactly the harm SMS-1 exists to prevent.
+ * Computed here instead, so it can never drift from CRON_HOUR_UTC/
+ * QUIET_HOURS_START/QUIET_HOURS_END -- the only way it becomes wrong is if
+ * CRON_HOUR_UTC itself falls out of sync with the real cron schedule, which
+ * the preship check above catches. */
+function computeSmsUnavailableStateSlugs(cronHourUtc: number): Set<string> {
+  const unavailable = new Set<string>();
+  for (const [slug, offset] of Object.entries(STATE_TIMEZONE_UTC_OFFSET)) {
+    const localHour = (((cronHourUtc + offset) % 24) + 24) % 24;
+    if (!(localHour >= QUIET_HOURS_START && localHour < QUIET_HOURS_END)) {
+      unavailable.add(slug);
+    }
+  }
+  return unavailable;
+}
+
+/** The jurisdictions whose local hour at the daily cron falls OUTSIDE the
+ * 8am-9pm quiet-hours window every single day -- runSmsAlertPass()
+ * correctly never sends to them, but nothing told the subscriber that
+ * before they completed opt-in. Someone whose ONLY licensed state(s) are
+ * in this set could tick consent, receive a working verification code,
+ * get sms_opted_in=1, and then receive nothing ever -- worse than never
+ * offering the channel, since they have every reason to believe it's on
+ * and may rely on a text that never comes. Used by
+ * handleSubscriberPhoneStartVerification() to refuse opt-in upfront with
+ * an honest message, rather than silently accepting a confirmation that
+ * can never be honored. */
+export const SMS_UNAVAILABLE_STATE_SLUGS = computeSmsUnavailableStateSlugs(CRON_HOUR_UTC);
 
 /** AuditLab SMS-3 (MEDIUM, 2026-08-09): identifies WHICH disclosure text a
  * consent record refers to -- bump this (and the matching string literal

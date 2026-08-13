@@ -590,6 +590,53 @@ def check_json_copies_identical(repo_root: Path) -> list[str]:
 SITE_BASE_URL_RE = re.compile(r'<loc>(https?://[^<]+)</loc>')
 
 
+def check_sms_cron_hour_matches_wrangler(repo_root: Path) -> list[str]:
+    """AuditLab SYNC-2 (2026-08-09, fixed 2026-08-13): worker/src/sms.ts's
+    SMS_UNAVAILABLE_STATE_SLUGS used to be a hand-maintained literal that
+    happened to be correct at the current "0 18 * * *" cron by only a
+    two-hour margin on each side (AuditLab quantified the drift: a 2-hour
+    earlier cron under-reports, silently letting Alaska/Hawaii subscribers
+    opt into a channel that will never fire for them -- the exact harm
+    SMS-1 exists to prevent). Fixed by computing the set from a named
+    CRON_HOUR_UTC constant instead, but that constant is now its OWN
+    hand-maintained duplicate of the real schedule in wrangler.toml/
+    wrangler.preview.toml -- same class this function's siblings
+    (check_terms_version_sync, check_field_computed_states_sync) already
+    guard against. Asserts all three agree: CRON_HOUR_UTC, wrangler.toml's
+    cron, and wrangler.preview.toml's cron."""
+    sms_ts = repo_root / "worker" / "src" / "sms.ts"
+    wrangler_toml = repo_root / "worker" / "wrangler.toml"
+    wrangler_preview_toml = repo_root / "worker" / "wrangler.preview.toml"
+    if not sms_ts.exists():
+        print("  (skipping sms-cron-hour-sync check -- worker/ tree not present in this checkout)")
+        return []
+
+    ts_match = re.search(r"CRON_HOUR_UTC\s*=\s*(\d+)", sms_ts.read_text(encoding="utf-8"))
+    if not ts_match:
+        return ["[SYNC] worker/src/sms.ts's CRON_HOUR_UTC constant not found -- can't verify sync with the real cron schedule"]
+    ts_hour = int(ts_match.group(1))
+
+    errors = []
+    for wrangler_path in (wrangler_toml, wrangler_preview_toml):
+        if not wrangler_path.exists():
+            errors.append(f"[SYNC] {wrangler_path.relative_to(repo_root)} not found -- can't verify sms.ts's CRON_HOUR_UTC against it")
+            continue
+        cron_match = re.search(r'crons\s*=\s*\[\s*"(\d+)\s+(\d+)\s+\*\s+\*\s+\*"\s*\]', wrangler_path.read_text(encoding="utf-8"))
+        if not cron_match:
+            errors.append(f"[SYNC] {wrangler_path.relative_to(repo_root)}'s daily cron expression not found in the expected 'M H * * *' shape")
+            continue
+        wrangler_hour = int(cron_match.group(2))
+        if wrangler_hour != ts_hour:
+            errors.append(
+                f"[SYNC] worker/src/sms.ts's CRON_HOUR_UTC ({ts_hour}) does not match "
+                f"{wrangler_path.relative_to(repo_root)}'s cron hour ({wrangler_hour}) -- "
+                f"SMS_UNAVAILABLE_STATE_SLUGS would be computed against the WRONG cron time, "
+                f"silently reintroducing the under-report risk SYNC-2 fixed. Update CRON_HOUR_UTC "
+                f"to match the real schedule (or fix the schedule, if that's what changed)."
+            )
+    return errors
+
+
 def check_sitemap_completeness(html_files: list[Path], docs_dir: Path) -> list[str]:
     """AuditLab CRAWL-2 (LOW, 2026-08-07): the third hand-maintained-list
     decay found in ~24 hours (after CRAWL-1's /terms/ omission and RETAIN-1's
@@ -1190,6 +1237,7 @@ def main():
     all_errors += check_renewal_fee_currency(repo_root)
     all_errors += check_competitor_price_currency(repo_root)
     all_errors += check_field_computed_states_sync(repo_root)
+    all_errors += check_sms_cron_hour_matches_wrangler(repo_root)
     all_errors += check_json_copies_identical(repo_root)
     all_errors += check_terms_version_sync(repo_root)
     all_errors += check_retention_coverage(repo_root)

@@ -9,7 +9,7 @@
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 import * as store from "../src/store";
-import { isWithinSmsQuietHours, isValidTwilioSignature } from "../src/sms";
+import { isWithinSmsQuietHours, isValidTwilioSignature, SMS_UNAVAILABLE_STATE_SLUGS, CRON_HOUR_UTC, STATE_TIMEZONE_UTC_OFFSET } from "../src/sms";
 
 const BASE = "https://deadline-radar.com";
 const MS_PER_DAY = 86_400_000;
@@ -74,6 +74,41 @@ describe("isWithinSmsQuietHours", () => {
   it("fails closed for a genuinely unknown state slug", () => {
     const now = new Date(Date.UTC(2027, 5, 15, 18, 0, 0));
     expect(isWithinSmsQuietHours("atlantis", now)).toBe(false);
+  });
+});
+
+describe("AuditLab SYNC-2: SMS_UNAVAILABLE_STATE_SLUGS is derived from CRON_HOUR_UTC, not hand-maintained", () => {
+  it("matches the real cron hour exactly today (guam + northern-mariana-islands, nothing else)", () => {
+    expect(SMS_UNAVAILABLE_STATE_SLUGS).toEqual(new Set(["guam", "northern-mariana-islands"]));
+  });
+
+  it("agrees with isWithinSmsQuietHours() for every listed state, at the real cron time", () => {
+    // Cross-checks the exported set against the independently-callable gate
+    // function rather than re-deriving the same formula a second time in
+    // the test -- if the two ever disagreed, this is the check that would
+    // catch it, since SMS_UNAVAILABLE_STATE_SLUGS and isWithinSmsQuietHours()
+    // are meant to describe the exact same boundary.
+    const cronTime = new Date(Date.UTC(2027, 5, 15, CRON_HOUR_UTC, 0, 0));
+    for (const slug of Object.keys(STATE_TIMEZONE_UTC_OFFSET)) {
+      const withinQuietHours = isWithinSmsQuietHours(slug, cronTime);
+      const markedUnavailable = SMS_UNAVAILABLE_STATE_SLUGS.has(slug);
+      expect(withinQuietHours, `${slug}: isWithinSmsQuietHours=${withinQuietHours} but markedUnavailable=${markedUnavailable}`).toBe(!markedUnavailable);
+    }
+  });
+
+  it("would correctly widen if the cron moved 2 hours earlier (AuditLab's quantified under-report case)", () => {
+    // Not exercising computeSmsUnavailableStateSlugs() directly (it's
+    // module-private, by design -- CRON_HOUR_UTC is the one knob meant to
+    // be touched) -- instead confirms the real gate function, at the
+    // hypothetical earlier cron time AuditLab measured, produces the wider
+    // set their manual derivation found (alaska/hawaii newly excluded).
+    const earlierCron = new Date(Date.UTC(2027, 5, 15, CRON_HOUR_UTC - 2, 0, 0));
+    expect(isWithinSmsQuietHours("alaska", earlierCron)).toBe(false);
+    expect(isWithinSmsQuietHours("hawaii", earlierCron)).toBe(false);
+    expect(isWithinSmsQuietHours("guam", earlierCron)).toBe(false);
+    expect(isWithinSmsQuietHours("northern-mariana-islands", earlierCron)).toBe(false);
+    // Sanity control: a state comfortably mid-window shouldn't flip too.
+    expect(isWithinSmsQuietHours("ohio", earlierCron)).toBe(true);
   });
 });
 

@@ -1535,8 +1535,8 @@
       "firm_registration_attest_core": true,
       "firm_registration_attest_ssars_review": false,
       "firm_registration_attest_compilation": false,
-      "firm_registration_attest_other_ssae": false,
-      "firm_registration_attest_split_conditions": "Exempt from firm registration if the firm meets W. Va. Code section 30-9-17(c)'s ownership/peer-review conditions and performs the work through a practice-privileged individual."
+      "firm_registration_attest_other_ssae": null,
+      "firm_registration_attest_split_conditions": "Exempt from firm registration if the firm meets W. Va. Code section 30-9-17(c)'s ownership/peer-review conditions and performs the work through a practice-privileged individual (this condition applies to the SSARS-review and compilation tiers; \"other SSAE\" (E) engagements are unresolved by statute -- see data_gap_note)."
     },
     {
       "state": "Wisconsin",

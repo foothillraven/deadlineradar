@@ -2174,14 +2174,18 @@ export function buildDripCourseStep4Email(firstName: string | null, unsubscribeU
 }
 
 /**
- * Task #19 (2026-08-06): sent once, when an operator marks a roadmap idea
- * shipped (no automatic detection -- see index.ts's handleRoadmapMarkShipped
- * docstring). One-time by construction (notified_at is set the moment this
- * goes out, and there's only ever one "shipped" transition per idea), so
- * this carries the same plain-transactional shape as the confirm email
- * above rather than full unsubscribe machinery.
+ * Task #19 (2026-08-06): sent when an operator's one-off script marks a
+ * roadmap idea shipped (ops-only, no HTTP route -- see
+ * listConfirmedUnnotifiedSignupsForIdea()'s own docstring in store.ts). One
+ * message, every confirmed signup for the idea -- a genuine 1:N fan-out to a
+ * double-opted-in announcement list, not the 1:1 transactional shape this
+ * function used to be documented as (AuditLab UNSUB-4, LOW/latent,
+ * 2026-08-13). `unsubscribeUrl` is per-recipient (the caller builds one per
+ * signup row, keyed on that row's own id -- see
+ * store.optOutFeatureIdeaSignupByToken()), same shape buildDigestEmail()
+ * already uses for its own per-recipient List-Unsubscribe target.
  */
-export function buildFeatureIdeaShippedEmail(ideaTitle: string): BuiltEmail {
+export function buildFeatureIdeaShippedEmail(ideaTitle: string, unsubscribeUrl: string): BuiltEmail {
   const addr = mailingAddress();
   const safeTitle = ideaTitle.replace(/[\r\n]+/g, " ");
   const subject = `It shipped: ${safeTitle}`;
@@ -2189,6 +2193,7 @@ export function buildFeatureIdeaShippedEmail(ideaTitle: string): BuiltEmail {
   const textBody =
     `Good news -- "${safeTitle}" is live on ${SITE_NAME} now. You asked to hear about this on the ` +
     `roadmap page, so here it is.\n\n` +
+    `Don't want ship notifications like this one? Unsubscribe, one click, no sign-in:\n${unsubscribeUrl}\n\n` +
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
@@ -2198,10 +2203,16 @@ export function buildFeatureIdeaShippedEmail(ideaTitle: string): BuiltEmail {
       p(
         `<strong>${esc(safeTitle)}</strong> is live on ${esc(SITE_NAME)} now. You asked to hear about ` +
           `this on the roadmap page, so here it is.`
+      ) +
+      p(
+        `Don't want ship notifications like this one? ${textLink(unsubscribeUrl, "Unsubscribe")}, one ` +
+          `click, no sign-in.`,
+        13,
+        LIGHT.muted
       ),
     `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
       `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
   );
 
-  return { subject, textBody, htmlBody, headers: {} };
+  return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
 }

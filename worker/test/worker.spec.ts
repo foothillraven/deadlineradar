@@ -3772,6 +3772,19 @@ describe("emails.ts buildStaleDataAlertEmail (AuditLab STALE-3)", () => {
   });
 });
 
+describe("emails.ts buildFeatureIdeaShippedEmail (AuditLab UNSUB-4)", () => {
+  it("carries a real per-recipient List-Unsubscribe target, not headers: {}", async () => {
+    const { buildFeatureIdeaShippedEmail } = await import("../src/emails");
+    const unsubscribeUrl = "https://deadline-radar.com/unsubscribe/feature-idea?token=abc123";
+    const built = buildFeatureIdeaShippedEmail("SMS reminders", unsubscribeUrl);
+    expect(built.headers["List-Unsubscribe"]).toBe(`<${unsubscribeUrl}>`);
+    expect(built.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+    expect(built.textBody).toContain(unsubscribeUrl);
+    expect(built.htmlBody).toContain(unsubscribeUrl);
+    expect(built.subject).toContain("SMS reminders");
+  });
+});
+
 describe("emails.ts buildStopConfirmationEmail", () => {
   it("renewed: includes the re-arm button + link and a real address", async () => {
     const { buildStopConfirmationEmail, MAILING_ADDRESS } = await import("../src/emails");

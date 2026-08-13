@@ -1,0 +1,14 @@
+-- AuditLab UNSUB-4 (LOW, latent, 2026-08-13): buildFeatureIdeaShippedEmail()
+-- is a genuine 1:N fan-out (one idea ships, every confirmed signup for it
+-- gets the same email) but had no List-Unsubscribe target at all -- the
+-- send path is currently unreachable (no HTTP route, ops-only script per
+-- the driver's own docstring), so this is a latent gap, not a live one, but
+-- the fix needs to land before the first real send, not after.
+--
+-- unsubscribed_at is deliberately its own column rather than reusing
+-- confirmed_at/notified_at: a recipient who unsubscribes from ONE idea's
+-- ship notification should not retroactively look "unconfirmed" (that would
+-- re-open the double-opt-in confirm flow) or "not yet notified" (that would
+-- make a later notify-run resend to them). It only ever gates the one
+-- SELECT in listConfirmedUnnotifiedSignupsForIdea().
+ALTER TABLE feature_idea_notify_signups ADD COLUMN unsubscribed_at TEXT;

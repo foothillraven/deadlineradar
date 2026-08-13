@@ -181,6 +181,85 @@ describe("POST /roadmap/notify-signup + GET/POST /roadmap/notify-confirm", () =>
   });
 });
 
+describe("AuditLab UNSUB-4: /unsubscribe/feature-idea + store.optOutFeatureIdeaSignupByToken", () => {
+  async function confirmedSignup(email: string): Promise<string> {
+    const signup = await store.createFeatureIdeaNotifySignup(env.DB, SEEDED_IDEA_ID, email);
+    await store.confirmFeatureIdeaNotifySignup(env.DB, signup!.rawToken);
+    const row = await env.DB.prepare("SELECT id FROM feature_idea_notify_signups WHERE idea_id = ?1 AND email = ?2")
+      .bind(SEEDED_IDEA_ID, email.toLowerCase())
+      .first<{ id: string }>();
+    return row!.id;
+  }
+
+  it("store: opting out removes the row from listConfirmedUnnotifiedSignupsForIdea", async () => {
+    const email = `unsub4-${Date.now()}@example.com`;
+    const id = await confirmedSignup(email);
+
+    const before = await store.listConfirmedUnnotifiedSignupsForIdea(env.DB, SEEDED_IDEA_ID);
+    expect(before.some((r) => r.id === id)).toBe(true);
+
+    const optedOut = await store.optOutFeatureIdeaSignupByToken(env.DB, id);
+    expect(optedOut).toBe(true);
+
+    const after = await store.listConfirmedUnnotifiedSignupsForIdea(env.DB, SEEDED_IDEA_ID);
+    expect(after.some((r) => r.id === id)).toBe(false);
+  });
+
+  it("store: idempotent -- a second opt-out on the same token reports no change, not an error", async () => {
+    const email = `unsub4-idempotent-${Date.now()}@example.com`;
+    const id = await confirmedSignup(email);
+
+    expect(await store.optOutFeatureIdeaSignupByToken(env.DB, id)).toBe(true);
+    expect(await store.optOutFeatureIdeaSignupByToken(env.DB, id)).toBe(false);
+  });
+
+  it("store: unaffected signup rows for OTHER ideas/emails still list normally", async () => {
+    const emailA = `unsub4-scope-a-${Date.now()}@example.com`;
+    const emailB = `unsub4-scope-b-${Date.now()}@example.com`;
+    const idA = await confirmedSignup(emailA);
+    const idB = await confirmedSignup(emailB);
+
+    await store.optOutFeatureIdeaSignupByToken(env.DB, idA);
+
+    const remaining = await store.listConfirmedUnnotifiedSignupsForIdea(env.DB, SEEDED_IDEA_ID);
+    expect(remaining.some((r) => r.id === idA)).toBe(false);
+    expect(remaining.some((r) => r.id === idB)).toBe(true);
+  });
+
+  it("HTTP: GET renders a confirm page, POST performs the opt-out end-to-end", async () => {
+    const email = `unsub4-http-${Date.now()}@example.com`;
+    const id = await confirmedSignup(email);
+
+    const page = await SELF.fetch(`${BASE}/unsubscribe/feature-idea?token=${encodeURIComponent(id)}`);
+    expect(page.status).toBe(200);
+    const html = await page.text();
+    expect(html).toContain("Unsubscribe");
+    const nonce = /name="action_csrf" value="([^"]+)"/.exec(html)?.[1] ?? "";
+
+    const postResp = await SELF.fetch(`${BASE}/unsubscribe/feature-idea`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token: id, action_csrf: nonce }).toString(),
+    });
+    expect(postResp.status).toBe(200);
+
+    const remaining = await store.listConfirmedUnnotifiedSignupsForIdea(env.DB, SEEDED_IDEA_ID);
+    expect(remaining.some((r) => r.id === id)).toBe(false);
+  });
+
+  it("HTTP: 404s for an unknown token", async () => {
+    const page = await SELF.fetch(`${BASE}/unsubscribe/feature-idea?token=not-a-real-token`);
+    const html = await page.text();
+    const nonce = /name="action_csrf" value="([^"]+)"/.exec(html)?.[1] ?? "";
+    const resp = await SELF.fetch(`${BASE}/unsubscribe/feature-idea`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token: "not-a-real-token", action_csrf: nonce }).toString(),
+    });
+    expect(resp.status).toBe(404);
+  });
+});
+
 describe("POST /firm/questionnaire and /firm/questionnaire/dismiss", () => {
   it("GET /firm/licenses reports questionnaire_pending:true for a brand-new firm", async () => {
     const { cookie } = await createFirmWithSession("Questionnaire Firm", `questionnaire-${Date.now()}@example.com`);

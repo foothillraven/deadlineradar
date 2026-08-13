@@ -899,6 +899,7 @@ def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
         "handleRearm": "consumes a subscriber's own rearm token (store.renewAndRearmByToken)",
         "handleDripCourseUnsubscribe": "consumes a drip-course enrollment's own unsubscribe token (store.stopDripCourseByToken) -- same one-click, no-login, token-is-the-credential shape as handleUnsubscribe",
         "handleFirmAdminUnsubscribe": "consumes a firm's own admin_unsubscribe_token (store.findFirmByAdminUnsubscribeToken, migration 0062, AuditLab UNSUB-2) -- same one-click, no-login, token-is-the-credential shape as handleUnsubscribe, RFC 8058 List-Unsubscribe-Post requires this to work without a session",
+        "handleFeatureIdeaSignupUnsubscribe": "consumes a feature-idea signup row's own id-as-token (store.optOutFeatureIdeaSignupByToken, migration 0065, AuditLab UNSUB-4) -- same one-click, no-login, token-is-the-credential shape as handleUnsubscribe, RFC 8058 List-Unsubscribe-Post requires this to work without a session",
     }
 
     errors = []

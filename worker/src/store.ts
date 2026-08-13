@@ -5375,7 +5375,10 @@ export async function recordDeliverabilityEvent(
  * actually comes, using this + buildFeatureIdeaShippedEmail() +
  * sendViaSendGrid() directly -- not worth a whole admin-auth surface for
  * something invoked a handful of times a year. Returns every CONFIRMED,
- * not-yet-notified signup for the idea; the caller sends and then calls
+ * not-yet-notified, not-unsubscribed (AuditLab UNSUB-4) signup for the
+ * idea; the caller sends -- building each row's own List-Unsubscribe URL as
+ * `${actionBaseUrl}/unsubscribe/feature-idea?token=${row.id}`, per-recipient
+ * since each row's `id` is its own unsubscribe token -- and then calls
  * markFeatureIdeaNotifySignupsNotified() with the ids that actually sent.
  */
 export async function listConfirmedUnnotifiedSignupsForIdea(
@@ -5385,11 +5388,30 @@ export async function listConfirmedUnnotifiedSignupsForIdea(
   const { results } = await db
     .prepare(
       `SELECT id, email FROM feature_idea_notify_signups
-        WHERE idea_id = ?1 AND confirmed_at IS NOT NULL AND notified_at IS NULL`
+        WHERE idea_id = ?1 AND confirmed_at IS NOT NULL AND notified_at IS NULL AND unsubscribed_at IS NULL`
     )
     .bind(ideaId)
     .all<{ id: string; email: string }>();
   return results ?? [];
+}
+
+/**
+ * AuditLab UNSUB-4 (migration 0065): the List-Unsubscribe target for
+ * buildFeatureIdeaShippedEmail(). Each signup row's own `id` doubles as its
+ * unsubscribe token -- it's already a newToken() value never exposed
+ * anywhere except this one email, same "long-lived, no rotation" posture
+ * subscribers.unsubscribe_token and firms.admin_unsubscribe_token already
+ * use elsewhere in this file. Idempotent (same no-oracle-on-repeat shape as
+ * rearm()/confirmFeatureIdeaNotifySignup() above): a second click just finds
+ * zero rows changed rather than erroring, so a double-fired one-click
+ * request from a mailbox provider is harmless.
+ */
+export async function optOutFeatureIdeaSignupByToken(db: D1Database, token: string): Promise<boolean> {
+  const result = await db
+    .prepare(`UPDATE feature_idea_notify_signups SET unsubscribed_at = ?1 WHERE id = ?2 AND unsubscribed_at IS NULL`)
+    .bind(nowIso(), token)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 export async function markFeatureIdeaNotifySignupsNotified(db: D1Database, ids: string[]): Promise<void> {

@@ -344,6 +344,15 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
     intro: "Click below to switch back to individual reminders as each deadline comes due. Every reminder you're tracking is unaffected -- only the weekly digest itself turns off.",
     button: "Turn off the digest",
   },
+  // AuditLab UNSUB-4 (LOW/latent, 2026-08-13, migration 0065): the
+  // List-Unsubscribe target for buildFeatureIdeaShippedEmail()'s "an idea
+  // you signed up for shipped" fan-out -- separate from /unsubscribe above,
+  // which stops actual deadline tracking, not roadmap announcements.
+  "/unsubscribe/feature-idea": {
+    heading: "Unsubscribe from ship notifications",
+    intro: "Click below to stop \"it shipped\" emails for the roadmap idea you signed up for. Nothing else about your account is affected.",
+    button: "Unsubscribe me",
+  },
   // Roadmap #34 (2026-08-08): separate from /unsubscribe above -- this only
   // stops the drip course series, never a subscriber's actual renewal-
   // deadline reminders (see store.stopDripCourseByToken()'s own comment).
@@ -7316,6 +7325,27 @@ async function handleDigestUnsubscribe(env: Env, token: string | null): Promise<
   );
 }
 
+/**
+ * AuditLab UNSUB-4 (LOW/latent, 2026-08-13). Backs buildFeatureIdeaShippedEmail()'s
+ * List-Unsubscribe target via store.optOutFeatureIdeaSignupByToken() -- scoped
+ * to that one idea's signup row only, never touching a subscriber's actual
+ * deadline tracking. Idempotent, same repeat-visit posture as every other
+ * action route here.
+ */
+async function handleFeatureIdeaSignupUnsubscribe(env: Env, token: string | null): Promise<Response> {
+  if (!token) return errorPage(400, "Missing unsubscribe link.");
+  const result = await store.optOutFeatureIdeaSignupByToken(env.DB, token);
+  if (!result) return errorPage(404, "That link is invalid.");
+  return htmlResponse(
+    200,
+    htmlPage(
+      "Unsubscribed",
+      `<h1>Done</h1><p>You won't get an email when this idea ships. Nothing else about your account ` +
+        `is affected.</p>`
+    )
+  );
+}
+
 async function handleRenewed(env: Env, token: string | null): Promise<Response> {
   if (!token) return errorPage(400, "Missing link.");
   const subscriber = await store.stop(env.DB, token, "renewed");
@@ -8386,6 +8416,8 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
               return await handleUnsubscribe(env, token);
             case "/unsubscribe/digest":
               return await handleDigestUnsubscribe(env, token);
+            case "/unsubscribe/feature-idea":
+              return await handleFeatureIdeaSignupUnsubscribe(env, token);
             case "/drip-course/unsubscribe":
               return await handleDripCourseUnsubscribe(env, token);
             case "/firm-admin-unsubscribe/rule-change":

@@ -2233,22 +2233,6 @@ export async function invalidateOutstandingLoginTokensForMember(db: D1Database, 
   return result.meta.changes ?? 0;
 }
 
-/**
- * Task #29 (2026-08-05). Narrower than invalidateOutstandingLoginTokens() --
- * scoped to purpose = 'email_change' only, so requesting a second email
- * change doesn't also burn an unrelated outstanding login/password-reset
- * link the same firm might have pending. A firm that requests "change to A"
- * and then "change to B" should only ever be able to confirm B; the stale
- * link for A sitting in that old inbox must stop working.
- */
-export async function invalidateOutstandingEmailChangeTokens(db: D1Database, firmId: string): Promise<number> {
-  const result = await db
-    .prepare(`UPDATE firm_login_tokens SET used_at = ?1 WHERE firm_id = ?2 AND purpose = 'email_change' AND used_at IS NULL`)
-    .bind(nowIso(), firmId)
-    .run();
-  return result.meta.changes ?? 0;
-}
-
 /** migration 0045: scoped to ONE member instead of the whole firm -- same
  * "don't burn a completely unrelated member's pending request" reasoning
  * as invalidateOutstandingLoginTokensForMember() above. */

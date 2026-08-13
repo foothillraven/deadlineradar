@@ -288,7 +288,7 @@ function reminderSubject(stateName: string, threshold: number, actual: number, d
       const ph = daysPhrase(actual);
       lead = ph.charAt(0).toUpperCase() + ph.slice(1);
     }
-    return `${lead}: your ${stateName} CPA license renewal is due`;
+    return `${lead}: your ${stateName} CPA license renewal is due (${deadlineStr})`;
   }
   const dp = daysPhrase(actual);
   if (threshold === 60) return `Your ${stateName} CPA license expires ${dp} (${deadlineStr})`;
@@ -402,7 +402,7 @@ export function buildReminderEmail(
       p("Use this instead if you don't want any more reminders for this deadline at all.", 13, LIGHT.muted) +
       (showSnooze
         ? p(
-            `Not ready yet? <a href="${esc(snoozeUrl)}" style="color:${LIGHT.accent};">Remind me again in ${SNOOZE_DAYS} days</a> instead.`,
+            `Not ready yet? ${textLink(snoozeUrl, `Remind me again in ${SNOOZE_DAYS} days`)} instead.`,
             13,
             LIGHT.muted
           )
@@ -511,7 +511,7 @@ export function buildDigestEmail(items: DigestItem[], manageUrl: string, firstNa
       htmlItems +
       p(
         `Want these one at a time instead, as each becomes due? ` +
-          `<a href="${esc(manageUrl)}" style="color:${LIGHT.accent};">Switch back to immediate reminders</a> any time.`,
+          `${textLink(manageUrl, "Switch back to immediate reminders")} any time.`,
         13,
         LIGHT.muted
       ) +
@@ -1178,10 +1178,9 @@ export function buildRuleChangeAdminAlertEmail(
       `<p style="margin:0 0 20px;">${button(calendarUrl, "Review on the Calendar")}</p>` +
       p(
         `You're getting this because proactive rule-change alerts are on for your account (on by ` +
-          `default). <a href="${esc(accountSettingsUrl)}" style="color:${LIGHT.accent};">Turn them ` +
-          `off</a> any time from your Account settings, or ` +
-          `<a href="${esc(unsubscribeUrl)}" style="color:${LIGHT.accent};">unsubscribe from just this ` +
-          `alert type</a>, one click, no sign-in.`,
+          `default). ${textLink(accountSettingsUrl, "Turn them off")} any time from your Account ` +
+          `settings, or ${textLink(unsubscribeUrl, "unsubscribe from just this alert type")}, one ` +
+          `click, no sign-in.`,
         13,
         LIGHT.muted
       ),
@@ -1269,10 +1268,8 @@ export function buildAdminDigestEmail(
       p("Nothing to do for anyone not listed above -- we'll include them here once their own renewal is actually due.", 13, LIGHT.muted) +
       p(
         `You're getting this because firm-wide digest alerts are on for your account (on by default for an ` +
-          `eligible plan). <a href="${esc(accountSettingsUrl)}" style="color:${LIGHT.accent};">Turn them off</a> ` +
-          `any time from your Account settings, or ` +
-          `<a href="${esc(unsubscribeUrl)}" style="color:${LIGHT.accent};">unsubscribe from just this digest</a>, ` +
-          `one click, no sign-in.`,
+          `eligible plan). ${textLink(accountSettingsUrl, "Turn them off")} any time from your Account ` +
+          `settings, or ${textLink(unsubscribeUrl, "unsubscribe from just this digest")}, one click, no sign-in.`,
         13,
         LIGHT.muted
       ),

@@ -925,6 +925,40 @@ def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_email_link_helper_usage(repo_root: Path) -> list[str]:
+    """AuditLab EMAIL-2 (LOW-MED, filed 2026-08-08, widened 2026-08-12): dark
+    mode recolors links by CSS class (.dr-accent/.dr-btn), not by attribute --
+    a hand-rolled `<a style="color:...">` with no dr- class keeps its light-
+    mode color on a dark card (2.72:1 measured, vs 7.54:1 through
+    textLink()). The finding's own root-cause note: half the 6 instances
+    were introduced by a LATER commit (7d6ca102, the UNSUB-2 fix) that had
+    nothing stopping it from hand-rolling a new link. This is that stop.
+
+    Flags any `<a href=...>` in emails.ts carrying an inline `style="color:`
+    with no `class="dr-` in the same opening tag -- textLink()'s own
+    definition is exempt because its two template-literal halves both
+    contain `class="dr-accent"` before the `style="color:` half, same for
+    button()'s `class="dr-btn"` (which never matches `style="color:` at all
+    -- its style starts `display:inline-block;background:...`). The shell
+    logo link is exempt too: its style is `text-decoration:none`, no color."""
+    emails_ts = repo_root / "worker" / "src" / "emails.ts"
+    if not emails_ts.exists():
+        print("  (skipping email-link-helper check -- worker/ tree not present in this checkout)")
+        return []
+    src = emails_ts.read_text(encoding="utf-8")
+    errors = []
+    for m in re.finditer(r'<a\s+href="[^"]*"([^>]*)>', src):
+        attrs = m.group(1)
+        if 'style="color:' in attrs and 'class="dr-' not in attrs:
+            line_no = src.count("\n", 0, m.start()) + 1
+            errors.append(
+                f"[EMAIL-LINK] emails.ts:{line_no} -- hand-rolled <a> with an inline color and no "
+                f"dr- class; dark mode will not recolor it (EMAIL-2 class). Use textLink()/button() "
+                f"instead of a raw anchor tag."
+            )
+    return errors
+
+
 TITLE_RE = re.compile(r"<title>(.*?)</title>", re.DOTALL)
 META_DESCRIPTION_RE = re.compile(r'<meta name="description" content="(.*?)">', re.DOTALL)
 SEO_TITLE_MAX = 60
@@ -1160,6 +1194,7 @@ def main():
     all_errors += check_sitemap_completeness(html_files, docs_dir)
     all_errors += check_demo_locked_email_coverage(repo_root)
     all_errors += check_write_endpoint_rate_limits(repo_root)
+    all_errors += check_email_link_helper_usage(repo_root)
 
     print(f"Pre-ship gate: scanned {len(html_files)} rendered pages, {len(state_dirs)} state dirs.")
     if all_errors:

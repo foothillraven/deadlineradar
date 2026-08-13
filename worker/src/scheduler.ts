@@ -1036,7 +1036,17 @@ export async function runDigestPass(env: Env, opts: RunReminderOptions = {}): Pr
         break;
       }
 
-      const built = buildDigestEmail(items, manageUrl, firstName);
+      // AuditLab UNSUB-3: any of this email's own subscriber rows' tokens
+      // resolves to the same email in digestUnsubscribeByToken() -- reusing
+      // one of claimedRows' (guaranteed non-empty here, items.length > 0
+      // above and the two arrays are pushed in lockstep) rather than
+      // minting anything new.
+      const firstClaimedRow = claimedRows[0];
+      if (!firstClaimedRow) {
+        throw new Error("buildDigestEmail: claimedRows must be non-empty when items is non-empty");
+      }
+      const digestUnsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe/digest?token=${encodeURIComponent(firstClaimedRow.sub.unsubscribe_token)}`;
+      const built = buildDigestEmail(items, manageUrl, digestUnsubscribeUrl, firstName);
       const ok = await send(emailNormalized, built);
       if (ok) {
         summary.digestsSent += 1;

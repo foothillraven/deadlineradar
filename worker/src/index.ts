@@ -334,6 +334,15 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
     intro: "Click below to stop all reminder emails for this deadline. This is instant and permanent.",
     button: "Unsubscribe me",
   },
+  // AuditLab UNSUB-3 (MEDIUM, 2026-08-12): the digest's own List-Unsubscribe
+  // target -- deliberately separate from /unsubscribe above, which stops
+  // ONE license row. This switches the whole email back to immediate
+  // delivery instead (store.digestUnsubscribeByToken()'s own comment).
+  "/unsubscribe/digest": {
+    heading: "Turn off the weekly digest",
+    intro: "Click below to switch back to individual reminders as each deadline comes due. Every reminder you're tracking is unaffected -- only the weekly digest itself turns off.",
+    button: "Turn off the digest",
+  },
   // Roadmap #34 (2026-08-08): separate from /unsubscribe above -- this only
   // stops the drip course series, never a subscriber's actual renewal-
   // deadline reminders (see store.stopDripCourseByToken()'s own comment).
@@ -7253,6 +7262,29 @@ async function handleFirmAdminUnsubscribe(env: Env, token: string | null, channe
   return htmlResponse(200, htmlPage("Unsubscribed", `<h1>Done</h1><p>${escapeHtml(firm.name)} is unsubscribed from ${what}, instantly. Every other notification channel is unaffected.</p>`));
 }
 
+/**
+ * AuditLab UNSUB-3 (MEDIUM, 2026-08-12). Backs the digest's own
+ * List-Unsubscribe target -- unlike /unsubscribe (which stop()s ONE
+ * license row), this switches the whole email back to immediate/per-item
+ * delivery via store.digestUnsubscribeByToken(), the correct scope for
+ * "stop this recurring digest" rather than "stop tracking me entirely."
+ * Idempotent, same repeat-visit posture as every other action route here.
+ */
+async function handleDigestUnsubscribe(env: Env, token: string | null): Promise<Response> {
+  if (!token) return errorPage(400, "Missing unsubscribe link.");
+  const result = await store.digestUnsubscribeByToken(env.DB, token);
+  if (!result) return errorPage(404, "That link is invalid.");
+  return htmlResponse(
+    200,
+    htmlPage(
+      "Digest turned off",
+      `<h1>Done</h1><p>You're switched back to individual reminders as each deadline comes due -- ` +
+        `no more weekly digest. Every reminder you're tracking is unaffected; manage them any time from ` +
+        `<a href="${escapeHtml(staticSiteAbsoluteBaseUrl(env))}/my/">your account</a>.</p>`
+    )
+  );
+}
+
 async function handleRenewed(env: Env, token: string | null): Promise<Response> {
   if (!token) return errorPage(400, "Missing link.");
   const subscriber = await store.stop(env.DB, token, "renewed");
@@ -8321,6 +8353,8 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
               return await handleConfirm(env, token);
             case "/unsubscribe":
               return await handleUnsubscribe(env, token);
+            case "/unsubscribe/digest":
+              return await handleDigestUnsubscribe(env, token);
             case "/drip-course/unsubscribe":
               return await handleDripCourseUnsubscribe(env, token);
             case "/firm-admin-unsubscribe/rule-change":

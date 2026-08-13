@@ -4705,6 +4705,35 @@ export async function setSubscriberNotificationMode(db: D1Database, emailNormali
   return result.meta.changes ?? 0;
 }
 
+/** AuditLab UNSUB-3 (MEDIUM, 2026-08-12): the one-click List-Unsubscribe
+ * target for the weekly digest. Deliberately does NOT stop() the
+ * subscriber -- "stop receiving this recurring digest" is not "stop
+ * tracking my licenses entirely," and the digest's own footer already
+ * offers real per-item stop links for that stronger action. Switches the
+ * whole email back to immediate/per-item delivery (setSubscriberNotificationMode's
+ * existing cross-row-by-email reach), which is exactly what turns off the
+ * digest cadence -- same action the session-gated /my/ "manage
+ * notifications" toggle performs, just reachable without signing in, the
+ * way RFC 8058 one-click requires. Any of that email's own
+ * unsubscribe_token values works as the lookup key -- they all resolve to
+ * the same email, and this never consumes or invalidates the token (unlike
+ * stop(), which is meant to be a one-way action). */
+export async function digestUnsubscribeByToken(
+  db: D1Database,
+  token: string
+): Promise<{ email: string; alreadyImmediate: boolean } | null> {
+  const row = await db
+    .prepare("SELECT email, notification_mode FROM subscribers WHERE unsubscribe_token = ?1")
+    .bind(token)
+    .first<{ email: string; notification_mode: string }>();
+  if (!row) return null;
+  if (row.notification_mode === NOTIFICATION_MODE_IMMEDIATE) {
+    return { email: row.email, alreadyImmediate: true };
+  }
+  await setSubscriberNotificationMode(db, row.email, NOTIFICATION_MODE_IMMEDIATE);
+  return { email: row.email, alreadyImmediate: false };
+}
+
 /** Roadmap #24: distinct confirmed digest-mode emails, PERIOD -- the
  * digest_next_send_at window is deliberately NOT filtered here (AuditLab
  * DIGEST-1, 2026-08-09). The window only decides whether a NON-urgent item

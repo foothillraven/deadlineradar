@@ -476,13 +476,22 @@ export interface DigestItem {
  * delivery-mode PREFERENCE itself is a session-gated action, same as every
  * other self-service preference on that page) where a recipient can switch
  * back to immediate delivery or manage anything else. Each item additionally
- * carries its own instant "stop this one" link using that row's real token --
- * no single link could mean "unsubscribe from everything in one click" here
- * the way buildReminderEmail's list-unsubscribe header can for a single
- * deadline, so no List-Unsubscribe header is attached; the per-item links
- * plus the manage-everything hub are the compliant opt-out path instead.
+ * carries its own instant "stop this one" link using that row's real token.
+ *
+ * AuditLab UNSUB-3 (MEDIUM, 2026-08-12): this used to ship `headers: {}` on
+ * the theory that no single link could mean "unsubscribe from everything in
+ * one click" here -- true, but the header doesn't need to mean that. It
+ * needs to mean "stop this recurring digest," which digestUnsubscribeUrl
+ * (store.digestUnsubscribeByToken(), any of this email's own
+ * unsubscribe_token values) does correctly: switches back to immediate
+ * delivery without touching any individual reminder, one click, no sign-in.
  */
-export function buildDigestEmail(items: DigestItem[], manageUrl: string, firstName: string | null = null): BuiltEmail {
+export function buildDigestEmail(
+  items: DigestItem[],
+  manageUrl: string,
+  digestUnsubscribeUrl: string,
+  firstName: string | null = null
+): BuiltEmail {
   if (items.length === 0) {
     throw new Error("buildDigestEmail: items must be non-empty -- a digest is never sent with nothing to report");
   }
@@ -563,7 +572,7 @@ export function buildDigestEmail(items: DigestItem[], manageUrl: string, firstNa
       `or professional advice. Always confirm your exact renewal date with your state board or on your license.</p>`
   );
 
-  return { subject, textBody, htmlBody, headers: {} };
+  return { subject, textBody, htmlBody, headers: listUnsubHeaders(digestUnsubscribeUrl) };
 }
 
 /**

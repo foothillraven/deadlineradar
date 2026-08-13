@@ -421,4 +421,140 @@ describe("runDigestPass", () => {
     const row = (await store.listSubscriberLicenses(env.DB, email))[0];
     expect(row?.reminders_sent).toBe("[]"); // claim was reverted, not left dangling
   });
+
+  it("the sent digest carries a real List-Unsubscribe header (AuditLab UNSUB-3)", async () => {
+    const { runDigestPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(9000);
+    const email = `digeste2e-unsub3-${Date.now()}@example.com`;
+    const due = isoDaysFromUtcMidnight(asOf, 7);
+    await seedUserDate(email, "ohio", due);
+    await store.setSubscriberNotificationMode(env.DB, store.normalizeEmail(email), store.NOTIFICATION_MODE_DIGEST);
+
+    let captured: import("../src/emails").BuiltEmail | null = null;
+    await runDigestPass(env, {
+      asOf,
+      send: async (_toEmail, built) => {
+        captured = built;
+        return true;
+      },
+    });
+
+    expect(captured).not.toBeNull();
+    expect(captured!.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+    const listUnsub = captured!.headers["List-Unsubscribe"];
+    expect(listUnsub).toMatch(/^<https:\/\/deadline-radar\.com\/api\/unsubscribe\/digest\?token=/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// store.digestUnsubscribeByToken / POST /api/unsubscribe/digest (UNSUB-3)
+// ---------------------------------------------------------------------------
+
+describe("store.digestUnsubscribeByToken", () => {
+  it("switches every row sharing the email back to immediate, using any one of their tokens", async () => {
+    const email = `digestunsub-store-${Date.now()}@example.com`;
+    await seedUserDate(email, "ohio", "2027-01-01");
+    await seedUserDate(email, "texas", "2027-02-01");
+    await store.setSubscriberNotificationMode(env.DB, store.normalizeEmail(email), store.NOTIFICATION_MODE_DIGEST);
+
+    const rows = await store.listSubscriberLicenses(env.DB, email);
+    const someToken = rows[1]?.unsubscribe_token; // deliberately NOT rows[0] -- any token must work
+    expect(someToken).toBeTruthy();
+
+    const result = await store.digestUnsubscribeByToken(env.DB, someToken!);
+    expect(result?.alreadyImmediate).toBe(false);
+    expect(store.normalizeEmail(result!.email)).toBe(store.normalizeEmail(email));
+
+    for (const row of await store.listSubscriberLicenses(env.DB, email)) {
+      expect(row.notification_mode).toBe(store.NOTIFICATION_MODE_IMMEDIATE);
+    }
+  });
+
+  it("is idempotent: a second hit reports alreadyImmediate rather than erroring", async () => {
+    const email = `digestunsub-idem-${Date.now()}@example.com`;
+    await seedUserDate(email, "ohio", "2027-01-01");
+    await store.setSubscriberNotificationMode(env.DB, store.normalizeEmail(email), store.NOTIFICATION_MODE_DIGEST);
+    const token = (await store.listSubscriberLicenses(env.DB, email))[0]!.unsubscribe_token;
+
+    const first = await store.digestUnsubscribeByToken(env.DB, token);
+    expect(first?.alreadyImmediate).toBe(false);
+    const second = await store.digestUnsubscribeByToken(env.DB, token);
+    expect(second?.alreadyImmediate).toBe(true);
+  });
+
+  it("does NOT touch a different email's rows", async () => {
+    const mine = `digestunsub-scope-mine-${Date.now()}@example.com`;
+    const theirs = `digestunsub-scope-theirs-${Date.now()}@example.com`;
+    await seedUserDate(mine, "ohio", "2027-01-01");
+    await seedUserDate(theirs, "ohio", "2027-01-01");
+    await store.setSubscriberNotificationMode(env.DB, store.normalizeEmail(mine), store.NOTIFICATION_MODE_DIGEST);
+    await store.setSubscriberNotificationMode(env.DB, store.normalizeEmail(theirs), store.NOTIFICATION_MODE_DIGEST);
+    const myToken = (await store.listSubscriberLicenses(env.DB, mine))[0]!.unsubscribe_token;
+
+    await store.digestUnsubscribeByToken(env.DB, myToken);
+
+    const theirRow = (await store.listSubscriberLicenses(env.DB, theirs))[0];
+    expect(theirRow?.notification_mode).toBe(store.NOTIFICATION_MODE_DIGEST);
+  });
+
+  it("returns null for an invalid token, no rows touched anywhere", async () => {
+    const result = await store.digestUnsubscribeByToken(env.DB, "not-a-real-token-" + Date.now());
+    expect(result).toBeNull();
+  });
+
+  it("never stop()s the subscriber -- status stays confirmed, not stopped", async () => {
+    const email = `digestunsub-notstop-${Date.now()}@example.com`;
+    await seedUserDate(email, "ohio", "2027-01-01");
+    await store.setSubscriberNotificationMode(env.DB, store.normalizeEmail(email), store.NOTIFICATION_MODE_DIGEST);
+    const token = (await store.listSubscriberLicenses(env.DB, email))[0]!.unsubscribe_token;
+
+    await store.digestUnsubscribeByToken(env.DB, token);
+
+    const row = (await store.listSubscriberLicenses(env.DB, email))[0];
+    expect(row?.status).toBe(store.STATUS_CONFIRMED);
+    expect(row?.stopped_at).toBeNull();
+  });
+});
+
+describe("POST /api/unsubscribe/digest", () => {
+  it("switches the whole email to immediate delivery via the RFC 8058 one-click form (query-param token, no body)", async () => {
+    const email = `digestunsub-route-${Date.now()}@example.com`;
+    await seedUserDate(email, "ohio", "2027-01-01");
+    await store.setSubscriberNotificationMode(env.DB, store.normalizeEmail(email), store.NOTIFICATION_MODE_DIGEST);
+    const token = (await store.listSubscriberLicenses(env.DB, email))[0]!.unsubscribe_token;
+
+    const res = await SELF.fetch(`${BASE}/api/unsubscribe/digest?token=${encodeURIComponent(token)}`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "List-Unsubscribe=One-Click",
+    });
+    expect(res.status).toBe(200);
+
+    const row = (await store.listSubscriberLicenses(env.DB, email))[0];
+    expect(row?.notification_mode).toBe(store.NOTIFICATION_MODE_IMMEDIATE);
+  });
+
+  it("404s on an invalid token", async () => {
+    const res = await SELF.fetch(`${BASE}/api/unsubscribe/digest?token=not-a-real-token-${Date.now()}`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "",
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("GET renders the confirm page (prefetch-safe -- no state change)", async () => {
+    const email = `digestunsub-getpage-${Date.now()}@example.com`;
+    await seedUserDate(email, "ohio", "2027-01-01");
+    await store.setSubscriberNotificationMode(env.DB, store.normalizeEmail(email), store.NOTIFICATION_MODE_DIGEST);
+    const token = (await store.listSubscriberLicenses(env.DB, email))[0]!.unsubscribe_token;
+
+    const res = await SELF.fetch(`${BASE}/unsubscribe/digest?token=${encodeURIComponent(token)}`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Turn off the digest");
+
+    const row = (await store.listSubscriberLicenses(env.DB, email))[0];
+    expect(row?.notification_mode).toBe(store.NOTIFICATION_MODE_DIGEST); // GET must not change state
+  });
 });

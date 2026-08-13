@@ -611,18 +611,18 @@
     color: var(--muted); margin: 0 0 0.5rem;
   }
   .state-search form {
-    display: flex; gap: 0; box-shadow: var(--shadow); border-radius: 9px; overflow: hidden;
+    display: flex; gap: 0; box-shadow: var(--shadow); border-radius: 9px;
     border: 1px solid var(--border-strong); background: var(--card-bg);
   }
   .state-search-field { position: relative; flex: 1 1 auto; }
   .state-search-field:focus-within { box-shadow: 0 0 0 3px rgba(31,61,84,.14); }
   .state-search-field input {
     width: 100%; padding: 0.85rem 1rem; border: 0; background: transparent; color: var(--fg);
-    font-size: 1rem; font-family: inherit;
+    font-size: 1rem; font-family: inherit; border-radius: 9px 0 0 9px;
   }
   .state-search-field input:focus { outline: none; }
   .state-search-submit {
-    padding: 0 1.3rem; border: none; background: var(--accent);
+    padding: 0 1.3rem; border: none; background: var(--accent); border-radius: 0 9px 9px 0;
     color: var(--on-accent); font-size: 0.92rem; font-weight: 600; cursor: pointer; flex: 0 0 auto;
   }
   .state-search-submit:hover { background: var(--accent-deep); }

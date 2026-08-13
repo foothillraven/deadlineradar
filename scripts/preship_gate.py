@@ -700,6 +700,7 @@ def check_demo_locked_email_coverage(repo_root: Path) -> list[str]:
         # the actual send to, so the old index.ts/handle*-only scope never
         # looked inside them directly.
         "sendSignupNotification": "sends to the hardcoded INTERNAL_NOTIFY_EMAIL operator address, never a roster/attacker-suppliable one",
+        "notifyOperatorOfStaleData": "AuditLab STALE-3 -- sends to the hardcoded INTERNAL_NOTIFY_EMAIL operator address, same category as sendSignupNotification above; also structurally not firm-scoped at all (fires from scheduled(), not a firm's own session)",
         "issueAndSendFirmLoginLink": "sends only to a firm's OWN admin_email -- callers pass either the just-typed signup email (self-referential, same category as handleSubscribe) or the email of an ALREADY-EXISTING firm looked up by store.findFirmByAdminEmail(), never an arbitrary third party",
         "issueAndSendFirmMemberInviteEmail": "recipient IS admin-suppliable (any address a Partner/Office Manager wants to invite), but handleFirmMemberInvite() 403s the WHOLE request for a demo_locked firm before this is ever called -- same front-door posture as handleFirmPasswordSet/handleFirmChangeEmailRequest/handleFirmAccountDelete above, not a per-send check",
         "issueAndSendSubscriberLoginLink": "free-tier individual magic-link sign-in -- public, anonymous, no firm session exists at all (same category as handleSubscribe); demo_locked is a firm-scoped property and doesn't apply here",

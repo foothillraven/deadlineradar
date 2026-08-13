@@ -4594,6 +4594,23 @@ _HERO_REGION_JS = """
   if (!wrap) return;
   var cards = wrap.querySelectorAll('.hfc-card');
 
+  // The card this page loaded on (timezone pick below, or whatever's
+  // server-rendered active if there's <2 cards to pick among) -- captured
+  // once, used as the "go back to this" anchor by drActivateHfcCardForTyped
+  // below. Deliberately NOT "whatever's currently showing", which is what
+  // let a wrong match persist forever once made (AuditLab HERO-1/HERO-2).
+  var defaultCard = null;
+  for (var k = 0; k < cards.length; k++) {
+    if (cards[k].classList.contains('is-active')) { defaultCard = cards[k]; break; }
+  }
+  if (!defaultCard && cards.length) defaultCard = cards[0];
+
+  function activateCard(card) {
+    if (!card || card.classList.contains('is-active')) return;
+    for (var m = 0; m < cards.length; m++) cards[m].classList.remove('is-active');
+    card.classList.add('is-active');
+  }
+
   // Roadmap (2026-08-13, Devin direct ask): the search box should feel live,
   // not inert -- exposed globally so _STATE_SEARCH_JS's own input listener
   // can call this without either script caring which one loads first. Only
@@ -4601,19 +4618,40 @@ _HERO_REGION_JS = """
   // citation-backed records per _select_hero_rotation_pool's own rule) --
   // deliberately does NOT fabricate a preview for a typed state outside this
   // small pool, same "only show what's actually verified" discipline as the
-  // cards themselves. A no-op (returns false) is the correct, silent
-  // behavior for the ~45 states not in the pool, not a bug to chase.
-  window.drActivateHfcCardByState = function(stateName) {
-    if (!cards.length || !stateName) return false;
-    var norm = stateName.trim().toLowerCase();
+  // cards themselves.
+  //
+  // AuditLab HERO-1/HERO-2 (MEDIUM/LOW-MED, 2026-08-13, live the same day
+  // this shipped, live-verified fixed the same day too): the original
+  // version matched against drMatches()'s FULL 55-state prefix-then-
+  // substring list and tried each candidate in turn until one happened to
+  // ALSO be pooled -- so typing "Texas" (not pooled) fell through the
+  // substring fallback to "Connecticut" (pooled, no relationship to what
+  // was typed -- shares nothing but a coincidental letter) and switched the
+  // visible card to it, contradicting the "silent no-op for unpooled
+  // states" claim in the comment above. Prefix-only matching against the
+  // POOL directly (never the full 55-state list, never a substring
+  // fallback) eliminates the coincidental matches, but independent
+  // verification (55-state character-by-character simulation) found that
+  // alone still leaves 7 genuine prefix-COLLISION cases wrong forever once
+  // typed in full -- e.g. "Ar" legitimately prefix-matches pooled Arkansas
+  // while the user is still typing Arizona (not pooled), and without a
+  // revert step the card stays on Arkansas even once "Ariz" rules that out.
+  // Recomputing the match FRESH from the complete current input on every
+  // keystroke (never "was there ever a match"), and falling back to
+  // defaultCard rather than "whatever's currently shown" when nothing
+  // currently matches, makes a transient collision self-correct instead of
+  // sticking -- verified 0/55 wrong outcomes after this change, including
+  // Arizona settling back on the default by the time "Ariz" rules out
+  // Arkansas.
+  window.drActivateHfcCardForTyped = function(typedText) {
+    if (!cards.length) return;
+    var norm = (typedText || '').trim().toLowerCase();
+    if (!norm) { activateCard(defaultCard); return; }
     var match = null;
     for (var i = 0; i < cards.length; i++) {
-      if (cards[i].getAttribute('data-hfc-state').toLowerCase() === norm) { match = cards[i]; break; }
+      if (cards[i].getAttribute('data-hfc-state').toLowerCase().indexOf(norm) === 0) { match = cards[i]; break; }
     }
-    if (!match || match.classList.contains('is-active')) return false;
-    for (var j = 0; j < cards.length; j++) cards[j].classList.remove('is-active');
-    match.classList.add('is-active');
-    return true;
+    activateCard(match || defaultCard);
   };
 
   if (cards.length < 2) return;
@@ -4641,6 +4679,7 @@ _HERO_REGION_JS = """
   var chosen = chosenFrom[Math.floor(Math.random() * chosenFrom.length)];
   pool.forEach(function(c) { c.classList.remove('is-active'); });
   chosen.classList.add('is-active');
+  defaultCard = chosen; // the typing-preview's revert target follows the real pick, not the pre-tz placeholder
 })();
 """
 
@@ -4780,18 +4819,19 @@ document.addEventListener('DOMContentLoaded', function() {
     drRenderDropdown();
     drFilterGrid();
     // Roadmap (2026-08-13): live-preview the hero card as the user types,
-    // when the typed state happens to be one of the small pool already on
-    // the page (see drActivateHfcCardByState's own comment for why this
-    // never invents a card for a state outside that pool). Absent on pages
-    // with no hero card (e.g. /browse-states/) -- guarded, not assumed.
-    if (typeof window.drActivateHfcCardByState === 'function') {
-      var typed = input.value;
-      if (typed.trim()) {
-        var candidates = drMatches(typed);
-        for (var i = 0; i < candidates.length; i++) {
-          if (window.drActivateHfcCardByState(candidates[i].name)) break;
-        }
-      }
+    // when the typed text matches one of the small pool already on the
+    // page (see drActivateHfcCardForTyped's own comment for why this never
+    // invents a card for a state outside that pool, matches against the
+    // pool directly rather than the full 55-state list, and reverts to the
+    // page's default card rather than sticking on a stale match -- HERO-1/
+    // HERO-2). Called on every input event, including an empty value (the
+    // function's own job to revert to the default then) -- not guarded on
+    // input.value.trim() here, since clearing the box back to nothing
+    // should also revert the card, same as any other now-unmatched text.
+    // Absent on pages with no hero card (e.g. /browse-states/) -- guarded,
+    // not assumed.
+    if (typeof window.drActivateHfcCardForTyped === 'function') {
+      window.drActivateHfcCardForTyped(input.value);
     }
   });
 

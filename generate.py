@@ -6308,7 +6308,8 @@ def build_rule_changes_page() -> str:
     body = f"""<h1>CPA Mobility &amp; Practice-Privilege Rule Changes</h1>
 <p class="intro">A running feed of confirmed and pending changes to interstate CPA mobility rules
 &mdash; practice privileges, notice/fee requirements, and firm registration &mdash; sourced the same
-way as every other date on this site: a citation to the primary statute or rule, never a guess.
+way every date on this site is: a citation to the primary statute or rule where we could confirm it,
+and clearly labelled where we could only confirm it against the board's own page, never a guess.
 {monitoring_note}</p>
 
 <h2>Upcoming changes ({len(upcoming)})</h2>
@@ -6636,8 +6637,10 @@ def _individual_faq_html() -> str:
 _FIRM_FAQ = [
     (
         "Is the license status actually verified, or just self-reported?",
-        "The renewal DATES are verified the same rigorous way as every free page on this site: "
-        "sourced to the codified statute or rule, cited, and rechecked on our freshness cadence "
+        "The renewal DATES are verified the same rigorous way every free page on this site is: "
+        "sourced to the codified statute or rule where we could confirm it, and clearly labelled "
+        "where we could only confirm it against the board's own page, cited and rechecked on our "
+        "freshness cadence "
         "&mdash; <a href=\"../methodology/\">see exactly how</a>. What this is <em>not</em> is a "
         "recurring human lookup of each staff member's individual license status &mdash; there's no "
         "manual check-in against the state board or CPAverify.org on your behalf. Signup itself is "
@@ -6888,8 +6891,10 @@ Check are also <strong>free</strong> for a solo CPA &mdash;
 </div>
 
 <h2>How it actually works</h2>
-<p>Deadline accuracy comes from the same sourced-to-codified-law data every free page on this site
-already uses, not a recurring human check-in on each staff member's status. Self-serve card checkout
+<p>Deadline accuracy comes from the same sourcing standard every free page on this site already uses
+&mdash; the codified statute or rule where we could confirm it, and clearly labelled where we could
+only confirm it against the board's own page &mdash; not a recurring human check-in on each staff
+member's status. Self-serve card checkout
 through Stripe is live today for every tier, Essentials through Enterprise -- pick a plan above and pay
 by card, no invoice or sales call required. More than 35 staff?
 <a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a> -- no formula, we'll work out what fits. Not ready
@@ -7907,7 +7912,7 @@ _MY_DASHBOARD_JS_HTML = """<script>
       drCpeEntriesHtml(lic) +
       '<form class="dr-my-cpe-form" data-subscriber-id="' + drEsc(lic.id) + '">' +
         '<input type="date" name="entry_date" required aria-label="Date completed">' +
-        '<input type="number" name="hours" step="0.1" min="0.1" max="1000" required aria-label="Hours" placeholder="Hours">' +
+        '<input type="number" name="hours" step="0.1" min="0.1" max="100" required aria-label="Hours" placeholder="Hours">' +
         '<select name="category" aria-label="Category">' +
           '<option value="general">General</option><option value="ethics">Ethics</option><option value="other">Other</option>' +
         '</select>' +
@@ -15513,8 +15518,9 @@ never a guess. <a href="/practice-privilege-check/">Free for any account, no pai
 
 <h2>3. Rule Changes &mdash; a running feed, not a one-time check</h2>
 <p>A running feed of confirmed and pending changes to interstate CPA mobility rules &mdash; practice
-privileges, notice/fee requirements, and firm registration &mdash; sourced the same way as every other
-date on this site: a citation to the primary statute or rule, never a guess. Your firm's own calendar
+privileges, notice/fee requirements, and firm registration &mdash; sourced the same way every date on
+this site is: a citation to the primary statute or rule where we could confirm it, and clearly labelled
+where we could only confirm it against the board's own page, never a guess. Your firm's own calendar
 surfaces the changes that actually affect your roster's states.
 <a href="/rule-changes/">See the full public feed</a>.</p>
 
@@ -16807,8 +16813,9 @@ def build_cpe_hours_page(
 
     body = f"""<h1>{esc(title)}</h1>
 <p class="intro">How much continuing professional education {indefinite_article(state_name)} {esc(state_name)} CPA actually
-needs &mdash; sourced the same way every fact on this site is: a board page plus the codified rule
-itself, never a guess.</p>
+needs &mdash; sourced the same way every fact on this site is: a board page, plus the codified rule
+itself where we could confirm it against primary law, clearly labelled where we could only confirm it
+against the board's own page, never a guess.</p>
 
 <div class="callout">
   {verified_badge_html}
@@ -17131,7 +17138,9 @@ def build_reinstatement_page(record: dict, renewal_records: list[dict], cpe_reco
 <p class="subhead">If your {esc(state_name)} CPA license has already lapsed</p>
 <p class="intro">What it actually takes to get a lapsed {esc(state_name)} CPA license back &mdash;
 the fee, the catch-up CPE, and exactly what triggers "lapsed" in the first place. Sourced the same
-way every fact on this site is: a board page plus the codified rule itself, never a guess.</p>
+way every fact on this site is: a board page, plus the codified rule itself where we could confirm it
+against primary law, clearly labelled where we could only confirm it against the board's own page,
+never a guess.</p>
 
 <div class="callout">
   {verified_badge_html}

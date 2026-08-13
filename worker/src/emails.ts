@@ -257,9 +257,14 @@ export const HIGH_IMPORTANCE_HEADERS: Record<string, string> = {
   "X-MSMail-Priority": "High",
 };
 
-// `threshold` picks the urgency LEAD phrase only; the TRUE remaining day count
-// (actualDaysRemaining) is what the subject/body display, kept separate so the
-// two can never contradict (emails.py's own adversarial-review fix).
+// AuditLab URGENCY-1 (MEDIUM, 2026-08-12): this used to be keyed by
+// `threshold` while the day count next to it (daysPhrase(actualDaysRemaining))
+// is keyed by the TRUE remaining days -- with a custom threshold subset (e.g.
+// [60]), a deadline 2 days out could still open "Nothing urgent yet, just
+// flagging it early" next to "in 2 days". urgencyLeadForActual() below keys
+// the lead off the same actualDaysRemaining value daysPhrase() uses, so the
+// two genuinely cannot contradict -- not because they're independent (the
+// old, wrong claim), but because they now read the same fact.
 const URGENCY_LEAD: Record<number, string> = {
   60: "Nothing urgent yet, just flagging it early",
   30: "A good time to start gathering what you'll need",
@@ -268,6 +273,35 @@ const URGENCY_LEAD: Record<number, string> = {
   3: "Just a few days left",
   1: "This is your final reminder for this deadline",
 };
+
+/** Picks the urgency lead for the TRUE remaining day count, not the
+ * configured threshold that triggered the send -- see URGENCY_LEAD's own
+ * comment. Mirrors nextDueThreshold()'s own "smallest threshold >=
+ * daysRemaining" bucketing (scheduler.ts) so a custom threshold subset still
+ * lands on the band that actually describes the real day count. Falls back
+ * to the least-urgent lead if actual somehow exceeds every configured
+ * threshold (early, not urgent, is still the honest read). */
+const URGENCY_LEAD_BY_THRESHOLD_ASC: [number, string][] = Object.entries(URGENCY_LEAD)
+  .map(([t, lead]): [number, string] => [Number(t), lead])
+  .sort((a, b) => a[0] - b[0]);
+
+// Least-urgent lead (highest threshold) -- the honest fallback for an actual
+// day count somehow beyond every configured threshold ("early" reads better
+// than picking an arbitrary other tier). Guarded rather than asserted so a
+// future edit to URGENCY_LEAD that drops the 60-day tier fails loudly here
+// instead of silently at the call site.
+const _leastUrgentLead = URGENCY_LEAD[60];
+if (_leastUrgentLead === undefined) {
+  throw new Error("URGENCY_LEAD must define the least-urgent (60-day) tier");
+}
+const LEAST_URGENT_LEAD = _leastUrgentLead;
+
+function urgencyLeadForActual(actual: number): string {
+  for (const [t, lead] of URGENCY_LEAD_BY_THRESHOLD_ASC) {
+    if (actual <= t) return lead;
+  }
+  return LEAST_URGENT_LEAD;
+}
 
 function daysPhrase(actual: number): string {
   if (actual > 0) return `in ${actual} day${actual !== 1 ? "s" : ""}`;
@@ -336,10 +370,10 @@ export function buildReminderEmail(
   // shown). scheduler.ts always passes a real value.
   snoozeUrl: string | null = null
 ): BuiltEmail {
-  const lead = URGENCY_LEAD[threshold];
-  if (lead === undefined) {
+  if (URGENCY_LEAD[threshold] === undefined) {
     throw new Error(`threshold must be one of ${Object.keys(URGENCY_LEAD).join(",")}, got ${threshold}`);
   }
+  const lead = urgencyLeadForActual(actualDaysRemaining);
   const addr = mailingAddress();
   const subject = reminderSubject(stateName, threshold, actualDaysRemaining, deadlineDateStr);
   // High-importance headers ONLY on the final (1-day) tier; List-Unsubscribe on

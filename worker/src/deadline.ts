@@ -118,13 +118,15 @@ export function checkDataFreshness(realToday: Date): void {
   if (Number.isNaN(ageDays)) {
     throw new StaleDataError(
       `REFUSING: reference data's as_of_date ("${DATA.as_of_date}") is unparseable -- treating as ` +
-        `stale rather than allowing signups off data of unknown freshness.`
+        `stale rather than trusting data of unknown freshness. Every pass that depends on this data ` +
+        `(signups and all outbound sends) is paused until it is re-verified.`
     );
   }
   if (ageDays > STALENESS_THRESHOLD_DAYS) {
     throw new StaleDataError(
       `REFUSING: reference data's as_of_date is ${ageDays} days old, past the ` +
-        `${STALENESS_THRESHOLD_DAYS}-day freshness threshold. Re-verify the data before allowing signups.`
+        `${STALENESS_THRESHOLD_DAYS}-day freshness threshold. Every pass that depends on this data ` +
+        `(signups and all outbound sends) is paused until it is re-verified.`
     );
   }
 }

@@ -180,6 +180,7 @@ import {
   buildStopConfirmationEmail,
   buildSignupNotificationEmail,
   buildAccountDeletionNotificationEmail,
+  buildStaleDataAlertEmail,
   fmtDate,
   SNOOZE_DAYS,
 } from "./emails";
@@ -743,6 +744,36 @@ async function sendSignupNotification(
   } catch {
     // Best-effort, same posture as every other send in this file -- never
     // let a notification failure affect the real signup/login it's about.
+  }
+}
+
+/**
+ * AuditLab STALE-3 (MEDIUM, 2026-08-09/2026-08-13): the real operator alert
+ * for a stale-data pause, replacing the console.log-only signal. Called
+ * from every `catch (err instanceof SchedulerStaleDataError)` block in
+ * scheduled() below -- store.claimStaleDataAlertForToday() is what limits
+ * this to one email per UTC day across however many of the ~7 independent
+ * cron passes hit the guard, and however many ticks the pause spans, so
+ * every catch site can call this unconditionally without coordinating with
+ * the others. Best-effort, same posture as every other send in this file --
+ * a notification failure must never turn a handled StaleDataError into an
+ * unhandled one.
+ */
+async function notifyOperatorOfStaleData(env: Env, guardMessage: string): Promise<void> {
+  if (!env.SENDGRID_API_KEY) return;
+  try {
+    const day = new Date().toISOString().slice(0, 10);
+    const claimed = await store.claimStaleDataAlertForToday(env.DB, day);
+    if (!claimed) return;
+    const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+    if (!underCap) return;
+    const freshness = dataFreshnessInfo(new Date());
+    const ageDays = freshness.age_days === -1 ? null : freshness.age_days;
+    const built = buildStaleDataAlertEmail(ageDays, guardMessage);
+    await sendViaSendGrid(env.SENDGRID_API_KEY, INTERNAL_NOTIFY_EMAIL, built, env.EMAIL_ALLOWLIST);
+  } catch {
+    // Best-effort -- see docstring. A failed alert must not surface as a
+    // cron failure; the console.log in each catch site is the fallback.
   }
 }
 
@@ -10491,6 +10522,7 @@ export default {
         } catch (err) {
           if (err instanceof SchedulerStaleDataError) {
             console.log(`[slack-alert-cron] paused -- stale reference data: ${err.message}`);
+            await notifyOperatorOfStaleData(env, err.message);
           } else {
             console.log(`[slack-alert-cron] error: ${String(err)}`);
           }
@@ -10510,6 +10542,7 @@ export default {
         } catch (err) {
           if (err instanceof SchedulerStaleDataError) {
             console.log(`[teams-alert-cron] paused -- stale reference data: ${err.message}`);
+            await notifyOperatorOfStaleData(env, err.message);
           } else {
             console.log(`[teams-alert-cron] error: ${String(err)}`);
           }
@@ -10532,6 +10565,7 @@ export default {
         } catch (err) {
           if (err instanceof SchedulerStaleDataError) {
             console.log(`[sms-alert-cron] paused -- stale reference data: ${err.message}`);
+            await notifyOperatorOfStaleData(env, err.message);
           } else {
             console.log(`[sms-alert-cron] error: ${String(err)}`);
           }
@@ -10555,6 +10589,7 @@ export default {
         } catch (err) {
           if (err instanceof SchedulerStaleDataError) {
             console.log(`[reminder-cron] paused -- stale reference data: ${err.message}`);
+            await notifyOperatorOfStaleData(env, err.message);
           } else {
             console.log(`[reminder-cron] error: ${String(err)}`);
           }
@@ -10573,7 +10608,18 @@ export default {
           const summary = await runDripCoursePass(env);
           console.log(`[drip-course-cron] ${JSON.stringify(summary)}`);
         } catch (err) {
-          console.log(`[drip-course-cron] error: ${String(err)}`);
+          // AuditLab STALE-3: runDripCoursePass() calls checkDataFreshness()
+          // (scheduler.ts) same as the other passes below, but this catch
+          // block never had the instanceof branch to recognize a pause as a
+          // pause rather than a generic error -- adding it here rather than
+          // leaving this the one pass whose stale-data trips look identical
+          // to a real bug in the logs.
+          if (err instanceof SchedulerStaleDataError) {
+            console.log(`[drip-course-cron] paused -- stale reference data: ${err.message}`);
+            await notifyOperatorOfStaleData(env, err.message);
+          } else {
+            console.log(`[drip-course-cron] error: ${String(err)}`);
+          }
         }
       })()
     );
@@ -10605,6 +10651,7 @@ export default {
         } catch (err) {
           if (err instanceof SchedulerStaleDataError) {
             console.log(`[digest-cron] paused -- stale reference data: ${err.message}`);
+            await notifyOperatorOfStaleData(env, err.message);
           } else {
             console.log(`[digest-cron] error: ${String(err)}`);
           }
@@ -10628,6 +10675,7 @@ export default {
         } catch (err) {
           if (err instanceof SchedulerStaleDataError) {
             console.log(`[admin-digest-cron] paused -- stale reference data: ${err.message}`);
+            await notifyOperatorOfStaleData(env, err.message);
           } else {
             console.log(`[admin-digest-cron] error: ${String(err)}`);
           }

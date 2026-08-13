@@ -4734,6 +4734,24 @@ export async function digestUnsubscribeByToken(
   return { email: row.email, alreadyImmediate: false };
 }
 
+/** AuditLab STALE-3 (MEDIUM, 2026-08-09/2026-08-13): checkDataFreshness()'s
+ * pause was signalled only by a console.log -- this is the atomic claim
+ * that lets a real operator alert fire exactly once per UTC day no matter
+ * how many of the ~7 independent cron passes hit the same StaleDataError in
+ * the same tick, or how many ticks the pause spans. Same INSERT-and-report-
+ * whether-it-landed shape as sender.ts's checkAndCountSend() family --
+ * migration 0064's `day TEXT PRIMARY KEY` does the deduplication, this
+ * function just reports whether ITS caller was the one that inserted the
+ * row. Returns true = "you own today's alert, send it." false = "already
+ * sent today, don't." */
+export async function claimStaleDataAlertForToday(db: D1Database, dayUtc: string): Promise<boolean> {
+  const result = await db
+    .prepare(`INSERT INTO stale_data_alert_log (day, sent_at) VALUES (?1, ?2) ON CONFLICT(day) DO NOTHING`)
+    .bind(dayUtc, nowIso())
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
 /** Roadmap #24: distinct confirmed digest-mode emails, PERIOD -- the
  * digest_next_send_at window is deliberately NOT filtered here (AuditLab
  * DIGEST-1, 2026-08-09). The window only decides whether a NON-urgent item

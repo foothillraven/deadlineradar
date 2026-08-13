@@ -1812,6 +1812,35 @@ export function buildSignupNotificationEmail(
 }
 
 /**
+ * AuditLab STALE-3 (MEDIUM, 2026-08-09/2026-08-13): the operator alert that
+ * used to be a console.log nobody watches. Fires (via
+ * store.claimStaleDataAlertForToday(), which caps this to once per UTC day
+ * regardless of how many cron passes hit the guard) the first time
+ * checkDataFreshness() refuses a pass on a given day. `ageDays` is null for
+ * the unparseable-as_of_date branch, since there's no age to report there.
+ */
+export function buildStaleDataAlertEmail(ageDays: number | null, guardMessage: string): BuiltEmail {
+  const subject =
+    ageDays === null
+      ? "DeadlineRadar: reference data's as_of_date is unparseable -- all sends paused"
+      : `DeadlineRadar: reference data is ${ageDays} days old -- all sends paused`;
+  const textBody =
+    `checkDataFreshness() just refused a pass for the first time today. Every pass that depends on ` +
+    `this data (signups and all outbound sends -- reminders, digests, Slack/Teams/SMS alerts) stays ` +
+    `paused until data/cpa_deadlines.json's as_of_date is re-verified and bumped forward.\n\n` +
+    `Guard message: ${guardMessage}\n\n` +
+    `This email fires at most once per UTC day no matter how many passes hit the guard.`;
+  const htmlBody =
+    `<p>checkDataFreshness() just refused a pass for the first time today. Every pass that depends on ` +
+    `this data (signups and all outbound sends &mdash; reminders, digests, Slack/Teams/SMS alerts) ` +
+    `stays paused until <code>data/cpa_deadlines.json</code>'s <code>as_of_date</code> is re-verified ` +
+    `and bumped forward.</p>` +
+    `<p>Guard message: ${esc(guardMessage)}</p>` +
+    `<p>This email fires at most once per UTC day no matter how many passes hit the guard.</p>`;
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
  * Task #3 (2026-08-06): internal notification on a firm self-deleting its
  * account -- same "so Devin can actually see the feedback" reasoning as
  * sendSignupNotification() above, reused for the opposite event. The

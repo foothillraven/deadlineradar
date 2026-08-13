@@ -3613,6 +3613,113 @@ describe("Staleness guard -- real HTTP + cron code paths, not just checkDataFres
       vi.useRealTimers();
     }
   });
+
+  it("AuditLab STALE-3: scheduled() sends exactly ONE operator alert per UTC day, no matter how many of the ~7 passes trip the guard or how many times scheduled() itself is called that day", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(STALE_MOCK_DATE);
+      const day = STALE_MOCK_DATE.toISOString().slice(0, 10);
+      // Clean slate for this specific day -- other tests in this suite may
+      // share the same mocked day if STALENESS_THRESHOLD_DAYS/as_of_date
+      // haven't changed between runs.
+      await env.DB.prepare(`DELETE FROM stale_data_alert_log WHERE day = ?1`).bind(day).run();
+
+      const worker = (await import("../src/index")).default;
+      const waited1: Promise<unknown>[] = [];
+      const ctx1 = { waitUntil: (p: Promise<unknown>) => waited1.push(p) } as unknown as ExecutionContext;
+      const envWithKey = { ...env, SENDGRID_API_KEY: "test-key-not-real" };
+
+      await worker.scheduled({} as ScheduledController, envWithKey, ctx1);
+      await Promise.all(waited1);
+      const afterFirst = await env.DB.prepare(`SELECT COUNT(*) AS n FROM stale_data_alert_log WHERE day = ?1`)
+        .bind(day)
+        .first<{ n: number }>();
+      // At least one of the ~6 stale-data-throwing passes hit the guard in
+      // this single scheduled() call, and every one of them called
+      // notifyOperatorOfStaleData() -- the row count proves only one
+      // actually won the claim.
+      expect(afterFirst?.n).toBe(1);
+
+      // Second scheduled() call, same mocked day -- must NOT insert a second
+      // row (this is the "how many times scheduled() itself is called"
+      // half of the guarantee).
+      const waited2: Promise<unknown>[] = [];
+      const ctx2 = { waitUntil: (p: Promise<unknown>) => waited2.push(p) } as unknown as ExecutionContext;
+      await worker.scheduled({} as ScheduledController, envWithKey, ctx2);
+      await Promise.all(waited2);
+      const afterSecond = await env.DB.prepare(`SELECT COUNT(*) AS n FROM stale_data_alert_log WHERE day = ?1`)
+        .bind(day)
+        .first<{ n: number }>();
+      expect(afterSecond?.n).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("AuditLab STALE-3: no alert (and no claim consumed) when SENDGRID_API_KEY is unset -- matches every other send in this file degrading to a no-op", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(STALE_MOCK_DATE);
+      const day = STALE_MOCK_DATE.toISOString().slice(0, 10);
+      await env.DB.prepare(`DELETE FROM stale_data_alert_log WHERE day = ?1`).bind(day).run();
+
+      const worker = (await import("../src/index")).default;
+      const waited: Promise<unknown>[] = [];
+      const ctx = { waitUntil: (p: Promise<unknown>) => waited.push(p) } as unknown as ExecutionContext;
+      // env (no SENDGRID_API_KEY override) -- same as the fixture used by
+      // the "temporarily paused" tests above this block.
+      await worker.scheduled({} as ScheduledController, env, ctx);
+      await Promise.all(waited);
+      const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM stale_data_alert_log WHERE day = ?1`)
+        .bind(day)
+        .first<{ n: number }>();
+      expect(row?.n).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("store.claimStaleDataAlertForToday (AuditLab STALE-3)", () => {
+  it("first claim for a given day wins (true), second claim same day loses (false)", async () => {
+    const day = `2027-03-${Date.now() % 29 + 1}`.slice(0, 10); // unique-ish day per test run
+    const first = await store.claimStaleDataAlertForToday(env.DB, day);
+    const second = await store.claimStaleDataAlertForToday(env.DB, day);
+    expect(first).toBe(true);
+    expect(second).toBe(false);
+  });
+
+  it("a different day gets its own independent claim", async () => {
+    const dayA = "2027-04-01";
+    const dayB = "2027-04-02";
+    await store.claimStaleDataAlertForToday(env.DB, dayA); // consume dayA
+    const claimB = await store.claimStaleDataAlertForToday(env.DB, dayB);
+    expect(claimB).toBe(true);
+  });
+});
+
+describe("emails.ts buildStaleDataAlertEmail (AuditLab STALE-3)", () => {
+  it("numeric ageDays: subject and body both name the actual age", async () => {
+    const { buildStaleDataAlertEmail } = await import("../src/emails");
+    const built = buildStaleDataAlertEmail(41, "REFUSING: reference data's as_of_date is 41 days old...");
+    expect(built.subject).toContain("41 days old");
+    expect(built.textBody).toContain("all outbound sends");
+    expect(built.htmlBody).toContain("41 days old");
+    expect(built.htmlBody).toContain("REFUSING");
+  });
+
+  it("null ageDays (unparseable as_of_date branch): subject/body don't claim a numeric age they don't have", async () => {
+    const { buildStaleDataAlertEmail } = await import("../src/emails");
+    const built = buildStaleDataAlertEmail(null, "REFUSING: reference data's as_of_date is unparseable...");
+    expect(built.subject.toLowerCase()).toContain("unparseable");
+    expect(built.subject).not.toMatch(/\d+ days old/);
+  });
+
+  it("fires at most once per day, stated in the copy itself", async () => {
+    const { buildStaleDataAlertEmail } = await import("../src/emails");
+    const built = buildStaleDataAlertEmail(35, "some guard message");
+    expect(built.textBody.toLowerCase()).toContain("once per utc day");
+  });
 });
 
 describe("emails.ts buildStopConfirmationEmail", () => {

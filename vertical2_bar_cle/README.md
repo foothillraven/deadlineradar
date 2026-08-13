@@ -45,32 +45,40 @@ elsewhere in this repo, not skipped or guessed).
   it isn't Jan-Dec -- Montana (Apr 1 - Mar 31), New Hampshire (Jun 1 - May 31). Structurally simple
   (same date for everyone) but the signup/reminder math needs a configurable fiscal-year-start, not
   an assumption that "annual" always means calendar year.
-- **No mandatory CLE requirement**: confirmed (not assumed) for Michigan -- the State Bar's own
-  License Renewal FAQ has zero CLE-hours line item, and the Bar's own strategic-planning document
-  explicitly frames CLE as "Voluntary" today. A real, valid finding for some states, not a research
-  gap -- worth keeping distinct from "not yet sourced" in the dataset (`no_cle_requirement: true`).
+- **No mandatory CLE requirement**: confirmed (not assumed, and confirmed independently more than
+  once) for **Michigan, South Dakota, Maryland, and Massachusetts** -- each via the state's own bar/
+  court page stating so directly (Maryland: a Supreme Court notice explicitly postponing adoption
+  "until further notice" as of April 28, 2025; Massachusetts: SJC Rule 3:16's only CLE-adjacent
+  requirement was repealed effective August 14, 2024). A real, valid finding for some states, not a
+  research gap -- worth keeping distinct from "not yet sourced" in the dataset
+  (`no_cle_requirement: true`).
 
-## Progress: 39 of 50 states sourced (2026-08-13)
+## Progress: 50 of 50 states sourced (2026-08-13) -- sourcing groundwork complete
 
-37 states added this pass via a verified-sourcing workflow (research + independent adversarial
-re-check per state, each claim re-fetched from the primary source a second time before being trusted).
-11 states hit a genuine `could_not_verify` wall this pass -- primary source URLs 403'd/404'd or gave
-internally inconsistent extraction results across repeated attempts (see `_meta.follow_up_needed` in
-`bar_cle_deadlines.json` for the specific list and what was tried) -- **left out of the dataset
-entirely rather than included on a shaky citation**, per the sourcing standard's own "don't fabricate
-to avoid this outcome" instruction: Arizona, Arkansas, Hawaii, Kentucky, Maryland, Massachusetts,
-Mississippi, Missouri, Rhode Island, Virginia, Wisconsin.
+First pass (48 states via 8 research+verify batches) landed 37; a genuine `could_not_verify` wall hit
+11 states -- primary sources 403/404/500'd or gave inconsistent extraction on repeated WebFetch
+attempts. Rather than include those on a shaky citation, they were left out and logged with exactly
+what failed. A second, targeted pass (one dedicated agent per stuck state, given the specific prior
+failure and told to try a different route -- Wayback Machine, an alternate URL on the same domain, a
+real browser session instead of the WebFetch tool, direct PDF download + local text extraction)
+resolved **all 11**: Arizona, Arkansas, Hawaii, Kentucky, Maryland, Massachusetts, Mississippi,
+Missouri, Rhode Island, Virginia, Wisconsin. 10 came back dual-source-verified; Wisconsin is
+single-source (the only independently-hosted mirror of its own rule text also failed, so it's the
+same primary document reached two ways, not two distinct sources -- flagged honestly rather than
+inflated to dual). Independently spot-checked 2 of the 11 (Maryland's no-CLE finding, Arizona's hour
+figures) directly against the primary source before merging -- both confirmed exact.
 
 ## Next steps for whoever continues this
 
-1. Source the remaining 11 states (list above) -- these need a different access approach (direct PDF
-   pull instead of HTML fetch, a different mirror, or a human check) since automated fetch already
-   failed multiple ways for each.
-2. DC is not currently in scope (`states_total_needed: 50` in `_meta`) -- confirm with Devin/
-   orchestrator whether it should be added before calling this dataset complete.
-3. Do NOT start building `generate.py`/site scaffolding for this vertical until Devin/orchestrator
-   explicitly green-lights it post-CPA-validation (per this directive's own instruction) -- still true,
-   unchanged by this pass.
-4. Keep this file (`vertical2_bar_cle/bar_cle_deadlines.json`) as the running sourcing dataset --
+1. **Sourcing is done for all 50 states.** DC is not currently in scope (`states_total_needed: 50` in
+   `_meta`) -- confirm with Devin/orchestrator whether it should be added.
+2. Do NOT start building `generate.py`/site scaffolding for this vertical until Devin/orchestrator
+   explicitly green-lights it post-CPA-validation (per the original directive's instruction) -- still
+   true, unchanged by this pass. Sourcing completeness does not itself authorize a build.
+3. Keep this file (`vertical2_bar_cle/bar_cle_deadlines.json`) as the running sourcing dataset --
    separate from `data/cpa_deadlines.json`, never merged into it (different vertical, different site
    if/when built).
+4. Whenever the build IS authorized: this dataset is now old enough in places (some records sourced
+   2026-07-15, most 2026-08-13) that a re-verification pass against each `citation_url`/`source_url`
+   before wiring it live would be prudent, same "don't trust stale sourcing" discipline the CPA
+   vertical's own staleness guard already enforces.

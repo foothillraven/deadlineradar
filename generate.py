@@ -10649,11 +10649,11 @@ function drRenderCalendar() {
     if (ruleEvents.length) {
       dayAriaLabelParts.push(ruleEvents.map(function(e) { return e.jurisdiction; }).join(', ') + ' rule change' + (ruleEvents.length > 1 ? 's' : ''));
     }
-    var dayAriaLabel = dayAriaLabelParts.length ? drEscapeHtml(dayAriaLabelParts.join(' -- ') + ' -- tap for details') : '';
+    var dayAriaLabel = dayAriaLabelParts.length ? drEscapeHtml(dayAriaLabelParts.join(' -- ') + ' -- activate for details') : '';
     html += '<div class="dr-cal-day' + (iso === todayIso ? ' dr-cal-day--today' : '') +
       (items.length ? ' dr-cal-day--has-item' : '') +
       (ruleEvents.length ? ' dr-cal-day--has-rule-change' : '') + '"' +
-      (dayAriaLabelParts.length ? ' role="button" tabindex="0" aria-label="' + dayAriaLabel + '"' : '') + '>' +
+      (dayAriaLabelParts.length ? ' role="button" tabindex="0" aria-label="' + dayAriaLabel + '" aria-expanded="false"' : '') + '>' +
       '<span class="dr-cal-daynum">' + day + '</span>' + cellItems + '</div>';
   }
   grid.innerHTML = html;
@@ -13958,7 +13958,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // way at this width -- see that class's CSS comment.
     var DR_CAL_EXPANDABLE_SELECTOR = '.dr-cal-day--has-item, .dr-cal-day--has-rule-change';
     function drToggleCalDayExpanded(day) {
-      day.classList.toggle('dr-cal-day--expanded');
+      var expanded = day.classList.toggle('dr-cal-day--expanded');
+      day.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     }
     calGrid.addEventListener('click', function(ev) {
       var ruleBtn = ev.target.closest ? ev.target.closest('.dr-cal-item--rule-change') : null;

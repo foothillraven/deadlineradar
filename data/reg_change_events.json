@@ -253,11 +253,11 @@
       "secondary_url": "https://dlcp.dc.gov/page/board-accountancy",
       "verified_date": "2026-07-31",
       "confidence": "single_source",
-      "summary_public": "Our two primary sources for District of Columbia currently disagree about its mobility rule. We withhold a determination rather than pick a side until this resolves.",
+      "summary_public": "Our two primary sources for District of Columbia currently disagree about its mobility rule -- and the section we cite here was amended by emergency legislation effective 2026-08-10, which we have not yet independently confirmed. We withhold a determination rather than guess.",
       "kind": "source_conflict",
       "effective_date": null,
       "status": "SOURCE_CONFLICT",
-      "needs_reverification": false
+      "needs_reverification": true
     },
     {
       "event_id": "guam-mobility-source-conflict",

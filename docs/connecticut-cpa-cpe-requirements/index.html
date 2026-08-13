@@ -1054,14 +1054,15 @@
   
   .dr-modal-overlay {
     position: fixed; inset: 0; background: rgba(10, 14, 20, 0.55);
-    display: flex; align-items: center; justify-content: center;
+    display: flex; align-items: flex-start; justify-content: center;
     padding: 1rem; z-index: 50; overflow-y: auto;
   }
   .dr-modal-overlay[hidden] { display: none; }
+  
   .dr-modal {
     background: var(--card-bg); color: var(--fg); border: 1px solid var(--border);
     border-radius: 12px; padding: 1.4rem 1.5rem; width: 100%; max-width: 26rem;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.35); margin: auto;
   }
   .dr-modal h2 { margin: 0 0 1rem; font-size: 1.1rem; font-family: var(--font-display); }
   .dr-modal label { display: block; font-weight: 600; font-size: 0.85rem; margin: 0.9rem 0 0.3rem; }

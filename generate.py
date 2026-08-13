@@ -1796,14 +1796,27 @@ PAGE_CSS = """
      mobile -- a short browser window on desktop hits the identical problem. */
   .dr-modal-overlay {
     position: fixed; inset: 0; background: rgba(10, 14, 20, 0.55);
-    display: flex; align-items: center; justify-content: center;
+    display: flex; align-items: flex-start; justify-content: center;
     padding: 1rem; z-index: 50; overflow-y: auto;
   }
   .dr-modal-overlay[hidden] { display: none; }
+  /* AuditLab MODAL-1 (2026-08-08, fixed 2026-08-13): align-items: center
+     above meant the portion of an over-tall modal that overflows ABOVE the
+     centring axis was never part of the overlay's own scrollable area --
+     not merely off-screen, unreachable by any amount of scrolling
+     (measured: overlay scrollHeight 731 for a 1015px modal). The user could
+     scroll down to Save/Cancel but never up to the heading or first field.
+     margin: auto on the flex child centres it exactly like align-items:
+     center did when there's room (verified identical gapTop/gapBottom on a
+     fitting modal), and degrades to top-aligned-and-scrollable -- the
+     whole child inside the scroll area (scrollHeight 1047 for the same
+     1015px modal) -- when there isn't. Paired with align-items: flex-start
+     above so the modal starts at the overlay's own top when it doesn't fit,
+     instead of still trying to centre an element taller than the viewport. */
   .dr-modal {
     background: var(--card-bg); color: var(--fg); border: 1px solid var(--border);
     border-radius: 12px; padding: 1.4rem 1.5rem; width: 100%; max-width: 26rem;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.35); margin: auto;
   }
   .dr-modal h2 { margin: 0 0 1rem; font-size: 1.1rem; font-family: var(--font-display); }
   .dr-modal label { display: block; font-weight: 600; font-size: 0.85rem; margin: 0.9rem 0 0.3rem; }
@@ -15114,7 +15127,14 @@ def _dashboard_sidebar_html(active: str, tabs_live_here: bool) -> str:
             # to the panel it opens -- the ARIA scaffolding (role=tab/tabpanel,
             # aria-selected) was otherwise already correct, this was the one
             # missing piece.
-            return f'<li><a href="#"{cls} data-view="{view}" role="tab" aria-selected="{aria}" aria-controls="dr-view-{view}">{icon}{esc(label)}</a></li>'
+            # AuditLab TAB-1 (2026-08-08, fixed 2026-08-13): aria-controls
+            # only pointed one direction (tab -> panel). A11Y-2's own focus
+            # move (drSwitchView) lands on the panel, but with no reciprocal
+            # id here for a panel's aria-labelledby to reference, focus
+            # landed on a region with no accessible name -- worse than not
+            # moving focus at all, since a screen-reader user is relocated
+            # without being told where. id here is that reciprocal link.
+            return f'<li><a href="#"{cls} data-view="{view}" role="tab" id="dr-tab-{view}" aria-selected="{aria}" aria-controls="dr-view-{view}">{icon}{esc(label)}</a></li>'
         return f'<li><a href="/firm-dashboard/#{view}"{cls}>{icon}{esc(label)}</a></li>'
 
     nav_items = "\n      ".join(
@@ -15886,7 +15906,7 @@ def build_firm_dashboard_page(
     <p class="dr-print-sample-notice" id="dr-print-sample-notice" hidden>SAMPLE DATA &mdash; every
     person and date on this page is fictional preview content, not this firm&rsquo;s real roster.</p>
 
-    <div id="dr-view-roster" class="dr-view" role="tabpanel">
+    <div id="dr-view-roster" class="dr-view" role="tabpanel" aria-labelledby="dr-tab-roster">
     <div class="dr-report-toolbar">
       <div>
         <h1>Coverage overview</h1>
@@ -16116,7 +16136,7 @@ def build_firm_dashboard_page(
     </div>
     </div>
 
-    <div id="dr-view-calendar" class="dr-view" role="tabpanel" hidden>
+    <div id="dr-view-calendar" class="dr-view" role="tabpanel" aria-labelledby="dr-tab-calendar" hidden>
       <h1>Calendar</h1>
       <p class="subhead">Upcoming renewal deadlines for your firm, by date.</p>
       <div class="dr-cal-panel">
@@ -16137,7 +16157,7 @@ def build_firm_dashboard_page(
       </div>
     </div>
 
-    <div id="dr-view-map" class="dr-view" role="tabpanel" hidden>
+    <div id="dr-view-map" class="dr-view" role="tabpanel" aria-labelledby="dr-tab-map" hidden>
       <h1>Map</h1>
       <p class="subhead">Where your firm has staff licensed, and who's at risk.</p>
       <!-- Roadmap #42: a free-tier firm previously only learned the Map was
@@ -16170,7 +16190,7 @@ def build_firm_dashboard_page(
       </div>
     </div>
 
-    <div id="dr-view-cpe" class="dr-view" role="tabpanel" hidden>
+    <div id="dr-view-cpe" class="dr-view" role="tabpanel" aria-labelledby="dr-tab-cpe" hidden>
       <h1>CPE Hours</h1>
       <p class="subhead">Track completed continuing-education hours against each state's own
       requirement. Internal visibility only -- not an official state filing, and not a substitute for
@@ -16222,7 +16242,7 @@ def build_firm_dashboard_page(
       </div>
     </div>
 
-    <div id="dr-view-reports" class="dr-view" role="tabpanel" hidden>
+    <div id="dr-view-reports" class="dr-view" role="tabpanel" aria-labelledby="dr-tab-reports" hidden>
       <div class="dr-report-toolbar">
         <div>
           <h1>Compliance Summary</h1>
@@ -16252,7 +16272,7 @@ def build_firm_dashboard_page(
       <div id="dr-audit-trail-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
     </div>
 
-    <div id="dr-view-account" class="dr-view" role="tabpanel" hidden>
+    <div id="dr-view-account" class="dr-view" role="tabpanel" aria-labelledby="dr-tab-account" hidden>
       <h1>Account</h1>
       <div class="callout" id="dr-account-demo-lockdown-banner" style="border-left-color:#b8860b;" hidden>
       This is a shared demo account &mdash; email, password, billing, and delete-account changes are

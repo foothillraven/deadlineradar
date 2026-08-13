@@ -18324,6 +18324,334 @@ Oklahoma Accountancy Board directly. And keep your own Texas renewal on track wh
 <a href="../../texas/">Check your Texas renewal date here</a>.</p>
 """,
     },
+    {
+        "slug": "new-york-to-connecticut-cpa-mobility",
+        "title": "New York CPA Practicing in Connecticut — What Actually Applies",
+        "meta_description": (
+            "Connecticut replaced its NASBA-based mobility test with individual criteria in "
+            "October 2025. Here's exactly what a New York CPA needs to qualify, and where "
+            "the state's own rules still disagree with each other."
+        ),
+        "body_html": """
+<p class="intro">Connecticut rewrote its mobility rule less than a year ago, and the state's own
+website hasn't fully caught up with itself yet. If you're a New York CPA weighing work across the
+border, here's what the actual statute says today &mdash; and where to be careful.</p>
+
+<h2>Connecticut's test changed on October 1, 2025</h2>
+<p>Public Act 25-36 repealed Connecticut's old NASBA/NQAS substantial-equivalency test (former Conn.
+Gen. Stat. &sect; 20-281n) and replaced it with an <strong>individual-criteria</strong> test, effective
+October 1, 2025. It no longer matters whether New York's whole licensing regime was pre-verified as
+equivalent &mdash; what matters is whether you personally meet Connecticut's own education, experience,
+and exam requirements.</p>
+
+<h2>What a New York CPA needs to qualify</h2>
+<p>Under the new Sec. 20-281c(b)-(e), you qualify by holding a valid out-of-state license in good
+standing (New York counts) and meeting one of three pathways: a bachelor's degree with an accounting
+concentration plus 2 years of experience; a bachelor's degree plus 30 additional semester hours (150
+total) plus 1 year of experience; or a post-baccalaureate degree plus 1 year of experience. If you
+licensed in New York through a standard path, you clear this without much trouble. There's <strong>no
+license, no notice, and no fee</strong> required to exercise the privilege (Sec. 20-281n).</p>
+
+<p>If you were already licensed and practicing before the changeover, there's a grandfather clause:
+CPAs who passed the exam on or before September 30, 2025 and held a license in good standing as of that
+date keep their privilege without needing to meet the new criteria.</p>
+
+<p>One thing worth knowing before you rely on Connecticut's own website: the state's compiled statute
+page (still showing the pre-2025 chapter text as of this page's last review) and the Connecticut Society
+of CPAs both lag the actual law &mdash; the enacted text is what controls, not what's currently posted
+online. If a source describes a NASBA state-level test, it's describing the rule that no longer
+applies.</p>
+
+<h2>Attest work needs a Connecticut-permitted firm</h2>
+<p>Here's the condition that actually matters if you're doing more than routine tax or consulting work:
+a New York CPA practicing under Connecticut's privilege who performs audits, SSARS reviews, SSAE
+examinations, or PCAOB engagements for a client whose <strong>home office is in Connecticut</strong> can
+only do that work through a firm holding a Connecticut firm permit (Sec. 20-281n(d)). That permit
+requirement itself only attaches to a no-Connecticut-office firm doing that specific attest work for a
+Connecticut-home-office client (Sec. 20-281e(g)(3)) &mdash; a $150 annual fee, waived for single-licensee
+firms. Compilations for a Connecticut-home-office client are permit-exempt if the firm meets
+Connecticut's quality-review qualifications and works through a privilege holder; everything else (tax,
+consulting) is exempt under the same condition. Peer review is required both as a condition of permit
+renewal and as a condition of that no-permit compilation pathway.</p>
+
+<p><strong>The honest caveat</strong>: this page is sourced to Conn. Gen. Stat. &sect;&sect; 20-281n,
+20-281e(g)-(i), and 20-281c, as amended by P.A. 25-36 &mdash; not to Connecticut's own web materials,
+which hadn't been updated to match the new law as of this page's last review. It's general orientation,
+not a determination for your specific engagement type. For your own situation, run it through
+<a href="../../practice-privilege-check/">our Practice Privilege Check tool</a>, or confirm directly
+with the Connecticut State Board of Accountancy. And keep your own New York triennial registration on
+track &mdash; it's easy to lose track of since it's not tied to your license's own expiration.
+<a href="../../new-york/">Check your New York registration date here</a>.</p>
+""",
+    },
+    {
+        "slug": "california-to-texas-cpa-mobility",
+        "title": "California CPA Practicing in Texas — What Actually Applies",
+        "meta_description": (
+            "Texas moved to an individual-criteria mobility test in September 2025 -- and "
+            "the state board's own website still describes the old rule. Here's what a "
+            "California CPA actually needs, sourced to the current statute."
+        ),
+        "body_html": """
+<p class="intro">Texas has full firm mobility and an open individual privilege &mdash; but the specific
+test for qualifying as an individual changed less than a year ago, and the board's own website hasn't
+been updated to match. Here's what actually applies to a California-licensed CPA today.</p>
+
+<h2>Texas's individual test changed on September 1, 2025</h2>
+<p>Senate Bill 522 deleted the old NASBA/NQAS substantial-equivalency test from Tex. Occ. Code &sect;
+901.462(a) and replaced it with individual criteria, effective September 1, 2025. The Texas State Board
+of Public Accountancy's own practice-privilege page, as of this page's last review, still describes the
+repealed NASBA checklist &mdash; the statute and the board's own conformed rule (22 TAC &sect; 517.2,
+amended effective October 9, 2025) both say otherwise. Don't rely on the board's plain-English page
+alone for this specific question.</p>
+
+<h2>What a California CPA needs to qualify</h2>
+<p>Under the current statute, you qualify by having passed the Uniform CPA Exam and meeting your
+education/experience requirement <strong>at the time you were originally licensed</strong> in California,
+through one of three pathways: a 150-hour bachelor's degree with an accounting concentration plus 1 year
+of experience; a graduate degree with an accounting concentration plus 1 year of experience; or a
+bachelor's degree with an accounting concentration plus 2 years of experience. California's own
+licensure requirements track closely enough that most actively-licensed California CPAs clear this
+without issue. There's <strong>no notice, no fee, and no registration</strong> required.</p>
+
+<p>If you already held an out-of-state license and were practicing under Texas's privilege as of December
+31, 2024, you keep it under a grandfather clause without needing to meet the new criteria.</p>
+
+<h2>Firms: Texas has genuinely open mobility, with one real condition</h2>
+<p>Texas has had full firm mobility since 2019 (HB 1520) &mdash; an out-of-state firm needs no Texas
+firm license, registration, or notice for either attest or non-attest work performed through licensed or
+privileged individuals, unless the firm actually establishes an office in Texas. The one condition that
+applies regardless of office location: attest work for a client whose <strong>home office is in
+Texas</strong> requires the performing firm to meet CPA-majority ownership rules, comply with Texas's
+peer review program (which can be satisfied through your home state's own peer review program, per the
+board's FAQ), and perform the work through a Texas-licensed or privilege-holding individual.</p>
+
+<p><strong>The honest caveat</strong>: this page is sourced to Tex. Occ. Code &sect;&sect; 901.461,
+901.462, and 901.351(a-1) as amended by SB 522, plus the conformed board rule at 22 TAC &sect; 517.2
+&mdash; not to the Texas board's own web page, which was stale as of this page's last review. It's
+general orientation, not a determination for your specific engagement type. Run your own situation
+through <a href="../../practice-privilege-check/">our Practice Privilege Check tool</a>, or confirm
+directly with the Texas State Board of Public Accountancy. And don't lose track of your own California
+renewal while you're at it &mdash; it runs on a birth-month/odd-even cycle that's easy to misremember.
+<a href="../../california/">Check your California renewal date here</a>.</p>
+""",
+    },
+    {
+        "slug": "illinois-to-indiana-cpa-mobility",
+        "title": "Illinois CPA Practicing in Indiana — What Actually Applies",
+        "meta_description": (
+            "Indiana is one of the few states with NO firm mobility -- a firm permit is "
+            "required regardless of whether you have an Indiana office. Here's what an "
+            "Illinois CPA actually needs to know before doing attest work there."
+        ),
+        "body_html": """
+<p class="intro">Most of the state pairs on this site follow a similar shape: open individual mobility,
+firm registration only if you open an office there. Indiana breaks that pattern on the firm side, and
+it's worth knowing before you assume the usual rule applies.</p>
+
+<h2>The individual privilege: open, with a non-binding overlay to watch</h2>
+<p>Indiana Code &sect; 25-2.1-4-10 has given out-of-state CPAs full practice privilege &mdash; no
+license, no notice, no fee &mdash; since 2007, based on state-level substantial equivalency determined
+by the Board (the same NASBA-style framework Illinois itself is verified under). In practice, an
+actively-licensed Illinois CPA clears this without difficulty.</p>
+
+<p>One thing to watch, not act on yet: the Indiana Board adopted a non-binding policy document in
+September 2025 overlaying individual pathway criteria (passed exam plus one of three education/
+experience pathways) onto both mobility and reciprocity, meant to bridge a licensure-pathway change
+that itself doesn't take effect until 2027. The Board's own document says plainly that if it conflicts
+with the actual statute or rules, the statute and rules control &mdash; so it's guidance, not a change
+to what the law requires today.</p>
+
+<h2>Firms: Indiana requires a permit even with no Indiana office</h2>
+<p>This is the part that catches people off guard. Unlike most states, <strong>Indiana has no firm-level
+mobility provision at all</strong>. Indiana Code &sect; 25-2.1-12-5 requires a firm permit for any firm
+providing attest services or using the CPA title &mdash; full stop, with no exemption for a firm that has
+no physical presence in Indiana. If your Illinois firm is doing attest work reaching an Indiana client,
+or using the CPA/CPA-firm title in connection with Indiana work, the "no office, no registration needed"
+assumption that holds in most states does not hold here. Peer review (no more than once every 3 years)
+is a statutory condition of that firm permit's renewal.</p>
+
+<p>How an out-of-state attest firm with genuinely no Indiana presence is actually supposed to comply with
+this is not clearly addressed anywhere in the Board's own published materials &mdash; if this applies to
+your firm, it's worth confirming directly with the Indiana Board rather than assuming either way.</p>
+
+<p><strong>The honest caveat</strong>: this page is sourced to Ind. Code &sect;&sect; 25-2.1-4-10,
+25-2.1-12-5, and 25-2.1-12-2, cross-checked against two independent unofficial statute publishers since
+Indiana's own official code site serves a JavaScript app shell to non-browser tools. It's general
+orientation, not a determination for your specific engagement type &mdash; the firm-permit question above
+in particular deserves a direct call to the Board before you rely on it. Run your own situation through
+<a href="../../practice-privilege-check/">our Practice Privilege Check tool</a>. And keep your own
+Illinois renewal on track &mdash; it's a 3-year cycle, easy to lose track of.
+<a href="../../illinois/">Check your Illinois renewal date here</a>.</p>
+""",
+    },
+    {
+        "slug": "florida-to-georgia-cpa-mobility",
+        "title": "Florida CPA Practicing in Georgia — What Actually Applies",
+        "meta_description": (
+            "Georgia rewrote its mobility rule effective January 2026 -- but the board's own "
+            "compiled rules still describe the old test and directly contradict the new firm "
+            "rule. Here's what a Florida CPA needs to know, and where the state disagrees "
+            "with itself."
+        ),
+        "body_html": """
+<p class="intro">Georgia is a genuinely useful example of a state mid-transition where the statute and
+the state's own compiled rules haven't caught up with each other &mdash; not a hypothetical risk, a live
+disagreement in the actual published rule text. Here's what a Florida CPA needs to know.</p>
+
+<h2>Georgia's test changed on January 1, 2026 &mdash; on paper</h2>
+<p>House Bill 148 (Act 87) replaced Georgia's old "substantial equivalency" language with a new
+"mobility practice privileges" standard, effective January 1, 2026: instead of a state-level NASBA test,
+an individual qualifies by holding a current license in good standing from any other state (Florida
+counts), meeting education/experience criteria the Board establishes by rule, and having passed the
+Uniform CPA Exam. There's no notice and no fee to exercise it.</p>
+
+<p><strong>The catch</strong>: as of this page's last review, the Georgia Board hadn't yet adopted the
+education/experience rule the new law delegates to it &mdash; so the only settled requirement in practice
+is a license in good standing plus a passed exam. And Georgia's own compiled administrative rules and its
+2015 Statement of Policy still describe the old, repealed substantial-equivalency regime outright. If
+you're relying on anything published by the Board itself rather than the statute, you may be reading the
+superseded rule.</p>
+
+<h2>Firms: the statute and the board's own rule directly disagree</h2>
+<p>This is the part worth being genuinely careful about. The enacted statute (O.C.G.A. &sect;
+43-3-16(b)) now lets a no-office out-of-state firm perform reviews, other SSAE examinations/reviews/
+agreed-upon-procedures, and compilations <strong>without a Georgia firm license</strong>, as long as the
+firm is majority CPA-owned, complies with peer review requirements, and performs the work through a
+Georgia-licensed or privilege-holding individual &mdash; audits, prospective-financial examinations, and
+PCAOB engagements still require a license unless that same exemption applies. But Georgia's still-compiled
+Rule 20-8-.01(1), as published, flatly requires biennial licensure for any no-office firm doing that same
+attest work, with no exemption written into the rule text at all. Statute and rule give opposite answers
+for the identical fact pattern. Until the Board's own conforming rule amendments are formally adopted,
+treat this as genuinely unresolved rather than settled either way, and confirm directly with the Georgia
+Board before you rely on either reading. Non-attest work (tax, consulting) needs no Georgia firm license
+either way. Peer review is required both as a renewal condition for licensed firms that did attest or
+compilation work in the prior 24 months, and as a condition of the no-license review/compilation pathway
+above.</p>
+
+<h2>If you already held Georgia privileges</h2>
+<p>Georgia's new law doesn't include an explicit grandfather clause the way New Jersey's or Connecticut's
+does &mdash; if you were already practicing in Georgia before January 1, 2026, the safest read is that the
+new individual criteria now govern going forward.</p>
+
+<p><strong>The honest caveat</strong>: this page is sourced to O.C.G.A. &sect;&sect; 43-3-18(b),
+43-3-16(b), and 43-3-17 as amended by HB 148 &mdash; not to the Board's own compiled rules or Statement of
+Policy, both of which describe the superseded regime and, on the firm question, directly conflict with
+the enacted statute. It's general orientation, not a determination for your specific engagement type. Run
+your own situation through <a href="../../practice-privilege-check/">our Practice Privilege Check
+tool</a>, or better yet confirm directly with the Georgia State Board of Accountancy given the live
+conflict above. And don't lose track of your own Florida renewal &mdash; it's tied to your own original
+certificate date, not a public calendar rule, so check it directly.
+<a href="../../florida/">Check your Florida renewal status here</a>.</p>
+""",
+    },
+    {
+        "slug": "virginia-to-maryland-cpa-mobility",
+        "title": "Virginia CPA Practicing in Maryland — What Actually Applies",
+        "meta_description": (
+            "Maryland runs one of the more open mobility rules on the East Coast for both "
+            "individuals and firms. Here's exactly what a Virginia CPA needs to qualify, "
+            "sourced to the current statute."
+        ),
+        "body_html": """
+<p class="intro">Maryland is one of the more genuinely open mobility states for a Virginia CPA to work
+across the border into &mdash; both as an individual and, in most cases, as a firm. Here's what actually
+applies.</p>
+
+<h2>Maryland's test: a license plus an exam requirement, nothing more layered</h2>
+<p>Under Md. Code Ann., Bus. Occ. &amp; Prof. &sect; 2-321 (as rewritten by 2025's SB 51, effective
+October 1, 2025), an out-of-state CPA is deemed substantially equivalent &mdash; and gets full Maryland
+practice privileges with <strong>no license, no notice, and no fee</strong> &mdash; if the individual
+holds a valid CPA license from another state and was required to pass the Uniform CPA Exam to get it.
+That's the whole test. It's not a state-level NASBA verification list, and it's not a multi-pathway
+education/experience checklist like some neighboring states run &mdash; just a valid license plus the
+exam requirement, which decouples Maryland's mobility answer from whatever education-hour changes other
+states make. An actively-licensed Virginia CPA clears this without complication.</p>
+
+<h2>Firms: no permit needed for attest work, if you meet the conditions</h2>
+<p>Maryland has had firm-level mobility since 2019. A firm with no Maryland office can perform attest
+services for a Maryland client <strong>without a permit</strong> if it meets Maryland's application and
+peer review requirements and performs the work through an individual holding the Section 2-321 practice
+privilege. Non-attest work (tax, consulting) needs no permit either, through a privilege-holding
+individual. Peer review (at least every 3 years) is a condition of that no-permit attest pathway, not of
+a registration that doesn't exist for no-office firms.</p>
+
+<p>One thing worth flagging: the Maryland Board's own firm-permit <em>application</em> page still states
+that out-of-state firms "must obtain a permit," which reads as flatly contradicting the statute. That
+page appears to be simply stale &mdash; the statute and the Board's own dedicated mobility page (a
+different page) both agree a no-office firm meeting the conditions above doesn't need one. If you land on
+the application page first, don't take it as the final word.</p>
+
+<h2>Conditions that come with the privilege</h2>
+<p>None of this is a free pass from Maryland's authority: you consent to the Maryland Board's
+jurisdiction, agree to comply with Maryland law, must cease practicing if your Virginia license lapses,
+and Virginia's own board is treated as your agent for service of process.</p>
+
+<p><strong>The honest caveat</strong>: this page is sourced to Md. Code Ann., Bus. Occ. &amp; Prof.
+&sect;&sect; 2-321, 2-401, and 2-4A-02 as amended by 2025's SB 51/HB 887 &mdash; not to the Board's
+firm-permit application page, which conflicts with the statute and appears stale. It's general
+orientation, not a determination for your specific engagement type. Run your own situation through
+<a href="../../practice-privilege-check/">our Practice Privilege Check tool</a>, or confirm directly with
+the Maryland Board of Public Accountancy. And keep your own Virginia renewal on track &mdash; it's due
+every June 30. <a href="../../virginia/">Check your Virginia renewal date here</a>.</p>
+""",
+    },
+    {
+        "slug": "pennsylvania-to-new-jersey-cpa-mobility",
+        "title": "Pennsylvania CPA Practicing in New Jersey — What Actually Applies",
+        "meta_description": (
+            "Pennsylvania and New Jersey both overhauled their mobility rules within months "
+            "of each other in 2025-2026. Here's what a Pennsylvania CPA actually needs to "
+            "qualify for New Jersey practice privilege today."
+        ),
+        "body_html": """
+<p class="intro">Pennsylvania and New Jersey both rewrote their mobility rules within roughly a year of
+each other &mdash; Pennsylvania in mid-2025, New Jersey in early 2026. If you're a Pennsylvania CPA
+looking at New Jersey work, it's worth knowing that the rule on the New Jersey side genuinely changed
+recently, not just the rule you're licensed under at home.</p>
+
+<h2>New Jersey's test changed on February 19, 2026</h2>
+<p>New Jersey moved off its older NASBA/NQAS substantial-equivalency test to an <strong>individual-
+criteria</strong> standard under P.L.2025, c.384, effective February 19, 2026. Under the current statute,
+you qualify by holding a valid, unrevoked CPA license from any state &mdash; Pennsylvania included
+&mdash; having passed the Uniform CPA Exam (or a board-approved equivalent), and having at least one year
+of experience. An actively-licensed Pennsylvania CPA clears this without difficulty. There's <strong>no
+notice filing and no fee</strong> required (N.J.S.A. 45:2B-50.1(a),(b)).</p>
+
+<p>New Jersey's own compiled administrative code was readopted without amendment in late 2024 and still
+describes the old NASBA-based test on paper &mdash; the statute controls when the two disagree, and no
+implementing rulemaking had been filed as of this page's last review. If a stale source tells you New
+Jersey still runs a state-level equivalency test, the statute now says otherwise.</p>
+
+<h2>Firms: New Jersey draws the attest line more narrowly than most states</h2>
+<p>An out-of-state firm performing attest work with a New Jersey nexus generally needs to register
+&mdash; and New Jersey is stricter here than most of its neighbors: audits, SSAE engagements, and
+<strong>SSARS reviews</strong> all trigger registration, with <strong>compilation work the one
+attest-adjacent service that's exempt</strong> if performed through a practice-privilege individual and
+lawful in that individual's home state. Non-attest work (tax, consulting) needs no registration through a
+qualifying individual.</p>
+
+<h2>What changed on your own side, for context</h2>
+<p>Pennsylvania's own mobility rule changed too, less than a year before New Jersey's &mdash; Act 27 of
+2025 (effective June 30, 2025) replaced Pennsylvania's older substantial-equivalency test with its own
+"automatic mobility" individual-criteria standard. That doesn't change anything about what New Jersey
+requires of you, but it's worth knowing both sides of this pair have moved recently, not just one.</p>
+
+<h2>Grandfathering, if you were already working in New Jersey</h2>
+<p>If you already held New Jersey practice privileges under the old rule before February 19, 2026, you
+keep them under an explicit grandfather clause (45:2B-50.1(f)) rather than being reset to the new
+test.</p>
+
+<p><strong>The honest caveat</strong>: this page is sourced to N.J.S.A. 45:2B-50.1 and 45:2B-54, cross-
+checked against the compiled administrative code &mdash; New Jersey's board publishes no dedicated
+mobility FAQ of its own. It's general orientation, not a determination for your specific engagement
+type. Run your own situation through
+<a href="../../practice-privilege-check/">our Practice Privilege Check tool</a>, or confirm directly with
+the New Jersey State Board of Accountancy. And don't lose track of your own Pennsylvania renewal &mdash;
+it's due December 31 of odd-numbered years. <a href="../../pennsylvania/">Check your Pennsylvania
+renewal date here</a>.</p>
+""",
+    },
 ]
 
 

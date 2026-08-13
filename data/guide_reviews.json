@@ -13,6 +13,12 @@
     "florida-cpa-license-renewal-guide": { "last_reviewed": "2026-08-07", "reviewed_by": "authored-from-verified-datasets" },
     "new-york-to-new-jersey-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
     "california-to-nevada-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
-    "texas-to-oklahoma-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" }
+    "texas-to-oklahoma-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
+    "new-york-to-connecticut-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
+    "california-to-texas-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
+    "illinois-to-indiana-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
+    "florida-to-georgia-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
+    "virginia-to-maryland-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
+    "pennsylvania-to-new-jersey-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" }
   }
 }

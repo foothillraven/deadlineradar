@@ -904,10 +904,11 @@ PAGE_CSS = """
   .dr-pain-headline { font-size: 1.5rem; margin: 0 0 0.3rem; }
   .dr-pain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4rem; margin: 1.6rem 0 1.8rem; }
   @media (max-width: 700px) { .dr-pain-grid { grid-template-columns: 1fr; } }
-  /* 2026-08-12, Devin design-quality directive (competitor benchmark: CPA
-     QualityPro's colored-circular-badge 3-card pattern) -- reuses the
-     existing --accent-bg/--shadow tokens rather than inventing new colors,
-     so this stays theme-consistent automatically instead of a one-off. */
+  /* 2026-08-12, Devin design-quality directive (competitor benchmark: a
+     modern SaaS marketing page's colored-circular-badge 3-card pattern) --
+     reuses the existing --accent-bg/--shadow tokens rather than inventing
+     new colors, so this stays theme-consistent automatically instead of a
+     one-off. */
   .dr-pain-col {
     background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px;
     padding: 1.7rem 1.6rem; box-shadow: var(--shadow);
@@ -1286,8 +1287,9 @@ PAGE_CSS = """
     color: #b9cad9; text-decoration: none; font-size: 0.87rem; font-weight: 500;
   }
   /* 2026-08-12, Devin design-quality directive (approved): icon+label to match
-     CPA QualityPro's sidebar pattern. currentColor means the icon automatically
-     follows .dr-nav a's own color changes (default/hover/is-active) for free. */
+     a modern SaaS dashboard sidebar pattern. currentColor means the icon
+     automatically follows .dr-nav a's own color changes (default/hover/
+     is-active) for free. */
   .dr-nav-icon { width: 16px; height: 16px; flex-shrink: 0; }
   .dr-nav a.is-active { background: rgba(255,255,255,.1); color: #fff; font-weight: 600; }
   .dr-nav a:hover { background: rgba(255,255,255,.06); color: #fff; }
@@ -18047,8 +18049,8 @@ def main() -> None:
         print(f"wrote {SITE_DIR.name}/{slug}/index.html  ({title})")
 
     # /compare/ (hub + per-competitor pages) removed 2026-08-12, Devin's decision
-    # ("for now" -- pending a rethink now that CPA QualityPro is a known real
-    # competitor). COMPETITOR_COMPARE_PAGES stays declared but empty, so the
+    # ("for now" -- pending a rethink now that a real, close competitor is
+    # known). COMPETITOR_COMPARE_PAGES stays declared but empty, so the
     # sitemap loop below is a harmless no-op -- reinstating this write-out loop
     # is the only step needed to bring the pages back. COMPETITOR_FACTS/
     # MYCPE_ONE_FACTS/the 90-day price-freshness gate are all left intact.

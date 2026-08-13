@@ -637,6 +637,86 @@ def check_sms_cron_hour_matches_wrangler(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_pricing_matches_tiers(repo_root: Path) -> list[str]:
+    """AuditLab PRICE-1 (2026-08-09, closed 2026-08-13): worker/src/tiers.ts's
+    FIRM_TIERS is the source of truth for what a firm is actually charged and
+    how many seats that buys; generate.py duplicates those numbers as literal
+    marketing copy in roughly 20 places. All correct at filing time and still
+    correct today, but nothing enforced it -- and a drifted price is worse
+    than the other hand-maintained-duplicate classes this file already
+    guards (terms version, computed-field states, the SMS cron hour):
+    it's advertised to every visitor on /pricing/ while Stripe bills
+    something else, silently.
+
+    Deliberately scoped to the two most structurally-identifiable,
+    highest-stakes surfaces rather than a blind whole-file '$NNN' sweep --
+    generate.py legitimately contains other dollar amounts that are NOT
+    DeadlineRadar's own pricing (state-board late/reinstatement fees baked
+    into the CPA-deadline dataset, a folded-away $39/year individual tier
+    mentioned only in a docstring) and a blind sweep would false-positive on
+    every one of them. Both surfaces checked here carry a `data-tier`
+    attribute that maps directly to a FIRM_TIERS entry, so there's no
+    ordering assumption to get wrong: the /pricing/ page's 4 price cards,
+    and the in-app paywall modal's upgrade buttons."""
+    tiers_ts = repo_root / "worker" / "src" / "tiers.ts"
+    generate_py = repo_root / "generate.py"
+    if not tiers_ts.exists():
+        print("  (skipping pricing-matches-tiers check -- worker/ tree not present in this checkout)")
+        return []
+
+    ts_text = tiers_ts.read_text(encoding="utf-8")
+    tiers_match = re.search(r"FIRM_TIERS[^=]*=\s*\[(.*?)\n\];", ts_text, re.DOTALL)
+    if not tiers_match:
+        return ["[SYNC] worker/src/tiers.ts's FIRM_TIERS literal not found -- can't verify generate.py's pricing copy against it"]
+    tier_rows = re.findall(r'planTier:\s*"([a-z_]+)".*?priceUsd:\s*(\d+).*?seatCap:\s*(\d+)', tiers_match.group(1))
+    if not tier_rows:
+        return ["[SYNC] Could not parse individual tier entries out of worker/src/tiers.ts's FIRM_TIERS"]
+    by_plan_tier = {pt: {"priceUsd": int(price), "seatCap": int(cap)} for pt, price, cap in tier_rows}
+
+    py_text = generate_py.read_text(encoding="utf-8")
+    errors = []
+
+    button_rows = re.findall(
+        r'data-tier="([a-z_]+)" data-seat-cap="(\d+)"[^>]*>[^<]*<br><span>\$(\d+)/year &middot; up to (\d+) staff</span>',
+        py_text,
+    )
+    if not button_rows:
+        errors.append("[SYNC] Could not find the in-app paywall modal's tier buttons in generate.py -- markup shape may have changed; update check_pricing_matches_tiers()")
+    for plan_tier, seat_cap_attr, price_str, up_to_str in button_rows:
+        tier = by_plan_tier.get(plan_tier)
+        if tier is None:
+            errors.append(f'[SYNC] generate.py\'s paywall modal references data-tier="{plan_tier}", which is not in worker/src/tiers.ts\'s FIRM_TIERS')
+            continue
+        if int(price_str) != tier["priceUsd"] or int(seat_cap_attr) != tier["seatCap"] or int(up_to_str) != tier["seatCap"]:
+            errors.append(
+                f'[SYNC] generate.py\'s paywall modal button for "{plan_tier}" shows ${price_str}/year, '
+                f"data-seat-cap={seat_cap_attr}, \"up to {up_to_str} staff\", but worker/src/tiers.ts's "
+                f"FIRM_TIERS says ${tier['priceUsd']}/year, {tier['seatCap']} seats -- a customer would see "
+                f"a different price/cap than what the seat-cap gate actually enforces."
+            )
+
+    card_rows = re.findall(
+        r'<div class="pricing-card" id="[a-z]+">\s*<h2>[^<]*</h2>\s*<p class="price">\$(\d+)<span>/year</span></p>\s*<p class="detail">Up to (\d+) staff\.</p>.*?data-tier="([a-z_]+)"',
+        py_text,
+        re.DOTALL,
+    )
+    if not card_rows:
+        errors.append("[SYNC] Could not find /pricing/ page's price cards in generate.py -- markup shape may have changed; update check_pricing_matches_tiers()")
+    for price_str, seat_cap_str, plan_tier in card_rows:
+        tier = by_plan_tier.get(plan_tier)
+        if tier is None:
+            errors.append(f'[SYNC] generate.py\'s /pricing/ page has a card with data-tier="{plan_tier}", which is not in worker/src/tiers.ts\'s FIRM_TIERS')
+            continue
+        if int(price_str) != tier["priceUsd"] or int(seat_cap_str) != tier["seatCap"]:
+            errors.append(
+                f'[SYNC] generate.py\'s /pricing/ page shows a ${price_str}/year, up-to-{seat_cap_str}-staff '
+                f'card for "{plan_tier}", but worker/src/tiers.ts\'s FIRM_TIERS says '
+                f"${tier['priceUsd']}/year, {tier['seatCap']} seats for it -- the pricing page and the "
+                f"actual seat-cap gate/checkout would disagree."
+            )
+    return errors
+
+
 def check_sitemap_completeness(html_files: list[Path], docs_dir: Path) -> list[str]:
     """AuditLab CRAWL-2 (LOW, 2026-08-07): the third hand-maintained-list
     decay found in ~24 hours (after CRAWL-1's /terms/ omission and RETAIN-1's
@@ -1238,6 +1318,7 @@ def main():
     all_errors += check_competitor_price_currency(repo_root)
     all_errors += check_field_computed_states_sync(repo_root)
     all_errors += check_sms_cron_hour_matches_wrangler(repo_root)
+    all_errors += check_pricing_matches_tiers(repo_root)
     all_errors += check_json_copies_identical(repo_root)
     all_errors += check_terms_version_sync(repo_root)
     all_errors += check_retention_coverage(repo_root)

@@ -3750,6 +3750,26 @@ describe("emails.ts buildStaleDataAlertEmail (AuditLab STALE-3)", () => {
     const built = buildStaleDataAlertEmail(35, "some guard message");
     expect(built.textBody.toLowerCase()).toContain("once per utc day");
   });
+
+  it("AuditLab STALE-6: Infinity ageDays (a record's own last_verified is unparseable) doesn't render the literal string 'Infinity days old' in this function's OWN authored copy", async () => {
+    const { buildStaleDataAlertEmail } = await import("../src/emails");
+    const guardMessage =
+      "REFUSING: reference data is Infinity days old (anchored on its single oldest record's last_verified date)...";
+    const built = buildStaleDataAlertEmail(Infinity, guardMessage);
+    expect(built.subject).not.toContain("Infinity");
+    expect(built.subject.toLowerCase()).toContain("last_verified");
+    expect(built.subject.toLowerCase()).toContain("unparseable");
+    // The guard message is quoted verbatim (it's the raw thrown error text,
+    // and DOES legitimately say "Infinity days old" -- that's the real
+    // checkDataFreshness() output). The bug was this function's OWN authored
+    // sentence -- the fix-instruction paragraph before the quoted guard
+    // message -- rendering "Infinity days old" itself; assert only that part.
+    const ownTextCopy = built.textBody.split("Guard message:")[0];
+    const ownHtmlCopy = built.htmlBody.split("Guard message:")[0];
+    expect(ownTextCopy).not.toContain("Infinity days old");
+    expect(ownHtmlCopy).not.toContain("Infinity days old");
+    expect(built.textBody).toContain("Guard message: " + guardMessage);
+  });
 });
 
 describe("emails.ts buildStopConfirmationEmail", () => {

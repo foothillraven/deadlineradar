@@ -1818,23 +1818,37 @@ export function buildSignupNotificationEmail(
  * regardless of how many cron passes hit the guard) the first time
  * checkDataFreshness() refuses a pass on a given day. `ageDays` is null for
  * the unparseable-as_of_date branch, since there's no age to report there.
+ *
+ * AuditLab STALE-6 (LOW, 2026-08-13): after STALE-5 anchored the guard on the
+ * worst of as_of_date and every record's own last_verified, a record with a
+ * missing/unparseable last_verified now correctly refuses -- but its age is
+ * `Infinity`, which reached this function's generic "N days old" branch and
+ * rendered the literal string "Infinity days old" instead of naming the real
+ * cause. That sent an operator hunting for stale data when the actual fault
+ * is a malformed field in one record -- a different fix. Given its own
+ * branch, matching the existing null/as_of_date-unparseable one in shape.
  */
 export function buildStaleDataAlertEmail(ageDays: number | null, guardMessage: string): BuiltEmail {
-  const subject =
-    ageDays === null
-      ? "DeadlineRadar: reference data's as_of_date is unparseable -- all sends paused"
-      : `DeadlineRadar: reference data is ${ageDays} days old -- all sends paused`;
+  const asOfUnparseable = ageDays === null;
+  const recordUnparseable = ageDays !== null && !Number.isFinite(ageDays);
+  const subject = asOfUnparseable
+    ? "DeadlineRadar: reference data's as_of_date is unparseable -- all sends paused"
+    : recordUnparseable
+    ? "DeadlineRadar: a citation's last_verified date is unparseable -- all sends paused"
+    : `DeadlineRadar: reference data is ${ageDays} days old -- all sends paused`;
+  const fixInstruction = recordUnparseable
+    ? "the record with the missing or unparseable last_verified value is fixed"
+    : "data/cpa_deadlines.json's as_of_date is re-verified and bumped forward";
   const textBody =
     `checkDataFreshness() just refused a pass for the first time today. Every pass that depends on ` +
     `this data (signups and all outbound sends -- reminders, digests, Slack/Teams/SMS alerts) stays ` +
-    `paused until data/cpa_deadlines.json's as_of_date is re-verified and bumped forward.\n\n` +
+    `paused until ${fixInstruction}.\n\n` +
     `Guard message: ${guardMessage}\n\n` +
     `This email fires at most once per UTC day no matter how many passes hit the guard.`;
   const htmlBody =
     `<p>checkDataFreshness() just refused a pass for the first time today. Every pass that depends on ` +
     `this data (signups and all outbound sends &mdash; reminders, digests, Slack/Teams/SMS alerts) ` +
-    `stays paused until <code>data/cpa_deadlines.json</code>'s <code>as_of_date</code> is re-verified ` +
-    `and bumped forward.</p>` +
+    `stays paused until ${esc(fixInstruction)}.</p>` +
     `<p>Guard message: ${esc(guardMessage)}</p>` +
     `<p>This email fires at most once per UTC day no matter how many passes hit the guard.</p>`;
   return { subject, textBody, htmlBody, headers: {} };

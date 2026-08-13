@@ -52,6 +52,7 @@ import {
 } from "./emails";
 import {
   DEFAULT_DAILY_SEND_CAP,
+  resolveDailySendCap,
   checkAndCountSend,
   DEFAULT_DAILY_DRIP_COURSE_SEND_CAP,
   checkAndCountDripCourseSend,
@@ -195,8 +196,7 @@ export interface RunReminderOptions {
 }
 
 function dailySendCap(env: Env): number {
-  const n = Number.parseInt(env.REMINDERS_DAILY_SEND_CAP ?? "", 10);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_SEND_CAP;
+  return resolveDailySendCap(env.REMINDERS_DAILY_SEND_CAP, DEFAULT_DAILY_SEND_CAP);
 }
 
 /**
@@ -544,8 +544,7 @@ export interface DripCourseSummary {
 }
 
 function dailyDripCourseSendCap(env: Env): number {
-  const n = Number.parseInt(env.DRIP_COURSE_DAILY_SEND_CAP ?? "", 10);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_DRIP_COURSE_SEND_CAP;
+  return resolveDailySendCap(env.DRIP_COURSE_DAILY_SEND_CAP, DEFAULT_DAILY_DRIP_COURSE_SEND_CAP);
 }
 
 export async function runDripCoursePass(env: Env, opts: RunReminderOptions = {}): Promise<DripCourseSummary> {
@@ -730,8 +729,7 @@ export interface RuleChangeAlertSummary {
 }
 
 function dailyRuleChangeAlertSendCap(env: Env): number {
-  const n = Number.parseInt(env.RULE_CHANGE_ALERT_DAILY_SEND_CAP ?? "", 10);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_RULE_CHANGE_ALERT_SEND_CAP;
+  return resolveDailySendCap(env.RULE_CHANGE_ALERT_DAILY_SEND_CAP, DEFAULT_DAILY_RULE_CHANGE_ALERT_SEND_CAP);
 }
 
 export async function runRuleChangeAlertPass(env: Env, opts: RunReminderOptions = {}): Promise<RuleChangeAlertSummary> {
@@ -863,8 +861,7 @@ const DIGEST_WINDOW_DAYS = 7;
 const DIGEST_ELIGIBLE_EMAIL_BATCH_SIZE = 200;
 
 function dailyDigestSendCap(env: Env): number {
-  const n = Number.parseInt(env.DIGEST_DAILY_SEND_CAP ?? "", 10);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_DIGEST_SEND_CAP;
+  return resolveDailySendCap(env.DIGEST_DAILY_SEND_CAP, DEFAULT_DAILY_DIGEST_SEND_CAP);
 }
 
 export async function runDigestPass(env: Env, opts: RunReminderOptions = {}): Promise<DigestSummary> {
@@ -1098,8 +1095,7 @@ export interface RunSlackAlertOptions {
 }
 
 function dailySlackAlertSendCap(env: Env): number {
-  const n = Number.parseInt(env.SLACK_ALERT_DAILY_SEND_CAP ?? "", 10);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_SLACK_ALERT_SEND_CAP;
+  return resolveDailySendCap(env.SLACK_ALERT_DAILY_SEND_CAP, DEFAULT_DAILY_SLACK_ALERT_SEND_CAP);
 }
 
 function daysPhraseForSlack(actual: number): string {
@@ -1322,8 +1318,7 @@ export interface RunTeamsAlertOptions {
 }
 
 function dailyTeamsAlertSendCap(env: Env): number {
-  const n = Number.parseInt(env.TEAMS_ALERT_DAILY_SEND_CAP ?? "", 10);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_TEAMS_ALERT_SEND_CAP;
+  return resolveDailySendCap(env.TEAMS_ALERT_DAILY_SEND_CAP, DEFAULT_DAILY_TEAMS_ALERT_SEND_CAP);
 }
 
 /** Same digest-text shape as buildSlackDigestText() above -- Teams'
@@ -1512,8 +1507,7 @@ export interface RunSmsAlertOptions {
 }
 
 function dailySmsSendCap(env: Env): number {
-  const n = Number.parseInt(env.SMS_DAILY_SEND_CAP ?? "", 10);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_SMS_SEND_CAP;
+  return resolveDailySendCap(env.SMS_DAILY_SEND_CAP, DEFAULT_DAILY_SMS_SEND_CAP);
 }
 
 function smsBodyFor(stateName: string, deadlineStr: string, daysRemaining: number): string {
@@ -1696,8 +1690,7 @@ export interface RunAdminDigestAlertOptions {
 }
 
 function dailyAdminDigestSendCap(env: Env): number {
-  const n = Number.parseInt(env.ADMIN_DIGEST_DAILY_SEND_CAP ?? "", 10);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_ADMIN_DIGEST_SEND_CAP;
+  return resolveDailySendCap(env.ADMIN_DIGEST_DAILY_SEND_CAP, DEFAULT_DAILY_ADMIN_DIGEST_SEND_CAP);
 }
 
 export async function runAdminDigestAlertPass(env: Env, opts: RunAdminDigestAlertOptions = {}): Promise<AdminDigestAlertSummary> {

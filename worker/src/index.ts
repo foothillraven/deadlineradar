@@ -183,7 +183,7 @@ import {
   fmtDate,
   SNOOZE_DAYS,
 } from "./emails";
-import { DEFAULT_DAILY_SEND_CAP, checkAndCountActionSend, isEmailAllowlisted, sendViaSendGrid } from "./sender";
+import { DEFAULT_DAILY_SEND_CAP, resolveDailySendCap, checkAndCountActionSend, isEmailAllowlisted, sendViaSendGrid } from "./sender";
 import {
   StaleDataError as SchedulerStaleDataError,
   runReminderPass,
@@ -836,8 +836,7 @@ function stateNameFromSlug(slug: string): string {
 }
 
 function dailySendCap(env: Env): number {
-  const n = Number.parseInt(env.REMINDERS_DAILY_SEND_CAP ?? "", 10);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_DAILY_SEND_CAP;
+  return resolveDailySendCap(env.REMINDERS_DAILY_SEND_CAP, DEFAULT_DAILY_SEND_CAP);
 }
 
 function clientIp(request: Request): string {

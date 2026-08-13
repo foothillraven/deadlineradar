@@ -31,6 +31,21 @@ function todayUtc(): string {
   return new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
 }
 
+/** AuditLab CAP-1 (MEDIUM, 2026-08-10, confirmed for a fix 2026-08-12): all
+ * nine per-channel resolvers used `Number.isFinite(n) && n > 0 ? n :
+ * DEFAULT_...` -- which silently restores the default cap for a literal `0`,
+ * the exact value an operator sets to stop a channel mid-incident. `0` is
+ * not "unset"; it is the one deliberate kill switch this codebase has, since
+ * no `*_ENABLED`/`DISABLE` flag exists anywhere. Shared here so the fix (and
+ * any future channel) can't drift back into the bug: unset/empty/unparseable/
+ * negative all fall back to the safe default, but a literal non-negative
+ * integer -- including 0 -- is honored exactly as configured. */
+export function resolveDailySendCap(envValue: string | undefined, defaultCap: number): number {
+  if (envValue === undefined || envValue === "") return defaultCap;
+  const n = Number.parseInt(envValue, 10);
+  return Number.isFinite(n) && n >= 0 ? n : defaultCap;
+}
+
 /**
  * Atomic daily circuit breaker. Increments today's counter and returns true
  * only if the send is still under the cap. The whole check-increment is a
@@ -42,6 +57,11 @@ function todayUtc(): string {
  * Returns true = under cap, send may proceed. false = cap reached, refuse.
  */
 export async function checkAndCountSend(db: D1Database, cap: number): Promise<boolean> {
+  // AuditLab CAP-1: the INSERT arm below always writes count=1 on the day's
+  // first call regardless of cap -- WHERE only guards the UPDATE arm -- so
+  // cap=0 would still let exactly one send through per day without this
+  // guard. A real halt must not depend on which call happens to run first.
+  if (cap <= 0) return false;
   const day = todayUtc();
   // INSERT the day at 1, or (on conflict) bump the count only if still under
   // the cap. The conditional WHERE on the UPDATE arm means once count == cap,
@@ -67,6 +87,7 @@ export async function checkAndCountSend(db: D1Database, cap: number): Promise<bo
 export const DEFAULT_DAILY_ACTION_SEND_CAP = 300;
 
 export async function checkAndCountActionSend(db: D1Database, cap: number): Promise<boolean> {
+  if (cap <= 0) return false; // AuditLab CAP-1 -- see checkAndCountSend()'s own comment
   const day = todayUtc();
   const result = await db
     .prepare(
@@ -87,6 +108,7 @@ export async function checkAndCountActionSend(db: D1Database, cap: number): Prom
 export const DEFAULT_DAILY_DRIP_COURSE_SEND_CAP = 100;
 
 export async function checkAndCountDripCourseSend(db: D1Database, cap: number): Promise<boolean> {
+  if (cap <= 0) return false; // AuditLab CAP-1 -- see checkAndCountSend()'s own comment
   const day = todayUtc();
   const result = await db
     .prepare(
@@ -106,6 +128,7 @@ export async function checkAndCountDripCourseSend(db: D1Database, cap: number): 
 export const DEFAULT_DAILY_RULE_CHANGE_ALERT_SEND_CAP = 100;
 
 export async function checkAndCountRuleChangeAlertSend(db: D1Database, cap: number): Promise<boolean> {
+  if (cap <= 0) return false; // AuditLab CAP-1 -- see checkAndCountSend()'s own comment
   const day = todayUtc();
   const result = await db
     .prepare(
@@ -124,6 +147,7 @@ export async function checkAndCountRuleChangeAlertSend(db: D1Database, cap: numb
 export const DEFAULT_DAILY_DIGEST_SEND_CAP = 100;
 
 export async function checkAndCountDigestSend(db: D1Database, cap: number): Promise<boolean> {
+  if (cap <= 0) return false; // AuditLab CAP-1 -- see checkAndCountSend()'s own comment
   const day = todayUtc();
   const result = await db
     .prepare(
@@ -142,6 +166,7 @@ export async function checkAndCountDigestSend(db: D1Database, cap: number): Prom
 export const DEFAULT_DAILY_SLACK_ALERT_SEND_CAP = 100;
 
 export async function checkAndCountSlackAlertSend(db: D1Database, cap: number): Promise<boolean> {
+  if (cap <= 0) return false; // AuditLab CAP-1 -- see checkAndCountSend()'s own comment
   const day = todayUtc();
   const result = await db
     .prepare(
@@ -160,6 +185,7 @@ export async function checkAndCountSlackAlertSend(db: D1Database, cap: number): 
 export const DEFAULT_DAILY_TEAMS_ALERT_SEND_CAP = 100;
 
 export async function checkAndCountTeamsAlertSend(db: D1Database, cap: number): Promise<boolean> {
+  if (cap <= 0) return false; // AuditLab CAP-1 -- see checkAndCountSend()'s own comment
   const day = todayUtc();
   const result = await db
     .prepare(
@@ -179,6 +205,7 @@ export async function checkAndCountTeamsAlertSend(db: D1Database, cap: number): 
 export const DEFAULT_DAILY_SMS_SEND_CAP = 50;
 
 export async function checkAndCountSmsSend(db: D1Database, cap: number): Promise<boolean> {
+  if (cap <= 0) return false; // AuditLab CAP-1 -- see checkAndCountSend()'s own comment
   const day = todayUtc();
   const result = await db
     .prepare(
@@ -197,6 +224,7 @@ export async function checkAndCountSmsSend(db: D1Database, cap: number): Promise
 export const DEFAULT_DAILY_ADMIN_DIGEST_SEND_CAP = 100;
 
 export async function checkAndCountAdminDigestSend(db: D1Database, cap: number): Promise<boolean> {
+  if (cap <= 0) return false; // AuditLab CAP-1 -- see checkAndCountSend()'s own comment
   const day = todayUtc();
   const result = await db
     .prepare(

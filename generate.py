@@ -4593,6 +4593,29 @@ _HERO_REGION_JS = """
   var wrap = document.getElementById('hfc-wrap');
   if (!wrap) return;
   var cards = wrap.querySelectorAll('.hfc-card');
+
+  // Roadmap (2026-08-13, Devin direct ask): the search box should feel live,
+  // not inert -- exposed globally so _STATE_SEARCH_JS's own input listener
+  // can call this without either script caring which one loads first. Only
+  // ever swaps among the cards already in the page (real, fresh-verified,
+  // citation-backed records per _select_hero_rotation_pool's own rule) --
+  // deliberately does NOT fabricate a preview for a typed state outside this
+  // small pool, same "only show what's actually verified" discipline as the
+  // cards themselves. A no-op (returns false) is the correct, silent
+  // behavior for the ~45 states not in the pool, not a bug to chase.
+  window.drActivateHfcCardByState = function(stateName) {
+    if (!cards.length || !stateName) return false;
+    var norm = stateName.trim().toLowerCase();
+    var match = null;
+    for (var i = 0; i < cards.length; i++) {
+      if (cards[i].getAttribute('data-hfc-state').toLowerCase() === norm) { match = cards[i]; break; }
+    }
+    if (!match || match.classList.contains('is-active')) return false;
+    for (var j = 0; j < cards.length; j++) cards[j].classList.remove('is-active');
+    match.classList.add('is-active');
+    return true;
+  };
+
   if (cards.length < 2) return;
   var TZ_REGION_STATES = {
     'America/New_York': ['New York','Florida','Georgia','North Carolina','Ohio','Pennsylvania','Virginia','Massachusetts','New Jersey','Michigan','South Carolina','Tennessee','Maine','Connecticut','Vermont','New Hampshire','Rhode Island','Delaware','Maryland','West Virginia','Kentucky','Indiana','District of Columbia'],
@@ -4756,6 +4779,20 @@ document.addEventListener('DOMContentLoaded', function() {
   input.addEventListener('input', function() {
     drRenderDropdown();
     drFilterGrid();
+    // Roadmap (2026-08-13): live-preview the hero card as the user types,
+    // when the typed state happens to be one of the small pool already on
+    // the page (see drActivateHfcCardByState's own comment for why this
+    // never invents a card for a state outside that pool). Absent on pages
+    // with no hero card (e.g. /browse-states/) -- guarded, not assumed.
+    if (typeof window.drActivateHfcCardByState === 'function') {
+      var typed = input.value;
+      if (typed.trim()) {
+        var candidates = drMatches(typed);
+        for (var i = 0; i < candidates.length; i++) {
+          if (window.drActivateHfcCardByState(candidates[i].name)) break;
+        }
+      }
+    }
   });
 
   input.addEventListener('keydown', function(event) {

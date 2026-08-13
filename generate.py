@@ -5055,8 +5055,9 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
        hero-subtext (the verification-rigor claim) is kept as the one
        remaining line since it's this specific page's own core credibility
        claim for a first-time, skeptical SEO visitor. -->
-  <p class="hero-subtext">Every date traced to your state board's own statute or rule, and stamped with
-  the day we last checked it.</p>
+  <p class="hero-subtext">Every date traced to your state board's own statute or rule where we could
+  confirm it, clearly labelled where we could only confirm it against the board's own page, and
+  stamped with the day we last checked it.</p>
 {search_html}
   <p class="field-hint">Run a whole firm's staff instead?
   <a href="{esc(REMINDER_BACKEND_BASE_URL)}/firm/demo-login" style="font-weight:600;">Try the live demo &rarr;</a>
@@ -6571,9 +6572,10 @@ _INDIVIDUAL_FAQ = [
     ),
     (
         "How do you actually verify the dates?",
-        "Every renewal date is sourced to the codified statute or board rule, cited, and rechecked on "
-        "a regular freshness cadence -- never guessed or estimated. <a href=\"methodology/\">See "
-        "exactly how, state by state.</a>",
+        "Every renewal date is sourced to the codified statute or board rule where we could confirm "
+        "it, and clearly labelled where we could only confirm it against the board's own page -- "
+        "cited and rechecked on a regular freshness cadence, never guessed or estimated. "
+        "<a href=\"methodology/\">See exactly how, state by state.</a>",
     ),
     (
         "Will you sell my email or spam me?",

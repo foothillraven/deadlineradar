@@ -217,6 +217,34 @@ describe("runDigestPass", () => {
     }
   });
 
+  it("AuditLab DIGEST-2 (2026-08-09, fixed 2026-08-13): bundled items are ordered by urgency (fewest days first), not alphabetically by state", async () => {
+    const { runDigestPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(43501);
+    const email = `digeste2e-order-${Date.now()}@example.com`;
+    // Alphabetically Alabama < Wyoming, but Alabama is the LESS urgent item
+    // here (30d out vs Wyoming's 7d) -- a correct fix lists Wyoming first.
+    await seedUserDate(email, "alabama", isoDaysFromUtcMidnight(asOf, 30));
+    await seedUserDate(email, "wyoming", isoDaysFromUtcMidnight(asOf, 7));
+    await store.setSubscriberNotificationMode(env.DB, store.normalizeEmail(email), store.NOTIFICATION_MODE_DIGEST);
+
+    const target = store.normalizeEmail(email);
+    let targetBody = "";
+    await runDigestPass(env, {
+      asOf,
+      send: async (toEmail, built) => {
+        if (toEmail === target) targetBody = built.textBody;
+        return true;
+      },
+    });
+
+    expect((targetBody.match(/Alabama|Wyoming/g) || []).length).toBe(2);
+    const wyomingIndex = targetBody.indexOf("Wyoming");
+    const alabamaIndex = targetBody.indexOf("Alabama");
+    expect(wyomingIndex).toBeGreaterThan(-1);
+    expect(alabamaIndex).toBeGreaterThan(-1);
+    expect(wyomingIndex).toBeLessThan(alabamaIndex);
+  });
+
   it("AuditLab LINK-1 (2026-08-10): the manage-notifications link is an absolute URL even with STATIC_SITE_BASE_URL unset (real production shape)", async () => {
     const { runDigestPass } = await import("../src/scheduler");
     const asOf = freshAsOf(1500);

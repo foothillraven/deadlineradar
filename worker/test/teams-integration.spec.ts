@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import * as store from "../src/store";
 import { isTeamsWebhookUrl } from "../src/teams";
 import { encryptSecretAesGcm } from "../src/totp";
+import { fmtDate } from "../src/emails";
 
 const BASE = "https://deadline-radar.com";
 const MS_PER_DAY = 86_400_000;
@@ -233,6 +234,28 @@ describe("runTeamsAlertPass", () => {
     expect(posted[0]!.text).toContain("2 renewals");
     expect(summary.digestsSent).toBe(1);
     expect(summary.itemsClaimed).toBe(2);
+  });
+
+  it("AuditLab CHAT-1 (2026-08-09, fixed 2026-08-13): the message carries the absolute date, not just a relative phrase that goes stale", async () => {
+    const { runTeamsAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(42501);
+    const { firmId } = await newFirm("teamse2e-chat1");
+    await seedTeamsWebhook(firmId);
+    const due = isoDaysFromUtcMidnight(asOf, 7);
+    await addRosterSubscriber(firmId, "ohio", due);
+
+    const posted: { webhookUrl: string; text: string }[] = [];
+    await runTeamsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, {
+      asOf,
+      send: async (webhookUrl, text) => {
+        posted.push({ webhookUrl, text });
+        return true;
+      },
+    });
+
+    expect(posted.length).toBe(1);
+    const expectedDate = fmtDate(new Date(`${due}T00:00:00Z`));
+    expect(posted[0]!.text).toContain(`due ${expectedDate} (in 7 days)`);
   });
 
   it("a firm with no Teams connected is completely untouched", async () => {

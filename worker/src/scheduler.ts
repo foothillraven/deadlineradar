@@ -1009,6 +1009,21 @@ export async function runDigestPass(env: Env, opts: RunReminderOptions = {}): Pr
       // pass. No claim was taken above, so there's nothing to revert.
       if (items.length === 0) continue;
 
+      // AuditLab DIGEST-2 (2026-08-09, fixed 2026-08-13): items arrive in
+      // whatever order store.listSubscriberLicenses() returns its rows --
+      // ORDER BY state_slug ASC, i.e. alphabetical, not urgency.
+      // buildDigestEmail() itself just renders items in the order given
+      // (verified: it doesn't sort), so an unsorted caller means a digest
+      // subject "N renewals need attention" lists a 28-day-out Alabama
+      // item above a 2-day-out Wyoming one, every week, for as long as
+      // both stay open -- the one signal this bundle carries (what to do
+      // first) was encoding the alphabet instead. Sorted here, once, right
+      // after the collection loop finishes, rather than inside
+      // buildDigestEmail() itself -- keeps the builder a pure renderer and
+      // leaves listSubscriberLicenses()'s own ORDER BY untouched for its
+      // other callers.
+      items.sort((a, b) => a.daysRemaining - b.daysRemaining);
+
       // AuditLab DIGEST-1: the window is still closed and nothing claimed
       // this pass is urgent enough to bypass it -- release the claims so a
       // later pass (window reopening, or one of these items escalating to
@@ -1092,6 +1107,7 @@ export interface SlackAlertSummary {
 
 interface SlackDigestItem {
   stateName: string;
+  deadlineDateStr: string;
   daysRemaining: number;
 }
 
@@ -1124,7 +1140,7 @@ function buildSlackDigestText(firmName: string, items: SlackDigestItem[]): strin
     count === 1
       ? `*DeadlineRadar: 1 renewal newly due for ${firmName}*`
       : `*DeadlineRadar: ${count} renewals newly due for ${firmName}*`;
-  const lines = items.map((it) => `• ${it.stateName}: due ${daysPhraseForSlack(it.daysRemaining)}`);
+  const lines = items.map((it) => `• ${it.stateName}: due ${it.deadlineDateStr} (${daysPhraseForSlack(it.daysRemaining)})`);
   return `${header}\n${lines.join("\n")}`;
 }
 
@@ -1247,7 +1263,7 @@ export async function runSlackAlertPass(env: Env, opts: RunSlackAlertOptions = {
         if (!wasClaimed) continue;
         claimed.push({ subscriberId: sub.id, threshold });
         summary.itemsClaimed += 1;
-        items.push({ stateName, daysRemaining });
+        items.push({ stateName, deadlineDateStr: fmtDate(deadline), daysRemaining });
       }
 
       // Nothing newly due for this firm -- no message, same "no filler"
@@ -1340,7 +1356,7 @@ function buildTeamsDigestText(firmName: string, items: SlackDigestItem[]): strin
     count === 1
       ? `DeadlineRadar: 1 renewal newly due for ${firmName}`
       : `DeadlineRadar: ${count} renewals newly due for ${firmName}`;
-  const lines = items.map((it) => `- ${it.stateName}: due ${daysPhraseForSlack(it.daysRemaining)}`);
+  const lines = items.map((it) => `- ${it.stateName}: due ${it.deadlineDateStr} (${daysPhraseForSlack(it.daysRemaining)})`);
   return `${header}\n${lines.join("\n")}`;
 }
 
@@ -1443,7 +1459,7 @@ export async function runTeamsAlertPass(env: Env, opts: RunTeamsAlertOptions = {
         if (!wasClaimed) continue;
         claimed.push({ subscriberId: sub.id, threshold });
         summary.itemsClaimed += 1;
-        items.push({ stateName, daysRemaining });
+        items.push({ stateName, deadlineDateStr: fmtDate(deadline), daysRemaining });
       }
 
       if (items.length === 0) continue;

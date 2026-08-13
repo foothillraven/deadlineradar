@@ -19,6 +19,7 @@ import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import * as store from "../src/store";
 import { encryptSecretAesGcm } from "../src/totp";
+import { fmtDate } from "../src/emails";
 
 const BASE = "https://deadline-radar.com";
 const MS_PER_DAY = 86_400_000;
@@ -280,6 +281,33 @@ describe("runSlackAlertPass", () => {
     expect(posted[0]!.text).toContain("2 renewals");
     expect(summary.digestsSent).toBe(1);
     expect(summary.itemsClaimed).toBe(2);
+  });
+
+  it("AuditLab CHAT-1 (2026-08-09, fixed 2026-08-13): the message carries the absolute date, not just a relative phrase that goes stale", async () => {
+    const { runSlackAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(41501);
+    const { firmId } = await newFirm("slacke2e-chat1");
+    await seedSlackIntegration(firmId, "https://hooks.slack.com/services/T000/B000/chat1", {
+      teamName: "Chat1 Co",
+      channelName: "alerts",
+    });
+    const due = isoDaysFromUtcMidnight(asOf, 7);
+    await addRosterSubscriber(firmId, "ohio", due);
+
+    const posted: { webhookUrl: string; text: string }[] = [];
+    await runSlackAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, {
+      asOf,
+      send: async (webhookUrl, text) => {
+        posted.push({ webhookUrl, text });
+        return true;
+      },
+    });
+
+    expect(posted.length).toBe(1);
+    const expectedDate = fmtDate(new Date(`${due}T00:00:00Z`));
+    // Both halves present: the absolute date (won't go stale as the post
+    // ages in the channel) AND the relative phrase (the at-a-glance signal).
+    expect(posted[0]!.text).toContain(`due ${expectedDate} (in 7 days)`);
   });
 
   it("a firm with no Slack connected is completely untouched", async () => {

@@ -15456,9 +15456,9 @@ def build_deadline_calculator_page(by_slug: dict[str, list[dict]]) -> str:
     framing around what already exists and is already free."""
     body = f"""<h1>CPA License Renewal Deadline Calculator</h1>
 <p class="intro">Pick your state below and go straight to your exact renewal deadline &mdash; free,
-no signup, no account required. Every date is sourced to your state board's own statute or rule, the
-same verification standard applied to every page on this site &mdash; <a href="/methodology/">see
-exactly how</a>.</p>
+no signup, no account required. Every date is sourced &mdash; to your state board's codified statute
+or rule where we could confirm it against primary law, and clearly labelled where we could only
+confirm it against the board's own page &mdash; <a href="/methodology/">see exactly how</a>.</p>
 
 {_state_quick_search_html(by_slug)}
 

@@ -1068,7 +1068,8 @@
   .dr-modal h2 { margin: 0 0 1rem; font-size: 1.1rem; font-family: var(--font-display); }
   .dr-modal label { display: block; font-weight: 600; font-size: 0.85rem; margin: 0.9rem 0 0.3rem; }
   .dr-modal label:first-of-type { margin-top: 0; }
-  .dr-modal input[type="text"], .dr-modal input[type="email"], .dr-modal input[type="date"],
+  
+  .dr-modal input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="color"]):not([type="range"]):not([type="hidden"]),
   .dr-modal select, .dr-modal textarea {
     width: 100%; box-sizing: border-box; padding: 0.55rem 0.65rem;
     border: 1px solid var(--border-strong); border-radius: 6px;
@@ -1426,8 +1427,9 @@
   .dr-auth-card form { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.3rem 1.4rem; }
   .dr-auth-card label, .dr-account-panel label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.9rem 0 0.3rem; }
   .dr-auth-card form > label:first-of-type, .dr-account-panel form > label:first-of-type { margin-top: 0; }
-  .dr-auth-card input[type="email"], .dr-auth-card input[type="text"], .dr-auth-card input[type="password"],
-  .dr-account-panel input[type="email"], .dr-account-panel input[type="text"], .dr-account-panel input[type="password"] {
+  
+  .dr-auth-card input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="color"]):not([type="range"]):not([type="hidden"]), .dr-auth-card select, .dr-auth-card textarea,
+  .dr-account-panel input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="color"]):not([type="range"]):not([type="hidden"]), .dr-account-panel select, .dr-account-panel textarea {
     width: 100%; box-sizing: border-box; padding: 0.6rem 0.7rem; border: 1px solid var(--border-strong);
     border-radius: 7px; font-family: inherit; font-size: 0.95rem; background: var(--bg); color: inherit; }
   .dr-auth-card button[type="submit"], .dr-account-panel form button[type="submit"] {

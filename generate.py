@@ -1821,7 +1821,17 @@ PAGE_CSS = """
   .dr-modal h2 { margin: 0 0 1rem; font-size: 1.1rem; font-family: var(--font-display); }
   .dr-modal label { display: block; font-weight: 600; font-size: 0.85rem; margin: 0.9rem 0 0.3rem; }
   .dr-modal label:first-of-type { margin-top: 0; }
-  .dr-modal input[type="text"], .dr-modal input[type="email"], .dr-modal input[type="date"],
+  /* AuditLab UI-1 (2026-08-09, fixed 2026-08-13): this used to enumerate
+     input TYPES explicitly (text/email/date), which is exactly why
+     dr-delete-current-password (type="password") rendered as a raw browser
+     default on the one form -- account deletion -- where a user should feel
+     most certain what they're typing into. A per-type allowlist guarantees
+     the next new type is missed too (AuditLab's own point); :not() on the
+     handful of types that should legitimately keep native rendering (their
+     own OS-native affordances -- a checkbox, a file picker, a submit
+     button -- don't have an equivalent custom look here to apply) covers
+     every current and future text-entry type instead. */
+  .dr-modal input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="color"]):not([type="range"]):not([type="hidden"]),
   .dr-modal select, .dr-modal textarea {
     width: 100%; box-sizing: border-box; padding: 0.55rem 0.65rem;
     border: 1px solid var(--border-strong); border-radius: 6px;
@@ -2302,8 +2312,14 @@ PAGE_CSS = """
   .dr-auth-card form { background: var(--card-bg); border: 1px solid var(--border); border-radius: 11px; padding: 1.3rem 1.4rem; }
   .dr-auth-card label, .dr-account-panel label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.9rem 0 0.3rem; }
   .dr-auth-card form > label:first-of-type, .dr-account-panel form > label:first-of-type { margin-top: 0; }
-  .dr-auth-card input[type="email"], .dr-auth-card input[type="text"], .dr-auth-card input[type="password"],
-  .dr-account-panel input[type="email"], .dr-account-panel input[type="text"], .dr-account-panel input[type="password"] {
+  /* AuditLab UI-1 (2026-08-09, fixed 2026-08-13): same fix as .dr-modal's
+     own comment above -- generalized past the per-type allowlist that
+     missed dr-teams-webhook-input (type="url") and both role <select>s.
+     .dr-auth-card doesn't currently hold a select/textarea, but including
+     them costs nothing (matches zero elements there) and keeps this rule
+     from becoming its own future instance of the same gap. */
+  .dr-auth-card input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="color"]):not([type="range"]):not([type="hidden"]), .dr-auth-card select, .dr-auth-card textarea,
+  .dr-account-panel input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="color"]):not([type="range"]):not([type="hidden"]), .dr-account-panel select, .dr-account-panel textarea {
     width: 100%; box-sizing: border-box; padding: 0.6rem 0.7rem; border: 1px solid var(--border-strong);
     border-radius: 7px; font-family: inherit; font-size: 0.95rem; background: var(--bg); color: inherit; }
   .dr-auth-card button[type="submit"], .dr-account-panel form button[type="submit"] {

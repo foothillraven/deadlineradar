@@ -5774,6 +5774,7 @@ own upgrade panel.</p>
         body,
         home_href="../",
         canonical_path="/pricing/",
+        json_ld=[_firm_faq_schema()],
         has_remind_anchor=False,
     ) + _PRICING_CHECKOUT_JS_HTML
 
@@ -6930,6 +6931,32 @@ _FIRM_FAQ = [
 ]
 
 
+def _firm_faq_schema() -> dict:
+    """AuditLab SCHEMA-1 (LOW, filed 2026-08-09, fixed 2026-08-13): FAQPage
+    structured data for the firm FAQ -- /pricing/ and /for-firms/ each
+    rendered these 8 questions via <details>/<summary> with zero structured
+    data, even though the homepage's own FAQ (_individual_faq_schema()
+    above) and every state page already emit FAQPage/Question markup for
+    their own FAQs. Confirmed a gap, not a decision, by AuditLab's own
+    positive control (a state page with zero <summary> elements still
+    emits FAQPage via a different mechanism) -- the two highest-commercial-
+    intent pages were simply never wired up. Same plain-text-answer
+    convention as the homepage's version, since acceptedAnswer.text is
+    schema.org's plain-text field, not raw HTML."""
+    return {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": q,
+                "acceptedAnswer": {"@type": "Answer", "text": re.sub(r"<[^>]+>", "", a)},
+            }
+            for q, a in _FIRM_FAQ
+        ],
+    }
+
+
 def _firm_faq_html() -> str:
     items = "\n".join(
         f"""<details class="faq-item">
@@ -7177,6 +7204,7 @@ to create an account yet? <a href="#firm-lead">Leave your email instead</a> and 
         body,
         home_href="../",
         canonical_path="/for-firms/",
+        json_ld=[_firm_faq_schema()],
     )
 
 

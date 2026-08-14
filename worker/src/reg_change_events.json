@@ -1,14 +1,14 @@
 {
   "_meta": {
     "purpose": "Publishable rule-change events for the public changes feed.",
-    "generated_from": "worker/src/mobility_rules.json (batch research) + automated day-to-day source monitoring (3 currently promoted).",
+    "generated_from": "worker/src/mobility_rules.json (batch research) + automated day-to-day source monitoring (4 currently promoted).",
     "separable": "Deliberately independent of the mobility determination engine (AuditLab MON-2, 2026-08-06: the engine shipped to production 2026-07-30 -- /firm/mobility/check, /firm/mobility/check-batch, /firm/mobility/coverage, and the /firm-mobility/ Practice Privilege Check UI are all live; this note previously said HELD, which stopped being true and would have misled a future maintainer about what's deployed). This feed publishes change facts + citations only and stays architecturally independent of that engine either way -- a change fact does not require or imply a mobility determination for the same state.",
     "status_derivation": "Structured fields ONLY (rule_changes_on presence + direction, or the monitoring pipeline's own classified status). Status is NOT inferred from prose: 27 of 55 mobility records match enacted/proposed/rule signals simultaneously, so a regex label would be a guess. Records whose status cannot be established from structure are not emitted.",
     "reverification_rule": "needs_reverification=true means the effective date has passed and we have NOT re-checked. The page must say 'effective [date]; we re-verify on/after that date' -- never 'is now in effect'.",
-    "as_of": "2026-08-07",
-    "changes_published": 13,
+    "as_of": "2026-08-14",
+    "changes_published": 14,
     "changes_upcoming": 11,
-    "changes_recent": 2,
+    "changes_recent": 3,
     "source_conflicts_published": 7,
     "live_monitoring_count": 3
   },
@@ -253,7 +253,7 @@
       "secondary_url": "https://dlcp.dc.gov/page/board-accountancy",
       "verified_date": "2026-07-31",
       "confidence": "single_source",
-      "summary_public": "Our two primary sources for District of Columbia currently disagree about its mobility rule -- and the section we cite here was amended by emergency legislation effective 2026-08-10, which we have not yet independently confirmed. We withhold a determination rather than guess.",
+      "summary_public": "Our two primary sources for District of Columbia disagree about parts of its mobility rule. The individual practice-privilege section we cite here was amended by emergency legislation effective 2026-08-10 -- that amendment has now been captured from the D.C. Council's own bulk-download channel (see the separate rule-change entry for D.C. Act 26-399) but remains single-source pending re-verification. A separate, still-unresolved conflict remains on the firm side: the statute exempts most no-office out-of-state firms from registering for non-attest work, while older compiled regulations still on the books read as requiring a permit of every nonresident firm. We record the stricter reading and withhold a determination rather than guess.",
       "kind": "source_conflict",
       "effective_date": null,
       "status": "SOURCE_CONFLICT",
@@ -374,6 +374,25 @@
       "upcoming": false,
       "needs_reverification": false,
       "source": "difflab_reg_change_engine"
+    },
+    {
+      "event_id": "dc-regwatch-act-26-399",
+      "jurisdiction_slug": "dc",
+      "jurisdiction": "District of Columbia",
+      "topic": "practice privilege (mobility)",
+      "citation": "D.C. Act 26-399 (Business Licensing Reform and Accountancy Practice Emergency Amendment Act of 2026), section 3(b)(3), amending D.C. Official Code section 47-2853.49",
+      "citation_url": "https://code.dccouncil.gov/us/dc/council/code/sections/47-2853.49",
+      "secondary_url": "https://github.com/DCCouncil/law-xml-codified",
+      "verified_date": "2026-08-14",
+      "confidence": "single_source",
+      "summary_public": "D.C. replaced its NASBA substantial-equivalency mobility test with individual criteria (a valid, unrestricted CPA license in good standing from any state, plus exam, education, and experience requirements met at initial licensure), effective August 10, 2026, with a savings clause preserving privileges held before that date; we re-verify on or after the effective date before treating the change as settled. Important: this is EMERGENCY legislation that expires November 8, 2026 by its own terms -- a permanent version (Bill 26-494) passed the Council but must complete congressional review, so the rule's status should be re-checked around that expiry date.",
+      "kind": "rule_change",
+      "effective_date": "2026-08-10",
+      "status": "ENACTED",
+      "status_evidence": "Captured from the D.C. Council's own bulk-download channel (DCCouncil/law-xml-codified publication branches, confirmed word-for-word identical to the live D.C. Law Library text including the emergency-amendment expiry note); promoted from automated source monitoring (DiffLab event #4, 2026-08-14).",
+      "status_source_url": "https://github.com/DCCouncil/law-xml-codified",
+      "upcoming": false,
+      "needs_reverification": true
     }
   ]
 }

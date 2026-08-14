@@ -3785,6 +3785,33 @@ describe("emails.ts buildFeatureIdeaShippedEmail (AuditLab UNSUB-4)", () => {
   });
 });
 
+describe("AuditLab NEWS-1 (MEDIUM, 2026-08-13): scheduled() actually invokes runComplianceNewsletterPass", () => {
+  it("the compliance-newsletter cron pass runs on every scheduled() invocation, not just the other eight", async () => {
+    const worker = (await import("../src/index")).default;
+    const logs: string[] = [];
+    const logSpy = vi.spyOn(console, "log").mockImplementation((msg: unknown) => {
+      logs.push(String(msg));
+    });
+    const waited: Promise<unknown>[] = [];
+    const ctx = { waitUntil: (p: Promise<unknown>) => waited.push(p) } as unknown as ExecutionContext;
+    const envWithKey = { ...env, SENDGRID_API_KEY: "test-key-not-real" };
+    try {
+      await expect(worker.scheduled({} as ScheduledController, envWithKey, ctx)).resolves.not.toThrow();
+      await Promise.all(waited);
+      // Before the fix, this line never appeared -- runComplianceNewsletterPass
+      // was defined and fully tested in isolation (newsletter.spec.ts) but
+      // never called from scheduled(), so real double-opted-in subscribers
+      // would never receive anything and nothing would ever log an error
+      // either. Presence of the log line, not its content, is what proves
+      // the wiring -- the pass's own cadence-gating logic is
+      // newsletter.spec.ts's job to verify.
+      expect(logs.some((l) => l.startsWith("[compliance-newsletter-cron]"))).toBe(true);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+});
+
 describe("emails.ts buildStopConfirmationEmail", () => {
   it("renewed: includes the re-arm button + link and a real address", async () => {
     const { buildStopConfirmationEmail, MAILING_ADDRESS } = await import("../src/emails");

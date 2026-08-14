@@ -206,6 +206,7 @@ import {
   runTeamsAlertPass,
   runSmsAlertPass,
   runAdminDigestAlertPass,
+  runComplianceNewsletterPass,
 } from "./scheduler";
 import { isUsFederalHoliday } from "./holidays";
 import {
@@ -10898,6 +10899,30 @@ export default {
           } else {
             console.log(`[admin-digest-cron] error: ${String(err)}`);
           }
+        }
+      })()
+    );
+
+    // AuditLab NEWS-1 (MEDIUM, 2026-08-13, fixed same day): roadmap #124's
+    // compliance-news newsletter pass was fully built (content selection,
+    // per-recipient unsubscribe, empty-issue refusal, send cap) but never
+    // added here -- the one line that makes it run. The live signup form
+    // was collecting confirmed double-opt-in subscribers who would never
+    // receive anything. Same independent-pass shape as rule-change-alert/
+    // digest/admin-digest above (not deadline-urgency-sensitive, so no
+    // holiday skip); self-gates to its own monthly cadence internally via
+    // newsletter_digest_state, so a daily cron invocation is correct and
+    // safe -- see that pass's own docstring. Does not call
+    // checkDataFreshness() (its content is rule-change events, not a
+    // subscriber's own computed deadline), so no SchedulerStaleDataError
+    // branch, same as runRuleChangeAlertPass above.
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const summary = await runComplianceNewsletterPass(env);
+          console.log(`[compliance-newsletter-cron] ${JSON.stringify(summary)}`);
+        } catch (err) {
+          console.log(`[compliance-newsletter-cron] error: ${String(err)}`);
         }
       })()
     );

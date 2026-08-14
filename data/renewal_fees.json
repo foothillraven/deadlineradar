@@ -328,10 +328,10 @@
       "state_slug": "new-jersey",
       "fee_usd": 135,
       "fee_notes": "Flat $135 triennial (3-year) registration fee for individual CPAs. N.J.A.C. 13:29-1.5.",
-      "source_url": "https://www.njconsumeraffairs.gov/accold/Pages/FAQ.aspx",
-      "confidence": "medium",
-      "verified_date": "2026-08-11",
-      "data_gap_note": "The fee schedule itself lives in the codified administrative rule (N.J.A.C. 13:29-1.5), not on the board's own FAQ page -- confirmed against the rule text, not the page originally cited for the renewal date."
+      "source_url": "https://www.law.cornell.edu/regulations/new-jersey/N-J-A-C-13-29-1-5",
+      "confidence": "high",
+      "verified_date": "2026-08-13",
+      "data_gap_note": "source_url points directly at the codified rule, which states the figure verbatim: \"3. Triennial registration: $ 135.00\" under (a). The board's own FAQ page (previously cited here) was found last modified in 2015 and contains no fee figures at all -- the current FAQ page has since replaced it, but the rule itself is the stronger primary source and is used here instead."
     },
     {
       "id": "new-mexico-renewal-fee",

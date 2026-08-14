@@ -523,9 +523,9 @@
       "lapse_trigger": "Permits expire automatically every December 31. Renewal (with the $175 fee) is due by January 31 of the following year; after that a $150 late fee applies and the holder may not practice until delinquent fees/penalties are paid. Failing to obtain the annual permit within 60 days after the prior permit's expiration is a ground for the board to revoke the certificate, unless excused.",
       "citation": "NRS 628.380(2); NRS 628.390(1)(i); NAC 628.016; NAC 628.110; NAC 628.190",
       "citation_url": "https://www.leg.state.nv.us/NAC/NAC-628.html",
-      "source_url": "https://www.nvaccountancy.com/renewal.fx",
-      "last_verified": "2026-07-25",
-      "data_gap_note": "Nevada does not codify a single flat fee or CPE figure that applies uniformly to every lapsed scenario -- the applicable fee/hours depend on which status track applies (late renewal vs. retired/inactive reinstatement vs. revocation), and whether/when a simple missed deadline converts into a formal revocation is discretionary, not on an automatic timeline. Both the board's own page and the codified NRS/NAC text were checked and are internally consistent, but neither states one unambiguous number for the general case, hence the null fields above rather than picking one branch's figure to represent all cases."
+      "source_url": "https://nvboav7prod.glsuite.us/GLSuiteWeb/Clients/NVBOA/Private/renewal.aspx",
+      "last_verified": "2026-08-13",
+      "data_gap_note": "Nevada does not codify a single flat fee or CPE figure that applies uniformly to every lapsed scenario -- the applicable fee/hours depend on which status track applies (late renewal vs. retired/inactive reinstatement vs. revocation), and whether/when a simple missed deadline converts into a formal revocation is discretionary, not on an automatic timeline. Both the board's own page and the codified NRS/NAC text were checked and are internally consistent, but neither states one unambiguous number for the general case, hence the null fields above rather than picking one branch's figure to represent all cases. (2026-08-13: the board's old nvaccountancy.com domain now silently redirects to a relaunched site -- repointed to the live renewal page there, which still confirms the $175 annual fee and $150 late fee this record cites.)"
     },
     {
       "id": "new-hampshire-reinstatement",

@@ -375,13 +375,13 @@
       "state_slug": "minnesota",
       "citation": "Minn. R. 1105.3000; 1105.3100, subp. 4(F)",
       "citation_url": "https://www.revisor.mn.gov/rules/1105.3000/",
-      "source_url": "https://boa.state.mn.us/cpe.html",
+      "source_url": "https://mn.gov/boa/continuing-education/",
       "total_hours": 120,
       "period_years": 3,
       "annual_minimum_hours": 20,
       "ethics_hours": 8,
       "ethics_period_years": 3,
-      "notes": "120 hours in a rolling 3-year period, minimum 20 hours each year (Minn. R. 1105.3000). Within that 120, at least 8 hours must be in regulatory or behavioral ethics (Minn. R. 1105.3100, subpart 4, item F) -- confirmed against both the codified rule text and the Board's own CPE page (boa.state.mn.us/cpe.html), which states the same 8-hour figure in plain language.",
+      "notes": "120 hours in a rolling 3-year period, minimum 20 hours each year (Minn. R. 1105.3000). Within that 120, at least 8 hours must be in regulatory or behavioral ethics (Minn. R. 1105.3100, subpart 4, item F) -- confirmed against both the codified rule text and the Board's own CPE page, which states the same 8-hour figure in plain language: \"Each reporting year you must earn a minimum of 20 hours... In any given three-year reporting period, you must have a minimum of 120 hours, with 8 of those hours being in regulatory (technical) or behavioral (nontechnical) ethics.\"",
       "verified_date": "2026-08-13"
     },
     {
@@ -452,14 +452,14 @@
       "state_slug": "nevada",
       "citation": "Nev. Admin. Code § 628.210",
       "citation_url": "https://www.law.cornell.edu/regulations/nevada/NAC-628-210",
-      "source_url": "https://www.nvaccountancy.com/education.fx",
+      "source_url": "https://nvboav7prod.glsuite.us/GLSuiteWeb/Clients/NVBOA/Private/education.aspx",
       "total_hours": 40,
       "period_years": 1,
       "annual_minimum_hours": 40,
       "ethics_hours": 2,
       "ethics_period_years": 1,
-      "notes": "Nevada runs an ANNUAL cycle, not the 2-year cycle most states use: 40 CPE hours every calendar year (Jan 1-Dec 31), including 2 hours of professional ethics every year. No carryover of excess hours is allowed. If the licensee performed audit, review, compilation, or attestation services in the prior 12 months, an additional 8 hours in accounting and auditing are required that year. First annual renewal after initial licensure is exempt. Interpretation trap: some third-party CPE-vendor summaries describe Nevada as an '80 hours per 2 years / 4 hours ethics' state -- that does not match the board's own page or the codified NAC text, both of which confirm the 40-hour annual cycle with 2 annual ethics hours. Verified against both NAC 628.210 (Cornell regulations mirror, full text read) and the Nevada State Board of Accountancy's own education page.",
-      "verified_date": "2026-07-20"
+      "notes": "Nevada runs an ANNUAL cycle, not the 2-year cycle most states use: 40 CPE hours every calendar year (Jan 1-Dec 31), including 2 hours of professional ethics every year. No carryover of excess hours is allowed. If the licensee performed audit, review, compilation, or attestation services in the prior 12 months, an additional 8 hours in accounting and auditing are required that year. First annual renewal after initial licensure is exempt. Interpretation trap: some third-party CPE-vendor summaries describe Nevada as an '80 hours per 2 years / 4 hours ethics' state -- that does not match the board's own page or the codified NAC text, both of which confirm the 40-hour annual cycle with 2 annual ethics hours. Verified against both NAC 628.210 (Cornell regulations mirror, full text read) and the Nevada State Board of Accountancy's own education page: \"Effective 2024 the requirement for all licensees is to obtain 40 hours of continuing education to be completed each calendar year. Of the required 40 hours, 2 must be in the area of ethics.\" (2026-08-13: the board's old nvaccountancy.com domain now silently redirects to a relaunched site -- repointed to the live page there, same content.)",
+      "verified_date": "2026-08-13"
     },
     {
       "id": "nh-cpe",
@@ -528,7 +528,7 @@
       "state_slug": "north-carolina",
       "citation": "21 NCAC 08G .0401(d), (e)",
       "citation_url": "https://nccpaboard.gov/resource-group/ncac-08g-continuing-professional-education-cpe/",
-      "source_url": "https://nccpaboard.gov/resource-group/ncac-08g-continuing-professional-education-cpe/",
+      "source_url": "https://nccpaboard.gov/cpe/",
       "total_hours": 40,
       "period_years": 1,
       "annual_minimum_hours": 40,
@@ -536,7 +536,7 @@
       "ethics_period_years": 1,
       "notes": "North Carolina's CPE requirement has been governed by a minutes-based framework since January 1, 2020. Active CPAs must complete 2,000 CPE minutes annually by December 31 (.0401(d)), including at least 50 minutes of regulatory or behavioral ethics (.0401(e)). At the Board's own 50-minutes-per-CPE-hour conversion, that is 40 hours/year including 1 ethics hour/year. The rule text was amended effective June 1, 2026 (the version now posted on the Board's page): the 2,000-minute and 50-minute ethics figures are unchanged, but the amendment added explicit proration for newly-approved certificates (1,500/1,000/500 minutes for approvals in Apr-Jun/Jul-Sep/Oct-Dec of the same year), a carry-forward of up to 1,000 excess minutes into the following year (ethics minutes excluded from carry-forward), and a duplicate-course exclusion. CPE reporting is due with the July 1 license renewal each year (.0406(a)).",
       "verified_date": "2026-08-13",
-      "verification_history": "2026-08-13: re-confirmed against the Board's own posted rule text (version effective June 1, 2026) via a real browser. Core figures verbatim: '2,000 CPE minutes... by December 31 of each year' and 'a minimum of 50 CPE minutes annually in activities on regulatory or behavioral professional ethics.' Notes updated to describe the June 2026 amendment's new proration/carry-forward provisions, which don't change the headline hours/ethics figures."
+      "verification_history": "2026-08-13: re-confirmed against the Board's own posted rule text (version effective June 1, 2026) via a real browser. Core figures verbatim: '2,000 CPE minutes... by December 31 of each year' and 'a minimum of 50 CPE minutes annually in activities on regulatory or behavioral professional ethics.' Notes updated to describe the June 2026 amendment's new proration/carry-forward provisions, which don't change the headline hours/ethics figures. (2026-08-13, second pass: source_url repointed from a duplicate of citation_url to the Board's own https://nccpaboard.gov/cpe/ page, which states the hours-to-minutes conversion verbatim -- '40 hours (2,000 minutes) of CPE courses' -- rather than leaving the 50-minutes-per-hour conversion in this record's own notes as the only place the two units are tied together.)"
     },
     {
       "id": "nd-cpe",

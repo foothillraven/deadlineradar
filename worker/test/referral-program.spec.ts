@@ -850,6 +850,34 @@ describe("POST /stripe/webhook -- invoice.created referral code mint + print", (
     }
   });
 
+  it("AuditLab REF-1 (2026-08-09, fixed 2026-08-13): STRIPE_COUPON_REFERRAL unset -- code still mints, but the invoice is never touched (was: printed an unhonoured '10% off' promise)", async () => {
+    const firm = await store.createFirm(env.DB, { name: "No Coupon Invoice Firm", adminEmail: `noinvcoupon-${Date.now()}@example.com` });
+    await env.DB.prepare("UPDATE firms SET stripe_subscription_id = ?1 WHERE id = ?2").bind("sub_noinvcoupon", firm.id).run();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    try {
+      const eventId = `evt_noinvcoupon_${firm.id}`;
+      const payload = await invoiceCreatedPayload(eventId, "in_noinvcoupon_1", "sub_noinvcoupon");
+      const t = Math.floor(Date.now() / 1000);
+      const sig = await signPayload(SECRET, t, payload);
+      const resp = await postWebhook(payload, sig, {
+        STRIPE_SECRET_KEY: STRIPE_ENV.STRIPE_SECRET_KEY,
+        STRIPE_WEBHOOK_SECRET: STRIPE_ENV.STRIPE_WEBHOOK_SECRET,
+        STRIPE_COUPON_REFERRAL: undefined,
+      });
+      expect(resp.status).toBe(200);
+
+      // The code itself still mints -- only the invoice-printing half (the
+      // thing that makes a promise the unset coupon can't honour) is gated.
+      const after = await store.getFirmById(env.DB, firm.id);
+      expect(after?.referral_code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/);
+
+      const invoiceUpdateCall = fetchSpy.mock.calls.find((c) => (c[0] as string).includes("/v1/invoices/in_noinvcoupon_1"));
+      expect(invoiceUpdateCall).toBeUndefined();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("resolves the firm via parent.subscription_details.subscription (Basil-era API shape) when top-level subscription is absent", async () => {
     const firm = await store.createFirm(env.DB, { name: "Basil Shape Firm", adminEmail: `basil-${Date.now()}@example.com` });
     await env.DB.prepare("UPDATE firms SET stripe_subscription_id = ?1 WHERE id = ?2").bind("sub_basil", firm.id).run();
@@ -953,6 +981,30 @@ describe("POST /stripe/webhook -- checkout.session.completed also mints the FIRS
 
       const invoiceUpdateCall = fetchSpy.mock.calls.find((c) => (c[0] as string).includes("/v1/invoices/in_firstmint_1"));
       expect(invoiceUpdateCall).toBeTruthy();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("AuditLab REF-1 (2026-08-09, fixed 2026-08-13): STRIPE_COUPON_REFERRAL unset -- code still mints, but the linked invoice is never touched", async () => {
+    const firm = await store.createFirm(env.DB, { name: "First Mint No Coupon Firm", adminEmail: `firstmintnocoupon-${Date.now()}@example.com` });
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    try {
+      const eventId = `evt_firstmintnocoupon_${firm.id}`;
+      const payload = await checkoutCompletedPayload(eventId, firm.id, { invoice: "in_firstmintnocoupon_1" });
+      const t = Math.floor(Date.now() / 1000);
+      const resp = await postWebhook(payload, await signPayload(SECRET, t, payload), {
+        STRIPE_SECRET_KEY: STRIPE_ENV.STRIPE_SECRET_KEY,
+        STRIPE_WEBHOOK_SECRET: STRIPE_ENV.STRIPE_WEBHOOK_SECRET,
+        STRIPE_COUPON_REFERRAL: undefined,
+      });
+      expect(resp.status).toBe(200);
+
+      const after = await store.getFirmById(env.DB, firm.id);
+      expect(after?.referral_code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/);
+
+      const invoiceUpdateCall = fetchSpy.mock.calls.find((c) => (c[0] as string).includes("/v1/invoices/in_firstmintnocoupon_1"));
+      expect(invoiceUpdateCall).toBeUndefined();
     } finally {
       fetchSpy.mockRestore();
     }

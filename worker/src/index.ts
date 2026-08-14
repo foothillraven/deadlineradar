@@ -3620,7 +3620,15 @@ async function handleStripeWebhook(request: Request, env: Env): Promise<Response
           if (thisFirm && !thisFirm.demo_locked) {
             const firstCode = await store.mintReferralCode(env.DB, firmId);
             const firstInvoiceId = typeof object.invoice === "string" ? object.invoice : null;
-            if (firstInvoiceId && env.STRIPE_SECRET_KEY) {
+            // AuditLab REF-1 (2026-08-09, fixed 2026-08-13): this printed
+            // "Refer a firm, get 10% off" on the actual Stripe invoice
+            // regardless of whether STRIPE_COUPON_REFERRAL was set -- the
+            // two paths that actually APPLY the discount both correctly
+            // gate on that var (handleFirmBillingCheckout's referral-reward
+            // block and the coupon-request call), so an unset var meant the
+            // invoice promised a discount the referrer would silently never
+            // receive. Same guard as its sibling paths, applied here too.
+            if (firstInvoiceId && env.STRIPE_SECRET_KEY && env.STRIPE_COUPON_REFERRAL) {
               const link = `${staticSiteAbsoluteBaseUrl(env)}/for-firms/?ref=${encodeURIComponent(firstCode)}`;
               await setInvoiceReferralCustomField(env.STRIPE_SECRET_KEY, firstInvoiceId, link);
             }
@@ -3697,7 +3705,10 @@ async function handleStripeWebhook(request: Request, env: Env): Promise<Response
           if (firm && !firm.demo_locked) {
             const code = await store.mintReferralCode(env.DB, firm.id);
             const link = `${staticSiteAbsoluteBaseUrl(env)}/for-firms/?ref=${encodeURIComponent(code)}`;
-            if (env.STRIPE_SECRET_KEY) {
+            // AuditLab REF-1 (2026-08-09, fixed 2026-08-13): same gate-
+            // asymmetry fix as the checkout-time mint above -- see that
+            // call site's own comment.
+            if (env.STRIPE_SECRET_KEY && env.STRIPE_COUPON_REFERRAL) {
               await setInvoiceReferralCustomField(env.STRIPE_SECRET_KEY, invoiceId, link);
             }
           }

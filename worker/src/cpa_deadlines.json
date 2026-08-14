@@ -12,10 +12,11 @@
       "renewal_pattern": "other",
       "cycle_description": "Individual CPA license renewal is a rolling 2-year 'reestablishment period' anchored to each CPA's own original certificate date, not a publicly stated odd/even calendar split. Real active licenses show both odd- and even-year expirations simultaneously (confirmed via DBPR's live license-verification tool), so there is no single date DeadlineRadar can safely publish for every individual visitor.",
       "next_deadline_computed": null,
-      "data_gap_note": "We previously listed this as two odd/even cohort records, but a 2026-07-05 recovery review found that framing was wrong: individual CPA expiration dates are per-licensee, tied to each person's own original certificate date -- not a public odd/even rule. The codified odd-year rule applies to FIRM licenses only (see Florida's firm page), not individuals. Confirm your exact personal expiration date using the Florida DBPR license-verification lookup (myfloridalicense.com) or on your license.",
+      "data_gap_note": "Florida individual CPA expiration dates are per-licensee, tied to each person's own original certificate date -- there is no public odd/even rule for individuals. The codified odd-year rule applies to FIRM licenses only (see Florida's firm page). Confirm your exact personal expiration date using the Florida DBPR license-verification lookup (myfloridalicense.com) or on your license.",
       "source_url": "https://www2.myfloridalicense.com/certified-public-accounting/renewing-and-maintaining-your-license/",
       "last_verified": "2026-08-13",
-      "wave": 1
+      "wave": 1,
+      "verification_history": "2026-08-14 (COPY-x class sweep, found after the michigan residual was called the last instance): reworded self-referential record history out of reader copy. The old text opened \"We previously listed this as two odd/even cohort records, but a 2026-07-05 recovery review found that framing was wrong\" -- that this record once had the wrong shape is our history, not the reader's concern, and \"recovery review\" is internal vocabulary. Every substantive fact was kept: per-licensee expiration tied to the original certificate date, the odd-year rule applying to FIRM licenses only, and the DBPR lookup as the way to confirm."
     },
     {
       "id": "fl-firm",
@@ -137,14 +138,14 @@
       "license_type": "individual",
       "license_type_label": "Individual CPA license",
       "renewal_pattern": "other",
-      "cycle_description": "Individual CPA license expires biennially on July 31. Neither official source specifies which year of the 2-year cycle applies to a given licensee (the earlier 'December 31 of odd years' figure in our dataset traced only to a third-party CPE-vendor blog, not an official source, and has been dropped).",
+      "cycle_description": "Individual CPA license expires biennially on July 31. Neither official source specifies which year of the 2-year cycle applies to a given licensee. A 'December 31 of odd years' figure circulates on third-party CPE-vendor sites; it traces to no official source.",
       "next_deadline_computed": null,
       "data_gap_note": "The renewal rule itself is double-sourced (Michigan LARA's current licensing page plus a separately-hosted official LARA licensing-guide PDF both confirm: biennial, expires July 31), but neither document states which year of the 2-year cycle applies to a given license holder, so we cannot safely publish one 'next July 31' date for every visitor. Confirm your exact renewal date with the Michigan Board of Accountancy (LARA) or on your license.",
       "source_url": "https://www.michigan.gov/lara/bureau-list/bpl/occ/prof/accountancy/lic-info/renewing-a-license",
       "last_verified": "2026-07-30",
       "wave": 1,
       "secondary_source_url": "https://www.michigan.gov/lara/-/media/Project/Websites/lara/bpl/Accountancy/Licensing-Information/Licensed-Accountant-Licensing-Guide.pdf",
-      "verification_history": "2026-07-17: MCL 339.729's grace-period clause anchors to 'the date of his or her original license' (individual, not statewide), and MICPA's phrasing ('expire July 31 two years after the last renewal') reads as an individualized rolling cycle rather than one fixed statewide odd/even rule -- pointing toward a personal (California/Texas-style) rather than calendar cycle, though not independently confirmed against real license records. 2026-07-30: Michigan's official sources could not be reached to check again, so this record is unchanged, not newly resolved. 2026-08-14: both dated notes moved out of the public gap note by GATE-1 (the shape gate's paren-free-date blind spot)."
+      "verification_history": "2026-07-17: MCL 339.729's grace-period clause anchors to 'the date of his or her original license' (individual, not statewide), and MICPA's phrasing ('expire July 31 two years after the last renewal') reads as an individualized rolling cycle rather than one fixed statewide odd/even rule -- pointing toward a personal (California/Texas-style) rather than calendar cycle, though not independently confirmed against real license records. 2026-07-30: Michigan's official sources could not be reached to check again, so this record is unchanged, not newly resolved. 2026-08-14: both dated notes moved out of the public gap note by GATE-1 (the shape gate's paren-free-date blind spot).\n\n2026-08-14 (COPY-6 michigan residual, last known instance of the COPY-x class): reworded self-referential record history out of reader copy. The dropped wording said the 'December 31 of odd years' figure 'in our dataset ... has been dropped' -- that this record once carried the wrong date is our history, not the reader's concern. The warning itself is real reader value (a CPA who has seen that date on a vendor site needs to know it is unsourced) and was kept, restated in the wisconsin/north-carolina house pattern. For the audit trail: the figure traced only to a third-party CPE-vendor blog, never an official source, and was removed from this record."
     },
     {
       "id": "oh-individual",

@@ -524,7 +524,7 @@
       "license_type": "individual",
       "license_type_label": "Individual CPA Certificate",
       "renewal_pattern": "birth_month",
-      "cycle_description": "Biennial. Per A.R.S. 32-730 and A.A.C. R4-1-345(B)(1), an individual CPA certificate holder born in an even-numbered year renews during their birth month in each even-numbered year; a holder born in an odd-numbered year renews during their birth month in each odd-numbered year. Renewal must be RECEIVED by the Board (postmarks not accepted) by 5:00pm on the last business day of the birth month, or the certificate is automatically suspended ($50 late fee to reactivate; failure to renew within 3 months of suspension causes the certificate to expire). An individual/sole-proprietorship firm registration rides on this same personal cycle. CPE reporting period is defined identically to the registration period itself -- no separate CE deadline from the renewal deadline.",
+      "cycle_description": "Biennial. Per A.R.S. 32-730 and A.A.C. R4-1-345(B)(1), an individual CPA certificate holder born in an even-numbered year renews during their birth month in each even-numbered year; a holder born in an odd-numbered year renews during their birth month in each odd-numbered year. Renewal must be filed no later than the last day of the birth month, and counts only when RECEIVED by the Board -- electronic date-stamp in Arizona time or physical receipt; postmarks are not accepted. Missing it automatically suspends the certificate without prior notice ($50 late fee to reactivate; failure to renew within 3 months of suspension causes the certificate to expire). An individual/sole-proprietorship firm registration rides on this same personal cycle. CPE reporting period is defined identically to the registration period itself -- no separate CE deadline from the renewal deadline.",
       "next_deadline_computed": null,
       "computation": {
         "type": "birth_month_parity",
@@ -533,8 +533,12 @@
         "parity_rule": "renewal_year_parity_matches_birth_year_parity"
       },
       "source_url": "https://www.azaccountancy.gov/Renewals/FAQs.aspx",
-      "last_verified": "2026-07-30",
-      "wave": 3
+      "last_verified": "2026-08-14",
+      "wave": 3,
+      "citation": "A.R.S. § 32-730 (biennial registration); A.R.S. § 32-741.01 (automatic suspension for nonregistration; expiration after 3 months); A.A.C. R4-1-345(B)(1), (C) (birth-month/parity cycle, received-not-postmarked filing, $300 fee + $50 late fee)",
+      "citation_url": "https://apps.azsos.gov/public_services/Title_04/4-01.pdf",
+      "secondary_source_url": "https://www.azleg.gov/ars/32/00730.htm",
+      "verification_history": "2026-08-14 (Devin-requested verification pass, upgraded from board-page-sourced to primary-law-verified): read A.R.S. 32-730 and 32-741.01 on azleg.gov and A.A.C. R4-1-345 in the SOS's official Title 4 chapter PDF (Supp. 26-2). Confirmed verbatim: birth-month registration with even-born-in-even-years/odd-in-odd parity (R4-1-345(B)(1)); 'The Board shall not accept a postmark as evidence of timely filing'; '$300 and, if applicable, a late fee of $50' (C)(2)(a); automatic suspension 'without prior notice or a hearing' for failure to timely register (32-741.01(A)); expiration if not renewed 'within three months after the date of suspension' (32-741.01(D)). ONE CORRECTION: the old prose said renewal was due 'by 5:00pm on the last business day of the birth month' -- the CURRENT rule text (R4-1-345(B), as amended by expedited rulemaking eff. 2025-05-07 and 2026-05-08) says 'no later than the last day of the month' with filing deemed on date/time received (electronic date stamp in Arizona time or physical receipt); no 5 p.m. cutoff and no business-day qualifier appear in the current text. Reworded to the current rule."
     },
     {
       "id": "az-firm",
@@ -543,15 +547,19 @@
       "license_type": "firm",
       "license_type_label": "Firm / Business Organization Registration",
       "renewal_pattern": "other",
-      "cycle_description": "Biennial, but on a per-firm anniversary cycle distinct from the individual birth-month cycle. Per A.A.C. R4-1-345(B)(2), a business-organization firm (partnership, PC, PLLC, LLC, LLP) that initially registered in an even-numbered year renews during the board-approved month of its initial registration in each even-numbered year (odd-year registrants: same pattern in odd years). A sole proprietorship or individual registrant's firm registration is NOT on this separate cycle -- it renews together with the individual's personal certificate. Same 5:00pm last-business-day filing deadline and automatic-suspension consequence as the individual rule.",
+      "cycle_description": "Biennial, but on a per-firm anniversary cycle distinct from the individual birth-month cycle. Per A.A.C. R4-1-345(B)(2), a business-organization firm (partnership, PC, PLLC, LLC, LLP) that initially registered in an even-numbered year renews during the board-approved month of its initial registration in each even-numbered year (odd-year registrants: same pattern in odd years). A sole proprietorship or individual registrant's firm registration is NOT on this separate cycle -- it renews together with the individual's personal certificate. Same filing mechanics and automatic-suspension consequence as the individual rule: due no later than the last day of the month, counted only when received by the Board (postmarks not accepted).",
       "next_deadline_computed": null,
       "computation": {
         "type": "firm_registration_anniversary_parity",
         "note": "Each firm's renewal month is fixed at the board-approved month set at its initial registration; the firm renews in that month during every subsequent year whose odd/even parity matches its initial-registration year. Requires that specific firm's initial-registration month and year, which is not a published state-wide fact."
       },
       "source_url": "https://grrc.az.gov/sites/default/files/2024-11/Accountancy%20NPER%202%20A.A.C.%201%20Arts%202-4.pdf",
-      "last_verified": "2026-08-13",
-      "wave": 4
+      "last_verified": "2026-08-14",
+      "wave": 4,
+      "citation": "A.R.S. § 32-730 (biennial registration, firms included); A.R.S. § 32-741.01 (automatic suspension; expiration after 3 months); A.A.C. R4-1-345(B)(2), (C)(2)(b) (board-approved issue month/parity cycle, $300 fee + $50 late fee)",
+      "citation_url": "https://apps.azsos.gov/public_services/Title_04/4-01.pdf",
+      "secondary_source_url": "https://www.azleg.gov/ars/32/00730.htm",
+      "verification_history": "2026-08-14 (Devin-requested verification pass, upgraded from board-page-sourced to primary-law-verified): A.A.C. R4-1-345(B)(2) confirmed verbatim -- 'A business organization that was approved by the Board in an even-numbered year shall register during the board-approved issue month in each even-numbered year' (and odd/odd), with (B)(2)(c) confirming 'An individual or a sole proprietorship shall register pursuant to subsection (B)(1)' -- exactly this record's claim that sole proprietorships ride the personal cycle. A.R.S. 32-730(A) covers 'every certified public accountant and firm'. Same 5:00pm/business-day correction as az-individual (see that record): the current rule says last day of the month, received-not-postmarked, no 5 p.m. cutoff."
     },
     {
       "id": "mo-individual",

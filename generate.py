@@ -440,6 +440,11 @@ PAGE_CSS = """
        mode's never moved. 3% darker, same hue, gives 4.535:1. */
     --gold: #866731; --gold-line: #d8c9a6; --gold-bg: #f4eede;
     --verified-green: #256a4b; --verified-green-bg: #e8f1ec;
+    /* Engraved-seal stale state (Devin-approved seal design, 2026-08-14):
+       reuses the site's existing error red rather than inventing one --
+       #c33737 is the same red .dr-account-err / field errors already use.
+       Paired -bg follows the --verified-green-bg pattern. */
+    --stale-red: #c33737; --stale-red-bg: #f6e9e9;
     --trust-bg: #f4eede; --trust-border: #d8c9a6; --row-alt: #f6f8f9;
     --shadow: 0 1px 2px rgba(23,33,43,.05), 0 6px 22px rgba(23,33,43,.06);
     --font-display: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
@@ -6829,9 +6834,13 @@ def _firm_landing_links_html() -> str:
     should surface them rather than relying only on organic search to connect the two."""
     if not FIRM_LANDING_PAGES:
         return ""
+    # Devin, 2026-08-14, from the live page: this list rendered in dataset
+    # insertion order (Colorado, Idaho, Maine, Missouri, Alabama...), which
+    # reads as random to a visitor scanning for their state. A-Z like every
+    # other state list on the site.
     items = "\n".join(
         f'<li><a href="../{esc(p["slug"])}/">{esc(p["state_name"])} firm renewal</a></li>'
-        for p in FIRM_LANDING_PAGES
+        for p in sorted(FIRM_LANDING_PAGES, key=lambda p: p["state_name"])
     )
     return f"""<h2>Firm-registration deadlines by state</h2>
 <p>Your firm's own registration or permit renews on a different clock than any individual staff CPA's

@@ -161,7 +161,14 @@ def check_rendering_integrity(html_files: list[Path]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 _PROSE_SNAKE_CASE_RE = re.compile(r"\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b")
-_PROSE_DATED_PAREN_RE = re.compile(r"\(20\d\d-\d\d-\d\d:")
+# GATE-1 (AuditLab, 2026-08-14): the original `\(20\d\d-\d\d-\d\d:` required a
+# literal "(" and missed docs/michigan's live parenthesis-free changelog
+# ("...2026-07-30: Michigan's official sources could not be reached..."). The
+# actual tell is an ISO date immediately followed by a colon introducing a
+# note -- with or without a wrapping paren. `(?<!\d)` keeps it from firing
+# mid-longer-number. Legit reader copy uses spelled-out dates ("August 10,
+# 2026"), never `YYYY-MM-DD:`, so this shape is unambiguous.
+_PROSE_DATED_PAREN_RE = re.compile(r"(?<!\d)20\d\d-\d\d-\d\d:")
 _PROSE_URL_RE = re.compile(r"(?:https?://|www\.)[^\s<>\"')]+|\b[a-z0-9.-]+\.(?:gov|com|org|net|edu|us|io)(?:/[^\s<>\"')]*)?", re.IGNORECASE)
 
 # Tokens that are legitimately part of reader-facing prose. Keep this SHORT
@@ -208,7 +215,7 @@ def check_prose_leak_shapes(html_files: list[Path]) -> list[str]:
         for m in _PROSE_DATED_PAREN_RE.finditer(prose):
             snippet = prose[max(0, m.start() - 60): m.end() + 80].replace("\n", " ").strip()
             errors.append(
-                f"[SHAPE][{f}] dated maintenance parenthetical '{m.group(0)}...' in rendered prose -- "
+                f"[SHAPE][{f}] dated changelog note '{m.group(0)}...' in rendered prose -- "
                 f"...{snippet}... (changelog syntax belongs in verification_history, not public copy)"
             )
     return errors

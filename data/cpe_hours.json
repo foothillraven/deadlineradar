@@ -414,7 +414,7 @@
       "annual_minimum_hours": 40,
       "ethics_hours": 2,
       "ethics_period_years": 1,
-      "notes": "Effective 2020-01-01: 40 hours of CPE every calendar year a license is held, minimum 2 hours ethics. Rule (1)(A) preserves the pre-2020 120-hours/3-year/6-ethics-hours standard as historical context only -- the current, governing requirement is (1)(B). Since 2021, licensees in good standing get a grace period through March 1 to cure a prior calendar year's CPE shortage on written application to the board (rule (1)(C)).",
+      "notes": "Effective January 1, 2020: 40 hours of CPE every calendar year a license is held, minimum 2 hours ethics. Rule (1)(A) preserves the pre-2020 120-hours/3-year/6-ethics-hours standard as historical context only -- the current, governing requirement is (1)(B). Since 2021, licensees in good standing get a grace period through March 1 to cure a prior calendar year's CPE shortage on written application to the board (rule (1)(C)).",
       "verified_date": "2026-08-13",
       "verification_history": "2026-08-13: re-confirmed against the current Missouri CSR PDF itself (edition dated 7/31/24, fetched with a browser user-agent and parsed locally -- the PDF defeats plain fetch+parse tooling, why earlier re-verification passes failed): (1)(B) reads verbatim 'no less than forty (40) hours of qualifying CPE each calendar year... A minimum of two (2) hours of the required forty (40) hours of CPE shall be in the area of ethics.'"
     },

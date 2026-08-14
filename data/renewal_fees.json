@@ -14,7 +14,10 @@
       "source_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-3",
       "confidence": "high",
       "verified_date": "2026-08-14",
-      "verification_history": "2026-08-14 (substance queue, AL): HB59 IS Act 2026-16 -- one bill, not two (verified via the legislature's ALISON records and the enrolled PDF; 'Pathways to CPA Act', effective 2026-10-01). It amends 34-1-11, which this state's reinstatement record cites, but the (d) changes are stylistic renumbering: the lapse windows, the 'reinstatement fee not to exceed one hundred dollars ($100)', and the September 30 expiration / December 31 renewal-filing structure are retained verbatim in the enrolled text. Substantive amendments target exam subjects, nonlicensed firm owners, notice, and advertising. The existing reader heads-up on the reinstatement record stays; the 2026-10-01 re-check drops from 'figures may change' to 'confirm the renumbering'."
+      "verification_history": "2026-08-14 (substance queue, AL): HB59 IS Act 2026-16 -- one bill, not two (verified via the legislature's ALISON records and the enrolled PDF; 'Pathways to CPA Act', effective 2026-10-01). It amends 34-1-11, which this state's reinstatement record cites, but the (d) changes are stylistic renumbering: the lapse windows, the 'reinstatement fee not to exceed one hundred dollars ($100)', and the September 30 expiration / December 31 renewal-filing structure are retained verbatim in the enrolled text. Substantive amendments target exam subjects, nonlicensed firm owners, notice, and advertising. The existing reader heads-up on the reinstatement record stays; the 2026-10-01 re-check drops from 'figures may change' to 'confirm the renumbering'.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://admincode.legislature.state.al.us/api/chapter/30-X-3. The amount is codified in the rule/statute text cited here. Agent evidence: Official legislature admin-code API serves the chapter PDF (text extracted): 'Effective October 1, 2017, the amount of the annual permit fee shall be $100.00 and $130.00, individual and firm respectively.' Matches $100 individual / $130 firm exactly; rule text revised 1/11/25 with statutory authority Ala. Code 34-1-3, 34-1-4, 34-1-11.",
+      "citation_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-3",
+      "citation": "Ala. Admin. Code r. 30-X-3-.07(1) (Rev. 1/11/25)",
+      "fee_basis": "codified"
     },
     {
       "id": "alaska-renewal-fee",
@@ -24,7 +27,11 @@
       "fee_notes": "Flat $300 biennial renewal fee for CPAs licensed on/before Dec 31, 2024 (prorated $150 for newer licenses).",
       "source_url": "https://www.commerce.alaska.gov/web/Portals/5/pub/cpa4060.pdf",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://www.akleg.gov/basis/aac.asp?media=print&secStart=12.02.340&secEnd=12.02.340",
+      "citation": "12 AAC 02.340(4)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.akleg.gov/basis/aac.asp?media=print&secStart=12.02.340&secEnd=12.02.340. The amount is codified in the rule/statute text cited here. Agent evidence: Fee is codified in the Alaska Administrative Code (adopted by the department under AS 08.01.065): 12 AAC 02.340(4) reads 'certified public accountant biennial active license renewal fee, $300', verified as served text on the official akleg.gov AAC endpoint. The board's current renewal form cpa4060.pdf (Rev. 10/16/2025, 2026-2027 cycle) agrees: '$300.00' for licenses first issued on or before Dec 31, 2024, with the $150 prorated renewal for licenses first issued on/after Jan 1, 2025 appearing on the form (proration applied administratively, not stated in 12 AAC 02.340 itself)."
     },
     {
       "id": "arizona-renewal-fee",
@@ -34,17 +41,25 @@
       "fee_notes": "Flat $300 biennial certificate registration fee, plus a $50 late fee if applicable. A.A.C. R4-1-345(C)(2)(a).",
       "source_url": "https://grrc.az.gov/sites/default/files/2024-11/Accountancy%20NPER%202%20A.A.C.%201%20Arts%202-4.pdf",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://apps.azsos.gov/public_services/Title_04/4-01.pdf",
+      "citation": "Ariz. Admin. Code R4-1-345(C)(2)(a) (Supp. 26-2, amended eff. May 8, 2026)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://apps.azsos.gov/public_services/Title_04/4-01.pdf. The amount is codified in the rule/statute text cited here. Agent evidence: Current A.A.C. text: 'Biennial Registration Fee - a. Individual - $300 and, if applicable, a late fee of $50.' The record's source_url is the Nov-2024 GRRC proposed-rulemaking notice (403s plain fetch; curl -A works) whose text read 'Certification - $300' with expired-discount subclauses; the May 2026 codified amendment relabeled it 'Individual' and struck the discount language -- $300/$50 unchanged, so the SOS-published current code and the GRRC notice agree on the figures."
     },
     {
       "id": "arkansas-renewal-fee",
       "state": "Arkansas",
       "state_slug": "arkansas",
-      "fee_usd": 150,
-      "fee_notes": "Flat $150 annual renewal fee, deadline December 31 each year.",
+      "fee_usd": 110,
+      "fee_notes": "$110 annual renewal fee for an individual active license to practice, per the Board's own current rules (17 CAR 236-1101(c)(3)). Late renewal adds $25 per month. Note a widely-cited $150 figure is the REINSTATEMENT fee in the same rule, not the renewal fee.",
       "source_url": "https://portal.arkansas.gov/service/ar-certified-public-accountant-license-renewal/",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://labor.arkansas.gov/wp-content/uploads/17CARpt.236-Final.pdf",
+      "citation": "Arkansas State Board of Public Accountancy Rules, 17 CAR 236-1101(c)(3) (license renewal fees)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://labor.arkansas.gov/wp-content/uploads/17CARpt.236-Final.pdf. The amount is codified in the rule/statute text cited here. Agent evidence: 17 CAR 236-1101(c)(3): 'License renewal fees. Individual - active status (license to practice) $110 ... Late fee - license to practice and firms per month $25.' The $150 figure comes from portal.arkansas.gov (state aggregator); the board's own current rules PDF (rendered 03/10/2026, the 'now in effect' revised rules) controls and says $110 -- classic aggregator-vs-board disagreement, board wins.\n\n2026-08-14 (SRC-6, LIVE DEFECT CORRECTED): we published $150 as Arkansas's annual renewal fee. The Board's own current rules (17 CAR 236-1101(c)(3), rendered 03/10/2026) set 'Individual - active status (license to practice) $110' and 'Late fee - license to practice and firms per month $25'; the $150 in that same rule is 'Reinstatement of individual or firm license' -- a different fee for a different situation. The $150 traced to portal.arkansas.gov, a state aggregator, which is exactly the aggregator-vs-board conflict class this sweep exists to catch (same shape as the Georgia CPE finding). Board publication wins. Previous note read: Flat $150 annual renewal fee, deadline December 31 each year."
     },
     {
       "id": "california-renewal-fee",
@@ -54,7 +69,11 @@
       "fee_notes": "$400 for licenses expiring after June 30, 2026 (current scheduled tier); $340 for licenses expiring before July 1, 2026.",
       "source_url": "https://www.dca.ca.gov/cba/licensees/renewal-information.shtml",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://www.dca.ca.gov/cba/about/cba_regs.pdf",
+      "citation": "Cal. Code Regs. tit. 16, 70(e)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.dca.ca.gov/cba/about/cba_regs.pdf. The amount is codified in the rule/statute text cited here. Agent evidence: 16 CCR 70(e)(2): 'For permits expiring after June 30, 2026 ... the fee for renewal to practice as a public accountant or a certified public accountant shall be $400'; 70(e)(1) sets $340 for permits expiring after June 30, 2024 and is 'operative until June 30, 2026.' CBA's renewal-information page states the same $400/$340 split, so no aggregator/board disagreement."
     },
     {
       "id": "colorado-renewal-fee",
@@ -64,8 +83,12 @@
       "fee_notes": null,
       "source_url": null,
       "confidence": "low",
-      "verified_date": "2026-08-11",
-      "data_gap_note": "Colorado's CPA fees are set under DORA's statewide fee schedule (Section 24-34-102, C.R.S.), not the Board's own rules (3 CCR 705-1, which contains no dollar amounts). The official dpo.colorado.gov pages and online licensing portal could not be independently confirmed (403/interactive-only); third-party sites cite conflicting figures ($77-$110), none verifiable against a primary source, so no figure is published here."
+      "verified_date": "2026-08-14",
+      "data_gap_note": "Colorado's CPA fees are set under DORA's statewide fee schedule (Section 12-20-105, C.R.S.), not the Board's own rules (3 CCR 705-1, which contains no dollar amounts). The official dpo.colorado.gov pages and online licensing portal could not be independently confirmed (403/interactive-only); third-party sites cite conflicting figures ($77-$110), none verifiable against a primary source, so no figure is published here.",
+      "citation_url": "https://content.leg.colorado.gov/sites/default/files/images/olls/crs2024-title-12.pdf",
+      "citation": "Colo. Rev. Stat. 12-20-105 (fee adjustments, DPO; formerly 24-34-105) with Colo. Rev. Stat. 12-100-108(2)",
+      "fee_basis": "board_schedule",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://content.leg.colorado.gov/sites/default/files/images/olls/crs2024-title-12.pdf. The law authorizes this fee but does not fix the amount -- the figure comes from the board's own published schedule, so it can change without a rule filing. Agent evidence: Operative text, 12-20-105(2)(b)(I): 'each regulator shall adjust the fees the regulator is authorized by law to collect so that the revenue generated from the fees approximates its direct and indirect costs'; 12-100-108(2) subjects CPA certificates to the renewal/delinquency fee provisions of 12-20-202. No dollar amount appears in statute, so the amount lives on DORA's schedule, which remains unconfirmed on an official page (fee_usd null stands). Verified in the OLLS official CRS 2024 Title 12 PDF (leg.colorado.gov redirects to this content host).\n\n2026-08-14 (SRC-6 correction): the gap note cited Section 24-34-102 as the fee authority, but the official CRS Title 24 shows 24-34-102 and 24-34-105 both '(Repealed)' -- the fee provision was relocated to 12-20-105 by HB 19-1172 effective 2019-10-01 ('Editor's note: This section was relocated to 12-20-105 in 2019'). The substance of the gap (no codified amount; agency-set; no verifiable figure) was and remains correct; only the citation was stale."
     },
     {
       "id": "connecticut-renewal-fee",
@@ -76,7 +99,10 @@
       "source_url": "https://portal.ct.gov/dcp/license-services-division/license-division/cpa-renewal",
       "confidence": "high",
       "verified_date": "2026-08-14",
-      "verification_history": "2026-08-14 (substance queue, CT): PA 25-36 (HB 7020) enacted, effective 2025-10-01. It rewrites initial certification pathways (20-281c) and replaces NASBA substantial-equivalency mobility with a license-in-good-standing practice privilege (20-281n). It does NOT amend 20-281d (renewal) or RCSA 20-280-25 -- the sections carrying this site's renewal deadline, 40hr/1yr CPE, ethics, reinstatement, and $565 figures. No published figure affected."
+      "verification_history": "2026-08-14 (substance queue, CT): PA 25-36 (HB 7020) enacted, effective 2025-10-01. It rewrites initial certification pathways (20-281c) and replaces NASBA substantial-equivalency mobility with a license-in-good-standing practice privilege (20-281n). It does NOT amend 20-281d (renewal) or RCSA 20-280-25 -- the sections carrying this site's renewal deadline, 40hr/1yr CPE, ethics, reinstatement, and $565 figures. No published figure affected.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.cga.ct.gov/current/pub/chap_389.htm. The amount is codified in the rule/statute text cited here. Agent evidence: Verified in fetched statute text: 20-281d(g) charges 'the professional services fee for class I, as defined in section 33-182l, for each annual renewal of such license,' and 33-182l (https://www.cga.ct.gov/current/pub/chap_594a.htm, also fetched and verified) provides 'Class I is five hundred sixty-five dollars' -- matching the DCP page's $565.00. Codified, but via a two-step cross-reference rather than a literal $565 in the accountancy chapter; P.A. 25-36 did not amend 20-281d or 33-182l.",
+      "citation_url": "https://www.cga.ct.gov/current/pub/chap_389.htm",
+      "citation": "Conn. Gen. Stat. 20-281d(g) (annual renewal fee = professional services fee for class I) with Conn. Gen. Stat. 33-182l (class I = five hundred sixty-five dollars)",
+      "fee_basis": "codified"
     },
     {
       "id": "dc-renewal-fee",
@@ -86,7 +112,9 @@
       "fee_notes": "Flat $110 biennial renewal fee (expires Dec 31 of even-numbered years), plus a $50 late fee.",
       "source_url": "https://dlcp.dc.gov/page/board-accountancy",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-11",
+      "fee_basis": "unverifiable",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): no official host serving the text was found this pass; citation_url left unset. No official source publishes the amount in a form we could verify. Agent evidence: Could not locate the primary text carrying the $110 amount within fetch budget: D.C. Code 47-2853.09 and 47-2853.10 (code.dccouncil.gov, serves text to curl) were checked and are board-procedure/administration sections, not the fee authority, and a 17 DCMR 108 guess on dcregs.dc.gov resolved to 'STANDARDS OF PRACTICE' in Chapter 17-1 (Asbestos Abatement), not a fee schedule. dcregs.dc.gov answers SectionNumber= queries to a plain fetcher, so the accountancy chapter of DCMR Title 17 (and D.C. Code 47-2853.08 board powers) are the next probes; no primary text confirming $110/biennial/$50-late was verified."
     },
     {
       "id": "delaware-renewal-fee",
@@ -98,7 +126,10 @@
       "confidence": "high",
       "verified_date": "2026-08-14",
       "data_gap_note": "Delaware's official fee schedule explicitly states the renewal fee amount is communicated to each licensee at the time of renewal, not published as a flat figure -- confirmed against both the Division of Professional Regulation's own fee page and Delaware Admin. Code Title 24, which defers the amount to DPR rather than codifying it. High confidence that no flat fee is published; the amount itself is not independently confirmable from any official source.",
-      "verification_history": "2026-08-14 (substance queue, DE): 85 Del. Laws c. 112 (HS 1 for HB 143) enacted 2025-07-30, effective 2026-07-01 -- already in force. Full text read at legis.delaware.gov: it creates a baccalaureate+2yr licensure pathway and rewrites exam/issuance/reciprocity (24 Del. C. 102/107/108(a),(c)/109), converting substantial equivalency to practice privileges. It does NOT touch 108(b) (the permit cycle this site cites), 124 (renewals), any fee provision, or the CPE rules in 24 Del. Admin. Code 100-7.0. No published figure affected."
+      "verification_history": "2026-08-14 (substance queue, DE): 85 Del. Laws c. 112 (HS 1 for HB 143) enacted 2025-07-30, effective 2026-07-01 -- already in force. Full text read at legis.delaware.gov: it creates a baccalaureate+2yr licensure pathway and rewrites exam/issuance/reciprocity (24 Del. C. 102/107/108(a),(c)/109), converting substantial equivalency to practice privileges. It does NOT touch 108(b) (the permit cycle this site cites), 124 (renewals), any fee provision, or the CPE rules in 24 Del. Admin. Code 100-7.0. No published figure affected.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://delcode.delaware.gov/title29/c087/sc01/index.html. No official source publishes the amount in a form we could verify. Agent evidence: No codified amount exists: 29 Del. C. 8735(c) directs that the Division of Professional Regulation, 'with the approval of the Secretary of State, shall establish ... such appropriate fees as shall approximate and reasonably reflect all costs necessary to defray the expenses of each such board.' DPR's own fee page (dpr.delaware.gov/fees/) confirms: 'You are notified of the amount of the renewal fee at the time of renewal.' The amount lives on no published schedule, so it is not merely board-set but unverifiable; 8735(c) is the authorizing citation.",
+      "citation_url": "https://delcode.delaware.gov/title29/c087/sc01/index.html",
+      "citation": "29 Del. C. 8735(c)",
+      "fee_basis": "unverifiable"
     },
     {
       "id": "florida-renewal-fee",
@@ -108,7 +139,11 @@
       "fee_notes": "Flat $100.00 license renewal fee (applies to both active and inactive renewal).",
       "source_url": "https://www2.myfloridalicense.com/certified-public-accounting/renewing-and-maintaining-your-license/",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://www.flrules.org/gateway/readFile.asp?sid=0&tid=20486417&type=1&file=61H1-31.003.doc",
+      "citation": "Fla. Admin. Code R. 61H1-31.003 (Renewal of Active and Inactive License Fee for CPA), adopted under Fla. Stat. 473.305",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.flrules.org/gateway/readFile.asp?sid=0&tid=20486417&type=1&file=61H1-31.003.doc. The amount is codified in the rule/statute text cited here. Agent evidence: Rule text: 'For individual active and inactive status licenses, the biennial renewal fee provided for in Section 473.305, F.S., shall be $100.00' -- matching the $100 active/inactive claim; 473.305 caps the biennial renewal fee at $250 and delegates the amount to board rule, and the amount is codified in the rule. Caveat worth surfacing: the same rule adds 'A special fee of $5.00 per licensee shall be imposed upon initial licensure and at each renewal' (unlicensed-activity fee), so the total collected at renewal is $105 even though the renewal fee proper is $100."
     },
     {
       "id": "georgia-renewal-fee",
@@ -118,7 +153,11 @@
       "fee_notes": "Flat $100.00 biennial renewal fee for individual CPA license. Ga. Comp. R. & Regs. Rule 20-10-.02.",
       "source_url": "https://rules.sos.ga.gov/gac/20-10",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://rules.sos.ga.gov/Download_pdf.aspx?st=GASOS&year=2026&dept=Departments&pdf=Department%2020%20RULES%20OF%20STATE%20BOARD%20OF%20ACCOUNTANCY",
+      "citation": "Ga. Comp. R. & Regs. r. 20-10-.02(6) (Biennial Renewal)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://rules.sos.ga.gov/Download_pdf.aspx?st=GASOS&year=2026&dept=Departments&pdf=Department%2020%20RULES%20OF%20STATE%20BOARD%20OF%20ACCOUNTANCY. The amount is codified in the rule/statute text cited here. Agent evidence: Rule 20-10-.02(6) codifies the amount: 'The fee for biennial renewal is $100.00.' The rule-page URL (rules.sos.ga.gov/gac/20-10-.02) is a JS shell to fetchers, but the same official host serves the full Department 20 rules PDF (compilation 'current through Rules and Regulations filed through July 29, 2026'; last 20-10-.02 amendment eff. Sept. 13, 2015) at the cited download URL -- text extracted and verified. No stale-vs-board disagreement found; GSBA's site links to this same SOS rules host."
     },
     {
       "id": "guam-renewal-fee",
@@ -128,7 +167,11 @@
       "fee_notes": "Flat $100.00 annual renewal fee for an Active (or Inactive) individual CPA license. 25 GAR §2103(d)(2)(B)(i)-(ii).",
       "source_url": "https://col.guamcourts.gov/sites/default/files/25GAR002.pdf",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://col.guamcourts.gov/sites/default/files/25GAR002.pdf",
+      "citation": "25 GAR 2103(d)(2)(B)(i)-(ii) (Guam Board of Public Accountancy Regulations)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://col.guamcourts.gov/sites/default/files/25GAR002.pdf. The amount is codified in the rule/statute text cited here. Agent evidence: Rule text (2103(d), fees effective Jan. 1, 2017): '(B) Renewal (annually). (i) Active, per 22 GCA, 35105(f) - One Hundred Dollars ($100.00). (ii) Inactive, per 22 GCA, 35105(f) - One Hundred Dollars ($100.00).' PDF fetched with curl (48 pp.) and text extracted; dollar amounts appear in the rule itself."
     },
     {
       "id": "hawaii-renewal-fee",
@@ -138,7 +181,11 @@
       "fee_notes": "$52 biennial individual CPA license renewal fee (HAR §16-53-38(7)(A)) plus a mandatory $100 biennial Compliance Resolution Fund fee (HAR §16-53-38(12)(A)(iii)) -- $152 total each biennial renewal.",
       "source_url": "https://cca.hawaii.gov/wp-content/uploads/2026/02/HAR_16-53_FeesOct-2016-1.pdf",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://cca.hawaii.gov/wp-content/uploads/2026/02/HAR_16-53_FeesOct-2016-1.pdf",
+      "citation": "Haw. Admin. R. (HAR) 16-53-38(7)(A), (12)(A)(iii)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://cca.hawaii.gov/wp-content/uploads/2026/02/HAR_16-53_FeesOct-2016-1.pdf. The amount is codified in the rule/statute text cited here. Agent evidence: Board-published HAR ch. 16-53 PDF (plain fetch 403s; serves fine to curl with a browser UA): '(7) Biennial renewal fees: (A) Individual public accountant or certified public accountant license $ 52' and '(12) Compliance resolution fund: (A) ... (iii) Biennial compliance resolution fund fee $ 100'. $52 + $100 = $152 per biennium, matching record figures and subsection numbering exactly. NOTE: this is the HAR 16-53 fee chapter that hawaii-reinstatement's data_gap_note says 'could not be located at a working URL' -- that gap can now close too."
     },
     {
       "id": "idaho-renewal-fee",
@@ -149,7 +196,10 @@
       "source_url": "https://adminrules.idaho.gov/rules/current/24/243001.pdf",
       "confidence": "high",
       "verified_date": "2026-08-14",
-      "verification_history": "2026-08-14 (DiffLab citation audit + own re-fetch): current IDAPA 24.30.01 Section 400 fee table fetched and confirmed verbatim -- 'Active License $120', 'Late License Renewal $100' under 400.03; no Rule/Section 600 exists in the current chapter (401+ reserved). Citation corrected from the stale pre-2023 'Rule 600' reference; fee figure unchanged.\n\n2026-08-14 (COPY-5): dropped the maintainer-history parenthetical from fee_notes -- an earlier version of this record cited 'Rule 600', a pre-2023 numbering that no longer exists in the current rule chapter. The fuller account is already recorded below/here; fee_notes is reader copy.\n\n2026-08-14 (SRC-1 primary-source repoint): source_url mirror -> primary. Research agent evidence: IDAPA 24.30.01.400.01 fee table (effective-date stamp 7-1-25) reads 'Active License $120 (Biennial: $240)'. The published $120 annual figure is current."
+      "verification_history": "2026-08-14 (DiffLab citation audit + own re-fetch): current IDAPA 24.30.01 Section 400 fee table fetched and confirmed verbatim -- 'Active License $120', 'Late License Renewal $100' under 400.03; no Rule/Section 600 exists in the current chapter (401+ reserved). Citation corrected from the stale pre-2023 'Rule 600' reference; fee figure unchanged.\n\n2026-08-14 (COPY-5): dropped the maintainer-history parenthetical from fee_notes -- an earlier version of this record cited 'Rule 600', a pre-2023 numbering that no longer exists in the current rule chapter. The fuller account is already recorded below/here; fee_notes is reader copy.\n\n2026-08-14 (SRC-1 primary-source repoint): source_url mirror -> primary. Research agent evidence: IDAPA 24.30.01.400.01 fee table (effective-date stamp 7-1-25) reads 'Active License $120 (Biennial: $240)'. The published $120 annual figure is current.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://adminrules.idaho.gov/rules/current/24/243001.pdf. The amount is codified in the rule/statute text cited here. Agent evidence: Fee table Section 400.01 (eff. 7-1-25) lists 'Active License $120 (Biennial: $240)' -- the $120 annual fee and the $240 biennial equivalent are both codified in the rule text, confirming 'no underlying price change.' Section 400.03 Late Fees lists 'Late License Renewal $100.' DOPL press release confirms the biennial cycle begins May 1, 2026 with the fee doubling to $240 for a 2-year license.",
+      "citation_url": "https://adminrules.idaho.gov/rules/current/24/243001.pdf",
+      "citation": "IDAPA 24.30.01 (Idaho Accountancy Rules), Section 400.01 (Examination and License fees) and Section 400.03 (Late Fees)",
+      "fee_basis": "codified"
     },
     {
       "id": "illinois-renewal-fee",
@@ -159,7 +209,11 @@
       "fee_notes": "No single flat fee is codified -- 68 Ill. Admin. Code 1420.40 sets the rate at $40 per year of the renewal cycle (commonly reported elsewhere as ~$120 for the 3-year cycle, but the rule text itself only states the per-year rate, not a single total).",
       "source_url": "https://www.ilga.gov/commission/jcar/admincode/068/068014200000400R.html",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://www.ilga.gov/commission/jcar/admincode/068/068014200000400R.html",
+      "citation": "68 Ill. Adm. Code 1420.40(b)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.ilga.gov/commission/jcar/admincode/068/068014200000400R.html. The amount is codified in the rule/statute text cited here. Agent evidence: Rule text: 'The fee for renewal of a license as a licensed CPA is $40 per year' (registered CPA $30/year, firm $40/year). Confirms the prose exactly: only the per-year rate is codified, no flat 3-year total appears in the rule, so fee_usd null is correct."
     },
     {
       "id": "indiana-renewal-fee",
@@ -169,7 +223,9 @@
       "fee_notes": "Flat $105.00 renewal fee for individual CPA license.",
       "source_url": "https://www.in.gov/pla/professions/accountancy-home/accountancy-licensing-information/",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-11",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): no fetchable official host serves this text (JS-only publisher); citation_url left unset. The amount is codified in the rule/statute text cited here. Agent evidence: The board/IPLA's current published fee schedule states 'Renewal $105.00 ... Total $105.00' and cites 872 IAC 1-1-10 subsections as fee authority, confirming the $105. However, every retrievable codified text (IAC edition codified through the Jan 12, 2024 readoption, and LSA Doc. #22-159(F)) still reads 'Triennial certificate of registration for CPAs, PAs, and APs, seventy-five dollars ($75)'; 1-1-10 was amended by LSA Doc. #24-481 (eff. 4/16/2025) whose current text lives only on the JS-only iar.iga.in.gov app, so the $105 could not be confirmed in fetchable rule text -- per the stale-text rule the board's current publication ($105) wins, disagreement reported."
     },
     {
       "id": "iowa-renewal-fee",
@@ -180,7 +236,11 @@
       "source_url": "https://www.legis.iowa.gov/docs/iac/chapter/481.1032.pdf",
       "confidence": "high",
       "verified_date": "2026-08-14",
-      "data_gap_note": null
+      "data_gap_note": null,
+      "citation_url": "https://www.legis.iowa.gov/docs/iac/chapter/481.1032.pdf",
+      "citation": "Iowa Admin. Code r. 481-1032.1(542)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.legis.iowa.gov/docs/iac/chapter/481.1032.pdf. The amount is codified in the rule/statute text cited here. Agent evidence: Rule 481-1032.1 schedule: 'Annual renewal of CPA certificate or LPA license-active status $100'; inactive $50; 'Late renewal ... within 30-day grace period (July 1 to July 30)-active status $25' ($10 inactive); 'Annual renewal of firm permit to practice $100.' Renumbering confirmed on the PDF's face: '[Prior to 6/10/26, see Accountancy Examining Board[193A] Ch 12]' and 'Editorial change: IAC Supplement 6/10/26.'"
     },
     {
       "id": "kansas-renewal-fee",
@@ -191,7 +251,10 @@
       "source_url": "https://ksboa.kansas.gov/wp-content/uploads/article12.pdf",
       "confidence": "high",
       "verified_date": "2026-08-14",
-      "verification_history": "2026-08-14 (substance queue, KS): HB2573 enacted, in force since 2026-07-01. It amends two sections our records sit on WITHOUT changing any published figure: amended K.S.A. 1-310(e) still requires 'at least 80 hours during the two-year period for renewal', 1-310(b)-(c) keep the biennial July 1 odd/even expiration (style edits only), 1-310(g) still requires 40 hours plus the reinstatement fee, and 1-301(b) keeps the $350 renewal cap and 1.5x reinstatement multiplier. The substantive changes are initial-licensure pathways (150-hour rule replaced) and mobility (1-321/1-322). K.S.A. 1-308 and the K.A.R. CPE regs are not amended."
+      "verification_history": "2026-08-14 (substance queue, KS): HB2573 enacted, in force since 2026-07-01. It amends two sections our records sit on WITHOUT changing any published figure: amended K.S.A. 1-310(e) still requires 'at least 80 hours during the two-year period for renewal', 1-310(b)-(c) keep the biennial July 1 odd/even expiration (style edits only), 1-310(g) still requires 40 hours plus the reinstatement fee, and 1-301(b) keeps the $350 renewal cap and 1.5x reinstatement multiplier. The substantive changes are initial-licensure pathways (150-hour rule replaced) and mobility (1-321/1-322). K.S.A. 1-308 and the K.A.R. CPE regs are not amended.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://ksboa.kansas.gov/wp-content/uploads/article12.pdf. The amount is codified in the rule/statute text cited here. Agent evidence: The board's published rule text reads: '(d) Renewal of biennial permit to practice as a certified public accountant: (1) If received on or before July 1 of the renewal year in which the permit expires $165.00 (2) If received after July 1 of the renewal year in which the permit expires $247.50' -- dollar amounts appear in the regulation itself (authorized by K.S.A. 1-301 and 75-1119; last amended Jan. 26, 2018). HB 2573 (effective July 1, 2026) amended the authorizing statutes (1-301 et al.) but did not change these K.A.R. amounts.",
+      "citation_url": "https://ksboa.kansas.gov/wp-content/uploads/article12.pdf",
+      "citation": "Kan. Admin. Regs. 74-12-1(d)",
+      "fee_basis": "codified"
     },
     {
       "id": "kentucky-renewal-fee",
@@ -201,7 +264,11 @@
       "fee_notes": "$100 online renewal fee (plus a separate administrative fee) for a two-year license; late renewal (after July 31) is $200 plus the admin fee.",
       "source_url": "https://cpa.ky.gov/practicingcpas/Pages/License-Renewal.aspx",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://apps.legislature.ky.gov/law/kar/titles/201/001/065/",
+      "citation": "201 KAR 1:065 Sec 1(2) ($100 renewal fee) and Sec 2(6) ($100 late fee); authorizing statute KRS 325.330(7)(b)2. (renewal fee 'not to exceed two hundred dollars ($200) biennially')",
+      "fee_basis": "board_schedule",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://apps.legislature.ky.gov/law/kar/titles/201/001/065/. The law authorizes this fee but does not fix the amount -- the figure comes from the board's own published schedule, so it can change without a rule filing. Agent evidence: LRC KAR text verified: 'Pay a non-refundable renewal fee in the amount of $100' plus 'the fees charged by Kentucky.gov' (the separate admin fee) and 'a non-refundable $100 late fee if the form is received in the board office after August 1' -- matching the board page ($100 + admin; $200 + admin late). Disagreement flagged: LRC marks 201 KAR 1:065 'Expired 7 years after last effective date (KRS 13A.3102), 01-06-2024' with no successor regulation in 201 KAR ch. 1, so the $100 is not currently in force as codified rule text; the board's current publication wins on amount, resting on the statutory authorization capped at $200 -- hence board_schedule."
     },
     {
       "id": "louisiana-renewal-fee",
@@ -211,7 +278,11 @@
       "fee_notes": "Individual certificate/license annual renewal fee is $120, due December 31.",
       "source_url": "https://cpaboard.state.la.us/cpa-resources/",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://cpaboard.state.la.us/board-rules/",
+      "citation": "La. Admin. Code tit. 46, pt. XIX, 319(A) (fee authority/caps) with 1105(B)(1) (annual Dec. 31 renewal)",
+      "fee_basis": "board_schedule",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://cpaboard.state.la.us/board-rules/. The law authorizes this fee but does not fix the amount -- the figure comes from the board's own published schedule, so it can change without a rule filing. Agent evidence: Board's own published rule text serves LAC 46:XIX in full: 319(A) -- 'Certification, firm permit application, renewal, and other fees shall be assessed by the board in amounts not to exceed the following' -- so the $120 is a board-assessed amount under rule caps, not a codified dollar figure; the board's fee page confirms 'Certificate (License) - $120', 'Due December 31'. 1105(B)(1) codifies the deadline: each CPA 'shall renew his certificate annually during the period for renewal on or before the last day of December preceding the year for which renewal is applicable.'"
     },
     {
       "id": "maine-renewal-fee",
@@ -221,7 +292,11 @@
       "fee_notes": "Annual renewal fee of $35 (renewal is annual, expiring September 30); $50 late fee if renewed after expiration.",
       "source_url": "https://www.maine.gov/pfr/professionallicensing/professions/accountancy/licensing/public-accountant-and-certified-public-accountant",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://legislature.maine.gov/statutes/32/title32sec12203.html",
+      "citation": "32 M.R.S. 12203 (fee-setting authority; amount set by Director's fee-schedule rule, 02-041 C.M.R. ch. 10)",
+      "fee_basis": "board_schedule",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://legislature.maine.gov/statutes/32/title32sec12203.html. The law authorizes this fee but does not fix the amount -- the figure comes from the board's own published schedule, so it can change without a rule filing. Agent evidence: 12203: 'The Director of the Office of Professional and Occupational Regulation may establish by rule fees' and 'the fee for any one purpose may not exceed $100' -- no dollar amounts in statute. Board page confirms 'Annual renewal fee $35.00,' 'Annual (September 30),' and 'A late fee of $50.00 is assessed for licenses renewed after the license expiration date.' The OPOR Chapter 10 fee-schedule rule text itself could not be retrieved (SOS rules URLs 404), so the authorizing statute is cited and the amount confirmed on the board document."
     },
     {
       "id": "maryland-renewal-fee",
@@ -233,7 +308,10 @@
       "confidence": "medium",
       "verified_date": "2026-08-14",
       "data_gap_note": "Could not independently confirm the renewal cycle length (annual vs. biennial) from the Board's own site alongside the fee figure.",
-      "verification_history": "2026-08-14 (source_check sweep): labor.maryland.gov fetches cleanly and its fee page states 'Renewal fee: $63' verbatim, live-corroborating the published figure (also 'Reinstatement/reactivation/renewal of expired active license: $126' for the reinstatement dataset's use). The data_gap_note here is a genuine CONTENT gap -- the page does not state the renewal cycle length -- not a tooling artifact, so it stays."
+      "verification_history": "2026-08-14 (source_check sweep): labor.maryland.gov fetches cleanly and its fee page states 'Renewal fee: $63' verbatim, live-corroborating the published figure (also 'Reinstatement/reactivation/renewal of expired active license: $126' for the reinstatement dataset's use). The data_gap_note here is a genuine CONTENT gap -- the page does not state the renewal cycle length -- not a tooling artifact, so it stays.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://dsd.maryland.gov/regulations/Pages/09.24.01.09.aspx. The amount is codified in the rule/statute text cited here. Agent evidence: COMAR 09.24.01.09B: '(4) Renewal fee - $63' and '(12) Firm renewal fee - $151' -- both dollar amounts are codified in the regulation text on the Maryland Division of State Documents site, and the Board's own fee page (labor.maryland.gov/license/cpa/cpaaff.shtml) publishes the same $63/$151, so the two official sources agree on the claimed figures.",
+      "citation_url": "https://dsd.maryland.gov/regulations/Pages/09.24.01.09.aspx",
+      "citation": "COMAR 09.24.01.09B(4) (individual renewal fee) and 09.24.01.09B(12) (firm renewal fee), under fee-setting authority in Md. Code Ann., Bus. Occ. & Prof. 2-311(c)(2)",
+      "fee_basis": "codified"
     },
     {
       "id": "massachusetts-renewal-fee",
@@ -243,7 +321,11 @@
       "fee_notes": "$161 biennial renewal fee, due June 30 (odd or even year per license).",
       "source_url": "https://licensing.reg.state.ma.us/public/dpl_fees/dpl_fees_results.asp?board_code=PA",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://malegislature.gov/Laws/GeneralLaws/PartI/TitleII/Chapter7/Section3B",
+      "citation": "Mass. Gen. Laws ch. 7, 3B (Secretary of Administration and Finance fee-setting authority); amount per Division of Occupational Licensure fee schedule",
+      "fee_basis": "board_schedule",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://malegislature.gov/Laws/GeneralLaws/PartI/TitleII/Chapter7/Section3B. The law authorizes this fee but does not fix the amount -- the figure comes from the board's own published schedule, so it can change without a rule filing. Agent evidence: The $161 is not codified in the accountancy statute or 252 CMR; it is an administratively set fee under M.G.L. c. 7, 3B (secretary 'shall determine the amount to be charged for any other service, registration, regulation, license, fee, permit or other public function') -- statute text verified served. The amount lives on the schedule: the official DOL fee page returns 'CPA Renewal ... 161.00 ... Biennial ... 30-Jun / ODD & EVEN YEAR', confirming $161."
     },
     {
       "id": "michigan-renewal-fee",
@@ -254,7 +336,10 @@
       "source_url": "https://www.michigan.gov/lara/bureau-list/bpl/occ/prof/accountancy/lic-info/license-fees",
       "confidence": "high",
       "verified_date": "2026-08-14",
-      "verification_history": "2026-08-14 (source_check sweep): the gap note claimed the narrative renewal page 'returned an automated-access block'. Re-tested with the new classifier: michigan.gov serves the page to a plain browser-UA fetch (23.5KB of real content) -- the earlier conclusion was the same misdiagnosis class as MA/Utah. The live official fee table states 'Per Year License Fees: ... Individual 100.00', which corroborates the published $200 as one biennial renewal (2 x $100/yr on Michigan's 2-year cycle). Gap note removed; nothing was actually unverifiable."
+      "verification_history": "2026-08-14 (source_check sweep): the gap note claimed the narrative renewal page 'returned an automated-access block'. Re-tested with the new classifier: michigan.gov serves the page to a plain browser-UA fetch (23.5KB of real content) -- the earlier conclusion was the same misdiagnosis class as MA/Utah. The live official fee table states 'Per Year License Fees: ... Individual 100.00', which corroborates the published $200 as one biennial renewal (2 x $100/yr on Michigan's 2-year cycle). Gap note removed; nothing was actually unverifiable.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-338-2211. The amount is codified in the rule/statute text cited here. Agent evidence: MCL 338.2211(1)(b): '(b) License to practice for individuals and firms, per year 100.00'; MCL 339.409(2): if renewals are biennial 'the fee required shall be twice... the per year amount' -- yielding the $200 biennial renewal. The '$20 more if late' is also codified: MCL 338.2206 'The department shall charge a $20.00 late renewal fee.'",
+      "citation_url": "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-338-2211",
+      "citation": "MCL 338.2211(1)(b) (State License Fee Act; license to practice, per year, $100.00), doubled for the biennial cycle per MCL 339.409(2); late fee MCL 338.2206",
+      "fee_basis": "codified"
     },
     {
       "id": "minnesota-renewal-fee",
@@ -264,7 +349,11 @@
       "fee_notes": "$100 per year for active-status renewal (Minn. Stat. § 326A.04, subd. 5); annual renewal due December 31; a separate $50/year delinquency fee applies if late.",
       "source_url": "https://www.revisor.mn.gov/statutes/cite/326A.04",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://www.revisor.mn.gov/statutes/cite/326A.04",
+      "citation": "Minn. Stat. 326A.04, subds. 2, 5(2), 5(6)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.revisor.mn.gov/statutes/cite/326A.04. The amount is codified in the rule/statute text cited here. Agent evidence: Official Revisor page serves full text: subd. 5 lists '(2) renewal of certificate with an active status, $100 per year' and '(6) annual late processing delinquency fee for permit, certificate, or registration renewal applications not received prior to expiration date, $50'; subd. 2(a) sets certificate expiration on December 31. All three claims verified in statute."
     },
     {
       "id": "mississippi-renewal-fee",
@@ -274,7 +363,11 @@
       "fee_notes": "CPA license annual registration fee is $110.00/year; a $150 late fee applies if paid after January 1.",
       "source_url": "https://www.msbpa.ms.gov/fees",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://www.msbpa.ms.gov/sites/accounting/files/Effective%20April%202026%20FINAL%20-%20UPDATED.pdf",
+      "citation": "Miss. Admin. Code Title 30, Part 1, Appendix (Schedule of Fees), Mississippi State Board of Public Accountancy Rules and Regulations (Apr. 2026); authorized by Miss. Code Ann. 73-33-7",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.msbpa.ms.gov/sites/accounting/files/Effective%20April%202026%20FINAL%20-%20UPDATED.pdf. The amount is codified in the rule/statute text cited here. Agent evidence: The statute does NOT codify amounts -- Miss. Code Ann. 73-33-7(2) only requires each licensee to 'register and pay a reasonable annual registration fee in such amount as to be determined by the board' on or before January 1 (note: 73-33-12 is actually peer-review privilege, not fees). The amounts ARE codified in rule text: the Title 30 Part 1 Appendix 'Schedule of Fees' in the board's April 2026 Rules and Regulations PDF lists 'Initial and Annual Registration Fee for Original or Reciprocal License $110' and 'Late Fee (paid after January 1) for Failure to Register $150', matching the board fees page."
     },
     {
       "id": "missouri-renewal-fee",
@@ -284,7 +377,11 @@
       "fee_notes": "Biennial renewal fee is $80.00, per the Board's own official fee schedule.",
       "source_url": "https://pr.mo.gov/accountancy-fees.asp",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://www.sos.mo.gov/cmsimages/adrules/csr/current/20csr/20c2010-2.pdf",
+      "citation": "Mo. Code Regs. tit. 20, 2010-2.160(1)(D) (20 CSR 2010-2.160(1)(D))",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.sos.mo.gov/cmsimages/adrules/csr/current/20csr/20c2010-2.pdf. The amount is codified in the rule/statute text cited here. Agent evidence: Rule text: 'CPA License Fee (biennial renewal) $80.00'; rule states it 'establishes and fixes the fees and charges authorized by Chapter 326, RSMo.' The $80 amount is codified in the CSR (official SOS publication, current compilation), not merely a board-schedule figure as the prose implies -- the board's fee page (pr.mo.gov) lists the same $80.00, so the two official sources agree."
     },
     {
       "id": "montana-renewal-fee",
@@ -294,7 +391,9 @@
       "fee_notes": "Flat $125 annual renewal fee (due December 31); the late fee adds 100% of the base fee.",
       "source_url": "https://boards.bsd.dli.mt.gov/public-accountants/license-information/",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-11",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): no fetchable official host serves this text (JS-only publisher); citation_url left unset. The amount is codified in the rule/statute text cited here. Agent evidence: ARM 24.201.410(1): '(e) Renewal fee for licensee 125' (History: 37-1-134, 37-50-204, MCA; last AMD eff. 12/8/18), and ARM 24.101.403(2): 'The late penalty fee is 100 percent of the license renewal fee, is in addition to the renewal fee' -- matching $125 and the 100% late-fee claim; the board's live page also states 'The fee to timely renew a license is: $125.00 for full active licensees.' The current official ARM publisher (rules.mt.gov, Esper platform) serves only a JS shell to fetchers, so rule text was verified from the prior official mtrules.org publication plus the board's live page."
     },
     {
       "id": "nebraska-renewal-fee",
@@ -305,7 +404,10 @@
       "source_url": "https://nbpa.nebraska.gov/individuals/fee-schedule",
       "confidence": "high",
       "verified_date": "2026-08-14",
-      "verification_history": "2026-08-14 (substance queue, NE): LB718 enacted 2026-02-25, now operative. It changes exam eligibility (150-hour rule dropped), reciprocity, mobility, permit-issuance qualifications, and discipline, and repeals 1-136.04 (an experience-in-lieu-of-degree issuance pathway). It does NOT amend 1-136 (biennial renewal/fees/3-year forfeiture), 1-136.01 (CPE), or 288 NAC ch. 8 -- which was re-adopted 2026-07-25, post-LB718. The 3-year reinstatement window this site publishes is restated unchanged in amended 1-137(9)/1-148(7). No published figure affected."
+      "verification_history": "2026-08-14 (substance queue, NE): LB718 enacted 2026-02-25, now operative. It changes exam eligibility (150-hour rule dropped), reciprocity, mobility, permit-issuance qualifications, and discipline, and repeals 1-136.04 (an experience-in-lieu-of-degree issuance pathway). It does NOT amend 1-136 (biennial renewal/fees/3-year forfeiture), 1-136.01 (CPE), or 288 NAC ch. 8 -- which was re-adopted 2026-07-25, post-LB718. The 3-year reinstatement window this site publishes is restated unchanged in amended 1-137(9)/1-148(7). No published figure affected.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://nebraskalegislature.gov/laws/statutes.php?statute=1-136. The law authorizes this fee but does not fix the amount -- the figure comes from the board's own published schedule, so it can change without a rule filing. Agent evidence: The statute authorizes but does not set the amount: renewal 'upon payment of a biennial renewal fee as established by the board not to exceed three hundred dollars.' The $200 amount is confirmed on the Board's own fee schedule ('Active Permit to Practice - $200', https://nbpa.nebraska.gov/individuals/fee-schedule). 1-136 as served shows no LB718 amendment (latest: LB854, 2024).",
+      "citation_url": "https://nebraskalegislature.gov/laws/statutes.php?statute=1-136",
+      "citation": "Neb. Rev. Stat. 1-136(2)(b) (authorizing; board-set amount)",
+      "fee_basis": "board_schedule"
     },
     {
       "id": "nevada-renewal-fee",
@@ -315,8 +417,12 @@
       "fee_notes": null,
       "source_url": null,
       "confidence": "low",
-      "verified_date": "2026-08-11",
-      "data_gap_note": "No fixed dollar figure is codified -- NRS 628.380 delegates the amount to the Board, and NAC 628.016(3)(g) only caps it at \"not to exceed $200\" annually. The Board's actual current-year fee is not published on an official .gov page that could be confirmed; only third-party aggregators report a figure (~$120-$140), which this site does not use for a final claim."
+      "verified_date": "2026-08-14",
+      "data_gap_note": "No fixed dollar figure is codified -- NRS 628.380 delegates the amount to the Board, and NAC 628.016(3)(g) only caps it at \"not to exceed $200\" annually. The Board's actual current-year fee is not published on an official .gov page that could be confirmed; only third-party aggregators report a figure (~$120-$140), which this site does not use for a final claim.",
+      "citation_url": "https://www.leg.state.nv.us/NAC/NAC-628.html",
+      "citation": "Nev. Rev. Stat. 628.380 (fee set by Board by regulation); Nev. Admin. Code 628.016(3)(g) (cap)",
+      "fee_basis": "board_schedule",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.leg.state.nv.us/NAC/NAC-628.html. The law authorizes this fee but does not fix the amount -- the figure comes from the board's own published schedule, so it can change without a rule filing. Agent evidence: NRS 628.380 codifies no dollar amount -- permits are renewed 'upon payment of an annual renewal fee set by the Board by regulation' -- and NAC 628.016(3)(g) provides: 'A uniform fee for an annual permit or an annual renewal of a permit to practice public accounting will be established by the Board each year. The fee will not exceed $200.' The record's refusal to publish a figure is correct: the amount is board-set year to year and no current-year figure was confirmed on an official page. Both texts served by the Nevada Legislature's official site (NRS-628.html / NAC-628.html)."
     },
     {
       "id": "new-hampshire-renewal-fee",
@@ -326,8 +432,12 @@
       "fee_notes": "Flat $201 fee for individual CPA license \"initial, renewal, or reinstatement,\" per OPLC's own accountancy fee page.",
       "source_url": "https://www.oplc.nh.gov/find-board/board-accountancy/accountancy-license-fees",
       "confidence": "medium",
-      "verified_date": "2026-08-11",
-      "data_gap_note": "RSA 310-A / RSA 310:8 set only the general renewal framework, not the dollar amount -- the figure itself comes from OPLC's administrative fee page, not the codified statute directly."
+      "verified_date": "2026-08-14",
+      "data_gap_note": "RSA 310-A / RSA 310:8 set only the general renewal framework, not the dollar amount -- the figure itself comes from OPLC's administrative fee page, not the codified statute directly.",
+      "citation_url": "https://gc.nh.gov/rules/state_agencies/plc1000.html",
+      "citation": "N.H. Code Admin. R. Plc 1002.01, Table 1002.1 (statutory authority RSA 310:6, I)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://gc.nh.gov/rules/state_agencies/plc1000.html. The amount is codified in the rule/statute text cited here. Agent evidence: The amount is codified in OPLC's administrative rule: Table 1002.1 lists CPA license 'Initial, renewal, or reinstatement after expiration of license -- 2 years -- $201' (source note #14290, eff. 7/1/2025; statutory authority RSA 310:6, I). Confirmed against OPLC's accountancy fee page (oplc.nh.gov, fetched via curl with Chrome headers after an Akamai 403): CPA 'Renewal Fee $201.00'; firm renewal is $66."
     },
     {
       "id": "new-jersey-renewal-fee",
@@ -339,7 +449,10 @@
       "confidence": "high",
       "verified_date": "2026-08-14",
       "data_gap_note": "source_url points directly at the codified rule, which states the figure verbatim: \"3. Triennial registration: $ 135.00\" under (a). The board's own FAQ page was last modified in 2015 and contains no fee figures at all; the codified rule is the stronger primary source.",
-      "verification_history": "2026-08-14 (COPY-6 full-class sweep, extra): dropped \"previously cited here\" / \"used here instead\" -- narration about this record's own citation history, not reader information. For the audit trail: the record formerly cited the board FAQ page (last modified 2015, no fee figures) and now cites the codified rule, which states \"3. Triennial registration: $ 135.00\" verbatim.\n\n2026-08-14 (SRC-1 primary-source repoint): source_url mirror -> primary. Research agent evidence: Official NJ Register fee adoption 50 N.J.R. 1965(a) (eff. 9/4/2018), published by the Division of Consumer Affairs, reprints 13:29-1.5(a): '3. Triennial registration: $ 135.00'. Still current - 13:29 was readopted without amendment effective 11/26/2024 (57 N.J.R. 55(a))."
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, extra): dropped \"previously cited here\" / \"used here instead\" -- narration about this record's own citation history, not reader information. For the audit trail: the record formerly cited the board FAQ page (last modified 2015, no fee figures) and now cites the codified rule, which states \"3. Triennial registration: $ 135.00\" verbatim.\n\n2026-08-14 (SRC-1 primary-source repoint): source_url mirror -> primary. Research agent evidence: Official NJ Register fee adoption 50 N.J.R. 1965(a) (eff. 9/4/2018), published by the Division of Consumer Affairs, reprints 13:29-1.5(a): '3. Triennial registration: $ 135.00'. Still current - 13:29 was readopted without amendment effective 11/26/2024 (57 N.J.R. 55(a)).\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.njconsumeraffairs.gov/Adoptions/accado_09042018.pdf. The amount is codified in the rule/statute text cited here. Agent evidence: The dollar amount appears in the rule text on the DCA's official adoption PDF: '3. Triennial registration: $ 135.00' for CPAs and accounting firms -- exactly matching the $135 triennial claim, with adoption authority cited as N.J.S.A. 45:2B-48. Caveat: this is the 2018 adoption text (the most recent amendment of 13:29-1.5 found); the current N.J.A.C. compilation could not be re-checked because DCA's chapter PDF/.aspx pages are Incapsula-blocked, so a post-2018 amendment cannot be fully excluded.",
+      "citation_url": "https://www.njconsumeraffairs.gov/Adoptions/accado_09042018.pdf",
+      "citation": "N.J.A.C. 13:29-1.5(a)3, adopted eff. Sept. 4, 2018, 50 N.J.R. 1965(a) (authority: N.J.S.A. 45:2B-48)",
+      "fee_basis": "codified"
     },
     {
       "id": "new-mexico-renewal-fee",
@@ -349,7 +462,11 @@
       "fee_notes": "Flat $130 annual renewal fee, due by the licensee's birth month.",
       "source_url": "https://www.rld.nm.gov/boards-and-commissions/individual-boards-and-commissions/accountancy/faqs/",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://www.srca.nm.gov/parts/title16/16.060.0001.html",
+      "citation": "16.60.1.10(D) NMAC",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.srca.nm.gov/parts/title16/16.060.0001.html. The amount is codified in the rule/statute text cited here. Agent evidence: Official SRCA text of 16.60.1.10 NMAC ('FEES AND OBLIGATIONS'), subsection D: 'Certificate application under Section 27B of the act shall be: initial certificate, $175; certificate renewal, $130.' The $130 annual renewal figure is codified in rule; the birth-month due date is established separately at 16.60.3.9(I) NMAC."
     },
     {
       "id": "new-york-renewal-fee",
@@ -359,8 +476,12 @@
       "fee_notes": "Individual CPA \"Re-Registration\" total fee is $292 ($50 continuing-education fee + $242 registration fee) per triennial (3-year) cycle.",
       "source_url": "https://www.op.nysed.gov/sites/op/files/documents/opfeechart.pdf",
       "confidence": "medium",
-      "verified_date": "2026-08-11",
-      "data_gap_note": "The official fee chart PDF is dated as a 2021 revision -- the figure should be spot-checked against a more recent revision if one exists."
+      "verified_date": "2026-08-14",
+      "data_gap_note": "The official fee chart PDF is dated as a 2021 revision -- the figure should be spot-checked against a more recent revision if one exists.",
+      "citation_url": "https://www.nysenate.gov/legislation/laws/EDN/7404",
+      "citation": "N.Y. Educ. Law 7404(1)(8) ($210 triennial registration fee) plus 15% registration surcharge (per NYSED, citing Educ. Law 6502(3)) and $50 mandatory CE fee",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.nysenate.gov/legislation/laws/EDN/7404. The amount is codified in the rule/statute text cited here. Agent evidence: 7404(1)(8) codifies 'a fee of two hundred ten dollars for each triennial registration period'; the OP fee chart (op.nysed.gov/sites/op/files/documents/opfeechart.pdf, fetched) lists CPA re-registration as $242 registration + $50 MCE = $292 and footnotes 'Includes 15% Registration Surcharge Effective September 25, 2009 (Education Law 6502(3))' ($210 x 1.15 = $241.50 -> $242), so the record's $292 matches the department's current publication. Reportable wrinkle: the nysenate.gov text of 6502(3) does not contain the 15% surcharge language the chart cites, and the $50 CE-fee section could not be re-fetched (Cloudflare challenge), so the $292 as-charged rests on the codified $210 base plus the department's published surcharge/CE components rather than a single codified $292."
     },
     {
       "id": "north-carolina-renewal-fee",
@@ -370,7 +491,11 @@
       "fee_notes": "Flat $60 annual individual CPA license renewal fee, due before July 1 each year.",
       "source_url": "https://nccpaboard.gov/resources/fee-schedule/",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "http://reports.oah.state.nc.us/ncac/title%2021%20-%20occupational%20licensing%20boards%20and%20commissions/chapter%2008%20-%20certified%20public%20accountant%20examiners/subchapter%20j/21%20ncac%2008j%20.0101.pdf",
+      "citation": "21 N.C. Admin. Code 08J .0101(b)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to http://reports.oah.state.nc.us/ncac/title%2021%20-%20occupational%20licensing%20boards%20and%20commissions/chapter%2008%20-%20certified%20public%20accountant%20examiners/subchapter%20j/21%20ncac%2008j%20.0101.pdf. The amount is codified in the rule/statute text cited here. Agent evidence: Official OAH-published rule PDF extracted cleanly: '(a) All active CPAs shall renew their certificates annually by the first day of July' and '(b) ... paying the annual renewal fee of $60.' Amount is codified in the rule (authority G.S. 93-12(8)), and the rule was readopted eff. June 1, 2026, so the $60 is current. Minor nuance: rule says due 'by the first day of July' rather than strictly 'before July 1'."
     },
     {
       "id": "north-dakota-renewal-fee",
@@ -380,7 +505,11 @@
       "fee_notes": "Base timely-renewal fee is $85 (April 15-June 30); a date-tiered schedule then rises to $185 if paid July 1-31 (license is involuntarily relinquished after August 1).",
       "source_url": "https://www.ndsba.nd.gov/licensees/cpa-renewal-faq",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://ndlegis.gov/information/acdata/pdf/3-02-02.pdf",
+      "citation": "N.D. Admin. Code 3-02-02-04 (authorizing section; renewal fee set by board, not to exceed $200, plus late filing fee not to exceed $100)",
+      "fee_basis": "board_schedule",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://ndlegis.gov/information/acdata/pdf/3-02-02.pdf. The law authorizes this fee but does not fix the amount -- the figure comes from the board's own published schedule, so it can change without a rule filing. Agent evidence: Rule text: 'The annual renewal fee for every CPA and LPA shall be set by the board but not to exceed two hundred dollars... A CPA or LPA who fails to register or pay the renewal fee by June thirtieth shall pay a late filing fee not to exceed one hundred dollars... If not paid by July thirty-first, the certificate is deemed involuntarily relinquished.' The $85 and $185 amounts are board-set within these caps and confirmed on the board's FAQ ('License Renewal April 15 to June 30 $85.00... July 1 to July 31 $185.00... After August 1 any license not renewed will be involuntarily relinquished'); the April 15 window-open date is board practice, not in the rule."
     },
     {
       "id": "northern-mariana-islands-renewal-fee",
@@ -390,8 +519,12 @@
       "fee_notes": "CNMI Admin. Code § 1-10-1605(b)(2)(i): \"Renewal/annual, Active: one hundred dollars ($100.00)\" for individual certification.",
       "source_url": "https://cnmilaw.org/pdf/admincode/T01/T01-10.pdf",
       "confidence": "medium",
-      "verified_date": "2026-08-11",
-      "data_gap_note": "Several third-party CPA-exam-prep sites claim a $355 triennial fee instead; that figure could not be corroborated in the official code text (which describes an annual, not triennial, cycle) -- using the codified figure, flagging the discrepancy rather than the unverified third-party number."
+      "verified_date": "2026-08-14",
+      "data_gap_note": "Several third-party CPA-exam-prep sites claim a $355 triennial fee instead; that figure could not be corroborated in the official code text (which describes an annual, not triennial, cycle) -- using the codified figure, flagging the discrepancy rather than the unverified third-party number.",
+      "citation_url": "https://cnmilaw.org/pdf/admincode/T01/T01-10.pdf",
+      "citation": "NMIAC (CNMI Admin. Code) 1-10-1605(b)(2)(i)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://cnmilaw.org/pdf/admincode/T01/T01-10.pdf. The amount is codified in the rule/statute text cited here. Agent evidence: Official CNMI Law Revision Commission PDF serves the rule text: under (b) Certification/licensure, '(2) Renewal/annual. (i) Active, one hundred dollars ($100.00).' -- matches the record's quote and $100 figure. Caveat: the section is titled 'Fees, Initially' and 1-10-1601 authorizes the board to adopt updated fee schedules by resolution, so a later board resolution could supersede; no newer board schedule was found in the compiled code (2016 compilation)."
     },
     {
       "id": "ohio-renewal-fee",
@@ -401,7 +534,11 @@
       "fee_notes": "Three-year Ohio Permit Fee: $180 (includes a $30 CPE-assistance-fund surcharge, OAC 4701-17-08), plus a $3.50 processing fee. A CPA holding only Registration (not an active practice permit) instead pays $85 per 3 years.",
       "source_url": "https://acc.ohio.gov/about/fees/fees",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://codes.ohio.gov/ohio-revised-code/section-4701.10",
+      "citation": "Ohio Rev. Code 4701.10(A), (H)(1)(b) (triennial permit fee set by board, cap $150, plus mandatory $30 surcharge); Ohio Admin. Code 4701-17-06 (education assistance surcharge, $30)",
+      "fee_basis": "board_schedule",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://codes.ohio.gov/ohio-revised-code/section-4701.10. The law authorizes this fee but does not fix the amount -- the figure comes from the board's own published schedule, so it can change without a rule filing. Agent evidence: Statute authorizes the permit fee 'in an amount to be determined by the board not to exceed one hundred fifty dollars' plus a surcharge 'of thirty dollars' (surcharge codified); registration fee capped at $55 + $30 surcharge = the $85. The $180/$85/$3.50 amounts confirmed verbatim on the board fee page (acc.ohio.gov/about/fees/fees, fetched via curl: 'ALL LICENSING FEES ARE SUBJECT TO A $3.50 PROCESSING FEE ... Three-year Ohio Permit Fee: $180 ... Three-year Ohio Registration Fee: $85'). Caveat: the record's cite 'OAC 4701-17-08' is stale -- codes.ohio.gov returns 'Number Not Found' for 4701-17-08; the current surcharge rule is OAC 4701-17-06 (effective 12/31/2025), which fixes the $30 amount."
     },
     {
       "id": "oklahoma-renewal-fee",
@@ -411,7 +548,11 @@
       "fee_notes": "$75.00 registration fee for all individual certificate holders ($50 if 65+). A CPA who also holds a Permit to practice public accounting pays an additional $125 Permit Fee ($200/year total for practicing CPAs).",
       "source_url": "https://oklahoma.gov/content/dam/ok/en/oab/documents/registration/OAB%20FORM%20R003%20-%202026%20Individual%20Registration%20Reporting%20Form.pdf",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://www.oscn.net/applications/oscn/DeliverDocument.asp?CiteID=95027",
+      "citation": "Okla. Stat. tit. 59, 15.14(E) (registration fee set by Board) and 15.14A(E) (permit fee cap); amounts per OAB Form R003 (2026) fee schedule",
+      "fee_basis": "board_schedule",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.oscn.net/applications/oscn/DeliverDocument.asp?CiteID=95027. The law authorizes this fee but does not fix the amount -- the figure comes from the board's own published schedule, so it can change without a rule filing. Agent evidence: Dollar amounts are board-set, not codified: 15.14(E) -- 'renewed by payment of a registration renewal fee set by the Board which shall not exceed Two Hundred Dollars ($200.00)'; 15.14(F) mandates the 65+ reduction; 15.14A(E) caps the permit fee at $200. OAB Form R003 (2026, record's source_url) confirms 'Registration Fee $75.00 / $50 (if 65 years of age or older)' and 'Permit Fee $125.00' -- matching $75 and the $200/year total for practicing CPAs."
     },
     {
       "id": "oregon-renewal-fee",
@@ -422,7 +563,10 @@
       "source_url": "https://secure.sos.state.or.us/oard/viewSingleRule.action?ruleVrsnRsn=314982",
       "confidence": "high",
       "verified_date": "2026-08-14",
-      "verification_history": "2026-08-14 (10-state substance queue, OR -- SB797/2025 c.132 repealed ORS 673.040): confirmed the repeal on the legislature's own ORS chapter page ('673.040 [... repealed by 2025 c.132 s37]', licensure restructured into 673.045 ff.). No Oregon record cites ORS 673 directly -- all cite Board OARs -- and the OARs survived: read chapter 801 division 10 in the official OARD (browser session; the OARD serves only a JS shell to fetchers), where 801-010-0110 -- amended by BOA 1-2026, filed 2026-01-29, i.e. POST-restructure -- still states the odd/even license-number June 30 biennial cohorts verbatim, 801-010-0010 lists 'Biennial renewal application fees: (a) Active CPA or PA License -- $255', and 801-010-0130 keeps the reinstatement structure. Substance confirmed current against the post-SB797 rule text. citation_url repointed from oregon.public.law (a third-party mirror that survived SRC-1 because it is not one of the three hosts that sweep matched) to the official OARD division page; the mirror is kept as secondary since the OARD resists non-browser fetchers."
+      "verification_history": "2026-08-14 (10-state substance queue, OR -- SB797/2025 c.132 repealed ORS 673.040): confirmed the repeal on the legislature's own ORS chapter page ('673.040 [... repealed by 2025 c.132 s37]', licensure restructured into 673.045 ff.). No Oregon record cites ORS 673 directly -- all cite Board OARs -- and the OARs survived: read chapter 801 division 10 in the official OARD (browser session; the OARD serves only a JS shell to fetchers), where 801-010-0110 -- amended by BOA 1-2026, filed 2026-01-29, i.e. POST-restructure -- still states the odd/even license-number June 30 biennial cohorts verbatim, 801-010-0010 lists 'Biennial renewal application fees: (a) Active CPA or PA License -- $255', and 801-010-0130 keeps the reinstatement structure. Substance confirmed current against the post-SB797 rule text. citation_url repointed from oregon.public.law (a third-party mirror that survived SRC-1 because it is not one of the three hosts that sweep matched) to the official OARD division page; the mirror is kept as secondary since the OARD resists non-browser fetchers.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://secure.sos.state.or.us/oard/viewSingleRule.action?ruleVrsnRsn=314982. The amount is codified in the rule/statute text cited here. Agent evidence: OAR 801-010-0010(3)(a) lists the biennial renewal fee 'Active CPA or PA License - $255' and subsection (4)(a) sets the late renewal at the same 'Active CPA or PA License - $255', confirming both the amount and the equal late-renewal figure.",
+      "citation_url": "https://secure.sos.state.or.us/oard/viewSingleRule.action?ruleVrsnRsn=314982",
+      "citation": "OAR 801-010-0010(3)(a) (Board of Accountancy fees)",
+      "fee_basis": "codified"
     },
     {
       "id": "pennsylvania-renewal-fee",
@@ -432,7 +576,11 @@
       "fee_notes": "Flat $100.00 biennial renewal fee for individual CPA license.",
       "source_url": "https://www.pa.gov/agencies/dos/department-and-offices/bpoa/boards-commissions/accountancy-board/renewal-information",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/049/chapter11/s11.4.html&d=reduce",
+      "citation": "49 Pa. Code 11.4",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/049/chapter11/s11.4.html&d=reduce. The amount is codified in the rule/statute text cited here. Agent evidence: The State Board of Accountancy fee schedule in 49 Pa. Code 11.4 lists: 'Biennial renewal of license of certified public accountant, public accountant or public accounting firm...$100.' Served on the official Pennsylvania Code & Bulletin site."
     },
     {
       "id": "puerto-rico-renewal-fee",
@@ -443,18 +591,23 @@
       "source_url": "https://nasba.org/licensure/nasbalicensing/puerto-rico-2/",
       "confidence": "low",
       "verified_date": "2026-08-11",
-      "data_gap_note": "Not a .gov page -- the codified 1945 statute (20 L.P.R.A. § 779) separately cites an outdated $50 figure that appears superseded by NASBA's current processing fee; neither source is a current, official Puerto Rico government fee schedule."
+      "data_gap_note": "Not a .gov page -- the codified 1945 statute (20 L.P.R.A. § 779) separately cites an outdated $50 figure that appears superseded by NASBA's current processing fee; neither source is a current, official Puerto Rico government fee schedule.",
+      "fee_basis": "unverifiable",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): no official host serving the text was found this pass; citation_url left unset. No official source publishes the amount in a form we could verify. Agent evidence: The Department of State's own board page confirms the governing law ('Ley #293 de 15 de mayo de 1945, segun enmedada' [sic]) and the delegation: 'Se ha designado al National Association of State Boards of Accountancy (NASBA), para ofrecer los servicios de licencia de CPA, incluyendo las renovaciones' -- but publishes no fee amounts and no link to the statute's text. The $225/$275 figures exist only on NASBA's page (excluded host), and no official PR host serving the Act's text or a fee schedule was found within the fetch budget, so the dollar amount cannot be tied to primary law; the cited URL verifies the delegation and governing-law claim, not statutory text."
     },
     {
       "id": "rhode-island-renewal-fee",
       "state": "Rhode Island",
       "state_slug": "rhode-island",
       "fee_usd": 375,
-      "fee_notes": "Triennial License Renewal Fee: $375.00 -- the statutory maximum under R.I. Gen. Laws § 5-3.1-7(f). 400-RICR-00-00-1 § 1.13.",
+      "fee_notes": "Triennial License Renewal Fee: $375.00 -- the statutory MINIMUM under R.I. Gen. Laws § 5-3.1-7(f). 400-RICR-00-00-1 § 1.13.",
       "source_url": "https://rules.sos.ri.gov/regulations/part/400-00-00-1",
       "confidence": "high",
       "verified_date": "2026-08-14",
-      "verification_history": "2026-08-14 (substance queue, RI): the flagged 2025 chapters 408/409 turn out to be ELECTION law (voting districts; synthetic media in election communications), verified from full text at the legislature's public-laws site. Nothing touches Title 5 ch. 5-3.1 or 400-RICR-00-00-1. The original flag was misattributed; no accountancy overlap exists."
+      "verification_history": "2026-08-14 (substance queue, RI): the flagged 2025 chapters 408/409 turn out to be ELECTION law (voting districts; synthetic media in election communications), verified from full text at the legislature's public-laws site. Nothing touches Title 5 ch. 5-3.1 or 400-RICR-00-00-1. The original flag was misattributed; no accountancy overlap exists.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://rules.sos.ri.gov/regulations/part/400-00-00-1. The amount is codified in the rule/statute text cited here. Agent evidence: rules.sos.ri.gov serves the Sec 1.13 fee table as server-rendered HTML (not a JS shell): 'Triennial License Renewal Fee $375.00' (regulation Active, effective 02/19/2023), so the dollar amount is codified in RICR rule text. 5-3.1-7(f) authorizes the board to set fees 'from time to time' subject to the $375 floor; the record should say statutory minimum/floor, not maximum.\n\n2026-08-14 (SRC-6 correction): the note called $375 'the statutory maximum'. 5-3.1-7(f) sets a FLOOR, not a ceiling: 'In no case shall the three-year (3) renewal fee be less than three hundred seventy-five dollars ($375).' Reversed. The amount itself is codified in 400-RICR-00-00-1 1.13 ('Triennial License Renewal Fee $375.00') and is unchanged.",
+      "citation_url": "https://rules.sos.ri.gov/regulations/part/400-00-00-1",
+      "citation": "400-RICR-00-00-1 Sec 1.13 (Fees); R.I. Gen. Laws 5-3.1-7(f)",
+      "fee_basis": "codified"
     },
     {
       "id": "south-carolina-renewal-fee",
@@ -465,17 +618,24 @@
       "source_url": "https://llr.sc.gov/acct/fees.aspx",
       "confidence": "high",
       "verified_date": "2026-08-14",
-      "verification_history": "2026-08-14 (10-state substance queue, SC FIRST -- Act 34 deletions): re-read the full current chapter at scstatehouse.gov (fetches cleanly, 112KB). 2025 Act No. 34 (eff. 2025-06-30) deleted definitions 40-2-20(18) and (33) -- both now read 'Reserved' -- and made technical corrections in (2)/(23)(b), but the substance sections this record relies on are UNTOUCHED: 40-2-250's and 40-2-255's amendment histories both end at 2022 Act No. 174. Current text confirms our figures verbatim: 250(C) 'forty hours of continuing professional education ... completed during the immediately preceding calendar year'; 250(F) 'a reinstatement fee in the amount of five hundred dollars'; 250(G)(1) 'forty continuing professional education units for each year the license has lapsed' for a lapse under three years. Our citations never pinned the deleted subsections, so no citation change is needed."
+      "verification_history": "2026-08-14 (10-state substance queue, SC FIRST -- Act 34 deletions): re-read the full current chapter at scstatehouse.gov (fetches cleanly, 112KB). 2025 Act No. 34 (eff. 2025-06-30) deleted definitions 40-2-20(18) and (33) -- both now read 'Reserved' -- and made technical corrections in (2)/(23)(b), but the substance sections this record relies on are UNTOUCHED: 40-2-250's and 40-2-255's amendment histories both end at 2022 Act No. 174. Current text confirms our figures verbatim: 250(C) 'forty hours of continuing professional education ... completed during the immediately preceding calendar year'; 250(F) 'a reinstatement fee in the amount of five hundred dollars'; 250(G)(1) 'forty continuing professional education units for each year the license has lapsed' for a lapse under three years. Our citations never pinned the deleted subsections, so no citation change is needed.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.scstatehouse.gov/code/t40c002.php. The law authorizes this fee but does not fix the amount -- the figure comes from the board's own published schedule, so it can change without a rule filing. Agent evidence: The statute (scstatehouse.gov serves full current text incl. 2025 Act No. 34 amendments) does not codify a dollar amount: 40-2-10(D) -- 'Initial fees must be established by the board and shall serve as the basis for necessary adjustments in accordance with Section 40-1-50(D)' -- and 40-2-250(B)(4) requires 'a renewal fee, if any' with renewal, so the amount lives on LLR's schedule, where llr.sc.gov/acct/fees.aspx confirms 'Annual CPA/AP/PA Renewal: $95'. Note 40-2-10(28) sets the 'Renewal due date' as February first of a licensing year -- consistent with (and adding a date to) the record's 'annual' claim.",
+      "citation_url": "https://www.scstatehouse.gov/code/t40c002.php",
+      "citation": "S.C. Code Ann. 40-2-10(D) (board establishes fees, adjusted per 40-1-50(D)); renewal fee required by 40-2-250(B)(4)",
+      "fee_basis": "board_schedule"
     },
     {
       "id": "south-dakota-renewal-fee",
       "state": "South Dakota",
       "state_slug": "south-dakota",
       "fee_usd": 100,
-      "fee_notes": "Annual fee of $100.00 for Active status, per the Board's own July 2026 newsletter -- this supersedes the codified rule (ARSD 20:75:03:12), which cites a stale $50 figure.",
+      "fee_notes": "Annual fee of $100.00 for Active status, codified at ARSD 20:75:03:12: 'The fee for annual renewal submitted on time is one hundred dollars. The late fee for an annual renewal is an additional one hundred dollars.' The same rule fixes the August 1 renewal deadline.",
       "source_url": "https://dlr.sd.gov/accountancy/newsletters/newsletter_july2026.pdf",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://sdlegislature.gov/api/Rules/20:75:03:12.html",
+      "citation": "ARSD 20:75:03:12 (as amended, 52 SDR 125, eff. July 1, 2026)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://sdlegislature.gov/api/Rules/20:75:03:12.html. The amount is codified in the rule/statute text cited here. Agent evidence: The rule was amended effective July 1, 2026 (source note: '52 SDR 125, effective July 1, 2026'), so the $100 Active renewal fee is now codified in the rule under authority of SDCL 36-20B-12; the July 2026 newsletter and the rule agree. Rule also fixes the August 1 renewal deadline. Note the canonical page sdlegislature.gov/Rules/Administrative/20:75:03:12 is a JS shell; the cited api/Rules/20:75:03:12.html endpoint on the same official host serves the full text (verified by fetch).\n\n2026-08-14 (SRC-6 correction): this note said the codified rule 'cites a stale $50 figure' superseded by a board newsletter. No longer true -- ARSD 20:75:03:12 was amended effective 2026-07-01 (source note '52 SDR 125') and now codifies the $100 on-time fee and $100 late fee itself, so rule and newsletter agree and the fee is codified rather than board-schedule. Note the canonical sdlegislature.gov Rules page is a JS shell; the api/Rules/<num>.html endpoint on the same official host serves the text."
     },
     {
       "id": "tennessee-renewal-fee",
@@ -485,7 +645,11 @@
       "fee_notes": "Flat $110 renewal fee (active status); $100 late fee if delinquent.",
       "source_url": "https://www.tn.gov/commerce/regboards/accountancy/license/renewal-requirements.html",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://publications.tnsosfiles.com/rules/0020/0020-01.20240528.pdf",
+      "citation": "Tenn. Comp. R. & Regs. 0020-01-.04(1)(c) (renewal fee) and 0020-01-.08(6) (late fee)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://publications.tnsosfiles.com/rules/0020/0020-01.20240528.pdf. The amount is codified in the rule/statute text cited here. Agent evidence: Rule 0020-01-.04(1)(c): 'Renewal of certificate or registration One hundred ten dollars ($110.00) biennially' -- the $110 is codified in the rule text (authority T.C.A. 62-1-105, 62-1-107). Late fee confirmed at .04(1)(f) and .08(6): licenses 'renewed between thirty-one (31) days and six (6) months following their expiration date will be assessed a late fee in the amount of one-hundred dollars ($100.00)' -- nuance: the $100 attaches only when renewing 31 days to 6 months late, not from day one of delinquency."
     },
     {
       "id": "texas-renewal-fee",
@@ -497,7 +661,8 @@
       "confidence": "medium",
       "verified_date": "2026-08-14",
       "data_gap_note": "$112 is the most recent figure the Board itself has published. We could not confirm whether a further increase took effect on September 1, 2025: TSBPA publishes a news notice for each fee change (2017, 2019 and 2024 all have one) and no 2025 notice exists, but the Board's fee schedule is not independently readable -- the Texas Administrative Code host has migrated to a portal we could not retrieve 22 TAC 521.1 from, and tsbpa.texas.gov blocks automated requests. Treat $112 as the last confirmed rate rather than a guaranteed current one.",
-      "verification_history": "2026-08-14 (CITE-21 #1): corrected fee_usd 118 -> 112. The record claimed a flat $118 effective 2025-09-01, but its own cited source -- the Board's 'Individual License Fee Increase' notice, dated August 12, 2024 -- says the fee rises from $97 to $112 effective September 1, 2024 and never mentions $118. Checked for a later basis and found none: no 2025 fee-increase news item on tsbpa.texas.gov, no fee change in the May 2025 board minutes, no $118 or $112 in the FY2025 annual financial report, and a web-wide search for TSBPA + \"$118\" individual license fee returns zero results. 22 TAC 521.1 could not be read directly: texreg.sos.state.tx.us has migrated to an Appian portal. $118 appears to have been unsourced. Downgraded confidence high -> medium and added a data_gap_note rather than substituting a second guess."
+      "verification_history": "2026-08-14 (CITE-21 #1): corrected fee_usd 118 -> 112. The record claimed a flat $118 effective 2025-09-01, but its own cited source -- the Board's 'Individual License Fee Increase' notice, dated August 12, 2024 -- says the fee rises from $97 to $112 effective September 1, 2024 and never mentions $118. Checked for a later basis and found none: no 2025 fee-increase news item on tsbpa.texas.gov, no fee change in the May 2025 board minutes, no $118 or $112 in the FY2025 annual financial report, and a web-wide search for TSBPA + \"$118\" individual license fee returns zero results. 22 TAC 521.1 could not be read directly: texreg.sos.state.tx.us has migrated to an Appian portal. $118 appears to have been unsourced. Downgraded confidence high -> medium and added a data_gap_note rather than substituting a second guess.\n\n2026-08-14 (SRC-6 primary-citation sweep): no official host serving the text was found this pass; citation_url left unset. The law authorizes this fee but does not fix the amount -- the figure comes from the board's own published schedule, so it can change without a rule filing. Agent evidence: The $112 is board-set, not codified: TSBPA's own announcement states 'Effective September 1, 2024, the annual individual license fee will increase from $97 to $112,' including the $10 scholarship component, set from 'the Board's projected revenue, expenditures, and fund balances' -- confirming the record including its prior 118->112 correction. The authorizing-statute URL is official but statutes.capitol.texas.gov now serves only a JS SPA shell to fetchers (text renders in-browser only), so the section text could not be re-quoted this pass.",
+      "fee_basis": "board_schedule"
     },
     {
       "id": "us-virgin-islands-renewal-fee",
@@ -508,7 +673,9 @@
       "source_url": "https://dlca.vi.gov/boardcertifications/steps/cparequirements/",
       "confidence": "medium",
       "verified_date": "2026-08-11",
-      "data_gap_note": "Sourced from the Board's own web page content, not a downloadable fee-schedule PDF or codified rule."
+      "data_gap_note": "Sourced from the Board's own web page content, not a downloadable fee-schedule PDF or codified rule.",
+      "fee_basis": "unverifiable",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): no official host serving the text was found this pass; citation_url left unset. No official source publishes the amount in a form we could verify. Agent evidence: The board's own page confirms the figures ('CPA Permit $135.00'; 'a delinquent fee of $25 per month up to a maximum of $600... after August 31'; individual permit window 'July 1 to August 31'), but no official host serving the underlying V.I. Code text could be found (legislature/DLCA publish no code text; Lexis is the sole publisher), so whether $135 is codified in Title 27 or board-set cannot be honestly determined."
     },
     {
       "id": "utah-renewal-fee",
@@ -518,7 +685,11 @@
       "fee_notes": "Flat $63 CPA renewal fee (CPA firm renewal is separately $52); no late fee amount stated on this page.",
       "source_url": "https://commerce.utah.gov/dopl/accountancy/renew-a-license/",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://le.utah.gov/xcode/Title58/Chapter1/C58-1-S308_2024050120240501.html",
+      "citation": "Utah Code 63J-1-504 (department-set fee schedule; see Utah Code 58-1-301(1)(b)(iv), 58-1-308); amount per DOPL fee schedule",
+      "fee_basis": "board_schedule",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://le.utah.gov/xcode/Title58/Chapter1/C58-1-S308_2024050120240501.html. The law authorizes this fee but does not fix the amount -- the figure comes from the board's own published schedule, so it can change without a rule filing. Agent evidence: The $63 is not codified: DOPL fees are 'determined by the department under Section 63J-1-504' (operative language verified in Utah Code 58-1-308(5)(a)(i) at the cited le.utah.gov content URL; the canonical 58-1-S301/S308 pages are JS shells, but this versioned content URL serves the statutory text). The $63 CPA / $52 firm amounts are confirmed on the board's own renewal page ('Renewal Fees -- CPA: $63 | CPA Firm: $52'), which is the correct home for a department-set fee."
     },
     {
       "id": "vermont-renewal-fee",
@@ -528,18 +699,25 @@
       "fee_notes": "Flat $255 biennial renewal fee for Certified Public Accountant (Reg #001), renews July 31 of odd years, per OPR's official statewide fee schedule.",
       "source_url": "https://outside.vermont.gov/dept/sos/office_professional_regulation/general/initial_licensing_renewal_fees_dates_90-day_licensing_policy.pdf",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://legislature.vermont.gov/statutes/section/26/001/00056",
+      "citation": "26 V.S.A. 56(2)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://legislature.vermont.gov/statutes/section/26/001/00056. The amount is codified in the rule/statute text cited here. Agent evidence: The $255 is codified in statute, not merely on the OPR schedule: 26 V.S.A. 56 -- 'Applicants and persons regulated under this chapter shall pay the following fees: ... (2) Biennial renewal of license $255.00' (last amended 2023, No. 77, 18). The OPR fee schedule PDF (updated 7/1/2025, source_url) agrees: '001 - Certified Public Accountant $255' renewal, 'July 31st of odd Years'; no disagreement. Prose attributes the fee to the OPR schedule, but the primary basis is codified 56(2) -- 3 V.S.A. 125 does not apply because accountancy fees sit in their own Title 26 chapter."
     },
     {
       "id": "virginia-renewal-fee",
       "state": "Virginia",
       "state_slug": "virginia",
       "fee_usd": 60,
-      "fee_notes": "Flat $60 renewal fee, plus a $25 processing fee if paying by check; no late fee, but a $350 non-refundable fee applies to reinstate an expired license.",
+      "fee_notes": "Flat $60 renewal fee, plus a $25 processing fee if paying by check; a $100 additional fee if the renewal is not timely, and a $350 non-refundable fee to reinstate an expired license -- all three codified in 18VAC5-22-20(A).",
       "source_url": "https://boa.virginia.gov/individual-cpas/renew/",
       "confidence": "high",
       "verified_date": "2026-08-14",
-      "verification_history": "2026-08-14 (substance queue, VA): Register item 12184 is VA.R. Doc. R25-8223, a Board of Accountancy PROPOSED regulatory action (comment closed 2026-03-27, no final stage, not effective -- law.lis.virginia.gov still serves pre-amendment text). It would amend 18VAC5-22-20 (fees) and 18VAC5-22-180 (renewal/reinstatement), both cited here, but the proposed text keeps every published figure: '$60' timely renewal, '$350' reinstatement, 'shall annually renew his license on or before June 30'. The only substantive fee change is eliminating the re-exam fee, which this site does not publish. WATCH: re-check when a final stage publishes with an effective date."
+      "verification_history": "2026-08-14 (substance queue, VA): Register item 12184 is VA.R. Doc. R25-8223, a Board of Accountancy PROPOSED regulatory action (comment closed 2026-03-27, no final stage, not effective -- law.lis.virginia.gov still serves pre-amendment text). It would amend 18VAC5-22-20 (fees) and 18VAC5-22-180 (renewal/reinstatement), both cited here, but the proposed text keeps every published figure: '$60' timely renewal, '$350' reinstatement, 'shall annually renew his license on or before June 30'. The only substantive fee change is eliminating the re-exam fee, which this site does not publish. WATCH: re-check when a final stage publishes with an effective date.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section20/. The amount is codified in the rule/statute text cited here. Agent evidence: Codified: 'Processing an application for the timely renewal of a person's Virginia license... $60'; '$25' is codified as the 'Additional fee for not using the online payment option' (the board's renew page frames it as the pay-by-check fee -- consistent); reinstatement $350 codified. Pending proposed action VA.R. Doc. R25-8223 (Register item 12184) amends 18VAC5-22 but leaves the $60 renewal fee unchanged and is not yet adopted, so the current codified text controls.\n\n2026-08-14 (SRC-6 correction): the note said 'no late fee'. 18VAC5-22-20(A) codifies one: 'Additional fee for processing an application for the renewal of a person's Virginia license that is not timely $100'. Corrected. The $25 is codified as the not-using-online-payment fee (the board page frames it as pay-by-check, consistent).",
+      "citation_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section20/",
+      "citation": "18 Va. Admin. Code 5-22-20(A) (18VAC5-22-20)",
+      "fee_basis": "codified"
     },
     {
       "id": "washington-renewal-fee",
@@ -549,7 +727,11 @@
       "fee_notes": "Flat $230 renewal fee; $100 late fee if submitted May 1-June 30.",
       "source_url": "https://acb.wa.gov/individual-licensing/renewal",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://app.leg.wa.gov/wac/default.aspx?cite=4-30-038",
+      "citation": "WAC 4-30-038(2), (6) (board fee schedule adopted under RCW 18.04.065)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://app.leg.wa.gov/wac/default.aspx?cite=4-30-038. The amount is codified in the rule/statute text cited here. Agent evidence: WAC 4-30-038: '(2) Renewal of individual license, CPA firm license ... or registration as a resident nonlicensee firm owner . . . . $230' and '(6) Late fee* . . . . $100', confirming both figures; the May 1-June 30 late window derives from WAC 4-30-094 (late fees after April 30, lapse after June 30). RCW 18.04.065 is the authorizing statute but the dollar amounts are codified in the rule itself."
     },
     {
       "id": "west-virginia-renewal-fee",
@@ -560,17 +742,24 @@
       "source_url": "https://www.boa.wv.gov/www/download_resource.asp?id=55",
       "confidence": "high",
       "verified_date": "2026-08-14",
-      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): source_url mirror -> primary. Research agent evidence: W. Va. C.S.R. Sec. 1-1-18.2.c in the board's own current 1CSR1 publication: 'An annual certificate renewal fee of eighty-five dollars ($85.00).' Renewal deadline is June 30 annually (Sec. 7.1).\n\n2026-08-14 (substance queue, WV): HB4088 enacted (Ch. 256), effective 2026-05-24. Section-by-section read of the enrolled text: it updates definitions, credential pathways, substantial-equivalency privileges, and unlawful acts (30-9-2/5/7/8/10/11/16/26) but does not amend 30-9-12 (renewal), 30-9-17 (firm registration), or any CSR provision; 30-9-7's 'expire on June 30 following the date of issue' survives unmodified. No published figure affected."
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): source_url mirror -> primary. Research agent evidence: W. Va. C.S.R. Sec. 1-1-18.2.c in the board's own current 1CSR1 publication: 'An annual certificate renewal fee of eighty-five dollars ($85.00).' Renewal deadline is June 30 annually (Sec. 7.1).\n\n2026-08-14 (substance queue, WV): HB4088 enacted (Ch. 256), effective 2026-05-24. Section-by-section read of the enrolled text: it updates definitions, credential pathways, substantial-equivalency privileges, and unlawful acts (30-9-2/5/7/8/10/11/16/26) but does not amend 30-9-12 (renewal), 30-9-17 (firm registration), or any CSR provision; 30-9-7's 'expire on June 30 following the date of issue' survives unmodified. No published figure affected.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.boa.wv.gov/www/download_resource.asp?id=55. The amount is codified in the rule/statute text cited here. Agent evidence: Board's published legislative rule (1CSR1, eff. 3/29/2024, authority W. Va. Code 30-9-5): 18.2.c -- 'An annual certificate renewal fee of eighty-five dollars ($85.00)'; 18.2.f -- 'All renewals postmarked after the annual renewal deadline date of June 30 are subject to an additional late filing fee of fifty dollars ($50.00).' URL serves the PDF to curl with a browser UA (plain WebFetch 404s). Caveat: HB4088 (eff. 2026-05-24) amended ch. 30 statute sections; the board still publishes this 2024 rule as current, and per the board-wins rule its publication governs.",
+      "citation_url": "https://www.boa.wv.gov/www/download_resource.asp?id=55",
+      "citation": "W. Va. Code R. 1-1-18.2.c (late fee: 1-1-18.2.f)",
+      "fee_basis": "codified"
     },
     {
       "id": "wisconsin-renewal-fee",
       "state": "Wisconsin",
       "state_slug": "wisconsin",
       "fee_usd": 43,
-      "fee_notes": "Flat $43 renewal fee (Reg Type 1, Certified Public Accountant), $68 with the late fee; renews December 14 of odd years, per DSPS's official statewide Renewal Dates and Fees schedule.",
+      "fee_notes": "Flat $43 renewal fee (Reg Type 1, Certified Public Accountant), $68 with the late fee; renews December 15 of odd-numbered years per Wis. Stat. 440.08(2)(a)1., the codified date -- DSPS's own fee schedule still prints 12/14, one day earlier; renew by the 14th and either is satisfied.",
       "source_url": "https://dsps.wi.gov/Credentialing/Renewal/RenewalDatesFees.pdf",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://docs.legis.wisconsin.gov/statutes/statutes/440/i/03",
+      "citation": "Wis. Stat. 440.03(9)(a) (department-determined fee; amount on DSPS Renewal Dates and Fees schedule); renewal date: Wis. Stat. 440.08(2)(a)1.",
+      "fee_basis": "board_schedule",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://docs.legis.wisconsin.gov/statutes/statutes/440/i/03. The law authorizes this fee but does not fix the amount -- the figure comes from the board's own published schedule, so it can change without a rule filing. Agent evidence: No dollar amount is codified: 440.03(9)(a) directs that 'the department shall, biennially, determine each fee for an initial credential..., for a reciprocal credential, and, subject to s. 440.08(2)(a), for a credential renewal', so $43/$68 lives on the DSPS statewide schedule (Reg Type 1 confirmed on dsps.wi.gov/Credentialing/Renewal/RenewalDatesFees.pdf). Flagging the Dec 14 vs Dec 15 discrepancy between the amended statute and the still-published DSPS schedule for follow-up.\n\n2026-08-14 (SRC-6 correction): two official Wisconsin sources disagree. Wis. Stat. 440.08(2)(a)1. as amended (history incl. 2025 a. 17, 129) reads 'Accountant, certified public: December 15 of each odd-numbered year'; DSPS's published Renewal Dates and Fees PDF still prints 12/14/odd year. The legislature's text is the newer publication and is what the cpa_deadlines records already publish (with the Dec-14 caveat) -- this fee record's prose was the only place still asserting Dec 14 outright. Aligned, and the discrepancy is now stated for the reader rather than resolved silently."
     },
     {
       "id": "wyoming-renewal-fee",
@@ -580,7 +769,11 @@
       "fee_notes": "Flat $190 renewal fee for Active certificate status (Inactive $80, Retired age 65+ one-time $50); no late fee stated.",
       "source_url": "https://cpaboard.wyo.gov/individuals/current-cpas/individual-renewal",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "citation_url": "https://drive.google.com/uc?export=download&id=17T28QT9V6Pv32Ek1PKdkbU1DZ6-OmSDj",
+      "citation": "Wyo. Bd. of Certified Public Accountants Rules, ch. 1, Sec 13(b) (eff. 10/28/2019); authorizing statute Wyo. Stat. 33-3-109(d)",
+      "fee_basis": "codified",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://drive.google.com/uc?export=download&id=17T28QT9V6Pv32Ek1PKdkbU1DZ6-OmSDj. The amount is codified in the rule/statute text cited here. Agent evidence: Chapter 1 Sec 13(b) rule text (PDF fetched and extracted): '(iv) Active Status Renewal: $190.00', '(v) Inactive Renewal: $80.00', '(vi) Retired Status (one-time): $50.00' -- all three figures match, and the schedule lists no certificate late fee (only 'Activate From Expired Status: $300.00'), consistent with 'no late fee stated.' Statutory basis verified from the wyoleg.gov Title 33 PDF: 33-3-109(d) 'There shall be a reasonable annual certificate fee to be established by board rules in accordance with W.S. 33-1-201,' so the amount is codified in duly-adopted board rule rather than statute. Caveat: the rule PDF is the board's own publication but is hosted via a Google Drive link on https://cpaboard.wyo.gov/statute-rules; the official rules.wyo.gov publisher is a JS shell that would not serve the text to a fetcher."
     }
   ]
 }

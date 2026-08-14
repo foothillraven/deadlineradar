@@ -17836,9 +17836,20 @@ def _renewal_fee_html(state_slug: str, renewal_fees_by_slug: dict[str, dict]) ->
         if record["confidence"] != "high"
         else ""
     )
+    # SRC-6 (2026-08-14): renewal_fees now carries citation/citation_url like
+    # the other three datasets. When present, the fee line links the actual
+    # rule text -- the same read-the-rule affordance every other figure on
+    # the site already has. Absent (record not yet upgraded), renders exactly
+    # as before.
+    cite_link = ""
+    if record.get("citation_url") and record.get("citation"):
+        cite_link = (
+            f' <a class="cite-link" href="{http_href(record["citation_url"])}" '
+            f'title="{esc(record["citation"])}">read the rule &rarr;</a>'
+        )
     return (
         f'<p class="backlink-cross"><strong>Renewal fee:</strong> ${record["fee_usd"]:,}. '
-        f'{esc(record["fee_notes"])}{confidence_note}</p>'
+        f'{esc(record["fee_notes"])}{cite_link}{confidence_note}</p>'
     )
 
 

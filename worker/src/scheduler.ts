@@ -49,6 +49,8 @@ import {
   type DigestItem,
   buildAdminDigestEmail,
   type AdminDigestItem,
+  buildNewsletterDigestEmail,
+  type NewsletterDigestItem,
 } from "./emails";
 import {
   DEFAULT_DAILY_SEND_CAP,
@@ -68,6 +70,8 @@ import {
   checkAndCountSmsSend,
   DEFAULT_DAILY_ADMIN_DIGEST_SEND_CAP,
   checkAndCountAdminDigestSend,
+  DEFAULT_DAILY_NEWSLETTER_SEND_CAP,
+  checkAndCountNewsletterSend,
   sendViaSendGrid,
 } from "./sender";
 import { sendToSlack } from "./slack";
@@ -1881,6 +1885,165 @@ export async function runAdminDigestAlertPass(env: Env, opts: RunAdminDigestAler
       }
       summary.errors.push({ firm_id: firm.id, error: `unexpected error: ${String(err)}` });
     }
+  }
+
+  return summary;
+}
+
+// ---------------------------------------------------------------------------
+// Compliance-news newsletter (roadmap #124, 2026-08-13, Devin: "Good to
+// build 2"). A NEW public list (own table, own tokens -- store.ts's
+// newsletter_subscribers, migration 0066), unrelated to any subscriber's own
+// renewal deadline. Same daily-cron trigger as every other independent pass
+// in this file (index.ts's scheduled()), but a MONTHLY-cadence send, not a
+// daily one -- gated here, inside the pass itself, on newsletter_digest_state
+// (a singleton row), the same "the pass decides its own cadence, not the
+// cron dispatcher" shape runDigestPass()'s per-subscriber weekly window
+// already uses, just for one shared piece of content instead of N personal
+// ones.
+//
+// Content selection reuses isEmailableRuleChangeEvent() VERBATIM -- the
+// exact same safety filter (ENACTED status, not needs_reverification, has a
+// real effective_date, upcoming) that already gates the firm rule-change
+// admin alert. This pass adds no new judgment about which events are safe
+// to assert as fact in an email; it only decides WHICH of the already-safe
+// events haven't been reported yet (via last_included_event_ids) and
+// whether there's enough real content to justify a send at all -- see
+// buildNewsletterDigestEmail()'s own refusal to build an empty issue.
+// ---------------------------------------------------------------------------
+
+const NEWSLETTER_DIGEST_MIN_INTERVAL_DAYS = 27;
+const NEWSLETTER_DIGEST_MAX_ITEMS = 12;
+
+export interface ComplianceNewsletterSummary {
+  dueForSend: boolean;
+  candidateEvents: number;
+  itemsIncluded: number;
+  subscribersChecked: number;
+  sent: number;
+  errors: { subscriber_id: string; error: string }[];
+  skippedReason?: string;
+}
+
+function newsletterCap(env: Env): number {
+  return resolveDailySendCap(env.NEWSLETTER_DAILY_SEND_CAP, DEFAULT_DAILY_NEWSLETTER_SEND_CAP);
+}
+
+export async function runComplianceNewsletterPass(
+  env: Env,
+  opts: RunReminderOptions = {}
+): Promise<ComplianceNewsletterSummary> {
+  const send: ReminderSendFn =
+    opts.send ??
+    ((to, built) => {
+      if (!env.SENDGRID_API_KEY) return Promise.resolve(false);
+      return sendViaSendGrid(env.SENDGRID_API_KEY, to, built, env.EMAIL_ALLOWLIST);
+    });
+  const asOf = opts.asOf ?? new Date();
+
+  const summary: ComplianceNewsletterSummary = {
+    dueForSend: false,
+    candidateEvents: 0,
+    itemsIncluded: 0,
+    subscribersChecked: 0,
+    sent: 0,
+    errors: [],
+  };
+
+  const state = await store.getNewsletterDigestState(env.DB);
+  if (state.last_sent_at) {
+    const daysSinceLastSend = (asOf.getTime() - new Date(state.last_sent_at).getTime()) / 86_400_000;
+    if (daysSinceLastSend < NEWSLETTER_DIGEST_MIN_INTERVAL_DAYS) {
+      summary.skippedReason = `not due -- last sent ${daysSinceLastSend.toFixed(1)}d ago, interval is ${NEWSLETTER_DIGEST_MIN_INTERVAL_DAYS}d`;
+      return summary;
+    }
+  }
+  summary.dueForSend = true;
+
+  let alreadyIncluded: string[];
+  try {
+    const parsed: unknown = JSON.parse(state.last_included_event_ids);
+    alreadyIncluded = Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    alreadyIncluded = [];
+  }
+  const alreadyIncludedSet = new Set(alreadyIncluded);
+
+  const candidates = upcomingRuleChangeEvents().filter((e) => !alreadyIncludedSet.has(e.event_id));
+  summary.candidateEvents = candidates.length;
+
+  // Never manufacture filler -- a content-free month simply doesn't send,
+  // and does NOT update newsletter_digest_state, so the next day's cron
+  // tries again rather than waiting a further full interval for nothing.
+  if (candidates.length === 0) {
+    summary.skippedReason = "due, but no new emailable events since the last issue -- not sending an empty digest";
+    return summary;
+  }
+
+  const sorted = [...candidates].sort((a, b) => a.effective_date.localeCompare(b.effective_date));
+  const selected = sorted.slice(0, NEWSLETTER_DIGEST_MAX_ITEMS);
+  const staticBase = staticSiteAbsoluteBaseUrl(env);
+  const detailUrl = `${staticBase}/rule-changes/`;
+
+  const items: NewsletterDigestItem[] = [];
+  for (const e of selected) {
+    // AuditLab-style discipline carried forward: a summary-less event isn't
+    // publishable content even if it passed the ENACTED/not-reverification
+    // filter above -- summary_public is optional on the underlying type
+    // (admin alerts don't require it since the admin already sees full
+    // context on the dashboard), but this digest IS the full context a
+    // reader gets, so skip rather than print an empty line.
+    if (!e.summary_public) continue;
+    items.push({
+      jurisdiction: stateNameForSlug(e.jurisdiction_slug) ?? e.jurisdiction,
+      topic: e.topic ?? "practice/license rule change",
+      summary: e.summary_public,
+      effectiveDate: e.effective_date || null,
+      citation: e.citation ?? null,
+      citationUrl: e.citation_url ?? null,
+      detailUrl,
+    });
+  }
+  summary.itemsIncluded = items.length;
+
+  if (items.length === 0) {
+    summary.skippedReason = "due, had candidate events, but none had a publishable summary -- not sending";
+    return summary;
+  }
+
+  const cap = newsletterCap(env);
+  const subscribers = await store.listConfirmedNewsletterSubscribers(env.DB);
+  summary.subscribersChecked = subscribers.length;
+
+  let capReached = false;
+  for (const subscriber of subscribers) {
+    if (capReached) break;
+    try {
+      const underCap = await checkAndCountNewsletterSend(env.DB, cap);
+      if (!underCap) {
+        capReached = true;
+        summary.errors.push({ subscriber_id: subscriber.id, error: "SKIPPED: daily newsletter send cap reached." });
+        continue;
+      }
+      const unsubscribeUrl = `${actionBaseUrl(env)}/newsletter/unsubscribe?token=${encodeURIComponent(subscriber.unsubscribe_token)}`;
+      const built = buildNewsletterDigestEmail(items, unsubscribeUrl);
+      const ok = await send(subscriber.email, built);
+      if (ok) {
+        summary.sent += 1;
+      } else {
+        summary.errors.push({ subscriber_id: subscriber.id, error: "send returned false" });
+      }
+    } catch (err) {
+      summary.errors.push({ subscriber_id: subscriber.id, error: `unexpected error: ${String(err)}` });
+    }
+  }
+
+  // Only mark the issue "sent" if it genuinely was -- a run that hit the
+  // cap partway through, or every send call failed, must not advance
+  // last_sent_at/last_included_event_ids, so the next day's cron retries
+  // the SAME content rather than skipping it forever.
+  if (summary.sent > 0) {
+    await store.recordNewsletterDigestSent(env.DB, [...alreadyIncluded, ...selected.map((e) => e.event_id)]);
   }
 
   return summary;

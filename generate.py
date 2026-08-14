@@ -6535,6 +6535,20 @@ way every date on this site is: a citation to the primary statute or rule where 
 and clearly labelled where we could only confirm it against the board's own page, never a guess.
 {monitoring_note}</p>
 
+<div class="remind-panel" id="newsletter">
+  <div>
+    <h2>Get this as a monthly email instead</h2>
+    <p class="remind-copy">A periodic roundup of real, sourced changes like the ones below &mdash;
+    no account, no spam, unsubscribe in one click any time.</p>
+  </div>
+  <form method="post" action="{esc(REMINDER_BACKEND_BASE_URL)}/newsletter/subscribe">
+    {_BOT_DEFENSE_FIELDS_HTML}
+    <label for="newsletter-email">Your email</label>
+    <input type="email" id="newsletter-email" name="email" required placeholder="you@example.com">
+    <button type="submit">Get the compliance-news digest &rarr;</button>
+  </form>
+</div>
+
 <h2>Upcoming changes ({len(upcoming)})</h2>
 <p class="rc-section-note">A dated, signed change that hasn't taken effect yet.</p>
 {upcoming_html}

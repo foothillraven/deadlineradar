@@ -236,6 +236,28 @@ export async function checkAndCountAdminDigestSend(db: D1Database, cap: number):
   return (result.meta.changes ?? 0) > 0;
 }
 
+/** Roadmap #124 (2026-08-13): compliance-news newsletter's own independent
+ * daily circuit breaker, same identical shape as every cap above -- against
+ * its own `newsletter_send_counters` table (migration 0066), so a bug in
+ * this brand-new send path can never compete with reminder/action/digest
+ * budget, even indirectly. Confirmation-email sends AND the monthly digest
+ * fan-out both spend from this same counter -- they're the same list's
+ * mail, not two independent budgets. */
+export const DEFAULT_DAILY_NEWSLETTER_SEND_CAP = 300;
+
+export async function checkAndCountNewsletterSend(db: D1Database, cap: number): Promise<boolean> {
+  if (cap <= 0) return false; // AuditLab CAP-1 -- see checkAndCountSend()'s own comment
+  const day = todayUtc();
+  const result = await db
+    .prepare(
+      `INSERT INTO newsletter_send_counters (day, count) VALUES (?1, 1)
+       ON CONFLICT(day) DO UPDATE SET count = count + 1 WHERE count < ?2`
+    )
+    .bind(day, cap)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
 /**
  * Case-insensitive, trimmed membership check against a comma-separated
  * allowlist string (env.EMAIL_ALLOWLIST). Returns null when `raw` is

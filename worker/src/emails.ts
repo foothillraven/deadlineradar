@@ -2216,3 +2216,166 @@ export function buildFeatureIdeaShippedEmail(ideaTitle: string, unsubscribeUrl: 
 
   return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
 }
+
+// ---------------------------------------------------------------------------
+// Compliance-news newsletter (roadmap #124, 2026-08-13). A NEW public list,
+// unrelated to any one person's own renewal deadline -- own footer copy
+// (htmlFooter()/textFooter() above both describe the reminder relationship,
+// which is wrong here), own confirm/unsubscribe token pair (store.ts's
+// newsletter_subscribers table), same double-opt-in + CAN-SPAM-clean
+// one-click-unsubscribe shape every other list in this file already uses.
+// ---------------------------------------------------------------------------
+
+function newsletterFooter(unsubscribeUrl: string, addr: string, html: boolean): string {
+  if (html) {
+    return (
+      `<p class="dr-muted" style="font-size:12px;color:${LIGHT.muted};line-height:1.6;margin:0 0 10px;">` +
+      `You're getting this because you signed up for ${esc(SITE_NAME)}'s compliance-news digest. This ` +
+      `is a separate list from renewal reminders &mdash; unsubscribing here does not affect any ` +
+      `renewal reminder you may also have set up.</p>` +
+      `<p style="font-size:13px;margin:0 0 10px;">${textLink(unsubscribeUrl, "Unsubscribe")}</p>` +
+      `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+    );
+  }
+  return (
+    `\n\n---\n` +
+    `You're getting this because you signed up for ${SITE_NAME}'s compliance-news digest. This is a ` +
+    `separate list from renewal reminders -- unsubscribing here does not affect any renewal reminder ` +
+    `you may also have set up.\n\n` +
+    `Unsubscribe any time, instantly: ${unsubscribeUrl}\n\n` +
+    `${SENDER_LINE}\n${addr}`
+  );
+}
+
+export function buildNewsletterConfirmationEmail(confirmUrl: string, unsubscribeUrl: string): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `Confirm your ${SITE_NAME} compliance-news subscription`;
+
+  const textBody =
+    `Hi there,\n\n` +
+    `Someone (hopefully you) asked to receive ${SITE_NAME}'s compliance-news digest -- a periodic ` +
+    `roundup of real, sourced CPA license-renewal and practice-mobility law changes across states, ` +
+    `drawn from the same verified dataset this site publishes. Please confirm this is really your ` +
+    `inbox before we send anything else:\n\n${confirmUrl}\n\n` +
+    `If you don't click that link, we will never email you again -- nothing else happens ` +
+    `automatically. This list is separate from renewal reminders; confirming it does not sign you up ` +
+    `to track any license deadline.` +
+    `${newsletterFooter(unsubscribeUrl, addr, false)}`;
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `Confirm your subscription</h1>` +
+      p(
+        `Hi there,<br><br>Someone (hopefully you) asked to receive ${esc(SITE_NAME)}'s compliance-news ` +
+          `digest &mdash; a periodic roundup of real, sourced CPA license-renewal and practice-mobility ` +
+          `law changes across states, drawn from the same verified dataset this site publishes. Please ` +
+          `confirm this is really your inbox before we send anything else.`
+      ) +
+      `<p style="margin:0 0 20px;">${button(confirmUrl, "Confirm my email")}</p>` +
+      p(
+        "If you don't click that button, we will never email you again &mdash; nothing else happens " +
+          "automatically. This list is separate from renewal reminders; confirming it does not sign " +
+          "you up to track any license deadline.",
+        13,
+        LIGHT.muted
+      ),
+    newsletterFooter(unsubscribeUrl, addr, true)
+  );
+
+  return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
+}
+
+export interface NewsletterDigestItem {
+  jurisdiction: string;
+  topic: string;
+  summary: string;
+  effectiveDate: string | null;
+  citation: string | null;
+  citationUrl: string | null;
+  detailUrl: string;
+}
+
+/**
+ * The monthly digest itself -- one shared message, sent to every confirmed
+ * subscriber (per-recipient `unsubscribeUrl` supplied by the caller, same
+ * shape buildFeatureIdeaShippedEmail() above already uses for its own 1:N
+ * fan-out). `items` is caller-selected (scheduler.ts
+ * runComplianceNewsletterPass()) via the SAME isEmailableRuleChangeEvent()
+ * safety filter the firm rule-change alert already uses -- this function
+ * itself asserts nothing about which events are safe to report, only how to
+ * render whatever it's given. Refuses to build an empty digest: an
+ * eventless "nothing changed this month" send is filler, which the fleet's
+ * own charter forbids manufacturing.
+ */
+export function buildNewsletterDigestEmail(items: NewsletterDigestItem[], unsubscribeUrl: string): BuiltEmail {
+  if (items.length === 0) {
+    throw new Error("REFUSING TO BUILD DIGEST: no items -- never send a content-free newsletter issue.");
+  }
+  const addr = mailingAddress();
+  const monthLabel = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  const subject =
+    items.length === 1
+      ? `CPA compliance news: ${items[0]?.jurisdiction} update`
+      : `CPA compliance news: ${items.length} state updates this month`;
+
+  const textItems = items
+    .map((it, i) => {
+      const cite = it.citation ? ` (${it.citation})` : "";
+      const eff = it.effectiveDate ? ` Effective ${it.effectiveDate}.` : "";
+      return (
+        `${i + 1}. ${it.jurisdiction} -- ${it.topic}\n` +
+        `${it.summary}${eff}${cite}\n` +
+        `Details: ${it.detailUrl}`
+      );
+    })
+    .join("\n\n");
+
+  const textBody =
+    `${monthLabel} compliance news from ${SITE_NAME}\n\n` +
+    `${textItems}\n\n` +
+    `These are the same sourced, verified changes tracked on our own site -- see ` +
+    `${SITE_URL}/rule-changes/ for the full, always-current list.` +
+    `${newsletterFooter(unsubscribeUrl, addr, false)}`;
+
+  const itemsHtml = items
+    .map((it) => {
+      const eff = it.effectiveDate ? ` Effective ${esc(it.effectiveDate)}.` : "";
+      const citeHtml = it.citation
+        ? it.citationUrl
+          ? ` <a href="${esc(it.citationUrl)}" class="dr-accent" style="color:${LIGHT.accent};">${esc(it.citation)}</a>`
+          : ` ${esc(it.citation)}`
+        : "";
+      return (
+        `<tr><td style="padding:0 0 20px;border-bottom:1px solid ${LIGHT.border};margin-bottom:20px;">` +
+        `<p class="dr-fg" style="margin:0 0 6px;font-size:15px;font-weight:700;color:${LIGHT.fg};">${esc(it.jurisdiction)} &mdash; ${esc(it.topic)}</p>` +
+        `<p class="dr-fg" style="margin:0 0 8px;font-size:14px;line-height:1.6;color:${LIGHT.fg};">${esc(it.summary)}${eff}${citeHtml}</p>` +
+        `<p style="margin:0;font-size:13px;">${textLink(it.detailUrl, "See full details →")}</p>` +
+        `</td></tr>`
+      );
+    })
+    .join("");
+
+  const htmlBody = htmlShell(
+    subject,
+    `<h1 class="dr-fg" style="margin:0 0 6px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `${esc(monthLabel)} compliance news</h1>` +
+      p(
+        `${items.length} sourced ${items.length === 1 ? "change" : "changes"} to CPA license renewal ` +
+          `or practice-mobility law this month.`,
+        13,
+        LIGHT.muted
+      ) +
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:12px 0 8px;">${itemsHtml}</table>` +
+      p(
+        `These are the same sourced, verified changes tracked on our own site &mdash; see ` +
+          `${textLink(`${SITE_URL}/rule-changes/`, "the full, always-current list")}.`,
+        13,
+        LIGHT.muted
+      ),
+    newsletterFooter(unsubscribeUrl, addr, true)
+  );
+
+  return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
+}

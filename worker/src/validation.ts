@@ -506,6 +506,11 @@ export const RATE_LIMIT_ACTION: RateLimit = { max: 30, windowSeconds: 600 };
 // against one endpoint can't consume the other's allowance.
 export const RATE_LIMIT_FIRM_LEAD: RateLimit = { max: 5, windowSeconds: 600 };
 
+// POST /api/newsletter/subscribe (roadmap #124, 2026-08-13) -- its own
+// bucket, same shape/limit as RATE_LIMIT_SUBSCRIBE, same "separate bucket so
+// a burst here can't consume another endpoint's allowance" reasoning.
+export const RATE_LIMIT_NEWSLETTER_SUBSCRIBE: RateLimit = { max: 5, windowSeconds: 600 };
+
 // POST /api/firm/signup and POST /api/firm/login (migration 0008, firm
 // accounts) -- each its own bucket, same shape/limit as RATE_LIMIT_FIRM_LEAD
 // and same "separate, not shared" rationale: signup and login both trigger

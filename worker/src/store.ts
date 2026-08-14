@@ -5420,3 +5420,143 @@ export async function markFeatureIdeaNotifySignupsNotified(db: D1Database, ids: 
     await db.prepare(`UPDATE feature_idea_notify_signups SET notified_at = ?1 WHERE id = ?2`).bind(now, id).run();
   }
 }
+
+// ---------------------------------------------------------------------------
+// Compliance-news newsletter (roadmap #124, migration 0066). A NEW public
+// opt-in list, deliberately its own table/token pair rather than a
+// repurposed subscribers row -- see the migration's own docstring. Mirrors
+// the individual reminder flow's addPending()/confirmIfPending()/stop()
+// shape (double opt-in, idempotent unsubscribe, no-enumeration-oracle
+// responses) but has no state_slug/deadline_fields at all: this list has no
+// relationship to any one person's renewal deadline.
+// ---------------------------------------------------------------------------
+
+export interface NewsletterSubscriberRow {
+  id: string;
+  email: string;
+  cooldown_key: string;
+  status: string;
+  confirm_token: string;
+  unsubscribe_token: string;
+  created_at: string;
+  confirmed_at: string | null;
+  unsubscribed_at: string | null;
+}
+
+/** Looks up by cooldown_key, not raw email -- same dedupe-key convention as
+ * findActiveOrPending() above, so a '+tag' variant of an address already on
+ * the list is recognized as the same person rather than let back in. */
+export async function findNewsletterSubscriberByCooldownKey(
+  db: D1Database,
+  email: string
+): Promise<NewsletterSubscriberRow | null> {
+  const key = cooldownKey(email);
+  const row = await db
+    .prepare("SELECT * FROM newsletter_subscribers WHERE cooldown_key = ?1")
+    .bind(key)
+    .first<NewsletterSubscriberRow>();
+  return row ?? null;
+}
+
+export async function addNewsletterSubscriber(db: D1Database, email: string): Promise<NewsletterSubscriberRow> {
+  const row: NewsletterSubscriberRow = {
+    id: newToken(),
+    email,
+    cooldown_key: cooldownKey(email),
+    status: STATUS_PENDING,
+    confirm_token: newToken(),
+    unsubscribe_token: newToken(),
+    created_at: nowIso(),
+    confirmed_at: null,
+    unsubscribed_at: null,
+  };
+  await db
+    .prepare(
+      `INSERT INTO newsletter_subscribers
+       (id, email, cooldown_key, status, confirm_token, unsubscribe_token, created_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
+    )
+    .bind(row.id, row.email, row.cooldown_key, row.status, row.confirm_token, row.unsubscribe_token, row.created_at)
+    .run();
+  return row;
+}
+
+export async function confirmNewsletterSubscriberIfPending(
+  db: D1Database,
+  confirmToken: string
+): Promise<{ subscriber: NewsletterSubscriberRow; wasNewlyConfirmed: boolean } | null> {
+  const row = await db
+    .prepare("SELECT * FROM newsletter_subscribers WHERE confirm_token = ?1")
+    .bind(confirmToken)
+    .first<NewsletterSubscriberRow>();
+  if (!row) return null;
+  const wasNewlyConfirmed = row.status === STATUS_PENDING;
+  if (wasNewlyConfirmed) {
+    const confirmedAt = nowIso();
+    await db
+      .prepare("UPDATE newsletter_subscribers SET status = ?1, confirmed_at = ?2 WHERE id = ?3")
+      .bind(STATUS_CONFIRMED, confirmedAt, row.id)
+      .run();
+    row.status = STATUS_CONFIRMED;
+    row.confirmed_at = confirmedAt;
+  }
+  return { subscriber: row, wasNewlyConfirmed };
+}
+
+/** Idempotent, same reasoning as stop() above (subscribers table): a
+ * corporate scanner pre-fetching the unsubscribe link must not overwrite a
+ * real unsubscribed_at with "now" on a repeat visit. */
+export async function unsubscribeNewsletterSubscriber(
+  db: D1Database,
+  unsubscribeToken: string
+): Promise<(NewsletterSubscriberRow & { alreadyUnsubscribed: boolean }) | null> {
+  const row = await db
+    .prepare("SELECT * FROM newsletter_subscribers WHERE unsubscribe_token = ?1")
+    .bind(unsubscribeToken)
+    .first<NewsletterSubscriberRow>();
+  if (!row) return null;
+  if (row.status === "unsubscribed") {
+    return { ...row, alreadyUnsubscribed: true };
+  }
+  const unsubscribedAt = nowIso();
+  await db
+    .prepare("UPDATE newsletter_subscribers SET status = 'unsubscribed', unsubscribed_at = ?1 WHERE id = ?2")
+    .bind(unsubscribedAt, row.id)
+    .run();
+  row.status = "unsubscribed";
+  row.unsubscribed_at = unsubscribedAt;
+  return { ...row, alreadyUnsubscribed: false };
+}
+
+export async function listConfirmedNewsletterSubscribers(db: D1Database): Promise<NewsletterSubscriberRow[]> {
+  const result = await db
+    .prepare("SELECT * FROM newsletter_subscribers WHERE status = ?1")
+    .bind(STATUS_CONFIRMED)
+    .all<NewsletterSubscriberRow>();
+  return result.results ?? [];
+}
+
+export interface NewsletterDigestState {
+  id: number;
+  last_sent_at: string | null;
+  last_included_event_ids: string;
+}
+
+export async function getNewsletterDigestState(db: D1Database): Promise<NewsletterDigestState> {
+  const row = await db
+    .prepare("SELECT * FROM newsletter_digest_state WHERE id = 1")
+    .first<NewsletterDigestState>();
+  if (row) return row;
+  return { id: 1, last_sent_at: null, last_included_event_ids: "[]" };
+}
+
+export async function recordNewsletterDigestSent(db: D1Database, includedEventIds: string[]): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO newsletter_digest_state (id, last_sent_at, last_included_event_ids)
+       VALUES (1, ?1, ?2)
+       ON CONFLICT(id) DO UPDATE SET last_sent_at = ?1, last_included_event_ids = ?2`
+    )
+    .bind(nowIso(), JSON.stringify(includedEventIds))
+    .run();
+}

@@ -131,6 +131,7 @@ import {
   RATE_LIMIT_FIRM_SIGNUP_ACCOUNT,
   RATE_LIMIT_FIRM_BILLING_CHECKOUT,
   RATE_LIMIT_SUBSCRIBE,
+  RATE_LIMIT_NEWSLETTER_SUBSCRIBE,
   checkRateLimit,
   checkSignupDomainGate,
   escapeHtml,
@@ -182,10 +183,19 @@ import {
   buildSignupNotificationEmail,
   buildAccountDeletionNotificationEmail,
   buildStaleDataAlertEmail,
+  buildNewsletterConfirmationEmail,
   fmtDate,
   SNOOZE_DAYS,
 } from "./emails";
-import { DEFAULT_DAILY_SEND_CAP, resolveDailySendCap, checkAndCountActionSend, isEmailAllowlisted, sendViaSendGrid } from "./sender";
+import {
+  DEFAULT_DAILY_SEND_CAP,
+  resolveDailySendCap,
+  checkAndCountActionSend,
+  isEmailAllowlisted,
+  sendViaSendGrid,
+  DEFAULT_DAILY_NEWSLETTER_SEND_CAP,
+  checkAndCountNewsletterSend,
+} from "./sender";
 import {
   StaleDataError as SchedulerStaleDataError,
   runReminderPass,
@@ -437,6 +447,21 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
     heading: "Confirm your roadmap notification",
     intro: "Click below to confirm -- you'll get one email if and when this ships, nothing else.",
     button: "Confirm notification",
+  },
+  // Roadmap #124 (2026-08-13): compliance-news newsletter, a NEW public list
+  // -- same GET-renders/POST-executes scanner-safety pattern as every action
+  // link above, own confirm/unsubscribe token pair (store.ts's
+  // newsletter_subscribers, migration 0066), never the reminder flow's
+  // /confirm and /unsubscribe.
+  "/newsletter/confirm": {
+    heading: "Confirm your subscription",
+    intro: "Click below to confirm and start receiving the compliance-news digest.",
+    button: "Confirm my email",
+  },
+  "/newsletter/unsubscribe": {
+    heading: "Unsubscribe from the compliance-news digest",
+    intro: "Click below to stop the compliance-news digest. This doesn't affect any renewal reminder you may also have set up -- that's a separate list.",
+    button: "Unsubscribe me",
   },
 };
 
@@ -1200,6 +1225,132 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
   }
 
   return htmlResponse(200, SUBSCRIBE_SUCCESS_PAGE);
+}
+
+// ---------------------------------------------------------------------------
+// Compliance-news newsletter (roadmap #124, 2026-08-13, Devin: "Good to
+// build 2"). Same abuse-hardening shape as handleSubscribe() above (rate
+// limit, honeypot, control-char check, email validation, blocklist,
+// Turnstile, double opt-in, no-enumeration-oracle response) minus everything
+// state/deadline-specific -- this list has no relationship to any one
+// person's renewal deadline. A NEW table (store.ts's newsletter_subscribers,
+// migration 0066), a NEW confirm/unsubscribe token pair -- deliberately not
+// reusing `subscribers`.
+// ---------------------------------------------------------------------------
+
+const NEWSLETTER_SUBSCRIBE_SUCCESS_PAGE = htmlPage(
+  "Almost there",
+  "<h1>Almost there &mdash; check your email</h1><p>Look for a confirmation link in your inbox and " +
+    "click it to start receiving the compliance-news digest. If it's not there in a minute, check " +
+    "your spam folder. (Didn't sign up? Just ignore it &mdash; you won't hear from us again.)</p>"
+);
+
+async function handleNewsletterSubscribe(request: Request, env: Env, ip: string): Promise<Response> {
+  const allowed = await checkRateLimit(env.DB, ip, "newsletter_subscribe", RATE_LIMIT_NEWSLETTER_SUBSCRIBE);
+  if (!allowed) {
+    return errorPage(429, "Too many signups from this address. Please try again in about 10 minutes.");
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+  if (raw.length === 0 || raw.length > MAX_BODY_BYTES) {
+    return errorPage(400, "Request too large or empty.");
+  }
+
+  let form: Record<string, string>;
+  try {
+    form = Object.fromEntries(new URLSearchParams(raw).entries());
+  } catch {
+    return errorPage(400, "Something went wrong processing that request.");
+  }
+
+  const honeypotValue = form[HONEYPOT_FIELD_NAME];
+  if (honeypotValue !== undefined && honeypotValue !== "") {
+    return htmlResponse(200, NEWSLETTER_SUBSCRIBE_SUCCESS_PAGE);
+  }
+
+  for (const value of Object.values(form)) {
+    if (hasControlChars(value)) {
+      return errorPage(400, "Invalid characters in submission.");
+    }
+  }
+
+  const email = (form.email ?? "").trim();
+  if (!isValidEmail(email)) {
+    return errorPage(400, "That doesn't look like a valid email address.");
+  }
+  if (await store.isEmailBlocklisted(env.DB, email)) {
+    return errorPage(400, "We're not able to add that address right now.");
+  }
+
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY, true);
+  if (!turnstileOk) {
+    return errorPage(400, "Verification failed -- please try again.");
+  }
+
+  // Same no-enumeration-oracle posture as handleSubscribe(): an existing
+  // record (any status) gets the identical generic response a brand-new
+  // signup does. Unlike handleSubscribe(), no resend-on-repeat-pending
+  // logic -- this is a low-stakes, low-volume list; a genuinely lost
+  // confirmation email is rare enough that the added complexity (and its
+  // own abuse surface) isn't worth it for a first version.
+  const existing = await store.findNewsletterSubscriberByCooldownKey(env.DB, email);
+  if (existing) {
+    return htmlResponse(200, NEWSLETTER_SUBSCRIBE_SUCCESS_PAGE);
+  }
+
+  const record = await store.addNewsletterSubscriber(env.DB, email);
+
+  if (env.SENDGRID_API_KEY) {
+    try {
+      const underCap = await checkAndCountNewsletterSend(env.DB, resolveDailySendCap(env.NEWSLETTER_DAILY_SEND_CAP, DEFAULT_DAILY_NEWSLETTER_SEND_CAP));
+      if (underCap) {
+        const confirmUrl = `${actionBaseUrl(env)}/newsletter/confirm?token=${encodeURIComponent(record.confirm_token)}`;
+        const unsubscribeUrl = `${actionBaseUrl(env)}/newsletter/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
+        const built = buildNewsletterConfirmationEmail(confirmUrl, unsubscribeUrl);
+        await sendViaSendGrid(env.SENDGRID_API_KEY, record.email, built, env.EMAIL_ALLOWLIST);
+      }
+    } catch {
+      // Swallow -- same reasoning as handleSubscribe(): the signup is
+      // stored regardless; a confirmation-email failure is not the
+      // subscriber's problem and must not fail their request.
+    }
+  }
+
+  return htmlResponse(200, NEWSLETTER_SUBSCRIBE_SUCCESS_PAGE);
+}
+
+async function handleNewsletterConfirm(env: Env, token: string | null): Promise<Response> {
+  if (!token) return errorPage(400, "Missing confirmation link.");
+  const result = await store.confirmNewsletterSubscriberIfPending(env.DB, token);
+  if (!result) return errorPage(404, "That confirmation link is invalid or already used.");
+  return htmlResponse(
+    200,
+    htmlPage(
+      "Confirmed",
+      "<h1>You're all set</h1><p>Your email is confirmed. We'll send the compliance-news digest as " +
+        "real, sourced law changes come up &mdash; and nothing else. You can unsubscribe instantly " +
+        "from any email we send.</p>"
+    )
+  );
+}
+
+async function handleNewsletterUnsubscribe(env: Env, token: string | null): Promise<Response> {
+  if (!token) return errorPage(400, "Missing unsubscribe link.");
+  const result = await store.unsubscribeNewsletterSubscriber(env.DB, token);
+  if (!result) return errorPage(404, "That link is invalid.");
+  return htmlResponse(
+    200,
+    htmlPage(
+      "Unsubscribed",
+      "<h1>You're unsubscribed</h1><p>You won't get any more compliance-news digest emails. This " +
+        "doesn't affect any renewal reminder you may also have set up &mdash; that's a separate list.</p>"
+    )
+  );
 }
 
 // Same "one generic response regardless of which internal branch ran"
@@ -8087,6 +8238,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
       }
 
+      if (url.pathname === "/newsletter/subscribe") {
+        try {
+          return await handleNewsletterSubscribe(request, env, ip);
+        } catch {
+          return errorPage(400, "Something went wrong processing that request.");
+        }
+      }
+
       if (url.pathname === "/firm/lead") {
         try {
           return await handleFirmLead(request, env, ip);
@@ -8425,6 +8584,10 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           switch (url.pathname) {
             case "/confirm":
               return await handleConfirm(env, token);
+            case "/newsletter/confirm":
+              return await handleNewsletterConfirm(env, token);
+            case "/newsletter/unsubscribe":
+              return await handleNewsletterUnsubscribe(env, token);
             case "/unsubscribe":
               return await handleUnsubscribe(env, token);
             case "/unsubscribe/digest":

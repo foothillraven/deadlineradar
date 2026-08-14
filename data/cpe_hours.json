@@ -178,17 +178,18 @@
       "id": "ga-cpe",
       "state": "Georgia",
       "state_slug": "georgia",
-      "citation": "Ga. Comp. R. & Regs. 20-11-.02",
-      "citation_url": "https://rules.sos.ga.gov/gac/20-11",
+      "citation": "Ga. Comp. R. & Regs. 20-11-.02 (Requirements), as amended effective January 1, 2024",
+      "citation_url": "https://gsba.georgia.gov/document/document/website-cpe-rule-20-11-finalpdf/download",
       "source_url": "https://gsba.georgia.gov/cpe-requirements",
       "total_hours": 80,
       "period_years": 2,
       "annual_minimum_hours": 20,
       "ethics_hours": 4,
       "ethics_period_years": 2,
-      "notes": "80 hours per 2-year renewal period (16 of which must be accounting/auditing subjects), minimum 20 hours each year. 4 ethics CPE credits required, including 1 hour specific to Georgia Board laws/rules/policies.",
-      "verified_date": "2026-08-13",
-      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the Georgia Secretary of State's own rules database text, not a secondary summary.\""
+      "notes": "80 CPE credits per two-year reporting period, of which at least 50% (40 credits) must be in TECHNICAL fields of study, with a minimum of 20 credits earned each year. 4 ethics credits are required, including 1 credit specific to the laws, rules and policies of the Georgia Board -- that Board-specific hour must come from a Board-approved program; the other 3 may be any behavioral or regulatory ethics. Up to 15 excess NON-technical credits may carry over to the next reporting period, but carryover can never satisfy the technical-fields minimum. Licensees aged 70 or older are exempt. Interpretation trap: a widely-repeated '16 hours in accounting and auditing' figure is the PRE-2024 requirement -- it was replaced on January 1, 2024 by the 50% technical-fields rule, which is more than twice as many credits.",
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the Georgia Secretary of State's own rules database text, not a secondary summary.\"\n\n2026-08-14 (CITE-21 #4, SUSTAINED and under-scoped): the finding was that the ethics claim was supported only by source_url and that cited rule 20-11 has no ethics requirement. Both true -- the word 'ethics' appears zero times in the entire chapter as published at rules.sos.ga.gov/gac/20-11. But the cause is bigger than a citation mis-attribution: that SOS page serves the PRE-2024 rule text, and this record had been built from it. Read the Board's own current Rule 20-11 PDF (linked from its CPE FAQ, eff. 2024-01-01) and confirmed 20-11-.02(1) now requires at least 50% of the 80 credits in TECHNICAL fields of study -- not the '16 hours in accounting and auditing' this record was publishing, which is the superseded figure and understates the requirement by 24 credits. 20-11-.02(3) does require 4 ethics credits including 1 Board-specific, so the ethics numbers were right all along and only the authority behind them was wrong. Also picked up from the current text: the 15-credit non-technical carryover cap, that carryover cannot satisfy the technical minimum, and the age-70 exemption. Repointed citation_url at the Board's own PDF (authoritative current text) and left the SOS discrepancy disclosed in data_gap_note, since a licensee who looks the rule up there will see the old numbers.",
+      "data_gap_note": "Georgia has two official versions of this rule in circulation and they do not agree. The Secretary of State's rules site (rules.sos.ga.gov/gac/20-11) still serves the PRE-2024 text -- 80 hours with 16 in accounting and auditing, and no ethics requirement at all. The Board's own published Rule 20-11, effective January 1, 2024, is the current one and is what this record follows. If you look the rule up on the Secretary of State's site and see different numbers, that is why; confirm with the Board."
     },
     {
       "id": "hi-cpe",

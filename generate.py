@@ -6445,7 +6445,20 @@ def _rule_change_card_html(e: dict) -> str:
     # docstrings for why: this page nearly shipped a leaked research-note
     # string ("UPDATE (verifier): ... CiteID ...") caught by preship_gate.
     detail = e.get("summary_public") or ""
-    source_label = "automated source monitoring" if e.get("source") == "difflab_reg_change_engine" else "dual-source legal research"
+    # AuditLab CONF-1 (MEDIUM, 2026-08-13): this used to be a binary on
+    # e["source"] alone, so every non-DiffLab event was captioned "dual-source
+    # legal research" regardless of e["confidence"] -- a single_source event
+    # (dc-regwatch-act-26-399, illinois-mobility-2027-01-01) got the site's
+    # STRONGEST sourcing label. Gated on confidence instead, matching the
+    # phrasing the Practice Privilege Check widget already uses for the same
+    # situation elsewhere on the site (see its own comment: "only flag what's
+    # weaker than the default").
+    if e.get("source") == "difflab_reg_change_engine":
+        source_label = "automated source monitoring"
+    elif e.get("confidence") == "single_source":
+        source_label = "single-source legal research (not yet independently confirmed by a second source)"
+    else:
+        source_label = "dual-source legal research"
     badge_class = "rc-badge rc-badge-upcoming" if e.get("upcoming") else "rc-badge"
     return f"""<div class="rc-card">
   <div class="rc-head">

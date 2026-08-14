@@ -1397,7 +1397,7 @@ export interface FirmMemberRow {
   totp_secret_iv: string | null;
   totp_enrolled_at: string | null;
   // migration 0048 (AuditLab 2FA-1, MEDIUM): the RFC 6238 Section 5.2
-  // replay-prevention floor -- see setFirmMemberTotpLastUsedTimestep()'s
+  // replay-prevention floor -- see claimFirmMemberTotpTimestep()'s
   // own docstring below.
   totp_last_used_timestep: number | null;
 }
@@ -1573,13 +1573,22 @@ export async function setFirmMemberTotpSecret(
   encryptedSecret: string,
   iv: string,
   confirmedTimestep: number
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  // 2FA-2 review follow-up (confirmed pre-existing race): the handler's
+  // `if (member.totp_enrolled_at)` guard was the last non-atomic
+  // check-then-act in the TOTP family -- two concurrent enroll-confirms
+  // with DIFFERENT secrets both passed it off stale reads, both returned
+  // 200, and the loser's backup codes stayed live as a second credential.
+  // Same cure as claimFirmMemberTotpTimestep(): the not-already-enrolled
+  // condition lives in the WHERE, meta.changes is the authority, and the
+  // caller must treat false as "someone else enrolled first".
+  const result = await db
     .prepare(
-      `UPDATE firm_members SET totp_secret_encrypted = ?1, totp_secret_iv = ?2, totp_enrolled_at = ?3, totp_last_used_timestep = ?4 WHERE id = ?5`
+      `UPDATE firm_members SET totp_secret_encrypted = ?1, totp_secret_iv = ?2, totp_enrolled_at = ?3, totp_last_used_timestep = ?4 WHERE id = ?5 AND totp_enrolled_at IS NULL`
     )
     .bind(encryptedSecret, iv, nowIso(), confirmedTimestep, memberId)
     .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 /** Disables 2FA -- nulls all four columns. Callers should also delete
@@ -1598,17 +1607,38 @@ export async function clearFirmMemberTotpSecret(db: D1Database, memberId: string
 }
 
 /**
- * migration 0048 (AuditLab 2FA-1, MEDIUM, 2026-08-07): records the counter
- * (totp.ts's verifyTotp() return value) that was just accepted for this
- * member -- the RFC 6238 Section 5.2 replay-prevention floor. A caller
- * MUST reject any future code whose matched counter is `<=` this stored
- * value BEFORE calling this function again, or the whole point (the same
- * code cannot be accepted twice) is lost. This function only persists;
- * it does not itself check anything, same "caller validates, store
- * executes" split every other function in this section already uses.
+ * migration 0048 (AuditLab 2FA-1, MEDIUM, 2026-08-07; made atomic for
+ * 2FA-2, 2026-08-14): advances the RFC 6238 Section 5.2 replay-prevention
+ * floor -- the counter (totp.ts's verifyTotp() return value) most recently
+ * accepted for this member -- and returns whether THIS call is the one
+ * that claimed it.
+ *
+ * 2FA-2: the original shape ("caller checks the floor it read earlier,
+ * then this function blindly persists") was a non-atomic read-check-write:
+ * two concurrent verify calls holding distinct pending tokens and the same
+ * code both read the stale floor, both passed the caller-side check, and
+ * both signed in from one code. The check now lives INSIDE the UPDATE's
+ * WHERE clause, so D1 executes check-and-advance as one statement; the
+ * loser's UPDATE matches zero rows and it must treat the code as spent.
+ * Same conditional-write/meta.changes pattern consumeFirmMemberBackupCode()
+ * already uses. Callers may still pre-check the floor they read as a cheap
+ * fast-path reject, but the return value of this function is the ONLY
+ * authority on whether the code was accepted.
  */
-export async function setFirmMemberTotpLastUsedTimestep(db: D1Database, memberId: string, timestep: number): Promise<void> {
-  await db.prepare(`UPDATE firm_members SET totp_last_used_timestep = ?1 WHERE id = ?2`).bind(timestep, memberId).run();
+export async function claimFirmMemberTotpTimestep(db: D1Database, memberId: string, timestep: number): Promise<boolean> {
+  // 2FA-2 review follow-up: a NULL/non-integer bind would make the WHERE's
+  // first disjunct match a NULL-floor row, "advance" it to NULL, and return
+  // true having claimed nothing -- the one fail-OPEN direction this function
+  // has. Unreachable through today's callers (both guard matchedCounter !==
+  // null), but this function is the authority and must not depend on them.
+  if (!Number.isInteger(timestep)) return false;
+  const result = await db
+    .prepare(
+      `UPDATE firm_members SET totp_last_used_timestep = ?1 WHERE id = ?2 AND (totp_last_used_timestep IS NULL OR totp_last_used_timestep < ?1)`
+    )
+    .bind(timestep, memberId)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 /** Bulk-inserts a freshly generated set of backup-code HASHES (never the

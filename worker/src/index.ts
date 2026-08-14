@@ -2437,9 +2437,13 @@ async function handleFirm2faVerify(request: Request, env: Env, ip: string): Prom
       // step validity window, closing the gap a real-time phishing proxy
       // would otherwise exploit (relay the victim's password+code, then
       // replay that same code into a second, attacker-controlled login).
+      // 2FA-2 (2026-08-14): the floor check the caller does here is only a
+      // fast-path reject on the row it already read -- the AUTHORITY is
+      // claimFirmMemberTotpTimestep()'s conditional write, so two
+      // concurrent verifies with distinct pending tokens and the same code
+      // can no longer both pass off the same stale read.
       if (matchedCounter !== null && (member.totp_last_used_timestep === null || matchedCounter > member.totp_last_used_timestep)) {
-        verified = true;
-        await store.setFirmMemberTotpLastUsedTimestep(env.DB, member.id, matchedCounter);
+        verified = await store.claimFirmMemberTotpTimestep(env.DB, member.id, matchedCounter);
       }
     }
   } else {
@@ -9386,7 +9390,15 @@ async function handleFirm2faEnrollConfirm(request: Request, env: Env): Promise<R
   // AuditLab 2FA-1: seed the replay-prevention floor with the counter that
   // just confirmed enrollment, so that exact code cannot also be replayed
   // against /firm/2fa/verify for the rest of its validity window.
-  await store.setFirmMemberTotpSecret(env.DB, member.id, ciphertextBase64, ivBase64, matchedCounter);
+  // 2FA-2 review follow-up: the conditional write is the authority on
+  // "not already enrolled" -- the member-row check above is only a
+  // fast-path with a friendlier message. A false here means a concurrent
+  // confirm won; without this, the loser's differing secret overwrote the
+  // winner's and its backup codes stayed live as a second credential.
+  const enrolled = await store.setFirmMemberTotpSecret(env.DB, member.id, ciphertextBase64, ivBase64, matchedCounter);
+  if (!enrolled) {
+    return jsonResponse(400, { error: "Two-factor authentication is already enabled on this account." });
+  }
   const backupCodes = generateBackupCodes();
   await store.createFirmMemberBackupCodes(env.DB, member.id, await Promise.all(backupCodes.map(hashBackupCode)));
 
@@ -9484,8 +9496,26 @@ async function handleFirm2faDisable(request: Request, env: Env): Promise<Respons
       // concurrent duplicate request racing this exact call is still worth
       // closing, and consistency with the other two verify sites means
       // there is only one rule to reason about, not an exception here.
-      if (matchedCounter !== null && (member.totp_last_used_timestep === null || matchedCounter > member.totp_last_used_timestep)) {
-        verified = true;
+      // 2FA-2 (2026-08-14): this path previously CHECKED the floor but
+      // never ADVANCED it, so a code accepted here could still be replayed
+      // at the login gate (and vice versa) inside its validity window.
+      // Claiming the timestep closes both the concurrent-duplicate race on
+      // this endpoint and the cross-path replay in one move.
+      if (matchedCounter !== null) {
+        // No caller-side floor pre-check on this route (unlike the login
+        // gate, where it saves a write on the hot path): the claim IS the
+        // check, and skipping the stale read means the common
+        // signed-in-then-immediately-disabling case reaches the claim and
+        // gets the accurate error below instead of a generic one.
+        verified = await store.claimFirmMemberTotpTimestep(env.DB, member.id, matchedCounter);
+        // 2FA-2 review follow-up (UX, not security): a valid code that
+        // fails to claim here almost always means the member's own login
+        // just consumed it within the same 30s step. "That code wasn't
+        // right" reads as a typo they'll retype three times; say what
+        // actually happened.
+        if (!verified) {
+          return jsonResponse(400, { error: "That code was already used to sign in. Wait for your app to show the next code, then try again." });
+        }
       }
     }
   } else {

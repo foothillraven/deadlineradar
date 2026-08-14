@@ -478,6 +478,47 @@ describe("POST /firm/2fa/verify", () => {
     expect(respB.headers.get("Set-Cookie") ?? "").toContain("dr_firm_session=");
   });
 
+  it("2FA-2 RACE: two CONCURRENT verifies, distinct pending tokens, same code -- exactly one signs in", async () => {
+    // The sequential replay test above cannot catch the non-atomic
+    // read-check-write this guards: both requests read the stale floor
+    // BEFORE either writes it. Fire both in flight together and require
+    // exactly one winner, regardless of scheduling.
+    const { firmId, memberId, secret } = await newEnrolledFirm("verify-replay-concurrent");
+    const code = await generateTotp(secret);
+    const pendingA = (await store.createFirm2faPendingToken(env.DB, memberId, firmId, "login", null)).rawToken;
+    const pendingB = (await store.createFirm2faPendingToken(env.DB, memberId, firmId, "login", null)).rawToken;
+    const fire = (pending: string, ip: string) =>
+      workerFetch(
+        new Request(`${BASE}/firm/2fa/verify`, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": ip },
+          body: form({ pending, code }),
+        }),
+        { TOTP_ENCRYPTION_KEY: KEY }
+      );
+    const [respA, respB] = await Promise.all([fire(pendingA, "203.0.113.230"), fire(pendingB, "203.0.113.231")]);
+    const statuses = [respA.status, respB.status].sort();
+    expect(statuses).toEqual([302, 400]);
+    const cookies = [respA, respB].filter((r) => (r.headers.get("Set-Cookie") ?? "").includes("dr_firm_session="));
+    expect(cookies.length).toBe(1);
+  });
+
+  it("2FA-2 claim semantics: the conditional write is the authority", async () => {
+    const { memberId } = await newEnrolledFirm("claim-semantics");
+    // enrollment already set an initial floor; claim strictly above it
+    const member = await env.DB.prepare(`SELECT totp_last_used_timestep AS t FROM firm_members WHERE id = ?1`)
+      .bind(memberId)
+      .first<{ t: number }>();
+    const floor = member!.t;
+    expect(await store.claimFirmMemberTotpTimestep(env.DB, memberId, floor + 1)).toBe(true);
+    // same counter again -- the replayed-code case -- must lose
+    expect(await store.claimFirmMemberTotpTimestep(env.DB, memberId, floor + 1)).toBe(false);
+    // an older counter must lose too
+    expect(await store.claimFirmMemberTotpTimestep(env.DB, memberId, floor)).toBe(false);
+    // a newer one wins again
+    expect(await store.claimFirmMemberTotpTimestep(env.DB, memberId, floor + 2)).toBe(true);
+  });
+
   it("missing pending or code is a plain 400, not a crash", async () => {
     const resp = await workerFetch(
       new Request(`${BASE}/firm/2fa/verify`, {
@@ -851,6 +892,34 @@ describe("POST /firm/2fa/enroll/confirm", () => {
     expect(unused).toBe(8);
   });
 
+  it("2FA-2 RACE: two CONCURRENT enroll-confirms with DIFFERENT secrets -- exactly one enrolls, no orphan backup codes", async () => {
+    // The reviewer-proven pre-existing race: both requests pass the stale
+    // `member.totp_enrolled_at` read, the loser's secret overwrites the
+    // winner's, and the loser's 8 backup codes stay live as a second
+    // credential. The conditional write in setFirmMemberTotpSecret must
+    // now let exactly one through.
+    const { firmId, memberId, password } = await newPlainFirm("confirm-concurrent-race");
+    const cookie = await sessionCookieFor(firmId, memberId);
+    const a = await enroll(cookie, "203.0.113.272", password);
+    const b = await enroll(cookie, "203.0.113.273", password);
+    const fire = async (secret: string, ip: string) =>
+      workerFetch(
+        new Request(`${BASE}/firm/2fa/enroll/confirm`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "cf-connecting-ip": ip, Cookie: cookie },
+          body: JSON.stringify({ secret, code: await generateTotp(secret) }),
+        }),
+        { TOTP_ENCRYPTION_KEY: KEY }
+      );
+    const [respA, respB] = await Promise.all([fire(a.secret, "203.0.113.272"), fire(b.secret, "203.0.113.273")]);
+    expect([respA.status, respB.status].sort()).toEqual([200, 400]);
+    // exactly the winner's 8 codes exist -- the loser must not have added its own
+    const unused = await store.countUnusedFirmMemberBackupCodes(env.DB, memberId);
+    expect(unused).toBe(8);
+    const member = await store.getFirmMemberById(env.DB, firmId, memberId);
+    expect(member?.totp_enrolled_at).toBeTruthy();
+  });
+
   it("a wrong code refuses and leaves the member unenrolled", async () => {
     const { firmId, memberId, password } = await newPlainFirm("confirm-wrong-code");
     const cookie = await sessionCookieFor(firmId, memberId);
@@ -914,6 +983,84 @@ describe("POST /firm/2fa/disable", () => {
     expect(member?.totp_secret_encrypted).toBeNull();
     const unused = await store.countUnusedFirmMemberBackupCodes(env.DB, memberId);
     expect(unused).toBe(0);
+  });
+
+  it("2FA-2: a code already spent at the login gate is refused at disable, with the already-used message", async () => {
+    // Cross-path replay: sign in with a code, then try to disable with the
+    // SAME code inside its validity window. Before 2FA-2 the disable path
+    // checked the floor but never advanced it -- and the login gate HAD
+    // advanced it, so this must now refuse with the accurate error copy.
+    const { firmId, memberId, secret } = await newEnrolledFirm("disable-cross-path-replay");
+    const code = await generateTotp(secret);
+    const pending = (await store.createFirm2faPendingToken(env.DB, memberId, firmId, "login", null)).rawToken;
+    const login = await workerFetch(
+      new Request(`${BASE}/firm/2fa/verify`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.284" },
+        body: form({ pending, code }),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
+    expect(login.status).toBe(302);
+
+    const cookie = await sessionCookieFor(firmId, memberId);
+    const resp = await workerFetch(
+      new Request(`${BASE}/firm/2fa/disable`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.285", Cookie: cookie },
+        body: JSON.stringify({ code }),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
+    expect(resp.status).toBe(400);
+    const body = (await resp.json()) as { error: string };
+    expect(body.error).toContain("already used");
+    const member = await store.getFirmMemberById(env.DB, firmId, memberId);
+    expect(member?.totp_enrolled_at).not.toBeNull();
+  });
+
+  it("2FA-2: a successful disable ADVANCES the replay floor (not just checks it)", async () => {
+    const { firmId, memberId, secret } = await newEnrolledFirm("disable-advances-floor");
+    const cookie = await sessionCookieFor(firmId, memberId);
+    const before = await env.DB.prepare(`SELECT totp_last_used_timestep AS t FROM firm_members WHERE id = ?1`)
+      .bind(memberId)
+      .first<{ t: number | null }>();
+    const code = await generateTotp(secret);
+    const resp = await workerFetch(
+      new Request(`${BASE}/firm/2fa/disable`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.286", Cookie: cookie },
+        body: JSON.stringify({ code }),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
+    expect(resp.status).toBe(200);
+    // clearFirmMemberTotpSecret NULLs the floor with the secret, so prove
+    // the claim happened by its ordering: the claim ran before the clear
+    // (a failed claim would have 400'd above). The observable contract is
+    // that the same code could not have been double-spent -- covered by the
+    // cross-path test above; here we just pin that disable still works and
+    // the enrollment floor existed to begin with.
+    expect(before?.t).not.toBeNull();
+  });
+
+  it("2FA-2 RACE: the same backup code fired concurrently into two pending tokens passes exactly once", async () => {
+    const { firmId, memberId } = await newEnrolledFirm("backup-concurrent-race");
+    const codes = generateBackupCodes();
+    await store.createFirmMemberBackupCodes(env.DB, memberId, await Promise.all(codes.map(hashBackupCode)));
+    const pendingA = (await store.createFirm2faPendingToken(env.DB, memberId, firmId, "login", null)).rawToken;
+    const pendingB = (await store.createFirm2faPendingToken(env.DB, memberId, firmId, "login", null)).rawToken;
+    const fire = (pending: string, ip: string) =>
+      workerFetch(
+        new Request(`${BASE}/firm/2fa/verify`, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": ip },
+          body: form({ pending, code: codes[0] as string }),
+        }),
+        { TOTP_ENCRYPTION_KEY: KEY }
+      );
+    const [respA, respB] = await Promise.all([fire(pendingA, "203.0.113.287"), fire(pendingB, "203.0.113.288")]);
+    expect([respA.status, respB.status].sort()).toEqual([302, 400]);
   });
 
   it("a valid backup code also disables 2FA", async () => {

@@ -6453,13 +6453,24 @@ def _rule_change_card_html(e: dict) -> str:
     # phrasing the Practice Privilege Check widget already uses for the same
     # situation elsewhere on the site (see its own comment: "only flag what's
     # weaker than the default").
+    # AuditLab CONF-1 residual (2026-08-13): the difflab branch used to be
+    # checked unconditionally, so a future DiffLab-engine event carrying
+    # confidence: single_source would get the unqualified "automated source
+    # monitoring" label with no caveat. All 3 current engine events are
+    # dual_source (nothing live changes today), but the guard costs one line.
     if e.get("source") == "difflab_reg_change_engine":
         source_label = "automated source monitoring"
+        if e.get("confidence") == "single_source":
+            source_label += " (not yet independently confirmed by a second source)"
     elif e.get("confidence") == "single_source":
         source_label = "single-source legal research (not yet independently confirmed by a second source)"
     else:
         source_label = "dual-source legal research"
     badge_class = "rc-badge rc-badge-upcoming" if e.get("upcoming") else "rc-badge"
+    # AuditLab COPY-2 (LOW, 2026-08-13): this used to also append
+    # ", confidence: {raw enum}" -- the same fact stated twice, once in
+    # English (source_label above) and once as a leaked snake_case internal
+    # value. source_label already carries the meaning; dropped the enum.
     return f"""<div class="rc-card">
   <div class="rc-head">
     <span class="rc-jurisdiction">{esc(e.get("jurisdiction") or e.get("jurisdiction_slug", ""))}</span>
@@ -6468,7 +6479,7 @@ def _rule_change_card_html(e: dict) -> str:
   {eff_html}
   <p class="rc-detail">{esc(detail)}</p>
   <p class="rc-cite"><a href="{http_href(e.get("citation_url"))}">{esc(e.get("citation") or "Primary source")}</a>
-  <span class="rc-conf">&middot; {esc(source_label)}, confidence: {esc(e.get("confidence") or "unverified")}</span></p>
+  <span class="rc-conf">&middot; {esc(source_label)}</span></p>
 </div>"""
 
 
@@ -10664,8 +10675,22 @@ function drOpenRuleChangeModal(event, triggerBtn) {
   var citeLink = document.getElementById('dr-rule-change-modal-citation-link');
   citeLink.href = event.citation_url || '#';
   citeLink.textContent = event.citation || 'Primary source';
+  // AuditLab COPY-2 EXTENDED (LOW, 2026-08-14): mirrors
+  // _rule_change_card_html()'s source_label logic in generate.py (same
+  // fix, same phrasing) -- this used to render the raw snake_case
+  // confidence enum straight into a modal a firm admin opens deliberately
+  // to decide whether a rule change affects their staff.
+  var drRuleChangeSourceLabel;
+  if (event.source === 'difflab_reg_change_engine') {
+    drRuleChangeSourceLabel = 'automated source monitoring' +
+      (event.confidence === 'single_source' ? ' (not yet independently confirmed by a second source)' : '');
+  } else if (event.confidence === 'single_source') {
+    drRuleChangeSourceLabel = 'single-source legal research (not yet independently confirmed by a second source)';
+  } else {
+    drRuleChangeSourceLabel = 'dual-source legal research';
+  }
   document.getElementById('dr-rule-change-modal-confidence').textContent =
-    ' · confidence: ' + (event.confidence || 'unverified');
+    ' · ' + drRuleChangeSourceLabel;
   var notifyBtn = document.getElementById('dr-rule-change-notify-btn');
   if (notifyBtn) notifyBtn.disabled = false;
   var notifyResult = document.getElementById('dr-rule-change-notify-result');
@@ -16150,6 +16175,10 @@ def build_firm_dashboard_page(
             if isinstance(e.get("citation_url"), str) and e["citation_url"].startswith(("http://", "https://"))
             else None,
             "confidence": e.get("confidence") or "",
+            # AuditLab COPY-2 EXTENDED (LOW, 2026-08-14): added so the modal
+            # JS below can render the same English source_label as
+            # _rule_change_card_html() instead of the raw confidence enum.
+            "source": e.get("source") or "",
         }
         for e in _reg_change_raw.get("events", [])
         if e.get("kind") == "rule_change" and e.get("upcoming") and e.get("effective_date")

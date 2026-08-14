@@ -645,7 +645,8 @@
       "citation_url": "https://codes.ohio.gov/ohio-revised-code/section-4701.10",
       "source_url": "https://acc.ohio.gov/about/fees/fees",
       "last_verified": "2026-08-13",
-      "data_gap_note": "No flat reinstatement fee is published because Ohio's own law sets a formula/cap, not a flat number, stated in plain terms above instead. The Board's own fees page is live and was read directly, including its \"Late and Back Fees\" tab: \"Late fees for expired licenses accrue at a rate of $50/month (to a maximum amount of $300) for Registrations and Permits, and $100/month (to a maximum amount of $1,200) for Permit - Employed in Public Accounting\" -- matches this record's figures exactly."
+      "data_gap_note": "No flat reinstatement fee is published because Ohio's own law sets a formula/cap, not a flat number, stated in plain terms above instead. The Board's own fees page is live and was read directly, including its \"Late and Back Fees\" tab: \"Late fees for expired licenses accrue at a rate of $50/month (to a maximum amount of $300) for Registrations and Permits, and $100/month (to a maximum amount of $1,200) for Permit - Employed in Public Accounting\" -- which is where the figures above come from.",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, extra): \"matches this record's figures\" referred to our own data row; reworded to point at what the reader can actually see on the page."
     },
     {
       "id": "oklahoma-reinstatement",
@@ -862,7 +863,7 @@
       "state": "Wisconsin",
       "state_slug": "wisconsin",
       "reinstatement_fee_usd": 68,
-      "reinstatement_fee_notes": "DSPS's official fee schedule (Renewal Dates and Fees PDF) states $43 renewal fee / $68 with late fee for Reg Type 1 (CPA) -- the $68 figure is the fee this site reports, cross-checked against the $25 late-fee amount codified in Wis. Stat. 440.08(3)(a) ($43 + $25 = $68). Accy 2.501 cross-references this same fee for both 5+-year late renewal and formal reinstatement.",
+      "reinstatement_fee_notes": "DSPS's official fee schedule (Renewal Dates and Fees PDF) states $43 renewal fee / $68 with late fee for Reg Type 1 (CPA) -- the $68 total is consistent with the $25 late fee codified at Wis. Stat. 440.08(3)(a) ($43 + $25 = $68). Accy 2.501 cross-references this same fee for both 5+-year late renewal and formal reinstatement.",
       "penalty_cpe_hours": null,
       "penalty_cpe_notes": "Formula: renewing/reinstating 5+ years after the renewal date requires at least 120 CPE credits in the preceding 3 years (Accy 2.501(2)(a)), vs. 80 credits/2 years for renewal within 5 years -- plus, if applicable, verification of exam/education completion and evidence of disciplinary compliance.",
       "penalty_ethics_hours": null,
@@ -871,7 +872,8 @@
       "citation_url": "https://docs.legis.wisconsin.gov/document/administrativecode/Accy%202.501",
       "source_url": "https://dsps.wi.gov/Credentialing/Renewal/RenewalDatesFees.pdf",
       "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "data_gap_note": null,
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, extra): dropped \"the fee this site reports\" -- self-referential. The cross-check itself is reader value and was kept as a plain arithmetic statement."
     },
     {
       "id": "wyoming-reinstatement",

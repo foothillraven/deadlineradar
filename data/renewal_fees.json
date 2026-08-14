@@ -332,7 +332,8 @@
       "source_url": "https://www.law.cornell.edu/regulations/new-jersey/N-J-A-C-13-29-1-5",
       "confidence": "high",
       "verified_date": "2026-08-13",
-      "data_gap_note": "source_url points directly at the codified rule, which states the figure verbatim: \"3. Triennial registration: $ 135.00\" under (a). The board's own FAQ page (previously cited here) was found last modified in 2015 and contains no fee figures at all -- the current FAQ page has since replaced it, but the rule itself is the stronger primary source and is used here instead."
+      "data_gap_note": "source_url points directly at the codified rule, which states the figure verbatim: \"3. Triennial registration: $ 135.00\" under (a). The board's own FAQ page was last modified in 2015 and contains no fee figures at all; the codified rule is the stronger primary source.",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, extra): dropped \"previously cited here\" / \"used here instead\" -- narration about this record's own citation history, not reader information. For the audit trail: the record formerly cited the board FAQ page (last modified 2015, no fee figures) and now cites the codified rule, which states \"3. Triennial registration: $ 135.00\" verbatim."
     },
     {
       "id": "new-mexico-renewal-fee",

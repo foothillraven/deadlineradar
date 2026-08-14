@@ -46,8 +46,9 @@
       "annual_minimum_hours": 20,
       "ethics_hours": 4,
       "ethics_period_years": 2,
-      "notes": "Alaska CPAs complete 80 CPE hours per biennial (2-year) licensing period, with at least 20 hours completed in each of the two years, including at least 4 hours of ethics somewhere in the 2-year period (no state-specific ethics course is mandated by regulation -- AICPA Ethics, Circular 230 Ethics, or Behavioral Ethics all qualify). No more than 10 of the 80 hours may come from micro-learning (activities under one hour). Renewal is biennial, due Dec 31 of odd-numbered years. Effective for licensing periods beginning on/after Jan 1, 2026, no more than 12 CPE hours may be earned in a single day. Verified against the full official 'Statutes and Regulations - Public Accountancy' compilation published by the Alaska Division of Corporations, Business and Professional Licensing (Jan 2026 edition, containing the complete text of 12 AAC 04.300) and the Board's own December 2025 licensee update flyer, which independently restate the identical 80/20/4-hour figures.",
-      "verified_date": "2026-07-20"
+      "notes": "Alaska CPAs complete 80 CPE hours per biennial (2-year) licensing period, with at least 20 hours completed in each of the two years, including at least 4 hours of ethics somewhere in the 2-year period (no state-specific ethics course is mandated by regulation -- AICPA Ethics, Circular 230 Ethics, or Behavioral Ethics all qualify). No more than 10 of the 80 hours may come from micro-learning (activities under one hour). Renewal is biennial, due Dec 31 of odd-numbered years. Effective for licensing periods beginning on/after Jan 1, 2026, no more than 12 CPE hours may be earned in a single day. Two independent official sources state the same 80/20/4-hour figures: the Division's own Statutes and Regulations compilation of 12 AAC 04.300, and the Board's own licensee update.",
+      "verified_date": "2026-07-20",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (January 2026 edition of the compilation; December 2025 licensee update flyer; full text read) moved here."
     },
     {
       "id": "az-cpe",
@@ -76,9 +77,9 @@
       "annual_minimum_hours": 40,
       "ethics_hours": 4,
       "ethics_period_years": 3,
-      "notes": "Arkansas offers licensees a CHOICE of two equivalent tracks (17 CAR § 236-1203(a), formerly Rule 13.2(a)): 120 hours within the 36 months immediately preceding Jan 1 of the renewal year, OR 40 hours within the 12 months immediately preceding that date. At least 4 hours of CPE in accounting professional conduct/ethics are required every 36 months, and 1 of those 4 hours must specifically be an Arkansas State Board-specific laws-and-rules course (satisfiable via the Board's own free web-based course) -- that 1 hour counts toward, not in addition to, the 4-hour ethics total. New licensees are exempt from the ethics requirement until their first full calendar year of licensure, and CPE hours in the first calendar year of licensure are prorated. Interpretation trap: no more than 80% of total hours may come from self-study/independent-study/authorship combined (Rule 13.3(f)) -- a detail several vendor summaries omit. Verified by reading the full text of Board Rule 13 (official Arkansas Dept. of Labor and Licensing PDF, last amended 1/26/24) alongside the Board's own CPE summary page.",
+      "notes": "Arkansas offers licensees a CHOICE of two equivalent tracks (17 CAR § 236-1203(a), formerly Rule 13.2(a)): 120 hours within the 36 months immediately preceding Jan 1 of the renewal year, OR 40 hours within the 12 months immediately preceding that date. At least 4 hours of CPE in accounting professional conduct/ethics are required every 36 months, and 1 of those 4 hours must specifically be an Arkansas State Board-specific laws-and-rules course (satisfiable via the Board's own free web-based course) -- that 1 hour counts toward, not in addition to, the 4-hour ethics total. New licensees are exempt from the ethics requirement until their first full calendar year of licensure, and CPE hours in the first calendar year of licensure are prorated. Interpretation trap: no more than 80% of total hours may come from self-study/independent-study/authorship combined (Rule 13.3(f)) -- a detail several vendor summaries omit.",
       "verified_date": "2026-08-14",
-      "verification_history": "2026-08-14 (DiffLab citation audit): Arkansas's board rules were recodified into the Code of Arkansas Rules format: the official set is now 17 CAR Part 236 (Board Rules) plus Part 235 (Code of Professional Conduct). The state's own licensing pages still reference the legacy 'Board Rule 12/13.x' numbering in places, so old references aren't dead -- but the official set uses the CAR numbering. Renumbered here to 17 CAR § 236-1203, confirmed against the official section's own published text ('one hundred twenty (120) hours within thirty-six (36) months or forty (40)...'), which matches the dual-track figures already recorded -- substance unchanged, numbering corrected. The codified portal renders client-side and its citation search silently no-ops, so the section text was confirmed via the portal's own indexed section content cross-checked against the Labor & Licensing rules index and the legislature's rulemaking filing."
+      "verification_history": "2026-08-14 (DiffLab citation audit): Arkansas's board rules were recodified into the Code of Arkansas Rules format: the official set is now 17 CAR Part 236 (Board Rules) plus Part 235 (Code of Professional Conduct). The state's own licensing pages still reference the legacy 'Board Rule 12/13.x' numbering in places, so old references aren't dead -- but the official set uses the CAR numbering. Renumbered here to 17 CAR § 236-1203, confirmed against the official section's own published text ('one hundred twenty (120) hours within thirty-six (36) months or forty (40)...'), which matches the dual-track figures already recorded -- substance unchanged, numbering corrected. The codified portal renders client-side and its citation search silently no-ops, so the section text was confirmed via the portal's own indexed section content cross-checked against the Labor & Licensing rules index and the legislature's rulemaking filing.\n\n2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified by reading the full text of Board Rule 13 (official Arkansas Dept. of Labor and Licensing PDF, last amended 1/26/24) alongside the Board's own CPE summary page.\""
     },
     {
       "id": "ca-cpe",
@@ -138,9 +139,9 @@
       "annual_minimum_hours": null,
       "ethics_hours": 4,
       "ethics_period_years": 2,
-      "notes": "DC CPAs must complete 80 hours of acceptable CPE during the two-year period preceding license renewal (biennial cycle, renewal due Dec 31 of even-numbered years), including no fewer than 4 hours of Professional Ethics instruction (effective since Jan 1, 2005). Confirmed by reading the full codified text of 17 DCMR 2530 (cross-checked against the DC Register's own listing of the section) and by DC's own official CPE Reporting Form (dlcp.dc.gov), which quotes the identical 80-hour/4-hour-ethics language and cites 17 D.C.M.R. §§2530.1 and 2530.8 verbatim. No annual minimum (e.g., 20 hrs/year) is stated in the actual regulation text, despite some CE-vendor sites implying one -- only the 80-hour biennial total and the 4-hour ethics carve-out are codified. Initial renewals of licenses issued for under 2 years are exempt; reinstatement after lapse requires 40 hrs/year of non-renewal up to a 120-hour max (a different, non-recurring figure -- do not confuse with the standard renewal requirement).",
+      "notes": "DC CPAs must complete 80 hours of acceptable CPE during the two-year period preceding license renewal (biennial cycle, renewal due Dec 31 of even-numbered years), including no fewer than 4 hours of Professional Ethics instruction (effective since Jan 1, 2005). Both 17 DCMR 2530 and DC's own official CPE Reporting Form (dlcp.dc.gov) state the same 80-hour / 4-hour-ethics requirement; the form cites §§2530.1 and 2530.8 directly. No annual minimum (e.g., 20 hrs/year) is stated in the actual regulation text, despite some CE-vendor sites implying one -- only the 80-hour biennial total and the 4-hour ethics carve-out are codified. Initial renewals of licenses issued for under 2 years are exempt; reinstatement after lapse requires 40 hrs/year of non-renewal up to a 120-hour max (a different, non-recurring figure -- do not confuse with the standard renewal requirement).",
       "verified_date": "2026-07-20",
-      "verification_history": "2026-08-03: citation_url repointed -- dcrules.elaws.us was unreachable; dcregs.dc.gov, the District's own official regulations site, is the current live source, confirmed to render 17 D.C.M.R. §2530 in full."
+      "verification_history": "2026-08-03: citation_url repointed -- dcrules.elaws.us was unreachable; dcregs.dc.gov, the District's own official regulations site, is the current live source, confirmed to render 17 D.C.M.R. §2530 in full.\n\n2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (17 DCMR 2530 full codified text read, cross-checked against the DC Register's own listing of the section) moved here."
     },
     {
       "id": "de-cpe",
@@ -185,8 +186,9 @@
       "annual_minimum_hours": 20,
       "ethics_hours": 4,
       "ethics_period_years": 2,
-      "notes": "80 hours per 2-year renewal period (16 of which must be accounting/auditing subjects), minimum 20 hours each year. 4 ethics CPE credits required, including 1 hour specific to Georgia Board laws/rules/policies. Verified directly against the Georgia Secretary of State's own rules database text, not a secondary summary.",
-      "verified_date": "2026-08-13"
+      "notes": "80 hours per 2-year renewal period (16 of which must be accounting/auditing subjects), minimum 20 hours each year. 4 ethics CPE credits required, including 1 hour specific to Georgia Board laws/rules/policies.",
+      "verified_date": "2026-08-13",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the Georgia Secretary of State's own rules database text, not a secondary summary.\""
     },
     {
       "id": "hi-cpe",
@@ -200,8 +202,9 @@
       "annual_minimum_hours": 20,
       "ethics_hours": 4,
       "ethics_period_years": 2,
-      "notes": "Hawaii CPAs/permit holders must complete at least 80 hours of CPE within the 24-month period preceding a biennial permit renewal (renewal due Dec 31 of odd-numbered years), with a minimum of 20 hours earned within each calendar year, and at least 4 of the 80 hours must be in ethics or professional conduct (these 4 hours also simultaneously satisfy the separate license-renewal ethics attestation under §16-71-2). Confirmed by reading the complete official Hawaii Administrative Rules Chapter 71 text (§§16-71-2 and 16-71-33) as hosted on the state's own cca.hawaii.gov site. Maximum carryover of excess hours to the next biennium is 40 hours; new CPAs get 80 hours of automatic CPE credit for passing the AICPA exam (or 40 hours if claimed in year 3).",
-      "verified_date": "2026-07-20"
+      "notes": "Hawaii CPAs/permit holders must complete at least 80 hours of CPE within the 24-month period preceding a biennial permit renewal (renewal due Dec 31 of odd-numbered years), with a minimum of 20 hours earned within each calendar year, and at least 4 of the 80 hours must be in ethics or professional conduct (these 4 hours also simultaneously satisfy the separate license-renewal ethics attestation under §16-71-2). These figures are stated in HAR §§16-71-2 and 16-71-33. Maximum carryover of excess hours to the next biennium is 40 hours; new CPAs get 80 hours of automatic CPE credit for passing the AICPA exam (or 40 hours if claimed in year 3).",
+      "verified_date": "2026-07-20",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (complete HAR Chapter 71 text read as hosted on the state's own cca.hawaii.gov site) moved here."
     },
     {
       "id": "id-cpe",
@@ -324,8 +327,9 @@
       "annual_minimum_hours": 40,
       "ethics_hours": 4,
       "ethics_period_years": 3,
-      "notes": "Unlike most states, Maine's basic CPE cycle is ANNUAL, not biennial: all licensees must obtain 40 hours of CPE every year (the 12-month licensure period prior to the Sept 30/renewal reporting deadline), due at time of renewal; up to 20 excess hours may carry forward one year. Separately, all licensees must obtain at least 4 hours of CPE in professional ethics every THREE years (not annually, not per-2-year-cycle). Confirmed by reading the full text of 02-280 C.M.R. Chapter 5, Section 8 (Maine's own Board of Accountancy rule, hosted at maine.gov), which is the authority cited by the Board's own official CE webpage. Interpretation trap: Maine's rule also has an unrelated 'reinstatement' provision requiring 80 hours of CPE (incl. 4 ethics hours) within the prior 24 months for lapsed-license reinstatement -- some vendor summaries wrongly present this 80-hour/24-month figure as if it were the standard annual renewal requirement; it is not. Communication arts/computer software/economics/business-law/etc. courses capped at 50% of hours.",
-      "verified_date": "2026-07-20"
+      "notes": "Unlike most states, Maine's basic CPE cycle is ANNUAL, not biennial: all licensees must obtain 40 hours of CPE every year (the 12-month licensure period prior to the Sept 30/renewal reporting deadline), due at time of renewal; up to 20 excess hours may carry forward one year. Separately, all licensees must obtain at least 4 hours of CPE in professional ethics every THREE years (not annually, not per-2-year-cycle). These figures come from 02-280 C.M.R. Chapter 5, Section 8 -- the rule the Board's own CE webpage points to as its authority. Interpretation trap: Maine's rule also has an unrelated 'reinstatement' provision requiring 80 hours of CPE (incl. 4 ethics hours) within the prior 24 months for lapsed-license reinstatement -- some vendor summaries wrongly present this 80-hour/24-month figure as if it were the standard annual renewal requirement; it is not. Communication arts/computer software/economics/business-law/etc. courses capped at 50% of hours.",
+      "verified_date": "2026-07-20",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (full rule text read at maine.gov) moved here."
     },
     {
       "id": "md-cpe",
@@ -339,8 +343,9 @@
       "annual_minimum_hours": null,
       "ethics_hours": 4,
       "ethics_period_years": 2,
-      "notes": "80 credit hours per 2-year license term (does not apply to a licensee's first renewal), including 4 hours of professional ethics. No explicit annual minimum in this section. Up to 80 excess hours may carry forward to the next 2-year term (but excess ethics hours specifically cannot satisfy a future term's own 4-hour ethics requirement). Verified directly against the codified regulation text.",
-      "verified_date": "2026-08-13"
+      "notes": "80 credit hours per 2-year license term (does not apply to a licensee's first renewal), including 4 hours of professional ethics. No explicit annual minimum in this section. Up to 80 excess hours may carry forward to the next 2-year term (but excess ethics hours specifically cannot satisfy a future term's own 4-hour ethics requirement).",
+      "verified_date": "2026-08-13",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the codified regulation text.\""
     },
     {
       "id": "ma-cpe",
@@ -354,8 +359,9 @@
       "annual_minimum_hours": null,
       "ethics_hours": 4,
       "ethics_period_years": 2,
-      "notes": "80 hours in the 2-year period immediately preceding re-licensing (applicants engaged in public practice), including 4 hours of professional ethics (effective for licenses expiring on/after June 30, 2007). No carryover permitted between 2-year periods -- unlike several other states in this cluster that do allow some excess-hour carryover. No explicit annual minimum in this section. Verified directly against the codified regulation text.",
-      "verified_date": "2026-08-13"
+      "notes": "80 hours in the 2-year period immediately preceding re-licensing (applicants engaged in public practice), including 4 hours of professional ethics (effective for licenses expiring on/after June 30, 2007). No carryover permitted between 2-year periods -- unlike several other states in this cluster that do allow some excess-hour carryover. No explicit annual minimum in this section.",
+      "verified_date": "2026-08-13",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the codified regulation text.\""
     },
     {
       "id": "mi-cpe",
@@ -400,8 +406,9 @@
       "annual_minimum_hours": 40,
       "ethics_hours": 4,
       "ethics_period_years": 3,
-      "notes": "Mississippi's base CPE requirement is ANNUAL, not triennial: a minimum of 40 CPE credit hours within each one-year (12-month) compliance period ending June 30 (up to 20 excess hours may carry over into the next annual period). Layered on top of that annual cycle is a separate TRIENNIAL ethics component: a minimum of 3 hours of Board-approved Ethics and Professional Conduct plus a separate minimum of 1 hour of Mississippi Public Accountancy Law and Regulations, every 3 years (current cycle July 1, 2025-June 30, 2028) -- 4 ethics-related hours total, but on a 3-year cadence layered over the annual 40-hour requirement, not 4 hours per year. Interpretation trap: multiple vendor pages (and even a preliminary MSBPA search snippet) conflate this into a flat '120 hours per rolling 3-year period,' which is mathematically consistent (40 x 3) but obscures that compliance is actually checked and reported annually, not triennially. New licensees are exempt from CPE in their initial (partial) compliance period and from the ethics/law requirement for the rest of that triennial cycle. Verified against the full text of Rule 4.1 (Cornell regulations mirror) and the Mississippi State Board of Public Accountancy's own CPE page, which independently state the same 40-hour annual / 3+1-hour triennial ethics structure.",
-      "verified_date": "2026-07-20"
+      "notes": "Mississippi's base CPE requirement is ANNUAL, not triennial: a minimum of 40 CPE credit hours within each one-year (12-month) compliance period ending June 30 (up to 20 excess hours may carry over into the next annual period). Layered on top of that annual cycle is a separate TRIENNIAL ethics component: a minimum of 3 hours of Board-approved Ethics and Professional Conduct plus a separate minimum of 1 hour of Mississippi Public Accountancy Law and Regulations, every 3 years (current cycle July 1, 2025-June 30, 2028) -- 4 ethics-related hours total, but on a 3-year cadence layered over the annual 40-hour requirement, not 4 hours per year. Interpretation trap: multiple vendor pages (and even a preliminary MSBPA search snippet) conflate this into a flat '120 hours per rolling 3-year period,' which is mathematically consistent (40 x 3) but obscures that compliance is actually checked and reported annually, not triennially. New licensees are exempt from CPE in their initial (partial) compliance period and from the ethics/law requirement for the rest of that triennial cycle. Both Rule 4.1 and the Mississippi State Board's own CPE page state the same 40-hour annual / 3-plus-1-hour triennial ethics structure.",
+      "verified_date": "2026-07-20",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (Rule 4.1 full text read via the Cornell regulations mirror) moved here."
     },
     {
       "id": "mo-cpe",
@@ -462,9 +469,9 @@
       "annual_minimum_hours": 40,
       "ethics_hours": 2,
       "ethics_period_years": 1,
-      "notes": "Nevada runs an ANNUAL cycle, not the 2-year cycle most states use: 40 CPE hours every calendar year (Jan 1-Dec 31), including 2 hours of professional ethics every year. No carryover of excess hours is allowed. If the licensee performed audit, review, compilation, or attestation services in the prior 12 months, an additional 8 hours in accounting and auditing are required that year. First annual renewal after initial licensure is exempt. Interpretation trap: some third-party CPE-vendor summaries describe Nevada as an '80 hours per 2 years / 4 hours ethics' state -- that does not match the board's own page or the codified NAC text, both of which confirm the 40-hour annual cycle with 2 annual ethics hours. Verified against both NAC 628.210 (Cornell regulations mirror, full text read) and the Nevada State Board of Accountancy's own education page: \"Effective 2024 the requirement for all licensees is to obtain 40 hours of continuing education to be completed each calendar year. Of the required 40 hours, 2 must be in the area of ethics.\"",
+      "notes": "Nevada runs an ANNUAL cycle, not the 2-year cycle most states use: 40 CPE hours every calendar year (Jan 1-Dec 31), including 2 hours of professional ethics every year. No carryover of excess hours is allowed. If the licensee performed audit, review, compilation, or attestation services in the prior 12 months, an additional 8 hours in accounting and auditing are required that year. First annual renewal after initial licensure is exempt. Interpretation trap: some third-party CPE-vendor summaries describe Nevada as an '80 hours per 2 years / 4 hours ethics' state -- that does not match the board's own page or the codified NAC text, both of which confirm the 40-hour annual cycle with 2 annual ethics hours. Both NAC 628.210 and the Nevada board's own education page state the same 40-hour annual cycle with 2 ethics hours: \"Effective 2024 the requirement for all licensees is to obtain 40 hours of continuing education to be completed each calendar year. Of the required 40 hours, 2 must be in the area of ethics.\"",
       "verified_date": "2026-08-13",
-      "verification_history": "2026-08-13: the board's old nvaccountancy.com domain now silently redirects to a relaunched site -- source_url repointed to the live education page there, same content (CITE-19 sweep)."
+      "verification_history": "2026-08-13: the board's old nvaccountancy.com domain now silently redirects to a relaunched site -- source_url repointed to the live education page there, same content (CITE-19 sweep).\n\n2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (NAC 628.210 full text read via the Cornell regulations mirror) moved here."
     },
     {
       "id": "nh-cpe",
@@ -494,8 +501,9 @@
       "annual_minimum_hours": 20,
       "ethics_hours": 4,
       "ethics_period_years": 3,
-      "notes": "120 credits per triennial period, minimum 20 credits each year, at least 60 credits in technical subjects (24 of which in accounting/auditing for those in public practice), and 4 credits specifically in a New Jersey law and ethics course. Verified directly against the codified regulation text.",
-      "verified_date": "2026-08-13"
+      "notes": "120 credits per triennial period, minimum 20 credits each year, at least 60 credits in technical subjects (24 of which in accounting/auditing for those in public practice), and 4 credits specifically in a New Jersey law and ethics course.",
+      "verified_date": "2026-08-13",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the codified regulation text.\""
     },
     {
       "id": "nm-cpe",
@@ -524,8 +532,9 @@
       "annual_minimum_hours": 40,
       "ethics_hours": 4,
       "ethics_period_years": 3,
-      "notes": "Either 24 contact hours per calendar year if concentrated in one recognized subject area, or 40 hours if spread across multiple areas -- published here as the 40-hour figure since that's the requirement absent single-subject concentration, the more broadly applicable case. 4 hours of ethics required once every 3 calendar years (countable toward that year's annual total, not an add-on). Citation is the New York State Education Department's own stated authority (Education Law + Commissioner's Regulations Part 70); did not find a more granular subsection number than Part 70 itself independently confirmed, flagging this as slightly less precise than this batch's other citations rather than overstating precision.",
-      "verified_date": "2026-08-13"
+      "notes": "Either 24 contact hours per calendar year if concentrated in one recognized subject area, or 40 hours if spread across multiple areas -- published here as the 40-hour figure since that's the requirement absent single-subject concentration, the more broadly applicable case. 4 hours of ethics required once every 3 calendar years (countable toward that year's annual total, not an add-on). Citation is the New York State Education Department's own stated authority (Education Law + Commissioner's Regulations Part 70); the Department does not publish a subsection more granular than Part 70 itself, so this citation is less precise than most on this site -- we would rather say so than imply a precision the source does not have.",
+      "verified_date": "2026-08-13",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, extra): reworded -- the note referred to \"this batch's other citations\", which is our own internal work-batching and means nothing to a reader. The caveat itself is genuine reader value and was kept."
     },
     {
       "id": "nc-cpe",
@@ -615,8 +624,9 @@
       "annual_minimum_hours": 20,
       "ethics_hours": 4,
       "ethics_period_years": 2,
-      "notes": "80 hours per 2-year renewal period, minimum 20 hours each year (§11.62), 4 hours of ethics (§11.63(a)(7)). Several third-party CPE-vendor sites cite §11.65 for these requirements; that section has been RESERVED (no substantive text) since 2012. The governing sections are §11.62 and §11.63, used here instead.",
-      "verified_date": "2026-08-13"
+      "notes": "80 hours per 2-year renewal period, minimum 20 hours each year (§11.62), 4 hours of ethics (§11.63(a)(7)). Several third-party CPE-vendor sites cite §11.65 for these requirements; that section has been RESERVED (no substantive text) since 2012. The governing sections are §11.62 and §11.63.",
+      "verified_date": "2026-08-13",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, extra): dropped \"used here instead\" -- self-referential maintainer voice."
     },
     {
       "id": "ri-cpe",
@@ -677,8 +687,9 @@
       "annual_minimum_hours": 20,
       "ethics_hours": 2,
       "ethics_period_years": 2,
-      "notes": "80 hours per 2-year period immediately preceding renewal, minimum 20 hours each year, at least 40 hours in technical subjects, and a board-approved 2-hour Tennessee-specific ethics course. Verified directly against the codified regulation text.",
-      "verified_date": "2026-08-13"
+      "notes": "80 hours per 2-year period immediately preceding renewal, minimum 20 hours each year, at least 40 hours in technical subjects, and a board-approved 2-hour Tennessee-specific ethics course.",
+      "verified_date": "2026-08-13",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the codified regulation text.\""
     },
     {
       "id": "tx-cpe",
@@ -784,8 +795,9 @@
       "annual_minimum_hours": 20,
       "ethics_hours": 3,
       "ethics_period_years": 2,
-      "notes": "80 CPE credits per 2-year compliance period (the period immediately preceding renewal), of which at least 40 must be from formal learning activities and 3 of those formal-learning hours must be on ethics. At least 20 credits must be completed in each 12-month half of the period. Verified directly against the administrative code text, not a secondary summary.",
-      "verified_date": "2026-08-13"
+      "notes": "80 CPE credits per 2-year compliance period (the period immediately preceding renewal), of which at least 40 must be from formal learning activities and 3 of those formal-learning hours must be on ethics. At least 20 credits must be completed in each 12-month half of the period.",
+      "verified_date": "2026-08-13",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the administrative code text, not a secondary summary.\""
     },
     {
       "id": "wy-cpe",

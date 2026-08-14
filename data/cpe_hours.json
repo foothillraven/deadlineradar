@@ -62,7 +62,7 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "80 hours per 2-year registration period (the same period the certificate itself renews on, per Arizona's own birth-month/parity cycle -- see the CPA-renewal dataset's az-individual record). No explicit annual minimum in this section, but at least 16 hours must be classroom/live-interactive and at least 40 hours in accounting/auditing/taxation/business law/consulting (16 of which must be accounting/auditing/taxation specifically). 4 ethics hours required, split as a minimum of 1 hour each on AICPA Code of Professional Conduct topics and Arizona Board statutes/rules specifically.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "ar-cpe",
@@ -92,7 +92,7 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "80 hours in the 2-year period immediately preceding license expiration, minimum 20 hours each year (12 of which must be technical subject matter), including 4 hours of ethics education. A separate Regulatory Review course requirement (§87.8) also applies on a longer cycle -- not counted as 'ethics' here since it's a distinct named requirement, noted separately if this cluster expands.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "co-cpe",
@@ -168,7 +168,7 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "80 hours per 2-year re-establishment period, no explicit annual minimum in the codified rule itself. Within the 80: at least 8 hours accounting/auditing, at least 4 hours Board-approved ethics (a review of Chapters 455 and 473, Florida Statutes, and related rules), and no more than 20 hours in behavioral subjects. Reporting deadline is July 31 prior to the biennial renewal.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "ga-cpe",
@@ -183,7 +183,7 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "80 hours per 2-year renewal period (16 of which must be accounting/auditing subjects), minimum 20 hours each year. 4 ethics CPE credits required, including 1 hour specific to Georgia Board laws/rules/policies. Verified directly against the Georgia Secretary of State's own rules database text, not a secondary summary.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "hi-cpe",
@@ -229,7 +229,7 @@
       "ethics_hours": 4,
       "ethics_period_years": 3,
       "notes": "120 hours per 3-year renewal period, at least 4 hours of professional ethics, plus a separate 1-hour sexual harassment prevention training requirement (not counted here as 'ethics' since the rule labels it as its own distinct category). No explicit annual minimum stated in this section, unlike several other states.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "in-cpe",
@@ -335,7 +335,7 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "80 credit hours per 2-year license term (does not apply to a licensee's first renewal), including 4 hours of professional ethics. No explicit annual minimum in this section. Up to 80 excess hours may carry forward to the next 2-year term (but excess ethics hours specifically cannot satisfy a future term's own 4-hour ethics requirement). Verified directly against the codified regulation text.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "ma-cpe",
@@ -350,7 +350,7 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "80 hours in the 2-year period immediately preceding re-licensing (applicants engaged in public practice), including 4 hours of professional ethics (effective for licenses expiring on/after June 30, 2007). No carryover permitted between 2-year periods -- unlike several other states in this cluster that do allow some excess-hour carryover. No explicit annual minimum in this section. Verified directly against the codified regulation text.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "mi-cpe",
@@ -380,7 +380,7 @@
       "ethics_hours": 8,
       "ethics_period_years": 3,
       "notes": "120 hours in a rolling 3-year period, minimum 20 hours each year (Minn. R. 1105.3000). Within that 120, at least 8 hours must be in regulatory or behavioral ethics (Minn. R. 1105.3100, subpart 4, item F) -- confirmed against both the codified rule text and the Board's own CPE page (boa.state.mn.us/cpe.html), which states the same 8-hour figure in plain language.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "ms-cpe",
@@ -487,7 +487,7 @@
       "ethics_hours": 4,
       "ethics_period_years": 3,
       "notes": "120 credits per triennial period, minimum 20 credits each year, at least 60 credits in technical subjects (24 of which in accounting/auditing for those in public practice), and 4 credits specifically in a New Jersey law and ethics course. Verified directly against the codified regulation text.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "nm-cpe",
@@ -517,7 +517,7 @@
       "ethics_hours": 4,
       "ethics_period_years": 3,
       "notes": "Either 24 contact hours per calendar year if concentrated in one recognized subject area, or 40 hours if spread across multiple areas -- published here as the 40-hour figure since that's the requirement absent single-subject concentration, the more broadly applicable case. 4 hours of ethics required once every 3 calendar years (countable toward that year's annual total, not an add-on). Citation is the New York State Education Department's own stated authority (Education Law + Commissioner's Regulations Part 70); did not find a more granular subsection number than Part 70 itself independently confirmed, flagging this as slightly less precise than this batch's other citations rather than overstating precision.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "nc-cpe",
@@ -562,7 +562,7 @@
       "ethics_hours": 3,
       "ethics_period_years": 3,
       "notes": "120 credits are required within the 36 months preceding permit renewal, but Ohio also sets a minimum of 20 credits every year (OAC 4701-15-02) -- a $10-per-credit fine applies for any annual shortfall, so the 120 hours cannot be concentrated into just one or two years of the triennium. Within the 120: at least 3 credits must be in Professional Standards and Responsibilities (OAC 4701-15-11(C)), plus subject-area minimums (24 credits in accounting/auditing/attestation, or 24 in tax, depending on practice area).",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "ok-cpe",
@@ -607,7 +607,7 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "80 hours per 2-year renewal period, minimum 20 hours each year (§11.62), 4 hours of ethics (§11.63(a)(7)). A real correctness catch during research: several third-party CPE-vendor sites cite '§11.65' as the governing section for these requirements -- fetched that section directly and confirmed it is RESERVED (empty, no substantive text) as of 2012. The actual hour-count and ethics sections are §11.62 and §11.63, used here instead of repeating the wrong citation.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "ri-cpe",
@@ -668,7 +668,7 @@
       "ethics_hours": 2,
       "ethics_period_years": 2,
       "notes": "80 hours per 2-year period immediately preceding renewal, minimum 20 hours each year, at least 40 hours in technical subjects, and a board-approved 2-hour Tennessee-specific ethics course. Verified directly against the codified regulation text.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "tx-cpe",
@@ -683,7 +683,7 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "120 CPE credits per rolling 3-year period tied to the licensee's own birth month (see the CPA-renewal dataset's tx-individual gap record for why the renewal DATE itself is birth-month-personalized and unverified as a fixed date -- the CPE HOUR-COUNT rule itself, unlike the date, is a fixed statewide number, confirmed directly against §523.112). Minimum 20 credits per 1-year period. A board-approved 4-hour, Texas-specific ethics course is required every 2 years (§523.130/.131), counting toward the 120-hour total.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "ut-cpe",
@@ -729,7 +729,7 @@
       "ethics_hours": 2,
       "ethics_period_years": 1,
       "notes": "120 hours over the 3-calendar-year period ending with the current year, minimum 20 hours each calendar year in that period, including a VBOA-approved ethics course of at least 2 hours EVERY year (not once per 3-year cycle like several other states) -- confirmed directly against the codified text, worth flagging since the annual-ethics pattern is easy to misread as a one-time-per-cycle requirement.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "wa-cpe",
@@ -744,7 +744,7 @@
       "ethics_hours": 4,
       "ethics_period_years": 3,
       "notes": "120 hours per 3-year reporting period, minimum 20 hours each calendar year, a 4-hour Washington-board-approved ethics course, and a cap of no more than 60 hours in nontechnical subject areas. Verified directly against the Washington Legislature's own rule-hosting site (app.leg.wa.gov). Note: WAC 4-25 (an older citation still floating around some third-party CPE-vendor sites) has been recodified/superseded -- the correct current section is WAC 4-30-134, used here.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "wv-cpe",
@@ -759,7 +759,7 @@
       "ethics_hours": 4,
       "ethics_period_years": 3,
       "notes": "120 hours within the 3 preceding calendar years, minimum 20 hours each calendar year, including a minimum of 4 hours of ethics within the 120. Board's own site states the ethics requirement in plain language but doesn't cite its own rule number -- cross-verified the exact rule text via the Cornell LII regulations mirror instead of relying on the board page alone.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "wi-cpe",
@@ -774,7 +774,7 @@
       "ethics_hours": 3,
       "ethics_period_years": 2,
       "notes": "80 CPE credits per 2-year compliance period (the period immediately preceding renewal), of which at least 40 must be from formal learning activities and 3 of those formal-learning hours must be on ethics. At least 20 credits must be completed in each 12-month half of the period. Verified directly against the administrative code text, not a secondary summary.",
-      "verified_date": "2026-07-15"
+      "verified_date": "2026-08-13"
     },
     {
       "id": "wy-cpe",

@@ -2995,10 +2995,17 @@ function referralTierCouponId(prefix: string, tier: number): string {
 
 /**
  * POST /firm/billing/checkout -- creates a Stripe Checkout Session for the
- * signed-in firm to convert onto a paid tier, at ANY point: while free or
- * already paid (upgrading tiers). Deliberately session-gated only, NOT
- * paid-feature-gated -- requireFirmSessionAndPaidTier() would 403 exactly
- * the free-tier firms this route exists to convert.
+ * signed-in firm to convert onto a paid tier from free. Deliberately
+ * session-gated only, NOT paid-feature-gated -- requireFirmSessionAndPaidTier()
+ * would 403 exactly the free-tier firms this route exists to convert.
+ *
+ * AuditLab BILL-8 (2026-08-14): a firm with a subscription already on record
+ * (firm.stripe_subscription_id set) is refused below -- there is no
+ * "change tier" flow yet (Stripe permits multiple active subscriptions per
+ * customer, and the webhook's single-valued column would silently overwrite
+ * the first while it kept billing). The only way to move tiers today is
+ * cancel, wait for customer.subscription.deleted to clear the field, then
+ * check out again on the new tier.
  */
 async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Response> {
   // migration 0045 (roadmap #11/#13/#14): billing is Partner-only.
@@ -3055,6 +3062,23 @@ async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Re
   // demo_locked's own call sites throughout this file).
   if (firm.demo_locked) {
     return jsonResponse(400, { error: "Billing isn't available on this shared demo account." });
+  }
+
+  // AuditLab BILL-8 (LOW-MEDIUM, 2026-08-14): the dashboard only renders
+  // these checkout buttons for a firm with no known paid tier (DR_PLAN_TIER_LABELS
+  // lookup miss), so this wasn't reachable in normal use -- but nothing
+  // server-side stopped a second checkout from a stale tab. Stripe permits
+  // multiple active subscriptions per customer, and the webhook's
+  // single-valued `stripe_subscription_id` column would silently overwrite
+  // the first, leaving it billing with no internal record. Same truthiness
+  // check the cancel/resume toggle already uses for "does this firm have a
+  // subscription" -- cleared to null only on customer.subscription.deleted
+  // (see handleStripeWebhook), so it stays accurate through a
+  // cancel-at-period-end that hasn't reached its period end yet.
+  if (firm.stripe_subscription_id) {
+    return jsonResponse(400, {
+      error: "You already have an active subscription. To change plans, contact support.",
+    });
   }
 
   // The firm's LIVE roster count at click-time -- never trusted from the

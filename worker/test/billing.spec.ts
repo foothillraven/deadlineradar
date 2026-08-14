@@ -237,6 +237,38 @@ describe("POST /firm/billing/checkout", () => {
     }
   });
 
+  // AuditLab BILL-8 (LOW-MEDIUM, 2026-08-14): checkout never checked whether
+  // the firm already had a subscription -- Stripe permits multiple active
+  // subscriptions per customer, and the webhook's single-valued
+  // stripe_subscription_id column would silently overwrite the first,
+  // orphaning it while it kept billing. Not reachable through the dashboard
+  // UI (it only renders checkout buttons for a firm with no known paid
+  // tier), but nothing server-side stopped a stale second tab.
+  it("BILL-8: refuses checkout for a firm that already has a subscription on record, no Stripe call made", async () => {
+    const { firmId, cookie } = await createFirmWithSession("Checkout Firm E", `checkoute-${Date.now()}@example.com`);
+    await env.DB.prepare("UPDATE firms SET stripe_subscription_id = ?1 WHERE id = ?2").bind("sub_existing_123", firmId).run();
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "cs_should_not_happen", url: "https://checkout.stripe.com/pay/cs_should_not_happen" }), { status: 200 })
+    );
+    try {
+      const resp = await workerFetch(
+        new Request("https://deadline-radar.com/firm/billing/checkout", {
+          method: "POST",
+          headers: { "content-type": "application/json", Cookie: cookie },
+          body: JSON.stringify({ tier: "firm_starter" }),
+        }),
+        { STRIPE_SECRET_KEY: "sk_test_x", STRIPE_PRICE_FIRM_STARTER: "price_x" }
+      );
+      expect(resp.status).toBe(400);
+      const body = (await resp.json()) as { error: string };
+      expect(body.error).toMatch(/already have an active subscription/i);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   // AuditLab RL-5 (2026-08-06, MEDIUM): this route had ZERO checkRateLimit
   // calls -- unlike its sibling cancel/resume below, an unbounded client
   // (compromised session, retry-looping bug) could hit Stripe under the one

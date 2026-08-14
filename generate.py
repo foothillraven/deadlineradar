@@ -9079,6 +9079,23 @@ function drEscapeHtml(s) {
   });
 }
 
+// Short, calendar-chip-sized label for a rule-change event's topic. The
+// calendar cell is genuinely tight (see .dr-cal-day--expanded's own CSS
+// comment: ~350-390px once expanded, far less collapsed), so the full
+// dataset topic ("practice privilege (mobility)", "CPA regulatory/statutory
+// change") does not fit -- but rendering NO topic made same-jurisdiction
+// same-day events indistinguishable, which is the bug this exists to fix.
+// Falls back to the old generic wording for any topic string not recognized,
+// so a new topic value degrades to today's behavior rather than to a blank.
+function drRuleChangeShortTopic(topic) {
+  var t = String(topic).toLowerCase();
+  if (t.indexOf('mobility') !== -1 || t.indexOf('practice privilege') !== -1) return 'mobility rule';
+  if (t.indexOf('statutory') !== -1 || t.indexOf('regulatory') !== -1) return 'statute change';
+  if (t.indexOf('fee') !== -1) return 'fee change';
+  if (t.indexOf('cpe') !== -1 || t.indexOf('continuing') !== -1) return 'CPE rule';
+  return 'rule change';
+}
+
 // HYBRID consent model (2026-07-28): a firm-added staffer is active
 // immediately (no more "pending" state going forward on this path -- see
 // worker/src/index.ts's firmLicenseStatus()). 'pending' is kept here only so
@@ -10918,9 +10935,22 @@ function drRenderCalendar() {
     // grid's own click delegation below, rather than re-serializing the
     // whole event object into the DOM.
     cellItems += ruleEvents.map(function(e) {
+      // QA finding (2026-08-14, live visual pass on a real firm's calendar):
+      // this used to render jurisdiction + ": rule change" with an identical
+      // aria-label, so Missouri's three genuinely distinct same-day events
+      // (mobility, firm-permit statute, individual reciprocity statute) all
+      // appeared as three IDENTICAL chips -- visually and to a screen reader
+      // -- with no way to tell which was which without clicking each. topic
+      // and summary already ride along in DR_RULE_CHANGE_EVENTS; they were
+      // simply unused here. Topic differentiates the chip, and the summary
+      // goes in title= so hover disambiguates even when two events share a
+      // topic.
+      var chipTopic = e.topic ? drRuleChangeShortTopic(e.topic) : 'rule change';
+      var chipTitle = [e.jurisdiction, e.topic].filter(Boolean).join(' — ') + (e.summary ? ': ' + e.summary : '');
       return '<button type="button" class="dr-cal-item--rule-change" data-rule-change-id="' + drEscapeHtml(e.id) + '" ' +
-        'aria-label="Rule change: ' + drEscapeHtml(e.jurisdiction) + '">' +
-        drEscapeHtml(e.jurisdiction) + ': rule change</button>';
+        'title="' + drEscapeHtml(chipTitle) + '" ' +
+        'aria-label="Rule change: ' + drEscapeHtml(e.jurisdiction) + ' — ' + drEscapeHtml(chipTopic) + '">' +
+        drEscapeHtml(e.jurisdiction) + ': ' + drEscapeHtml(chipTopic) + '</button>';
     }).join('');
     // --has-item (staff) and --has-rule-change (regulatory) are separate
     // classes so the sub-640px dot can be colored per type (see that CSS's

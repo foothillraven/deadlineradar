@@ -10258,6 +10258,11 @@ function drRenderFirmName(name) {
 function drRenderCurrentEmail(email) {
   var el = document.getElementById('dr-current-email');
   if (el && email) el.textContent = email;
+  // Give Chrome's password manager the username field it is looking for, so
+  // it stops filling the signed-in address into "New email address". See the
+  // markup comment on #dr-autofill-username-sink.
+  var sink = document.getElementById('dr-autofill-username-sink');
+  if (sink && email) sink.value = email;
 }
 
 // Roadmap #28 (2026-08-06): guided onboarding checklist. drOnboardingChecklistPending
@@ -16843,13 +16848,23 @@ def build_firm_dashboard_page(
         Changing this sends a confirmation link to the NEW address &mdash; nothing changes until you
         click it there.</p>
         <form id="dr-change-email-form" method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/change-email">
+          <!-- Chrome reads this form's shape (an email field next to a
+               current-password field) as a SIGN-IN form and fills the saved
+               credential pair into it -- observed live, with the address
+               already on file landing in a box labelled "New email address",
+               which is the one value the server can only reject ("That's
+               already your email address."). autocomplete="off" does not stop
+               it; Chrome deliberately ignores that hint on credential-shaped
+               forms. The documented remedy is to give the password manager a
+               field to put the username in, so it stops using the wrong one:
+               this off-screen readonly input is that target. Kept readonly and
+               aria-hidden so it is inert to keyboard and screen readers -- the
+               same address is already stated in the visible text above.
+               Populated alongside #dr-current-email. -->
+          <input type="text" id="dr-autofill-username-sink" autocomplete="username" readonly
+                 tabindex="-1" aria-hidden="true"
+                 style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;">
           <label for="dr-new-email">New email address</label>
-          <!-- autocomplete is deliberately off, not "email": this field wants an
-               address DIFFERENT from the one on file, and Chrome's saved-profile
-               autofill puts the CURRENT one in it (observed live on the Account
-               page, prefilled with the signed-in address). The server correctly
-               rejects that with "That's already your email address." -- so the
-               only thing the autofill can produce is a guaranteed error. -->
           <input type="email" id="dr-new-email" name="new_email" required autocomplete="off">
           <label for="dr-change-email-current-password">Current password <span class="field-hint">(leave blank if you've never set one)</span></label>
           <input type="password" id="dr-change-email-current-password" name="current_password" autocomplete="current-password">

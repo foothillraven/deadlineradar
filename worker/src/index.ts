@@ -5423,8 +5423,16 @@ async function handleFirmLicensesList(request: Request, env: Env): Promise<Respo
     // handleFirmBillingCancellationToggle()'s own docstring for why
     // cancel_at_period_end never implies a plan_tier change.
     plan_tier: session.firm.plan_tier,
-    cancel_at_period_end: Boolean(session.firm.cancel_at_period_end),
-    current_period_end: session.firm.current_period_end,
+    // AuditLab ROLE-4 (LOW, 2026-08-14): these two were readable by any
+    // role including Staff, while the cancel/resume ACTION itself
+    // (handleFirmBillingCancellationToggle above) is partner-only --
+    // gated the read to match, rather than leaving billing-status fields
+    // wider than the action they inform. A non-partner viewer's billing
+    // panel falls back to its default "active" rendering; the Cancel/
+    // Resume button already 403s for them today regardless of role, so
+    // this changes what they're shown, not what they can do.
+    cancel_at_period_end: session.role === "partner" ? Boolean(session.firm.cancel_at_period_end) : undefined,
+    current_period_end: session.role === "partner" ? session.firm.current_period_end : undefined,
     // Account-tab lockdown (2026-08-06, reported live against the newly
     // public demo): the frontend needs this to grey out email/password/
     // billing/delete controls up front, rather than letting a demo visitor
@@ -5519,13 +5527,18 @@ async function handleFirmActivityList(request: Request, env: Env): Promise<Respo
 /** GET /firm/audit-trail -- roadmap #8, the full "reasonable process"
  * export: EVERY roster event (activity_log, uncapped, unlike the small
  * Recent Activity panel's own 20-item cap) plus every real reminder-send
- * date (reminder_log, migration 0035). Same read-gate as GET /firm/licenses
- * -- a lapsed/expired firm shouldn't get a working export either. Staff
- * names are resolved from the CURRENT roster where possible (a removed
- * staffer's activity_log rows already carry their own snapshot label/email,
- * matching that table's own "outlive the row it describes" design). */
+ * date (reminder_log, migration 0035), including every colleague's email
+ * address. AuditLab ROLE-5 (LOW-MEDIUM, 2026-08-14, Devin's call): this was
+ * session-only (any role including Staff), the one firm-wide export left
+ * ungated while 29 other handlers already restrict to partner/
+ * office_manager -- its own docstring addressed firm-status ("a lapsed
+ * firm shouldn't get a working export"), never member role. Gated to match
+ * the dominant pattern. Staff names are resolved from the CURRENT roster
+ * where possible (a removed staffer's activity_log rows already carry
+ * their own snapshot label/email, matching that table's own "outlive the
+ * row it describes" design). */
 async function handleAuditTrail(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   const [activity, reminders, licenses] = await Promise.all([

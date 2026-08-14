@@ -186,3 +186,53 @@ describe("Partner role: unrestricted -- the pre-migration single-admin baseline,
     expect(checkout.status).not.toBe(403);
   });
 });
+
+// AuditLab ROLE-5 (LOW-MEDIUM, 2026-08-14, Devin's call): GET /firm/audit-trail
+// was session-only -- any role including Staff could export the firm's
+// full uncapped activity log, with every colleague's email attached.
+// Gated to match the dominant partner/office_manager pattern the other 29
+// firm-wide handlers already use.
+describe("Audit trail (ROLE-5): partner/office_manager only, Staff refused", () => {
+  it("Staff gets 403, Office Manager and Partner get 200", async () => {
+    const staffSession = await seedFirmWithMember("staff");
+    const officeManager = await seedFirmWithMember("office_manager");
+    const partner = await seedFirmWithMember("partner");
+
+    const staffResp = await SELF.fetch(`${BASE}/firm/audit-trail`, { headers: { Cookie: staffSession.cookie } });
+    expect(staffResp.status).toBe(403);
+
+    const omResp = await SELF.fetch(`${BASE}/firm/audit-trail`, { headers: { Cookie: officeManager.cookie } });
+    expect(omResp.status).toBe(200);
+
+    const partnerResp = await SELF.fetch(`${BASE}/firm/audit-trail`, { headers: { Cookie: partner.cookie } });
+    expect(partnerResp.status).toBe(200);
+  });
+});
+
+// AuditLab ROLE-4 (LOW, 2026-08-14, Devin's call): GET /firm/licenses
+// (the roster/dashboard-load response) read cancel_at_period_end/
+// current_period_end for every role, while the cancel/resume ACTION
+// itself is partner-only. Same shape as ROLE-5, lower stakes (no PII,
+// just billing-status booleans/dates) -- gated the read to match the
+// action's own partner-only gate rather than the room's role-set.
+describe("Billing status fields on GET /firm/licenses (ROLE-4): partner only", () => {
+  it("Staff and Office Manager responses omit cancel_at_period_end/current_period_end; Partner's includes them", async () => {
+    const staffSession = await seedFirmWithMember("staff");
+    const officeManager = await seedFirmWithMember("office_manager");
+    const partner = await seedFirmWithMember("partner");
+
+    for (const session of [staffSession, officeManager]) {
+      const resp = await SELF.fetch(`${BASE}/firm/licenses`, { headers: { Cookie: session.cookie } });
+      expect(resp.status).toBe(200);
+      const body = (await resp.json()) as Record<string, unknown>;
+      expect("cancel_at_period_end" in body).toBe(false);
+      expect("current_period_end" in body).toBe(false);
+    }
+
+    const partnerResp = await SELF.fetch(`${BASE}/firm/licenses`, { headers: { Cookie: partner.cookie } });
+    expect(partnerResp.status).toBe(200);
+    const partnerBody = (await partnerResp.json()) as Record<string, unknown>;
+    expect("cancel_at_period_end" in partnerBody).toBe(true);
+    expect("current_period_end" in partnerBody).toBe(true);
+  });
+});

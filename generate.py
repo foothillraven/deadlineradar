@@ -11860,6 +11860,13 @@ function drLoadAuditTrail() {
   return fetch('/api/firm/audit-trail', {credentials: 'include'})
     .then(function(res) {
       if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      // AuditLab ROLE-5 follow-up (2026-08-14): the endpoint is now
+      // partner/office_manager-only, so a Staff member's Reports tab
+      // would otherwise show the generic "could not load" ERROR for what
+      // is actually a permissions state. Keyed off the server's own 403,
+      // not drRole, so it stays correct even before the roster load has
+      // populated the role client-side.
+      if (res.status === 403) return {forbidden: true};
       if (!res.ok) return null;
       return res.json();
     })
@@ -11879,6 +11886,11 @@ var drAuditTrailRows = [];
 function drRenderAuditTrail(data) {
   var el = document.getElementById('dr-audit-trail-body');
   if (!el) return;
+  if (data && data.forbidden) {
+    drAuditTrailRows = [];
+    el.innerHTML = '<p class="dr-panel-empty">The audit trail is available to partners and office managers.</p>';
+    return;
+  }
   if (!data) {
     drAuditTrailRows = [];
     el.innerHTML = '<p class="dr-panel-empty">Could not load the audit trail right now.</p>';

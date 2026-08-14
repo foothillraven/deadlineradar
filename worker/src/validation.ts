@@ -763,6 +763,17 @@ export const RATE_LIMIT_FIRM_PASSWORD_LOGIN: RateLimit = { max: 10, windowSecond
 // sessions per window than the credentialed flow ever allowed.
 export const RATE_LIMIT_FIRM_DEMO_LOGIN_GLOBAL: RateLimit = { max: 10, windowSeconds: 600 };
 
+// AuditLab DEMO-6 (2026-08-09, fixed 2026-08-13): the global cap above
+// (10/600s) was meant to be the OUTER bound, with the generic per-IP
+// RATE_LIMIT_ACTION (30/600s) engaging first for any single source. It
+// can't -- 30 is looser than 10, so one visitor can exhaust the global
+// bucket and 429 the shared demo for every other visitor without ever
+// approaching their own per-IP limit. This bucket is tighter than the
+// global one specifically so a single source always exhausts ITSELF
+// first; the global cap still bounds distributed minting across many
+// IPs. A normal visitor (clicks once) is unaffected either way.
+export const RATE_LIMIT_FIRM_DEMO_LOGIN_PER_IP: RateLimit = { max: 3, windowSeconds: 600 };
+
 // POST /firm/2fa/verify (roadmap #53, 2026-08-07) -- same dual-bucket shape
 // as RATE_LIMIT_FIRM_PASSWORD_LOGIN (per-IP here, per-member below): a
 // 6-digit code with a +/-1 step window is ~3-in-1,000,000 per guess, but

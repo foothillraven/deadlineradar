@@ -32,6 +32,10 @@ beforeEach(async () => {
   // test's successful redeems would otherwise silently eat into a later
   // test's budget within this same file's shared storage.
   await env.DB.prepare(`DELETE FROM rate_limit_hits WHERE bucket = 'firm_demo_login_global'`).run();
+  // AuditLab DEMO-6: same cross-test-pollution risk for the new per-IP
+  // bucket -- a test that reuses an IP another test already POSTed with
+  // would otherwise inherit that earlier hit count.
+  await env.DB.prepare(`DELETE FROM rate_limit_hits WHERE bucket = 'firm_demo_login_per_ip'`).run();
 });
 
 function form(fields: Record<string, string>): string {
@@ -232,6 +236,27 @@ describe("POST /firm/demo-login -- global rate limit (adversarial-review fix)", 
     }
     expect(results.slice(0, 10).every((s) => s === 302)).toBe(true);
     expect(results[10]).toBe(429);
+  });
+});
+
+describe("POST /firm/demo-login -- per-IP rate limit (AuditLab DEMO-6)", () => {
+  it("blocks a single IP at 3 requests, well before it could exhaust the 10-request global bucket -- and a DIFFERENT IP is unaffected", async () => {
+    await makeDemoFirm("percap");
+    const sameIp = "203.0.115.50";
+    const results: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const resp = await fullDemoLogin(sameIp);
+      results.push(resp.status);
+    }
+    // First 3 from this one IP succeed, the 4th is blocked by the per-IP
+    // bucket -- NOT the global one, which still has 6 of its 10 left.
+    expect(results.slice(0, 3).every((s) => s === 302)).toBe(true);
+    expect(results[3]).toBe(429);
+
+    // A different IP, arriving right after, is completely unaffected --
+    // this is what makes it a per-IP bucket rather than a second global one.
+    const otherIpResp = await fullDemoLogin("203.0.115.51");
+    expect(otherIpResp.status).toBe(302);
   });
 });
 

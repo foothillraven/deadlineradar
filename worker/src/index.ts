@@ -63,6 +63,7 @@ import {
   RATE_LIMIT_ACTION,
   RATE_LIMIT_FIRM_PASSWORD_LOGIN,
   RATE_LIMIT_FIRM_DEMO_LOGIN_GLOBAL,
+  RATE_LIMIT_FIRM_DEMO_LOGIN_PER_IP,
   RATE_LIMIT_FIRM_2FA_VERIFY,
   RATE_LIMIT_FIRM_2FA_VERIFY_ACCOUNT,
   RATE_LIMIT_FIRM_2FA_ENROLL,
@@ -2173,8 +2174,20 @@ async function finishFirmLoginVerify(
  * Bounds both session-table growth and the resource-exhaustion class this
  * review also found downstream (handleFirmSignOutOtherDevices's own
  * comment).
+ *
+ * AuditLab DEMO-6 (2026-08-09, fixed 2026-08-13): that "on top of" claim
+ * was structurally true and practically inert -- RATE_LIMIT_ACTION (30/600s)
+ * is looser than the global cap (10/600s), so the per-IP layer could never
+ * engage before the global one for a single source; one bored visitor could
+ * 429 the demo for everyone. RATE_LIMIT_FIRM_DEMO_LOGIN_PER_IP (3/600s,
+ * checked FIRST, before the global bucket) closes that: a single source now
+ * exhausts its own bucket well before it could exhaust the shared one.
  */
-async function handleDemoLogin(env: Env): Promise<Response> {
+async function handleDemoLogin(env: Env, ip: string): Promise<Response> {
+  const perIpAllowed = await checkRateLimit(env.DB, ip, "firm_demo_login_per_ip", RATE_LIMIT_FIRM_DEMO_LOGIN_PER_IP);
+  if (!perIpAllowed) {
+    return errorPage(429, "The live demo is getting a lot of traffic right now. Please try again in a few minutes.");
+  }
   const globalAllowed = await checkRateLimit(env.DB, "demo-login", "firm_demo_login_global", RATE_LIMIT_FIRM_DEMO_LOGIN_GLOBAL);
   if (!globalAllowed) {
     return errorPage(429, "The live demo is getting a lot of traffic right now. Please try again in a few minutes.");
@@ -8439,7 +8452,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
             case "/roadmap/notify-confirm":
               return await handleRoadmapNotifyConfirm(env, token);
             case "/firm/demo-login":
-              return await handleDemoLogin(env);
+              return await handleDemoLogin(env, ip);
           }
         } catch {
           return errorPage(400, "Something went wrong processing that request.");

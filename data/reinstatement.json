@@ -313,11 +313,12 @@
       "penalty_cpe_notes": "No CPE added purely as a penalty -- reinstating to active status requires the standard 120 hours of CPE (the normal 3-year-cycle total, including the required ethics hours) earned in the 3 years immediately preceding the application. Reinstating to inactive status requires no CPE.",
       "penalty_ethics_hours": 4,
       "lapse_trigger": "Certificates/licenses expire annually on June 30, with a 30-day grace period (through July 30) to renew by paying a late-renewal penalty. If still unrenewed after that 30-day window, the certificate lapses automatically -- no separate notice or board action is required.",
-      "citation": "Iowa Admin. Code r. 193A-12.1/12.2 (reinstatement fee schedule); r. 193A-5.3/5.4 (renewal deadline, grace period, lapse trigger); r. 193A-10.5(7) (CPE to reinstate to active status)",
-      "citation_url": "https://www.legis.iowa.gov/docs/iac/agency/05-13-2026.193A.pdf",
+      "citation": "Iowa Admin. Code r. 481-1032.1/1032.2 (fee schedule + reinstatement formula; formerly 193A-12.1/12.2); r. 481-1025.3/1025.4 (renewal deadline, grace period, lapse trigger; formerly 193A-5.3/5.4); r. 481-1030.5(7) (CPE to reinstate to active status; formerly 193A-10.5(7))",
+      "citation_url": "https://www.legis.iowa.gov/docs/iac/chapter/481.1032.pdf",
       "source_url": "https://dial.iowa.gov/licenses/other-professional-licensure/accountants",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "verification_history": "2026-08-14: citations renumbered -- All Iowa Admin. Code 193A accountancy chapters were editorially transferred to Inspections and Appeals [481] chapters 1021-1040 by IAC Supplement 2026-06-10 (2023 Iowa Acts SF 514); the old 193A chapter PDFs are now transfer-notice stubs. Chapter 1032 (FEES) fetched in full: 1032.2(1) confirms the recorded formula verbatim ($100 + renewal fee + $25/month of expired registration, capped at $1,000) and 1032.2(3) confirms the monthly-penalty waiver for licensees who did not practice during the lapse."
     },
     {
       "id": "kansas-reinstatement",

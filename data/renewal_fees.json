@@ -171,12 +171,12 @@
       "id": "iowa-renewal-fee",
       "state": "Iowa",
       "state_slug": "iowa",
-      "fee_usd": null,
-      "fee_notes": null,
-      "source_url": null,
-      "confidence": "low",
-      "verified_date": "2026-08-11",
-      "data_gap_note": "Iowa Admin. Code rule 193A-5.3(542) confirms an annual renewal fee is charged, but the fee-table rule itself was recently relocated to a new administrative code chapter that could not be located or retrieved (broken links, unreadable PDFs) -- no dollar figure could be confirmed from an official source."
+      "fee_usd": 100,
+      "fee_notes": "$100 annual renewal, active-status CPA certificate (inactive status: $50). Late renewal within the 30-day grace period (July 1-30) adds a $25 penalty ($10 inactive). Firm permit annual renewal is separately $100. Iowa Admin. Code r. 481-1032.1 (fee schedule; formerly 193A Ch. 12 -- the 'relocated chapter' this record previously couldn't find is the editorial 193A-to-481 transfer of June 2026).",
+      "source_url": "https://www.legis.iowa.gov/docs/iac/chapter/481.1032.pdf",
+      "confidence": "high",
+      "verified_date": "2026-08-14",
+      "data_gap_note": null
     },
     {
       "id": "kansas-renewal-fee",

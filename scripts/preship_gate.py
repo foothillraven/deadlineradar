@@ -529,6 +529,100 @@ def check_renewal_fee_currency(repo_root: Path) -> list[str]:
     return errors
 
 
+# ---------------------------------------------------------------------------
+# DERIV-1 (2026-08-14). Some reinstatement records don't state an independent
+# dollar amount -- they DERIVE one from a state's base renewal fee, and print
+# the computed result as customer-facing copy. That coupling is invisible:
+# editing renewal_fees.json looks like a one-record change and silently
+# desyncs a different dataset's published figures.
+#
+# This is not hypothetical. Texas's base fee was corrected 118 -> 112 the same
+# day this check was written; its reinstatement record multiplies that base by
+# 22 TAC 515.5's 1.5x/2x/3x tiers and was still publishing $177/$236/$354.
+# Nothing would have caught it -- the record's own verified_date was fresh and
+# every citation was valid. It was found only because a build output was
+# grepped by hand for the old number.
+#
+# Each entry names the base fee it depends on and the exact arithmetic, and
+# the check asserts the RESULT literally appears in the prose. So a base-fee
+# edit fails the build until the dependent copy is updated with it.
+#
+# Deliberately a hand-maintained registry, not a prose-scanner: a regex over
+# "$N" in fee notes matches dozens of unrelated amounts and would be noise.
+# Adding an entry is 3 lines; a wrong entry is worse than a missing one.
+_DERIVED_FEE_CHECKS: list[dict] = [
+    {
+        "state": "texas", "field": "reinstatement_fee_notes",
+        "why": "22 TAC 515.5 tiers the reinstatement fee as a multiple of the base renewal fee",
+        # (label, multiplier, addend)
+        "terms": [("1.5x tier", 1.5, 0), ("2x tier", 2.0, 0), ("3x tier", 3.0, 0)],
+    },
+    {
+        "state": "wisconsin", "field": "reinstatement_fee_notes",
+        "why": "the $68 total is the base renewal fee plus the $25 late fee at Wis. Stat. 440.08(3)(a)",
+        "terms": [("renewal + $25 late fee", 1.0, 25)],
+    },
+    {
+        "state": "rhode-island", "field": "reinstatement_fee_notes",
+        "why": "total out-of-pocket is the $500 reinstatement fee plus the triennial renewal fee",
+        "terms": [("reinstatement + renewal total", 1.0, 500)],
+    },
+    {
+        "state": "south-dakota", "field": "reinstatement_fee_notes",
+        "why": "ARSD 20:75:03:03 is the base renewal fee plus a $100/year late fee; the stated minimum is one year",
+        "terms": [("minimum, lapse under 1 year", 1.0, 100)],
+    },
+    {
+        "state": "montana", "field": "reinstatement_fee_notes",
+        "why": "the late-renewal penalty is 100% of the renewal fee, so the stated rough total is double it",
+        "terms": [("renewal + 100% penalty", 2.0, 0)],
+    },
+    # NOT registered yet: south-carolina ($95 renewal + $500 reinstatement =
+    # $595). CITE-21 #6 has an open question about whether the site labels that
+    # total correctly, and encoding an arithmetic assertion around a figure
+    # whose labelling is under review would lock in the thing being reviewed.
+    # Add it once that item closes.
+]
+
+
+def check_derived_fee_consistency(repo_root: Path) -> list[str]:
+    """Fail the build when a published figure derived from a base renewal fee
+    no longer matches that fee. See the registry comment above."""
+    fees_path = repo_root / "data" / "renewal_fees.json"
+    reinst_path = repo_root / "data" / "reinstatement.json"
+    if not fees_path.exists() or not reinst_path.exists():
+        return []
+    fees = {r.get("state_slug"): r for r in json.loads(fees_path.read_text(encoding="utf-8"))["records"]}
+    reinst = {r.get("state_slug"): r for r in json.loads(reinst_path.read_text(encoding="utf-8"))["records"]}
+
+    errors = []
+    for spec in _DERIVED_FEE_CHECKS:
+        slug = spec["state"]
+        base_row, dep_row = fees.get(slug), reinst.get(slug)
+        if base_row is None or dep_row is None:
+            errors.append(f"[DERIV][{slug}] registered as a derived-fee dependency but the record is missing -- "
+                          f"update _DERIVED_FEE_CHECKS if this state was intentionally removed")
+            continue
+        base = base_row.get("fee_usd")
+        if not isinstance(base, (int, float)):
+            errors.append(f"[DERIV][{slug}] base renewal fee is {base!r}, so the derived figures in "
+                          f"reinstatement.{spec['field']} can no longer be checked -- either restore the base "
+                          f"fee or reword that copy to stop quoting a computed amount ({spec['why']})")
+            continue
+        prose = dep_row.get(spec["field"]) or ""
+        for label, mult, add in spec["terms"]:
+            expected = int(round(base * mult + add))
+            if f"${expected}" not in prose:
+                found = sorted({int(x) for x in re.findall(r"\$(\d+)", prose)})
+                errors.append(
+                    f"[DERIV][{slug}] reinstatement.{spec['field']} should quote ${expected} for the "
+                    f"{label} (base renewal fee ${int(base)} -- {spec['why']}), but that amount does not "
+                    f"appear. Amounts currently in that copy: {found}. A base-fee edit desyncs derived "
+                    f"copy silently; update both together."
+                )
+    return errors
+
+
 def check_reinstatement_currency(repo_root: Path) -> list[str]:
     """AuditLab BADGE-1 (MEDIUM, 2026-08-09): same promotion as
     check_cpe_hours_currency() above, for the sibling reinstatement dataset
@@ -1451,6 +1545,7 @@ def main():
     all_errors += check_deadline_currency(data_path)
     all_errors += check_cpe_hours_currency(repo_root)
     all_errors += check_reinstatement_currency(repo_root)
+    all_errors += check_derived_fee_consistency(repo_root)
     all_errors += check_renewal_fee_currency(repo_root)
     all_errors += check_competitor_price_currency(repo_root)
     all_errors += check_field_computed_states_sync(repo_root)

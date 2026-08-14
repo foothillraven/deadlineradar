@@ -1092,6 +1092,17 @@ export function buildStaffCpeReminderEmail(loginUrl: string, firmName: string, s
  * display text, same as any other admin-supplied string that ends up in an
  * email body. No magic link: this is informational, not a credential, and
  * the citation URL (when we have one) is the authoritative source anyway.
+ *
+ * AuditLab UNSUB-3 (2026-08-13, narrowed): this is a genuine 1:N fan-out (one
+ * admin action, every roster staffer licensed in the state) with no
+ * List-Unsubscribe header -- unlike buildStaffCpeReminderEmail (1:1,
+ * magic-link-gated, correctly exempt), the domain bears real deliverability
+ * cost here. Recipients were never trapped (roster opted_out filter +
+ * isPermanentlySuppressed both already applied by the caller before this
+ * function is reached), so this adds the one-click HEADER onto an opt-out
+ * path that already existed, reusing each recipient's own
+ * subscribers.unsubscribe_token -- the SAME token their renewal reminders
+ * already use, not a new mechanism.
  */
 export function buildRuleChangeNotificationEmail(
   firmName: string,
@@ -1099,7 +1110,8 @@ export function buildRuleChangeNotificationEmail(
   stateName: string,
   summary: string,
   effectiveDateLabel: string,
-  citationUrl: string | null
+  citationUrl: string | null,
+  unsubscribeUrl: string
 ): BuiltEmail {
   const addr = mailingAddress();
   const safeFirmName = firmName.replace(/[\r\n]+/g, " ");
@@ -1116,6 +1128,7 @@ export function buildRuleChangeNotificationEmail(
     `This is informational only, not a determination about your own situation -- check Practice ` +
     `Privilege Check or confirm directly with the ${stateName} board of accountancy.\n\n` +
     `If this doesn't apply to you, you can safely ignore this email.\n\n` +
+    `Unsubscribe from these and other DeadlineRadar emails, one click, no sign-in: ${unsubscribeUrl}\n\n` +
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
@@ -1136,12 +1149,18 @@ export function buildRuleChangeNotificationEmail(
         13,
         LIGHT.muted
       ) +
-      p("If this doesn't apply to you, you can safely ignore this email.", 13, LIGHT.muted),
+      p("If this doesn't apply to you, you can safely ignore this email.", 13, LIGHT.muted) +
+      p(
+        `${textLink(unsubscribeUrl, "Unsubscribe")} from these and other DeadlineRadar emails, one ` +
+          `click, no sign-in.`,
+        13,
+        LIGHT.muted
+      ),
     `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
       `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
   );
 
-  return { subject, textBody, htmlBody, headers: {} };
+  return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
 }
 
 /**

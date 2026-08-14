@@ -5030,14 +5030,6 @@ async function handleFirmRuleChangeNotify(request: Request, env: Env): Promise<R
     skipped = targets.length;
   } else if (targets.length > 0 && env.SENDGRID_API_KEY) {
     const stateName = stateNameFromSlug(stateSlug);
-    const built = buildRuleChangeNotificationEmail(
-      session.firm.name ?? "Your firm",
-      jurisdiction,
-      stateName,
-      summary,
-      effectiveDateLabel,
-      citationUrl
-    );
     for (const target of targets) {
       if (await store.isPermanentlySuppressed(env.DB, target.email)) {
         skipped++;
@@ -5048,6 +5040,19 @@ async function handleFirmRuleChangeNotify(request: Request, env: Env): Promise<R
         skipped += targets.length - sent - skipped;
         break;
       }
+      // AuditLab UNSUB-3: built per-recipient (not once for the whole fan-out)
+      // because the one-click List-Unsubscribe target is each subscriber's
+      // OWN unsubscribe_token -- the same token their renewal reminders use.
+      const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(target.unsubscribe_token)}`;
+      const built = buildRuleChangeNotificationEmail(
+        session.firm.name ?? "Your firm",
+        jurisdiction,
+        stateName,
+        summary,
+        effectiveDateLabel,
+        citationUrl,
+        unsubscribeUrl
+      );
       const ok = await sendViaSendGrid(env.SENDGRID_API_KEY, target.email, built, env.EMAIL_ALLOWLIST);
       if (ok) sent++;
       else skipped++;

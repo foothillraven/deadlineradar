@@ -380,6 +380,50 @@ describe("POST /firm/rule-change/notify", () => {
     }
   });
 
+  it("AuditLab UNSUB-3 (2026-08-13): carries a real one-click List-Unsubscribe header keyed to the recipient's OWN token, and the link actually stops their notifications", async () => {
+    const { cookie } = await createFirmWithSession("Notify Unsub Firm", `notifyunsub-${Date.now()}@example.com`);
+    const gaEmail = `notify-unsub-ga-${Date.now()}@example.com`;
+    const staff = await addStaff(cookie, { staff_label: "GA Staffer", email: gaEmail, state_slug: "georgia", license_type_id: "ga-individual" });
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(okResponse());
+    try {
+      const resp = await workerFetch(
+        new Request("https://deadline-radar.com/firm/rule-change/notify", {
+          method: "POST",
+          headers: { "content-type": "application/json", Cookie: cookie },
+          body: JSON.stringify(validBody),
+        }),
+        { SENDGRID_API_KEY: "test-key-not-real" }
+      );
+      expect(resp.status).toBe(200);
+      const [, sendGridCallInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      const sentBody = JSON.parse(String(sendGridCallInit.body));
+      const sentHeaders = sentBody.personalizations[0].headers as Record<string, string>;
+      expect(sentHeaders["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+      const match = /<(https:\/\/[^>]+)>/.exec(sentHeaders["List-Unsubscribe"] ?? "");
+      expect(match).not.toBeNull();
+      const unsubUrl = match![1]!;
+
+      const tokenRow = await env.DB.prepare("SELECT unsubscribe_token FROM subscribers WHERE id = ?1").bind(staff.id).first<{ unsubscribe_token: string }>();
+      expect(unsubUrl).toContain(`token=${encodeURIComponent(tokenRow!.unsubscribe_token)}`);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+
+    const tokenRow2 = await env.DB.prepare("SELECT unsubscribe_token FROM subscribers WHERE id = ?1").bind(staff.id).first<{ unsubscribe_token: string }>();
+    const unsubResp = await SELF.fetch(
+      `https://deadline-radar.com/unsubscribe?token=${encodeURIComponent(tokenRow2!.unsubscribe_token)}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "List-Unsubscribe=One-Click",
+      }
+    );
+    expect(unsubResp.status).toBe(200);
+    const row = await env.DB.prepare("SELECT status, stop_reason FROM subscribers WHERE id = ?1").bind(staff.id).first<{ status: string; stop_reason: string }>();
+    expect(row?.stop_reason).toBe("unsubscribed");
+  });
+
   it("skips a staffer who has opted out, and reports total:0 for a state with no staff", async () => {
     const { cookie } = await createFirmWithSession("Notify Opt Firm", `notifyopt-${Date.now()}@example.com`);
     const staff = await addStaff(cookie, {

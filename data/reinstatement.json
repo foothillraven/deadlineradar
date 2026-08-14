@@ -285,7 +285,7 @@
       "citation_url": "https://www.ilga.gov/commission/jcar/admincode/068/068014200000600R.html",
       "source_url": "https://idfpr.illinois.gov/profs/pa.html",
       "last_verified": "2026-07-25",
-      "data_gap_note": "penalty_cpe_hours/penalty_ethics_hours are null because the rule imposes the same standard 120-hr/4-ethics-hr load already required at ordinary renewal, just with a tighter lookback window -- not an additional number. IDFPR's own site does not publish CPA-specific restoration dollar figures on a single page (its general reactivation-fee table explicitly excludes CPAs); the board-page leg of the 2-source rule is satisfied by the Public Accounting landing page instead, with the exact fee formula confirmed only in the codified rule text."
+      "data_gap_note": "No separate penalty CPE/ethics hour figures are published because the rule imposes the same standard 120-hr/4-ethics-hr load already required at ordinary renewal, just with a tighter lookback window -- not an additional number. IDFPR's own site does not publish CPA-specific restoration dollar figures on a single page (its general reactivation-fee table explicitly excludes CPAs); the board-page leg of the 2-source rule is satisfied by the Public Accounting landing page instead, with the exact fee formula confirmed only in the codified rule text."
     },
     {
       "id": "indiana-reinstatement",
@@ -366,7 +366,7 @@
       "citation_url": "https://www.law.cornell.edu/regulations/louisiana/La-Admin-Code-tit-46-SS-XIX-1105",
       "source_url": "https://cpaboard.state.la.us/cpa-resources/",
       "last_verified": "2026-07-25",
-      "data_gap_note": "The reinstatement fee is genuinely unresolved: three different dollar figures/mechanisms exist across the board's own materials (twice the renewal fee, a $500 statutory cap, and a separate monthly delinquent schedule) and none reconciles cleanly with the others, so reinstatement_fee_usd is left null rather than picking one. The 3-hour ethics figure is currently sourced only from the board's own page, not independently confirmed in the codified rule text (checked Sec1301, Sec1303, Sec1319 -- none states an hour figure). Recommend a manual check with the board before citing a specific reinstatement dollar amount."
+      "data_gap_note": "The reinstatement fee is genuinely unresolved: three different dollar figures/mechanisms exist across the board's own materials (twice the renewal fee, a $500 statutory cap, and a separate monthly delinquent schedule) and none reconciles cleanly with the others, so no single dollar figure is published here rather than picking one. The 3-hour ethics figure is currently sourced only from the board's own page, not independently confirmed in the codified rule text (checked Sec1301, Sec1303, Sec1319 -- none states an hour figure). Recommend a manual check with the board before citing a specific reinstatement dollar amount."
     },
     {
       "id": "maine-reinstatement",
@@ -641,7 +641,7 @@
       "citation_url": "https://codes.ohio.gov/ohio-revised-code/section-4701.10",
       "source_url": "https://acc.ohio.gov/about/fees/fees",
       "last_verified": "2026-08-13",
-      "data_gap_note": "reinstatement_fee_usd is null because Ohio's own law sets a formula/cap, not a flat number, stated in plain terms above instead. The Board's own fees page is live and was read directly, including its \"Late and Back Fees\" tab: \"Late fees for expired licenses accrue at a rate of $50/month (to a maximum amount of $300) for Registrations and Permits, and $100/month (to a maximum amount of $1,200) for Permit - Employed in Public Accounting\" -- matches this record's figures exactly."
+      "data_gap_note": "No flat reinstatement fee is published because Ohio's own law sets a formula/cap, not a flat number, stated in plain terms above instead. The Board's own fees page is live and was read directly, including its \"Late and Back Fees\" tab: \"Late fees for expired licenses accrue at a rate of $50/month (to a maximum amount of $300) for Registrations and Permits, and $100/month (to a maximum amount of $1,200) for Permit - Employed in Public Accounting\" -- matches this record's figures exactly."
     },
     {
       "id": "oklahoma-reinstatement",

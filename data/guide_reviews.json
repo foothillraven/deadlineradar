@@ -2,23 +2,81 @@
   "schema_note": "AuditLab PROSE-1 (MEDIUM, 2026-08-04): the blog guides publish regulatory facts that sit outside every dataset's staleness machinery -- 'when Connecticut changes its carryover rule, nothing on this site will notice.' This registry is that missing tripwire: one row per guide, last_reviewed = the most recent date a human (or a documented audit) actually re-checked the guide's factual claims against their sources. Rendered into each guide's own disclosure block at build time, and checked by scripts/guide_review_staleness_check.py (surfaced via preship_gate.py's advisory section, 90-day threshold). Dates are honest records of real reviews, never bumped without one -- the 2026-08-04 entries are AuditLab's own documented cross-check of every then-existing guide against the verified datasets (auditlab_20260804_PROSE1_uncited_guides.md, 'No factual contradiction found'); later dates are each guide's own authorship date, when its facts were drawn directly from the verified datasets.",
   "review_threshold_days": 90,
   "guides": {
-    "cpe-vs-license-renewal": { "last_reviewed": "2026-08-04", "reviewed_by": "auditlab-cross-check" },
-    "common-cpa-renewal-mistakes": { "last_reviewed": "2026-08-04", "reviewed_by": "auditlab-cross-check" },
-    "missouri-cpa-license-renewal-guide": { "last_reviewed": "2026-08-04", "reviewed_by": "auditlab-cross-check" },
-    "arizona-cpa-license-renewal-guide": { "last_reviewed": "2026-08-04", "reviewed_by": "auditlab-cross-check" },
-    "why-some-states-need-your-birth-month": { "last_reviewed": "2026-08-04", "reviewed_by": "auditlab-cross-check" },
-    "illinois-cpa-license-renewal-guide": { "last_reviewed": "2026-08-04", "reviewed_by": "auditlab-cross-check" },
-    "connecticut-cpa-license-renewal-guide": { "last_reviewed": "2026-08-04", "reviewed_by": "auditlab-cross-check" },
-    "wisconsin-cpa-license-renewal-guide": { "last_reviewed": "2026-08-04", "reviewed_by": "auditlab-cross-check" },
-    "florida-cpa-license-renewal-guide": { "last_reviewed": "2026-08-07", "reviewed_by": "authored-from-verified-datasets" },
-    "new-york-to-new-jersey-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
-    "california-to-nevada-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
-    "texas-to-oklahoma-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
-    "new-york-to-connecticut-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
-    "california-to-texas-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
-    "illinois-to-indiana-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
-    "florida-to-georgia-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
-    "virginia-to-maryland-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" },
-    "pennsylvania-to-new-jersey-cpa-mobility": { "last_reviewed": "2026-08-13", "reviewed_by": "authored-from-verified-datasets" }
+    "cpe-vs-license-renewal": {
+      "last_reviewed": "2026-08-04",
+      "reviewed_by": "auditlab-cross-check"
+    },
+    "common-cpa-renewal-mistakes": {
+      "last_reviewed": "2026-08-04",
+      "reviewed_by": "auditlab-cross-check"
+    },
+    "missouri-cpa-license-renewal-guide": {
+      "last_reviewed": "2026-08-04",
+      "reviewed_by": "auditlab-cross-check"
+    },
+    "arizona-cpa-license-renewal-guide": {
+      "last_reviewed": "2026-08-04",
+      "reviewed_by": "auditlab-cross-check"
+    },
+    "why-some-states-need-your-birth-month": {
+      "last_reviewed": "2026-08-04",
+      "reviewed_by": "auditlab-cross-check"
+    },
+    "illinois-cpa-license-renewal-guide": {
+      "last_reviewed": "2026-08-04",
+      "reviewed_by": "auditlab-cross-check"
+    },
+    "connecticut-cpa-license-renewal-guide": {
+      "last_reviewed": "2026-08-04",
+      "reviewed_by": "auditlab-cross-check"
+    },
+    "wisconsin-cpa-license-renewal-guide": {
+      "last_reviewed": "2026-08-04",
+      "reviewed_by": "auditlab-cross-check"
+    },
+    "florida-cpa-license-renewal-guide": {
+      "last_reviewed": "2026-08-07",
+      "reviewed_by": "authored-from-verified-datasets"
+    },
+    "new-york-to-new-jersey-cpa-mobility": {
+      "last_reviewed": "2026-08-13",
+      "reviewed_by": "authored-from-verified-datasets"
+    },
+    "california-to-nevada-cpa-mobility": {
+      "last_reviewed": "2026-08-13",
+      "reviewed_by": "authored-from-verified-datasets"
+    },
+    "texas-to-oklahoma-cpa-mobility": {
+      "last_reviewed": "2026-08-13",
+      "reviewed_by": "authored-from-verified-datasets"
+    },
+    "new-york-to-connecticut-cpa-mobility": {
+      "last_reviewed": "2026-08-13",
+      "reviewed_by": "authored-from-verified-datasets"
+    },
+    "california-to-texas-cpa-mobility": {
+      "last_reviewed": "2026-08-13",
+      "reviewed_by": "authored-from-verified-datasets"
+    },
+    "illinois-to-indiana-cpa-mobility": {
+      "last_reviewed": "2026-08-13",
+      "reviewed_by": "authored-from-verified-datasets"
+    },
+    "florida-to-georgia-cpa-mobility": {
+      "last_reviewed": "2026-08-13",
+      "reviewed_by": "authored-from-verified-datasets"
+    },
+    "virginia-to-maryland-cpa-mobility": {
+      "last_reviewed": "2026-08-13",
+      "reviewed_by": "authored-from-verified-datasets"
+    },
+    "pennsylvania-to-new-jersey-cpa-mobility": {
+      "last_reviewed": "2026-08-13",
+      "reviewed_by": "authored-from-verified-datasets"
+    },
+    "virginia-to-washington-dc-cpa-mobility": {
+      "last_reviewed": "2026-08-13",
+      "reviewed_by": "authored-from-verified-datasets"
+    }
   }
 }

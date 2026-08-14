@@ -137,6 +137,83 @@ def check_rendering_integrity(html_files: list[Path]) -> list[str]:
     return errors
 
 
+# ---------------------------------------------------------------------------
+# Shape-based leak detection (orchestrator Fable-window directive,
+# 2026-08-14): COPY-1 through COPY-4 each sailed past LEAK_PATTERNS above,
+# and each fix appended a few more literal phrases -- four consecutive
+# demonstrations that a denylist stops only the phrasings someone already
+# thought of. These two detectors match the SHAPE of the leak class instead
+# of its vocabulary, using the exact signatures every COPY-x instance
+# shared:
+#   1. a raw snake_case identifier in rendered prose (COPY-2's `confidence:
+#      single_source`, COPY-3's `penalty_cpe_hours`, `reinstatement_fee_usd`,
+#      ...) -- no legitimate reader-facing sentence on this site contains a
+#      snake_case token;
+#   2. a "(YYYY-MM-DD: ..." dated maintenance parenthetical (COPY-4's two
+#      Nevada instances) -- record-keeping changelog syntax, not prose.
+#
+# Extraction recipe (AuditLab's validated order, from their COPY-3 residual
+# report): strip HTML comments FIRST (so a commented-out block can't hide a
+# token from the tag-stripper), then scripts/styles wholesale (they are
+# legitimately full of snake_case), then tags (attribute values go with
+# them), then entity-unescape, then URLs (path segments legitimately contain
+# underscores). What remains is what a human actually reads.
+# ---------------------------------------------------------------------------
+
+_PROSE_SNAKE_CASE_RE = re.compile(r"\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b")
+_PROSE_DATED_PAREN_RE = re.compile(r"\(20\d\d-\d\d-\d\d:")
+_PROSE_URL_RE = re.compile(r"(?:https?://|www\.)[^\s<>\"')]+|\b[a-z0-9.-]+\.(?:gov|com|org|net|edu|us|io)(?:/[^\s<>\"')]*)?", re.IGNORECASE)
+
+# Tokens that are legitimately part of reader-facing prose. Keep this SHORT
+# and justified per entry -- an unexplained entry defeats the whole point.
+_PROSE_SNAKE_CASE_ALLOWLIST: dict[str, str] = {
+    # (none currently -- the 2026-08-14 baseline sweep of all 235 rendered
+    # pages found zero legitimate snake_case tokens in extracted prose. If a
+    # future hit is genuinely reader-appropriate, add it here WITH a reason.)
+}
+
+
+def _extract_rendered_prose(page_html: str) -> str:
+    """Reduce a rendered page to the text a human actually reads -- see the
+    recipe comment above for why the order matters."""
+    text = re.sub(r"<!--.*?-->", " ", page_html, flags=re.DOTALL)
+    text = re.sub(r"<script\b.*?</script\s*>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<style\b.*?</style\s*>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+    # <code> spans are the site's explicit "this is a deliberate technical
+    # token" marker (e.g. the firm dashboard's CSV import help, which must
+    # state the exact column headers a user's file needs). Content inside
+    # them is intentional notation, not leaked prose -- stripped wholesale.
+    # A raw identifier OUTSIDE <code> stays caught, which is the leak class.
+    text = re.sub(r"<code\b.*?</code\s*>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html.unescape(text)
+    text = _PROSE_URL_RE.sub(" ", text)
+    return text
+
+
+def check_prose_leak_shapes(html_files: list[Path]) -> list[str]:
+    errors = []
+    for f in html_files:
+        prose = _extract_rendered_prose(f.read_text(encoding="utf-8"))
+        for m in _PROSE_SNAKE_CASE_RE.finditer(prose):
+            token = m.group(0)
+            if token in _PROSE_SNAKE_CASE_ALLOWLIST:
+                continue
+            snippet = prose[max(0, m.start() - 60): m.end() + 60].replace("\n", " ").strip()
+            errors.append(
+                f"[SHAPE][{f}] snake_case identifier '{token}' in rendered prose -- ...{snippet}... "
+                f"(internal field/enum names never belong in reader copy; reword in plain English or, "
+                f"if genuinely reader-appropriate, allowlist WITH a reason)"
+            )
+        for m in _PROSE_DATED_PAREN_RE.finditer(prose):
+            snippet = prose[max(0, m.start() - 60): m.end() + 80].replace("\n", " ").strip()
+            errors.append(
+                f"[SHAPE][{f}] dated maintenance parenthetical '{m.group(0)}...' in rendered prose -- "
+                f"...{snippet}... (changelog syntax belongs in verification_history, not public copy)"
+            )
+    return errors
+
+
 def check_stylesheet_integrity(html_files: list[Path]) -> list[str]:
     """Catch a TRUNCATED stylesheet -- the worst silent failure this site has.
 
@@ -1323,6 +1400,7 @@ def main():
     all_errors = []
     all_errors += check_copy_hygiene(html_files)
     all_errors += check_rendering_integrity(html_files)
+    all_errors += check_prose_leak_shapes(html_files)
     all_errors += check_stylesheet_integrity(html_files)
     all_errors += check_legal_safety(html_files, state_page_files)
     all_errors += check_affiliate_disclosure(html_files)

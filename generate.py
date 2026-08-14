@@ -9047,7 +9047,7 @@ def _firm_dashboard_add_staff_form_html(by_slug: dict[str, list[dict]], as_of: d
   <p class="signup-microcopy">Download your full roster as a CSV -- every field this page tracks,
   plus current CPE progress. A read-only report for backups or spreadsheets, not formatted for
   re-import (it uses display labels like state name and license type name, not the raw
-  state_slug/license_type_id codes Import above expects).</p>
+  <code>state_slug</code>/<code>license_type_id</code> codes Import above expects).</p>
   <button type="button" id="dr-csv-export-btn">Export staff</button>
 </div>"""
 

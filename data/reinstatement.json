@@ -121,11 +121,12 @@
       "penalty_cpe_notes": "No extra CPE beyond the standard renewal formula for a sub-3-year lapse: 40 hours of CPE for each consecutive 12-month period lapsed (pro-rated at 3 1/3 hours/month), the same rate as ordinary renewal -- not an add-on penalty.",
       "penalty_ethics_hours": null,
       "lapse_trigger": "Licenses expire annually on December 31. A monthly late fee accrues starting January 1; if still not renewed by April 1 of the following year, the license automatically LAPSES by operation of statute.",
-      "citation": "Ark. Code Ann. §17-12-504(f)-(h) (late fee, lapse trigger, 3-year reinstatement window); Arkansas State Board of Public Accountancy Rule 12.2 (reinstatement fee) and Rule 13.7(d)/13.9 (CPE required for reinstatement)",
-      "citation_url": "https://www.labor.arkansas.gov/wp-content/uploads/Complete-Set-of-Rules-01-31-2024.pdf",
+      "citation": "Ark. Code Ann. § 17-12-504(f)-(h) (late fee, lapse trigger, 3-year reinstatement window); 17 CAR § 236-1101 (required fees; formerly Board Rule 12.2); 17 CAR § 236-1203 et seq. (CPE required for reinstatement; formerly Rule 13.7(d)/13.9)",
+      "citation_url": "https://codeofarrules.arkansas.gov/Rules/Rule?rule=17%20CAR%20%C2%A7%20236-1101",
       "source_url": "https://labor.arkansas.gov/licensing/state-board-of-public-accountancy/laws-rules/",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "verification_history": "2026-08-14 (DiffLab citation audit): Arkansas's board rules were recodified into the Code of Arkansas Rules format: the official set is now 17 CAR Part 236 (Board Rules) plus Part 235 (Code of Professional Conduct). The state's own licensing pages still reference the legacy 'Board Rule 12/13.x' numbering in places, so old references aren't dead -- but the official set uses the CAR numbering. Fee rule renumbered to 17 CAR § 236-1101 ('Required fees'), CPE-for-reinstatement provisions to Subpart 12 (§ 236-1203 et seq.); statute cites (§ 17-12-504) unchanged and still correct. Recorded fee/CPE substance unchanged -- numbering corrected only."
     },
     {
       "id": "california-reinstatement",

@@ -10953,11 +10953,21 @@ function drRenderCalendar() {
       // simply unused here. Topic differentiates the chip, and the summary
       // goes in title= so hover disambiguates even when two events share a
       // topic.
+      // A11Y-7 (2026-08-14): the first pass shortened the topic for BOTH the
+      // visible chip and the aria-label, which left two Missouri events still
+      // colliding for a screen reader -- both are "statute change", and they
+      // differ only in `summary`. The reason for a short label is the ~350-390px
+      // calendar cell; that constraint does not apply to aria-label, which has
+      // no width at all. So the visible chip keeps the short topic and the
+      // aria-label carries the FULL topic plus summary. Deliberately not
+      // leaning on title= for this: it is the least accessible of the three
+      // (no touch, no keyboard focus, inconsistent screen-reader support).
       var chipTopic = e.topic ? drRuleChangeShortTopic(e.topic) : 'rule change';
-      var chipTitle = [e.jurisdiction, e.topic].filter(Boolean).join(' — ') + (e.summary ? ': ' + e.summary : '');
+      var chipDetail = [e.jurisdiction, e.topic || 'rule change'].join(' — ') +
+        (e.summary ? ': ' + e.summary : '');
       return '<button type="button" class="dr-cal-item--rule-change" data-rule-change-id="' + drEscapeHtml(e.id) + '" ' +
-        'title="' + drEscapeHtml(chipTitle) + '" ' +
-        'aria-label="Rule change: ' + drEscapeHtml(e.jurisdiction) + ' — ' + drEscapeHtml(chipTopic) + '">' +
+        'title="' + drEscapeHtml(chipDetail) + '" ' +
+        'aria-label="Rule change: ' + drEscapeHtml(chipDetail) + '">' +
         drEscapeHtml(e.jurisdiction) + ': ' + drEscapeHtml(chipTopic) + '</button>';
     }).join('');
     // --has-item (staff) and --has-rule-change (regulatory) are separate

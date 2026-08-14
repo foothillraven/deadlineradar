@@ -636,8 +636,8 @@
       "citation": "Ohio Rev. Code § 4701.10(A),(B),(D),(E),(F); Ohio Admin. Code 4701-15-02(D), 4701-15-09 (120 credits/36 months, 24 A&A, 24 tax, 3 ethics)",
       "citation_url": "https://codes.ohio.gov/ohio-revised-code/section-4701.10",
       "source_url": "https://acc.ohio.gov/about/fees/fees",
-      "last_verified": "2026-07-25",
-      "data_gap_note": "reinstatement_fee_usd is null because Ohio's own law sets a formula/cap, not a flat number (reported in the notes field instead). The Board's own fees page could not be directly fetched during research (repeated 404, independently reproduced) -- its figures are corroborated via multiple independent search-engine text extractions that match the statute text verbatim-fetched from codes.ohio.gov, but this is a real gap on the board-page leg of the 2-source rule until a live-render check succeeds. Recommend a manual browser spot-check before this record is cited anywhere beyond this page."
+      "last_verified": "2026-08-13",
+      "data_gap_note": "reinstatement_fee_usd is null because Ohio's own law sets a formula/cap, not a flat number (reported in the notes field instead). The Board's own fees page (source_url) is live and was read directly, including its \"Late and Back Fees\" tab: \"Late fees for expired licenses accrue at a rate of $50/month (to a maximum amount of $300) for Registrations and Permits, and $100/month (to a maximum amount of $1,200) for Permit - Employed in Public Accounting\" -- matches this record's figures exactly. (2026-08-13 correction: an earlier version of this note reported the page as unreachable; the page loads normally and always has, confirmed with an ordinary browser.)"
     },
     {
       "id": "oklahoma-reinstatement",

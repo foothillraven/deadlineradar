@@ -78,6 +78,21 @@ LEAK_PATTERNS = [
     # didn't cover; fixed in generate.py, added here so this exact class of
     # leak can't ship unnoticed again).
     r"\bDevin\b",
+    # AuditLab COPY-1 (LOW, 2026-08-13): "A real correctness catch during
+    # research... fetched that section directly" shipped in a live CPE
+    # record's public notes field -- a researcher narrating their OWN
+    # workflow to a colleague, not the site addressing a reader. None of
+    # the existing patterns matched (not "curl", "WebFetch", or
+    # "re-verified"), which is the actual gap: this is a denylist, so it
+    # stops phrasings someone already thought of and lets the next
+    # paraphrase through. These few additions close the one instance
+    # found; a denylist can't be made complete this way, only less
+    # incomplete -- see COPY-1's own note that a real fix for the class
+    # would need a different check shape (allowlist for free-prose
+    # fields), which is a bigger, separate judgment call.
+    r"\bcorrectness catch\b",
+    r"\bduring research\b",
+    r"\bfetched (?:that|this|it) [a-z ]{0,20}directly\b",
 ]
 LEAK_RE = re.compile("|".join(LEAK_PATTERNS), re.IGNORECASE)
 

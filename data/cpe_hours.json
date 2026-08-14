@@ -478,8 +478,9 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "Nebraska requires 80 hours of CPE within the two calendar years immediately preceding renewal (permits are on a June 30 biennial cycle), including 4 hours of ethics within that same total -- hours must be earned by December 31 of the year before renewal and reported by January 31 of the renewal year. A permit issued after July 1 of the year prior to expiration gets a reduced 40-hour requirement for that first renewal. Self-study is capped at 40 hours per renewal period. The statute itself (1-136.01) authorizes the requirement in \"ten days within the preceding two calendar years\" rather than stating hours directly -- the Board's own current published guidance states this as 80 hours, the standard 8-hours-per-day conversion every CPE-day-based state statute uses. Inactive and Inactive-Retired registrants have no CPE reporting requirement.",
-      "verified_date": "2026-08-10",
-      "data_gap_note": "The 80-hour/4-ethics-hour figures are the Board's own current published guidance (nbpa.nebraska.gov); the codified statutory basis (1-136.01) states the requirement in \"days\" rather than hours, and the specific administrative-code section that would normally spell out the ethics-hour breakdown in rule text (288 Neb. Admin. Code ch. 8, § 004) returned a 403 on automated access at publish time, so that one specific figure could not be independently cross-confirmed against rule text itself -- only against the Board's own current page. Recommend a manual check of that section if you want to see the ethics-hour rule text firsthand."
+      "verified_date": "2026-08-14",
+      "data_gap_note": "The 80-hour figure is the Board's own current published guidance (nbpa.nebraska.gov); the codified statutory basis (1-136.01) states the requirement in 'days' rather than hours. The 4-ethics-hour figure IS codified: 288 Neb. Admin. Code ch. 8, § 004.01 states it directly.",
+      "verification_history": "2026-08-14 (last item of the 13-record gap list): the '403 on automated access' claim was stale -- the Nebraska SOS chapter-PDF endpoint serves 288 NAC ch. 8 (200, 237KB, extracts cleanly; same URL the sibling reinstatement record already cites). Read § 004 directly: '004 Ethics Requirement 004.01 A permit holder must complete 4 hours of ethic courses in every renewal period or reinstatement' -- matching ethics_hours=4 verbatim. The 80-hour total does not appear in ch. 8 and remains sourced to the Board's guidance as the note discloses; only the ethics leg's 'could not be cross-confirmed' claim is closed."
     },
     {
       "id": "nv-cpe",
@@ -635,7 +636,7 @@
       "state": "Oregon",
       "state_slug": "oregon",
       "citation": "OAR 801-040-0010",
-      "citation_url": "https://oregon.public.law/rules/oar_801-040-0010",
+      "citation_url": "https://secure.sos.state.or.us/oard/displayDivisionRules.action?selectedDivision=3537",
       "source_url": "https://www.oregon.gov/boa/pages/cpe.aspx",
       "total_hours": 80,
       "period_years": 2,
@@ -643,7 +644,9 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "80 CPE hours per 2-year renewal period (biennial cycle ending June 30), with at least 24 hours completed in EACH of the two years of the cycle -- this is a true per-year floor, not just a biennial average, and carryforward hours from a prior period cannot be used to satisfy it. Since October 1, 2023, all active and inactive Oregon licensees must complete 4 hours of ethics each biennial renewal (increased scope from an earlier CPA-only rule); since July 1, 2020, that ethics content must be Oregon-specific (Oregon Administrative Rules/Revised Statutes on public accountancy, the Code of Professional Conduct, and relevant case law) for licensees whose principal place of business is Oregon -- out-of-state licensees may substitute their home-state ethics program if it exists. No more than 16 hours of non-technical CPE count, nano-learning is capped at 10% (8 hours) of the biennium, and maximum carryforward is 20 hours.",
-      "verified_date": "2026-07-20"
+      "verified_date": "2026-08-14",
+      "secondary_source_url": "https://oregon.public.law/rules/oar_801-040-0010",
+      "verification_history": "2026-08-14 (10-state substance queue, OR -- SB797/2025 c.132 repealed ORS 673.040): confirmed the repeal on the legislature's own ORS chapter page ('673.040 [... repealed by 2025 c.132 s37]', licensure restructured into 673.045 ff.). No Oregon record cites ORS 673 directly -- all cite Board OARs -- and the OARs survived: read chapter 801 division 10 in the official OARD (browser session; the OARD serves only a JS shell to fetchers), where 801-010-0110 -- amended by BOA 1-2026, filed 2026-01-29, i.e. POST-restructure -- still states the odd/even license-number June 30 biennial cohorts verbatim, 801-010-0010 lists 'Biennial renewal application fees: (a) Active CPA or PA License -- $255', and 801-010-0130 keeps the reinstatement structure. Substance confirmed current against the post-SB797 rule text. citation_url repointed from oregon.public.law (a third-party mirror that survived SRC-1 because it is not one of the three hosts that sweep matched) to the official OARD division page; the mirror is kept as secondary since the OARD resists non-browser fetchers."
     },
     {
       "id": "pa-cpe",
@@ -691,8 +694,8 @@
       "ethics_hours": 2,
       "ethics_period_years": 1,
       "notes": "South Carolina is one of the few states on an annual (not multi-year rolling) CPE cycle: each licensee must document 40 hours of acceptable CPE completed during the immediately preceding calendar year, of which at least 2 hours must be ethics, every single year. Licensees may carry over up to 20 excess hours into the next year (10 for CPA-Retired status). Non-obvious trap: the number '40' does NOT appear in the Board's own CPE administrative regulation (Reg. 1-08, which covers only program mechanics, sponsor standards, and carryover rules) -- it is set by the statute, S.C. Code § 40-2-250(C), so citing Reg. 1-08 alone as the hours authority would be wrong. Since 2022 SC no longer mandates a SC-specific ethics course; any qualifying regulatory/behavioral ethics course satisfies the 2-hour requirement.",
-      "verified_date": "2026-07-20",
-      "verification_history": "2026-08-14 (COPY-6): methodology narration moved out of the reader-facing note. Verified by reading the full statute text (scstatehouse.gov) against the Board's own FAQ (llr.sc.gov) and the full text of Reg. 1-08/1-13 (scstatehouse.gov coderegs Chapter 1 PDF), which independently corroborates the annual-ethics figure and the 120-hour/3-year total used for CPA-Retired reinstatement (40 x 3 = 120)."
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (COPY-6): methodology narration moved out of the reader-facing note. Verified by reading the full statute text (scstatehouse.gov) against the Board's own FAQ (llr.sc.gov) and the full text of Reg. 1-08/1-13 (scstatehouse.gov coderegs Chapter 1 PDF), which independently corroborates the annual-ethics figure and the 120-hour/3-year total used for CPA-Retired reinstatement (40 x 3 = 120).\n\n2026-08-14 (10-state substance queue, SC FIRST -- Act 34 deletions): re-read the full current chapter at scstatehouse.gov (fetches cleanly, 112KB). 2025 Act No. 34 (eff. 2025-06-30) deleted definitions 40-2-20(18) and (33) -- both now read 'Reserved' -- and made technical corrections in (2)/(23)(b), but the substance sections this record relies on are UNTOUCHED: 40-2-250's and 40-2-255's amendment histories both end at 2022 Act No. 174. Current text confirms our figures verbatim: 250(C) 'forty hours of continuing professional education ... completed during the immediately preceding calendar year'; 250(F) 'a reinstatement fee in the amount of five hundred dollars'; 250(G)(1) 'forty continuing professional education units for each year the license has lapsed' for a lapse under three years. Our citations never pinned the deleted subsections, so no citation change is needed."
     },
     {
       "id": "sd-cpe",

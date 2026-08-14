@@ -711,10 +711,12 @@
       "penalty_ethics_hours": 4,
       "lapse_trigger": "A license not renewed by the June 30 biennial deadline enters late-renewal status; if still not renewed within 60 days after the close of that permit period, it automatically lapses and can only be reinstated via a separate application, not renewed directly.",
       "citation": "OAR 801-010-0130 (Reinstatement Requirements); OAR 801-010-0110 (Renewal); OAR 801-010-0010 (Fees)",
-      "citation_url": "https://oregon.public.law/rules/oar_801-010-0130",
+      "citation_url": "https://secure.sos.state.or.us/oard/displayDivisionRules.action?selectedDivision=3537",
       "source_url": "https://www.oregon.gov/BOA/Pages/License-Renewal-Information.aspx",
-      "last_verified": "2026-07-25",
-      "data_gap_note": "The $225/$255 fee figures and the 16-hour CPE penalty are confirmed in the codified rule (OAR 801-010), but the Board's own License-Renewal-Information page describes the lapse/reinstatement mechanics without restating these dollar/hour figures itself. Recommend a manual check of the board's page if you want the numbers confirmed firsthand."
+      "last_verified": "2026-08-14",
+      "data_gap_note": "The $225/$255 fee figures and the 16-hour CPE penalty are confirmed in the codified rule (OAR 801-010), but the Board's own License-Renewal-Information page describes the lapse/reinstatement mechanics without restating these dollar/hour figures itself. Recommend a manual check of the board's page if you want the numbers confirmed firsthand.",
+      "secondary_source_url": "https://oregon.public.law/rules/oar_801-010-0130",
+      "verification_history": "2026-08-14 (10-state substance queue, OR -- SB797/2025 c.132 repealed ORS 673.040): confirmed the repeal on the legislature's own ORS chapter page ('673.040 [... repealed by 2025 c.132 s37]', licensure restructured into 673.045 ff.). No Oregon record cites ORS 673 directly -- all cite Board OARs -- and the OARs survived: read chapter 801 division 10 in the official OARD (browser session; the OARD serves only a JS shell to fetchers), where 801-010-0110 -- amended by BOA 1-2026, filed 2026-01-29, i.e. POST-restructure -- still states the odd/even license-number June 30 biennial cohorts verbatim, 801-010-0010 lists 'Biennial renewal application fees: (a) Active CPA or PA License -- $255', and 801-010-0130 keeps the reinstatement structure. Substance confirmed current against the post-SB797 rule text. citation_url repointed from oregon.public.law (a third-party mirror that survived SRC-1 because it is not one of the three hosts that sweep matched) to the official OARD division page; the mirror is kept as secondary since the OARD resists non-browser fetchers."
     },
     {
       "id": "pennsylvania-reinstatement",
@@ -765,7 +767,7 @@
       "source_url": "https://llr.sc.gov/acct/faq.aspx",
       "last_verified": "2026-08-14",
       "data_gap_note": null,
-      "verification_history": "2026-08-14 (CITE-21 #6): relabelled the structured fee field 595 -> 500. The statute supports $500 as the reinstatement fee; $595 is the total out-of-pocket including the $95 renewal. The prose already said this correctly -- the field was labelling the TOTAL as the reinstatement fee, the same class as the audit's other labelling findings. Now matches the rhode-island house pattern (codified fee in the field, total in the note)."
+      "verification_history": "2026-08-14 (CITE-21 #6): relabelled the structured fee field 595 -> 500. The statute supports $500 as the reinstatement fee; $595 is the total out-of-pocket including the $95 renewal. The prose already said this correctly -- the field was labelling the TOTAL as the reinstatement fee, the same class as the audit's other labelling findings. Now matches the rhode-island house pattern (codified fee in the field, total in the note).\n\n2026-08-14 (10-state substance queue, SC FIRST -- Act 34 deletions): re-read the full current chapter at scstatehouse.gov (fetches cleanly, 112KB). 2025 Act No. 34 (eff. 2025-06-30) deleted definitions 40-2-20(18) and (33) -- both now read 'Reserved' -- and made technical corrections in (2)/(23)(b), but the substance sections this record relies on are UNTOUCHED: 40-2-250's and 40-2-255's amendment histories both end at 2022 Act No. 174. Current text confirms our figures verbatim: 250(C) 'forty hours of continuing professional education ... completed during the immediately preceding calendar year'; 250(F) 'a reinstatement fee in the amount of five hundred dollars'; 250(G)(1) 'forty continuing professional education units for each year the license has lapsed' for a lapse under three years. Our citations never pinned the deleted subsections, so no citation change is needed."
     },
     {
       "id": "south-dakota-reinstatement",

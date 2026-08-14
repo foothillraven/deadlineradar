@@ -716,10 +716,12 @@
       ],
       "ce_deadline_note": "80 CPE hrs/2-yr period (min 4 ethics, min 20/yr, no more than 20 hrs carryover applied to the annual minimum), deadline coincides with the June 30 renewal date.",
       "source_url": "https://www.oregon.gov/boa/pages/license-renewal-information.aspx",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 5,
       "citation": "OAR 801-010-0110",
-      "citation_url": "https://oregon.public.law/rules/oar_801-010-0110"
+      "citation_url": "https://secure.sos.state.or.us/oard/displayDivisionRules.action?selectedDivision=3537",
+      "secondary_source_url": "https://oregon.public.law/rules/oar_801-010-0110",
+      "verification_history": "2026-08-14 (10-state substance queue, OR -- SB797/2025 c.132 repealed ORS 673.040): confirmed the repeal on the legislature's own ORS chapter page ('673.040 [... repealed by 2025 c.132 s37]', licensure restructured into 673.045 ff.). No Oregon record cites ORS 673 directly -- all cite Board OARs -- and the OARs survived: read chapter 801 division 10 in the official OARD (browser session; the OARD serves only a JS shell to fetchers), where 801-010-0110 -- amended by BOA 1-2026, filed 2026-01-29, i.e. POST-restructure -- still states the odd/even license-number June 30 biennial cohorts verbatim, 801-010-0010 lists 'Biennial renewal application fees: (a) Active CPA or PA License -- $255', and 801-010-0130 keeps the reinstatement structure. Substance confirmed current against the post-SB797 rule text. citation_url repointed from oregon.public.law (a third-party mirror that survived SRC-1 because it is not one of the three hosts that sweep matched) to the official OARD division page; the mirror is kept as secondary since the OARD resists non-browser fetchers."
     },
     {
       "id": "or-firm",
@@ -731,10 +733,12 @@
       "cycle_description": "Biennial, single fixed date for ALL firms (no cohort split): 'Public accounting firm registrations expire December 31 of odd-numbered years' per the Board's official firm renewal instructions. Postmark by Dec 31 to avoid a $265 late fee; unrenewed by Jan 31 are terminated.",
       "next_deadline_computed": "2027-12-31",
       "source_url": "https://www.oregon.gov/BOA/Documents/Firm%20Instructions_Renewal%202023%20-%20Final.pdf",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 5,
       "citation": "OAR 801-010-0345",
-      "citation_url": "https://oregon.public.law/rules/oar_801-010-0345"
+      "citation_url": "https://secure.sos.state.or.us/oard/displayDivisionRules.action?selectedDivision=3537",
+      "secondary_source_url": "https://oregon.public.law/rules/oar_801-010-0345",
+      "verification_history": "2026-08-14 (10-state substance queue, OR -- SB797/2025 c.132 repealed ORS 673.040): confirmed the repeal on the legislature's own ORS chapter page ('673.040 [... repealed by 2025 c.132 s37]', licensure restructured into 673.045 ff.). No Oregon record cites ORS 673 directly -- all cite Board OARs -- and the OARs survived: read chapter 801 division 10 in the official OARD (browser session; the OARD serves only a JS shell to fetchers), where 801-010-0110 -- amended by BOA 1-2026, filed 2026-01-29, i.e. POST-restructure -- still states the odd/even license-number June 30 biennial cohorts verbatim, 801-010-0010 lists 'Biennial renewal application fees: (a) Active CPA or PA License -- $255', and 801-010-0130 keeps the reinstatement structure. Substance confirmed current against the post-SB797 rule text. citation_url repointed from oregon.public.law (a third-party mirror that survived SRC-1 because it is not one of the three hosts that sweep matched) to the official OARD division page; the mirror is kept as secondary since the OARD resists non-browser fetchers."
     },
     {
       "id": "sc-individual",
@@ -747,11 +751,12 @@
       "next_deadline_computed": "2027-02-01",
       "ce_deadline_note": "40 CPE hrs 'for each annual reporting period' per the Board's FAQ; the page uses general phrases ('each annual reporting period,' 'each calendar year') rather than an explicit Jan 1-Dec 31 date range -- treat the exact boundary as probable but not verbatim-quoted.",
       "source_url": "https://llr.sc.gov/acct/faq.aspx",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 5,
       "secondary_source_url": "https://www.scstatehouse.gov/code/t40c002.php",
       "citation": "S.C. Code Ann. § 40-2-250(A)",
-      "citation_url": "https://www.scstatehouse.gov/code/t40c002.php"
+      "citation_url": "https://www.scstatehouse.gov/code/t40c002.php",
+      "verification_history": "2026-08-14 (10-state substance queue, SC FIRST -- Act 34 deletions): re-read the full current chapter at scstatehouse.gov (fetches cleanly, 112KB). 2025 Act No. 34 (eff. 2025-06-30) deleted definitions 40-2-20(18) and (33) -- both now read 'Reserved' -- and made technical corrections in (2)/(23)(b), but the substance sections this record relies on are UNTOUCHED: 40-2-250's and 40-2-255's amendment histories both end at 2022 Act No. 174. Current text confirms our figures verbatim: 250(C) 'forty hours of continuing professional education ... completed during the immediately preceding calendar year'; 250(F) 'a reinstatement fee in the amount of five hundred dollars'; 250(G)(1) 'forty continuing professional education units for each year the license has lapsed' for a lapse under three years. Our citations never pinned the deleted subsections, so no citation change is needed."
     },
     {
       "id": "sc-firm",
@@ -763,11 +768,12 @@
       "cycle_description": "Same annual, fixed February 1 (11:59pm) deadline as individual CPA licenses -- 'The deadline for firm registration renewal is February 1 at 11:59 pm. If a firm registration is not renewed by February 15 at 11:59 pm, it is considered lapsed.'",
       "next_deadline_computed": "2027-02-01",
       "source_url": "https://llr.sc.gov/acct/faq.aspx",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 5,
       "secondary_source_url": "https://www.scstatehouse.gov/code/t40c002.php",
       "citation": "S.C. Code Ann. § 40-2-255(A)",
-      "citation_url": "https://www.scstatehouse.gov/code/t40c002.php"
+      "citation_url": "https://www.scstatehouse.gov/code/t40c002.php",
+      "verification_history": "2026-08-14 (10-state substance queue, SC FIRST -- Act 34 deletions): re-read the full current chapter at scstatehouse.gov (fetches cleanly, 112KB). 2025 Act No. 34 (eff. 2025-06-30) deleted definitions 40-2-20(18) and (33) -- both now read 'Reserved' -- and made technical corrections in (2)/(23)(b), but the substance sections this record relies on are UNTOUCHED: 40-2-250's and 40-2-255's amendment histories both end at 2022 Act No. 174. Current text confirms our figures verbatim: 250(C) 'forty hours of continuing professional education ... completed during the immediately preceding calendar year'; 250(F) 'a reinstatement fee in the amount of five hundred dollars'; 250(G)(1) 'forty continuing professional education units for each year the license has lapsed' for a lapse under three years. Our citations never pinned the deleted subsections, so no citation change is needed."
     },
     {
       "id": "al-all",

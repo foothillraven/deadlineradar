@@ -587,6 +587,12 @@ PAGE_CSS = """
     background: var(--card-bg); border: 1px solid var(--border);
   }
   tr.dr-bf-highlight { background: var(--card-bg); outline: 2px solid var(--accent); outline-offset: -2px; }
+  /* FRESH-1 residual (2026-08-14): view-time staleness caveat appended by
+     _STALE_BADGE_RUNTIME_JS when a dated verification marker is >45 days
+     old on a LIVE page (build gates can't touch already-deployed pages).
+     Muted, not alarming -- it's an honesty disclosure, not an error. */
+  .verified-stale-note { font-weight: 400; font-style: italic; opacity: 0.85; }
+  .verified-badge.verified-stale { background: var(--accent-bg); color: var(--muted); }
   /* /deadline-calculator/'s own live, all-state widget (Devin, 2026-08-13:
      "We can't add a calculator?"). One <select> for state, a dynamically
      inserted follow-up field when the state's rule needs one (birth month,
@@ -3647,6 +3653,43 @@ _TABLE_SCROLL_HINT_JS = """<script>
 })();
 </script>"""
 
+
+# FRESH-1 residual (2026-08-14): production-side staleness caveat for the
+# datasets whose freshness guards are BUILD-time only (cpe_hours,
+# reinstatement, renewal_fees -- unlike cpa_deadlines, whose staleness also
+# pauses worker signups at runtime via deadline.ts's checkDataFreshness).
+# The failure mode this closes: a hard preship gate BLOCKS the next build
+# when a badge crosses the 30-day bar, but a blocked build changes nothing
+# about pages ALREADY deployed -- a stale "Verified <date>" badge would sit
+# live indefinitely, asserting freshness precisely when the pipeline is
+# stuck. Every dated verification marker now carries data-verified, and this
+# script -- evaluated at VIEW time in the visitor's browser, the only
+# runtime a static site has -- appends an honest caveat once the date is
+# past 45 days (30-day gate bar + 15 days' slack, so a page never flags
+# while the build pipeline is merely between normal re-verification cycles;
+# if this fires, builds have genuinely stopped happening).
+_STALE_BADGE_RUNTIME_JS = """<script>
+(function () {
+  var marks = document.querySelectorAll('[data-verified]');
+  if (!marks.length) return;
+  var RUNTIME_STALE_DAYS = 45;
+  var now = new Date();
+  marks.forEach(function (el) {
+    var iso = el.getAttribute('data-verified');
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(iso)) return;
+    var then = new Date(iso + 'T00:00:00Z');
+    if (isNaN(then.getTime())) return;
+    var ageDays = (now - then) / 86400000;
+    if (ageDays <= RUNTIME_STALE_DAYS) return;
+    var note = document.createElement('span');
+    note.className = 'verified-stale-note';
+    note.textContent = ' \\u00b7 re-verification overdue \\u2014 confirm with the state board';
+    el.appendChild(note);
+    el.classList.add('verified-stale');
+  });
+})();
+</script>"""
+
 _SHOW_PASSWORD_TOGGLE_HTML = """<script>
 (function () {
   document.querySelectorAll('input[type="password"]').forEach(function (input) {
@@ -3754,6 +3797,7 @@ def page_shell(
 {_COOKIE_NOTICE_HTML}
 {_SCROLL_REVEAL_BODY_JS}
 {_TABLE_SCROLL_HINT_JS}
+{_STALE_BADGE_RUNTIME_JS}
 </body>
 </html>
 """
@@ -3797,7 +3841,7 @@ def trust_line(last_verified: str, source_url: str, has_citation: bool) -> str:
             '(<a href="/methodology/">see how we verify every deadline</a>)'
         )
     return f"""<div class="trust-line">
-  <strong>Last verified: {esc(last_verified)}</strong> &middot; {sourcing_claim}. Always confirm with the
+  <strong data-verified="{esc(last_verified)}">Last verified: {esc(last_verified)}</strong> &middot; {sourcing_claim}. Always confirm with the
   <a href="{http_href(source_url)}">official state board</a> before relying on this date. License
   requirements and deadlines can change.
 </div>"""
@@ -3949,7 +3993,10 @@ def _verified_badge_html(record: dict) -> str:
         return ""
     last_verified = record.get("last_verified")
     label = f"Verified {esc(last_verified)}" if last_verified else "Verified"
-    return f'<span class="verified-badge">{label}</span>'
+    # data-verified: hooks _STALE_BADGE_RUNTIME_JS's view-time staleness
+    # caveat (FRESH-1 residual) -- see that constant's own comment.
+    dv_attr = f' data-verified="{esc(last_verified)}"' if last_verified else ""
+    return f'<span class="verified-badge"{dv_attr}>{label}</span>'
 
 
 _CITE_ICON_SVG = (
@@ -5216,9 +5263,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
     # shows -- same slot, same hero footprint, a stronger and more specific
     # claim (Canopy repeats one proof token across every page; this is our
     # equivalent, verifiable and recomputed at every build, never hardcoded).
-    _verified_recent, _total_citations = _citation_freshness_stat(
-        [r for recs in by_slug.values() for r in recs], as_of
-    )
+    _verified_recent, _total_citations = _sitewide_freshness_stat(as_of)
 
     all_fresh = _select_hero_rotation_pool(by_slug)
     rotation_pool = all_fresh[:_HERO_ROTATION_MAX]
@@ -5332,7 +5377,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   <div class="trust-row">
     <div class="item"><span class="n">{_cov["total"]}</span><span class="lbl">jurisdictions listed</span></div>
     <div class="item"><span class="n">{_cov["determined"]}</span><span class="lbl">where we determine your exact date</span></div>
-    <div class="item"><span class="n">{_verified_recent} of {_total_citations}</span><span class="lbl">renewal-deadline citations re-checked in the last {STALENESS_THRESHOLD_DAYS} days</span></div>
+    <div class="item"><span class="n">{_verified_recent} of {_total_citations}</span><span class="lbl">dated records across all datasets re-checked in the last {STALENESS_THRESHOLD_DAYS} days</span></div>
     {_extra_stat_items_html}
   </div>
   <p class="trust-footnote">In the remaining {_cov["byod"]}, renewal turns on a personal fact
@@ -5680,16 +5725,14 @@ def build_pricing_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
     entitlements.ts's own solo-free exception. The card below reflects
     that: free, a real signup link, no mailto dead end.
     """
-    _verified_recent, _total_citations = _citation_freshness_stat(
-        [r for recs in by_slug.values() for r in recs], as_of
-    )
+    _verified_recent, _total_citations = _sitewide_freshness_stat(as_of)
     body = f"""<h1>Pricing</h1>
 <p class="intro">Roster, calendar, CPE-hours tracking, and individual Practice Privilege Check are
 <strong>free for any firm, up to 3 staff</strong>, no card required, no time limit. Paid firm plans add
 the multistate map and the firm-level registration check &mdash; every paid tier has the identical
 feature set, priced only by how many staff it covers; nothing is held back on a cheaper plan.</p>
-<p class="field-hint"><strong>{_verified_recent} of {_total_citations}</strong> renewal-deadline citations
-on this site were individually re-checked against their source within the last {STALENESS_THRESHOLD_DAYS} days
+<p class="field-hint"><strong>{_verified_recent} of {_total_citations}</strong> dated records across this site's datasets (renewal deadlines,
+CPE hours, reinstatement, renewal fees) were individually re-checked against their source within the last {STALENESS_THRESHOLD_DAYS} days
 &mdash; <a href="/methodology/">see exactly how we verify every deadline</a>.</p>
 
 <h2>What's actually included, free vs. paid</h2>
@@ -6293,6 +6336,56 @@ def _citation_freshness_stat(records: list[dict], real_today: date) -> tuple[int
     return verified_recent, len(records)
 
 
+# FRESH-1 residual (2026-08-14, orchestrator's Fable-window directive): the
+# sitewide "N of N citations re-checked" stat only ever counted
+# cpa_deadlines.json (88 records), while three sibling datasets --
+# cpe_hours.json, reinstatement.json, renewal_fees.json -- publish their own
+# live, dated "Verified" badges on real pages and were silently excluded
+# from a claim whose copy said "on this site." The interim fix (e812854fc)
+# narrowed the COPY to "renewal-deadline citations" to make the claim
+# exactly true; this widens the NUMBER to the real denominator instead, so
+# the copy can honestly say "across this site's datasets" again.
+#
+# The four datasets split on field name (cpa_deadlines/reinstatement use
+# `last_verified`; cpe_hours/renewal_fees use `verified_date`) -- handled
+# here with a per-dataset field map rather than renaming fields across four
+# schemas and every consumer (staleness scripts, preship gates, worker
+# code, tests) for a purely internal inconsistency.
+_SITEWIDE_FRESHNESS_DATASETS: list[tuple[Path, str]] = [
+    (DATA_PATH, "last_verified"),
+    (CPE_HOURS_DATA_PATH, "verified_date"),
+    (REINSTATEMENT_DATA_PATH, "last_verified"),
+    (RENEWAL_FEES_DATA_PATH, "verified_date"),
+]
+_sitewide_freshness_dates_cache: list[str | None] | None = None
+
+
+def _sitewide_freshness_stat(real_today: date) -> tuple[int, int]:
+    """(verified_recent, total) across ALL four public datasets -- every
+    record counts in the denominator (a record with a missing/unparseable
+    date simply never counts as recent, same posture as
+    _citation_freshness_stat above)."""
+    global _sitewide_freshness_dates_cache
+    if _sitewide_freshness_dates_cache is None:
+        dates: list[str | None] = []
+        for path, field in _SITEWIDE_FRESHNESS_DATASETS:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            for r in payload["records"]:
+                dates.append(r.get(field))
+        _sitewide_freshness_dates_cache = dates
+    verified_recent = 0
+    for lv in _sitewide_freshness_dates_cache:
+        if not lv:
+            continue
+        try:
+            age_days = (real_today - date.fromisoformat(lv)).days
+        except ValueError:
+            continue
+        if age_days <= STALENESS_THRESHOLD_DAYS:
+            verified_recent += 1
+    return verified_recent, len(_sitewide_freshness_dates_cache)
+
+
 def build_methodology_page(records: list[dict], real_today: date) -> str:
     """How-we-verify-our-data page (2026-07-15, per the orchestrator's 'press the
     validated bet' steer: apply the CPA-trust design lens by surfacing the sourcing
@@ -6301,14 +6394,15 @@ def build_methodology_page(records: list[dict], real_today: date) -> str:
     already enforced everywhere else in this file (citation + citation_url on every
     record, honest null/gap-note when unverifiable) legible to a skeptical CPA
     visitor in one place instead of leaving it implicit."""
-    verified_recent, total = _citation_freshness_stat(records, real_today)
+    verified_recent, total = _sitewide_freshness_stat(real_today)
     # Reuses the site's existing .callout box (no new CSS) -- same visual
     # treatment already used for the per-state "Verified" callouts, so this
     # rolled-up site-wide stat reads as the same kind of trust signal, not a
     # bespoke one-off.
     freshness_stat_html = (
         f'<div class="callout"><p><strong>{verified_recent} of {total}</strong> '
-        f"renewal-deadline citations on this site were individually re-checked against their source within the last "
+        f"dated records across this site's datasets (renewal deadlines, CPE hours, reinstatement, "
+        f"renewal fees) were individually re-checked against their source within the last "
         f"{STALENESS_THRESHOLD_DAYS} days, as of this page's last build ({real_today.isoformat()}). "
         f"Every state page's own \"Last verified\" line shows that specific citation's own date &mdash; "
         f"this is the same fact, rolled up across the whole site."
@@ -7030,16 +7124,14 @@ def build_firms_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
     distinction (sourced vs. self-reported, not built vs. unbuilt) is the
     entire brand and must not blur on the paid tier."""
     firm_lead_action = f"{esc(REMINDER_BACKEND_BASE_URL)}/firm/lead"
-    _verified_recent, _total_citations = _citation_freshness_stat(
-        [r for recs in by_slug.values() for r in recs], as_of
-    )
+    _verified_recent, _total_citations = _sitewide_freshness_stat(as_of)
     body = f"""<h1>CPA License Tracking for Your Whole Firm</h1>
 <p class="intro">Every accounting firm has someone who has to make sure every partner's and staff CPA's
 license stays current &mdash; across however many states they're licensed in. One missed renewal slows
 down engagements and creates real regulatory risk, and most firms track it today by spreadsheet. A
 spreadsheet fails in three specific ways.</p>
-<p class="field-hint"><strong>{_verified_recent} of {_total_citations}</strong> renewal-deadline citations
-on this site were individually re-checked against their source within the last {STALENESS_THRESHOLD_DAYS} days
+<p class="field-hint"><strong>{_verified_recent} of {_total_citations}</strong> dated records across this site's datasets (renewal deadlines,
+CPE hours, reinstatement, renewal fees) were individually re-checked against their source within the last {STALENESS_THRESHOLD_DAYS} days
 &mdash; <a href="/methodology/">see exactly how we verify every deadline</a>.</p>
 
 <h2 class="dr-pain-headline">Every hour completed. The filing still missed.</h2>
@@ -15967,9 +16059,7 @@ def build_deadline_calculator_page(by_slug: dict[str, list[dict]], as_of: date) 
     variety of cycle shapes this "calculator" handles -- still zero new data,
     zero fabrication, just more of what already exists made visible here."""
     cov = _coverage_counts(by_slug)
-    verified_recent, total_citations = _citation_freshness_stat(
-        [r for recs in by_slug.values() for r in recs], as_of
-    )
+    verified_recent, total_citations = _sitewide_freshness_stat(as_of)
 
     # Four real records, chosen to span the actual shapes this tool resolves
     # (fixed calendar date, birth-month personal cycle, rotating cohort, and
@@ -16007,7 +16097,7 @@ board's own page &mdash; <a href="/methodology/">see exactly how</a>.</p>
 <div class="trust-row">
   <div class="item"><span class="n">{cov["total"]}</span><span class="lbl">jurisdictions covered</span></div>
   <div class="item"><span class="n">{cov["determined"]}</span><span class="lbl">where we compute your exact date</span></div>
-  <div class="item"><span class="n">{verified_recent} of {total_citations}</span><span class="lbl">renewal-deadline citations re-checked in the last 30 days</span></div>
+  <div class="item"><span class="n">{verified_recent} of {total_citations}</span><span class="lbl">dated records across all datasets re-checked in the last 30 days</span></div>
 </div>
 
 <h2>What "calculated" actually looks like, state by state</h2>
@@ -17380,7 +17470,8 @@ def build_cpe_hours_page(
     # _verified_badge_html()'s own docstring for the full rationale.
     cpe_verified_date = cpe_record.get("verified_date")
     verified_badge_label = f"Verified {esc(cpe_verified_date)}" if cpe_verified_date else "Verified"
-    verified_badge_html = "" if data_gap_note else f'<span class="verified-badge">{verified_badge_label}</span>'
+    _cpe_dv_attr = f' data-verified="{esc(cpe_verified_date)}"' if cpe_verified_date else ""
+    verified_badge_html = "" if data_gap_note else f'<span class="verified-badge"{_cpe_dv_attr}>{verified_badge_label}</span>'
     sourcing_note_html = (
         f'<p class="disclosure">Sourcing note: {esc(data_gap_note)}</p>' if data_gap_note else ""
     )
@@ -17703,7 +17794,8 @@ def build_reinstatement_page(record: dict, renewal_records: list[dict], cpe_reco
     # _verified_badge_html()'s own docstring for the full rationale.
     reinstatement_verified_date = record.get("last_verified")
     verified_badge_label = f"Verified {esc(reinstatement_verified_date)}" if reinstatement_verified_date else "Verified"
-    verified_badge_html = "" if data_gap_note else f'<span class="verified-badge">{verified_badge_label}</span>'
+    _rein_dv_attr = f' data-verified="{esc(reinstatement_verified_date)}"' if reinstatement_verified_date else ""
+    verified_badge_html = "" if data_gap_note else f'<span class="verified-badge"{_rein_dv_attr}>{verified_badge_label}</span>'
     sourcing_note_html = (
         f'<p class="disclosure">Sourcing note: {esc(data_gap_note)}</p>' if data_gap_note else ""
     )

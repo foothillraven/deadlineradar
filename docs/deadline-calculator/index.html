@@ -162,6 +162,9 @@
   }
   tr.dr-bf-highlight { background: var(--card-bg); outline: 2px solid var(--accent); outline-offset: -2px; }
   
+  .verified-stale-note { font-weight: 400; font-style: italic; opacity: 0.85; }
+  .verified-badge.verified-stale { background: var(--accent-bg); color: var(--muted); }
+  
   .dr-calc {
     max-width: 30rem; margin: 1.2rem 0; padding: 1.1rem 1.2rem; border-radius: 10px;
     background: var(--card-bg); border: 1px solid var(--border);
@@ -1697,7 +1700,7 @@ board's own page &mdash; <a href="/methodology/">see exactly how</a>.</p>
 <div class="trust-row">
   <div class="item"><span class="n">55</span><span class="lbl">jurisdictions covered</span></div>
   <div class="item"><span class="n">41</span><span class="lbl">where we compute your exact date</span></div>
-  <div class="item"><span class="n">88 of 88</span><span class="lbl">renewal-deadline citations re-checked in the last 30 days</span></div>
+  <div class="item"><span class="n">245 of 245</span><span class="lbl">dated records across all datasets re-checked in the last 30 days</span></div>
 </div>
 
 <h2>What "calculated" actually looks like, state by state</h2>
@@ -1821,5 +1824,6 @@ view instead of one state at a time.</p>
 <script>(function(){try{if(window.localStorage.getItem("dr_cookie_notice_dismissed"))return}catch(e){return}var el=document.getElementById("dr-cookie-notice");if(!el)return;el.hidden=false;var btn=document.getElementById("dr-cookie-notice-dismiss");if(btn){btn.addEventListener("click",function(){el.hidden=true;try{window.localStorage.setItem("dr_cookie_notice_dismissed","1")}catch(e){}})}})();</script>
 <script>(function(){if(!document.documentElement.classList.contains("js-reveal"))return;var els=document.querySelectorAll(".dr-reveal");if(!els.length)return;var obs=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting){entry.target.classList.add("dr-reveal--visible");obs.unobserve(entry.target)}})},{threshold:.15,rootMargin:"0px 0px -40px 0px"});els.forEach(function(el){obs.observe(el)})})();</script>
 <script>(function(){var wraps=document.querySelectorAll(".table-wrap");if(!wraps.length)return;function atEnd(wrap){return wrap.scrollLeft+wrap.clientWidth>=wrap.scrollWidth-1}function canScroll(wrap){var overflowX=window.getComputedStyle(wrap).overflowX;return overflowX==="auto"||overflowX==="scroll"}function update(){wraps.forEach(function(wrap){var hasOverflow=canScroll(wrap)&&wrap.scrollWidth>wrap.clientWidth+1;wrap.classList.toggle("dr-scrollable",hasOverflow&&!atEnd(wrap))})}update();window.addEventListener("resize",update);wraps.forEach(function(wrap){wrap.addEventListener("scroll",function(){wrap.classList.toggle("dr-scrollable",!atEnd(wrap))})})})();</script>
+<script>(function(){var marks=document.querySelectorAll("[data-verified]");if(!marks.length)return;var RUNTIME_STALE_DAYS=45;var now=new Date;marks.forEach(function(el){var iso=el.getAttribute("data-verified");if(!/^\d{4}-\d{2}-\d{2}$/.test(iso))return;var then=new Date(iso+"T00:00:00Z");if(isNaN(then.getTime()))return;var ageDays=(now-then)/864e5;if(ageDays<=RUNTIME_STALE_DAYS)return;var note=document.createElement("span");note.className="verified-stale-note";note.textContent=" · re-verification overdue — confirm with the state board";el.appendChild(note);el.classList.add("verified-stale")})})();</script>
 </body>
 </html>

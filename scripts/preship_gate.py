@@ -603,6 +603,66 @@ _DERIVED_FEE_CHECKS: list[dict] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# SRC-5 (2026-08-14, orchestrator/AuditLab recommendation after two block
+# claims survived a sweep aimed at them): a reader-facing note may only
+# assert that a source "blocks" access if source_check.py actually returns
+# BLOCKED for that record's own URLs. Without this, "my parser choked"
+# prose can quietly re-enter data_gap_note and nothing catches it until the
+# next manual audit. Network calls at gate time are deliberately capped to
+# ONLY the records whose notes make a block claim (a handful), not all 245.
+# ---------------------------------------------------------------------------
+_BLOCK_CLAIM_RE = re.compile(
+    r"(blocks? (?:automated|non-browser)|bot.?wall|resists non-browser|could not be (?:reached|fetched|accessed))",
+    re.IGNORECASE,
+)
+_BLOCK_CLAIM_DATASETS = [
+    ("cpa_deadlines.json", "data_gap_note"),
+    ("cpe_hours.json", "data_gap_note"),
+    ("reinstatement.json", "data_gap_note"),
+    ("renewal_fees.json", "data_gap_note"),
+]
+
+
+def check_block_claims_corroborated(repo_root: Path) -> list[str]:
+    sys.path.insert(0, str(repo_root / "scripts"))
+    try:
+        import source_check
+    except ImportError:
+        return []
+    errors = []
+    for fname, field in _BLOCK_CLAIM_DATASETS:
+        path = repo_root / "data" / fname
+        if not path.exists():
+            continue
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for r in data["records"]:
+            note = r.get(field)
+            if not isinstance(note, str) or not _BLOCK_CLAIM_RE.search(note):
+                continue
+            urls = [r.get(k) for k in ("citation_url", "source_url") if r.get(k)]
+            if not urls:
+                continue
+            verdicts = {}
+            for u in urls:
+                try:
+                    verdicts[u] = source_check.check(u)["classification"]
+                except Exception as e:  # network hiccup at gate time: warn, don't false-fail
+                    verdicts[u] = "CHECK_ERROR(%s)" % type(e).__name__
+            # The claim is corroborated if at least one of the record's own
+            # URLs is genuinely BLOCKED. If every URL fetches with text, the
+            # prose is asserting a block that does not exist.
+            if not any(v == "BLOCKED" for v in verdicts.values()) and \
+               not any(v.startswith("CHECK_ERROR") for v in verdicts.values()):
+                errors.append(
+                    f"[SRC5][{r.get('id')}] {fname}.{field} claims a source blocks access, but "
+                    f"source_check classifies its URLs as {verdicts} -- either the block healed "
+                    f"(remove/reword the claim) or the note is the parser-choke misdiagnosis this "
+                    f"gate exists to stop"
+                )
+    return errors
+
+
 def check_derived_fee_consistency(repo_root: Path) -> list[str]:
     """Fail the build when a published figure derived from a base renewal fee
     no longer matches that fee. See the registry comment above."""
@@ -1564,6 +1624,7 @@ def main():
     all_errors += check_cpe_hours_currency(repo_root)
     all_errors += check_reinstatement_currency(repo_root)
     all_errors += check_derived_fee_consistency(repo_root)
+    all_errors += check_block_claims_corroborated(repo_root)
     all_errors += check_renewal_fee_currency(repo_root)
     all_errors += check_competitor_price_currency(repo_root)
     all_errors += check_field_computed_states_sync(repo_root)

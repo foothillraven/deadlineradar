@@ -170,6 +170,27 @@ _PROSE_SNAKE_CASE_RE = re.compile(r"\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b")
 # 2026"), never `YYYY-MM-DD:`, so this shape is unambiguous.
 _PROSE_DATED_PAREN_RE = re.compile(r"(?<!\d)20\d\d-\d\d-\d\d:")
 _PROSE_URL_RE = re.compile(r"(?:https?://|www\.)[^\s<>\"')]+|\b[a-z0-9.-]+\.(?:gov|com|org|net|edu|us|io)(?:/[^\s<>\"')]*)?", re.IGNORECASE)
+# GATE-2 (2026-08-14): found live on /firm-mobility/, where the "Check whole
+# roster" panel shipped its own ticket description as the customer-facing
+# subhead ("Roadmap #320: run every roster member's own home state..."). The
+# two shapes above could not catch it -- it is neither snake_case nor a dated
+# changelog note, just ordinary English with an internal tracker reference
+# welded to the front. Two distinct tells, both unambiguous in reader copy:
+# a tracker id ("Roadmap #320", "ticket 412"), and the fleet's own internal
+# agent/tool names, which a customer has no concept of and which also reveal
+# how the site is built. Neither has any legitimate reason to appear in
+# public prose, so both are flat denials with no allowlist.
+_PROSE_TRACKER_REF_RE = re.compile(r"\b(?:roadmap|ticket|backlog|issue|epic|story)\s*#?\s*\d+", re.IGNORECASE)
+# "Raven" and "Contender" are deliberately NOT in this list: the operating
+# entity is literally named Moose & Raven LLC, so the token appears in the
+# footer of all 235 pages and in every legal page by design -- a detector on
+# it is pure noise and would train the next reader to ignore this gate.
+# "Contender" is likewise an ordinary English word. Both are unmatchable
+# against their internal use here, so they get no rule rather than a bad one.
+_PROSE_INTERNAL_NAME_RE = re.compile(
+    r"\b(?:AuditLab|ValueLab|DiffLab|AssetLab|BotLab|StockLab|PortfolioMeta|"
+    r"BettingBot|FleetDeck|firmchat|HANDOFF)\b"
+)
 
 # Tokens that are legitimately part of reader-facing prose. Keep this SHORT
 # and justified per entry -- an unexplained entry defeats the whole point.
@@ -217,6 +238,20 @@ def check_prose_leak_shapes(html_files: list[Path]) -> list[str]:
             errors.append(
                 f"[SHAPE][{f}] dated changelog note '{m.group(0)}...' in rendered prose -- "
                 f"...{snippet}... (changelog syntax belongs in verification_history, not public copy)"
+            )
+        for m in _PROSE_TRACKER_REF_RE.finditer(prose):
+            snippet = prose[max(0, m.start() - 60): m.end() + 90].replace("\n", " ").strip()
+            errors.append(
+                f"[SHAPE][{f}] internal tracker reference '{m.group(0)}' in rendered prose -- "
+                f"...{snippet}... (a ticket id means the ticket text was pasted in as copy; "
+                f"rewrite it as a sentence written for the reader)"
+            )
+        for m in _PROSE_INTERNAL_NAME_RE.finditer(prose):
+            snippet = prose[max(0, m.start() - 60): m.end() + 90].replace("\n", " ").strip()
+            errors.append(
+                f"[SHAPE][{f}] internal fleet name '{m.group(0)}' in rendered prose -- "
+                f"...{snippet}... (internal agent/tool names are meaningless to a customer and "
+                f"disclose how the site is built)"
             )
     return errors
 

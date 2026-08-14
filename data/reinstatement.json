@@ -414,7 +414,8 @@
       "citation_url": "https://www.law.cornell.edu/regulations/massachusetts/252-CMR-2-16",
       "source_url": "https://boards.mass.gov/detail/160627/board-of-public-accountancy/",
       "last_verified": "2026-08-03",
-      "data_gap_note": "The board's own mass.gov page blocks automated access site-wide, so this fact could not be freshly re-confirmed by an automated check at publish time -- corroborated instead by two independent primary-law sources (the codified regulation, 252 CMR 2.14/2.16, and the enabling statute, M.G.L. c. 112 Sec87B, both fetched directly). Recommend a manual check of the board's page if you want to see it firsthand. (source_url updated 2026-08-03: mass.gov/orgs/board-of-registration-in-public-accountancy went dead -- the board's page moved to boards.mass.gov, confirmed live.)"
+      "data_gap_note": "The board's own mass.gov page blocks automated access site-wide, so this fact could not be freshly re-confirmed by an automated check at publish time -- corroborated instead by two independent primary-law sources (the codified regulation, 252 CMR 2.14/2.16, and the enabling statute, M.G.L. c. 112 Sec87B, both fetched directly). Recommend a manual check of the board's page if you want to see it firsthand.",
+      "verification_history": "2026-08-03: source_url repointed -- mass.gov/orgs/board-of-registration-in-public-accountancy went dead; the board's page moved to boards.mass.gov, confirmed live."
     },
     {
       "id": "michigan-reinstatement",
@@ -430,7 +431,8 @@
       "citation_url": "https://www.law.cornell.edu/regulations/michigan/Mich-Admin-Code-R-338-5230",
       "source_url": "https://www.michigan.gov/lara/bureau-list/bpl/occ/prof/accountancy",
       "last_verified": "2026-08-03",
-      "data_gap_note": "The board's own michigan.gov page blocks automated access site-wide, so this fact could not be freshly re-confirmed by an automated check at publish time -- the codified rule and statute (R 338.5230, MCL 339.411, 338.2206, 338.2211) were fetched directly and state these figures; the $100 fee is inferred with high but not full confidence as the correct line item, since no board document explicitly labeled 'reinstatement fee' could be reached. Recommend a manual check of the board's page if you want it confirmed firsthand. (source_url updated 2026-08-03: the old .../prof/accountants path 404s; .../prof/accountancy is the correct current LARA Board of Accountancy page, confirmed live in a real browser.)"
+      "data_gap_note": "The board's own michigan.gov page blocks automated access site-wide, so this fact could not be freshly re-confirmed by an automated check at publish time -- the codified rule and statute (R 338.5230, MCL 339.411, 338.2206, 338.2211) were fetched directly and state these figures; the $100 fee is inferred with high but not full confidence as the correct line item, since no board document explicitly labeled 'reinstatement fee' could be reached. Recommend a manual check of the board's page if you want it confirmed firsthand.",
+      "verification_history": "2026-08-03: source_url repointed -- the old .../prof/accountants path 404s; .../prof/accountancy is the correct current LARA Board of Accountancy page, confirmed live in a real browser."
     },
     {
       "id": "minnesota-reinstatement",
@@ -542,7 +544,8 @@
       "citation_url": "https://gc.nh.gov/rules/state_agencies/ac100-500.html",
       "source_url": "https://www.oplc.nh.gov/find-board/board-accountancy/accountancy-continuing-education",
       "last_verified": "2026-08-03",
-      "data_gap_note": "The board's own oplc.nh.gov page blocks automated access, so this fact could not be freshly re-confirmed by an automated check at publish time -- content was instead confirmed directly against New Hampshire's official codified Code of Administrative Rules (gc.nh.gov), reading the actual current rule and fee-table text. Recommend a manual check of the board's page if you want it confirmed firsthand. (source_url updated 2026-08-03: oplc.nh.gov/accountancy-continuing-professional-education went dead; the current path is find-board/board-accountancy/accountancy-continuing-education, confirmed live in a real browser with matching CE-hour figures.)"
+      "data_gap_note": "The board's own oplc.nh.gov page blocks automated access, so this fact could not be freshly re-confirmed by an automated check at publish time -- content was instead confirmed directly against New Hampshire's official codified Code of Administrative Rules (gc.nh.gov), reading the actual current rule and fee-table text. Recommend a manual check of the board's page if you want it confirmed firsthand.",
+      "verification_history": "2026-08-03: source_url repointed -- oplc.nh.gov/accountancy-continuing-professional-education went dead; the current path is find-board/board-accountancy/accountancy-continuing-education, confirmed live in a real browser with matching CE-hour figures."
     },
     {
       "id": "new-jersey-reinstatement",
@@ -638,7 +641,7 @@
       "citation_url": "https://codes.ohio.gov/ohio-revised-code/section-4701.10",
       "source_url": "https://acc.ohio.gov/about/fees/fees",
       "last_verified": "2026-08-13",
-      "data_gap_note": "reinstatement_fee_usd is null because Ohio's own law sets a formula/cap, not a flat number (reported in the notes field instead). The Board's own fees page (source_url) is live and was read directly, including its \"Late and Back Fees\" tab: \"Late fees for expired licenses accrue at a rate of $50/month (to a maximum amount of $300) for Registrations and Permits, and $100/month (to a maximum amount of $1,200) for Permit - Employed in Public Accounting\" -- matches this record's figures exactly. (2026-08-13 correction: an earlier version of this note reported the page as unreachable; the page loads normally and always has, confirmed with an ordinary browser.)"
+      "data_gap_note": "reinstatement_fee_usd is null because Ohio's own law sets a formula/cap, not a flat number, stated in plain terms above instead. The Board's own fees page is live and was read directly, including its \"Late and Back Fees\" tab: \"Late fees for expired licenses accrue at a rate of $50/month (to a maximum amount of $300) for Registrations and Permits, and $100/month (to a maximum amount of $1,200) for Permit - Employed in Public Accounting\" -- matches this record's figures exactly."
     },
     {
       "id": "oklahoma-reinstatement",
@@ -782,7 +785,8 @@
       "citation_url": "https://www.law.cornell.edu/regulations/utah/Utah-Admin-Code-R156-26a-307",
       "source_url": "https://commerce.utah.gov/dopl/accountancy/",
       "last_verified": "2026-08-03",
-      "data_gap_note": "The reinstatement fee dollar amount could not be confirmed: it isn't in the codified rule text, and the Board's own site currently blocks automated access, so this fact could not be freshly re-confirmed at publish time. The CPE/ethics-exam requirements above ARE confirmed directly in the codified rule. Recommend a manual check of the board's page if you want the fee confirmed firsthand. (source_url updated 2026-08-03: dopl.utah.gov/cpa/ went dead; commerce.utah.gov/dopl/accountancy/ is the current DOPL Accountancy board page, confirmed live.)"
+      "data_gap_note": "The reinstatement fee dollar amount could not be confirmed: it isn't in the codified rule text, and the Board's own site currently blocks automated access, so this fact could not be freshly re-confirmed at publish time. The CPE/ethics-exam requirements above ARE confirmed directly in the codified rule. Recommend a manual check of the board's page if you want the fee confirmed firsthand.",
+      "verification_history": "2026-08-03: source_url repointed -- dopl.utah.gov/cpa/ went dead; commerce.utah.gov/dopl/accountancy/ is the current DOPL Accountancy board page, confirmed live."
     },
     {
       "id": "vermont-reinstatement",

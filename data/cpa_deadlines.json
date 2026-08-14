@@ -249,10 +249,11 @@
       "renewal_pattern": "other",
       "cycle_description": "Triennial (3-year) renewal cycle. The Board's own FAQ confirms the triennial structure, that renewal notices are mailed about 60 days before the expiration date printed on the license, and that CPE (120 hours per triennial period, minimum 20/year) is tracked over the same period. The Board's page does not itself publish the specific current-cycle end date.",
       "next_deadline_computed": null,
-      "data_gap_note": "NJ renews on a fixed triennial cycle ending December 31, but the specific current-cycle end date is not published at the state-board level. Confirm your exact expiration on your license certificate or with the New Jersey State Board of Accountancy. (2026-07-17 update: read the full codified text of N.J.A.C. 13:29-1.7 directly -- deliberately generic, \"three years from the last expiration date,\" no calendar year anywhere in the rule text. Found and read the actual NJ Register rule-adoption notice (57 N.J.R. 55(a)) -- a genuine official regulatory-register citation, but it's the chapter's routine 7-year sunset readoption, not a document fixing the current triennial cohort's dates. N.J.S.A. 45:1-7's stagger-provision doesn't apply (accountancy runs on its own separate Title 45:2B authority). Live license-verification portal attempted but not executable by current tooling. Two independent secondary sources (njcpa.org, NASBA's CPE registry) now converge on \"Jan 1, 2024-Dec 31, 2026,\" which matches the believed pattern and raises confidence -- but per this file's own fabrication-avoidance rule, secondary-source agreement alone does not upgrade this to a shippable citation.)",
+      "data_gap_note": "NJ renews on a fixed triennial cycle ending December 31, but the specific current-cycle end date is not published at the state-board level. Confirm your exact expiration on your license certificate or with the New Jersey State Board of Accountancy.",
       "source_url": "https://www.njconsumeraffairs.gov/acc/Pages/FAQ.aspx",
       "last_verified": "2026-08-13",
-      "wave": 4
+      "wave": 4,
+      "verification_history": "2026-07-17: read the full codified text of N.J.A.C. 13:29-1.7 directly -- deliberately generic, \"three years from the last expiration date,\" no calendar year anywhere in the rule text. Found and read the actual NJ Register rule-adoption notice (57 N.J.R. 55(a)) -- a genuine official regulatory-register citation, but it's the chapter's routine 7-year sunset readoption, not a document fixing the current triennial cohort's dates. N.J.S.A. 45:1-7's stagger-provision doesn't apply (accountancy runs on its own separate Title 45:2B authority). Two independent secondary sources (njcpa.org, NASBA's CPE registry) converge on \"Jan 1, 2024-Dec 31, 2026,\" which matches the believed pattern and raises confidence -- but per this file's own fabrication-avoidance rule, secondary-source agreement alone does not upgrade this to a shippable citation."
     },
     {
       "id": "nj-firm",
@@ -263,7 +264,7 @@
       "renewal_pattern": "other",
       "cycle_description": "NJ registers accounting firms separately from individuals; firm registration is also triennial, but whether the firm cycle is synchronized to the same Jan 1-Dec 31 calendar as individual licenses, or runs on a separate schedule, is not stated on any official New Jersey Board page we could find.",
       "next_deadline_computed": null,
-      "data_gap_note": "Checked three official NJ Division of Consumer Affairs Accountancy Board pages this pass: source_url (applications.aspx) lists only an application form and a change form with no descriptive renewal-cycle text; the Board's FAQ page (njconsumeraffairs.gov/acc/Pages/FAQ.aspx) does not mention firm registration renewal at all; the Board's main landing page (njconsumeraffairs.gov/acc) likewise has no firm-renewal timing content. Could not confirm whether firm registration is synced to the same Jan1-Dec31 triennial calendar as individual licenses. Recommendation unchanged: confirm your firm's exact renewal date with the New Jersey State Board of Accountancy or on your registration.",
+      "data_gap_note": "Three official New Jersey Division of Consumer Affairs Accountancy Board pages were checked -- the application-form page, the Board's FAQ page, and the Board's main landing page -- and none states whether firm registration is synced to the same Jan 1-Dec 31 triennial calendar as individual licenses. Confirm your firm's exact renewal date with the New Jersey State Board of Accountancy or on your registration.",
       "source_url": "https://www.njconsumeraffairs.gov/acc/Pages/applications.aspx",
       "last_verified": "2026-08-13",
       "wave": 4
@@ -646,10 +647,11 @@
       "renewal_pattern": "other",
       "cycle_description": "The CPA Firm Permit renewal form/fee is bundled on the same official page and renewal-period as the individual license (notices emailed Oct-Dec 31), which states annual/Dec 31 renewal -- but that exact sentence names only 'license and/or registration,' not 'Firm Permit' specifically, so the Dec 31 date for firm permits is inferred from bundling/context, not a directly-quoted statement.",
       "next_deadline_computed": null,
-      "data_gap_note": "2026-07-30 re-check confirms the prior conclusion still holds, no rule change found. Conn. Gen. Stat. 20-281e(b) (firm permit statute): 'Permits shall be initially issued and renewed annually. Applications for permits shall be made in such form, and in the case of applications for renewal, between such dates as the board may by regulation specify' -- i.e. the statute explicitly delegates the firm-permit renewal date to board regulation, it does not fix Dec 31 itself. Freshly re-confirmed RCSA 20-280-25(a)'s exact text governs the 'license' (individual), not the 'permit' (firm): 'A license issued under chapter 389 ... shall be valid ... from January 1 to December 31.' No RCSA section was found that sets a firm-permit-specific date. Recommend continuing to publish next_deadline_computed = null with this data gap note; visitors should confirm their firm permit's exact renewal date with CT DCP or on the permit itself.",
+      "data_gap_note": "Conn. Gen. Stat. 20-281e(b) (firm permit statute): 'Permits shall be initially issued and renewed annually. Applications for permits shall be made in such form, and in the case of applications for renewal, between such dates as the board may by regulation specify' -- i.e. the statute explicitly delegates the firm-permit renewal date to board regulation, it does not fix Dec 31 itself. RCSA 20-280-25(a)'s exact text governs the 'license' (individual), not the 'permit' (firm): 'A license issued under chapter 389 ... shall be valid ... from January 1 to December 31.' No RCSA section was found that sets a firm-permit-specific date. Visitors should confirm their firm permit's exact renewal date with CT DCP or on the permit itself.",
       "source_url": "https://portal.ct.gov/dcp/license-services-division/license-division/cpa-renewal",
       "last_verified": "2026-08-13",
-      "wave": 5
+      "wave": 5,
+      "verification_history": "2026-07-30: re-checked, no rule change found -- the same conclusion (no RCSA section sets a firm-permit-specific date) still holds."
     },
     {
       "id": "la-individual",
@@ -1492,7 +1494,7 @@
       "license_type": "all",
       "license_type_label": "Individual CPA & Firm",
       "renewal_pattern": "other",
-      "cycle_description": "Multiple third-party CPA-exam-prep sites (not the Board itself) describe Guam CPA licenses as renewing on a 3-year cycle expiring June 30, with a $100 renewal fee and 120 CPE hours (incl. 6 ethics, 30 accounting/auditing) required over the rolling period. We could not confirm this cycle against a current, live primary source -- see data_gap_note.",
+      "cycle_description": "Multiple third-party CPA-exam-prep sites (not the Board itself) describe Guam CPA licenses as renewing on a 3-year cycle expiring June 30, with a $100 renewal fee and 120 CPE hours (incl. 6 ethics, 30 accounting/auditing) required over the rolling period. We could not confirm this cycle against a current, live primary source, detailed below.",
       "next_deadline_computed": null,
       "source_url": "https://col.guamcourts.gov/sites/default/files/22gc035.pdf",
       "secondary_source_url": "https://col.guamcourts.gov/sites/default/files/25GAR002.pdf",
@@ -1501,7 +1503,8 @@
       "citation": "22 Guam Code Ann. (GCA) ch. 35 (Guam Accountancy Act of 2003); 25 Guam Admin. R. & Regs. (GAR) ch. 2 (Guam Board of Public Accountancy Regulations)",
       "citation_url": "https://col.guamcourts.gov/sites/default/files/22gc035.pdf",
       "citation_class": "codified_law",
-      "data_gap_note": "The Guam Board of Accountancy's own web presence (guamboa.org) is the only board-run site we could find, but it has an expired TLS certificate and the only dated document discoverable on it is from November 2011, so we could not treat it as a current, confirmable source of the renewal cycle. Guam's official Compiler of Laws confirms the codified Guam Accountancy Act of 2003 (22 GCA ch. 35) and Board regulations (25 GAR ch. 2) exist and empower the Board to set renewal terms, but those PDFs could not be parsed for the exact renewal-date text. Third-party CPA exam-prep sites (uncorroborated by the Board itself) claim a 3-year cycle expiring June 30. Since we cannot confirm the specific date against a current primary source, we are not publishing a computed date. A visitor should contact the Guam Board of Accountancy directly (per Guam government records: tel. 671-647-0813) rather than rely on a computed date. (citation_url/source_url updated 2026-08-03: the Judiciary of Guam relaunched its site 2026-05-01, breaking the old guamcourts.gov/compileroflaws/... path; col.guamcourts.gov is the working host, confirmed live and byte-matching the same document per the mobility dataset's own verification.)"
+      "data_gap_note": "The Guam Board of Accountancy's own web presence (guamboa.org) is the only board-run site we could find, but it has an expired TLS certificate and the only dated document discoverable on it is from November 2011, so we could not treat it as a current, confirmable source of the renewal cycle. Guam's official Compiler of Laws confirms the codified Guam Accountancy Act of 2003 (22 GCA ch. 35) and Board regulations (25 GAR ch. 2) exist and empower the Board to set renewal terms, but those PDFs could not be parsed for the exact renewal-date text. Third-party CPA exam-prep sites (uncorroborated by the Board itself) claim a 3-year cycle expiring June 30. Since we cannot confirm the specific date against a current primary source, we are not publishing a computed date. A visitor should contact the Guam Board of Accountancy directly (per Guam government records: tel. 671-647-0813) rather than rely on a computed date.",
+      "verification_history": "2026-08-03: citation_url/source_url repointed -- the Judiciary of Guam relaunched its site 2026-05-01, breaking the old guamcourts.gov/compileroflaws/... path; col.guamcourts.gov is the working host, confirmed live and byte-matching the same document per the mobility dataset's own verification."
     },
     {
       "id": "northern-mariana-islands-all",
@@ -1510,7 +1513,7 @@
       "license_type": "all",
       "license_type_label": "Individual CPA & Firm",
       "renewal_pattern": "other",
-      "cycle_description": "Third-party CPA-exam-prep sites (not the Board itself) describe CNMI CPA licenses as renewing on a triennial cycle with a renewal window of September 30 - December 31, a $330 fee, and 120 CPE hours (20/year minimum, plus 4 hours ethics per 3-year period). We could not confirm this cycle against any board-run primary source -- see data_gap_note.",
+      "cycle_description": "Third-party CPA-exam-prep sites (not the Board itself) describe CNMI CPA licenses as renewing on a triennial cycle with a renewal window of September 30 - December 31, a $330 fee, and 120 CPE hours (20/year minimum, plus 4 hours ethics per 3-year period). We could not confirm this cycle against any board-run primary source, detailed below.",
       "next_deadline_computed": null,
       "source_url": "https://cnmilaw.org/pdf/admincode/T01/T01-10.pdf",
       "secondary_source_url": "https://www.cnmilicensing.gov.mp/board-of-professional-licensing/",

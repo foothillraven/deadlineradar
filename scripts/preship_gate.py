@@ -577,11 +577,14 @@ _DERIVED_FEE_CHECKS: list[dict] = [
         "why": "the late-renewal penalty is 100% of the renewal fee, so the stated rough total is double it",
         "terms": [("renewal + 100% penalty", 2.0, 0)],
     },
-    # NOT registered yet: south-carolina ($95 renewal + $500 reinstatement =
-    # $595). CITE-21 #6 has an open question about whether the site labels that
-    # total correctly, and encoding an arithmetic assertion around a figure
-    # whose labelling is under review would lock in the thing being reviewed.
-    # Add it once that item closes.
+    {
+        "state": "south-carolina", "field": "reinstatement_fee_notes",
+        # Registered 2026-08-14 when CITE-21 #6 closed: the field now carries
+        # the codified $500 and the prose quotes the $595 total ($95 renewal +
+        # $500 reinstatement), matching the rhode-island pattern above.
+        "why": "total out-of-pocket is the $500 codified reinstatement fee plus the annual renewal fee",
+        "terms": [("reinstatement + renewal total", 1.0, 500)],
+    },
 ]
 
 

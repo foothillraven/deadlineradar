@@ -572,9 +572,9 @@
       "citation": "N.H. Code Admin. R. Ac 401.08 (Reinstatement of a License Lapsed for Non-Renewal); Ac 401.01, 401.03, 403.01; fee at Plc 1002.01, Table 1002.1",
       "citation_url": "https://gc.nh.gov/rules/state_agencies/ac100-500.html",
       "source_url": "https://www.oplc.nh.gov/find-board/board-accountancy/accountancy-continuing-education",
-      "last_verified": "2026-08-03",
+      "last_verified": "2026-08-14",
       "data_gap_note": "The board's own oplc.nh.gov page blocks automated access, so this fact could not be freshly re-confirmed by an automated check at publish time -- content was instead confirmed directly against New Hampshire's official codified Code of Administrative Rules (gc.nh.gov), reading the actual current rule and fee-table text. Recommend a manual check of the board's page if you want it confirmed firsthand.",
-      "verification_history": "2026-08-03: source_url repointed -- oplc.nh.gov/accountancy-continuing-professional-education went dead; the current path is find-board/board-accountancy/accountancy-continuing-education, confirmed live in a real browser with matching CE-hour figures."
+      "verification_history": "2026-08-03: source_url repointed -- oplc.nh.gov/accountancy-continuing-professional-education went dead; the current path is find-board/board-accountancy/accountancy-continuing-education, confirmed live in a real browser with matching CE-hour figures.\n\n2026-08-14 (CITE-21 NH follow-up, finding NOT reproduced): the report said gc.nh.gov's citation URL serves an error page even in real Chrome. Checked both ways: curl with a browser UA gets 997KB of rule text, and a real Chrome session loads the page (titled 'Ac 100-507', 125KB rendered text) containing Ac 401.08 'Reinstatement of a License Lapsed for Non-Renewal' in full. Likely a transient outage. One trap documented for future readers: the chapter ALSO contains history notes for a REPEALED, unrelated rule that previously used the number Ac 401.08 ('Voluntary Surrender by Licensees') -- a text search hits the repeal notice first. The current 401.08 is source #14322, eff 9-15-25, expires 9-15-35, and this record's substance (reinstatement only for lapses of no more than 1 year; longer lapses reapply as initial applicants; fee per Plc 1002.01) matches it clause for clause. URL unchanged."
     },
     {
       "id": "new-jersey-reinstatement",
@@ -753,8 +753,8 @@
       "id": "south-carolina-reinstatement",
       "state": "South Carolina",
       "state_slug": "south-carolina",
-      "reinstatement_fee_usd": 595,
-      "reinstatement_fee_notes": "Codified reinstatement fee is $500 (S.C. Code Ann. § 40-2-250(F)), paid in addition to the standard $95 annual renewal fee the board lists on its FAQ -- $595 total out-of-pocket.",
+      "reinstatement_fee_usd": 500,
+      "reinstatement_fee_notes": "$500 codified reinstatement fee (S.C. Code Ann. § 40-2-250(F)), paid in addition to the standard $95 annual renewal fee the board lists on its FAQ -- $595 total out-of-pocket.",
       "penalty_cpe_hours": 40,
       "penalty_cpe_notes": "40 CPE hours for EACH year the license was lapsed (cumulative catch-up). If lapsed 3+ years, the requirement jumps to 120 hours (completed within the preceding 3 years) plus 6 months of additional qualifying experience.",
       "penalty_ethics_hours": null,
@@ -762,8 +762,9 @@
       "citation": "S.C. Code Ann. § 40-2-250 (Renewal of licenses; reinstatement of lapsed licenses), subsections (E)-(G); definitions in § 40-2-20",
       "citation_url": "https://www.scstatehouse.gov/code/t40c002.php",
       "source_url": "https://llr.sc.gov/acct/faq.aspx",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "verification_history": "2026-08-14 (CITE-21 #6): relabelled the structured fee field 595 -> 500. The statute supports $500 as the reinstatement fee; $595 is the total out-of-pocket including the $95 renewal. The prose already said this correctly -- the field was labelling the TOTAL as the reinstatement fee, the same class as the audit's other labelling findings. Now matches the rhode-island house pattern (codified fee in the field, total in the note)."
     },
     {
       "id": "south-dakota-reinstatement",

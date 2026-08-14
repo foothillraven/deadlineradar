@@ -104,14 +104,14 @@
       "license_type": "firm",
       "license_type_label": "Firm license",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Firm licenses expire June 30 of even-numbered years. Next: 2028-06-30.",
+      "cycle_description": "Firm licenses expire June 30 of even-numbered years. Next: 2028-06-30. Firms WITH a physical office in Georgia are governed by R. 20-7-.01(2), which sets this same June 30 expiration and requires renewal before September 30 or the license lapses. Firms WITHOUT a Georgia office (out-of-state firms practicing under Ga. Code § 43-3-16(b)(1)(C)) are governed separately by R. 20-8-.01, which sets the identical June 30 date but a different consequence for lateness (a $250 fee after June 30, unlawful to practice without renewal). Most Georgia firm licensees have an in-state office and fall under R. 20-7-.01(2); the citation below leads with that rule.",
       "next_deadline_computed": "2028-06-30",
       "source_url": "https://gsba.georgia.gov/licensure",
       "last_verified": "2026-08-13",
       "wave": 1,
-      "secondary_source_url": "https://www.law.cornell.edu/regulations/georgia/Ga-Comp-R-Regs-R-20-8-.01",
-      "citation": "Ga. Comp. R. & Regs. R. 20-8-.01",
-      "citation_url": "https://rules.sos.ga.gov/gac/20-8-.01"
+      "secondary_source_url": "https://rules.sos.ga.gov/gac/20-8-.01",
+      "citation": "Ga. Comp. R. & Regs. R. 20-7-.01(2) (in-state firms); R. 20-8-.01 (out-of-state firms with no Georgia office)",
+      "citation_url": "https://rules.sos.ga.gov/gac/20-7-.01"
     },
     {
       "id": "nc-all",

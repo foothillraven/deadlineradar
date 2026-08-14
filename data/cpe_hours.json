@@ -357,15 +357,15 @@
       "state": "Michigan",
       "state_slug": "michigan",
       "citation": "MCL 339.729; R 338.5215, incl. (1)(h)",
-      "citation_url": "https://www.michigan.gov/lara/-/media/Project/Websites/lara/bpl/Accountancy/Licensing-Information/Licensed-Accountant-Licensing-Guide.pdf",
-      "source_url": "https://www.michigan.gov/lara/-/media/Project/Websites/lara/bpl/Accountancy/Licensing-Information/Licensed-Accountant-Licensing-Guide.pdf",
+      "citation_url": "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-339-729",
+      "source_url": "https://ars.apps.lara.state.mi.us/AdminCode/DownloadAdminCodeFile?FileName=R+338.5101++to+R+338.5503.pdf&ReturnHTML=True",
       "total_hours": 40,
       "period_years": 1,
       "annual_minimum_hours": 40,
       "ethics_hours": 2,
       "ethics_period_years": 1,
-      "notes": "40 hours of CPE for each year of the license cycle, of which 8 must be in auditing/accounting and 2 in professional ethics (1 of those 2 ethics hours must specifically satisfy R 338.5215(1)(h), a Michigan-specific sub-requirement). No more than 50% of hours may come from self-study/instruction. Confirmed directly against the Michigan LARA/Bureau of Professional Licensing's own official licensing guide (MCL 339.729 and R 338.5215) -- the same document serves as both the plain-English source and the rule citation, an acceptable variant of the two-source standard since it is the state's own combined guide, not a third-party summary.",
-      "verified_date": "2026-07-15"
+      "notes": "40 hours of CPE for each year of the license cycle, of which 8 must be in auditing/accounting and 2 in professional ethics (1 of those 2 ethics hours must specifically satisfy R 338.5215(1)(h), a Michigan-specific sub-requirement). No more than 50% of hours may come from self-study/instruction. AuditLab CITE-16 (2026-08-13): the prior citation_url/source_url (the LARA-hosted 'Licensed Accountant Licensing Guide' PDF, single-homed -- both fields pointed at the identical URL) went dead (404, page reorganized). Repointed to two distinct, independently-verified official sources: the Michigan Legislature's own codified MCL 339.729 text (citation_url) and LARA's Administrative Rules Search system's own R 338.5101-338.5503 compilation, which contains R 338.5215 including subsection (1)(h) verbatim (source_url). Both re-confirmed against their live text: 40 hours/year, 8 of those in auditing/accounting, 2 in ethics, and R 338.5215(1)(h)'s Michigan-statutes-and-rules ethics-course requirement all present verbatim.",
+      "verified_date": "2026-08-13"
     },
     {
       "id": "mn-cpe",

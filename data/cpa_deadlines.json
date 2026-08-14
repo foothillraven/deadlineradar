@@ -284,11 +284,12 @@
       "cycle_description": "Annual renewal, fixed calendar date. All Virginia CPAs holding an Active or Inactive individual license must renew by June 30 each year. Licenses not renewed automatically go to Expired status -- Va. Code § 54.1-4413.2(B): \"Any license not renewed pursuant to the provisions prescribed by the Board shall be considered to have expired and the person or firm shall be considered to no longer hold a Virginia license.\" (18VAC5-22-180 doesn't itself state this; the prior citation covered only the June 30 renewal date, not the expiration consequence -- added the controlling statute.) Reinstatement then requires a Board-evaluated application under § 54.1-4413.2(D), plus the Board's own reinstatement fee (per the Board's own renewal page). No separate CPE reporting deadline -- CE compliance is self-certified as part of the renewal itself, with supporting documentation retained for 4 years in case of audit.",
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://boa.virginia.gov/individual-cpas/renew/",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 4,
       "secondary_source_url": "https://law.lis.virginia.gov/vacode/title54.1/chapter44/section54.1-4413.2/",
       "citation": "18VAC5-22-180; Va. Code § 54.1-4413.2(B)",
-      "citation_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/"
+      "citation_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/",
+      "verification_history": "2026-08-14 (substance queue, VA): Register item 12184 is VA.R. Doc. R25-8223, a Board of Accountancy PROPOSED regulatory action (comment closed 2026-03-27, no final stage, not effective -- law.lis.virginia.gov still serves pre-amendment text). It would amend 18VAC5-22-20 (fees) and 18VAC5-22-180 (renewal/reinstatement), both cited here, but the proposed text keeps every published figure: '$60' timely renewal, '$350' reinstatement, 'shall annually renew his license on or before June 30'. The only substantive fee change is eliminating the re-exam fee, which this site does not publish. WATCH: re-check when a final stage publishes with an effective date."
     },
     {
       "id": "va-firm",
@@ -300,11 +301,12 @@
       "cycle_description": "Annual renewal, same fixed June 30 calendar date as individual licenses. Unrenewed firm licenses automatically go to Expired status -- Va. Code § 54.1-4413.2(B): \"Any license not renewed pursuant to the provisions prescribed by the Board shall be considered to have expired and the person or firm shall be considered to no longer hold a Virginia license.\" (18VAC5-22-180 doesn't itself state this; the prior citation covered only the June 30 renewal date, not the expiration consequence -- added the controlling statute.) After expiration the firm may not provide attest or compilation services until reinstated under § 54.1-4413.2(E), plus the Board's own $500 reinstatement fee (per the Board's own renewal page).",
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://boa.virginia.gov/firms/renew/",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 4,
       "secondary_source_url": "https://law.lis.virginia.gov/vacode/title54.1/chapter44/section54.1-4413.2/",
       "citation": "18VAC5-22-180; Va. Code § 54.1-4413.2(B)",
-      "citation_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/"
+      "citation_url": "https://law.lis.virginia.gov/admincode/title18/agency5/chapter22/section180/",
+      "verification_history": "2026-08-14 (substance queue, VA): Register item 12184 is VA.R. Doc. R25-8223, a Board of Accountancy PROPOSED regulatory action (comment closed 2026-03-27, no final stage, not effective -- law.lis.virginia.gov still serves pre-amendment text). It would amend 18VAC5-22-20 (fees) and 18VAC5-22-180 (renewal/reinstatement), both cited here, but the proposed text keeps every published figure: '$60' timely renewal, '$350' reinstatement, 'shall annually renew his license on or before June 30'. The only substantive fee change is eliminating the re-exam fee, which this site does not publish. WATCH: re-check when a final stage publishes with an effective date."
     },
     {
       "id": "ma-individual",
@@ -642,10 +644,11 @@
       "ce_deadline_note": "CPE earned on a fiscal year (July 1-June 30, distinct from the calendar-year license), reported to the Board by Dec 31 as part of renewal (40 hrs/yr min, up to 60 reportable, 20-hr carryover from the immediately preceding fiscal year only; audit/attest hours not carryover-eligible). Source: CT DCP's separate CPE requirements page (secondary_source_url).",
       "source_url": "https://portal.ct.gov/dcp/license-services-division/license-division/cpa-renewal",
       "secondary_source_url": "https://portal.ct.gov/dcp/continuing-education/cpa---continuing-education",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 5,
       "citation": "RCSA § 20-280-25(a)",
-      "citation_url": "https://eregulations.ct.gov/eRegsPortal/Browse/RCSA/Title_20Subtitle_20-280Section_20-280-25/"
+      "citation_url": "https://eregulations.ct.gov/eRegsPortal/Browse/RCSA/Title_20Subtitle_20-280Section_20-280-25/",
+      "verification_history": "2026-08-14 (substance queue, CT): PA 25-36 (HB 7020) enacted, effective 2025-10-01. It rewrites initial certification pathways (20-281c) and replaces NASBA substantial-equivalency mobility with a license-in-good-standing practice privilege (20-281n). It does NOT amend 20-281d (renewal) or RCSA 20-280-25 -- the sections carrying this site's renewal deadline, 40hr/1yr CPE, ethics, reinstatement, and $565 figures. No published figure affected."
     },
     {
       "id": "ct-firm",
@@ -658,9 +661,9 @@
       "next_deadline_computed": null,
       "data_gap_note": "Conn. Gen. Stat. 20-281e(b) (firm permit statute): 'Permits shall be initially issued and renewed annually. Applications for permits shall be made in such form, and in the case of applications for renewal, between such dates as the board may by regulation specify' -- i.e. the statute explicitly delegates the firm-permit renewal date to board regulation, it does not fix Dec 31 itself. RCSA 20-280-25(a)'s exact text governs the 'license' (individual), not the 'permit' (firm): 'A license issued under chapter 389 ... shall be valid ... from January 1 to December 31.' No RCSA section was found that sets a firm-permit-specific date. Visitors should confirm their firm permit's exact renewal date with CT DCP or on the permit itself.",
       "source_url": "https://portal.ct.gov/dcp/license-services-division/license-division/cpa-renewal",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 5,
-      "verification_history": "2026-07-30: re-checked, no rule change found -- the same conclusion (no RCSA section sets a firm-permit-specific date) still holds."
+      "verification_history": "2026-07-30: re-checked, no rule change found -- the same conclusion (no RCSA section sets a firm-permit-specific date) still holds.\n\n2026-08-14 (substance queue, CT): PA 25-36 (HB 7020) enacted, effective 2025-10-01. It rewrites initial certification pathways (20-281c) and replaces NASBA substantial-equivalency mobility with a license-in-good-standing practice privilege (20-281n). It does NOT amend 20-281d (renewal) or RCSA 20-280-25 -- the sections carrying this site's renewal deadline, 40hr/1yr CPE, ethics, reinstatement, and $565 figures. No published figure affected."
     },
     {
       "id": "la-individual",
@@ -787,10 +790,11 @@
       "ce_deadline_note": "CPE (40 hrs, incl. 8 A&A + 2 ethics) must be completed within the fiscal year ending Sept 30 (30-X-5-.02(1)) -- earlier than the Dec 31 deadline for submitting the renewal + signed CPE compliance statement (30-X-3-.07(1)).",
       "source_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-3",
       "secondary_source_url": "https://www.asbpa.alabama.gov/",
-      "last_verified": "2026-07-30",
+      "last_verified": "2026-08-14",
       "wave": 5,
       "citation": "Ala. Admin. Code 30-X-5-.05(1) (Sept 30 permit expiration); 30-X-3-.07(1) (Dec 31 renewal fee + CPE-statement deadline)",
-      "citation_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-3"
+      "citation_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-3",
+      "verification_history": "2026-08-14 (substance queue, AL): HB59 IS Act 2026-16 -- one bill, not two (verified via the legislature's ALISON records and the enrolled PDF; 'Pathways to CPA Act', effective 2026-10-01). It amends 34-1-11, which this state's reinstatement record cites, but the (d) changes are stylistic renumbering: the lapse windows, the 'reinstatement fee not to exceed one hundred dollars ($100)', and the September 30 expiration / December 31 renewal-filing structure are retained verbatim in the enrolled text. Substantive amendments target exam subjects, nonlicensed firm owners, notice, and advertising. The existing reader heads-up on the reinstatement record stays; the 2026-10-01 re-check drops from 'figures may change' to 'confirm the renumbering'."
     },
     {
       "id": "ky-individual",
@@ -958,8 +962,9 @@
       "data_gap_note": "Your exact renewal date depends on whether your Kansas CPA certificate number is odd or even -- we cannot determine that from state-level data alone. Confirm your renewal date with the Kansas Board of Accountancy or on your certificate.",
       "source_url": "https://ksrevisor.gov/statutes/chapters/ch01/001_003_0010.html",
       "secondary_source_url": "https://ksboa.kansas.gov/faqs/",
-      "last_verified": "2026-08-13",
-      "wave": 6
+      "last_verified": "2026-08-14",
+      "wave": 6,
+      "verification_history": "2026-08-14 (substance queue, KS): HB2573 enacted, in force since 2026-07-01. It amends two sections our records sit on WITHOUT changing any published figure: amended K.S.A. 1-310(e) still requires 'at least 80 hours during the two-year period for renewal', 1-310(b)-(c) keep the biennial July 1 odd/even expiration (style edits only), 1-310(g) still requires 40 hours plus the reinstatement fee, and 1-301(b) keeps the $350 renewal cap and 1.5x reinstatement multiplier. The substantive changes are initial-licensure pathways (150-hour rule replaced) and mobility (1-321/1-322). K.S.A. 1-308 and the K.A.R. CPE regs are not amended."
     },
     {
       "id": "ks-firm",
@@ -972,10 +977,11 @@
       "next_deadline_computed": "2026-12-31",
       "source_url": "https://ksrevisor.gov/statutes/chapters/ch01/001_003_0008.html",
       "secondary_source_url": "https://ksboa.kansas.gov/faqs/",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 6,
       "citation": "K.S.A. § 1-308",
-      "citation_url": "https://ksrevisor.gov/statutes/chapters/ch01/001_003_0008.html"
+      "citation_url": "https://ksrevisor.gov/statutes/chapters/ch01/001_003_0008.html",
+      "verification_history": "2026-08-14 (substance queue, KS): HB2573 enacted, in force since 2026-07-01. It amends two sections our records sit on WITHOUT changing any published figure: amended K.S.A. 1-310(e) still requires 'at least 80 hours during the two-year period for renewal', 1-310(b)-(c) keep the biennial July 1 odd/even expiration (style edits only), 1-310(g) still requires 40 hours plus the reinstatement fee, and 1-301(b) keeps the $350 renewal cap and 1.5x reinstatement multiplier. The substantive changes are initial-licensure pathways (150-hour rule replaced) and mobility (1-321/1-322). K.S.A. 1-308 and the K.A.R. CPE regs are not amended."
     },
     {
       "id": "nv-individual",
@@ -1067,8 +1073,9 @@
       "data_gap_note": "Your exact renewal date depends on your birth-year parity -- we cannot determine that from state-level data alone. Confirm your renewal date with the Nebraska Board of Public Accountancy or on your permit.",
       "source_url": "https://nebraskalegislature.gov/laws/statutes.php?statute=1-136",
       "secondary_source_url": "https://nbpa.nebraska.gov/sites/default/files/doc/public-info/PAA%20w%20LB%20707%20-%202022.pdf",
-      "last_verified": "2026-08-13",
-      "wave": 6
+      "last_verified": "2026-08-14",
+      "wave": 6,
+      "verification_history": "2026-08-14 (substance queue, NE): LB718 enacted 2026-02-25, now operative. It changes exam eligibility (150-hour rule dropped), reciprocity, mobility, permit-issuance qualifications, and discipline, and repeals 1-136.04 (an experience-in-lieu-of-degree issuance pathway). It does NOT amend 1-136 (biennial renewal/fees/3-year forfeiture), 1-136.01 (CPE), or 288 NAC ch. 8 -- which was re-adopted 2026-07-25, post-LB718. The 3-year reinstatement window this site publishes is restated unchanged in amended 1-137(9)/1-148(7). No published figure affected."
     },
     {
       "id": "ne-firm",
@@ -1081,10 +1088,11 @@
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://nbpa.nebraska.gov",
       "secondary_source_url": "https://nebraskalegislature.gov/laws/statutes.php?statute=1-136",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 6,
       "citation": "Neb. Rev. Stat. § 1-136(2)(a)",
-      "citation_url": "https://nebraskalegislature.gov/laws/statutes.php?statute=1-136"
+      "citation_url": "https://nebraskalegislature.gov/laws/statutes.php?statute=1-136",
+      "verification_history": "2026-08-14 (substance queue, NE): LB718 enacted 2026-02-25, now operative. It changes exam eligibility (150-hour rule dropped), reciprocity, mobility, permit-issuance qualifications, and discipline, and repeals 1-136.04 (an experience-in-lieu-of-degree issuance pathway). It does NOT amend 1-136 (biennial renewal/fees/3-year forfeiture), 1-136.01 (CPE), or 288 NAC ch. 8 -- which was re-adopted 2026-07-25, post-LB718. The 3-year reinstatement window this site publishes is restated unchanged in amended 1-137(9)/1-148(7). No published figure affected."
     },
     {
       "id": "nm-individual",
@@ -1192,10 +1200,11 @@
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://www.boa.wv.gov/Licensing/LicenseRenewal.asp",
       "secondary_source_url": "https://code.wvlegislature.gov/30-9-12/",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 6,
       "citation": "W. Va. Code § 30-9-12(a)",
-      "citation_url": "https://code.wvlegislature.gov/30-9-12/"
+      "citation_url": "https://code.wvlegislature.gov/30-9-12/",
+      "verification_history": "2026-08-14 (substance queue, WV): HB4088 enacted (Ch. 256), effective 2026-05-24. Section-by-section read of the enrolled text: it updates definitions, credential pathways, substantial-equivalency privileges, and unlawful acts (30-9-2/5/7/8/10/11/16/26) but does not amend 30-9-12 (renewal), 30-9-17 (firm registration), or any CSR provision; 30-9-7's 'expire on June 30 following the date of issue' survives unmodified. No published figure affected."
     },
     {
       "id": "wv-firm",
@@ -1207,11 +1216,12 @@
       "cycle_description": "Annual. Firm permits run on the same July 1 - June 30 cycle as individual certificates and expire each year on June 30 (W. Va. Code § 30-9-17(h): 'The board shall renew a permit for a one-year period beginning on July 1, of each year after initial issuance...'). The Board's own firm-permit renewal page independently confirms the practical June 30 deadline via its $50 late-fee trigger for submissions after that date.",
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://www.boa.wv.gov/renewals/firms/permit/index.asp",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 6,
       "secondary_source_url": "https://code.wvlegislature.gov/30-9-17/",
       "citation": "W. Va. Code § 30-9-17(h)",
-      "citation_url": "https://code.wvlegislature.gov/30-9-17/"
+      "citation_url": "https://code.wvlegislature.gov/30-9-17/",
+      "verification_history": "2026-08-14 (substance queue, WV): HB4088 enacted (Ch. 256), effective 2026-05-24. Section-by-section read of the enrolled text: it updates definitions, credential pathways, substantial-equivalency privileges, and unlawful acts (30-9-2/5/7/8/10/11/16/26) but does not amend 30-9-12 (renewal), 30-9-17 (firm registration), or any CSR provision; 30-9-7's 'expire on June 30 following the date of issue' survives unmodified. No published figure affected."
     },
     {
       "id": "mt-all",
@@ -1241,10 +1251,11 @@
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://dpr.delaware.gov/boards/accountancy/renewpermit/",
       "secondary_source_url": "https://delcode.delaware.gov/title24/c001/index.html",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 7,
       "citation": "24 Del. C. § 108(b)",
-      "citation_url": "https://delcode.delaware.gov/title24/c001/index.html"
+      "citation_url": "https://delcode.delaware.gov/title24/c001/index.html",
+      "verification_history": "2026-08-14 (substance queue, DE): 85 Del. Laws c. 112 (HS 1 for HB 143) enacted 2025-07-30, effective 2026-07-01 -- already in force. Full text read at legis.delaware.gov: it creates a baccalaureate+2yr licensure pathway and rewrites exam/issuance/reciprocity (24 Del. C. 102/107/108(a),(c)/109), converting substantial equivalency to practice privileges. It does NOT touch 108(b) (the permit cycle this site cites), 124 (renewals), any fee provision, or the CPE rules in 24 Del. Admin. Code 100-7.0. No published figure affected."
     },
     {
       "id": "nd-individual",
@@ -1440,8 +1451,9 @@
       "data_gap_note": "Your exact renewal date depends on which of Rhode Island's three rotating 3-year cohorts your permit is in -- we cannot determine that from state-level data alone. Confirm your renewal date with the Rhode Island Board of Accountancy or on your permit.",
       "source_url": "https://dbr.ri.gov/contractors-and-building-design-fire-professionals-board-accountancy/board-accountancy/renew",
       "secondary_source_url": "https://webserver.rilegislature.gov/Statutes/TITLE5/5-3.1/5-3.1-7.HTM",
-      "last_verified": "2026-08-13",
-      "wave": 7
+      "last_verified": "2026-08-14",
+      "wave": 7,
+      "verification_history": "2026-08-14 (substance queue, RI): the flagged 2025 chapters 408/409 turn out to be ELECTION law (voting districts; synthetic media in election communications), verified from full text at the legislature's public-laws site. Nothing touches Title 5 ch. 5-3.1 or 400-RICR-00-00-1. The original flag was misattributed; no accountancy overlap exists."
     },
     {
       "id": "hi-all",

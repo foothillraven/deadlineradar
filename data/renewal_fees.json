@@ -13,7 +13,8 @@
       "fee_notes": "Flat $100 annual permit fee for individual CPAs (firm fee is separately $130). Ala. Admin. Code Rule 30-X-3-.07(1).",
       "source_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-3",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (substance queue, AL): HB59 IS Act 2026-16 -- one bill, not two (verified via the legislature's ALISON records and the enrolled PDF; 'Pathways to CPA Act', effective 2026-10-01). It amends 34-1-11, which this state's reinstatement record cites, but the (d) changes are stylistic renumbering: the lapse windows, the 'reinstatement fee not to exceed one hundred dollars ($100)', and the September 30 expiration / December 31 renewal-filing structure are retained verbatim in the enrolled text. Substantive amendments target exam subjects, nonlicensed firm owners, notice, and advertising. The existing reader heads-up on the reinstatement record stays; the 2026-10-01 re-check drops from 'figures may change' to 'confirm the renumbering'."
     },
     {
       "id": "alaska-renewal-fee",
@@ -74,7 +75,8 @@
       "fee_notes": "Flat $565.00 individual CPA license renewal fee, stated directly on the official DCP renewal page.",
       "source_url": "https://portal.ct.gov/dcp/license-services-division/license-division/cpa-renewal",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (substance queue, CT): PA 25-36 (HB 7020) enacted, effective 2025-10-01. It rewrites initial certification pathways (20-281c) and replaces NASBA substantial-equivalency mobility with a license-in-good-standing practice privilege (20-281n). It does NOT amend 20-281d (renewal) or RCSA 20-280-25 -- the sections carrying this site's renewal deadline, 40hr/1yr CPE, ethics, reinstatement, and $565 figures. No published figure affected."
     },
     {
       "id": "dc-renewal-fee",
@@ -94,8 +96,9 @@
       "fee_notes": null,
       "source_url": null,
       "confidence": "high",
-      "verified_date": "2026-08-11",
-      "data_gap_note": "Delaware's official fee schedule explicitly states the renewal fee amount is communicated to each licensee at the time of renewal, not published as a flat figure -- confirmed against both the Division of Professional Regulation's own fee page and Delaware Admin. Code Title 24, which defers the amount to DPR rather than codifying it. High confidence that no flat fee is published; the amount itself is not independently confirmable from any official source."
+      "verified_date": "2026-08-14",
+      "data_gap_note": "Delaware's official fee schedule explicitly states the renewal fee amount is communicated to each licensee at the time of renewal, not published as a flat figure -- confirmed against both the Division of Professional Regulation's own fee page and Delaware Admin. Code Title 24, which defers the amount to DPR rather than codifying it. High confidence that no flat fee is published; the amount itself is not independently confirmable from any official source.",
+      "verification_history": "2026-08-14 (substance queue, DE): 85 Del. Laws c. 112 (HS 1 for HB 143) enacted 2025-07-30, effective 2026-07-01 -- already in force. Full text read at legis.delaware.gov: it creates a baccalaureate+2yr licensure pathway and rewrites exam/issuance/reciprocity (24 Del. C. 102/107/108(a),(c)/109), converting substantial equivalency to practice privileges. It does NOT touch 108(b) (the permit cycle this site cites), 124 (renewals), any fee provision, or the CPE rules in 24 Del. Admin. Code 100-7.0. No published figure affected."
     },
     {
       "id": "florida-renewal-fee",
@@ -187,7 +190,8 @@
       "fee_notes": "$165.00 biennial renewal fee if received on or before July 1 of the renewal year (rises to $247.50 if filed late). K.A.R. 74-12-1(d).",
       "source_url": "https://ksboa.kansas.gov/wp-content/uploads/article12.pdf",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (substance queue, KS): HB2573 enacted, in force since 2026-07-01. It amends two sections our records sit on WITHOUT changing any published figure: amended K.S.A. 1-310(e) still requires 'at least 80 hours during the two-year period for renewal', 1-310(b)-(c) keep the biennial July 1 odd/even expiration (style edits only), 1-310(g) still requires 40 hours plus the reinstatement fee, and 1-301(b) keeps the $350 renewal cap and 1.5x reinstatement multiplier. The substantive changes are initial-licensure pathways (150-hour rule replaced) and mobility (1-321/1-322). K.S.A. 1-308 and the K.A.R. CPE regs are not amended."
     },
     {
       "id": "kentucky-renewal-fee",
@@ -300,7 +304,8 @@
       "fee_notes": "Flat $200 fee for an Active Permit to Practice, renewed biennially by June 30. The statute (Neb. Rev. Stat. § 1-136) sets only a $300 biennial cap; the actual current amount is confirmed on the Board's own fee schedule.",
       "source_url": "https://nbpa.nebraska.gov/individuals/fee-schedule",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (substance queue, NE): LB718 enacted 2026-02-25, now operative. It changes exam eligibility (150-hour rule dropped), reciprocity, mobility, permit-issuance qualifications, and discipline, and repeals 1-136.04 (an experience-in-lieu-of-degree issuance pathway). It does NOT amend 1-136 (biennial renewal/fees/3-year forfeiture), 1-136.01 (CPE), or 288 NAC ch. 8 -- which was re-adopted 2026-07-25, post-LB718. The 3-year reinstatement window this site publishes is restated unchanged in amended 1-137(9)/1-148(7). No published figure affected."
     },
     {
       "id": "nevada-renewal-fee",
@@ -448,7 +453,8 @@
       "fee_notes": "Triennial License Renewal Fee: $375.00 -- the statutory maximum under R.I. Gen. Laws § 5-3.1-7(f). 400-RICR-00-00-1 § 1.13.",
       "source_url": "https://rules.sos.ri.gov/regulations/part/400-00-00-1",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (substance queue, RI): the flagged 2025 chapters 408/409 turn out to be ELECTION law (voting districts; synthetic media in election communications), verified from full text at the legislature's public-laws site. Nothing touches Title 5 ch. 5-3.1 or 400-RICR-00-00-1. The original flag was misattributed; no accountancy overlap exists."
     },
     {
       "id": "south-carolina-renewal-fee",
@@ -532,7 +538,8 @@
       "fee_notes": "Flat $60 renewal fee, plus a $25 processing fee if paying by check; no late fee, but a $350 non-refundable fee applies to reinstate an expired license.",
       "source_url": "https://boa.virginia.gov/individual-cpas/renew/",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (substance queue, VA): Register item 12184 is VA.R. Doc. R25-8223, a Board of Accountancy PROPOSED regulatory action (comment closed 2026-03-27, no final stage, not effective -- law.lis.virginia.gov still serves pre-amendment text). It would amend 18VAC5-22-20 (fees) and 18VAC5-22-180 (renewal/reinstatement), both cited here, but the proposed text keeps every published figure: '$60' timely renewal, '$350' reinstatement, 'shall annually renew his license on or before June 30'. The only substantive fee change is eliminating the re-exam fee, which this site does not publish. WATCH: re-check when a final stage publishes with an effective date."
     },
     {
       "id": "washington-renewal-fee",
@@ -553,7 +560,7 @@
       "source_url": "https://www.boa.wv.gov/www/download_resource.asp?id=55",
       "confidence": "high",
       "verified_date": "2026-08-14",
-      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): source_url mirror -> primary. Research agent evidence: W. Va. C.S.R. Sec. 1-1-18.2.c in the board's own current 1CSR1 publication: 'An annual certificate renewal fee of eighty-five dollars ($85.00).' Renewal deadline is June 30 annually (Sec. 7.1)."
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): source_url mirror -> primary. Research agent evidence: W. Va. C.S.R. Sec. 1-1-18.2.c in the board's own current 1CSR1 publication: 'An annual certificate renewal fee of eighty-five dollars ($85.00).' Renewal deadline is June 30 annually (Sec. 7.1).\n\n2026-08-14 (substance queue, WV): HB4088 enacted (Ch. 256), effective 2026-05-24. Section-by-section read of the enrolled text: it updates definitions, credential pathways, substantial-equivalency privileges, and unlawful acts (30-9-2/5/7/8/10/11/16/26) but does not amend 30-9-12 (renewal), 30-9-17 (firm registration), or any CSR provision; 30-9-7's 'expire on June 30 following the date of issue' survives unmodified. No published figure affected."
     },
     {
       "id": "wisconsin-renewal-fee",

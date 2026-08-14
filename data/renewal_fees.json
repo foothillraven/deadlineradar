@@ -227,8 +227,9 @@
       "fee_notes": "Individual CPA renewal fee is $63 (firm renewal is separately $151).",
       "source_url": "https://labor.maryland.gov/license/cpa/cpaaff.shtml",
       "confidence": "medium",
-      "verified_date": "2026-08-11",
-      "data_gap_note": "Could not independently confirm the renewal cycle length (annual vs. biennial) from the Board's own site alongside the fee figure."
+      "verified_date": "2026-08-14",
+      "data_gap_note": "Could not independently confirm the renewal cycle length (annual vs. biennial) from the Board's own site alongside the fee figure.",
+      "verification_history": "2026-08-14 (source_check sweep): labor.maryland.gov fetches cleanly and its fee page states 'Renewal fee: $63' verbatim, live-corroborating the published figure (also 'Reinstatement/reactivation/renewal of expired active license: $126' for the reinstatement dataset's use). The data_gap_note here is a genuine CONTENT gap -- the page does not state the renewal cycle length -- not a tooling artifact, so it stays."
     },
     {
       "id": "massachusetts-renewal-fee",
@@ -248,8 +249,8 @@
       "fee_notes": "LARA's official fee table lists a $100/year individual license fee; Michigan CPA licenses renew on a 2-year cycle, so the total renewal fee is $200 ($20 more if late).",
       "source_url": "https://www.michigan.gov/lara/bureau-list/bpl/occ/prof/accountancy/lic-info/license-fees",
       "confidence": "high",
-      "verified_date": "2026-08-11",
-      "data_gap_note": "The narrative renewal-instructions page returned an automated-access block; this figure is confirmed via the official standalone fee table instead."
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (source_check sweep): the gap note claimed the narrative renewal page 'returned an automated-access block'. Re-tested with the new classifier: michigan.gov serves the page to a plain browser-UA fetch (23.5KB of real content) -- the earlier conclusion was the same misdiagnosis class as MA/Utah. The live official fee table states 'Per Year License Fees: ... Individual 100.00', which corroborates the published $200 as one biennial renewal (2 x $100/yr on Michigan's 2-year cycle). Gap note removed; nothing was actually unverifiable."
     },
     {
       "id": "minnesota-renewal-fee",

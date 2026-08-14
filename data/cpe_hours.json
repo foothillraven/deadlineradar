@@ -511,8 +511,9 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "New Hampshire moved CPA certificates from a 3-year to a 2-year renewal cycle for anyone issued or renewing after 2/22/2023, and CPE dropped in lockstep from 120 hours/3-year period to 80 hours/2-year period, with a 20-hour annual floor and 4 ethics hours per 2-year period. The rule chapter was formally readopted with amendment effective 7/17/2025 (docket 2024-248) to codify the 80/2yr structure. Legacy 3-year licenses issued/renewed before 2/22/2023 are grandfathered under a prorated 120-hour schedule until they transition.",
-      "verified_date": "2026-07-25",
-      "data_gap_note": "The board's own accountancy CPE page and the rulemaking docket's adopted-text PDF state these figures, but oplc.nh.gov currently blocks automated access, so this specific fact could not be freshly re-confirmed by an automated check at publish time -- only by matching an archived copy of the same page and the same docket's earlier final-proposal text. Recommend a manual check of the board's page if you want to see it firsthand."
+      "verified_date": "2026-08-14",
+      "data_gap_note": "oplc.nh.gov blocks non-browser fetchers (the codified rule text on gc.nh.gov does not, and is the citation here). The board's CE page loads normally in a browser and states the same figures as the rule; if our automated checks ever lag on this record, that is why.",
+      "verification_history": "2026-08-14 (source_check sweep): oplc.nh.gov is genuinely blocked to every non-browser fetcher (classifier: non-2xx), but NOT to a real browser -- loaded the board's CE page in a Chrome session today and read it directly: '2 year license 80 hours Min of 20 CE must be completed per year Min of 4 CE in Ethics must be completed / 3 year licence 120 hours ...' -- matching this record's figures exactly, and independently matching the orchestrator's own same-day check. Gap note reworded from 'could not be re-confirmed' (no longer true) to a plain statement of the fetcher-only block, MA pattern."
     },
     {
       "id": "nj-cpe",

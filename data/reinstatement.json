@@ -68,16 +68,18 @@
       "state": "Alabama",
       "state_slug": "alabama",
       "reinstatement_fee_usd": null,
-      "reinstatement_fee_notes": "Not a flat fee. Code of Ala. 1975 §34-1-11(d) lets the Board set a reinstatement fee (not exceeding $100) plus back registration fees and late penalties for every lapsed year -- the Board's own fee schedule sets the annual permit fee at $100 (individual)/$130 (firm) and late penalties of $100 (if filed Jan1-Feb28/29) or $500 (if filed after), compounding per lapsed year.",
+      "reinstatement_fee_notes": "Not a flat fee. Code of Ala. 1975 §34-1-11(d) lets the Board set a reinstatement fee (not exceeding $100) plus back registration fees and late penalties for every lapsed year -- the Board's own fee schedule sets the annual permit fee at $100 (individual)/$130 (firm) and late penalties of $100 (if filed January 1 through the last day of February) or $500 (if filed March 1-31), per 30-X-3-.07(4), compounding per lapsed year.",
       "penalty_cpe_hours": null,
       "penalty_cpe_notes": "Formula: Ala. Admin. Code r. 30-X-5-.02(3)-(4) requires 40 CPE hours for EACH year off active status, capped at 120 hours (3+ lapsed years), with 20% in accounting & auditing, earned within the 3 years preceding the request.",
       "penalty_ethics_hours": null,
       "lapse_trigger": "Annual permits expire September 30; renewal (application, fee, CPE proof) is due by December 31. A $100 late penalty applies if filed Jan 1-Feb 28/29, a $500 late penalty if filed Mar 1-31. Failing to renew or apply for inactive status within 6 months of expiration (roughly by the following March 31) is itself grounds for revocation under Code of Ala. §34-1-11(d), after which formal reinstatement (a Board hearing) plus back-fees and catch-up CPE apply.",
       "citation": "Code of Alabama 1975, §34-1-11(d) (reinstatement fee & lapse/revocation trigger); Ala. Admin. Code r. 30-X-3-.07 (annual permit fees & late penalties); Ala. Admin. Code r. 30-X-5-.02(3)-(4) (catch-up CPE hours)",
-      "citation_url": "https://law.justia.com/codes/alabama/title-34/chapter-1/section-34-1-11/",
+      "citation_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-3",
       "source_url": "https://asbpa.alabama.gov/licensees/fees/",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": "Heads-up: the underlying statute (Code of Ala. 1975 Sec 34-1-11) was amended by Act 2026-16 effective October 1, 2026 -- if you are reinstating on or after that date, check the revised text or confirm with the board, as these figures reflect the law in force before the amendment.",
+      "secondary_source_url": "https://law.justia.com/codes/alabama/title-34/chapter-1/section-34-1-11/",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Alison, the Legislature's official Code of Alabama viewer, has NO per-section URL: /code-of-alabama is a JS-only tree viewer and the per-section path returns a 200 shell with no statute text; text verified through Alison's own GraphQL endpoint (searchCodeOfAlabama). FRESHNESS FLAG: Alison labels s34-1-11 'AMENDED BY ACT 2026-16, EFFECTIVE OCTOBER 1, 2026. SEE ACT FOR REVISED LANGUAGE' -- our text and the Justia mirror both go stale 2026-10-01. Deep-linkable official rule PDFs that DO serve text: https://admincode.legislature.state.al.us/api/chapter/30-X-3 and .../30-X-5 (the old alabamaadministrativecode.state.al.us host now redirects to this legislature site).\n\n2026-08-14 (SRC-1 content check): the $500 late-penalty tier was stated as '$500 if filed after' the February window, but 30-X-3-.07(4) bounds it to submissions between March 1 and March 31 -- the rule does not state a penalty for later filings (reinstatement takes over at that point). Also flagged Act 2026-16 (eff. 2026-10-01) amending Sec 34-1-11; added a re-verify note to data_gap_note."
     },
     {
       "id": "alaska-reinstatement",
@@ -90,11 +92,12 @@
       "penalty_ethics_hours": 4,
       "lapse_trigger": "Licenses are biennial, expiring December 31 of odd-numbered years regardless of issuance date. Missing that deadline lapses the license immediately; a $100 delayed-renewal penalty attaches once the lapse exceeds 60 days.",
       "citation": "12 AAC 04.440(a)-(f) (Reinstatement of Lapsed License); fee amounts at 12 AAC 02.340(4),(13); license-term backdrop at 12 AAC 04.189",
-      "citation_url": "https://www.law.cornell.edu/regulations/alaska/12-AAC-02.340",
+      "citation_url": "https://www.akleg.gov/basis/aac.asp?media=print&secStart=12.02.340&secEnd=12.02.340",
       "source_url": "https://www.commerce.alaska.gov/web/cbpl/ProfessionalLicensing/BoardofPublicAccountancy.aspx",
       "last_verified": "2026-08-14",
       "data_gap_note": null,
-      "verification_history": "2026-08-14 (CITE-21 #2, audit finding NOT sustained): the audit reported that cited 12 AAC 02.340 contains no $400 individual reinstatement and that its subsections sum to $550. Read both rules directly (Cornell LII). 12 AAC 02.340(4) is the CPA biennial active license renewal fee, $300; (13) is the delayed renewal penalty fee, $100. 12 AAC 04.440(a) directs precisely those two for a license lapsed under one year and more than 60 days -- so $400 is the total the reinstatement rule actually produces, which is what this record's notes already show as arithmetic rather than as a single line item. The $400 figures the audit found in 02.340 are (8) and (9), both FIRM fees, unrelated. The $550 sum adds (12) license reactivation, $150, which applies to reactivating an INACTIVE license, not to reinstating a lapsed one -- 04.440 never calls for it. Fee and notes left unchanged. One real correction did come out of this: the citation listed subsection (12), which is not part of this determination, and has been dropped."
+      "verification_history": "2026-08-14 (CITE-21 #2, audit finding NOT sustained): the audit reported that cited 12 AAC 02.340 contains no $400 individual reinstatement and that its subsections sum to $550. Read both rules directly (Cornell LII). 12 AAC 02.340(4) is the CPA biennial active license renewal fee, $300; (13) is the delayed renewal penalty fee, $100. 12 AAC 04.440(a) directs precisely those two for a license lapsed under one year and more than 60 days -- so $400 is the total the reinstatement rule actually produces, which is what this record's notes already show as arithmetic rather than as a single line item. The $400 figures the audit found in 02.340 are (8) and (9), both FIRM fees, unrelated. The $550 sum adds (12) license reactivation, $150, which applies to reactivating an INACTIVE license, not to reinstating a lapsed one -- 04.440 never calls for it. Fee and notes left unchanged. One real correction did come out of this: the citation listed subsection (12), which is not part of this determination, and has been dropped.\n\n2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Fetched both 12 AAC 02.340 and 12 AAC 04.440 from the same BASIS print endpoint (04.440 at https://www.akleg.gov/basis/aac.asp?media=print&secStart=12.04.440&secEnd=12.04.440). 02.340 lists '(4) certified public accountant biennial active license renewal fee, $300' and '(13) delayed renewal penalty fee, $100', giving the published $400; 04.440(a) triggers the penalty when 'lapsed for more than 60 days', (b)(2) requires 'the license renewal fees for the entire period during which the license has been lapsed', (b)(3) requires 'at least 120 hours of approved continuing education', and (f) states 'A license to practice that has been lapsed for five years or more may not be reinstated.' Every figure and note element checks out.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/alaska/12-AAC-02.340"
     },
     {
       "id": "arizona-reinstatement",
@@ -107,10 +110,12 @@
       "penalty_ethics_hours": 8,
       "lapse_trigger": "Individual registration is biennial, keyed to the registrant's birth month with odd/even-year parity (R4-1-345). Missing the birth-month renewal deadline draws a $50 late fee; if still unrenewed, the certificate lapses to 'canceled' status, requiring reinstatement under A.R.S. §32-732(B). If 25-48 months have passed since the last renewal due date, the ethics-hour requirement doubles to 8 hours (vs. the normal 4).",
       "citation": "Ariz. Admin. Code R4-1-341(A)(1) (reinstatement fee); R4-1-453(C)(4),(7) (normal vs. reinstatement CPE/ethics hours); A.R.S. §32-732(B) (reinstatement from canceled status); R4-1-345(B)-(C) (birth-year-parity cycle)",
-      "citation_url": "https://www.law.cornell.edu/regulations/arizona/Ariz-Admin-Code-SS-R4-1-341",
+      "citation_url": "https://apps.azsos.gov/public_services/Title_04/4-01.pdf",
       "source_url": "https://www.azaccountancy.gov/Certification/Reinstatement.aspx",
-      "last_verified": "2026-07-25",
-      "data_gap_note": "The Board's own reinstatement page (azaccountancy.gov) could not be reached directly at publish time. The $100 fee and CPE/ethics-hour figures above come from the codified rule cited here (Ariz. Admin. Code R4-1-341, R4-1-453), which is authoritative on its own, and the same $100 fee also appears on an archived copy of the Board's page."
+      "last_verified": "2026-08-14",
+      "data_gap_note": "The Board's own reinstatement page (azaccountancy.gov) could not be reached directly at publish time. The $100 fee and CPE/ethics-hour figures above come from the codified rule cited here (Ariz. Admin. Code R4-1-341, R4-1-453), which is authoritative on its own, and the same $100 fee also appears on an archived copy of the Board's page.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/arizona/Ariz-Admin-Code-SS-R4-1-341",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Same official AZ SOS A.A.C. chapter PDF (Supp. 26-2); R4-1-341(A) applies to an applicant applying 'for a certificate of certified public accountant or for reinstatement of a certificate' and (A)(1) is 'An application fee of $100', so the $100 figure is exact. R4-1-453(C)(7) confirms the reinstatement CPE step-up: 'complete up to 160 hours of CPE during the four-year period immediately before application', with 'Four hours of ethics CPE ... if 1 - 24 months have passed' and 'Eight hours of ethics CPE ... if 25 - 48 months have passed'; R4-1-345(B)(1) confirms the birth-month/birth-year-parity cycle. One nuance in notes_excerpt: R4-1-345(C)(2)(a) sets the biennial individual registration fee at a flat '$300 and, if applicable, a late fee of $50' -- the '$100-$300, prorated' framing comes from the statute (A.R.S. Sec 32-729(3), verified at azleg.gov: 'at least one hundred and not more than three hundred dollars ... Registrants for less than two years shall be charged on a pro rata basis'), so it is defensible for a short first period but the rule's standard figure is $300."
     },
     {
       "id": "arkansas-reinstatement",
@@ -166,16 +171,18 @@
       "state": "Connecticut",
       "state_slug": "connecticut",
       "reinstatement_fee_usd": 565,
-      "reinstatement_fee_notes": "Regs. Conn. State Agencies §20-280-25(g) requires paying 'the current year's renewal fee' to reinstate a license lapsed more than 90 days (and up to 3 years) -- the board's own fee schedule sets that fee at $565.",
+      "reinstatement_fee_notes": "Regs. Conn. State Agencies §20-280-25(g) requires paying 'the current year's renewal fee' to reinstate a license lapsed more than 90 days (and up to 3 years) -- that fee is set by statute at $565: CGS Sec 20-281d(g) pegs it to the Class I professional services fee, and CGS Sec 33-182l sets Class I at $565.",
       "penalty_cpe_hours": 40,
       "penalty_cpe_notes": "40 hours of CPE earned in the single year immediately preceding the reinstatement application (rather than spread over the normal cycle).",
       "penalty_ethics_hours": 4,
       "lapse_trigger": "Licenses expire annually on December 31; a late application is accepted through January 31. If not received by February 1, the license lapses. Lapsed 90 days or less: reinstate by simple application. Lapsed more than 90 days but less than 3 years: reinstate at the department's discretion on the fee + 40-hour CPE terms above. Lapsed 3+ years: must apply for an entirely new license.",
       "citation": "Regs. Conn. State Agencies §20-280-25 (Renewal and reinstatement of license and continuing professional education requirement)",
-      "citation_url": "https://www.law.cornell.edu/regulations/connecticut/Regs-Conn-State-Agencies-SS-20-280-25",
+      "citation_url": "https://eregulations.ct.gov/eRegsPortal/Browse/RCSA/Title_20Subtitle_20-280Section_20-280-25/",
       "source_url": "https://portal.ct.gov/dcp/license-services-division/all-license-applications/cpa-reinstatement-information",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/connecticut/Regs-Conn-State-Agencies-SS-20-280-25",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Same verified official CT eRegulations section. Subsection (g) matches both figures and the notes_excerpt quote: a license lapsed more than ninety (90) days may be reinstated 'if such application was made not later than three (3) years after the date on which the license expired', and the applicant 'shall pay the current year's renewal fee for reinstatement and shall demonstrate completion of forty (40) hours of continuing professional education credits earned in the year immediately preceding' the application. The $565 figure is confirmed but the notes_excerpt mis-attributes its source: it is statutory, not a board fee schedule. Conn. Gen. Stat. Sec. 20-281d(g) sets the annual renewal fee as 'the professional services fee for class I, as defined in section 33-182 l', and Sec. 33-182l states 'Class I is five hundred sixty-five dollars' (verified at https://www.cga.ct.gov/current/pub/chap_389.htm and https://www.cga.ct.gov/current/pub/chap_594a.htm). Recommend re-sourcing the $565 to CGS 20-281d(g) + 33-182l.\n\n2026-08-14 (SRC-1 content check): re-sourced the $565 from 'the board's own fee schedule' to its actual authority -- it is statutory (CGS 20-281d(g) via the Class I professional services fee defined at CGS 33-182l, both verified at cga.ct.gov). Amount unchanged."
     },
     {
       "id": "dc-reinstatement",
@@ -214,32 +221,36 @@
       "state": "Florida",
       "state_slug": "florida",
       "reinstatement_fee_usd": 250,
-      "reinstatement_fee_notes": "Reinstatement-of-a-null-and-void-license application fee (Fla. Admin. Code r. 61H1-31.015). Reinstatement from null-and-void is discretionary (board must find good-faith effort defeated by illness/hardship, s. 473.313(5), Fla. Stat.) -- not a routine online renewal. A separate $25 delinquent-status fee may also apply but could not be independently confirmed against a codified rule.",
+      "reinstatement_fee_notes": "Reinstatement-of-a-null-and-void-license application fee (Fla. Admin. Code r. 61H1-31.015). Reinstatement from null-and-void is discretionary (board must find good-faith effort defeated by illness/hardship, s. 473.313(1)(d), Fla. Stat., renumbered from the former subsection (5) by ch. 2024-97) -- not a routine online renewal. A separate $25 delinquent-status fee may also apply but could not be independently confirmed against a codified rule.",
       "penalty_cpe_hours": 240,
       "penalty_cpe_notes": "Two-step climb of 120 hours each (Fla. Admin. Code r. 61H1-33.006): 120 hrs to move null-and-void back to delinquent, then another 120 hrs to move delinquent back to active. 160 hours above Florida's normal 80-hour biennial requirement; all must fall within the 24 months preceding the application.",
       "penalty_ethics_hours": 16,
       "lapse_trigger": "License goes DELINQUENT on January 1 following failure to report CPE for biennial renewal; if not cured, remains delinquent for 2 years and then AUTOMATICALLY becomes NULL AND VOID (Fla. Admin. Code r. 61H1-30.030), no further board action required.",
-      "citation": "Fla. Admin. Code r. 61H1-31.015 ($250 reinstatement fee); r. 61H1-30.030 (2-year automatic null-and-void trigger); r. 61H1-33.006 (120+120-hr CPE, 8 ethics hrs/step); s. 473.313(5), Fla. Stat. (discretionary reinstatement)",
-      "citation_url": "https://www.law.cornell.edu/regulations/florida/Fla-Admin-Code-Ann-R-61H1-31-015",
+      "citation": "Fla. Admin. Code r. 61H1-31.015 ($250 reinstatement fee); r. 61H1-30.030 (2-year automatic null-and-void trigger); r. 61H1-30.030(4)(a)-(b) (120+120-hr CPE, 8 ethics hrs/step); s. 473.313(1)(d), Fla. Stat. (discretionary reinstatement, renumbered from (5) by ch. 2024-97)",
+      "citation_url": "https://www.flrules.org/gateway/readFile.asp?sid=0&tid=12439006&type=1&file=61H1-31.015.doc",
       "source_url": "https://myfloridalicense.custhelp.com/app/answers/detail/a_id/1609/~/can-a-certified-public-accountant-(cpa)-reactivate/reinstate-their-null-and-void-license",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/florida/Fla-Admin-Code-Ann-R-61H1-31-015",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Verified r. 61H1-31.015 ('reinstatement of a null and void license must be accompanied by an application fee of $250.00'), r. 61H1-30.030(1) ('A license that remains in a delinquent status for two years ... automatically becomes null and void'), and r. 61H1-30.030(4)(a)+(b) (120 hours to delinquent status + 120 hours to active, 8 board-approved ethics hours each = 240) -- so reinstatement_fee_usd=250 and penalty_cpe_hours=240 are both confirmed. Note the rule text itself still cites the old 'Section 473.313(5), F.S.', which is how the stale cite likely propagated; the statute has since been renumbered. Landing pages: https://www.flrules.org/gateway/ruleNo.asp?id=61H1-31.015 and .../ruleNo.asp?id=61H1-30.030; statute at http://www.leg.state.fl.us/statutes/index.cfm?App_mode=Display_Statute&URL=0400-0499/0473/Sections/0473.313.html.\n\n2026-08-14 (SRC-1 content check): two stale cites fixed. s. 473.313 was renumbered by ch. 2024-97 -- current statute has only subsections (1)-(2) and the discretionary reinstatement now sits at (1)(d); the rule text itself still cites the old (5), which is how the stale cite propagated. The 120+120 CPE split lives in r. 61H1-30.030(4)(a)-(b), not r. 61H1-33.006 (which sets only a single 120-hour reactivation table). Dollar/hour figures were confirmed correct."
     },
     {
       "id": "georgia-reinstatement",
       "state": "Georgia",
       "state_slug": "georgia",
       "reinstatement_fee_usd": 300,
-      "reinstatement_fee_notes": "Non-refundable reinstatement fee (Ga. Comp. R. & Regs. r. 20-10-.04(1)(a)), payable in addition to completing the CPE catch-up requirement.",
+      "reinstatement_fee_notes": "$300 reinstatement fee (Ga. Comp. R. & Regs. r. 20-10-.04(1)(a)), payable in addition to completing the CPE catch-up requirement. For that catch-up, the rule also requires at least 20% of the hours in accounting/auditing, at least 80 of the hours within the 2 years preceding the application, and bars carryover hours from counting toward reinstatement.",
       "penalty_cpe_hours": 160,
       "penalty_cpe_notes": "40 hours of CPE for each year since the license last renewed, capped at 160 hours (double the normal 80-hour/2-year renewal). At least 20% of the total must be in accounting/auditing subjects, and at least 80 hours must fall within the 2 years immediately preceding the application; no carryover allowed.",
       "penalty_ethics_hours": null,
       "lapse_trigger": "Licenses expire December 31 of odd-numbered years. A 4-month penalty period follows, during which the license can still be renewed by paying a $100 penalty fee plus the renewal fee. After that window closes, reinstatement (not renewal) is required.",
       "citation": "Ga. Comp. R. & Regs. r. 20-10-.04 (Reinstatement); r. 20-10-.02 (Biennial Renewal); r. 20-10-.03 (Penalty Period/Late Renewal)",
-      "citation_url": "https://www.law.cornell.edu/regulations/georgia/Ga-Comp-R-Regs-R-20-10-.04",
+      "citation_url": "https://rules.sos.ga.gov/GAC/20-10",
       "source_url": "https://gsba.georgia.gov/document/form/application-reinstatement-individual-cpa-license-962024pdf/download",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/georgia/Ga-Comp-R-Regs-R-20-10-.04",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Same official Georgia SOS chapter page as ga-individual. Rule 20-10-.04 also adds constraints our notes omit: >=20% of the hours must be accounting/auditing, >=80 hours within the 2 years preceding application, and no carryover hours may be used for reinstatement. Board site shows no competing newer 20-10 publication.\n\n2026-08-14 (SRC-1 content check): dropped 'Non-refundable' -- the word appears nowhere in Chapter 20-10 and no source for it was found; it was our own characterization. Added the three rule-stated CPE constraints (20% accounting/auditing, 80-hours-in-2-years, no carryover) that the note previously omitted."
     },
     {
       "id": "hawaii-reinstatement",
@@ -269,10 +280,12 @@
       "penalty_ethics_hours": 4,
       "lapse_trigger": "Licenses expire June 30 each year. Renewing after July 1 but before August 1 only requires a $100 late fee; if still unrenewed by August 1, the license is deemed lapsed and subject to reinstatement, and the holder may not use the CPA title or perform reserved services.",
       "citation": "IDAPA 24.30.01.117 (Reinstatement and Re-entry); 24.30.01.108 (Annual Renewal and Late Fee); 24.30.01.400 (Fees) -- current post-2023-renumbering",
-      "citation_url": "https://www.law.cornell.edu/regulations/idaho/IDAPA-24.30.01.400",
+      "citation_url": "https://adminrules.idaho.gov/rules/current/24/243001.pdf",
       "source_url": "https://dopl.idaho.gov/boa/boa-cpe/",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/idaho/IDAPA-24.30.01.400",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Same official chapter PDF. Sec. 117 requires 'no less than eighty (80) hours of CPE, of which at least four (4) hours are in ethics CPE with a minimum of two (2) hours to be in state specific ethics for Idaho, during the twelve (12) months immediately prior to applying for reinstatement' - penalty_cpe_hours 80 confirmed. Sec. 400 fee table lists 'Reinstatement License | Sum of unpaid license fees for the preceding 3 license renewal cycles' and 'Active License $120', so $360 is the correct representative 3-cycle case. Idaho Code 54-212(6) verified separately at https://legislature.idaho.gov/statutesrules/idstat/Title54/T54CH2/SECT54-212/ : 'Five hundred dollars ($500) for license reinstatement'."
     },
     {
       "id": "illinois-reinstatement",
@@ -294,17 +307,19 @@
       "id": "indiana-reinstatement",
       "state": "Indiana",
       "state_slug": "indiana",
-      "reinstatement_fee_usd": 155,
-      "reinstatement_fee_notes": "$155 if the license has been lapsed 3 years or less; $190 (the current initial application fee) if lapsed more than 3 years, per 872 IAC 1-3-14 and IC 25-1-8-6.",
+      "reinstatement_fee_usd": null,
+      "reinstatement_fee_notes": "No dollar amount is codified. IC 25-1-8-6(c)(3) (lapse of 3 years or less) requires 'a reinstatement fee established by the Indiana professional licensing agency' -- amount set by the agency, not by statute or rule; IC 25-1-8-6(d)(3) (lapse over 3 years) sets it 'equal to the current initial application fee'. Confirm the current amounts with the PLA before applying -- figures previously listed here ($155/$190) could not be confirmed on any current official source.",
       "penalty_cpe_hours": 120,
       "penalty_cpe_notes": "120 total CPE hours completed no earlier than 3 years before the reinstatement application, at least 10% in accounting/auditing, no more than 50% via self-study -- these hours can't double-count toward the licensee's ongoing 3-year renewal cycle.",
       "penalty_ethics_hours": 4,
       "lapse_trigger": "Certificates run on a 3-year cycle. A certificate becomes lapsed/expired when the holder fails to renew (application, fee, and CPE) by the cycle's expiration date. 872 IAC 1-3-14 splits the reinstatement path by lapse length: 60 days or less is a lighter path; more than 60 days requires the full reinstatement application; more than 3 years triggers a heavier track (fee = current initial application fee, plus board-ordered remediation).",
-      "citation": "872 IAC 1-3-14 (Reinstatement of Lapsed Certificate); fee tiers at IC 25-1-8-6(d)(5); CPE/ethics table at 872 IAC 1-3-16",
-      "citation_url": "https://www.law.cornell.edu/regulations/indiana/872-IAC-1-3-14",
+      "citation": "872 IAC 1-3-14 (Reinstatement of Lapsed Certificate); fee mechanism at IC 25-1-8-6(c)(3) and (d)(3); CPE/ethics table at 872 IAC 1-3-16",
+      "citation_url": "https://iar.iga.in.gov/code/2026/872/1",
       "source_url": "https://www.in.gov/pla/files/Reinstatement_Exp_License_Packet5.pdf",
       "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "data_gap_note": null,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/indiana/872-IAC-1-3-14",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Rule text verified via the IAR site's own public JSON API (SPA URL serves no text to curl); IC 25-1-8-6 verified from the legislature's own fetchable chapter PDF https://iga.in.gov/ic/2026/Title_25/Article_1/Chapter_8.pdf (200, application/pdf, text extracted). The 3-year split in the notes_excerpt is structurally right (IC 25-1-8-6(c) <=3 years vs (d) >3 years); only the dollar amounts and the (d)(5) pinpoint are unsupported. I could not find a PLA/board fee schedule page carrying $155/$190 -- the PLA accountancy page (https://www.in.gov/pla/professions/accountancy-home/) has no fee table and the /accountancy-laws-and-rules/ and /accountancy-fees/ style paths 404.\n\n2026-08-14 (SRC-1 content check): $155/$190 could not be confirmed anywhere official -- the PLA accountancy page has no fee table and neither amount appears in primary law. The cited pinpoint IC 25-1-8-6(d)(5) was also wrong (that subsection is a remediation/training provision, not a fee tier); the fee mechanism is (c)(3) (agency-set, <=3yr) and (d)(3) (equal to initial application fee, >3yr). Reworded to the codified mechanism and flagged the old figures as unconfirmed. The 120-hour CPE figure (872 IAC 1-3-14(c)) was confirmed correct."
     },
     {
       "id": "iowa-reinstatement",
@@ -360,16 +375,18 @@
       "state": "Louisiana",
       "state_slug": "louisiana",
       "reinstatement_fee_usd": null,
-      "reinstatement_fee_notes": "No single flat fee -- three different mechanisms exist depending on how long the certificate has been lapsed. LAC 46:XIX Sec1105.B sets a same-year reinstatement fee equal to twice the current renewal fee (~$240); La. R.S. 37:74.1 separately caps a formal reinstatement-application fee at $500 for a fully expired/inactive certificate; the board's own fee table also shows an escalating monthly delinquent-fee schedule ($200-$700). The board's page itself says 'Reinstatement applications -- (contact the office)' rather than publishing one number.",
+      "reinstatement_fee_notes": "No single flat fee -- three different mechanisms exist depending on how long the certificate has been lapsed. LAC 46:XIX Sec1105.B.6 allows same-year reinstatement 'upon payment of the renewal fee and such penalty fee as may be prescribed by the board' -- no multiplier or dollar amount is codified; La. R.S. 37:74.1 separately caps a formal reinstatement-application fee at $500 for a fully expired/inactive certificate; the board's own fee table also shows an escalating monthly delinquent-fee schedule ($200-$700). The board's page itself says 'Reinstatement applications -- (contact the office)' rather than publishing one number.",
       "penalty_cpe_hours": 120,
       "penalty_cpe_notes": "120 total CPE hours (not additive on top of the normal 80) completed within the 3 years preceding the reinstatement application, per LAC 46:XIX Sec1105.D -- confirmed on both the codified rule and the board's own page.",
       "penalty_ethics_hours": 3,
       "lapse_trigger": "A certificate expires December 31 each year if not renewed. Missing renewal before February 1 adds a delinquent fee equal to the current renewal fee; missing it before March 1 makes the certificate expired/lapsed and doubles the reinstatement renewal fee.",
       "citation": "La. Admin. Code tit. 46, Pt. XIX, Sec1105.B & Sec1105.D; see also La. R.S. 37:76(B) and La. R.S. 37:74.1",
-      "citation_url": "https://www.law.cornell.edu/regulations/louisiana/La-Admin-Code-tit-46-SS-XIX-1105",
+      "citation_url": "https://cpaboard.state.la.us/board-rules/",
       "source_url": "https://cpaboard.state.la.us/cpa-resources/",
-      "last_verified": "2026-07-25",
-      "data_gap_note": "The reinstatement fee is genuinely unresolved: three different dollar figures/mechanisms exist across the board's own materials (twice the renewal fee, a $500 statutory cap, and a separate monthly delinquent schedule) and none reconciles cleanly with the others, so no single dollar figure is published here rather than picking one. The 3-hour ethics figure is currently sourced only from the board's own page, not independently confirmed in the codified rule text (checked Sec1301, Sec1303, Sec1319 -- none states an hour figure). Recommend a manual check with the board before citing a specific reinstatement dollar amount."
+      "last_verified": "2026-08-14",
+      "data_gap_note": "The reinstatement fee is genuinely unresolved: three different dollar figures/mechanisms exist across the board's own materials (twice the renewal fee, a $500 statutory cap, and a separate monthly delinquent schedule) and none reconciles cleanly with the others, so no single dollar figure is published here rather than picking one. The 3-hour ethics figure is currently sourced only from the board's own page, not independently confirmed in the codified rule text (checked Sec1301, Sec1303, Sec1319 -- none states an hour figure). Recommend a manual check with the board before citing a specific reinstatement dollar amount.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/louisiana/La-Admin-Code-tit-46-SS-XIX-1105",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Statutes cross-checked against the board's own published Accountancy Act text at https://cpaboard.state.la.us/louisiana-accountancy-act/. The '~$240 = twice the renewal fee' claim is unsupported by any primary text and should be re-sourced or dropped; R.S. 37:74.1(9) caps the annual certificate renewal fee at $200, so $240 is not derivable as 2x any capped statutory amount either.\n\n2026-08-14 (SRC-1 content check): removed 'twice the current renewal fee (~$240)' -- unsupported by any primary text. Sec1105.B.6 says renewal fee plus a board-prescribed penalty with no multiplier; 'twice' does not occur anywhere in the board's rules, and R.S. 37:74.1(9) caps the annual renewal fee at $200, so $240 is not derivable as 2x any capped amount either. The $500 cap (R.S. 37:74.1(2)) and the monthly delinquency schedule were confirmed correct."
     },
     {
       "id": "maine-reinstatement",
@@ -414,28 +431,30 @@
       "penalty_ethics_hours": null,
       "lapse_trigger": "A license is issued/renewed for a 2-year term expiring the last day of June of the following year. Missing that date lapses the license; 252 CMR 2.16 splits treatment by whether it's lapsed one renewal cycle or less vs. more than one cycle (the latter triggering the enhanced 160-hour CPE requirement above).",
       "citation": "M.G.L. c. 112, Sec87B(a) and (c); 252 CMR 2.16 (Reinstatement of Lapsed/Expired License); 252 CMR 2.14 (Mandatory CPE)",
-      "citation_url": "https://www.law.cornell.edu/regulations/massachusetts/252-CMR-2-16",
+      "citation_url": "https://malegislature.gov/Laws/GeneralLaws/PartI/TitleXVI/Chapter112/Section87B",
       "source_url": "https://boards.mass.gov/detail/160627/board-of-public-accountancy/",
-      "last_verified": "2026-08-03",
+      "last_verified": "2026-08-14",
       "data_gap_note": "The board's own mass.gov page blocks automated access site-wide, so this fact could not be freshly re-confirmed by an automated check at publish time -- corroborated instead by two independent primary-law sources (the codified regulation, 252 CMR 2.14/2.16, and the enabling statute, M.G.L. c. 112 Sec87B, both fetched directly). Recommend a manual check of the board's page if you want to see it firsthand.",
-      "verification_history": "2026-08-03: source_url repointed -- mass.gov/orgs/board-of-registration-in-public-accountancy went dead; the board's page moved to boards.mass.gov, confirmed live."
+      "verification_history": "2026-08-03: source_url repointed -- mass.gov/orgs/board-of-registration-in-public-accountancy went dead; the board's page moved to boards.mass.gov, confirmed live.\n\n2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: The 160-hour figure is set by statute, not only by 252 CMR 2.16, and the official legislature site serves the text: Sec 87B(c) reads 'If an applicant has received a license which has not been renewed for at least two renewal periods the applicant will be required to complete at least one hundred and sixty hours of qualified continuing professional education within twenty-four months prior to issue, of which at least eighty hours must be in the attest function.' Sec 87B(a) confirms the two-year license period expiring 'on the last day of June'. Two gaps: (1) our notes do not capture the 'at least eighty hours must be in the attest function' split, nor 87B(c)'s no-credit-on-next-renewal clause, both of which materially affect a reinstating licensee; (2) the fee claims in notes_excerpt ($57 late fee, $161 renewal fee) are not in the statute and 252 CMR 2.16 sits on mass.gov, which 403s to every fetch attempt (see ma-cpe), so those dollar figures remain unverified against primary source.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/massachusetts/252-CMR-2-16"
     },
     {
       "id": "michigan-reinstatement",
       "state": "Michigan",
       "state_slug": "michigan",
       "reinstatement_fee_usd": 100,
-      "reinstatement_fee_notes": "$100 application-processing fee (MCL 338.2211) applies to a relicensure application under R 338.5230 (that rule requires 'the required fee' without stating an amount itself). A separate $20 late-renewal fee applies only within the 60-day cure window before true lapse.",
+      "reinstatement_fee_notes": "$100 application-processing fee (MCL 338.2211) applies to a relicensure application under R 338.5230 (that rule requires 'the required fee' without stating an amount itself). A $20 late-renewal fee (MCL 338.2206) is also owed on relicensure -- MCL 339.411(3)(b) requires the application processing fee, the late renewal fee, AND the upcoming period's license fee, so the total exceeds the $100 processing fee alone.",
       "penalty_cpe_hours": 40,
       "penalty_cpe_notes": "Mich. Admin. Code R 338.5230: 40 hours of CE completed within the 12 months immediately preceding the relicensure filing (1 additional year allowed to cure a deficiency) -- the same ~40/yr annualized rate as normal renewal, just compressed in timing. Licenses lapsed 3+ years additionally require proof of a valid unrevoked CPA certificate and may require passing all or part of the exam.",
       "penalty_ethics_hours": 2,
       "lapse_trigger": "A license lapses automatically the day after its biennial July 31 expiration date if not renewed (MCL 339.411(1)) -- no separate notice required. A 60-day grace window allows curing by paying the normal fee plus a $20 late fee; beyond that, relicensure (with the CE catch-up above) is required.",
       "citation": "Mich. Admin. Code R 338.5230 (Relicensure; continuing education); MCL 339.411 (lapse/relicensure trigger); MCL 338.2211 and 338.2206 (fee amounts)",
-      "citation_url": "https://www.law.cornell.edu/regulations/michigan/Mich-Admin-Code-R-338-5230",
+      "citation_url": "https://ars.apps.lara.state.mi.us/AdminCode/DownloadAdminCodeFile?FileName=R%20338.5101%20%20to%20R%20338.5503.pdf",
       "source_url": "https://www.michigan.gov/lara/bureau-list/bpl/occ/prof/accountancy",
-      "last_verified": "2026-08-03",
+      "last_verified": "2026-08-14",
       "data_gap_note": "The board's own michigan.gov page blocks automated access site-wide, so this fact could not be freshly re-confirmed by an automated check at publish time -- the codified rule and statute (R 338.5230, MCL 339.411, 338.2206, 338.2211) were fetched directly and state these figures; the $100 fee is inferred with high but not full confidence as the correct line item, since no board document explicitly labeled 'reinstatement fee' could be reached. Recommend a manual check of the board's page if you want it confirmed firsthand.",
-      "verification_history": "2026-08-03: source_url repointed -- the old .../prof/accountants path 404s; .../prof/accountancy is the correct current LARA Board of Accountancy page, confirmed live in a real browser."
+      "verification_history": "2026-08-03: source_url repointed -- the old .../prof/accountants path 404s; .../prof/accountancy is the correct current LARA Board of Accountancy page, confirmed live in a real browser.\n\n2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Official LARA Administrative Rules PDF 'Accountancy - General Rules' (R 338.5101 to R 338.5503, 25pp) verified serving full R 338.5230 text; MCL sections verified individually at legislature.mi.gov (mcl-339-411, mcl-338-2211, mcl-338-2206), all fetched 200 with real statutory text. Guessed filename 'R 338.5201 to R 338.5241.pdf' errors -- the correct ARS file spans 5101-5503 with a double space in the name.\n\n2026-08-14 (SRC-1 content check): corrected the late-fee scoping. The note claimed the $20 late fee applies only within the 60-day cure window before true lapse; MCL 339.411(3)(b) contradicts that -- post-lapse relicensure requires 'an application processing fee, the late renewal fee, and the per year license or registration fee'. All three components now stated.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/michigan/Mich-Admin-Code-R-338-5230"
     },
     {
       "id": "minnesota-reinstatement",
@@ -464,10 +483,12 @@
       "penalty_ethics_hours": 3,
       "lapse_trigger": "A license is automatically cancelled if the holder fails to register and pay the annual fee by January 1 AND then fails to cure within 10 days of a certified-mail default notice. A license can also be lost via revocation, suspension, or voluntary surrender, all triggering the same reinstatement track.",
       "citation": "Miss. Code Ann. Sec73-33-7(2),(4); 30 Miss. Code R. Part 1, Ch. 2, Rules 2.3 (Registration) and 2.4 (Reinstatement); Schedule of Fees, Appendix to 30 Miss. Code R. Part 1",
-      "citation_url": "https://www.law.cornell.edu/regulations/mississippi/30-Miss-Code-R-SS-1-2-4",
+      "citation_url": "https://www.msbpa.ms.gov/sites/accounting/files/Effective%20April%202026%20FINAL%20-%20UPDATED.pdf",
       "source_url": "https://www.msbpa.ms.gov/fees",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/mississippi/30-Miss-Code-R-SS-1-2-4",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Every component of the $310 verified against the Schedule of Fees (Appendix to 30 Miss. Code R. Part 1, reproduced in the board's APRIL 2026 publication): 'Board Processing Fee for Reinstatement of License $200' + 'Registration Fee for Reinstatement of License $110' = $310. penalty_cpe_hours:120 confirmed by Rule 2.4.4: '...40 CPE credit hours per compliance period including the Ethics, Professional Conduct, Public Accountancy Law and Regulations CPE requirement applicable to the most recent compliance period subject to a maximum of 120 CPE credit hours'. The note's ancillary figures also check out: Rule 2.4.3 caps arrears at 'fees in arrears not to exceed three years', the annual registration fee is $110, and the 'Late Fee (paid after January 1) for Failure to Register' is $150. Rule 2.4.4 additionally requires the CPE be earned within 36 months of the reinstatement application, with no more than 20 carry-over hours per compliance period -- a constraint our note omits."
     },
     {
       "id": "missouri-reinstatement",
@@ -496,26 +517,30 @@
       "penalty_ethics_hours": null,
       "lapse_trigger": "Permits and firm registrations must be renewed annually by December 31; missing that date adds a 100% late fee and, per general licensing rules, lapses the license. Returning to active status requires filing a License Reactivation Application and documenting the standard CPE requirement for the 3 years preceding the application.",
       "citation": "Mont. Admin. R. 24.201.2161 (Reinstatement), incorporating 24.201.2106 (CPE Requirement); 24.101.413 (Renewal Dates and Requirements); 24.101.403 (Fees)",
-      "citation_url": "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-24.201.2161",
+      "citation_url": "https://boards.bsd.dli.mt.gov/public-accountants/license-information/license-reactivation",
       "source_url": "https://boards.bsd.dli.mt.gov/public-accountants/license-information/license-reactivation",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-24.201.2161",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: ARM 24.201.2161 and 24.101.403 themselves are unreachable (rules.mt.gov SPA, see mt-all notes). The board's own License Reactivation page confirms the notes_excerpt almost verbatim: applicants 'should complete the License Reactivation Application and submit to our office with the appropriate fee and supporting documentation' - no dollar amount stated - and 'you must comply with the full basic continuing professional education (CPE) requirement during the three-year period immediately preceding the application for reactivation of the permit to practice (ARM 24.201.2161). The full basic requirement involves completion of 120 hours of acceptable continuing education with a subset of two hours of ethics.' The late-fee formula is independently confirmed on the board's license-information page: 'All licenses must be renewed by December 31 of each year, or a 100% late fee will be added to the renewal fee. The fee to timely renew a license is: $125.00 for full active licensees', i.e. roughly $250 - matching the notes exactly. The one part I could not verify is the negative claim 'no codified [...]"
     },
     {
       "id": "nebraska-reinstatement",
       "state": "Nebraska",
       "state_slug": "nebraska",
       "reinstatement_fee_usd": 200,
-      "reinstatement_fee_notes": "Board's own reinstatement application form states a flat $200 fee. Neb. Rev. Stat. Sec1-136(3) authorizes the board to set this fee for a permit reissued after failure to renew within 3 years, capped at $300 -- $200 is within, but not itself stated by, the codified cap.",
+      "reinstatement_fee_notes": "No separately named reinstatement fee is published: the board's current fee schedule lists 'Active Permit to Practice -- $200', which is what a returning registrant pays, and its reinstatement application states no fee of its own. Neb. Rev. Stat. Sec1-136(3) caps whatever the board sets at $300, and 288 NAC ch. 7 confirms the board sets its fee schedule annually by resolution rather than in rule.",
       "penalty_cpe_hours": 120,
       "penalty_cpe_notes": "288 Neb. Admin. Code ch. 8, Sec010: 120 hours of approved CPE completed within the 3 calendar years immediately preceding the reinstatement application -- these hours cannot also count toward the next renewal cycle. Notably this figure IS stated explicitly in the codified rule (unlike Nebraska's ordinary-renewal CPE requirement, which this site's separate CPE-hours dataset found is never stated as a number in codified law, only in board guidance).",
       "penalty_ethics_hours": 4,
       "lapse_trigger": "Nebraska's mechanism centers on 'inactive' status rather than a distinct 'lapsed' label: an active permit expires June 30 (annually or biennially by age parity); a CPE compliance failure triggers a certified-mail Notice of Non-Compliance and, after a hearing, the board may decline to renew the permit. A holder who fails to apply for a new permit within 3 years of the last permit's expiration loses the right to reinstatement unless the board finds the failure excusable.",
       "citation": "288 Neb. Admin. Code, ch. 8, Sec010 (Reinstatement); Sec009.01-.04 (non-compliance/waiver procedure); Neb. Rev. Stat. Sec1-136(3) (3-year forfeiture rule and fee cap)",
-      "citation_url": "https://www.law.cornell.edu/regulations/nebraska/288-Neb-Admin-Code-ch-8-SS-010",
+      "citation_url": "https://rules.nebraska.gov/api/fileStorage/GetAsByteArray/chapter-pdfs/288%20NAC%208%20(07-25-2026).pdf",
       "source_url": "https://nbpa.nebraska.gov/sites/default/files/doc/Reinstate%20Application%20%281%29.pdf",
-      "last_verified": "2026-07-25",
-      "data_gap_note": "The $200 fee is confirmed on the Board's own reinstatement application form (a real board document), but the codified rule only sets a $300 statutory ceiling and delegates the exact amount to the board's own fee schedule, which doesn't appear separately codified. Recommend a manual check with the board if you want the fee confirmed against a published rule rather than just the agency's own form."
+      "last_verified": "2026-08-14",
+      "data_gap_note": "The $200 fee is confirmed on the Board's own reinstatement application form (a real board document), but the codified rule only sets a $300 statutory ceiling and delegates the exact amount to the board's own fee schedule, which doesn't appear separately codified. Recommend a manual check with the board if you want the fee confirmed against a published rule rather than just the agency's own form.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/nebraska/288-Neb-Admin-Code-ch-8-SS-010",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Current chapter text (effective 2026-07-25) pulled from the Nebraska Secretary of State rules platform via its public chapter-PDF endpoint; the SOS link published on the Board's own site (sos.ne.gov/rules-and-regs/regsearch/Rules/index.cgi?l=Board_of_Public_Accountancy) 302-redirects to this same platform, so there is no board-vs-aggregator divergence here. $200 is still the right amount a returning inactive registrant pays, but it is the active-permit fee, not a codified or separately-named reinstatement fee -- recommend re-sourcing to https://nbpa.nebraska.gov/individuals/fee-schedule and softening the wording. Statute verified at https://nebraskalegislature.gov/laws/statutes.php?statute=1-136; rules.nebraska.gov itself is a JS SPA whose deep links return only an app shell, hence the direct PDF URL.\n\n2026-08-14 (SRC-1 content check): re-sourced the $200. It is the active-permit fee from the board's fee schedule (nbpa.nebraska.gov/individuals/fee-schedule), not a flat reinstatement fee stated on the application form -- the current application states no fee and the schedule has no reinstatement line item. Amount a returning registrant pays is unchanged; the sourcing claim was wrong."
     },
     {
       "id": "nevada-reinstatement",
@@ -562,10 +587,12 @@
       "penalty_ethics_hours": null,
       "lapse_trigger": "A license runs a 3-year cycle. A 30-day grace period after expiration allows renewal by fee + late fee. If not renewed within 30 days, the license 'shall be suspended without a hearing' (N.J.A.C. 13:29-1.7(e)) -- this suspension-for-non-renewal is New Jersey's functional lapsed status, triggering the reinstatement track.",
       "citation": "N.J.A.C. 13:29-1.9 (License Reinstatement Procedures); triggered by suspension under 13:29-1.7(e); fee at 13:29-1.5",
-      "citation_url": "https://www.law.cornell.edu/regulations/new-jersey/N-J-A-C-13-29-1-9",
+      "citation_url": "https://www.njconsumeraffairs.gov/Adoptions/accado_09032019.pdf",
       "source_url": "https://www.njconsumeraffairs.gov/acc/Pages/faq.aspx",
       "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "data_gap_note": null,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/new-jersey/N-J-A-C-13-29-1-9",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: The official adoption PDF reprints 13:29-1.9 in full and confirms the structure exactly: reinstatement requires '3. The renewal fee for the triennial period for which reinstatement is sought; 4. The past due renewal fee for the triennial period immediately preceding...; 5. The reinstatement fee set forth in N.J.A.C. 13:29-1.5', and 13:29-1.7(d)/(e) confirm the 30-day post-expiration grace with a late fee and automatic suspension thereafter. The $150 dollar amount could NOT be confirmed: the 2018 fee adoption (50 N.J.R. 1965(a)) reprints only changed paragraphs of 13:29-1.5 and marks the reinstatement/late-fee items '4.-5. (No change.)'. Tried: /acc/Pages/regulations.aspx (Incapsula block), ~12 guessed /regulations/Chapter-29-*.pdf filenames including the U+2010-hyphen form the site actually uses (all 404), and Wayback CDX (only a dead pre-migration path). No reachable official host serves the codified 13:29-1.5 text."
     },
     {
       "id": "new-mexico-reinstatement",
@@ -578,10 +605,12 @@
       "penalty_ethics_hours": 4,
       "lapse_trigger": "A certificate lapses or expires from non-renewal when the holder misses their individual renewal deadline (the last day of their birth month). The board's own FAQ states the certificate is canceled if not renewed within 90 days of expiration.",
       "citation": "16.60.3.12 NMAC (Reinstatement Requirements); 16.60.3.15 NMAC (CPE Required to Obtain or Maintain an Active License)",
-      "citation_url": "https://www.law.cornell.edu/regulations/new-mexico/N-M-Admin-Code-SS-16.60.3.12",
+      "citation_url": "https://www.srca.nm.gov/parts/title16/16.060.0003.html",
       "source_url": "https://www.rld.nm.gov/boards-and-commissions/individual-boards-and-commissions/accountancy/fees/",
-      "last_verified": "2026-07-25",
-      "data_gap_note": "The $175 fee and the '90 days to cancellation' trigger are confirmed only on the board's own pages, not independently in the codified NMAC text reachable this pass (the rule authorizes fees without stating the dollar amount, and doesn't state the 90-day figure in the sections checked). The 40-hour/year (max 200) penalty CPE figure IS directly confirmed in the codified rule. Recommend a manual check with the board for the fee/90-day figures."
+      "last_verified": "2026-08-14",
+      "data_gap_note": "The $175 fee and the '90 days to cancellation' trigger are confirmed only on the board's own pages, not independently in the codified NMAC text reachable this pass (the rule authorizes fees without stating the dollar amount, and doesn't state the 90-day figure in the sections checked). The 40-hour/year (max 200) penalty CPE figure IS directly confirmed in the codified rule. Recommend a manual check with the board for the fee/90-day figures.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/new-mexico/N-M-Admin-Code-SS-16.60.3.12",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Both cited sections live on the same official NMAC part page. 16.60.3.12(A): reinstatement requires 'all board prescribed requirements for reinstatement including the current year's renewal fee and continuing professional education' -- confirming the note that the codified rule does not itemize a dollar amount. The 40-hour penalty is at 16.60.3.15(A)(8): '40 hours of CPE for each year the certificate/license was expired, not to exceed 200 hours.' The $175 was verified separately on the board's own fee page (https://www.rld.nm.gov/boards-and-commissions/individual-boards-and-commissions/accountancy/fees/), which lists 'Reinstatement of Cancelled Certificate $175', Annual Renewal $130, and Penalty for Late Renewal $100 -- all three figures in the note match. Note the RLD fee page 403s WebFetch but serves fine to curl with a browser User-Agent."
     },
     {
       "id": "new-york-reinstatement",
@@ -610,10 +639,12 @@
       "penalty_ethics_hours": 8,
       "lapse_trigger": "License is FORFEITED if not renewed by July 1, the Board mails a demand letter, and renewal (application + CPE + fee) still isn't completed within 30 days of that letter's mailing date.",
       "citation": "21 NCAC 08J .0106 (Forfeiture of Certificate and Reissuance), with 21 NCAC 08J .0101/.0105(c), 21 NCAC 08F .0504, and N.C. Gen. Stat. § 93-12(15)/(7a)/(9)",
-      "citation_url": "https://www.law.cornell.edu/regulations/north-carolina/21-N-C-Admin-Code-08J-0106",
+      "citation_url": "http://reports.oah.state.nc.us/ncac/title%2021%20-%20occupational%20licensing%20boards%20and%20commissions/chapter%2008%20-%20certified%20public%20accountant%20examiners/subchapter%20j/21%20ncac%2008j%20.0106.html",
       "source_url": "https://nccpaboard.gov/nc-cpas/",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/north-carolina/21-N-C-Admin-Code-08J-0106",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: 21 NCAC 08J .0106(b)(1) reads 'payment of the certificate fee of one hundred dollars ($100.00)' (the rule calls it a certificate fee, not a reissuance fee), confirming $100; (b)(3) requires 'evidence of satisfactory completion of the CPE requirement described in Rule .0105(c)(2)', and .0105(c)(2) requires '2,000 minutes of CPE courses during the 12-month period immediately preceding the application' -- 2,000/50 = the 40 hours we publish, of which 400 minutes (8 hours) must be NC accountancy statutes and rules per 21 NCAC 08F .0504. The caveat that no primary source fixes an extra late-renewal dollar penalty holds: .0106 lists no penalty amount. Board's own rules page matches OAH verbatim -- no aggregator/board drift."
     },
     {
       "id": "north-dakota-reinstatement",
@@ -626,10 +657,12 @@
       "penalty_ethics_hours": null,
       "lapse_trigger": "Failing to pay the annual renewal fee by June 30 draws a late fee (up to $100); if still unpaid by July 31, the certificate/license 'is deemed involuntarily relinquished and not renewed' effective August 1, triggering the reinstatement requirements and fee.",
       "citation": "N.D. Admin. Code Sec3-02-02-04 (annual renewal fees / lapse-relinquishment trigger) and Sec3-02-02-08 (reinstatement fees)",
-      "citation_url": "https://www.law.cornell.edu/regulations/north-dakota/N-D-A-C-3-02-02-08",
+      "citation_url": "https://www.ndlegis.gov/information/acdata/pdf/3-02-02.pdf",
       "source_url": "https://www.ndsba.nd.gov/licensees/cpa-renewal-faq",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/north-dakota/N-D-A-C-3-02-02-08",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Official ND Administrative Code chapter 3-02-02 (Fees) PDF from the ND Legislative Branch (200, application/pdf, 69.8 KB, text extracted). 3-02-02-08 reads: 'A CPA, LPA, or permitholder whose certificate, license, or permit is suspended, relinquished, not renewed, or revoked, is required to pay a reinstatement fee not to exceed two hundred dollars in addition to the annual fee, as provided in sections 3-02-02-04 and 3-02-02-04.1' -- confirming both the $200 figure and that it is a statutory ceiling payable on top of the annual renewal fee, exactly as our note frames it. The lapse trigger in 3-02-02-04 also checks out: 'If not paid by July thirty-first, the certificate is deemed involuntarily relinquished and not renewed... and subject to the reinstatement requirements of section 3-02-02-08.' Copy is current (chapter carries April 1, 2024 and January 1, 2026 amendments)."
     },
     {
       "id": "ohio-reinstatement",
@@ -659,10 +692,12 @@
       "penalty_ethics_hours": null,
       "lapse_trigger": "An individual license must renew by the last day of the holder's birth month; it is considered lapsed the day after that deadline. It is then automatically revoked if fees remain unpaid within 30 calendar days after expiration. A certificate revoked 5+ years may not be renewed or reinstated at all.",
       "citation": "OAC 10:15-27-10 (Reinstatement fee); 59 O.S. Sec15.14 (Expiration and Renewal, automatic-revocation trigger and fee ceilings); OAC 10:15-23-1 (lapse trigger)",
-      "citation_url": "https://www.law.cornell.edu/regulations/oklahoma/OAC-10-15-27-10",
+      "citation_url": "https://oklahoma.gov/content/dam/ok/en/oab/documents/rules---law/December%202025%20OAB%20Statutes%20and%20Rules.pdf",
       "source_url": "https://oklahoma.gov/oab/departments/licensing/individual-reinstatement-application.html",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/oklahoma/OAC-10-15-27-10",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: match per OAC 10:15-27-10: reinstatement within the first year $125; after a year 'equal to the accumulated registration and permit fees the individual would have paid... not to exceed Five Thousand Dollars ($5,000.00).' 59 O.S. s15.14(E)(2) confirms automatic revocation for nonpayment within 30 days after expiration; (E)(3)(b) confirms the $5,000 ceiling. Statute independently cross-checked on OSCN (CiteID=95027), agrees with the board PDF -- no drift. Caveat: the board also posts a '2026 Regulatory Text.pdf' that is a 3-page image-only scan with no extractable text, so a pending 2026 amendment to 10:15-27-10 could not be ruled out."
     },
     {
       "id": "oregon-reinstatement",
@@ -707,10 +742,12 @@
       "penalty_ethics_hours": null,
       "lapse_trigger": "Rhode Island licenses run a 3-year cycle with an online renewal deadline; missing it immediately drops the license to expired status (Rhode Island recognizes only Active/Expired/Retired, no separate inactive/grace tier), triggering the reinstatement process.",
       "citation": "400-RICR-00-00-1.3(B)(1)-(2) (Reinstatement) and 1.3(C)(1) (License status); fee at 400-RICR-00-00-1.13",
-      "citation_url": "https://www.law.cornell.edu/regulations/rhode-island/400-RICR-00-00-1.3",
+      "citation_url": "https://rules.sos.ri.gov/regulations/part/400-00-00-1",
       "source_url": "https://dbr.ri.gov/contractors-and-building-design-fire-professionals-board-accountancy/board-accountancy/renew",
-      "last_verified": "2026-07-25",
-      "data_gap_note": "The board's own renewal/reinstatement page confirms the lockout mechanic and cycle deadline but does not itself restate the $500 fee or CPE-hour figures -- those come from the codified rule alone. Recommend a manual check of the board's page if you want the numbers confirmed firsthand."
+      "last_verified": "2026-08-14",
+      "data_gap_note": "The board's own renewal/reinstatement page confirms the lockout mechanic and cycle deadline but does not itself restate the $500 fee or CPE-hour figures -- those come from the codified rule alone. Recommend a manual check of the board's page if you want the numbers confirmed firsthand.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/rhode-island/400-RICR-00-00-1.3",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Same official RICR part, active text. Sec 1.3(B)(1): 'to apply for reinstatement of an expired license, the applicant must document completion of not less than one hundred twenty (120) hours of CPE credits during the preceding three (3) year period and pay a fee of five hundred dollars ($500.00)'. The Sec 1.13 fee table reads 'Triennial License Renewal Fee $375.00' and 'Reinstatement of Expired License Fee $500.00 plus $375.00 renewal fee', so the $875 total in our notes is stated explicitly by the rule itself. Sec 1.3(C)(1) confirms 'Licenses are either active or expired' with no inactive status. Worth adding: Sec 1.3(B)(2) doubles the CPE burden for long lapses -- a license 'expired for five (5) years or more' requires either a Board-approved classroom CPA exam review course or 'an additional one hundred twenty (120) hours ... (for a total of two hundred forty (240) hours)'."
     },
     {
       "id": "south-carolina-reinstatement",
@@ -755,10 +792,12 @@
       "penalty_ethics_hours": 2,
       "lapse_trigger": "A license is 'delinquent' from 1 day to 6 months past its biennial expiration date ($100 late fee applies). Once more than 6 months past expiration, the license is deemed expired, triggering the reinstatement process above.",
       "citation": "Tenn. Comp. R. & Regs. 0020-01-.08(6)-(7) (delinquent vs. expired, late fee); 0020-05-.03(6) (80-hour penalty CPE incl. 2 ethics hours)",
-      "citation_url": "https://www.law.cornell.edu/regulations/tennessee/Tenn-Comp-R-Regs-0020-01-.08",
+      "citation_url": "https://publications.tnsosfiles.com/rules/0020/0020-01.20240528.pdf",
       "source_url": "https://www.tn.gov/commerce/regboards/accountancy/license/reinstatement-other-resources.html",
-      "last_verified": "2026-07-25",
-      "data_gap_note": "The $250 reinstatement application fee is stated clearly on the Board's own page, but couldn't be located verbatim in any codified rule reachable this pass (only the separate $100 delinquent/late-renewal fee is codified) -- it may be set by a fee schedule outside the CE/licensing chapters checked. Recommend a manual check with the board if you want the fee confirmed against a published rule."
+      "last_verified": "2026-08-14",
+      "data_gap_note": "The $250 reinstatement application fee is stated clearly on the Board's own page, but couldn't be located verbatim in any codified rule reachable this pass (only the separate $100 delinquent/late-renewal fee is codified) -- it may be set by a fee schedule outside the CE/licensing chapters checked. Recommend a manual check with the board if you want the fee confirmed against a published rule.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/tennessee/Tenn-Comp-R-Regs-0020-01-.08",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Chapter 0020-01 revised May 2024. 0020-01-.08(6): 'Licenses which are between one day and six (6) months past the expiration date shall be considered delinquent... assessed a late fee in the amount of one-hundred dollars ($100.00)'; (7): 'Licenses which are more than six (6) months past the expiration date shall be deemed to have expired' and route to 0020-05-.03(6), which requires 'no less than eighty (80) hours of CPE in technical fields of study during the six (6) month period preceding the date of reapplication' with 'at least two (2) hours... state-specific ethics' -- 80 penalty hours confirmed. The $250 figure is upgradeable from the board webpage to rule text: 0020-01-.04(1)(g) 'Fee for application for reinstatement Two hundred and fifty dollars ($250.00)'. Same stale-copy trap as tn-cpe: undated 0020-01.pdf serves the May 2007 version."
     },
     {
       "id": "texas-reinstatement",
@@ -771,11 +810,12 @@
       "penalty_ethics_hours": null,
       "lapse_trigger": "Individual licenses renew annually by the last day of the licensee's birth month. Missing that deadline triggers the escalating late-fee tiers above. Failure to complete renewal for 3 consecutive years lets the Board revoke the license under Tex. Occ. Code § 901.502(4); reinstatement after revocation requires Board action, not a simple late renewal.",
       "citation": "22 Tex. Admin. Code § 515.5 (Late Filing for Renewal of License); Tex. Occ. Code § 901.502(4); 22 Tex. Admin. Code § 523.112 (Required CPE Participation)",
-      "citation_url": "https://www.law.cornell.edu/regulations/texas/22-Tex-Admin-Code-SS-515-5",
+      "citation_url": "https://www.tsbpa.texas.gov/act",
       "source_url": "https://www.tsbpa.texas.gov/cpas/reinstatement/",
       "last_verified": "2026-08-14",
       "data_gap_note": null,
-      "verification_history": "2026-08-14 (CITE-21 #1 follow-through): this record derives its dollar figures from the Texas base individual renewal fee, and was multiplying an unsourced $118 -- so correcting renewal_fees alone would have left $177/$236/$354 live on the site with no source behind them. Rebased on the $112 the Board actually published (1.5x/2x/3x = $168/$224/$336) and worded so the dependency on the base fee is explicit. The 22 TAC 515.5 multiplier structure itself is unchanged and was not in question."
+      "verification_history": "2026-08-14 (CITE-21 #1 follow-through): this record derives its dollar figures from the Texas base individual renewal fee, and was multiplying an unsourced $118 -- so correcting renewal_fees alone would have left $177/$236/$354 live on the site with no source behind them. Rebased on the $112 the Board actually published (1.5x/2x/3x = $168/$224/$336) and worded so the dependency on the base fee is explicit. The 22 TAC 515.5 multiplier structure itself is unchanged and was not in question.\n\n2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Partial verification only. TSBPA's own publication of the Public Accountancy Act (Occ. Code ch. 901) is served at https://www.tsbpa.texas.gov/act as a 67-page PDF -- curl 403s on it (nginx bot filter) but WebFetch retrieves it in full; it carries a '2025 Amendments' cover page and flags provisions effective August 1, 2026, so it is current. Sec. 901.502(4) verified verbatim: grounds for discipline include 'the failure of a person who is licensed under this chapter to renew the license not later than the third anniversary of the date on which the person most recently obtained or renewed the license.' That is CONSISTENT with our note's '2+ years (revocation-eligible)' framing -- on an annual renewal cycle the third anniversary of the last renewal falls two years past expiration -- so no mismatch there, but the phrasing is a derived restatement, not the statutory language. The load-bearing claims (the 1.5x / 2x / 3x tiers of 22 TAC 515.5 and the $112/yr base individual fee) could NOT be checked: 22 TAC is only reachable through the same JS-only Texas SOS Appian portal described in the t [...]\n\n2026-08-14 (SRC-1 primary-source repoint): citation_url now points at TSBPA's own publication of the Public Accountancy Act (67-page PDF, carries the 2025 amendments and provisions effective 2026-08-01). Sec. 901.502(4) verified verbatim there -- consistent with this record's 2+-years framing. The 22 TAC 515.5 tier rule remains reachable only through the JS-only SOS portal (see tx-cpe's note) and stays flagged as not re-verified this pass; the old mirror link is kept as secondary.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/texas/22-Tex-Admin-Code-SS-515-5"
     },
     {
       "id": "utah-reinstatement",
@@ -788,11 +828,12 @@
       "penalty_ethics_hours": null,
       "lapse_trigger": "Licenses run a 2-year cycle ending December 31 of even-numbered years. A license not renewed before that date automatically expires; continued practice after that is a criminal offense under Utah Code.",
       "citation": "Utah Admin. Code R156-26a-307 (Reinstatement of Licenses); R156-1-308c(5)(c) (automatic expiration); R156-26a-303b(2) (2-year cycle)",
-      "citation_url": "https://www.law.cornell.edu/regulations/utah/Utah-Admin-Code-R156-26a-307",
+      "citation_url": "https://adminrules.utah.gov/api/public/getfile/uac-pdf/a87bebd9-585a-455e-b397-fe66ba37a698.pdf/R156-26a.pdf",
       "source_url": "https://commerce.utah.gov/dopl/accountancy/",
-      "last_verified": "2026-08-03",
+      "last_verified": "2026-08-14",
       "data_gap_note": "The reinstatement fee dollar amount could not be confirmed: it isn't in the codified rule text, and the Board's own site currently blocks automated access, so this fact could not be freshly re-confirmed at publish time. The CPE/ethics-exam requirements above ARE confirmed directly in the codified rule. Recommend a manual check of the board's page if you want the fee confirmed firsthand.",
-      "verification_history": "2026-08-03: source_url repointed -- dopl.utah.gov/cpa/ went dead; commerce.utah.gov/dopl/accountancy/ is the current DOPL Accountancy board page, confirmed live."
+      "verification_history": "2026-08-03: source_url repointed -- dopl.utah.gov/cpa/ went dead; commerce.utah.gov/dopl/accountancy/ is the current DOPL Accountancy board page, confirmed live.\n\n2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: R156-26a-307(1)(b) confirms penalty_cpe_hours=80: relicensure requires '80 hours of qualified CPE completed within the 12 months preceding the submission of the application for reinstatement', including at least 16 hours accounting/auditing and the AICPA Professional Ethics exam (which counts as 8 of the 80); I read the full R156-26a text and confirmed no dollar amount appears anywhere in it, so the 'no codified fee' note holds. R156-1-308c(5)(c) also checks out ('a license that is not renewed before the license expiration date automatically expires'). One pin-cite to fix: the 2-year cycle is stated in R156-26a-303b(1), not 303b(2) (which is the ethics/law-hours breakdown); the renewal cycle itself is now set by R156-26a-303c pointing to R156-1-308a.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/utah/Utah-Admin-Code-R156-26a-307"
     },
     {
       "id": "vermont-reinstatement",
@@ -847,16 +888,18 @@
       "state": "West Virginia",
       "state_slug": "west-virginia",
       "reinstatement_fee_usd": null,
-      "reinstatement_fee_notes": "Formula: $85 reinstatement fee + $85 annual renewal fee + $50 late fee ($220 base) plus $75 for each additional month lapsed past July 31, capped at $445 total (W. Va. C.S.R. Sec1-1-18, confirmed on the board's own renewal page).",
+      "reinstatement_fee_notes": "Formula: $85 reinstatement fee + $85 annual renewal fee + $50 late fee ($220 base) plus $75 for each additional month lapsed past July 31, capped at $445 total per the board's own renewal page -- the cap is the board's stated practice, not in the fee rule itself (W. Va. C.S.R. Sec1-1-18 sets each component but contains no ceiling).",
       "penalty_cpe_hours": 40,
       "penalty_cpe_notes": "The greater of (a) the CPE hours deficient from the last non-compliant year, or (b) 40 hours total, all completed within the prior 2 calendar years.",
       "penalty_ethics_hours": 4,
       "lapse_trigger": "Licenses expire annually June 30; a July 1-31 grace period allows late renewal with a $50 late fee. If not renewed by July 31, the licensee is listed as 'Lapsed' and must file a formal reinstatement application rather than a normal renewal. CPE noncompliance in the prior year also routes into the reinstatement process.",
       "citation": "W. Va. Code R. Sec1-1-7 (Certificate Renewal, subsections 7.4-7.5) and Sec1-1-18 (Fees)",
-      "citation_url": "https://www.law.cornell.edu/regulations/west-virginia/W-Va-C-S-R-SS-1-1-7",
+      "citation_url": "https://www.boa.wv.gov/www/download_resource.asp?id=55",
       "source_url": "https://www.boa.wv.gov/Licensing/LicenseRenewal.asp",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/west-virginia/W-Va-C-S-R-SS-1-1-7",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: penalty_cpe_hours 40 verified twice in the rule: Sec. 7.4.b requires a 'Minimum of forty (40) hours of continuing education, including a minimum of four (4) hours in the subject of ethics' to reactivate, and Sec. 7.5.a.2 requires the greater of the actual deficiency or 'Forty (40) hours of continuing education, including a minimum of four (4) hours in the subject of ethics.' Cap source verified at https://www.boa.wv.gov/Licensing/LicenseRenewal.asp - re-attribute the $445 cap to that board page rather than to W. Va. C.S.R. Sec. 1-1-18.\n\n2026-08-14 (SRC-1 content check): re-attributed the $445 cap. Every fee component ($85+$85+$50, $75/month) is in C.S.R. Sec1-1-18, but the rule contains NO cap language (grepped '445'/'maximum'/'not exceed' across all 24 pages); the ceiling appears only on boa.wv.gov's renewal page. Stated honestly as board practice rather than rule text."
     },
     {
       "id": "wisconsin-reinstatement",
@@ -886,10 +929,12 @@
       "penalty_ethics_hours": 4,
       "lapse_trigger": "All certificates expire December 31 each year. Failing to complete online renewal (fee + CPE compliance) by that date moves the certificate to expired status effective the new year, automatically -- no separate grace period is specified. Reactivating within 120 days of expiration additionally triggers a $150 CPE Extension Processing Fee.",
       "citation": "061-3 Wyo. Code R. Sec3-6 (Renewal); fee at 061-1 Wyo. Code R. Sec1-13; reactivation CPE at 061-5 Wyo. Code R. Sec5-6",
-      "citation_url": "https://www.law.cornell.edu/regulations/wyoming/061-3-Wyo-Code-R-SS-3-6",
+      "citation_url": "https://drive.google.com/uc?export=download&id=1_PXSjRL7bujzlYPfR4-srukZSptY2Saa",
       "source_url": "https://cpaboard.wyo.gov/individuals/certificate-application-information/reactivate-certificate",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/wyoming/061-3-Wyo-Code-R-SS-3-6",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Primary URL is the board's own Chapter 3 (Certificates, 061.0001.3.10282019, 'Effective Date 10/28/2019 to Current') PDF matching the cited Sec.3-6; Sec.6(e)(i) reads 'Expired or surrendered certificates may be restored upon application, payment of fees set forth in chapter 1, section 13 of these rules, and compliance with other requirements imposed on certificate holders including CPE requirements.' The $300 figure itself is in Chapter 1 Sec.13(b) (https://drive.google.com/uc?export=download&id=17T28QT9V6Pv32Ek1PKdkbU1DZ6-OmSDj): '(vii) Reinstate: $1000.00 (viii) Activate From Expired Status: $300.00' -- both the $300 and the separate $1,000 amounts match the note exactly. Reactivation CPE at Ch.5 Sec.6 also verified (applicant must show CPE compliance and an approved ethics course completed within the prior 3 years). Unverified sub-claim: Chapter 1 Sec.13 does not itself say the $1,000 Reinstate fee is limited to revoked/suspended certificates -- that characterization comes from the board's web pages, not the fee rule text."
     }
   ]
 }

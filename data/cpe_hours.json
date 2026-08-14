@@ -39,7 +39,7 @@
       "state": "Alaska",
       "state_slug": "alaska",
       "citation": "12 AAC 04.300 (Hours of Continuing Education Required)",
-      "citation_url": "https://www.law.cornell.edu/regulations/alaska/12-AAC-04.300",
+      "citation_url": "https://www.akleg.gov/basis/aac.asp?media=print&secStart=12.04.300&secEnd=12.04.300",
       "source_url": "https://www.commerce.alaska.gov/web/Portals/5/pub/CPA_BoardFlyer_2026.pdf",
       "total_hours": 80,
       "period_years": 2,
@@ -47,15 +47,16 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "Alaska CPAs complete 80 CPE hours per biennial (2-year) licensing period, with at least 20 hours completed in each of the two years, including at least 4 hours of ethics somewhere in the 2-year period (no state-specific ethics course is mandated by regulation -- AICPA Ethics, Circular 230 Ethics, or Behavioral Ethics all qualify). No more than 10 of the 80 hours may come from micro-learning (activities under one hour). Renewal is biennial, due Dec 31 of odd-numbered years. Effective for licensing periods beginning on/after Jan 1, 2026, no more than 12 CPE hours may be earned in a single day. Two independent official sources state the same 80/20/4-hour figures: the Division's own Statutes and Regulations compilation of 12 AAC 04.300, and the Board's own licensee update.",
-      "verified_date": "2026-07-20",
-      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (January 2026 edition of the compilation; December 2025 licensee update flyer; full text read) moved here."
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (January 2026 edition of the compilation; December 2025 licensee update flyer; full text read) moved here.\n\n2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Alaska Legislature BASIS serves the AAC; the canonical viewer (akleg.gov/basis/aac.asp#12.04.300) is a JS shell, so the server-rendered print endpoint is used. Text confirms 80 hours per biennial period, at least 20 hours in each year, at least 4 hours ethics, and not more than 10 hours micro-learning; (d) says only 'must cover ethics' with no state-specific course named, and (g) defines micro-learning as an activity under one hour. Text is current (includes the new 12-hours-per-day cap for periods beginning on or after January 1, 2026), so no board-vs-aggregator staleness gap.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/alaska/12-AAC-04.300"
     },
     {
       "id": "az-cpe",
       "state": "Arizona",
       "state_slug": "arizona",
       "citation": "Ariz. Admin. Code § R4-1-453(C)",
-      "citation_url": "https://www.law.cornell.edu/regulations/arizona/Ariz-Admin-Code-SS-R4-1-453",
+      "citation_url": "https://apps.azsos.gov/public_services/Title_04/4-01.pdf",
       "source_url": "https://www.azaccountancy.gov/Renewals/CPE.aspx",
       "total_hours": 80,
       "period_years": 2,
@@ -63,7 +64,9 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "80 hours per 2-year registration period (the same period the certificate itself renews on, per Arizona's own birth-month/parity cycle -- see the CPA-renewal dataset's az-individual record). No explicit annual minimum in this section, but at least 16 hours must be classroom/live-interactive and at least 40 hours in accounting/auditing/taxation/business law/consulting (16 of which must be accounting/auditing/taxation specifically). 4 ethics hours required, split as a minimum of 1 hour each on AICPA Code of Professional Conduct topics and Arizona Board statutes/rules specifically.",
-      "verified_date": "2026-08-13"
+      "verified_date": "2026-08-14",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/arizona/Ariz-Admin-Code-SS-R4-1-453",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Arizona Secretary of State's official A.A.C. Title 4 Ch. 1 PDF, current supplement 26-2 (June 30, 2026); plain WebFetch got 403 but curl with a browser User-Agent returned the 2.9MB PDF and R4-1-453 text extracted cleanly. R4-1-453(C) reads 'a registrant shall complete the CPE requirements during the two-year period immediately before registration', (C)(1) '80 hours of CPE', (C)(4) 'four hours of CPE in the subject area of ethics', (C)(3) 'a minimum of 16 of the required hours' in classroom/interactive live webinar/as lecturer, and (C)(2) 'a minimum of 40 hours in the subject areas of accounting, auditing, taxation, business law, or consulting services with a minimum of 16 hours in the subject areas of accounting, auditing, or taxation' -- note the inner 16 is accounting OR auditing OR taxation, so our notes_excerpt's truncated '16 of which must be accounting' should be widened to avoid overstating the constraint."
     },
     {
       "id": "ar-cpe",
@@ -86,7 +89,7 @@
       "state": "California",
       "state_slug": "california",
       "citation": "Cal. Code Regs. tit. 16, § 87",
-      "citation_url": "https://www.law.cornell.edu/regulations/california/16-CCR-87",
+      "citation_url": "https://www.dca.ca.gov/cba/about/cba_regs.pdf",
       "source_url": "https://www.dca.ca.gov/cba/licensees/cequickref.shtml",
       "total_hours": 80,
       "period_years": 2,
@@ -94,7 +97,9 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "80 hours in the 2-year period immediately preceding license expiration, minimum 20 hours each year (12 of which must be technical subject matter), including 4 hours of ethics education. A separate Regulatory Review course requirement (§87.8) also applies on a longer cycle -- not counted as 'ethics' here since it's a distinct named requirement, noted separately if this cluster expands.",
-      "verified_date": "2026-08-13"
+      "verified_date": "2026-08-14",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/california/16-CCR-87",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: CBA's own consolidated publication of its regulations (16 CCR Div. 1), cover page 'Current as of: July 1, 2026'; 75pp, fetched and text-extracted. Sec. 87 reads verbatim: '(a) 80 Hours... at least 80 hours of continuing education in the two-year period immediately preceding license expiration'; '(a)(1) ...a minimum of 20 hours in each year of the two-year license renewal period, with a minimum of 12 hours of the required 20 hours in technical subject areas'; '(b) ...shall complete four hours of the 80 hours... in an ethics course.' All four figures and the notes_excerpt (including treating Sec. 87.8 Regulatory Review as a separate named requirement) confirmed. The official per-section CCR URL is https://govt.westlaw.com/calregs/Document/I9D7A17C0A92211EDAD6292594B50C21C (linked from CBA's own regulations index) but govt.westlaw.com is unfetchable by our tooling, so the board PDF is the verified citation."
     },
     {
       "id": "co-cpe",
@@ -117,7 +122,7 @@
       "state": "Connecticut",
       "state_slug": "connecticut",
       "citation": "Regs. Conn. State Agencies § 20-280-25",
-      "citation_url": "https://www.law.cornell.edu/regulations/connecticut/Regs-Conn-State-Agencies-SS-20-280-25",
+      "citation_url": "https://eregulations.ct.gov/eRegsPortal/Browse/RCSA/Title_20Subtitle_20-280Section_20-280-25/",
       "source_url": "https://portal.ct.gov/dcp/occupational-and-professional-division/occupational--profess/cpe-questions-and-answers",
       "total_hours": 40,
       "period_years": 1,
@@ -125,7 +130,9 @@
       "ethics_hours": 4,
       "ethics_period_years": 3,
       "notes": "Connecticut's base CPE requirement runs on an ANNUAL cycle rather than the biennial pattern common elsewhere: 40 hours of CPE must be completed each year during the July 1-June 30 period immediately preceding the December 31 reporting/renewal deadline. The ethics requirement, however, does not repeat every year -- 4 hours of ethics (covering the State/National Code of Conduct, Professional Conduct, and licensing regulations) are required only once every 3 consecutive annual CPE cycles, and those hours count toward, not in addition to, that year's 40-hour total. This is an inverted version of the classic 'annual vs. per-cycle' ethics trap (cf. Virginia, where ethics is annual within a multi-year total) -- here the base requirement is annual but ethics is multi-year. CPAs performing attest or compilation services must earn 8 of the annual 40 hours in financial statement preparation/reporting. New licensees are exempt from CPE for their first July-June cycle.",
-      "verified_date": "2026-07-20"
+      "verified_date": "2026-08-14",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/connecticut/Regs-Conn-State-Agencies-SS-20-280-25",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Connecticut eRegulations System (official RCSA publisher) serves the full current text of Sec. 20-280-25 (version 08/28/2024, 'Amended August 8, 2024'); plain curl returns an Akamai bot shell, but the section text is embedded in the returned HTML as a JSON payload and extracts cleanly. Subsection (a) confirms 40 hours annually: 'each applicant shall complete forty (40) hours of continuing professional education ... during the period from July 1 through June 30, immediately preceding each such December 31'; (a) also confirms the one-year Jan 1-Dec 31 license/renewal cycle. Subsection (f) confirms the ethics figure and the notes_excerpt's claim that it does not repeat annually: 'Each licensee shall meet an ethics requirement of four (4) hours within three (3) consecutive continuing professional education cycles ... and for every subsequent three (3) year period', met by 'any course covering ethical behavior and the understanding of the State and National Code of Conduct, Professional Conduct and State Licensing Regulations.'"
     },
     {
       "id": "dc-cpe",
@@ -165,7 +172,7 @@
       "state": "Florida",
       "state_slug": "florida",
       "citation": "Fla. Admin. Code Ann. R. 61H1-33.003",
-      "citation_url": "https://www.law.cornell.edu/regulations/florida/Fla-Admin-Code-Ann-R-61H1-33-003",
+      "citation_url": "https://www.flrules.org/gateway/readFile.asp?sid=0&tid=27653941&type=1&file=61H1-33.003.doc",
       "source_url": "https://www2.myfloridalicense.com/certified-public-accounting/licensure/continuing-professional-education/",
       "total_hours": 80,
       "period_years": 2,
@@ -173,7 +180,9 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "80 hours per 2-year re-establishment period, no explicit annual minimum in the codified rule itself. Within the 80: at least 8 hours accounting/auditing, at least 4 hours Board-approved ethics (a review of Chapters 455 and 473, Florida Statutes, and related rules), and no more than 20 hours in behavioral subjects. Reporting deadline is July 31 prior to the biennial renewal.",
-      "verified_date": "2026-08-13"
+      "verified_date": "2026-08-14",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/florida/Fla-Admin-Code-Ann-R-61H1-33-003",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Official FAC text served by flrules.org (FL Dept of State), effective 10/26/2023: rule 61H1-33.003(1)(b) reads 'at least 80 hours ... of which at least 8 hours must have been in accounting-related and/or auditing-related subjects and of which no more than 20 hours may be in behavioral subjects and at least four hours shall be in Florida Board-approved ethics', reported 'on or before July 31 prior to their biennial license renewal'; (2)(c)1 confirms the ethics course is 'A review of Chapters 455 and 473, F.S., and the related administrative rules', and no annual minimum appears. Stable landing page is https://www.flrules.org/gateway/ruleNo.asp?id=61H1-33.003 (server-rendered metadata + effective date + history, with the VIEW RULE link to the text URL above; the text URL's tid pins this version). Watch item: a proposed amendment to 61H1-33.003 'regarding (CPE) renewals' was published 8/10/2026 (Vol. 52/154) and is not yet adopted."
     },
     {
       "id": "ga-cpe",
@@ -213,7 +222,7 @@
       "state": "Idaho",
       "state_slug": "idaho",
       "citation": "IDAPA 24.30.01.111 (Idaho Accountancy Rules, CPE Basic Requirements)",
-      "citation_url": "https://www.law.cornell.edu/regulations/idaho/IDAPA-24.30.01.111",
+      "citation_url": "https://adminrules.idaho.gov/rules/current/24/243001.pdf",
       "source_url": "https://dopl.idaho.gov/boa/boa-cpe/",
       "total_hours": 80,
       "period_years": 2,
@@ -221,23 +230,27 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "Idaho CPAs must complete 80 CPE hours every rolling two-year period, with at least 30 hours (and no more than 50) recorded in any single calendar year, plus at least 4 ethics hours within that two-year window. New and reciprocal licensees instead complete a 2-hour Idaho-specific ethics course in their first calendar year, then a 30-hour minimum in year two.",
-      "verified_date": "2026-07-25",
-      "data_gap_note": null
+      "verified_date": "2026-08-14",
+      "data_gap_note": null,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/idaho/IDAPA-24.30.01.111",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Idaho Office of the Administrative Rules Coordinator serves the full current IDAPA 24.30.01 chapter PDF (fetched, 14pp, text extracted). Sec. 111.01: 'no less than eighty (80) hours of CPE are recorded, of which at least four (4) hours are ethics with a minimum of thirty (30) hours in any one (1) calendar year, and a maximum of fifty (50) hours recorded in any one (1) calendar year' during 'the two (2) calendar years immediately preceding'; Sec. 111.02 confirms the 2-hour Idaho-specific ethics course in the issuance year then 30 hours in year two. All four figures and the notes_excerpt agree."
     },
     {
       "id": "il-cpe",
       "state": "Illinois",
       "state_slug": "illinois",
       "citation": "68 Ill. Admin. Code § 1420.70(a)(1)",
-      "citation_url": "https://www.law.cornell.edu/regulations/illinois/Ill-Admin-Code-tit-68-SS-1420.70",
+      "citation_url": "https://www.ilga.gov/commission/jcar/admincode/068/068014200000700R.html",
       "source_url": "https://idfpr.illinois.gov/content/dam/soi/en/web/idfpr/faq/dpr/cpa-cpe-faqs-6-28-18.pdf",
       "total_hours": 120,
       "period_years": 3,
       "annual_minimum_hours": null,
       "ethics_hours": 4,
       "ethics_period_years": 3,
-      "notes": "120 hours per 3-year renewal period, at least 4 hours of professional ethics, plus a separate 1-hour sexual harassment prevention training requirement (not counted here as 'ethics' since the rule labels it as its own distinct category). No explicit annual minimum stated in this section, unlike several other states.",
-      "verified_date": "2026-08-13"
+      "notes": "120 hours per 3-year renewal period, at least 4 hours of professional ethics, plus a separate sexual harassment prevention training requirement set by statute (20 ILCS 2105/2105-15.5), which must be completed before renewal; the statute prescribes no specific hour count, and the CPE rule itself does not mention it. No explicit annual minimum stated in this section, unlike several other states.",
+      "verified_date": "2026-08-14",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/illinois/Ill-Admin-Code-tit-68-SS-1420.70",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: JCAR/Illinois General Assembly is the official publisher of the Illinois Administrative Code; the section page served the complete rule text including the (Source: Amended at 44 Ill. Reg. 184, effective January 3, 2020) line. IDFPR's own CPA profession page could not be located (idfpr.illinois.gov/profs/cpa.html and /profs/certpubaccount.html both 404 with the site's custom error page) and WebSearch budget was exhausted, so no board-side cross-check of a newer version was possible -- but JCAR is the agency's own filing of record, so the Georgia-style drift risk is low here. Recommend re-sourcing the 1-hour sexual harassment claim or dropping the hour figure.\n\n2026-08-14 (SRC-1 content check): the '1-hour' figure and 'the rule labels it as its own distinct category' were both unsupported -- Section 1420.70 contains zero occurrences of 'harass', and the statutory requirement (20 ILCS 2105/2105-15.5, P.A. 102-308) prescribes no hour count. Reworded to what the statute actually says."
     },
     {
       "id": "in-cpe",
@@ -276,7 +289,7 @@
       "state": "Kansas",
       "state_slug": "kansas",
       "citation": "K.A.R. 74-4-7",
-      "citation_url": "https://www.law.cornell.edu/regulations/kansas/K-A-R-74-4-7",
+      "citation_url": "https://ksboa.kansas.gov/wp-content/uploads/Article-4.-April-26-2024.pdf",
       "source_url": "https://ksboa.kansas.gov/faqs/",
       "total_hours": 80,
       "period_years": 2,
@@ -284,7 +297,9 @@
       "ethics_hours": 2,
       "ethics_period_years": 2,
       "notes": "80 CPE hours every 2-year biennial renewal period (renewal cycle runs on a biennial basis tied to certificate number), including 2 hours of professional ethics directly related to the practice of certified public accountancy. Interpretation trap: several CPE-vendor sites claim a '16 hours per year' annual minimum applies to Kansas CPAs. Having read the full verbatim text of K.A.R. 74-4-7 and 74-4-8 from the Kansas Board's own regulation PDF, there is no annual-minimum provision for regular CPA permits -- only the overall 80-hour biennial total and the 2-hour ethics requirement. The 16-hour/year figure that circulates online actually applies to a different credential, the 'licensed municipal public accountant' permit, not the CPA permit. Up to 20 hours may carry over from the prior period; ethics hours in excess of the 2-hour minimum may be included in that carryover but cannot satisfy a future period's ethics requirement.",
-      "verified_date": "2026-07-20"
+      "verified_date": "2026-08-14",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/kansas/K-A-R-74-4-7",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Kansas Board of Accountancy's own current publication of K.A.R. Article 4 (reached via ksboa.org -> ksboa.kansas.gov/laws-regulations/). 74-4-7(a)(1) reads: 'shall have completed 80 hours of acceptable continuing education (CE) during each biennial period for renewal' and 'shall have completed two hours in professional ethics relating to the practice of certified public accountancy as part of the continuing education requirement' (history ends 'amended April 26, 2024'). No annual/16-hours-per-year minimum appears anywhere in 74-4-7, confirming the notes_excerpt's CPE-vendor trap; the only per-year-adjacent provision is (d), a 20-hour carryover allowance. Separately verified the board's K.S.A. 1-310 PDF (https://ksboa.kansas.gov/wp-content/uploads/1-310-4.23.26.pdf), which confirms the biennial cycle is tied to odd/even certificate number and restates 'at least 80 hours during the two-year period for renewal'. The Kansas SOS no longer serves per-section KAR text: sos.ks.gov/publications/pubs_kar.aspx now redirects users to rules.ks.gov, which is a JS-only Esper SPA whose /api/context  [...]"
     },
     {
       "id": "ky-cpe",
@@ -306,7 +321,7 @@
       "state": "Louisiana",
       "state_slug": "louisiana",
       "citation": "Louisiana Administrative Code, Title 46, Part XIX, §1301(A)",
-      "citation_url": "https://www.law.cornell.edu/regulations/louisiana/La-Admin-Code-tit-46-SS-XIX-1301",
+      "citation_url": "https://cpaboard.state.la.us/board-rules/",
       "source_url": "https://cpaboard.state.la.us/cpe/",
       "total_hours": 80,
       "period_years": 2,
@@ -314,8 +329,10 @@
       "ethics_hours": null,
       "ethics_period_years": null,
       "notes": "Louisiana CPAs must complete 80 hours of CPE within a rolling two-calendar-year period, with a minimum of 20 hours in each individual year. Certificate holders who work on attest engagements must also complete at least 8 of those hours in accounting and auditing subjects each year. The codified rule requires a board-approved ethics course but leaves the specific hour count to board practice rather than fixing a number in the rule text itself.",
-      "verified_date": "2026-07-25",
-      "data_gap_note": null
+      "verified_date": "2026-08-14",
+      "data_gap_note": null,
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/louisiana/La-Admin-Code-tit-46-SS-XIX-1301",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: match per LAC 46:XIX s1301.A: 'Each certificate holder shall participate in a minimum of 20 hours of continuing professional education (CPE) annually, and at least 80 hours of continuing professional education (CPE) within a rolling two-calendar-year period'. s1301.A.1: attest participants 'shall complete at least 8 hours during the calendar year' in accounting and auditing. s1301.A.2: ethics course required, board-preapproved, no hour count in the codified rule, exactly as our note states. s1301.F.1 confirms the rolling two-year compliance period. The Louisiana board publishes the full current text of its LAC Title 46 Part XIX rules inline on its own site (~160k chars), the board's own publication. No per-section Office of State Register URL was reachable (www.doa.la.gov/doa/osr/lac/ 404s)."
     },
     {
       "id": "me-cpe",
@@ -338,7 +355,7 @@
       "state": "Maryland",
       "state_slug": "maryland",
       "citation": "COMAR 09.24.02.03",
-      "citation_url": "https://www.law.cornell.edu/regulations/maryland/COMAR-09-24-02-03",
+      "citation_url": "https://regs.maryland.gov/us/md/exec/comar/09.24.02.03",
       "source_url": "https://dllr.state.md.us/license/cpa/cpacperep.shtml",
       "total_hours": 80,
       "period_years": 2,
@@ -346,8 +363,9 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "80 credit hours per 2-year license term (does not apply to a licensee's first renewal), including 4 hours of professional ethics. No explicit annual minimum in this section. Up to 80 excess hours may carry forward to the next 2-year term (but excess ethics hours specifically cannot satisfy a future term's own 4-hour ethics requirement).",
-      "verified_date": "2026-08-13",
-      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the codified regulation text.\""
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the codified regulation text.\"\n\n2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: The Division of State Documents URL https://dsd.maryland.gov/regulations/Pages/09.24.02.03.aspx 301-redirects to regs.maryland.gov (official DSD COMAR platform); both serve full rule text. Confirms 'a minimum of 80 credit hours of qualifying continuing education in each 2-year license term', SecB exempting the first renewal, SecC(1) '4 credit hours ... in professional ethics', SecC(2) barring excess ethics hours from carrying forward to satisfy the ethics requirement, and SecD allowing up to 80 excess hours to carry forward. No annual minimum appears in the section, as our note states.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/maryland/COMAR-09-24-02-03"
     },
     {
       "id": "ma-cpe",
@@ -355,7 +373,7 @@
       "state_slug": "massachusetts",
       "citation": "252 CMR 2.14",
       "citation_url": "https://www.law.cornell.edu/regulations/massachusetts/252-CMR-2-14",
-      "source_url": "https://boards.mass.gov/detail/160627/board-of-public-accountancy/",
+      "source_url": "https://www.mass.gov/regulations/252-CMR-200-requirements-for-certification",
       "total_hours": 80,
       "period_years": 2,
       "annual_minimum_hours": null,
@@ -363,7 +381,8 @@
       "ethics_period_years": 2,
       "notes": "80 hours in the 2-year period immediately preceding re-licensing (applicants engaged in public practice), including 4 hours of professional ethics (effective for licenses expiring on/after June 30, 2007). No carryover permitted between 2-year periods -- unlike several other states in this cluster that do allow some excess-hour carryover. No explicit annual minimum in this section.",
       "verified_date": "2026-08-13",
-      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the codified regulation text.\""
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the codified regulation text.\"\n\n2026-08-14 (SRC-1 disclosed exception): corrected source_url from 'https://boards.mass.gov/detail/160627/board-of-public-accountancy/' to the real mass.gov location of 252 CMR 2.00 (the previous long-slug URL 404s -- title is 'Requirements for certification'). mass.gov hard-blocks automated fetching (curl with full Chrome headers gets a 'Not allowed' interstitial; the PDF fetched inside a real browser session but could not be text-extracted by our tooling), so the 80/2-year/4-ethics figures remain verified against the mirror text and the board form, not the codified PDF. Next manual pass: open the mass.gov PDF in a browser and read 252 CMR 2.14 directly.",
+      "data_gap_note": "Massachusetts publishes 252 CMR 2.00 only on mass.gov, which blocks automated access (the rule page and its PDF both return 'Not allowed' to every non-browser client tested). The link above is the official location and loads normally in a browser; the citation link points at a third-party mirror so the text itself stays one click away."
     },
     {
       "id": "mi-cpe",
@@ -401,7 +420,7 @@
       "state": "Mississippi",
       "state_slug": "mississippi",
       "citation": "Miss. Admin. Code, Title 30, Pt. 1, Rule 4.1 (Compliance Requirements and Reporting)",
-      "citation_url": "https://www.law.cornell.edu/regulations/mississippi/30-Miss-Code-R-SS-1-4-1",
+      "citation_url": "https://www.msbpa.ms.gov/sites/accounting/files/Effective%20April%202026%20FINAL%20-%20UPDATED.pdf",
       "source_url": "https://www.msbpa.ms.gov/continuing-professional-education",
       "total_hours": 40,
       "period_years": 1,
@@ -409,8 +428,9 @@
       "ethics_hours": 4,
       "ethics_period_years": 3,
       "notes": "Mississippi's base CPE requirement is ANNUAL, not triennial: a minimum of 40 CPE credit hours within each one-year (12-month) compliance period ending June 30 (up to 20 excess hours may carry over into the next annual period). Layered on top of that annual cycle is a separate TRIENNIAL ethics component: a minimum of 3 hours of Board-approved Ethics and Professional Conduct plus a separate minimum of 1 hour of Mississippi Public Accountancy Law and Regulations, every 3 years (current cycle July 1, 2025-June 30, 2028) -- 4 ethics-related hours total, but on a 3-year cadence layered over the annual 40-hour requirement, not 4 hours per year. Interpretation trap: multiple vendor pages (and even a preliminary MSBPA search snippet) conflate this into a flat '120 hours per rolling 3-year period,' which is mathematically consistent (40 x 3) but obscures that compliance is actually checked and reported annually, not triennially. New licensees are exempt from CPE in their initial (partial) compliance period and from the ethics/law requirement for the rest of that triennial cycle. Both Rule 4.1 and the Mississippi State Board's own CPE page state the same 40-hour annual / 3-plus-1-hour triennial ethics structure.",
-      "verified_date": "2026-07-20",
-      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (Rule 4.1 full text read via the Cornell regulations mirror) moved here."
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (Rule 4.1 full text read via the Cornell regulations mirror) moved here.\n\n2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Rule 4.1.2 confirms the 40-hour figure verbatim: 'All licensees must report a minimum of 40 CPE credit hours within each one year (twelve month) compliance period ending June 30.' Rule 4.1.4 confirms the 20-hour carry-over cap. Also worth capturing and currently absent from our record: Rule 4.1.1/4.2.4 set a hard August 1 CPE reporting deadline (a blank form is read as zero hours). Mississippi SOS's official admin-code search (sos.ms.gov/adminsearch) is Akamai-gated -- it 403'd on plain curl, returned only an ASP.NET search shell with a browser User-Agent on retry, and 403'd again on a third try, so no per-rule official SOS URL exists to cite; the board's own publication is the better source anyway.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/mississippi/30-Miss-Code-R-SS-1-4-1"
     },
     {
       "id": "mo-cpe",
@@ -433,7 +453,7 @@
       "state": "Montana",
       "state_slug": "montana",
       "citation": "Mont. Admin. R. 24.201.2106 (Basic Continuing Education Requirement)",
-      "citation_url": "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-24.201.2106",
+      "citation_url": "https://boards.bsd.dli.mt.gov/public-accountants/",
       "source_url": "https://boards.bsd.dli.mt.gov/public-accountants/license-information/education-requirements",
       "total_hours": 120,
       "period_years": 3,
@@ -441,7 +461,9 @@
       "ethics_hours": 2,
       "ethics_period_years": 3,
       "notes": "Montana active permit holders must complete 120 hours of CPE for the previous rolling 3-year period ending December 31 (permits still renew annually, but the core CPE count is a 3-year rolling total rather than a flat per-year figure), with a minimum of 50% (60 hours) in technical fields of study (effective Jan 1, 2018). Interpretation trap: the mandatory 2 hours of ethics are NOT an add-on -- they are included within/count toward the 60-hour technical-subjects minimum, not in addition to the 120-hour total. Confirmed via the full text of Mont. Admin. R. 24.201.2106 (law.cornell.edu mirror), consistent with the Montana Board of Public Accountancy's own webpage description of the same 120-hour/60-hour-technical/2-hour-ethics structure. New licensees must meet the basic requirement by December 31 of the third year following their year of initial licensure; CPE earned during the initial licensure year does not count toward that first reporting period.",
-      "verified_date": "2026-07-20"
+      "verified_date": "2026-08-14",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-24.201.2106",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: rules.mt.gov could not be fetched for ARM 24.201.2106 (same Esper SPA / API-blocked situation described for mt-all), so the check ran against the board's own published CPE material. Board home page: 'All active permit holders are required to maintain 120 hours of CPE, including 50% technical subjects including two hours of ethics, to maintain an active license' and 'Basic CPE requirements are 120 hours of CPE and must include a minimum of 50% (60 hours) of technical subjects as defined by board rule. The mandatory 2 hours of ethics are included in the technical subjects.' The board's CPE bulletin PDF (https://boards.bsd.dli.mt.gov/_docs/pac/cpe-update.pdf, fetched and parsed) confirms the rolling three-year period and the effective date: 'Beginning January 1, 2018, active licensees must complete at least 50% (60 hours) in technical fields of study in a rolling 3-year period. This includes a mandatory 2 hours of ethics in the 3-year period.' All three figures (120 / 3 years / 2 ethics) match, and the notes_excerpt's interpretation trap is explicitly confirmed - the 2 ethics hours are  [...]"
     },
     {
       "id": "ne-cpe",
@@ -464,16 +486,17 @@
       "state": "Nevada",
       "state_slug": "nevada",
       "citation": "Nev. Admin. Code § 628.210",
-      "citation_url": "https://www.law.cornell.edu/regulations/nevada/NAC-628-210",
+      "citation_url": "https://www.leg.state.nv.us/NAC/NAC-628.html#NAC628Sec210",
       "source_url": "https://nvboav7prod.glsuite.us/GLSuiteWeb/Clients/NVBOA/Private/education.aspx",
       "total_hours": 40,
       "period_years": 1,
       "annual_minimum_hours": 40,
       "ethics_hours": 2,
       "ethics_period_years": 1,
-      "notes": "Nevada runs an ANNUAL cycle, not the 2-year cycle most states use: 40 CPE hours every calendar year (Jan 1-Dec 31), including 2 hours of professional ethics every year. No carryover of excess hours is allowed. If the licensee performed audit, review, compilation, or attestation services in the prior 12 months, an additional 8 hours in accounting and auditing are required that year. First annual renewal after initial licensure is exempt. Interpretation trap: some third-party CPE-vendor summaries describe Nevada as an '80 hours per 2 years / 4 hours ethics' state -- that does not match the board's own page or the codified NAC text, both of which confirm the 40-hour annual cycle with 2 annual ethics hours. Both NAC 628.210 and the Nevada board's own education page state the same 40-hour annual cycle with 2 ethics hours: \"Effective 2024 the requirement for all licensees is to obtain 40 hours of continuing education to be completed each calendar year. Of the required 40 hours, 2 must be in the area of ethics.\"",
-      "verified_date": "2026-08-13",
-      "verification_history": "2026-08-13: the board's old nvaccountancy.com domain now silently redirects to a relaunched site -- source_url repointed to the live education page there, same content (CITE-19 sweep).\n\n2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (NAC 628.210 full text read via the Cornell regulations mirror) moved here."
+      "notes": "Nevada runs an ANNUAL cycle, not the 2-year cycle most states use: 40 CPE hours every calendar year (Jan 1-Dec 31), including 2 hours of professional ethics every year. The rule grants no carryover of excess hours (though it does not expressly prohibit it). If the licensee performed audit, review, compilation, or attestation services in the prior 12 months, an additional 8 hours in accounting and auditing are required that year. First annual renewal after initial licensure is exempt. Interpretation trap: some third-party CPE-vendor summaries describe Nevada as an '80 hours per 2 years / 4 hours ethics' state -- that does not match the board's own page or the codified NAC text, both of which confirm the 40-hour annual cycle with 2 annual ethics hours. Both NAC 628.210 and the Nevada board's own education page state the same 40-hour annual cycle with 2 ethics hours: \"Effective 2024 the requirement for all licensees is to obtain 40 hours of continuing education to be completed each calendar year. Of the required 40 hours, 2 must be in the area of ethics.\"",
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-13: the board's old nvaccountancy.com domain now silently redirects to a relaunched site -- source_url repointed to the live education page there, same content (CITE-19 sweep).\n\n2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (NAC 628.210 full text read via the Cornell regulations mirror) moved here.\n\n2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Nevada Legislature's official NAC host served the full chapter to curl with a browser UA; the #NAC628Sec210 anchor exists in the served HTML. The notes' first-renewal exemption is confirmed by NAC 628.210(3): 'An applicant seeking the first annual renewal of an initial permit is exempt from the requirements of NAC 628.210 to 628.250, inclusive.' Current amendment history ends R008-22, 9-28-2022.\n\n2026-08-14 (SRC-1 content check): softened 'No carryover of excess hours is allowed' -- NAC 628 contains no carryover language at all (regex across the chapter: zero hits), so the accurate statement is that none is granted, not that it is prohibited.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/nevada/NAC-628-210"
     },
     {
       "id": "nh-cpe",
@@ -496,7 +519,7 @@
       "state": "New Jersey",
       "state_slug": "new-jersey",
       "citation": "N.J.A.C. 13:29-6.2(a)",
-      "citation_url": "https://www.law.cornell.edu/regulations/new-jersey/N-J-A-C-13-29-6-2",
+      "citation_url": "https://www.njconsumeraffairs.gov/Adoptions/accado_09032019.pdf",
       "source_url": "https://www.njcpa.org/learn/maintain-your-license/cpe-requirements",
       "total_hours": 120,
       "period_years": 3,
@@ -504,15 +527,16 @@
       "ethics_hours": 4,
       "ethics_period_years": 3,
       "notes": "120 credits per triennial period, minimum 20 credits each year, at least 60 credits in technical subjects (24 of which in accounting/auditing for those in public practice), and 4 credits specifically in a New Jersey law and ethics course.",
-      "verified_date": "2026-08-13",
-      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the codified regulation text.\""
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the codified regulation text.\"\n\n2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: NJ Division of Consumer Affairs / Board of Accountancy publishes the official New Jersey Register rule adoption (51 N.J.R. 1424(a), eff. 9/3/2019) reprinting 13:29-6.2 in full: '120 credits... minimum of 20 credits... in each year of the triennial period... at least 24 credits in the areas of accounting or auditing... at least 60 credits of the required 120 credits in the technical subjects... four credits of the required 120 credits in the New Jersey law and ethics course'. Currency confirmed by the readoption notice at https://www.njconsumeraffairs.gov/Adoptions/accado_01072025.pdf (57 N.J.R. 55(a)): N.J.A.C. 13:29 'readopted without amendment', effective 11/26/2024, new expiration 11/26/2031. The board's .aspx regulations pages are Incapsula-blocked to both curl (browser UA) and WebFetch; the /Adoptions/ PDF tree is not.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/new-jersey/N-J-A-C-13-29-6-2"
     },
     {
       "id": "nm-cpe",
       "state": "New Mexico",
       "state_slug": "new-mexico",
       "citation": "16.60.3.15 NMAC",
-      "citation_url": "https://www.law.cornell.edu/regulations/new-mexico/N-M-Admin-Code-SS-16.60.3.15",
+      "citation_url": "https://www.srca.nm.gov/parts/title16/16.060.0003.html",
       "source_url": "https://www.rld.nm.gov/boards-and-commissions/individual-boards-and-commissions/accountancy/instructors-training-requirements-and-continuing-education/",
       "total_hours": 120,
       "period_years": 3,
@@ -520,7 +544,9 @@
       "ethics_hours": 4,
       "ethics_period_years": 3,
       "notes": "New Mexico requires 120 CPE hours in a rolling 36-month reporting cycle that ends on the last day of the licensee's birth month, with a minimum of 20 hours completed each reporting year. Within that 120, at least 4 hours must be ethics (required for the 36-month period beginning after January 1, 2010). Also requires at least 96 of the 120 hours to be 'technical' subject matter and at least 24 hours to come from a sponsor other than the licensee's own firm/employer -- both confirmed independently by the board's own CPE guidance (rld.nm.gov) and the codified rule text (16.60.3.15 NMAC via Cornell LII).",
-      "verified_date": "2026-07-20"
+      "verified_date": "2026-08-14",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/new-mexico/N-M-Admin-Code-SS-16.60.3.15",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: NM State Records Center and Archives (srca.nm.gov) is the official NMAC publisher; the Part 16.60.3 page served full rule text. 16.60.3.15(A)(2): 'no less than 120 hours of continuing professional education ... during the preceding 36-month period ending on the last day of the certificate/license holder's birth month, with a minimum of 20 hours completed in each reporting year' and 'For any CPE reporting period which begins on or after January 1, 2010, continuing professional education must include a minimum of four hours of ethics education'; (E)(12) 'at least 96 of the hours reported shall be courses, programs or seminars whose content is in technical fields of study'. One clarification for the truncated note: the companion 24-hour rule at (E)(13) is NOT a non-technical quota -- it reads 'at least 24 of the hours reported shall not include CPE sponsored by the licensee's firm, agency, company, or organization', effective for periods ending on or after July 31, 2007."
     },
     {
       "id": "ny-cpe",
@@ -559,7 +585,7 @@
       "state": "North Dakota",
       "state_slug": "north-dakota",
       "citation": "N.D. Admin. Code § 3-03-01-01",
-      "citation_url": "https://www.law.cornell.edu/regulations/north-dakota/N-D-A-C-3-03-01-01",
+      "citation_url": "https://www.ndlegis.gov/information/acdata/pdf/3-03-01.pdf",
       "source_url": "https://www.ndsba.nd.gov/licensees/cpa-renewal-faq",
       "total_hours": 120,
       "period_years": 3,
@@ -567,7 +593,9 @@
       "ethics_hours": 6,
       "ethics_period_years": 3,
       "notes": "North Dakota CPAs/LPAs must complete 120 credit-hours of acceptable CE in the immediately preceding three reporting years, including 6 credit-hours of professional ethics content, with a minimum of 20 credit-hours completed each year (no full-year carryover of the annual minimum). Non-obvious trap: North Dakota's CPE 'reporting year' runs July 1-June 30, and reports are due before July 1 each year -- do not assume a calendar-year (Jan-Dec) cycle as in many other states. Confirmed independently by the codified administrative rule (3-03-01-01 NDAC via Cornell LII) and the board's own renewal FAQ (ndsba.nd.gov).",
-      "verified_date": "2026-07-20"
+      "verified_date": "2026-08-14",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/north-dakota/N-D-A-C-3-03-01-01",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Official ND Administrative Code chapter PDF served by the ND Legislative Branch (200, application/pdf, 61.7 KB, full rule text extracted). 3-03-01-01 reads: 'each CPA and LPA, while holding out to the public as a licensee in this state must have completed one hundred twenty credit-hours of acceptable continuing education in the immediate preceding three reporting years, including six credit-hours of professional ethics content, and a minimum of twenty credit-hours each year' -- matches total_hours 120, period_years 3, ethics_hours 6, annual_minimum_hours 20. The reporting-year claim also checks: 'Continuing education reports are due from all CPAs and LPAs, except those on retired or inactive status, before July first of each year and any credit-hours submitted must be for the previous July first through June thirtieth.' This copy is current (sibling section 3-03-01-04 carries a January 1, 2026 amendment), so no stale-aggregator risk. One caveat: the 'no full-year carryover of the annual minimum' phrasing in notes_excerpt is our inference from 'a minimum of twenty credit-hours each ye [...]"
     },
     {
       "id": "oh-cpe",
@@ -589,15 +617,17 @@
       "state": "Oklahoma",
       "state_slug": "oklahoma",
       "citation": "Okla. Admin. Code § 10:15-30-5",
-      "citation_url": "https://www.law.cornell.edu/regulations/oklahoma/OAC-10-15-30-5",
+      "citation_url": "https://oklahoma.gov/content/dam/ok/en/oab/documents/rules---law/December%202025%20OAB%20Statutes%20and%20Rules.pdf",
       "source_url": "https://oklahoma.gov/oab/departments/continuing-professional-education/cpe-requirements-reporting.html",
       "total_hours": 120,
       "period_years": 3,
       "annual_minimum_hours": 20,
       "ethics_hours": 4,
       "ethics_period_years": 3,
-      "notes": "120 CPE hours within a rolling 3-calendar-year period (any 3 consecutive years qualify, e.g. 2023-2025, 2024-2026, etc. -- not fixed 3-year blocks), with a minimum of 20 hours completed each calendar year, including 4 hours of professional ethics within that rolling 3-year period (effective Jan. 1, 2009; no Oklahoma-specific ethics course is mandated). Citation trap: the section actually titled 'Required CPE for renewal of a permit' (10:15-30-4) is only a one-line pointer to another section; the real numeric hour requirements (120/3yr, 20/yr, 4 ethics hrs) live in the next section, 10:15-30-5, titled 'Reporting and documentation by certificate and license holders' -- an easy section to cite incorrectly. Permit holders whose primary employment is industry must have at least 72 of the 120 hours relate to public accounting practice, with a minimum of 8 hours/year in taxation, accounting, or assurance.",
-      "verified_date": "2026-07-20"
+      "notes": "120 CPE hours within a rolling 3-calendar-year period (any 3 consecutive years qualify, e.g. 2023-2025, 2024-2026, etc. -- not fixed 3-year blocks), with a minimum of 20 hours completed each calendar year, including 4 hours of professional ethics within that rolling 3-year period (effective Jan. 1, 2009; no Oklahoma-specific ethics course is mandated). Citation trap: the section actually titled 'Required CPE for renewal of a permit' (10:15-30-4) is only a one-line pointer to another section; the real numeric hour requirements (120/3yr, 20/yr, 4 ethics hrs) live in the next section, 10:15-30-5, titled 'Reporting and documentation by certificate and license holders' -- an easy section to cite incorrectly. Permit holders whose primary employment is industry must have at least 72 of the 120 hours relate to public accounting practice, with a minimum of 8 hours/year in taxation, accounting, or assurance. Effective January 1, 2026, permit holders must also complete a minimum of 20 hours of CPE in a technical field of study each calendar year (10:15-30-5(h)), and licensees who supervise compilation engagements need 4 compilation-CPE credits per year (10:15-30-5(i)).",
+      "verified_date": "2026-08-14",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/oklahoma/OAC-10-15-30-5",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: match per OAC 10:15-30-5(a): '120 hours of qualifying CPE within a rolling three (3) calendar year period... A minimum of twenty (20) hours of acceptable CPE, shall be completed each calendar year. Effective January 1, 2009, four hours of professional ethics must be completed within each rolling three (3) calendar year period'. Citation trap confirmed (section titled 'Reporting and documentation by certificate and license holders'); 10:15-30-5(c) confirms no Oklahoma-specific ethics course. Board's own current compilation (December 2025, 158pp, text-extractable). GAP IN OUR NOTE: new 10:15-30-5(h) effective January 1, 2026 adds 'a minimum of twenty (20) hours of CPE in a technical field of study each calendar year' for permit holders, and (i) adds 4 compilation-CPE credits per year for those supervising compilation engagements -- neither appears in our published note. rules.ok.gov is a Cloudflare-gated React SPA, no fetchable per-section URL.\n\n2026-08-14 (SRC-1 content check): added the January 1, 2026 amendments the note previously omitted -- 10:15-30-5(h) (20 technical hours per calendar year for permit holders) and (i) (4 compilation CPE credits for compilation supervisors), read from the board's own December 2025 compilation."
     },
     {
       "id": "or-cpe",
@@ -635,7 +665,7 @@
       "state": "Rhode Island",
       "state_slug": "rhode-island",
       "citation": "400-RICR-00-00-1.8",
-      "citation_url": "https://www.law.cornell.edu/regulations/rhode-island/400-RICR-00-00-1.8",
+      "citation_url": "https://rules.sos.ri.gov/regulations/part/400-00-00-1",
       "source_url": "https://dbr.ri.gov/contractors-and-building-design-fire-professionals-board-accountancy/board-accountancy/renew",
       "total_hours": 120,
       "period_years": 3,
@@ -643,7 +673,9 @@
       "ethics_hours": 6,
       "ethics_period_years": 3,
       "notes": "Rhode Island requires a minimum of 120 hours of formal CPE during the preceding 3-year period (cycle runs July 1 of the renewal year through June 30 three years later), with no annual minimum -- only the 3-year total matters. Not less than 6 of the 120 hours must be regulatory or behavioral ethics; these ethics hours count toward, not on top of, the 120. Trap: first-time licensees get a reduced first renewal-cycle requirement of 80 hours (including 4 ethics hours) rather than the full 120/6 -- don't apply the standard figures to a licensee's very first renewal. Confirmed independently by the codified rule (400-RICR-00-00-1.8, hosted by the RI Department of State) and the Board of Accountancy's own renewal guidance (dbr.ri.gov).",
-      "verified_date": "2026-07-20"
+      "verified_date": "2026-08-14",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/rhode-island/400-RICR-00-00-1.8",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: RI Department of State's official RICR site serves the full active text of 400-RICR-00-00-1 (status Active, effective 02/19/2023). Sec 1.8.1(A)(1): 'the CPA must complete a minimum of one hundred twenty (120) hours of formal CPE during the preceding three (3) year period'; (A)(2) defines the cycle 'from July 1 of the renewal year through June 30 three (3) years later'; Sec 1.8.2(E): 'Not less than six (6) hours of the one hundred twenty (120) hours required hereunder shall be devoted to regulatory ethics and behavioral ethics.' The first-year trap in our notes is confirmed verbatim -- Sec 1.8.1(A)(3): new CPAs 'are only required to certify completion of eighty (80) hours for the first renewal cycle, including four (4) ethics credits'. No annual minimum appears anywhere in Sec 1.8."
     },
     {
       "id": "sc-cpe",
@@ -682,7 +714,7 @@
       "state": "Tennessee",
       "state_slug": "tennessee",
       "citation": "Tenn. Comp. R. & Regs. 0020-05-.03(1)",
-      "citation_url": "https://www.law.cornell.edu/regulations/tennessee/Tenn-Comp-R-Regs-0020-05-.03",
+      "citation_url": "https://publications.tnsosfiles.com/rules/0020/0020-05.20211006.pdf",
       "source_url": "https://www.tn.gov/commerce/regboards/accountancy/license/cont-edu.html",
       "total_hours": 80,
       "period_years": 2,
@@ -690,8 +722,9 @@
       "ethics_hours": 2,
       "ethics_period_years": 2,
       "notes": "80 hours per 2-year period immediately preceding renewal, minimum 20 hours each year, at least 40 hours in technical subjects, and a board-approved 2-hour Tennessee-specific ethics course.",
-      "verified_date": "2026-08-13",
-      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the codified regulation text.\""
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier A): removed methodology narration from the reader-facing note -- it carried no information a licensee could act on. Removed text: \"Verified directly against the codified regulation text.\"\n\n2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: TN SOS Official Compilation, chapter 0020-05 revised October 2021. Rule 0020-05-.03(1) reads 'no less than eighty (80) hours of qualified continuing professional education during the two (2) year period immediately preceding renewal, with a minimum of twenty (20) hours in each year', (a) 'at least forty (40) hours in technical fields of study', (b) 'a board-approved two (2) hour state-specific ethics course' -- all four figures confirmed. STALE-COPY WARNING: the undated path publications.tnsosfiles.com/rules/0020/0020-05.pdf serves the October 2006 version under the old 'Chapter 0020-5' numbering; always use the dated file linked from https://publications.tnsosfiles.com/rules/0020/0020.htm.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/tennessee/Tenn-Comp-R-Regs-0020-05-.03"
     },
     {
       "id": "tx-cpe",
@@ -706,14 +739,16 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "120 CPE credits per rolling 3-year period tied to the licensee's own birth month (see the CPA-renewal dataset's tx-individual gap record for why the renewal DATE itself is birth-month-personalized and unverified as a fixed date -- the CPE HOUR-COUNT rule itself, unlike the date, is a fixed statewide number, confirmed directly against §523.112). Minimum 20 credits per 1-year period. A board-approved 4-hour, Texas-specific ethics course is required every 2 years (§523.130/.131), counting toward the 120-hour total.",
-      "verified_date": "2026-08-13"
+      "verified_date": "2026-08-13",
+      "data_gap_note": "Texas currently has no stable official URL for TAC rule text: the legacy texreg.sos.state.tx.us per-section links now return a 'Site Has Moved' stub, and the replacement SOS portal (texas-sos.appianportalsgov.com/rules-and-meetings) is a JavaScript application whose per-rule pages (e.g. interface=VIEW_TAC_SUMMARY&recordId=...) render only in a browser. Until the state provides a linkable text source, the citation link points at a third-party mirror of the rule.",
+      "verification_history": "2026-08-14 (SRC-1 disclosed exception): kept the Cornell mirror as citation_url deliberately -- the official SOS Appian portal serves no text to a non-browser client and its per-rule deep links (VIEW_TAC_SUMMARY + recordId, discovered by navigating the portal in a real browser: Title 22 > Part 22 > Chapter 521/523) are session-rendered JS. A JS shell is a worse citation than a mirror that shows the text. Figures remain as previously verified; the portal path is recorded here for the next manual verification pass."
     },
     {
       "id": "ut-cpe",
       "state": "Utah",
       "state_slug": "utah",
       "citation": "Utah Admin. Code R156-26a-303b(1)-(2)",
-      "citation_url": "https://www.law.cornell.edu/regulations/utah/Utah-Admin-Code-R156-26a-303b",
+      "citation_url": "https://adminrules.utah.gov/api/public/getfile/uac-pdf/a87bebd9-585a-455e-b397-fe66ba37a698.pdf/R156-26a.pdf",
       "source_url": "https://commerce.utah.gov/wp-content/uploads/2025/07/CPA-CPE-FAQs_20250610.pdf",
       "total_hours": 80,
       "period_years": 2,
@@ -721,8 +756,10 @@
       "ethics_hours": 3,
       "ethics_period_years": 2,
       "notes": "Utah CPAs must complete 80 CPE hours every two-year cycle (ending Dec 31 of even-numbered years), with no hours due at a licensee's first renewal after initial licensure. Within that 80, the rule sets two separate requirements: 3 hours of ethics education plus a separate 1 hour covering Utah CPA law and rules -- these are two distinct categories, not one combined 4-hour ethics figure.",
-      "verified_date": "2026-07-25",
-      "data_gap_note": "The board's own CPA CPE FAQ (Utah DOPL, rev. 2025-07-10) states these figures, but its web domain currently blocks automated access, so this specific fact could not be freshly re-confirmed by an automated check at publish time -- only by matching search-engine copies of the same page. The codified rule text itself (linked above) was fetched and confirmed directly and states the same figures. Recommend a manual check of the board's page if you want to see it firsthand."
+      "verified_date": "2026-08-14",
+      "data_gap_note": "The board's own CPA CPE FAQ (Utah DOPL, rev. 2025-07-10) states these figures, but its web domain currently blocks automated access, so this specific fact could not be freshly re-confirmed by an automated check at publish time -- only by matching search-engine copies of the same page. The codified rule text itself (linked above) was fetched and confirmed directly and states the same figures. Recommend a manual check of the board's page if you want to see it firsthand.",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/utah/Utah-Admin-Code-R156-26a-303b",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Official Utah Administrative Code R156-26a PDF, effective 7/8/2026 (a recent amendment -- our figures survive it). R156-26a-303b(1): 'A CPA shall complete at least 80 hours of CPE during each two-year licensure cycle ending on December 31 of each even-numbered year, except that no CPE hours are required at the first renewal after initial licensure.' 303b(2) confirms the two distinct categories our note calls out: '(a) at least one hour that covers Title 58, Chapter 26a ... and Rule R156-26a' and '(b) at least three hours of ethics education' -- so ethics_hours=3 (not 4) is correct and the pin-cite 303b(1)-(2) is accurate. Same SPA caveat as ut-all: adminrules.utah.gov/public/rule/R156-26a/Current%20Rules is JS-only, and the PDF UUID rotates on amendment."
     },
     {
       "id": "vt-cpe",
@@ -775,7 +812,7 @@
       "state": "West Virginia",
       "state_slug": "west-virginia",
       "citation": "W. Va. CSR § 1-1-7 (§7.3)",
-      "citation_url": "https://www.law.cornell.edu/regulations/west-virginia/W-Va-C-S-R-SS-1-1-7",
+      "citation_url": "https://www.boa.wv.gov/www/download_resource.asp?id=55",
       "source_url": "https://www.boa.wv.gov/Licensing/CPE-Ethics.asp",
       "total_hours": 120,
       "period_years": 3,
@@ -783,7 +820,9 @@
       "ethics_hours": 4,
       "ethics_period_years": 3,
       "notes": "120 hours within the 3 preceding calendar years, minimum 20 hours each calendar year, including a minimum of 4 hours of ethics within the 120. Board's own site states the ethics requirement in plain language but doesn't cite its own rule number -- cross-verified the exact rule text via the Cornell LII regulations mirror instead of relying on the board page alone.",
-      "verified_date": "2026-08-13"
+      "verified_date": "2026-08-14",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/west-virginia/W-Va-C-S-R-SS-1-1-7",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: The WV Board of Accountancy's own published 1CSR1 PDF (Filing and Effective Date March 29, 2024; sunset 8/1/2032), linked from https://www.boa.wv.gov/About/StatutesRules.asp . Sec. 7.3: 'Certificate holders applying for annual licensure renewal shall have completed 120 hours of continuing education... within the three preceding calendar years, with at least 20 hours in each calendar year... Included in the 120 hours shall be a minimum of four (4) hours of ethics.' All four figures agree. The WV Secretary of State CSR portal (apps.sos.wv.gov/adlaw/csr) is an ASP.NET postback shell serving no rule text to curl, so the board's own publication is the usable primary."
     },
     {
       "id": "wi-cpe",
@@ -806,7 +845,7 @@
       "state": "Wyoming",
       "state_slug": "wyoming",
       "citation": "061-5 Wyo. Code R. § 5-3 (Board of CPAs Rules, Chapter 5)",
-      "citation_url": "https://www.law.cornell.edu/regulations/wyoming/061-5-Wyo-Code-R-SS-5-3",
+      "citation_url": "https://drive.google.com/uc?export=download&id=1kwzouFcKUpZffgw1u6WPaHqi_q7Ex2Z5",
       "source_url": "https://cpaboard.wyo.gov/cpe",
       "total_hours": 120,
       "period_years": 3,
@@ -814,7 +853,9 @@
       "ethics_hours": 4,
       "ethics_period_years": 3,
       "notes": "Wyoming certificate holders must complete 120 CPE credits over a rolling 3-year period once fully phased in (0 credits owed at the first renewal, 60 credits over the first 2 years at the second renewal, then 120 over 3 years at every subsequent renewal). At least 66% of required hours (80 of 120) must be in technical subject categories. Separately, all four ethics credits must be completed at least once every 3-year period, all four in the same calendar year, using a Board-approved course that includes a Wyoming statutes-and-rules element. Non-obvious trap: for a brand-new certificate holder, the 4-hour Wyoming ethics course is due within 6 months of the initial permit -- a much faster, separate deadline from the standard 3-year ethics cycle that applies afterward. Confirmed independently by the codified rule text (Chapter 5, §5-3, via Cornell LII) and the Board of CPAs' own CPE page (cpaboard.wyo.gov).",
-      "verified_date": "2026-07-20"
+      "verified_date": "2026-08-14",
+      "secondary_source_url": "https://www.law.cornell.edu/regulations/wyoming/061-5-Wyo-Code-R-SS-5-3",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Wyoming Board of CPAs publishes its own rule PDFs, linked from https://cpaboard.wyo.gov/statute-rules; the Chapter 5 PDF is the official Wyoming Administrative Rules document (header: 'Rule Type: Current Rules & Regulations, 061.0001.5.07152020, Effective Date 07/15/2020 to Current'), so board and state-rules versions agree -- no Georgia-style drift. Ch.5 Sec.3(c) confirms the 0 / 60-over-two-years / 120-over-rolling-three-years phase-in table, Sec.3(a)(i) confirms 'At least sixty-six (66%) (80 of the 120 credit requirement ...) of the credits shall be earned in ... technical learning categories', and Sec.3(c)(iv) confirms 'four credits of continuing education in regulatory/professional ethics ... all four credits must be completed in the same calendar year.' Caveat on the URL: rules.wyo.gov exposes no fetchable per-chapter URL (Search.aspx is an ASP.NET/JS postback shell with no DownloadFile links in the served HTML), and the board hosts its PDFs on Google Drive; the /uc?export=download form returns the actual PDF bytes (verified, parsed 10 pages), while the human-facing link is htt [...]"
     }
   ]
 }

@@ -143,10 +143,10 @@
       "state_slug": "idaho",
       "fee_usd": 120,
       "fee_notes": "Flat $120 annual 'Active License' fee, per the fee table in IDAPA 24.30.01, Section 400 (Fees) -- late renewal adds $100 under Section 400.03. Idaho is transitioning to biennial licensure effective May 1, 2026, at which point the same rate becomes $240 for a 2-year period -- no underlying price change, just a longer billing cycle.",
-      "source_url": "https://www.law.cornell.edu/regulations/idaho/IDAPA-24.30.01.400",
+      "source_url": "https://adminrules.idaho.gov/rules/current/24/243001.pdf",
       "confidence": "high",
       "verified_date": "2026-08-14",
-      "verification_history": "2026-08-14 (DiffLab citation audit + own re-fetch): current IDAPA 24.30.01 Section 400 fee table fetched and confirmed verbatim -- 'Active License $120', 'Late License Renewal $100' under 400.03; no Rule/Section 600 exists in the current chapter (401+ reserved). Citation corrected from the stale pre-2023 'Rule 600' reference; fee figure unchanged.\n\n2026-08-14 (COPY-5): dropped the maintainer-history parenthetical from fee_notes -- an earlier version of this record cited 'Rule 600', a pre-2023 numbering that no longer exists in the current rule chapter. The fuller account is already recorded below/here; fee_notes is reader copy."
+      "verification_history": "2026-08-14 (DiffLab citation audit + own re-fetch): current IDAPA 24.30.01 Section 400 fee table fetched and confirmed verbatim -- 'Active License $120', 'Late License Renewal $100' under 400.03; no Rule/Section 600 exists in the current chapter (401+ reserved). Citation corrected from the stale pre-2023 'Rule 600' reference; fee figure unchanged.\n\n2026-08-14 (COPY-5): dropped the maintainer-history parenthetical from fee_notes -- an earlier version of this record cited 'Rule 600', a pre-2023 numbering that no longer exists in the current rule chapter. The fuller account is already recorded below/here; fee_notes is reader copy.\n\n2026-08-14 (SRC-1 primary-source repoint): source_url mirror -> primary. Research agent evidence: IDAPA 24.30.01.400.01 fee table (effective-date stamp 7-1-25) reads 'Active License $120 (Biennial: $240)'. The published $120 annual figure is current."
     },
     {
       "id": "illinois-renewal-fee",
@@ -329,11 +329,11 @@
       "state_slug": "new-jersey",
       "fee_usd": 135,
       "fee_notes": "Flat $135 triennial (3-year) registration fee for individual CPAs. N.J.A.C. 13:29-1.5.",
-      "source_url": "https://www.law.cornell.edu/regulations/new-jersey/N-J-A-C-13-29-1-5",
+      "source_url": "https://www.njconsumeraffairs.gov/Adoptions/accado_09042018.pdf",
       "confidence": "high",
-      "verified_date": "2026-08-13",
+      "verified_date": "2026-08-14",
       "data_gap_note": "source_url points directly at the codified rule, which states the figure verbatim: \"3. Triennial registration: $ 135.00\" under (a). The board's own FAQ page was last modified in 2015 and contains no fee figures at all; the codified rule is the stronger primary source.",
-      "verification_history": "2026-08-14 (COPY-6 full-class sweep, extra): dropped \"previously cited here\" / \"used here instead\" -- narration about this record's own citation history, not reader information. For the audit trail: the record formerly cited the board FAQ page (last modified 2015, no fee figures) and now cites the codified rule, which states \"3. Triennial registration: $ 135.00\" verbatim."
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, extra): dropped \"previously cited here\" / \"used here instead\" -- narration about this record's own citation history, not reader information. For the audit trail: the record formerly cited the board FAQ page (last modified 2015, no fee figures) and now cites the codified rule, which states \"3. Triennial registration: $ 135.00\" verbatim.\n\n2026-08-14 (SRC-1 primary-source repoint): source_url mirror -> primary. Research agent evidence: Official NJ Register fee adoption 50 N.J.R. 1965(a) (eff. 9/4/2018), published by the Division of Consumer Affairs, reprints 13:29-1.5(a): '3. Triennial registration: $ 135.00'. Still current - 13:29 was readopted without amendment effective 11/26/2024 (57 N.J.R. 55(a))."
     },
     {
       "id": "new-mexico-renewal-fee",
@@ -547,9 +547,10 @@
       "state_slug": "west-virginia",
       "fee_usd": 85,
       "fee_notes": "Flat $85 annual certificate renewal fee per the codified rule; $50 late filing fee if postmarked after the June 30 deadline.",
-      "source_url": "https://www.law.cornell.edu/regulations/west-virginia/W-Va-C-S-R-SS-1-1-18",
+      "source_url": "https://www.boa.wv.gov/www/download_resource.asp?id=55",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): source_url mirror -> primary. Research agent evidence: W. Va. C.S.R. Sec. 1-1-18.2.c in the board's own current 1CSR1 publication: 'An annual certificate renewal fee of eighty-five dollars ($85.00).' Renewal deadline is June 30 annually (Sec. 7.1)."
     },
     {
       "id": "wisconsin-renewal-fee",

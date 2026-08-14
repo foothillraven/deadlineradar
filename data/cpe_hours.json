@@ -106,8 +106,9 @@
       "annual_minimum_hours": null,
       "ethics_hours": 4,
       "ethics_period_years": 2,
-      "notes": "Many third-party CPE-vendor sites cite 'Rule 1.9' or '1.10' of 3 CCR 705-1 for Colorado's CPE requirement, but that citation is incorrect -- Rule 1.9 covers professional conduct (independence, conflicts of interest), not CPE hours. The correct rule is 1.6(G)(2): a certificate holder must complete 10 hours of CPE for each full quarter of active licensure during the reporting period (10 x 8 quarters = the 80-hour, 2-year figure the Board's own page states in plain English). Rule 1.6(G)(2)(b) is the ethics sub-clause: 4 of those hours must be in ethics, of which 2 may be in Colorado-rules-and-regulations-specific content. No more than 20% of CPE may be in personal development, and no more than 50% in any combination of teaching/publishing. No explicit single-year minimum is stated -- the requirement accrues per-quarter continuously, not as a distinct annual floor like several other states in this cluster.",
-      "verified_date": "2026-07-15"
+      "notes": "Many third-party CPE-vendor sites cite 'Rule 1.9' or '1.10' of 3 CCR 705-1 for Colorado's CPE requirement, but that citation is incorrect -- Rule 1.9 covers professional conduct (independence, conflicts of interest), not CPE hours. The correct rule is 1.6(G)(2): a certificate holder must complete 10 hours of CPE for each full quarter of active licensure during the reporting period (10 x 8 quarters = the 80-hour, 2-year figure the Board's own page states in plain English). Rule 1.6(G)(2)(b) is the ethics sub-clause: 4 of those hours must be in ethics, of which 2 may be in Colorado-rules-and-regulations-specific content (CR&R). No more than 20% of CPE may be in personal development, and no more than 50% in any combination of teaching/publishing. No explicit single-year minimum is stated -- the requirement accrues per-quarter continuously, not as a distinct annual floor like several other states in this cluster.",
+      "verified_date": "2026-08-13",
+      "verification_history": "2026-08-13: re-confirmed against the full current CCR PDF (source 403s default automated fetches; needed a browser user-agent) and the board's dpo.colorado.gov/Accountancy/CPE page via a real browser. 1.6(G)(2) quarter-accrual text and (2)(b) ethics clause read verbatim as recorded; the newer Rule 1.7 (CPE) section cross-references 1.6(G)(2) as the operative hours/ethics requirement, so the existing citation remains correct."
     },
     {
       "id": "ct-cpe",
@@ -235,16 +236,17 @@
       "id": "in-cpe",
       "state": "Indiana",
       "state_slug": "indiana",
-      "citation": "872 IAC 1-3",
-      "citation_url": "https://www.law.cornell.edu/regulations/indiana/title-872/article-1/rule-872-IAC-1-3",
+      "citation": "872 IAC 1-3-3(a), (d), (e)",
+      "citation_url": "https://iar.iga.in.gov/code/current/872/1",
       "source_url": "https://www.in.gov/pla/professions/accountancy-home/",
       "total_hours": 120,
       "period_years": 3,
       "annual_minimum_hours": 20,
       "ethics_hours": 4,
       "ethics_period_years": 3,
-      "notes": "120 hours per 3-year reporting period, minimum 20 hours per year, per the codified rule (872 IAC 1-3). The 4-hour ethics figure is consistently corroborated across multiple independent sources, though the exact ethics-specific subsection could not be pinned down (872 IAC 1-3 spans roughly 25 numbered subsections, and its table of contents doesn't isolate the ethics clause by number). The citation here is given at the 872 IAC 1-3 article level rather than a more granular subsection, the same level of precision used for New York's citation, to avoid overstating precision beyond what could be independently confirmed. (source_url updated 2026-08-03: the board's old CPE-specific FAQ page is gone in the site's redesign; the current Accountancy Home page is the live replacement, though it no longer republishes this FAQ's specific figures itself -- confirmed via the codified rule instead.)",
-      "verified_date": "2026-07-15"
+      "notes": "120 hours per 3-year reporting period ending December 31 prior to certificate expiration, minimum 20 hours per year -- both stated in 872 IAC 1-3-3(e). 4 hours of ethics CPE per reporting period -- 872 IAC 1-3-3(d). A minimum of 10% of required hours must be in accounting and/or auditing (1-3-3(c)).",
+      "verified_date": "2026-08-13",
+      "verification_history": "2026-08-13: precision upgrade -- the ethics subsection this record previously said 'could not be pinned down' (old citation was at the whole-rule '872 IAC 1-3' level) is exactly 1-3-3(d), confirmed by reading the full current section text on Indiana's own official IARP site (iar.iga.in.gov, a JS-only app readable in a real browser but not via plain HTTP fetches -- why earlier verification passes could never reach it). citation_url updated to the official IARP article page; the old Cornell/LII mirror URL only served a table of contents without section text."
     },
     {
       "id": "ia-cpe",
@@ -409,8 +411,9 @@
       "annual_minimum_hours": 40,
       "ethics_hours": 2,
       "ethics_period_years": 1,
-      "notes": "Effective 2020-01-01: 40 hours of CPE every calendar year a license is held, minimum 2 hours ethics. Rule (1)(A) preserves the pre-2020 120-hours/3-year/6-ethics-hours standard as historical context only — the current, governing requirement is (1)(B).",
-      "verified_date": "2026-07-15"
+      "notes": "Effective 2020-01-01: 40 hours of CPE every calendar year a license is held, minimum 2 hours ethics. Rule (1)(A) preserves the pre-2020 120-hours/3-year/6-ethics-hours standard as historical context only -- the current, governing requirement is (1)(B). Since 2021, licensees in good standing get a grace period through March 1 to cure a prior calendar year's CPE shortage on written application to the board (rule (1)(C)).",
+      "verified_date": "2026-08-13",
+      "verification_history": "2026-08-13: re-confirmed against the current Missouri CSR PDF itself (edition dated 7/31/24, fetched with a browser user-agent and parsed locally -- the PDF defeats plain fetch+parse tooling, why earlier re-verification passes failed): (1)(B) reads verbatim 'no less than forty (40) hours of qualifying CPE each calendar year... A minimum of two (2) hours of the required forty (40) hours of CPE shall be in the area of ethics.'"
     },
     {
       "id": "mt-cpe",

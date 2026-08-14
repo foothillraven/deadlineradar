@@ -65,6 +65,8 @@
       --panel-dark: #0d1824; --panel-dark-fg: #dbe6ef;
       --gold: #d6b45a; --gold-line: #8a6d1f; --gold-bg: #26210f;
       --verified-green: #4fd685; --verified-green-bg: rgba(52,199,120,0.12);
+      
+      --stale-red: #ef6b6b; --stale-red-bg: rgba(239,107,107,0.12);
       --trust-bg: #26210f; --trust-border: #5a4a20; --row-alt: #171b21;
       --map-fixed: #2c4a72; --map-fixed-hover: #7fb0ff;
       --map-variable: #262b32; --map-variable-hover: #545e6c;
@@ -310,6 +312,15 @@
   }
   .sheethead .stamp--unconfirmed { color: var(--gold); }
   .sheethead .stamp--unconfirmed .dot { background: var(--gold); box-shadow: 0 0 0 3px var(--gold-bg); }
+  
+  .dr-seal { float: right; width: 7.25rem; height: 7.25rem; margin: 0.2rem 0 0.6rem 1.2rem; }
+  .dr-seal svg { width: 100%; height: 100%; display: block; }
+  .dr-seal .dr-seal-stale { display: none; }
+  .dr-seal.is-stale .dr-seal-ok { display: none; }
+  .dr-seal.is-stale .dr-seal-stale { display: block; }
+  .dr-seal--report { float: none; margin: 0 0 0.75rem; }
+  @media (max-width: 640px) { .dr-seal { width: 6rem; height: 6rem; margin-left: 0.8rem; } }
+  @media print { .dr-seal--report { width: 6.5rem; height: 6.5rem; } }
   .rowlist { display: flex; flex-direction: column; }
   
   .frow {
@@ -1747,5 +1758,6 @@ link to the board page and codified rule, per our
 <script>(function(){if(!document.documentElement.classList.contains("js-reveal"))return;var els=document.querySelectorAll(".dr-reveal");if(!els.length)return;var obs=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting){entry.target.classList.add("dr-reveal--visible");obs.unobserve(entry.target)}})},{threshold:.15,rootMargin:"0px 0px -40px 0px"});els.forEach(function(el){obs.observe(el)})})();</script>
 <script>(function(){var wraps=document.querySelectorAll(".table-wrap");if(!wraps.length)return;function atEnd(wrap){return wrap.scrollLeft+wrap.clientWidth>=wrap.scrollWidth-1}function canScroll(wrap){var overflowX=window.getComputedStyle(wrap).overflowX;return overflowX==="auto"||overflowX==="scroll"}function update(){wraps.forEach(function(wrap){var hasOverflow=canScroll(wrap)&&wrap.scrollWidth>wrap.clientWidth+1;wrap.classList.toggle("dr-scrollable",hasOverflow&&!atEnd(wrap))})}update();window.addEventListener("resize",update);wraps.forEach(function(wrap){wrap.addEventListener("scroll",function(){wrap.classList.toggle("dr-scrollable",!atEnd(wrap))})})})();</script>
 <script>(function(){var marks=document.querySelectorAll("[data-verified]");if(!marks.length)return;var RUNTIME_STALE_DAYS=45;var now=new Date;marks.forEach(function(el){var iso=el.getAttribute("data-verified");if(!/^\d{4}-\d{2}-\d{2}$/.test(iso))return;var then=new Date(iso+"T00:00:00Z");if(isNaN(then.getTime()))return;var ageDays=(now-then)/864e5;if(ageDays<=RUNTIME_STALE_DAYS)return;var note=document.createElement("span");note.className="verified-stale-note";note.textContent=" · re-verification overdue — confirm with the state board";el.appendChild(note);el.classList.add("verified-stale")})})();</script>
+<script>(function(){var SEAL_STALE_DAYS=30;function drSealEvaluate(root){var seals=(root||document).querySelectorAll(".dr-seal[data-verified]");for(var i=0;i<seals.length;i++){var el=seals[i];var iso=el.getAttribute("data-verified");if(!iso)continue;var then=new Date(iso+"T00:00:00");if(isNaN(then.getTime()))continue;var days=Math.floor((Date.now()-then.getTime())/864e5);var stale=days>SEAL_STALE_DAYS;if(stale!==el.classList.contains("is-stale")){el.classList.toggle("is-stale",stale);el.setAttribute("aria-label",(stale?"Data re-verification needed - last verified ":"Verified source - last verified ")+iso)}}}window.drSealEvaluate=drSealEvaluate;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",function(){drSealEvaluate()})}else{drSealEvaluate()}})();</script>
 </body>
 </html>

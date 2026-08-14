@@ -463,6 +463,9 @@ PAGE_CSS = """
       --panel-dark: #0d1824; --panel-dark-fg: #dbe6ef;
       --gold: #d6b45a; --gold-line: #8a6d1f; --gold-bg: #26210f;
       --verified-green: #4fd685; --verified-green-bg: rgba(52,199,120,0.12);
+      /* Seal stale-red, brightened for dark ground -- same pattern as
+         --verified-green's own brighter dark value above. */
+      --stale-red: #ef6b6b; --stale-red-bg: rgba(239,107,107,0.12);
       --trust-bg: #26210f; --trust-border: #5a4a20; --row-alt: #171b21;
       --map-fixed: #2c4a72; --map-fixed-hover: #7fb0ff;
       --map-variable: #262b32; --map-variable-hover: #545e6c;
@@ -796,6 +799,21 @@ PAGE_CSS = """
   }
   .sheethead .stamp--unconfirmed { color: var(--gold); }
   .sheethead .stamp--unconfirmed .dot { background: var(--gold); box-shadow: 0 0 0 3px var(--gold-bg); }
+  /* Engraved verification seal (Devin-approved final design, 2026-08-14).
+     Two SVG states are emitted per seal; CSS shows exactly one, and
+     _SEAL_RUNTIME_JS toggles .is-stale at VIEW time (30-day threshold) so
+     an already-deployed page can't show a fresh seal on stale data --
+     same build-time-can't-know-view-time architecture as
+     _STALE_BADGE_RUNTIME_JS, deliberately a separate component with a
+     deliberately separate threshold (30 vs that one's 45). */
+  .dr-seal { float: right; width: 7.25rem; height: 7.25rem; margin: 0.2rem 0 0.6rem 1.2rem; }
+  .dr-seal svg { width: 100%; height: 100%; display: block; }
+  .dr-seal .dr-seal-stale { display: none; }
+  .dr-seal.is-stale .dr-seal-ok { display: none; }
+  .dr-seal.is-stale .dr-seal-stale { display: block; }
+  .dr-seal--report { float: none; margin: 0 0 0.75rem; }
+  @media (max-width: 640px) { .dr-seal { width: 6rem; height: 6rem; margin-left: 0.8rem; } }
+  @media print { .dr-seal--report { width: 6.5rem; height: 6.5rem; } }
   .rowlist { display: flex; flex-direction: column; }
   /* Both tracks are minmax(0,...) on purpose: a grid track's automatic minimum
      is min-content, which lets an un-wrappable child dictate the whole row. */
@@ -3803,6 +3821,7 @@ def page_shell(
 {_SCROLL_REVEAL_BODY_JS}
 {_TABLE_SCROLL_HINT_JS}
 {_STALE_BADGE_RUNTIME_JS}
+{_SEAL_RUNTIME_JS}
 </body>
 </html>
 """
@@ -4002,6 +4021,125 @@ def _verified_badge_html(record: dict) -> str:
     # caveat (FRESH-1 residual) -- see that constant's own comment.
     dv_attr = f' data-verified="{esc(last_verified)}"' if last_verified else ""
     return f'<span class="verified-badge"{dv_attr}>{label}</span>'
+
+
+_SEAL_STALE_DAYS = 30
+_seal_uid_counter = [0]
+
+
+def _seal_date_text(iso_date: str) -> str:
+    """'2026-08-13' -> 'AUG 13 2026', the approved seal's date format."""
+    d = date.fromisoformat(iso_date)
+    return d.strftime("%b %d %Y").upper()
+
+
+def _seal_svg(kind: str, date_text: str, uid: str) -> str:
+    """One seal face, lifted verbatim from the Devin-approved artifact
+    (60c23a1e): rings r46/r34, concentric arc paths r36 top / r31 bottom,
+    the exact remaining 8 tick coordinates (top cluster and bottom-center
+    cluster deleted under the enlarged arc text -- copied, not recomputed,
+    per the approval note), and the working startOffset values (52% top /
+    51.5% bottom -- NOT 50%: letter-spacing on an SVG textPath adds a
+    trailing space after the last glyph that skews text-anchor:middle).
+    Path ids are per-instance (uid) so two seals on one page can't
+    cross-reference each other's defs."""
+    if kind == "ok":
+        color, arc_text, arc_fs, arc_ls = "var(--verified-green)", "VERIFIED SOURCE", "9", "1.4"
+        icon = ('<path d="M34 47 L45 58 L66 31" fill="none" stroke="var(--verified-green)" '
+                'stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>')
+    else:
+        color, arc_text, arc_fs, arc_ls = "var(--stale-red)", "RE-VERIFY NEEDED", "8.4", "0.9"
+        icon = ('<path d="M50 20 L50 46" stroke="var(--stale-red)" stroke-width="5.2" stroke-linecap="round"/>'
+                '<circle cx="50" cy="55" r="3" fill="var(--stale-red)"/>')
+    date_y = "69" if kind == "ok" else "70"
+    ticks = "".join(
+        f'<line x1="{a}" y1="{b}" x2="{c}" y2="{d}"/>' for a, b, c, d in [
+            ("93", "47", "90", "47"), ("93", "53", "90", "53"),
+            ("84.6", "72.6", "81.4", "71.2"), ("75.6", "84.2", "73.2", "82"),
+            ("24.4", "84.2", "26.8", "82"), ("15.4", "72.6", "18.6", "71.2"),
+            ("7", "53", "10", "53"), ("7", "47", "10", "47"),
+        ]
+    )
+    return (
+        f'<svg viewBox="0 0 100 100" class="dr-seal-{kind}" aria-hidden="true">'
+        f'<defs>'
+        f'<path id="sT{uid}{kind}" d="M 14 50 A 36 36 0 0 1 86 50" fill="none"/>'
+        f'<path id="sB{uid}{kind}" d="M 26.3 69.9 A 31 31 0 0 0 73.7 69.9" fill="none"/>'
+        f'</defs>'
+        f'<circle cx="50" cy="50" r="46" fill="none" stroke="{color}" stroke-width="1.6"/>'
+        f'<circle cx="50" cy="50" r="34" fill="none" stroke="{color}" stroke-width="1"/>'
+        f'<text font-size="{arc_fs}" font-weight="700" letter-spacing="{arc_ls}" fill="{color}">'
+        f'<textPath href="#sT{uid}{kind}" startOffset="52%" text-anchor="middle">{arc_text}</textPath></text>'
+        f'{icon}'
+        f'<text x="50" y="{date_y}" font-size="5.4" font-weight="650" letter-spacing="0.6" fill="{color}" '
+        f'text-anchor="middle" font-variant-numeric="tabular-nums" class="dr-seal-date">{esc(date_text)}</text>'
+        f'<text font-size="4.6" font-weight="650" letter-spacing="0.4" fill="var(--faint)">'
+        f'<textPath href="#sB{uid}{kind}" startOffset="51.5%" text-anchor="middle">DEADLINERADAR</textPath></text>'
+        f'<g stroke="{color}" stroke-width="1" opacity="0.6">{ticks}</g>'
+        f'</svg>'
+    )
+
+
+def _seal_html(last_verified: str | None, extra_class: str = "", hidden: bool = False) -> str:
+    """The engraved verification seal. Emits BOTH faces; the container class
+    (server-set from build-date age, then re-evaluated at view time by
+    _SEAL_RUNTIME_JS) decides which one shows. last_verified None -> the
+    dashboard's runtime-fed variant: emitted hidden with no date, stamped
+    and revealed by the dashboard JS once data_as_of arrives."""
+    _seal_uid_counter[0] += 1
+    uid = str(_seal_uid_counter[0])
+    if last_verified:
+        age = (date.today() - date.fromisoformat(last_verified)).days
+        stale = age > _SEAL_STALE_DAYS
+        date_text = _seal_date_text(last_verified)
+        dv = f' data-verified="{esc(last_verified)}"'
+        label = ("Data re-verification needed - last verified " if stale else "Verified source - last verified ") + esc(last_verified)
+    else:
+        stale = False
+        date_text = ""
+        dv = ' data-verified=""'
+        label = "Verification seal"
+    cls = "dr-seal" + (" is-stale" if stale else "") + ((" " + extra_class) if extra_class else "")
+    hid = " hidden" if hidden else ""
+    return (
+        f'<div class="{cls}"{dv} role="img" aria-label="{label}"{hid}>'
+        + _seal_svg("ok", date_text, uid)
+        + _seal_svg("stale", date_text, uid)
+        + '</div>'
+    )
+
+
+_SEAL_RUNTIME_JS = """<script>
+(function () {
+  // View-time evaluation for the engraved seal -- a page built fresh can be
+  // VIEWED weeks later, so the build-time state is only an initial guess.
+  // 30-day threshold per Devin's spec for this component; deliberately NOT
+  // unified with the small badge's 45-day text caveat (flagged, confirmed
+  // as separate thresholds by design pending his say-so otherwise).
+  var SEAL_STALE_DAYS = 30;
+  function drSealEvaluate(root) {
+    var seals = (root || document).querySelectorAll('.dr-seal[data-verified]');
+    for (var i = 0; i < seals.length; i++) {
+      var el = seals[i];
+      var iso = el.getAttribute('data-verified');
+      if (!iso) continue;
+      var then = new Date(iso + 'T00:00:00');
+      if (isNaN(then.getTime())) continue;
+      var days = Math.floor((Date.now() - then.getTime()) / 86400000);
+      var stale = days > SEAL_STALE_DAYS;
+      if (stale !== el.classList.contains('is-stale')) {
+        el.classList.toggle('is-stale', stale);
+        el.setAttribute('aria-label',
+          (stale ? 'Data re-verification needed - last verified ' : 'Verified source - last verified ') + iso);
+      }
+    }
+  }
+  window.drSealEvaluate = drSealEvaluate;
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { drSealEvaluate(); });
+  } else { drSealEvaluate(); }
+})();
+</script>"""
 
 
 _CITE_ICON_SVG = (
@@ -4587,7 +4725,7 @@ def build_state_page(
         firm_landing_slugs_by_state.get(state_slug) if firm_landing_slugs_by_state else None,
         renewal_fees_by_slug.get(state_slug) if renewal_fees_by_slug else None,
     )
-    body = f"""<h1>{esc(title)}</h1>
+    body = f"""{_seal_html(last_verified)}<h1>{esc(title)}</h1>
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
 {deadline_html}
 {trust_line(last_verified, source_url, all(_record_fully_cited(r) for r in records))}
@@ -13474,6 +13612,26 @@ function drLoadLicenses() {
       drRenderFirmName(data.firm_name);
       drRenderCurrentEmail(data.admin_email);
       drRenderStalenessBanner(data.data_as_of, data.data_stale);
+      // Engraved seal on the Reports tab (2026-08-14): stamp the seal with
+      // the dataset's as-of date, fill both faces' date text, unhide, and
+      // let the shared view-time evaluator pick the face. Server emits it
+      // hidden with an empty data-verified because build time can't know
+      // this firm's data_as_of.
+      (function () {
+        var seal = document.querySelector('.dr-seal--report');
+        if (!seal || !data.data_as_of) return;
+        var iso = String(data.data_as_of).slice(0, 10);
+        seal.setAttribute('data-verified', iso);
+        var d = new Date(iso + 'T00:00:00');
+        if (!isNaN(d.getTime())) {
+          var MON = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+          var txt = MON[d.getMonth()] + ' ' + String(d.getDate()).padStart(2, '0') + ' ' + d.getFullYear();
+          var dates = seal.querySelectorAll('.dr-seal-date');
+          for (var i = 0; i < dates.length; i++) dates[i].textContent = txt;
+        }
+        seal.hidden = false;
+        if (window.drSealEvaluate) window.drSealEvaluate(seal.parentNode);
+      })();
       drRenderDemoBanner(Boolean(data.demo_locked));
       drRenderAccountLockdown();
       // Task #19 (2026-08-06): one-time post-signup feature-request prompt.
@@ -16812,6 +16970,7 @@ def build_firm_dashboard_page(
         <button type="button" class="dr-btn-edit" id="dr-report-print-btn">Print / Save as PDF</button>
         <button type="button" class="dr-btn-edit" id="dr-report-csv-btn">Download CSV</button>
       </div>
+      {_seal_html(None, extra_class="dr-seal--report", hidden=True)}
       <div id="dr-report-body"><p class="dr-panel-empty">Loading&hellip;</p></div>
 
       <h2>Audit trail</h2>

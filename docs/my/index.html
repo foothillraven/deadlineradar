@@ -1651,7 +1651,10 @@
 
     <form id="dr-my-email-form">
       <label for="dr-my-email-input">Change your email address</label>
-      <input type="email" id="dr-my-email-input" required placeholder="you@example.com">
+      <!-- autocomplete off for the same reason as dr-new-email on the firm
+           Account page: this asks for a NEW address, and browser autofill
+           supplies the current one, which the server can only reject. -->
+      <input type="email" id="dr-my-email-input" required autocomplete="off" placeholder="you@example.com">
       <button type="submit">Send confirmation link</button>
     </form>
     <p class="field-hint">We'll email a confirmation link to the new address before anything

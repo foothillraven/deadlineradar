@@ -8793,7 +8793,10 @@ def build_my_page(cpe_hours_by_slug: dict[str, dict]) -> str:
 
     <form id="dr-my-email-form">
       <label for="dr-my-email-input">Change your email address</label>
-      <input type="email" id="dr-my-email-input" required placeholder="you@example.com">
+      <!-- autocomplete off for the same reason as dr-new-email on the firm
+           Account page: this asks for a NEW address, and browser autofill
+           supplies the current one, which the server can only reject. -->
+      <input type="email" id="dr-my-email-input" required autocomplete="off" placeholder="you@example.com">
       <button type="submit">Send confirmation link</button>
     </form>
     <p class="field-hint">We'll email a confirmation link to the new address before anything
@@ -16841,7 +16844,13 @@ def build_firm_dashboard_page(
         click it there.</p>
         <form id="dr-change-email-form" method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/change-email">
           <label for="dr-new-email">New email address</label>
-          <input type="email" id="dr-new-email" name="new_email" required autocomplete="email">
+          <!-- autocomplete is deliberately off, not "email": this field wants an
+               address DIFFERENT from the one on file, and Chrome's saved-profile
+               autofill puts the CURRENT one in it (observed live on the Account
+               page, prefilled with the signed-in address). The server correctly
+               rejects that with "That's already your email address." -- so the
+               only thing the autofill can produce is a guaranteed error. -->
+          <input type="email" id="dr-new-email" name="new_email" required autocomplete="off">
           <label for="dr-change-email-current-password">Current password <span class="field-hint">(leave blank if you've never set one)</span></label>
           <input type="password" id="dr-change-email-current-password" name="current_password" autocomplete="current-password">
           <button type="submit">Send confirmation link</button>

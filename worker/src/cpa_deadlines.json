@@ -61,12 +61,13 @@
       "renewal_pattern": "fixed_calendar",
       "cycle_description": "Firm licenses expire November 30, on a 3-year cycle (68 Ill. Admin. Code 1420.80(b)) -- the same rule section that governs individual renewals, just a different subsection. The rule codifies the recurring month/day and the 3-year interval, but does not itself pin a specific anchor year for the firm track.",
       "source_url": "https://www.ilga.gov/commission/jcar/admincode/068/068014200000800R.html",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 1,
       "next_deadline_computed": "2027-11-30",
       "citation": "Confirmed via Illinois IDFPR's public open-data license register (data.illinois.gov, dataset pzzh-kp68): active \"Public Accountant Firm License\" records show expiration 11/30/2027, unchanged from the 2026-07-17 check and confirmed again 2026-07-30.",
-      "citation_url": "https://data.illinois.gov/resource/pzzh-kp68.json?description=PUBLIC%20ACCOUNTANT%20FIRM%20LICENSE&license_status=ACTIVE",
-      "citation_class": "operational_record"
+      "citation_url": "https://data.illinois.gov/d/pzzh-kp68",
+      "citation_class": "operational_record",
+      "verification_history": "2026-08-14 (raw-JSON citation link, reported live by Devin): citation_url pointed at the Socrata API endpoint (https://data.illinois.gov/resource/pzzh-kp68.json?description=PUBLIC%20ACCOUNTANT%20FIRM%20LICENSE&license_status=ACTIVE) -- clicking the citation dumped a wall of raw JSON containing other licensees' names, cities and license numbers, with no page chrome. Swapped to the dataset's human-facing view page, verified in a real browser before committing: it renders the \"Professional Licensing\" dataset page with description, update cadence and provenance metadata, and lands on the About tab rather than the record table -- so the citation now shows a visitor WHAT was sampled and by whom, instead of dumping the sample itself. citation_class stays operational_record and the empirical-sampling prose is unchanged; only the link moved."
     },
     {
       "id": "pa-individual",
@@ -524,11 +525,12 @@
       "cycle_description": "Biennial, synchronized statewide (not cohort/anniversary-based). The Colorado Board of Accountancy (dpo.colorado.gov/Accountancy) states: 'All Certified Public Accountant (CPA) Certificates expire on November 30 of odd-numbered years.' Applies uniformly regardless of original issuance date, except new applicants issued within 120 days of the upcoming expiration are bumped to the following cycle's date. Renewal window opens approximately 4-5 weeks before the November 30 deadline. CPE reporting period runs January 1 of an even year through December 31 of the following odd year (80 hours total); the CPE completion due date (Dec 31 of the odd year) falls about a month after the certificate's own Nov 30 renewal date in that same year.",
       "next_deadline_computed": "2027-11-30",
       "source_url": "https://dpo.colorado.gov/Accountancy/Applications",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 4,
       "citation": "Confirmed via Colorado Information Marketplace open-data register (data.colorado.gov, dataset jzq6-fyp7, \"CPA All Status\"): sampled active individual licenses with issue dates spanning 1977-2026 uniformly show expiration 11/30/2027 -- verified 2026-07-30.",
-      "citation_url": "https://data.colorado.gov/resource/jzq6-fyp7.json?licensestatusdescription=Active",
-      "citation_class": "operational_record"
+      "citation_url": "https://data.colorado.gov/d/jzq6-fyp7",
+      "citation_class": "operational_record",
+      "verification_history": "2026-08-14 (raw-JSON citation link, reported live by Devin): citation_url pointed at the Socrata API endpoint (https://data.colorado.gov/resource/jzq6-fyp7.json?licensestatusdescription=Active) -- clicking the citation dumped a wall of raw JSON containing other licensees' names, cities and license numbers, with no page chrome. Swapped to the dataset's human-facing view page, verified in a real browser before committing: it renders the \"CPA All Status\" dataset page with description, update cadence and provenance metadata, and lands on the About tab rather than the record table -- so the citation now shows a visitor WHAT was sampled and by whom, instead of dumping the sample itself. citation_class stays operational_record and the empirical-sampling prose is unchanged; only the link moved."
     },
     {
       "id": "co-firm",
@@ -546,11 +548,12 @@
         "note": "Expires August 31 every 3 years for all firm registrations board-wide; next occurrence would be one of 2026-08-31, 2027-08-31, or 2028-08-31 depending on the (unconfirmed) anchor year of the cycle."
       },
       "source_url": "https://dpo.colorado.gov/Accountancy/Applications",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-14",
       "wave": 4,
       "citation": "Confirmed via Colorado Information Marketplace open-data register (data.colorado.gov, dataset 7s5z-vewr): a currently-active firm's live record shows expiration 8/31/2026, while newly-registered 2026 firms are placed on the next cohort, 8/31/2029 -- verified 2026-07-30.",
-      "citation_url": "https://data.colorado.gov/resource/7s5z-vewr.json?licensetype=FRM",
-      "citation_class": "operational_record"
+      "citation_url": "https://data.colorado.gov/d/7s5z-vewr",
+      "citation_class": "operational_record",
+      "verification_history": "2026-08-14 (raw-JSON citation link, reported live by Devin): citation_url pointed at the Socrata API endpoint (https://data.colorado.gov/resource/7s5z-vewr.json?licensetype=FRM) -- clicking the citation dumped a wall of raw JSON containing other licensees' names, cities and license numbers, with no page chrome. Swapped to the dataset's human-facing view page, verified in a real browser before committing: it renders the \"Professional and Occupational Licenses in Colorado\" dataset page with description, update cadence and provenance metadata, and lands on the About tab rather than the record table -- so the citation now shows a visitor WHAT was sampled and by whom, instead of dumping the sample itself. citation_class stays operational_record and the empirical-sampling prose is unchanged; only the link moved."
     },
     {
       "id": "az-individual",

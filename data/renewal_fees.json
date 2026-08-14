@@ -142,10 +142,11 @@
       "state": "Idaho",
       "state_slug": "idaho",
       "fee_usd": 120,
-      "fee_notes": "Flat $120 annual \"Active License\" fee. IDAPA 24.30.01 Rule 600. Idaho is transitioning to biennial licensure effective May 1, 2026, at which point the same rate becomes $240 for a 2-year period -- no underlying price change, just a longer billing cycle.",
-      "source_url": "https://dopl.idaho.gov/wp-content/uploads/2022/06/Accountancy-6.13.22.pdf",
+      "fee_notes": "Flat $120 annual 'Active License' fee, per the fee table in IDAPA 24.30.01, Section 400 (Fees) -- late renewal adds $100 under Section 400.03. (An earlier version of this record cited 'Rule 600', a pre-2023 numbering that no longer exists in the current rule chapter.) Idaho is transitioning to biennial licensure effective May 1, 2026, at which point the same rate becomes $240 for a 2-year period -- no underlying price change, just a longer billing cycle.",
+      "source_url": "https://www.law.cornell.edu/regulations/idaho/IDAPA-24.30.01.400",
       "confidence": "high",
-      "verified_date": "2026-08-11"
+      "verified_date": "2026-08-14",
+      "verification_history": "2026-08-14 (DiffLab citation audit + own re-fetch): current IDAPA 24.30.01 Section 400 fee table fetched and confirmed verbatim -- 'Active License $120', 'Late License Renewal $100' under 400.03; no Rule/Section 600 exists in the current chapter (401+ reserved). Citation corrected from the stale pre-2023 'Rule 600' reference; fee figure unchanged."
     },
     {
       "id": "illinois-renewal-fee",

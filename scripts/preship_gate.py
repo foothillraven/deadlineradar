@@ -578,6 +578,21 @@ _DERIVED_FEE_CHECKS: list[dict] = [
         "terms": [("renewal + 100% penalty", 2.0, 0)],
     },
     {
+        "state": "california", "field": "reinstatement_fee_notes",
+        "why": "Bus. & Prof. Code 163.5 sets the delinquency fee at 50% of the renewal fee",
+        "terms": [("50% delinquency fee", 0.5, 0)],
+    },
+    {
+        "state": "idaho", "field": "reinstatement_fee_notes",
+        "why": "IDAPA 24.30.01.400 sums the unpaid license fees for the preceding 3 cycles",
+        "terms": [("3-cycle representative case", 3.0, 0)],
+    },
+    {
+        "state": "vermont", "field": "reinstatement_fee_notes",
+        "why": "3 V.S.A. 127(d)(1): renewal fee plus a $100 flat penalty within 30 days",
+        "terms": [("renewal + $100 flat penalty", 1.0, 100)],
+    },
+    {
         "state": "south-carolina", "field": "reinstatement_fee_notes",
         # Registered 2026-08-14 when CITE-21 #6 closed: the field now carries
         # the codified $500 and the prose quotes the $595 total ($95 renewal +

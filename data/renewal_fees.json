@@ -481,11 +481,13 @@
       "id": "texas-renewal-fee",
       "state": "Texas",
       "state_slug": "texas",
-      "fee_usd": 118,
-      "fee_notes": "Flat $118 annual individual license fee (includes a $10 scholarship fee), effective September 1, 2025 (up from $112). The Board raises this fee annually by resolution -- worth re-verifying near each September 1.",
+      "fee_usd": 112,
+      "fee_notes": "Flat $112 annual individual license fee (includes a $10 scholarship fee), effective September 1, 2024, per the Board's own announcement. The Board sets this fee by resolution and has raised it in past years, so confirm the current amount with TSBPA before you pay.",
       "source_url": "https://www.tsbpa.texas.gov/news/individual-license-fee-increase/",
-      "confidence": "high",
-      "verified_date": "2026-08-11"
+      "confidence": "medium",
+      "verified_date": "2026-08-14",
+      "data_gap_note": "$112 is the most recent figure the Board itself has published. We could not confirm whether a further increase took effect on September 1, 2025: TSBPA publishes a news notice for each fee change (2017, 2019 and 2024 all have one) and no 2025 notice exists, but the Board's fee schedule is not independently readable -- the Texas Administrative Code host has migrated to a portal we could not retrieve 22 TAC 521.1 from, and tsbpa.texas.gov blocks automated requests. Treat $112 as the last confirmed rate rather than a guaranteed current one.",
+      "verification_history": "2026-08-14 (CITE-21 #1): corrected fee_usd 118 -> 112. The record claimed a flat $118 effective 2025-09-01, but its own cited source -- the Board's 'Individual License Fee Increase' notice, dated August 12, 2024 -- says the fee rises from $97 to $112 effective September 1, 2024 and never mentions $118. Checked for a later basis and found none: no 2025 fee-increase news item on tsbpa.texas.gov, no fee change in the May 2025 board minutes, no $118 or $112 in the FY2025 annual financial report, and a web-wide search for TSBPA + \"$118\" individual license fee returns zero results. 22 TAC 521.1 could not be read directly: texreg.sos.state.tx.us has migrated to an Appian portal. $118 appears to have been unsourced. Downgraded confidence high -> medium and added a data_gap_note rather than substituting a second guess."
     },
     {
       "id": "us-virgin-islands-renewal-fee",

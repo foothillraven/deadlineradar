@@ -89,11 +89,12 @@
       "penalty_cpe_notes": "For a lapse of 1+ years: 120 hours of approved CE completed in the 36 months preceding the reinstatement application (vs. the normal 80 hours/2 years) -- no more than 16 of those hours may be micro-learning. A lapse under 1 year requires no extra CE beyond normal compliance.",
       "penalty_ethics_hours": 4,
       "lapse_trigger": "Licenses are biennial, expiring December 31 of odd-numbered years regardless of issuance date. Missing that deadline lapses the license immediately; a $100 delayed-renewal penalty attaches once the lapse exceeds 60 days.",
-      "citation": "12 AAC 04.440(a)-(f) (Reinstatement of Lapsed License); fee amounts at 12 AAC 02.340(4),(12),(13); license-term backdrop at 12 AAC 04.189",
+      "citation": "12 AAC 04.440(a)-(f) (Reinstatement of Lapsed License); fee amounts at 12 AAC 02.340(4),(13); license-term backdrop at 12 AAC 04.189",
       "citation_url": "https://www.law.cornell.edu/regulations/alaska/12-AAC-02.340",
       "source_url": "https://www.commerce.alaska.gov/web/cbpl/ProfessionalLicensing/BoardofPublicAccountancy.aspx",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "verification_history": "2026-08-14 (CITE-21 #2, audit finding NOT sustained): the audit reported that cited 12 AAC 02.340 contains no $400 individual reinstatement and that its subsections sum to $550. Read both rules directly (Cornell LII). 12 AAC 02.340(4) is the CPA biennial active license renewal fee, $300; (13) is the delayed renewal penalty fee, $100. 12 AAC 04.440(a) directs precisely those two for a license lapsed under one year and more than 60 days -- so $400 is the total the reinstatement rule actually produces, which is what this record's notes already show as arithmetic rather than as a single line item. The $400 figures the audit found in 02.340 are (8) and (9), both FIRM fees, unrelated. The $550 sum adds (12) license reactivation, $150, which applies to reactivating an INACTIVE license, not to reinstating a lapsed one -- 04.440 never calls for it. Fee and notes left unchanged. One real correction did come out of this: the citation listed subsection (12), which is not part of this determination, and has been dropped."
     },
     {
       "id": "arizona-reinstatement",
@@ -254,7 +255,8 @@
       "citation_url": "https://cca.hawaii.gov/wp-content/uploads/2026/02/HAR-16-71-C_1121.pdf",
       "source_url": "https://cca.hawaii.gov/pvl/boards/accountancy/",
       "last_verified": "2026-07-25",
-      "data_gap_note": "The $204/$360/$128 fee figures are confirmed only on the Board's own page -- HAR Chapter 71 defers the actual renewal/restoration fee amounts to a separate fee-schedule chapter (16-53) that could not be located at a working URL. Treat the dollar figures as board-confirmed but not yet codified-rule-confirmed until that chapter is located and cited directly."
+      "data_gap_note": "The $204/$360/$128 fee figures are confirmed only on the Board's own page -- HAR Chapter 71 defers the actual renewal/restoration fee amounts to a separate fee-schedule chapter (16-53) that could not be located at a working URL. Treat the dollar figures as board-confirmed but not yet codified-rule-confirmed until that chapter is located and cited directly.",
+      "verification_history": "2026-08-14 (CITE-21 #3, already-disclosed): the audit reported that cited HAR 16-71 is the CPE chapter and carries no fee schedule, so $204 is unsupported by its citation. That is true and this record's own data_gap_note already says it -- the citation field describes 16-71 as biennial renewal plus deficiency/carryover and never claims it supports the dollar figure. Attempted to CLOSE the gap this pass and failed; recording the dead ends so they are not repeated: cca.hawaii.gov/pvl/files/2013/08/HAR-16-53.pdf returns 404 (with a 128KB error body, so check the status not the size), files.hawaii.gov/dcca/pvl/har/har_16-53.pdf 404s, cca.hawaii.gov/pvl/har/ redirects to an unrelated acupuncture hearing notice, and a web search for Hawaii 'chapter 16-53' accountancy fees returns nothing on point -- so the '16-53' chapter number recorded in the gap note is itself unconfirmed and may be wrong. Next attempt should start from HRS 466 and the DCCA Compliance Resolution Fund fee authority rather than from a guessed HAR chapter number. Fee left as board-page-confirmed."
     },
     {
       "id": "idaho-reinstatement",
@@ -762,7 +764,7 @@
       "state": "Texas",
       "state_slug": "texas",
       "reinstatement_fee_usd": null,
-      "reinstatement_fee_notes": "No flat fee -- a tiered multiplier of the base renewal fee under 22 TAC § 515.5: 1.5x if expired ≤ 90 days, 2x if expired 90 days–1 year, 3x if expired 1–2 years; at 2+ years (revocation-eligible) the licensee owes all accrued renewal + late fees for the lapsed period, not a simple multiple. At the current $118/yr base individual fee this computes to roughly $177 / $236 / $354 for the first three tiers.",
+      "reinstatement_fee_notes": "No flat fee -- a tiered multiplier of the base renewal fee under 22 TAC § 515.5: 1.5x if expired ≤ 90 days, 2x if expired 90 days–1 year, 3x if expired 1–2 years; at 2+ years (revocation-eligible) the licensee owes all accrued renewal + late fees for the lapsed period, not a simple multiple. At the $112/yr base individual fee (the most recent figure the Board has published) this computes to roughly $168 / $224 / $336 for the first three tiers -- recompute these if the base fee has since risen.",
       "penalty_cpe_hours": null,
       "penalty_cpe_notes": "22 TAC § 523.112 requires a former licensee reinstating after revocation to 'report the minimum CPE credits missed' rather than a fixed extra/penalty hour count -- no flat figure exists in the rule text.",
       "penalty_ethics_hours": null,
@@ -770,8 +772,9 @@
       "citation": "22 Tex. Admin. Code § 515.5 (Late Filing for Renewal of License); Tex. Occ. Code § 901.502(4); 22 Tex. Admin. Code § 523.112 (Required CPE Participation)",
       "citation_url": "https://www.law.cornell.edu/regulations/texas/22-Tex-Admin-Code-SS-515-5",
       "source_url": "https://www.tsbpa.texas.gov/cpas/reinstatement/",
-      "last_verified": "2026-07-25",
-      "data_gap_note": null
+      "last_verified": "2026-08-14",
+      "data_gap_note": null,
+      "verification_history": "2026-08-14 (CITE-21 #1 follow-through): this record derives its dollar figures from the Texas base individual renewal fee, and was multiplying an unsourced $118 -- so correcting renewal_fees alone would have left $177/$236/$354 live on the site with no source behind them. Rebased on the $112 the Board actually published (1.5x/2x/3x = $168/$224/$336) and worded so the dependency on the base fee is explicit. The 22 TAC 515.5 multiplier structure itself is unchanged and was not in question."
     },
     {
       "id": "utah-reinstatement",

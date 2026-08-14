@@ -5332,7 +5332,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   <div class="trust-row">
     <div class="item"><span class="n">{_cov["total"]}</span><span class="lbl">jurisdictions listed</span></div>
     <div class="item"><span class="n">{_cov["determined"]}</span><span class="lbl">where we determine your exact date</span></div>
-    <div class="item"><span class="n">{_verified_recent} of {_total_citations}</span><span class="lbl">citations re-checked in the last {STALENESS_THRESHOLD_DAYS} days</span></div>
+    <div class="item"><span class="n">{_verified_recent} of {_total_citations}</span><span class="lbl">renewal-deadline citations re-checked in the last {STALENESS_THRESHOLD_DAYS} days</span></div>
     {_extra_stat_items_html}
   </div>
   <p class="trust-footnote">In the remaining {_cov["byod"]}, renewal turns on a personal fact
@@ -5688,8 +5688,8 @@ def build_pricing_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
 <strong>free for any firm, up to 3 staff</strong>, no card required, no time limit. Paid firm plans add
 the multistate map and the firm-level registration check &mdash; every paid tier has the identical
 feature set, priced only by how many staff it covers; nothing is held back on a cheaper plan.</p>
-<p class="field-hint"><strong>{_verified_recent} of {_total_citations}</strong> citations on this site
-were individually re-checked against their source within the last {STALENESS_THRESHOLD_DAYS} days
+<p class="field-hint"><strong>{_verified_recent} of {_total_citations}</strong> renewal-deadline citations
+on this site were individually re-checked against their source within the last {STALENESS_THRESHOLD_DAYS} days
 &mdash; <a href="/methodology/">see exactly how we verify every deadline</a>.</p>
 
 <h2>What's actually included, free vs. paid</h2>
@@ -6308,7 +6308,7 @@ def build_methodology_page(records: list[dict], real_today: date) -> str:
     # bespoke one-off.
     freshness_stat_html = (
         f'<div class="callout"><p><strong>{verified_recent} of {total}</strong> '
-        f"citations on this site were individually re-checked against their source within the last "
+        f"renewal-deadline citations on this site were individually re-checked against their source within the last "
         f"{STALENESS_THRESHOLD_DAYS} days, as of this page's last build ({real_today.isoformat()}). "
         f"Every state page's own \"Last verified\" line shows that specific citation's own date &mdash; "
         f"this is the same fact, rolled up across the whole site."
@@ -7014,8 +7014,8 @@ def build_firms_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
 license stays current &mdash; across however many states they're licensed in. One missed renewal slows
 down engagements and creates real regulatory risk, and most firms track it today by spreadsheet. A
 spreadsheet fails in three specific ways.</p>
-<p class="field-hint"><strong>{_verified_recent} of {_total_citations}</strong> citations on this site
-were individually re-checked against their source within the last {STALENESS_THRESHOLD_DAYS} days
+<p class="field-hint"><strong>{_verified_recent} of {_total_citations}</strong> renewal-deadline citations
+on this site were individually re-checked against their source within the last {STALENESS_THRESHOLD_DAYS} days
 &mdash; <a href="/methodology/">see exactly how we verify every deadline</a>.</p>
 
 <h2 class="dr-pain-headline">Every hour completed. The filing still missed.</h2>
@@ -15957,7 +15957,7 @@ board's own page &mdash; <a href="/methodology/">see exactly how</a>.</p>
 <div class="trust-row">
   <div class="item"><span class="n">{cov["total"]}</span><span class="lbl">jurisdictions covered</span></div>
   <div class="item"><span class="n">{cov["determined"]}</span><span class="lbl">where we compute your exact date</span></div>
-  <div class="item"><span class="n">{verified_recent} of {total_citations}</span><span class="lbl">citations re-checked in the last 30 days</span></div>
+  <div class="item"><span class="n">{verified_recent} of {total_citations}</span><span class="lbl">renewal-deadline citations re-checked in the last 30 days</span></div>
 </div>
 
 <h2>What "calculated" actually looks like, state by state</h2>

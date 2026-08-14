@@ -14857,8 +14857,24 @@ _MOBILITY_JS_HTML = """<script>
     // uses data_gap_note internally (isSubstantiveCitation() etc., see
     // mobility.ts) to decide staleness/verification status; only the
     // customer-facing render of the raw text is removed here.
+    // mobility.ts's applyRecentChangeCaveat() appends the rule-changed
+    // caveat to BOTH `summary` (a short parenthetical, added so the Map
+    // tooltip -- which renders summary and nothing else -- still shows the
+    // signal) and `requirements` (the full "confirm which rule applied
+    // when" sentence). This page renders both, so the same date appeared
+    // twice in consecutive lines. Drop the short form here and keep the
+    // actionable one. Guarded on the requirements text actually carrying
+    // the caveat, so if that wording ever changes server-side this stops
+    // matching and we get the old duplicate back -- never a dropped
+    // caveat. (The apostrophe in "state's" is matched as `.` on purpose:
+    // a literal one inside this Python-embedded JS is an escaping trap.)
+    var summaryText = f.summary || '';
+    if (reqs && reqs.indexOf('rule changed on') !== -1) {
+      summaryText = summaryText.replace(
+        /\s*\(This state.s rule changed on \d\d\d\d-\d\d-\d\d\.\)\s*$/, '');
+    }
     return '<div class="dr-verdict"><h3>' + esc(title) + '</h3>' + badge(f.verdict) +
-      '<p>' + esc(f.summary) + '</p>' + reqs + cite +
+      '<p>' + esc(summaryText) + '</p>' + reqs + cite +
       '<p class="dr-verdict-disclaimer">' + esc(f.disclaimer) + '</p>' +
       (actionBtnHtml || '') + '</div>';
   }
@@ -15242,8 +15258,18 @@ _FIRM_MOBILITY_JS_HTML = """<script>
         } else {
           cite = '<p class="dr-verdict-cite">No verified citation on file for this one &mdash; which is exactly why it is not a yes.</p>';
         }
+        // Same de-duplication as _MOBILITY_JS_HTML's findingHtml() -- see the
+        // full explanation there. Repeated rather than shared because these
+        // two script blocks deliberately have no common scope (see the
+        // comment above _FIRM_MOBILITY_JS_HTML); both render summary AND
+        // requirements, so both would otherwise print the date twice.
+        var summaryText = data.summary || '';
+        if (reqs && reqs.indexOf('rule changed on') !== -1) {
+          summaryText = summaryText.replace(
+            /\s*\(This state.s rule changed on \d\d\d\d-\d\d-\d\d\.\)\s*$/, '');
+        }
         var html = '<h3>' + esc(data.firm_home_state) + ' &rarr; ' + esc(data.target_state) + '</h3>' +
-          '<div class="dr-verdict">' + badge(data.verdict) + '<p>' + esc(data.summary) + '</p>' +
+          '<div class="dr-verdict">' + badge(data.verdict) + '<p>' + esc(summaryText) + '</p>' +
           reqs + cite + '<p class="dr-verdict-disclaimer">' + esc(data.disclaimer) + '</p></div>';
         if (resultEl) { resultEl.innerHTML = html; resultEl.hidden = false; }
       });

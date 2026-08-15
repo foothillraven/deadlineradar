@@ -825,6 +825,66 @@ def check_block_claims_corroborated(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_retired_claims_absent_from_guides(repo_root: Path, html_files) -> list[str]:
+    """Retired claims must not survive in hand-written guide prose either.
+
+    DATA-8 (AuditLab, 2026-08-14): f51791c37 corrected Arizona's deadline in the
+    data record, but /blog/arizona-cpa-license-renewal-guide/ kept the old
+    "5:00pm on the last business day" wording -- twice. Two different filing
+    deadlines for the same license were live simultaneously.
+
+    The galling part: _RETIRED_CLAIMS ALREADY carried ("az-individual", "5:00pm").
+    check_retired_claims_absent() only ever scans data records, so the identical
+    phrase sat untouched in prose the generator hard-codes. Same registry, same
+    phrase, a surface nothing was looking at.
+
+    Scoped by slug prefix: a phrase retired for Arizona is sought only in blog
+    pages whose slug starts with "arizona". Deliberate limitation, stated plainly
+    -- a guide that discusses another state in passing is not covered, and
+    widening it to every page would resurrect the per-record scoping problem the
+    main registry exists to avoid ("$150" is wrong for Arkansas, right for New
+    Jersey). Slug scoping is what would have caught this defect.
+
+    Sibling check to check_retired_claims_absent(); both read one registry.
+    """
+    errors = []
+    rec_state: dict[str, str] = {}
+    for name in ("cpa_deadlines", "cpe_hours", "reinstatement", "renewal_fees"):
+        path = repo_root / "data" / f"{name}.json"
+        if not path.exists():
+            continue
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        for rec in doc.get("records", []):
+            if rec.get("id"):
+                rec_state[rec["id"]] = rec.get("state_slug") or ""
+
+    blog_pages = [p for p in html_files if "blog" in p.parts]
+    if not blog_pages:
+        return ["check_retired_claims_absent_from_guides found NO built blog "
+                "pages. Either guides stopped building or the docs/blog/ layout "
+                "changed -- this check is measuring nothing and must be repaired."]
+
+    for page in blog_pages:
+        slug = page.parent.name
+        html = page.read_text(encoding="utf-8", errors="ignore")
+        for rid, phrase, why in _RETIRED_CLAIMS:
+            state = rec_state.get(rid)
+            if not state or not slug.startswith(state):
+                continue
+            if phrase in html:
+                errors.append(
+                    f"blog/{slug}: contains \"{phrase}\", a claim retired for "
+                    f"record {rid} ({why}). The data record was corrected but "
+                    f"this guide's prose still states the old fact -- the page "
+                    f"and its state page now disagree. Update the guide text in "
+                    f"generate.py's BLOG_ARTICLES."
+                )
+    return errors
+
+
 def check_stale_thresholds_unified(html_files) -> list[str]:
     """The seal and the small text caveat must flip on the SAME day count.
 
@@ -1835,6 +1895,7 @@ def main():
     all_errors += check_derived_fee_consistency(repo_root)
     all_errors += check_block_claims_corroborated(repo_root)
     all_errors += check_retired_claims_absent(repo_root)
+    all_errors += check_retired_claims_absent_from_guides(repo_root, html_files)
     all_errors += check_published_figures_link_source(html_files)
     all_errors += check_citations_are_primary(repo_root)
     all_errors += check_renewal_fee_currency(repo_root)

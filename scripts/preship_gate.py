@@ -671,6 +671,64 @@ _RETIRED_CLAIMS: list[tuple[str, str, str]] = [
 _RETIRED_SKIP_FIELDS = {"verification_history", "verification_note", "status_evidence"}
 
 
+# ---------------------------------------------------------------------------
+# The published post states three rules that "now run on every build". Two of
+# them were genuinely gated when it shipped (block claims -> SRC-5, derived
+# figures -> DERIV-1). The first -- "primary sources only as the citation of
+# record" -- was NOT: nothing stopped a new third-party-mirror citation from
+# being added tomorrow, and SRC-6 proved that gap is live, finding
+# oregon.public.law had survived SRC-1 because that sweep only matched three
+# hosts by name. This closes it, so the claim on the public page is true.
+#
+# Only citation_url is policed. A mirror kept as secondary_source_url is the
+# INTENDED end state of SRC-1 (demoted, not discarded) and is never an error.
+_MIRROR_HOST_RE = re.compile(
+    r"(law\.cornell\.edu|codes\.findlaw\.com|law\.justia\.com|regulations\.justia\.com"
+    r"|casetext\.com|\.public\.law|anylaw\.com|leagle\.com)",
+    re.IGNORECASE,
+)
+# Records allowed to keep a mirror as citation_url, because no official host
+# serves the text at all. Each needs a reason AND a disclosure in the record's
+# own data_gap_note -- the gate checks that disclosure exists, so an exception
+# can't be silently granted to dodge the rule.
+_MIRROR_CITATION_EXCEPTIONS: dict[str, str] = {
+    "tx-cpe": (
+        "Texas SOS migrated the TAC to a JS-only Appian portal; per-rule pages render only in a "
+        "browser, and a JS shell is a worse citation than a mirror that shows the text."
+    ),
+}
+
+
+def check_citations_are_primary(repo_root: Path) -> list[str]:
+    """Enforce the published 'primary sources only as the citation of record' rule."""
+    errors = []
+    for fname in ("cpa_deadlines.json", "cpe_hours.json", "reinstatement.json", "renewal_fees.json"):
+        path = repo_root / "data" / fname
+        if not path.exists():
+            continue
+        for r in json.loads(path.read_text(encoding="utf-8"))["records"]:
+            url = r.get("citation_url")
+            if not isinstance(url, str) or not _MIRROR_HOST_RE.search(url):
+                continue
+            rid = r.get("id")
+            if rid not in _MIRROR_CITATION_EXCEPTIONS:
+                errors.append(
+                    f"[MIRROR][{rid}] citation_url points at a third-party legal mirror ({url}) -- "
+                    f"the site publicly commits to primary sources as the citation of record. Repoint "
+                    f"it at the state's own publication, or add it to _MIRROR_CITATION_EXCEPTIONS with "
+                    f"a reason and disclose the gap in the record's data_gap_note."
+                )
+                continue
+            gap = r.get("data_gap_note")
+            if not isinstance(gap, str) or not gap.strip():
+                errors.append(
+                    f"[MIRROR][{rid}] is an allowed mirror-citation exception but has no data_gap_note "
+                    f"telling the reader why -- an exception the reader can't see is just an "
+                    f"unannounced broken promise"
+                )
+    return errors
+
+
 _FEE_LINE_RE = re.compile(r"<strong>Renewal fee:</strong>\s*\$[\d,]+\.(.{0,600}?)</p>", re.DOTALL)
 
 
@@ -1731,6 +1789,7 @@ def main():
     all_errors += check_block_claims_corroborated(repo_root)
     all_errors += check_retired_claims_absent(repo_root)
     all_errors += check_published_figures_link_source(html_files)
+    all_errors += check_citations_are_primary(repo_root)
     all_errors += check_renewal_fee_currency(repo_root)
     all_errors += check_competitor_price_currency(repo_root)
     all_errors += check_field_computed_states_sync(repo_root)

@@ -3281,6 +3281,40 @@ def _turnstile_head_html() -> str:
     return '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>'
 
 
+def _is_still_upcoming(e: dict, today: date | None = None) -> bool:
+    """Whether a rule-change event is STILL in the future as of this build.
+
+    Devin, 2026-08-14, from the live /rule-changes/ page: Colorado's mobility
+    change rendered "Effective August 12, 2026 -- not yet in force" on August
+    14th. `upcoming` is a static boolean stamped into reg_change_events.json
+    at verification time (that record: verified 2026-07-31), and nothing ever
+    flipped it once the date passed -- so every consumer that trusted the flag
+    alone would keep asserting a past date was pending, indefinitely.
+
+    This is a pure TIGHTENING of the stored flag, never a widening: an event
+    the researcher did not mark upcoming stays not-upcoming regardless of its
+    date. Only the "the date has now passed" case is corrected, and it
+    corrects itself on every build rather than needing a data edit per event.
+    An event whose date has passed falls through to the existing
+    needs_reverification / plain-effective-date rendering, which is exactly
+    what a passed change should show.
+
+    Build-time, not view-time: a page built today and read next month could
+    drift again, same structural limit as next_deadline_computed. The feed
+    rebuilds far more often than events mature, so this closes the real gap;
+    the seal's runtime evaluator is the pattern if that ever stops holding.
+    """
+    if not e.get("upcoming"):
+        return False
+    eff = e.get("effective_date")
+    if not eff:
+        return False
+    try:
+        return date.fromisoformat(eff) > (today or date.today())
+    except ValueError:
+        return False
+
+
 def _upcoming_change_events_by_state() -> dict[str, list[dict]]:
     """Same kind=='rule_change' AND upcoming filter build_firm_dashboard_page()
     already uses for its own rule-change surface, and the exact set
@@ -3292,7 +3326,7 @@ def _upcoming_change_events_by_state() -> dict[str, list[dict]]:
     raw = json.loads(REG_CHANGE_EVENTS_PATH.read_text(encoding="utf-8"))
     by_state: dict[str, list[dict]] = {}
     for e in raw.get("events", []):
-        if e.get("kind") != "rule_change" or not e.get("upcoming") or not e.get("effective_date"):
+        if e.get("kind") != "rule_change" or not _is_still_upcoming(e) or not e.get("effective_date"):
             continue
         slug = e.get("jurisdiction_slug")
         if not slug:
@@ -5312,7 +5346,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
     _reg_change_raw = json.loads(REG_CHANGE_EVENTS_PATH.read_text(encoding="utf-8"))
     _live_conflicts = [e for e in _reg_change_raw.get("events", []) if e.get("kind") == "source_conflict"]
     _live_pending_changes = [
-        e for e in _reg_change_raw.get("events", []) if e.get("kind") == "rule_change" and e.get("upcoming")
+        e for e in _reg_change_raw.get("events", []) if e.get("kind") == "rule_change" and _is_still_upcoming(e)
     ]
     # Roadmap #327 (2026-08-11, ValueLab design-pattern-mining #2): "these
     # numbers need an actual refresh mechanism... a stale number is worse
@@ -6666,7 +6700,7 @@ def _rule_change_card_html(e: dict) -> str:
     eff_html = ""
     if eff:
         eff_date = fmt_date(date.fromisoformat(eff))
-        if e.get("upcoming"):
+        if _is_still_upcoming(e):
             eff_html = f'<p class="rc-date"><strong>Effective {esc(eff_date)}</strong> &mdash; not yet in force.</p>'
         elif e.get("needs_reverification"):
             eff_html = (
@@ -6703,7 +6737,9 @@ def _rule_change_card_html(e: dict) -> str:
         source_label = "single-source legal research (not yet independently confirmed by a second source)"
     else:
         source_label = "dual-source legal research"
-    badge_class = "rc-badge rc-badge-upcoming" if e.get("upcoming") else "rc-badge"
+    # Same recompute as the date line above -- a passed event must not keep
+    # the gold "upcoming" badge while its own text says it took effect.
+    badge_class = "rc-badge rc-badge-upcoming" if _is_still_upcoming(e) else "rc-badge"
     # AuditLab COPY-2 (LOW, 2026-08-13): this used to also append
     # ", confidence: {raw enum}" -- the same fact stated twice, once in
     # English (source_label above) and once as a leaked snake_case internal
@@ -6748,8 +6784,12 @@ def build_rule_changes_page() -> str:
     events = raw.get("events", [])
     changes = [e for e in events if e.get("kind") == "rule_change"]
     conflicts = [e for e in events if e.get("kind") == "source_conflict"]
-    upcoming = [e for e in changes if e.get("upcoming")]
-    recent = [e for e in changes if not e.get("upcoming")]
+    upcoming = [e for e in changes if _is_still_upcoming(e)]
+    # True complement of the line above, NOT `not e.get("upcoming")`: an event
+    # whose effective date has just passed stops being upcoming, and if this
+    # still filtered on the raw flag that event would fall out of BOTH lists
+    # and silently vanish from the page. It belongs in "recent" now.
+    recent = [e for e in changes if not _is_still_upcoming(e)]
     monitoring_count = meta.get("live_monitoring_count", 0)
 
     upcoming_html = (
@@ -16524,7 +16564,7 @@ def build_firm_dashboard_page(
             "source": e.get("source") or "",
         }
         for e in _reg_change_raw.get("events", [])
-        if e.get("kind") == "rule_change" and e.get("upcoming") and e.get("effective_date")
+        if e.get("kind") == "rule_change" and _is_still_upcoming(e) and e.get("effective_date")
     ]
     # CPE Hours tab (2026-07-30): the state-by-state REQUIREMENT (how many
     # hours, ethics sub-requirement, cycle length) is static reference data,

@@ -46,6 +46,8 @@
     --gold: #866731; --gold-line: #d8c9a6; --gold-bg: #f4eede;
     --verified-green: #256a4b; --verified-green-bg: #e8f1ec;
     
+    --verified-green-rgb: 37,106,75;
+    
     --stale-red: #c33737; --stale-red-bg: #f6e9e9;
     --trust-bg: #f4eede; --trust-border: #d8c9a6; --row-alt: #f6f8f9;
     --shadow: 0 1px 2px rgba(23,33,43,.05), 0 6px 22px rgba(23,33,43,.06);
@@ -65,6 +67,7 @@
       --panel-dark: #0d1824; --panel-dark-fg: #dbe6ef;
       --gold: #d6b45a; --gold-line: #8a6d1f; --gold-bg: #26210f;
       --verified-green: #4fd685; --verified-green-bg: rgba(52,199,120,0.12);
+      --verified-green-rgb: 79,214,133;
       
       --stale-red: #ef6b6b; --stale-red-bg: rgba(239,107,107,0.12);
       --trust-bg: #26210f; --trust-border: #5a4a20; --row-alt: #171b21;
@@ -419,21 +422,60 @@
 
   
   .hfc-wrap { position: relative; min-height: 300px; }
+  
   .hfc-card {
     position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: 1;
     transition: opacity 0.8s ease;
-    background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
-    box-shadow: var(--shadow); padding: 1.4rem 1.5rem;
-    display: flex; flex-direction: column; justify-content: center; gap: 0.3rem;
+    background: linear-gradient(160deg, rgba(var(--verified-green-rgb),0.07), var(--card-bg) 55%);
+    border: 1px solid var(--border-strong); border-left: 4px solid var(--verified-green);
+    border-radius: 12px; box-shadow: var(--shadow);
+    padding: 1.3rem 1.4rem 0; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: center;
   }
   .hfc-card.is-active { opacity: 1; pointer-events: auto; z-index: 2; }
-  .hfc-state { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--fg); }
-  .hfc-stamp { display: flex; align-items: center; gap: 0.4rem; font-size: 0.76rem; color: var(--verified-green); font-weight: 600; }
-  .hfc-stamp .dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--verified-green); display: inline-block; }
-  .hfc-date { font-family: var(--font-display); font-size: 1.7rem; font-weight: 650; color: var(--accent); margin-top: 0.3rem; }
-  .hfc-sub { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
-  .hfc-card .cite { align-self: flex-start; margin-top: 0.15rem; }
-  .hfc-card .verified { margin-top: 0.3rem; }
+  .hfc-top { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.9rem; }
+  .hfc-state-group { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+  .hfc-monogram {
+    width: 2.1rem; height: 2.1rem; border-radius: 50%;
+    background: var(--verified-green); color: var(--card-bg);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-weight: 700; font-size: 0.85rem;
+    letter-spacing: 0.02em; flex-shrink: 0;
+  }
+  .hfc-state { font-family: var(--font-display); font-size: 1.25rem; font-weight: 650; color: var(--fg); line-height: 1.1; }
+  .hfc-sub { font-size: 0.78rem; color: var(--muted); margin-top: 0.1rem; }
+  .hfc-stamp {
+    display: flex; align-items: center; gap: 0.3rem; flex-shrink: 0;
+    font-size: 0.68rem; font-weight: 650; color: var(--verified-green);
+    background: var(--verified-green-bg); border-radius: 999px;
+    padding: 0.22rem 0.55rem 0.22rem 0.4rem;
+  }
+  .hfc-stamp svg { width: 0.65rem; height: 0.65rem; }
+  .hfc-date-block { margin: 0 -1.4rem 1rem; padding: 0.9rem 1.4rem; background: var(--accent); }
+  .hfc-date-label {
+    font-size: 0.68rem; font-weight: 650; text-transform: uppercase;
+    letter-spacing: 0.09em; color: rgba(255,255,255,0.75); margin-bottom: 0.1rem;
+  }
+  .hfc-date {
+    font-family: var(--font-display); font-size: 2.5rem; font-weight: 700; color: #ffffff;
+    line-height: 1.02; font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  }
+  .hfc-footer {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+    background: rgba(var(--verified-green-rgb), 0.06);
+    border-top: 1px solid var(--border-strong);
+    margin: 0 -1.4rem; padding: 0.6rem 1.4rem; font-size: 0.72rem;
+  }
+  .hfc-card .cite {
+    font-family: var(--font-mono); color: var(--gold);
+    background: none; border: none; padding: 0; margin: 0; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .hfc-card .verified {
+    display: flex; align-items: center; gap: 0.3rem; margin: 0;
+    color: var(--verified-green); font-weight: 600; white-space: nowrap;
+  }
+  .hfc-card .verified svg { width: 0.75rem; height: 0.75rem; }
   .hfc-coverage { font-size: 0.78rem; color: var(--muted); margin-top: 0.85rem; text-align: center; }
   .hfc-coverage b { color: var(--accent); }
   @media (prefers-reduced-motion: reduce) {

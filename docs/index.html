@@ -48,6 +48,8 @@
     --gold: #866731; --gold-line: #d8c9a6; --gold-bg: #f4eede;
     --verified-green: #256a4b; --verified-green-bg: #e8f1ec;
     
+    --verified-green-rgb: 37,106,75;
+    
     --stale-red: #c33737; --stale-red-bg: #f6e9e9;
     --trust-bg: #f4eede; --trust-border: #d8c9a6; --row-alt: #f6f8f9;
     --shadow: 0 1px 2px rgba(23,33,43,.05), 0 6px 22px rgba(23,33,43,.06);
@@ -67,6 +69,7 @@
       --panel-dark: #0d1824; --panel-dark-fg: #dbe6ef;
       --gold: #d6b45a; --gold-line: #8a6d1f; --gold-bg: #26210f;
       --verified-green: #4fd685; --verified-green-bg: rgba(52,199,120,0.12);
+      --verified-green-rgb: 79,214,133;
       
       --stale-red: #ef6b6b; --stale-red-bg: rgba(239,107,107,0.12);
       --trust-bg: #26210f; --trust-border: #5a4a20; --row-alt: #171b21;
@@ -421,21 +424,60 @@
 
   
   .hfc-wrap { position: relative; min-height: 300px; }
+  
   .hfc-card {
     position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: 1;
     transition: opacity 0.8s ease;
-    background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
-    box-shadow: var(--shadow); padding: 1.4rem 1.5rem;
-    display: flex; flex-direction: column; justify-content: center; gap: 0.3rem;
+    background: linear-gradient(160deg, rgba(var(--verified-green-rgb),0.07), var(--card-bg) 55%);
+    border: 1px solid var(--border-strong); border-left: 4px solid var(--verified-green);
+    border-radius: 12px; box-shadow: var(--shadow);
+    padding: 1.3rem 1.4rem 0; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: center;
   }
   .hfc-card.is-active { opacity: 1; pointer-events: auto; z-index: 2; }
-  .hfc-state { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--fg); }
-  .hfc-stamp { display: flex; align-items: center; gap: 0.4rem; font-size: 0.76rem; color: var(--verified-green); font-weight: 600; }
-  .hfc-stamp .dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--verified-green); display: inline-block; }
-  .hfc-date { font-family: var(--font-display); font-size: 1.7rem; font-weight: 650; color: var(--accent); margin-top: 0.3rem; }
-  .hfc-sub { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
-  .hfc-card .cite { align-self: flex-start; margin-top: 0.15rem; }
-  .hfc-card .verified { margin-top: 0.3rem; }
+  .hfc-top { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.9rem; }
+  .hfc-state-group { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+  .hfc-monogram {
+    width: 2.1rem; height: 2.1rem; border-radius: 50%;
+    background: var(--verified-green); color: var(--card-bg);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-weight: 700; font-size: 0.85rem;
+    letter-spacing: 0.02em; flex-shrink: 0;
+  }
+  .hfc-state { font-family: var(--font-display); font-size: 1.25rem; font-weight: 650; color: var(--fg); line-height: 1.1; }
+  .hfc-sub { font-size: 0.78rem; color: var(--muted); margin-top: 0.1rem; }
+  .hfc-stamp {
+    display: flex; align-items: center; gap: 0.3rem; flex-shrink: 0;
+    font-size: 0.68rem; font-weight: 650; color: var(--verified-green);
+    background: var(--verified-green-bg); border-radius: 999px;
+    padding: 0.22rem 0.55rem 0.22rem 0.4rem;
+  }
+  .hfc-stamp svg { width: 0.65rem; height: 0.65rem; }
+  .hfc-date-block { margin: 0 -1.4rem 1rem; padding: 0.9rem 1.4rem; background: var(--accent); }
+  .hfc-date-label {
+    font-size: 0.68rem; font-weight: 650; text-transform: uppercase;
+    letter-spacing: 0.09em; color: rgba(255,255,255,0.75); margin-bottom: 0.1rem;
+  }
+  .hfc-date {
+    font-family: var(--font-display); font-size: 2.5rem; font-weight: 700; color: #ffffff;
+    line-height: 1.02; font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  }
+  .hfc-footer {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+    background: rgba(var(--verified-green-rgb), 0.06);
+    border-top: 1px solid var(--border-strong);
+    margin: 0 -1.4rem; padding: 0.6rem 1.4rem; font-size: 0.72rem;
+  }
+  .hfc-card .cite {
+    font-family: var(--font-mono); color: var(--gold);
+    background: none; border: none; padding: 0; margin: 0; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .hfc-card .verified {
+    display: flex; align-items: center; gap: 0.3rem; margin: 0;
+    color: var(--verified-green); font-weight: 600; white-space: nowrap;
+  }
+  .hfc-card .verified svg { width: 0.75rem; height: 0.75rem; }
   .hfc-coverage { font-size: 0.78rem; color: var(--muted); margin-top: 0.85rem; text-align: center; }
   .hfc-coverage b { color: var(--accent); }
   @media (prefers-reduced-motion: reduce) {
@@ -1676,84 +1718,204 @@
 <div class="hero-right">
   <div class="hfc-wrap" id="hfc-wrap">
     <div class="hfc-card is-active" data-hfc-state="Alabama">
-  <div class="hfc-state">Alabama</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-08-14</div>
-  <div class="hfc-date">December 31, 2026</div>
-  <div class="hfc-sub">Individual CPA/PA/non-licensee owner and firm permit</div>
-  <a class="cite" href="https://admincode.legislature.state.al.us/api/chapter/30-X-3" title="Ala. Admin. Code 30-X-5-.05(1) (Sept 30 permit expiration); 30-X-3-.07(1) (Dec 31 renewal fee + CPE-statement deadline)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Ala. Admin. Code 30-X-5-.05(1) (Sept 30…</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed at source</div>
+  <div class="hfc-top">
+    <div class="hfc-state-group">
+      <span class="hfc-monogram" aria-hidden="true">AL</span>
+      <div>
+        <div class="hfc-state">Alabama</div>
+        <div class="hfc-sub">Individual CPA/PA/non-licensee owner and firm permit</div>
+      </div>
+    </div>
+    <span class="hfc-stamp" title="Verified 2026-08-14" data-verified="2026-08-14"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Aug 14</span>
+  </div>
+  <div class="hfc-date-block">
+    <div class="hfc-date-label">Next renewal date</div>
+    <div class="hfc-date">December 31, 2026</div>
+  </div>
+  <div class="hfc-footer">
+    <a class="cite" href="https://admincode.legislature.state.al.us/api/chapter/30-X-3" title="Ala. Admin. Code 30-X-5-.05(1) (Sept 30 permit expiration); 30-X-3-.07(1) (Dec 31 renewal fee + CPE-statement deadline)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Ala. Admin. Code 30-X-5-.05(1) (Sept 30…</a>
+    <span class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed</span>
+  </div>
 </div>
 <div class="hfc-card" data-hfc-state="Alaska">
-  <div class="hfc-state">Alaska</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-07-30</div>
-  <div class="hfc-date">December 31, 2027</div>
-  <div class="hfc-sub">Individual CPA/public accountant license</div>
-  <a class="cite" href="https://www.commerce.alaska.gov/web/Portals/5/pub/cpa4060.pdf" title="Alaska CPA/PA License Renewal form (cpa4060.pdf, Rev. 10/16/2025): &quot;Licenses are issued for a two-year period and expire on December 31 of odd-numbered years, regardless of the date of issuance&quot; -- current period Jan 1, 2026-Dec 31, 2027."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Alaska CPA/PA License Renewal form…</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed via official records</div>
+  <div class="hfc-top">
+    <div class="hfc-state-group">
+      <span class="hfc-monogram" aria-hidden="true">AK</span>
+      <div>
+        <div class="hfc-state">Alaska</div>
+        <div class="hfc-sub">Individual CPA/public accountant license</div>
+      </div>
+    </div>
+    <span class="hfc-stamp" title="Verified 2026-07-30" data-verified="2026-07-30"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Jul 30</span>
+  </div>
+  <div class="hfc-date-block">
+    <div class="hfc-date-label">Next renewal date</div>
+    <div class="hfc-date">December 31, 2027</div>
+  </div>
+  <div class="hfc-footer">
+    <a class="cite" href="https://www.commerce.alaska.gov/web/Portals/5/pub/cpa4060.pdf" title="Alaska CPA/PA License Renewal form (cpa4060.pdf, Rev. 10/16/2025): &quot;Licenses are issued for a two-year period and expire on December 31 of odd-numbered years, regardless of the date of issuance&quot; -- current period Jan 1, 2026-Dec 31, 2027."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Alaska CPA/PA License Renewal form…</a>
+    <span class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed</span>
+  </div>
 </div>
 <div class="hfc-card" data-hfc-state="Arkansas">
-  <div class="hfc-state">Arkansas</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-08-13</div>
-  <div class="hfc-date">December 31, 2026</div>
-  <div class="hfc-sub">Individual CPA/PA license</div>
-  <a class="cite" href="https://labor.arkansas.gov/wp-content/uploads/17CARpt.236-Final.pdf" title="Ark. Code Ann. § 17-12-504(a)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Ark. Code Ann. § 17-12-504(a)</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed at source</div>
+  <div class="hfc-top">
+    <div class="hfc-state-group">
+      <span class="hfc-monogram" aria-hidden="true">AR</span>
+      <div>
+        <div class="hfc-state">Arkansas</div>
+        <div class="hfc-sub">Individual CPA/PA license</div>
+      </div>
+    </div>
+    <span class="hfc-stamp" title="Verified 2026-08-13" data-verified="2026-08-13"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Aug 13</span>
+  </div>
+  <div class="hfc-date-block">
+    <div class="hfc-date-label">Next renewal date</div>
+    <div class="hfc-date">December 31, 2026</div>
+  </div>
+  <div class="hfc-footer">
+    <a class="cite" href="https://labor.arkansas.gov/wp-content/uploads/17CARpt.236-Final.pdf" title="Ark. Code Ann. § 17-12-504(a)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Ark. Code Ann. § 17-12-504(a)</a>
+    <span class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed</span>
+  </div>
 </div>
 <div class="hfc-card" data-hfc-state="Colorado">
-  <div class="hfc-state">Colorado</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-08-14</div>
-  <div class="hfc-date">November 30, 2027</div>
-  <div class="hfc-sub">Certified Public Accountant (Individual Certificate)</div>
-  <a class="cite" href="https://data.colorado.gov/d/jzq6-fyp7" title="Confirmed via Colorado Information Marketplace open-data register (data.colorado.gov, dataset jzq6-fyp7, &quot;CPA All Status&quot;): sampled active individual licenses with issue dates spanning 1977-2026 uniformly show expiration 11/30/2027 -- verified 2026-07-30."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Confirmed via Colorado Information…</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed via official records</div>
+  <div class="hfc-top">
+    <div class="hfc-state-group">
+      <span class="hfc-monogram" aria-hidden="true">CO</span>
+      <div>
+        <div class="hfc-state">Colorado</div>
+        <div class="hfc-sub">Certified Public Accountant (Individual Certificate)</div>
+      </div>
+    </div>
+    <span class="hfc-stamp" title="Verified 2026-08-14" data-verified="2026-08-14"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Aug 14</span>
+  </div>
+  <div class="hfc-date-block">
+    <div class="hfc-date-label">Next renewal date</div>
+    <div class="hfc-date">November 30, 2027</div>
+  </div>
+  <div class="hfc-footer">
+    <a class="cite" href="https://data.colorado.gov/d/jzq6-fyp7" title="Confirmed via Colorado Information Marketplace open-data register (data.colorado.gov, dataset jzq6-fyp7, &quot;CPA All Status&quot;): sampled active individual licenses with issue dates spanning 1977-2026 uniformly show expiration 11/30/2027 -- verified 2026-07-30."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Confirmed via Colorado Information…</a>
+    <span class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed</span>
+  </div>
 </div>
 <div class="hfc-card" data-hfc-state="Connecticut">
-  <div class="hfc-state">Connecticut</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-08-14</div>
-  <div class="hfc-date">December 31, 2026</div>
-  <div class="hfc-sub">Individual CPA License</div>
-  <a class="cite" href="https://eregulations.ct.gov/eRegsPortal/Browse/RCSA/Title_20Subtitle_20-280Section_20-280-25/" title="RCSA § 20-280-25(a)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>RCSA § 20-280-25(a)</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed at source</div>
+  <div class="hfc-top">
+    <div class="hfc-state-group">
+      <span class="hfc-monogram" aria-hidden="true">CT</span>
+      <div>
+        <div class="hfc-state">Connecticut</div>
+        <div class="hfc-sub">Individual CPA License</div>
+      </div>
+    </div>
+    <span class="hfc-stamp" title="Verified 2026-08-14" data-verified="2026-08-14"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Aug 14</span>
+  </div>
+  <div class="hfc-date-block">
+    <div class="hfc-date-label">Next renewal date</div>
+    <div class="hfc-date">December 31, 2026</div>
+  </div>
+  <div class="hfc-footer">
+    <a class="cite" href="https://eregulations.ct.gov/eRegsPortal/Browse/RCSA/Title_20Subtitle_20-280Section_20-280-25/" title="RCSA § 20-280-25(a)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>RCSA § 20-280-25(a)</a>
+    <span class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed</span>
+  </div>
 </div>
 <div class="hfc-card" data-hfc-state="Delaware">
-  <div class="hfc-state">Delaware</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-08-14</div>
-  <div class="hfc-date">June 30, 2027</div>
-  <div class="hfc-sub">Individual CPA/PA permit and firm permit</div>
-  <a class="cite" href="https://delcode.delaware.gov/title24/c001/index.html" title="24 Del. C. § 108(b)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>24 Del. C. § 108(b)</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed at source</div>
+  <div class="hfc-top">
+    <div class="hfc-state-group">
+      <span class="hfc-monogram" aria-hidden="true">DE</span>
+      <div>
+        <div class="hfc-state">Delaware</div>
+        <div class="hfc-sub">Individual CPA/PA permit and firm permit</div>
+      </div>
+    </div>
+    <span class="hfc-stamp" title="Verified 2026-08-14" data-verified="2026-08-14"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Aug 14</span>
+  </div>
+  <div class="hfc-date-block">
+    <div class="hfc-date-label">Next renewal date</div>
+    <div class="hfc-date">June 30, 2027</div>
+  </div>
+  <div class="hfc-footer">
+    <a class="cite" href="https://delcode.delaware.gov/title24/c001/index.html" title="24 Del. C. § 108(b)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>24 Del. C. § 108(b)</a>
+    <span class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed</span>
+  </div>
 </div>
 <div class="hfc-card" data-hfc-state="Florida">
-  <div class="hfc-state">Florida</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-08-13</div>
-  <div class="hfc-date">December 31, 2027</div>
-  <div class="hfc-sub">Firm license</div>
-  <a class="cite" href="https://www2.myfloridalicense.com/certified-public-accounting/public-records/" title="Confirmed via Florida DBPR public CPA license records (cpalicensedata20260709.xlsx, worksheet &quot;CPA Firms&quot;): 4,932 of 4,933 active firm licenses show expiration 12/31/2027 -- verified 2026-07-30."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Confirmed via Florida DBPR public CPA…</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed via official records</div>
+  <div class="hfc-top">
+    <div class="hfc-state-group">
+      <span class="hfc-monogram" aria-hidden="true">FL</span>
+      <div>
+        <div class="hfc-state">Florida</div>
+        <div class="hfc-sub">Firm license</div>
+      </div>
+    </div>
+    <span class="hfc-stamp" title="Verified 2026-08-13" data-verified="2026-08-13"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Aug 13</span>
+  </div>
+  <div class="hfc-date-block">
+    <div class="hfc-date-label">Next renewal date</div>
+    <div class="hfc-date">December 31, 2027</div>
+  </div>
+  <div class="hfc-footer">
+    <a class="cite" href="https://www2.myfloridalicense.com/certified-public-accounting/public-records/" title="Confirmed via Florida DBPR public CPA license records (cpalicensedata20260709.xlsx, worksheet &quot;CPA Firms&quot;): 4,932 of 4,933 active firm licenses show expiration 12/31/2027 -- verified 2026-07-30."><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Confirmed via Florida DBPR public CPA…</a>
+    <span class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed</span>
+  </div>
 </div>
 <div class="hfc-card" data-hfc-state="Georgia">
-  <div class="hfc-state">Georgia</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-08-14</div>
-  <div class="hfc-date">December 31, 2027</div>
-  <div class="hfc-sub">Individual CPA license</div>
-  <a class="cite" href="https://rules.sos.ga.gov/gac/20-10-.02" title="Ga. Comp. R. &amp; Regs. R. 20-10-.02"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Ga. Comp. R. &amp; Regs. R. 20-10-.02</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed at source</div>
+  <div class="hfc-top">
+    <div class="hfc-state-group">
+      <span class="hfc-monogram" aria-hidden="true">GA</span>
+      <div>
+        <div class="hfc-state">Georgia</div>
+        <div class="hfc-sub">Individual CPA license</div>
+      </div>
+    </div>
+    <span class="hfc-stamp" title="Verified 2026-08-14" data-verified="2026-08-14"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Aug 14</span>
+  </div>
+  <div class="hfc-date-block">
+    <div class="hfc-date-label">Next renewal date</div>
+    <div class="hfc-date">December 31, 2027</div>
+  </div>
+  <div class="hfc-footer">
+    <a class="cite" href="https://rules.sos.ga.gov/gac/20-10-.02" title="Ga. Comp. R. &amp; Regs. R. 20-10-.02"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Ga. Comp. R. &amp; Regs. R. 20-10-.02</a>
+    <span class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed</span>
+  </div>
 </div>
 <div class="hfc-card" data-hfc-state="Hawaii">
-  <div class="hfc-state">Hawaii</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-07-30</div>
-  <div class="hfc-date">December 31, 2027</div>
-  <div class="hfc-sub">Individual CPA license/permit and firm permit</div>
-  <a class="cite" href="https://www.capitol.hawaii.gov/hrscurrent/Vol10_Ch0436-0474/HRS0466/HRS_0466-0005.htm" title="HRS § 466-5(j)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>HRS § 466-5(j)</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed at source</div>
+  <div class="hfc-top">
+    <div class="hfc-state-group">
+      <span class="hfc-monogram" aria-hidden="true">HI</span>
+      <div>
+        <div class="hfc-state">Hawaii</div>
+        <div class="hfc-sub">Individual CPA license/permit and firm permit</div>
+      </div>
+    </div>
+    <span class="hfc-stamp" title="Verified 2026-07-30" data-verified="2026-07-30"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Jul 30</span>
+  </div>
+  <div class="hfc-date-block">
+    <div class="hfc-date-label">Next renewal date</div>
+    <div class="hfc-date">December 31, 2027</div>
+  </div>
+  <div class="hfc-footer">
+    <a class="cite" href="https://www.capitol.hawaii.gov/hrscurrent/Vol10_Ch0436-0474/HRS0466/HRS_0466-0005.htm" title="HRS § 466-5(j)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>HRS § 466-5(j)</a>
+    <span class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed</span>
+  </div>
 </div>
 <div class="hfc-card" data-hfc-state="Idaho">
-  <div class="hfc-state">Idaho</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified 2026-08-13</div>
-  <div class="hfc-date">September 30, 2026</div>
-  <div class="hfc-sub">Firm registration</div>
-  <a class="cite" href="https://adminrules.idaho.gov/rules/current/24/243001.pdf" title="IDAPA 24.30.01 § 211.01"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>IDAPA 24.30.01 § 211.01</a>
-  <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed at source</div>
+  <div class="hfc-top">
+    <div class="hfc-state-group">
+      <span class="hfc-monogram" aria-hidden="true">ID</span>
+      <div>
+        <div class="hfc-state">Idaho</div>
+        <div class="hfc-sub">Firm registration</div>
+      </div>
+    </div>
+    <span class="hfc-stamp" title="Verified 2026-08-13" data-verified="2026-08-13"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Aug 13</span>
+  </div>
+  <div class="hfc-date-block">
+    <div class="hfc-date-label">Next renewal date</div>
+    <div class="hfc-date">September 30, 2026</div>
+  </div>
+  <div class="hfc-footer">
+    <a class="cite" href="https://adminrules.idaho.gov/rules/current/24/243001.pdf" title="IDAPA 24.30.01 § 211.01"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>IDAPA 24.30.01 § 211.01</a>
+    <span class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed</span>
+  </div>
 </div>
   </div>
   <div class="hfc-coverage">We list all <b>55</b> jurisdictions &middot; exact date

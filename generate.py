@@ -440,6 +440,9 @@ PAGE_CSS = """
        mode's never moved. 3% darker, same hue, gives 4.535:1. */
     --gold: #866731; --gold-line: #d8c9a6; --gold-bg: #f4eede;
     --verified-green: #256a4b; --verified-green-bg: #e8f1ec;
+    /* rgb triplet for the hero card's gradient/footer tints (rgba() needs
+       channels, and a hex token can't be alpha-composited inline). */
+    --verified-green-rgb: 37,106,75;
     /* Engraved-seal stale state (Devin-approved seal design, 2026-08-14):
        reuses the site's existing error red rather than inventing one --
        #c33737 is the same red .dr-account-err / field errors already use.
@@ -463,6 +466,7 @@ PAGE_CSS = """
       --panel-dark: #0d1824; --panel-dark-fg: #dbe6ef;
       --gold: #d6b45a; --gold-line: #8a6d1f; --gold-bg: #26210f;
       --verified-green: #4fd685; --verified-green-bg: rgba(52,199,120,0.12);
+      --verified-green-rgb: 79,214,133;
       /* Seal stale-red, brightened for dark ground -- same pattern as
          --verified-green's own brighter dark value above. */
       --stale-red: #ef6b6b; --stale-red-bg: rgba(239,107,107,0.12);
@@ -922,21 +926,67 @@ PAGE_CSS = """
 
   /* ---- hero-right: rotating verified-fact card, live proof of freshness ---- */
   .hfc-wrap { position: relative; min-height: 300px; }
+  /* Devin-approved redesign, 2026-08-14: the old card was a flat panel where
+     the DATE -- the one fact a visitor comes to this card for -- competed with
+     everything else at similar weight. Intent is narrow: make the date
+     unmissable and keep the rest quiet. No motion, no new hues (the accent
+     band and green are both existing tokens) -- the same sobriety constraint
+     that got the auto-rotating carousel removed from this exact spot still
+     applies. The absolute/opacity swap below is UNCHANGED: cards stack and
+     .is-active picks one, so the geolocation picker keeps working as-is. */
   .hfc-card {
     position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: 1;
     transition: opacity 0.8s ease;
-    background: var(--card-bg); border: 1px solid var(--border-strong); border-radius: 12px;
-    box-shadow: var(--shadow); padding: 1.4rem 1.5rem;
-    display: flex; flex-direction: column; justify-content: center; gap: 0.3rem;
+    background: linear-gradient(160deg, rgba(var(--verified-green-rgb),0.07), var(--card-bg) 55%);
+    border: 1px solid var(--border-strong); border-left: 4px solid var(--verified-green);
+    border-radius: 12px; box-shadow: var(--shadow);
+    padding: 1.3rem 1.4rem 0; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: center;
   }
   .hfc-card.is-active { opacity: 1; pointer-events: auto; z-index: 2; }
-  .hfc-state { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--fg); }
-  .hfc-stamp { display: flex; align-items: center; gap: 0.4rem; font-size: 0.76rem; color: var(--verified-green); font-weight: 600; }
-  .hfc-stamp .dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--verified-green); display: inline-block; }
-  .hfc-date { font-family: var(--font-display); font-size: 1.7rem; font-weight: 650; color: var(--accent); margin-top: 0.3rem; }
-  .hfc-sub { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
-  .hfc-card .cite { align-self: flex-start; margin-top: 0.15rem; }
-  .hfc-card .verified { margin-top: 0.3rem; }
+  .hfc-top { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.9rem; }
+  .hfc-state-group { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+  .hfc-monogram {
+    width: 2.1rem; height: 2.1rem; border-radius: 50%;
+    background: var(--verified-green); color: var(--card-bg);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-weight: 700; font-size: 0.85rem;
+    letter-spacing: 0.02em; flex-shrink: 0;
+  }
+  .hfc-state { font-family: var(--font-display); font-size: 1.25rem; font-weight: 650; color: var(--fg); line-height: 1.1; }
+  .hfc-sub { font-size: 0.78rem; color: var(--muted); margin-top: 0.1rem; }
+  .hfc-stamp {
+    display: flex; align-items: center; gap: 0.3rem; flex-shrink: 0;
+    font-size: 0.68rem; font-weight: 650; color: var(--verified-green);
+    background: var(--verified-green-bg); border-radius: 999px;
+    padding: 0.22rem 0.55rem 0.22rem 0.4rem;
+  }
+  .hfc-stamp svg { width: 0.65rem; height: 0.65rem; }
+  .hfc-date-block { margin: 0 -1.4rem 1rem; padding: 0.9rem 1.4rem; background: var(--accent); }
+  .hfc-date-label {
+    font-size: 0.68rem; font-weight: 650; text-transform: uppercase;
+    letter-spacing: 0.09em; color: rgba(255,255,255,0.75); margin-bottom: 0.1rem;
+  }
+  .hfc-date {
+    font-family: var(--font-display); font-size: 2.5rem; font-weight: 700; color: #ffffff;
+    line-height: 1.02; font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  }
+  .hfc-footer {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+    background: rgba(var(--verified-green-rgb), 0.06);
+    border-top: 1px solid var(--border-strong);
+    margin: 0 -1.4rem; padding: 0.6rem 1.4rem; font-size: 0.72rem;
+  }
+  .hfc-card .cite {
+    font-family: var(--font-mono); color: var(--gold);
+    background: none; border: none; padding: 0; margin: 0; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .hfc-card .verified {
+    display: flex; align-items: center; gap: 0.3rem; margin: 0;
+    color: var(--verified-green); font-weight: 600; white-space: nowrap;
+  }
+  .hfc-card .verified svg { width: 0.75rem; height: 0.75rem; }
   .hfc-coverage { font-size: 0.78rem; color: var(--muted); margin-top: 0.85rem; text-align: center; }
   .hfc-coverage b { color: var(--accent); }
   @media (prefers-reduced-motion: reduce) {
@@ -3315,6 +3365,39 @@ def _is_still_upcoming(e: dict, today: date | None = None) -> bool:
         return False
 
 
+# Two-letter postal codes, for the hero card's monogram (Devin-approved
+# redesign 2026-08-14). Kept as an explicit map rather than derived from the
+# slug: "Mississippi"/"Missouri" and the territories can't be abbreviated by
+# rule, and a wrong monogram on the homepage's one trust card is worse than
+# no monogram. Any state missing here simply renders no monogram.
+_STATE_ABBR = {
+    "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
+    "California": "CA", "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE",
+    "District of Columbia": "DC", "Florida": "FL", "Georgia": "GA", "Guam": "GU",
+    "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN",
+    "Iowa": "IA", "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA",
+    "Maine": "ME", "Maryland": "MD", "Massachusetts": "MA", "Michigan": "MI",
+    "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO", "Montana": "MT",
+    "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
+    "New Mexico": "NM", "New York": "NY", "North Carolina": "NC",
+    "North Dakota": "ND", "Northern Mariana Islands": "MP", "Ohio": "OH",
+    "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA", "Puerto Rico": "PR",
+    "Rhode Island": "RI", "South Carolina": "SC", "South Dakota": "SD",
+    "Tennessee": "TN", "Texas": "TX", "U.S. Virgin Islands": "VI",
+    "US Virgin Islands": "VI", "Utah": "UT", "Vermont": "VT", "Virginia": "VA",
+    "Washington": "WA", "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY",
+}
+
+
+def _short_verified(iso: str) -> str:
+    """'2026-08-13' -> 'Aug 13' for the card's pill badge (full date stays in
+    the title attribute so nothing is actually lost)."""
+    try:
+        return date.fromisoformat(iso).strftime("%b %-d") if os.name != "nt" else date.fromisoformat(iso).strftime("%b %d").replace(" 0", " ")
+    except ValueError:
+        return iso
+
+
 def _upcoming_change_events_by_state() -> dict[str, list[dict]]:
     """Same kind=='rule_change' AND upcoming filter build_firm_dashboard_page()
     already uses for its own rule-change surface, and the exact set
@@ -5462,13 +5545,27 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
             d = date.fromisoformat(r["next_deadline_computed"])
             active_class = " is-active" if i == 0 else ""
             hfc_verified_text = "Confirmed via official records" if _is_operational_record(r) else "Confirmed at source"
+            abbr = _STATE_ABBR.get(r["state"], "")
+            mono = f'<span class="hfc-monogram" aria-hidden="true">{esc(abbr)}</span>' if abbr else ""
             hfc_cards.append(f"""<div class="hfc-card{active_class}" data-hfc-state="{esc(r['state'])}">
-  <div class="hfc-state">{esc(r['state'])}</div>
-  <div class="hfc-stamp"><span class="dot"></span>Verified {esc(r['last_verified'])}</div>
-  <div class="hfc-date">{esc(fmt_date(d))}</div>
-  <div class="hfc-sub">{esc(r['license_type_label'])}</div>
-  {_cite_chip_html(r, max_chars=44)}
-  <div class="verified">{_VERIFIED_ICON_SVG}{hfc_verified_text}</div>
+  <div class="hfc-top">
+    <div class="hfc-state-group">
+      {mono}
+      <div>
+        <div class="hfc-state">{esc(r['state'])}</div>
+        <div class="hfc-sub">{esc(r['license_type_label'])}</div>
+      </div>
+    </div>
+    <span class="hfc-stamp" title="Verified {esc(r['last_verified'])}" data-verified="{esc(r['last_verified'])}">{_VERIFIED_ICON_SVG}{esc(_short_verified(r['last_verified']))}</span>
+  </div>
+  <div class="hfc-date-block">
+    <div class="hfc-date-label">Next renewal date</div>
+    <div class="hfc-date">{esc(fmt_date(d))}</div>
+  </div>
+  <div class="hfc-footer">
+    {_cite_chip_html(r, max_chars=44)}
+    <span class="verified">{_VERIFIED_ICON_SVG}{esc(hfc_verified_text.replace("Confirmed at source", "Confirmed").replace("Confirmed via official records", "Confirmed"))}</span>
+  </div>
 </div>""")
         # STATIC PER VISIT (2026-08-03, Devin-approved option). This was a ~10-dot
         # auto-rotating carousel beside the search box; removed 2026-07-31 because

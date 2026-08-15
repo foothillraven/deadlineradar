@@ -624,6 +624,86 @@ _BLOCK_CLAIM_DATASETS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# DATA-7 (2026-08-14, AuditLab, found on a live page): correcting a claim in
+# one field does NOT correct it in its siblings. Louisiana's fee_notes was
+# rewritten to say no multiplier is codified while data_gap_note -- rendered
+# right below it as "Sourcing note:" -- kept naming "twice the renewal fee"
+# as a live possibility. The page argued with itself. A per-record content
+# sweep cannot catch this, because each field reads fine alone; only grepping
+# for the phrase you deleted finds it.
+#
+# This registry is that grep, run at build time. Each entry is a claim we
+# affirmatively disproved against primary text, plus the record it belongs
+# to -- so the phrase can never quietly reappear in ANY rendered field of
+# that record. Scoped per-record on purpose: "$150" is wrong for Arkansas's
+# renewal fee and perfectly correct for New Jersey's reinstatement fee, so a
+# global phrase ban would be pure noise.
+_RETIRED_CLAIMS: list[tuple[str, str, str]] = [
+    # (record id, phrase that must not reappear, why it was retired)
+    ("louisiana-reinstatement", "twice the renewal",
+     "no multiplier is codified anywhere in the board's rules (SRC-1)"),
+    ("oh-individual", "January 31 grace",
+     "no ORC/OAC text establishes a grace period; a late fee accrues monthly (SRC-6)"),
+    ("oh-individual", "3-group cohort",
+     "the cohort is arithmetic of the triennial cycle, not a stated three-group system (SRC-6)"),
+    ("rhode-island-renewal-fee", "statutory maximum",
+     "R.I. Gen. Laws 5-3.1-7(f) sets $375 as a MINIMUM, not a maximum (SRC-6)"),
+    ("virginia-renewal-fee", "no late fee",
+     "18VAC5-22-20(A) codifies a $100 untimely-renewal fee (SRC-6)"),
+    ("south-dakota-renewal-fee", "stale $50",
+     "ARSD 20:75:03:12 was amended eff. 2026-07-01 and now codifies $100 (SRC-6)"),
+    ("colorado-renewal-fee", "24-34-102",
+     "repealed; the fee provision moved to 12-20-105 in 2019 (SRC-6)"),
+    ("tn-all", "older administrative rule",
+     "the conflicting annual-firm-permit rule is the CURRENT compilation (SRC-6)"),
+    ("arkansas-renewal-fee", "$150 annual",
+     "the board's rules set $110; $150 is the reinstatement fee (SRC-6)"),
+    ("texas-renewal-fee", "$118",
+     "unsourced; the Board's published figure is $112 (CITE-21)"),
+    ("ga-cpe", "16 hours shall be in accounting",
+     "superseded pre-2024 text; the current rule requires 50% technical (SRC-6)"),
+    ("az-individual", "5:00pm",
+     "no such cutoff in the current A.A.C. R4-1-345(B) text"),
+    ("az-firm", "5:00pm",
+     "no such cutoff in the current A.A.C. R4-1-345(B) text"),
+]
+_RETIRED_SKIP_FIELDS = {"verification_history", "verification_note", "status_evidence"}
+
+
+def check_retired_claims_absent(repo_root: Path) -> list[str]:
+    """Fail the build if a disproved claim reappears in any reader-facing field
+    of the record it was retired from. See the registry comment above."""
+    by_id: dict[str, dict] = {}
+    for fname in ("cpa_deadlines.json", "cpe_hours.json", "reinstatement.json", "renewal_fees.json"):
+        path = repo_root / "data" / fname
+        if not path.exists():
+            continue
+        for r in json.loads(path.read_text(encoding="utf-8"))["records"]:
+            if r.get("id"):
+                by_id[r["id"]] = r
+
+    errors = []
+    for rid, phrase, why in _RETIRED_CLAIMS:
+        rec = by_id.get(rid)
+        if rec is None:
+            errors.append(
+                f"[RETIRED][{rid}] registered as having a retired claim but the record no longer "
+                f"exists -- update _RETIRED_CLAIMS if it was intentionally removed"
+            )
+            continue
+        for field, value in rec.items():
+            if field in _RETIRED_SKIP_FIELDS or not isinstance(value, str):
+                continue
+            if phrase.lower() in value.lower():
+                errors.append(
+                    f"[RETIRED][{rid}] .{field} contains the retired claim {phrase!r} -- {why}. "
+                    f"This claim was disproved against primary text; if it is back, either a sibling "
+                    f"field was missed when the correction was applied or the correction was reverted."
+                )
+    return errors
+
+
 def check_block_claims_corroborated(repo_root: Path) -> list[str]:
     sys.path.insert(0, str(repo_root / "scripts"))
     try:
@@ -1625,6 +1705,7 @@ def main():
     all_errors += check_reinstatement_currency(repo_root)
     all_errors += check_derived_fee_consistency(repo_root)
     all_errors += check_block_claims_corroborated(repo_root)
+    all_errors += check_retired_claims_absent(repo_root)
     all_errors += check_renewal_fee_currency(repo_root)
     all_errors += check_competitor_price_currency(repo_root)
     all_errors += check_field_computed_states_sync(repo_root)

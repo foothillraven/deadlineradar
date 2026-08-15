@@ -54,6 +54,18 @@ SOFT_404_MARKERS = [
     "error 404",
     "no longer available",
     "this page has moved",
+    # Server-side crash pages returned with HTTP 200. Added 2026-08-14 after
+    # both Arkansas citation_urls (17 CAR 236-1101 / 236-1203) were classified
+    # CONFIRMED_TEXT: codeofarrules.arkansas.gov returns 200 with ~1kB of site
+    # chrome whose only body content is the .NET exception below. The links were
+    # LIVE on our state pages, dead-ending readers into a stack-trace stub --
+    # the same shape as the Colorado raw-JSON citation Devin found. A crash page
+    # is not a source, and "we fetched 1061 characters" is not evidence.
+    "object reference not set",
+    "runtime error",
+    "server error in '/' application",
+    "an unhandled exception",
+    "unexpected error occurred",
 ]
 
 # 2xx interstitials that are really fetcher blocks -- discovered live on the

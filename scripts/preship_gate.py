@@ -786,7 +786,11 @@ def check_retired_claims_absent(repo_root: Path) -> list[str]:
     return errors
 
 
+_SRC5_UNVERIFIED: list[str] = []
+
+
 def check_block_claims_corroborated(repo_root: Path) -> list[str]:
+    _SRC5_UNVERIFIED.clear()
     sys.path.insert(0, str(repo_root / "scripts"))
     try:
         import source_check
@@ -808,20 +812,49 @@ def check_block_claims_corroborated(repo_root: Path) -> list[str]:
             verdicts = {}
             for u in urls:
                 try:
-                    verdicts[u] = source_check.check(u)["classification"]
+                    res = source_check.check(u)
+                    cls = res["classification"]
+                    # A timeout or connection failure is NOT evidence about the
+                    # host's behaviour -- source_check reports both as BLOCKED
+                    # with http_status None, while a real refusal carries a
+                    # status code. Treating the two alike made this gate
+                    # nondeterministic: the SAME tree passed or failed depending
+                    # on whether a state server happened to answer in 30s (slow
+                    # -> BLOCKED -> "claim corroborated" -> pass; responsive ->
+                    # SOFT_404 -> fail). Observed live 2026-08-14: three
+                    # consecutive runs gave exit 0, 1, 0 with nothing changed.
+                    # A hard gate whose verdict depends on the network is worse
+                    # than no gate -- it teaches you to re-run until it's green.
+                    if cls == "BLOCKED" and res.get("http_status") is None:
+                        cls = "INCONCLUSIVE(transient)"
+                    verdicts[u] = cls
                 except Exception as e:  # network hiccup at gate time: warn, don't false-fail
                     verdicts[u] = "CHECK_ERROR(%s)" % type(e).__name__
-            # The claim is corroborated if at least one of the record's own
-            # URLs is genuinely BLOCKED. If every URL fetches with text, the
-            # prose is asserting a block that does not exist.
+            # The claim is corroborated if at least one of the record's own URLs
+            # is genuinely BLOCKED (a real status code). If every URL fetches
+            # with text, the prose asserts a block that does not exist. Anything
+            # inconclusive suppresses the verdict entirely rather than deciding
+            # it in either direction.
             if not any(v == "BLOCKED" for v in verdicts.values()) and \
-               not any(v.startswith("CHECK_ERROR") for v in verdicts.values()):
+               not any(v.startswith("CHECK_ERROR") for v in verdicts.values()) and \
+               not any(v.startswith("INCONCLUSIVE") for v in verdicts.values()):
                 errors.append(
                     f"[SRC5][{r.get('id')}] {fname}.{field} claims a source blocks access, but "
                     f"source_check classifies its URLs as {verdicts} -- either the block healed "
                     f"(remove/reword the claim) or the note is the parser-choke misdiagnosis this "
                     f"gate exists to stop"
                 )
+            elif any(str(v).startswith(("INCONCLUSIVE", "CHECK_ERROR"))
+                     for v in verdicts.values()):
+                _SRC5_UNVERIFIED.append(f"{r.get('id')} ({fname})")
+
+    # Say out loud which records this check could not actually assess. A gate
+    # that quietly checks nothing reads identically to one that checked and
+    # found nothing -- that is how a passing build stops meaning anything.
+    if _SRC5_UNVERIFIED:
+        print(f"  [SRC5] NOT ASSESSED this run ({len(_SRC5_UNVERIFIED)} record(s)) -- their hosts "
+              f"did not answer, so the block claim was neither corroborated nor refuted: "
+              f"{', '.join(sorted(set(_SRC5_UNVERIFIED)))}")
     return errors
 
 

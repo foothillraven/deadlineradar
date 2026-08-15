@@ -808,8 +808,10 @@ PAGE_CSS = """
      _SEAL_RUNTIME_JS toggles .is-stale at VIEW time (30-day threshold) so
      an already-deployed page can't show a fresh seal on stale data --
      same build-time-can't-know-view-time architecture as
-     _STALE_BADGE_RUNTIME_JS, deliberately a separate component with a
-     deliberately separate threshold (30 vs that one's 45). */
+     _STALE_BADGE_RUNTIME_JS -- a separate component, but sharing the SAME
+     threshold: both read _STALE_DAYS (30). Unified by orchestrator decision
+     2026-08-14; the earlier 30/45 split let one record show a green "Verified"
+     caveat next to a red "RE-VERIFY NEEDED" seal. Do not re-split them. */
   .dr-seal { float: right; width: 7.25rem; height: 7.25rem; margin: 0.2rem 0 0.6rem 1.2rem; }
   .dr-seal svg { width: 100%; height: 100%; display: block; }
   .dr-seal .dr-seal-stale { display: none; }
@@ -4244,9 +4246,11 @@ _SEAL_RUNTIME_JS = """<script>
 (function () {
   // View-time evaluation for the engraved seal -- a page built fresh can be
   // VIEWED weeks later, so the build-time state is only an initial guess.
-  // 30-day threshold per Devin's spec for this component; deliberately NOT
-  // unified with the small badge's 45-day text caveat (flagged, confirmed
-  // as separate thresholds by design pending his say-so otherwise).
+  // Threshold is _STALE_DAYS, the SAME constant the small text caveat uses --
+  // unified at 30 by orchestrator decision 2026-08-14, superseding the earlier
+  // split (seal 30 / caveat 45). Reason: a record aged 31-44 days showed a green
+  // "Verified" caveat beside a red "RE-VERIFY NEEDED" seal for the same record.
+  // Do not reintroduce a second number; both must read from _STALE_DAYS.
   var SEAL_STALE_DAYS = """ + str(_STALE_DAYS) + """;
   function drSealEvaluate(root) {
     var seals = (root || document).querySelectorAll('.dr-seal[data-verified]');

@@ -825,6 +825,52 @@ def check_block_claims_corroborated(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_stale_thresholds_unified(html_files) -> list[str]:
+    """The seal and the small text caveat must flip on the SAME day count.
+
+    Orchestrator decision 2026-08-14, replacing an earlier 30/45 split: a record
+    aged 31-44 days rendered a green "Verified" caveat directly beside a red
+    "RE-VERIFY NEEDED" seal for that same record -- a self-contradiction visible
+    to any reader. Both now derive from generate.py's _STALE_DAYS.
+
+    Checked against BUILT output, not the source constants, because the failure
+    mode that matters is what a visitor's browser actually evaluates: the two
+    values are inlined into every page's JS by separate runtime blocks, and
+    nothing but this check stops a future edit from re-splitting them. Source
+    comments say "do not re-split"; a comment cannot fail a build.
+
+    Zero false-positive risk by construction -- it compares two numbers that are
+    required to be equal, rather than inferring intent from prose.
+    """
+    errors = []
+    seal_re = re.compile(r"SEAL_STALE_DAYS\s*=\s*(\d+)")
+    badge_re = re.compile(r"RUNTIME_STALE_DAYS\s*=\s*(\d+)")
+    checked = 0
+    for path in html_files:
+        html = path.read_text(encoding="utf-8", errors="ignore")
+        seal = seal_re.search(html)
+        badge = badge_re.search(html)
+        if not seal or not badge:
+            continue
+        checked += 1
+        if seal.group(1) != badge.group(1):
+            errors.append(
+                f"{path.name}: staleness thresholds diverged -- seal flips at "
+                f"{seal.group(1)} days but the text caveat flips at "
+                f"{badge.group(1)}. A record aged between them shows a green "
+                f"'Verified' caveat beside a red 'RE-VERIFY NEEDED' seal. Both "
+                f"must read generate.py's _STALE_DAYS."
+            )
+    if checked == 0 and html_files:
+        errors.append(
+            "check_stale_thresholds_unified found NO page carrying both "
+            "SEAL_STALE_DAYS and RUNTIME_STALE_DAYS. Either the seal/badge "
+            "runtimes stopped shipping or their variable names changed -- this "
+            "check is no longer measuring anything and must be repaired."
+        )
+    return errors
+
+
 def check_derived_fee_consistency(repo_root: Path) -> list[str]:
     """Fail the build when a published figure derived from a base renewal fee
     no longer matches that fee. See the registry comment above."""
@@ -1785,6 +1831,7 @@ def main():
     all_errors += check_deadline_currency(data_path)
     all_errors += check_cpe_hours_currency(repo_root)
     all_errors += check_reinstatement_currency(repo_root)
+    all_errors += check_stale_thresholds_unified(html_files)
     all_errors += check_derived_fee_consistency(repo_root)
     all_errors += check_block_claims_corroborated(repo_root)
     all_errors += check_retired_claims_absent(repo_root)

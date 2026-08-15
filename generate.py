@@ -965,10 +965,15 @@ PAGE_CSS = """
   .hfc-date-block { margin: 0 -1.4rem 1rem; padding: 0.9rem 1.4rem; background: var(--accent); }
   .hfc-date-label {
     font-size: 0.68rem; font-weight: 650; text-transform: uppercase;
-    letter-spacing: 0.09em; color: rgba(255,255,255,0.75); margin-bottom: 0.1rem;
+    letter-spacing: 0.09em; color: color-mix(in srgb, var(--on-accent) 75%, transparent);
+    margin-bottom: 0.1rem;
   }
   .hfc-date {
-    font-family: var(--font-display); font-size: 2.5rem; font-weight: 700; color: #ffffff;
+    /* --on-accent, NOT hard-coded #fff: the mockup used white, which is
+       correct on light mode's navy accent but only ~2.4:1 on dark mode's
+       lighter blue accent -- below the 3:1 large-text floor. This token
+       already exists for exactly this (white / near-black per mode). */
+    font-family: var(--font-display); font-size: 2.5rem; font-weight: 700; color: var(--on-accent);
     line-height: 1.02; font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
   }
   .hfc-footer {

@@ -17993,11 +17993,24 @@ def _renewal_fee_html(state_slug: str, renewal_fees_by_slug: dict[str, dict]) ->
     # rule text -- the same read-the-rule affordance every other figure on
     # the site already has. Absent (record not yet upgraded), renders exactly
     # as before.
+    # 2026-08-14, self-audit of the published post's own claim ("every figure
+    # on this site links to its source"): a fee whose amount is board-set has
+    # no citation_url, and this used to render the dollar figure with NO link
+    # at all -- six live figures (DC, IN, MT, PR, TX, USVI). They all HAVE a
+    # source_url; we simply weren't showing it. Fall back to it, labelled for
+    # what it actually is, so the figure always reaches its source and the
+    # label never implies codified law where there is none.
     cite_link = ""
     if record.get("citation_url") and record.get("citation"):
         cite_link = (
             f' <a class="cite-link" href="{http_href(record["citation_url"])}" '
             f'title="{esc(record["citation"])}">read the rule &rarr;</a>'
+        )
+    elif record.get("source_url"):
+        cite_link = (
+            f' <a class="cite-link" href="{http_href(record["source_url"])}" '
+            f'title="This amount is set administratively rather than fixed in rule text, so the '
+            f'source is the board\'s own published schedule.">see the board&rsquo;s page &rarr;</a>'
         )
     return (
         f'<p class="backlink-cross"><strong>Renewal fee:</strong> ${record["fee_usd"]:,}. '

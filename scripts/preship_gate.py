@@ -671,6 +671,30 @@ _RETIRED_CLAIMS: list[tuple[str, str, str]] = [
 _RETIRED_SKIP_FIELDS = {"verification_history", "verification_note", "status_evidence"}
 
 
+_FEE_LINE_RE = re.compile(r"<strong>Renewal fee:</strong>\s*\$[\d,]+\.(.{0,600}?)</p>", re.DOTALL)
+
+
+def check_published_figures_link_source(html_files: list[Path]) -> list[str]:
+    """The published post 'How a superseded rule hid on an official site' tells
+    readers, in its closing line, that EVERY figure on this site links to its
+    source. That was false when it shipped: six board-set renewal fees (DC,
+    IN, MT, PR, TX, USVI) have no citation_url and were rendering the dollar
+    amount with no link at all. Fixed by falling back to source_url -- this
+    gate keeps the promise true, because a public claim about our own rigour
+    should be enforced, not just asserted once and hoped for."""
+    errors = []
+    for f in html_files:
+        text = f.read_text(encoding="utf-8")
+        for m in _FEE_LINE_RE.finditer(text):
+            if "cite-link" not in m.group(1):
+                errors.append(
+                    f"[FIGURE][{f}] a rendered renewal-fee figure has no source link -- the published "
+                    f"blog post promises every figure links to its source, so either give this record "
+                    f"a citation_url/source_url or change that published claim"
+                )
+    return errors
+
+
 def check_retired_claims_absent(repo_root: Path) -> list[str]:
     """Fail the build if a disproved claim reappears in any reader-facing field
     of the record it was retired from. See the registry comment above."""
@@ -1706,6 +1730,7 @@ def main():
     all_errors += check_derived_fee_consistency(repo_root)
     all_errors += check_block_claims_corroborated(repo_root)
     all_errors += check_retired_claims_absent(repo_root)
+    all_errors += check_published_figures_link_source(html_files)
     all_errors += check_renewal_fee_currency(repo_root)
     all_errors += check_competitor_price_currency(repo_root)
     all_errors += check_field_computed_states_sync(repo_root)

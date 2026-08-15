@@ -77,6 +77,10 @@
     "virginia-to-washington-dc-cpa-mobility": {
       "last_reviewed": "2026-08-13",
       "reviewed_by": "authored-from-verified-datasets"
+    },
+    "how-a-superseded-rule-hid-on-an-official-site": {
+      "last_reviewed": "2026-08-14",
+      "reviewed_by": "orchestrator-primary-source-factcheck"
     }
   }
 }

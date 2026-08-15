@@ -596,7 +596,7 @@ PAGE_CSS = """
   }
   tr.dr-bf-highlight { background: var(--card-bg); outline: 2px solid var(--accent); outline-offset: -2px; }
   /* FRESH-1 residual (2026-08-14): view-time staleness caveat appended by
-     _STALE_BADGE_RUNTIME_JS when a dated verification marker is >45 days
+     _STALE_BADGE_RUNTIME_JS when a dated verification marker is past the
      old on a LIVE page (build gates can't touch already-deployed pages).
      Muted, not alarming -- it's an honesty disclosure, not an error. */
   .verified-stale-note { font-weight: 400; font-style: italic; opacity: 0.85; }
@@ -3722,14 +3722,24 @@ _TABLE_SCROLL_HINT_JS = """<script>
 # stuck. Every dated verification marker now carries data-verified, and this
 # script -- evaluated at VIEW time in the visitor's browser, the only
 # runtime a static site has -- appends an honest caveat once the date is
-# past 45 days (30-day gate bar + 15 days' slack, so a page never flags
-# while the build pipeline is merely between normal re-verification cycles;
-# if this fires, builds have genuinely stopped happening).
+# Shared staleness threshold for BOTH dated-verification surfaces: the
+# engraved seal and the small text caveat. Unified 2026-08-14 -- two
+# different numbers made a 31-44-day-old record show a green caveat next
+# to a red seal for the same fact. One constant, so they cannot diverge.
+_STALE_DAYS = 30
+_SEAL_STALE_DAYS = _STALE_DAYS  # kept as an alias; existing call sites read this
+
+# past the shared staleness threshold. UNIFIED at 30 days on 2026-08-14
+# (orchestrator decision, Devin-raised): this used to sit at 45 while the
+# engraved seal flipped at 30, so a record aged 31-44 days rendered a green
+# "Verified" caveat directly beside a red "RE-VERIFY NEEDED" seal for the
+# SAME fact -- a visible self-contradiction. One number, one story. Both
+# surfaces now read _STALE_DAYS; do not reintroduce a second constant.
 _STALE_BADGE_RUNTIME_JS = """<script>
 (function () {
   var marks = document.querySelectorAll('[data-verified]');
   if (!marks.length) return;
-  var RUNTIME_STALE_DAYS = 45;
+  var RUNTIME_STALE_DAYS = """ + str(_STALE_DAYS) + """;
   var now = new Date();
   marks.forEach(function (el) {
     var iso = el.getAttribute('data-verified');
@@ -4057,7 +4067,6 @@ def _verified_badge_html(record: dict) -> str:
     return f'<span class="verified-badge"{dv_attr}>{label}</span>'
 
 
-_SEAL_STALE_DAYS = 30
 _seal_uid_counter = [0]
 
 
@@ -4150,7 +4159,7 @@ _SEAL_RUNTIME_JS = """<script>
   // 30-day threshold per Devin's spec for this component; deliberately NOT
   // unified with the small badge's 45-day text caveat (flagged, confirmed
   // as separate thresholds by design pending his say-so otherwise).
-  var SEAL_STALE_DAYS = 30;
+  var SEAL_STALE_DAYS = """ + str(_STALE_DAYS) + """;
   function drSealEvaluate(root) {
     var seals = (root || document).querySelectorAll('.dr-seal[data-verified]');
     for (var i = 0; i < seals.length; i++) {
@@ -7463,9 +7472,10 @@ Check are also <strong>free</strong> for a solo CPA &mdash;
 <p>Deadline accuracy comes from the same sourcing standard every free page on this site already uses
 &mdash; the codified statute or rule where we could confirm it, and clearly labelled where we could
 only confirm it against the board's own page &mdash; not a recurring human check-in on each staff
-member's status. Self-serve card checkout
-through Stripe is live today for every tier, Essentials through Enterprise -- pick a plan above and pay
-by card, no invoice or sales call required. More than 35 staff?
+member's status. Card checkout is rolling out
+across the tiers, Essentials through Enterprise &mdash; if you'd like it as soon as it opens for your
+plan, <a href="#firm-lead">leave your email</a> and we'll get you set up directly in the meantime, no
+invoice or sales call required. More than 35 staff?
 <a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a> -- no formula, we'll work out what fits. Not ready
 to create an account yet? <a href="#firm-lead">Leave your email instead</a> and we'll follow up.</p>
 
@@ -18165,6 +18175,120 @@ never a guess.</p>
 
 
 BLOG_ARTICLES = [
+    {
+        "slug": "how-a-superseded-rule-hid-on-an-official-site",
+        "title": "The State's Own Website Was Serving a Repealed Rule",
+        "meta_description": (
+            "Georgia's rules site still showed a CPE requirement replaced in 2024. Here's how we "
+            "found it, what we changed across every citation on this site, and why we publish the "
+            "corrections."
+        ),
+        "body_html": """
+<p class="intro">If you looked up Georgia's CPA continuing-education rule this month on the Georgia
+Secretary of State's rules site, you would have read that 80 hours are required every two years, with
+16 of them in accounting and auditing.</p>
+
+<p>That was true until January 1, 2024. It isn't true now. The current rule &mdash; published by the
+Georgia State Board of Accountancy itself &mdash; requires at least <strong>50% of the 80 credits in
+technical fields of study</strong>. That's 40 credits, not 16. A CPA who planned a renewal cycle
+against the old figure would arrive at renewal 24 credits short.</p>
+
+<p>The unsettling part isn't that an old version of a rule exists somewhere. It's <em>where</em> it
+lives: on an official state-government site, with no banner, no effective-date warning, nothing to
+signal that the Board had adopted a newer text. Two government sources, both official, disagreeing
+&mdash; and the one that ranks higher in search results is the stale one.</p>
+
+<p>We know because until last week, one of our own Georgia figures was built from that page.</p>
+
+<h2>What we found when we went looking</h2>
+
+<p>Catching the Georgia problem forced an uncomfortable question: how many of our other citations
+rested on something other than the current primary text?</p>
+
+<p>So we audited every record on this site that cited a third-party legal mirror &mdash; the
+convenience sites that republish state statutes and rules &mdash; instead of the state's own
+publication. There were 67 of them, across renewal deadlines, CPE requirements, reinstatement rules,
+and fees. For each one we located the state's actual current source (the legislature's code site, the
+state's administrative-rules publisher, or the board's own published rule text), verified it serves
+the real text, and re-checked our published figures against it.</p>
+
+<p>Most figures held up. Thirteen didn't &mdash; not always dramatically, but in ways that matter if
+you're the person paying the fee:</p>
+
+<ul>
+<li><strong>Indiana:</strong> the reinstatement fees we listed ($155/$190) turned out to be
+unconfirmable on any current official source. The statute doesn't set dollar amounts at all &mdash;
+it says the licensing agency sets the fee for shorter lapses, and pegs longer lapses to the current
+initial-application fee. We now say exactly that, and tell you to confirm the amount with the agency
+before paying.</li>
+<li><strong>Louisiana:</strong> we described a same-year reinstatement fee as "twice the renewal
+fee." No text anywhere says that. The rule says: the renewal fee plus a penalty the board may
+prescribe. Corrected.</li>
+<li><strong>Georgia</strong> again: we called the reinstatement fee "non-refundable." The word
+appears nowhere in the chapter. Removed.</li>
+<li><strong>Michigan:</strong> we'd scoped the $20 late-renewal fee too narrowly &mdash; the statute
+makes it payable on relicensure too. The board's own licensing guide confirms the assembled total we
+now show: $320 for a two-year relicensure.</li>
+</ul>
+
+<p>Every correction of this kind gets logged in the record's own verification history, with the exact
+primary text quoted. If we got something wrong, the fix and the reason are part of the record &mdash;
+not silently overwritten.</p>
+
+<h2>The tooling lesson we had to learn twice</h2>
+
+<p>Some of our records carried honest-sounding disclosures like "this board's website blocks automated
+access, so we couldn't re-confirm this figure against it." Disclosure beats silence. But when we
+re-tested every one of those claims, most were wrong &mdash; and wrong in a specific, repeatable
+way.</p>
+
+<p>A fetch that comes back empty is a blocked source. A fetch that returns a real document that our
+<em>text extraction</em> then chokes on is not a blocked source &mdash; it's our own tooling failing,
+dressed up as someone else's firewall. Massachusetts's regulations, Utah's CPE FAQ, Nebraska's
+administrative code: all three were reachable the whole time. Once we separated "they blocked us"
+from "we fumbled the parse," and read the documents properly, all three confirmed our published
+figures verbatim &mdash; including Massachusetts's rule that "no carryover is permitted from one
+two-year period to another," word for word from the codified text.</p>
+
+<p>We rebuilt the checking step so those two failure modes can't be conflated again: a source only
+gets described as blocked if it actually refuses to serve the document, and a parser failure routes to
+better parsers &mdash; and then to a human with a browser &mdash; before anything reaches a public
+caveat. The re-run settled every one of our "couldn't verify" disclosures. Most cleared. The few
+genuine gaps that remain (Guam's board site has had a broken security certificate for years; the
+Northern Mariana Islands has no accountancy board website at all) are now stated precisely, because we
+checked those premises again rather than letting old conclusions ride.</p>
+
+<h2>Why we're telling you this</h2>
+
+<p>Because the whole value of a site like this is that the numbers are load-bearing. A renewal
+deadline or an ethics-hour requirement isn't content &mdash; it's something a licensee acts on. That
+means the honest posture isn't "trust us," it's "here's the current primary source, here's the exact
+text, and here's what we changed when we found we were wrong."</p>
+
+<p>Three durable rules came out of this, and they now run on every build:</p>
+
+<ol>
+<li><strong>Primary sources only as the citation of record.</strong> Third-party mirrors can lag the
+law with no warning &mdash; and so, it turns out, can a state's own aggregator. Where a state
+genuinely publishes nothing linkable (it happens), we say so on the page rather than linking something
+stale.</li>
+<li><strong>A claim we can't verify gets disclosed as exactly that</strong> &mdash; with the failure
+mode named correctly. "We couldn't parse it" is never allowed to masquerade as "they blocked
+us."</li>
+<li><strong>Derived numbers are checked against their inputs automatically.</strong> Several
+reinstatement totals on this site are computed from a state's base renewal fee. When we corrected one
+base fee, the derived figures two datasets away would have silently kept the old math &mdash; now the
+build fails until both move together.</li>
+</ol>
+
+<p>None of this makes us infallible. It makes us checkable &mdash; which is the only claim worth
+making about compliance data.</p>
+
+<p><em>Every figure on this site links to its source. If you find one that doesn't match the current
+text of the law, <a href="../../contact/">tell us</a> &mdash; the correction, and the credit, will be
+public.</em></p>
+""",
+    },
     {
         "slug": "cpe-vs-license-renewal",
         "title": "CPE Requirements vs. License Renewal — The Deadline CPAs Mix Up",

@@ -2302,6 +2302,13 @@ PAGE_CSS = """
      never look identical. */
   .dr-map-state--complete { fill: #1f9e8e; }
   .dr-map-state--coverage { fill: #8a6bd4; }
+  /* AuditLab MOB-3: not_verified (per-person mobility mode) used to fall
+     through to the SAME default gray as "no staff here" (roster mode) --
+     one map, two modes, one color meaning two different things depending
+     on which mode a viewer carried their reading in from. Deliberately a
+     muted slate rather than any of the confident status colors above: an
+     unverified state should not read as visually settled. */
+  .dr-map-state--not-verified { fill: #7a8699; }
   .dr-map-link { cursor: default; outline: none; }
   .dr-map-link[data-has-staff="true"] { cursor: pointer; }
   .dr-map-tooltip {
@@ -11335,7 +11342,7 @@ function drRenderAgenda() {
 // drRenderMap() only cleared its own two classes, so a state colored
 // dr-map-state--home in mobility mode stayed that way after switching back
 // to "All staff", visually fighting with the class the All view then added).
-var DR_MAP_STATE_CLASSES = ['dr-map-state--active', 'dr-map-state--risk', 'dr-map-state--clear', 'dr-map-state--action', 'dr-map-state--complete', 'dr-map-state--home', 'dr-map-state--coverage'];
+var DR_MAP_STATE_CLASSES = ['dr-map-state--active', 'dr-map-state--risk', 'dr-map-state--clear', 'dr-map-state--action', 'dr-map-state--complete', 'dr-map-state--home', 'dr-map-state--coverage', 'dr-map-state--not-verified'];
 
 function drClearMapStateClasses(path) {
   DR_MAP_STATE_CLASSES.forEach(function(c) { path.classList.remove(c); });
@@ -11670,7 +11677,8 @@ function drApplyMobilityResults(homeStateSlug, entry, gen, subscriberId) {
     if (verdict === 'clear') path.classList.add('dr-map-state--clear');
     else if (completed) path.classList.add('dr-map-state--complete');
     else if (verdict === 'action_required') path.classList.add('dr-map-state--action');
-    // not_verified (or anything else): no color class, stays default gray.
+    else if (verdict === 'not_verified') path.classList.add('dr-map-state--not-verified');
+    // anything else (e.g. not_applicable): no color class, stays default gray.
     // 2026-08-10, same root issue as /firm-mobility/'s own Overall pointer
     // fix (Devin's live-test report): this tooltip used to read
     // individual.summary ALONE, so an orange (action_required) state could

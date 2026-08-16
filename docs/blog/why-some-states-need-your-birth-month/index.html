@@ -20,7 +20,7 @@
 <meta name="twitter:description" content="Some states renew every CPA license on one fixed date. Others compute it from your birth month or year. The real difference, state by state, and why we ask instead of guess.">
 <meta name="twitter:image" content="https://deadline-radar.com/og-image.png">
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BlogPosting", "headline": "Why This Site Sometimes Asks for Your Birth Month Instead of Just Showing a Date", "description": "Some states renew every CPA license on one fixed date. Others compute it from your birth month or year. The real difference, state by state, and why we ask instead of guess.", "url": "https://deadline-radar.com/blog/why-some-states-need-your-birth-month/", "datePublished": "2026-07-15", "dateModified": "2026-08-04", "author": {"@type": "Organization", "name": "Moose & Raven LLC"}, "publisher": {"@type": "Organization", "name": "Moose & Raven LLC"}}</script>
 
 <style>
 
@@ -591,6 +591,15 @@
     background: var(--card-bg); margin: 1.75rem 0; font-size: 0.85rem; color: var(--muted);
   }
   .guide-disclosure p { margin: 0; }
+  
+  .guide-verified-stamp {
+    display: flex; align-items: center; gap: 0.45rem; font-size: 0.8rem;
+    color: var(--verified-green); font-weight: 600; margin: 0.4rem 0 1.4rem;
+  }
+  .guide-verified-stamp .dot {
+    width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--verified-green);
+    box-shadow: 0 0 0 3px var(--verified-green-bg); display: inline-block; flex: none;
+  }
   .state-links { padding-left: 1.2rem; margin: 0.75rem 0 1.5rem; }
   .state-links li { margin-bottom: 0.3rem; }
   .mock-status {
@@ -1685,6 +1694,7 @@
   <div class="tagline">CPA license renewal deadlines by state — verified and kept current</div>
 </header>
 <h1>Why This Site Sometimes Asks for Your Birth Month Instead of Just Showing a Date</h1>
+<div class="guide-verified-stamp"><span class="dot"></span>Last verified August 4, 2026</div>
 
 <p class="intro">Most of this site works the same way for every visitor to a given state page: pick
 your state, see the date, done. A handful of states don't work that way, and if you've landed on one of

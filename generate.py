@@ -1140,6 +1140,18 @@ PAGE_CSS = """
     background: var(--card-bg); margin: 1.75rem 0; font-size: 0.85rem; color: var(--muted);
   }
   .guide-disclosure p { margin: 0; }
+  /* Same visual language as .sheethead .stamp (the state pages' "Last verified"
+     line) and the engraved seal's date -- deliberately "Last verified", never
+     "Published", so a guide reads as "we keep checking this" rather than
+     aging into "old post" the way a bare publish date would. */
+  .guide-verified-stamp {
+    display: flex; align-items: center; gap: 0.45rem; font-size: 0.8rem;
+    color: var(--verified-green); font-weight: 600; margin: 0.4rem 0 1.4rem;
+  }
+  .guide-verified-stamp .dot {
+    width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--verified-green);
+    box-shadow: 0 0 0 3px var(--verified-green-bg); display: inline-block; flex: none;
+  }
   .state-links { padding-left: 1.2rem; margin: 0.75rem 0 1.5rem; }
   .state-links li { margin-bottom: 0.3rem; }
   .mock-status {
@@ -18311,6 +18323,7 @@ never a guess.</p>
 BLOG_ARTICLES = [
     {
         "slug": "how-a-superseded-rule-hid-on-an-official-site",
+        "published": "2026-08-14",  # first-introduction commit date, from git history
         "title": "The State's Own Website Was Serving a Repealed Rule",
         "meta_description": (
             "Georgia's rules site still showed a CPE requirement replaced in 2024. Here's how we "
@@ -18425,6 +18438,7 @@ public.</em></p>
     },
     {
         "slug": "cpe-vs-license-renewal",
+        "published": "2026-07-06",  # first-introduction commit date, from git history
         "title": "CPE Requirements vs. License Renewal — The Deadline CPAs Mix Up",
         "meta_description": (
             "CPE completion and license renewal are two different deadlines with two different "
@@ -18477,6 +18491,7 @@ track that separately too.</p>
     },
     {
         "slug": "common-cpa-renewal-mistakes",
+        "published": "2026-07-06",  # first-introduction commit date, from git history
         "title": "The Most Common CPA License-Renewal Mistakes (and How to Avoid Them)",
         "meta_description": (
             "The renewal mistakes that trip up CPAs most often — wrong deadline, wrong cycle "
@@ -18526,6 +18541,7 @@ real reminder tied to the actual date &mdash; not a guess, a memory, or someone 
     },
     {
         "slug": "missouri-cpa-license-renewal-guide",
+        "published": "2026-07-06",  # first-introduction commit date, from git history
         "title": "How CPA License Renewal Works in Missouri: Dates, Fees, CPE, and Deadlines",
         "meta_description": (
             "Missouri CPA license renewal: the real dates for individual licenses and firm "
@@ -18580,6 +18596,7 @@ you don't have to hold all three in your head.</p>
         # beats a population-based guess. Resume largest-population-first + alternating with
         # a CPE guide next week absent a similarly strong reason not to.
         "slug": "arizona-cpa-license-renewal-guide",
+        "published": "2026-07-10",  # first-introduction commit date, from git history
         "title": "How CPA License Renewal Works in Arizona: Birth-Month Cycles, Firm Registration, and Deadlines",
         "meta_description": (
             "Arizona CPA license renewal: how the birth-month/parity cycle works, why firm "
@@ -18631,6 +18648,7 @@ at when "renewal season" is.</p>
     },
     {
         "slug": "why-some-states-need-your-birth-month",
+        "published": "2026-07-15",  # first-introduction commit date, from git history
         "title": "Why This Site Sometimes Asks for Your Birth Month Instead of Just Showing a Date",
         "meta_description": (
             "Some states renew every CPA license on one fixed date. Others compute it from your "
@@ -18694,6 +18712,7 @@ guess.</p>
         # confirmed it. Pure repackaging of already-verified data/cpe_hours.json entries, zero new
         # legal research.
         "slug": "illinois-cpa-license-renewal-guide",
+        "published": "2026-07-17",  # first-introduction commit date, from git history
         "title": "How CPA License Renewal Works in Illinois: Dates, CPE, and Firm Registration",
         "meta_description": (
             "Illinois CPA license renewal: the 3-year individual and firm cycles, the 120-hour "
@@ -18743,6 +18762,7 @@ second, separate line item from your 4 ethics hours.
         # the GSC-steered content lever. Pure repackaging of data/cpa_deadlines.json's ct-individual
         # and ct-firm entries, zero new legal research.
         "slug": "connecticut-cpa-license-renewal-guide",
+        "published": "2026-07-17",  # first-introduction commit date, from git history
         "title": "How CPA License Renewal Works in Connecticut: Two Clocks That Don't Line Up",
         "meta_description": (
             "Connecticut CPA license renewal: the calendar-year license cycle, the separate "
@@ -18799,6 +18819,7 @@ catches you off guard.</p>
         # repackaging of data/cpa_deadlines.json's wi-individual/wi-firm entries + cpe_hours.json's
         # wi-cpe entry, zero new legal research.
         "slug": "wisconsin-cpa-license-renewal-guide",
+        "published": "2026-07-17",  # first-introduction commit date, from git history
         "title": "How CPA License Renewal Works in Wisconsin: One Date for Everyone",
         "meta_description": (
             "Wisconsin CPA license renewal: the biennial December 15 deadline for individuals and "
@@ -18850,6 +18871,7 @@ for you instead of sneaking up on you.</p>
         # and fl-cpe (data/cpe_hours.json) -- zero new legal research, same
         # process as every prior post in this series.
         "slug": "florida-cpa-license-renewal-guide",
+        "published": "2026-08-07",  # first-introduction commit date, from git history
         "title": "Florida CPA License Renewal: Why There's No Single Date to Give You",
         "meta_description": (
             "Florida CPA license renewal doesn't follow a public odd/even pattern for "
@@ -18899,6 +18921,7 @@ deadline) runs on its own separate clock.
     },
     {
         "slug": "new-york-to-new-jersey-cpa-mobility",
+        "published": "2026-08-13",  # first-introduction commit date, from git history
         "title": "New York CPA Practicing in New Jersey — What Actually Applies",
         "meta_description": (
             "New Jersey rewrote its practice-privilege rule in 2026 -- moving from an "
@@ -18963,6 +18986,7 @@ registration date here</a>.</p>
     },
     {
         "slug": "california-to-nevada-cpa-mobility",
+        "published": "2026-08-13",  # first-introduction commit date, from git history
         "title": "California CPA Practicing in Nevada — What Actually Applies",
         "meta_description": (
             "Nevada runs one of the simplest mobility rules in the country -- open CPA=CPA, "
@@ -19020,6 +19044,7 @@ California renewal &mdash; it runs on a birth-month/odd-even cycle that's easy t
     },
     {
         "slug": "texas-to-oklahoma-cpa-mobility",
+        "published": "2026-08-13",  # first-introduction commit date, from git history
         "title": "Texas CPA Practicing in Oklahoma — What Actually Applies (and What Changes Nov. 1, 2026)",
         "meta_description": (
             "Oklahoma's mobility rule is open today but rewrites itself to individual criteria "
@@ -19081,6 +19106,7 @@ Oklahoma Accountancy Board directly. And keep your own Texas renewal on track wh
     },
     {
         "slug": "new-york-to-connecticut-cpa-mobility",
+        "published": "2026-08-13",  # first-introduction commit date, from git history
         "title": "New York CPA Practicing in Connecticut — What Actually Applies",
         "meta_description": (
             "Connecticut replaced its NASBA-based mobility test with individual criteria in "
@@ -19141,6 +19167,7 @@ track &mdash; it's easy to lose track of since it's not tied to your license's o
     },
     {
         "slug": "california-to-texas-cpa-mobility",
+        "published": "2026-08-13",  # first-introduction commit date, from git history
         "title": "California CPA Practicing in Texas — What Actually Applies",
         "meta_description": (
             "Texas moved to an individual-criteria mobility test in September 2025 -- and "
@@ -19193,6 +19220,7 @@ renewal while you're at it &mdash; it runs on a birth-month/odd-even cycle that'
     },
     {
         "slug": "illinois-to-indiana-cpa-mobility",
+        "published": "2026-08-13",  # first-introduction commit date, from git history
         "title": "Illinois CPA Practicing in Indiana — What Actually Applies",
         "meta_description": (
             "Indiana is one of the few states with NO firm mobility -- a firm permit is "
@@ -19242,6 +19270,7 @@ Illinois renewal on track &mdash; it's a 3-year cycle, easy to lose track of.
     },
     {
         "slug": "florida-to-georgia-cpa-mobility",
+        "published": "2026-08-13",  # first-introduction commit date, from git history
         "title": "Florida CPA Practicing in Georgia — What Actually Applies",
         "meta_description": (
             "Georgia rewrote its mobility rule effective January 2026 -- but the board's own "
@@ -19302,6 +19331,7 @@ certificate date, not a public calendar rule, so check it directly.
     },
     {
         "slug": "virginia-to-maryland-cpa-mobility",
+        "published": "2026-08-13",  # first-introduction commit date, from git history
         "title": "Virginia CPA Practicing in Maryland — What Actually Applies",
         "meta_description": (
             "Maryland runs one of the more open mobility rules on the East Coast for both "
@@ -19353,6 +19383,7 @@ every June 30. <a href="../../virginia/">Check your Virginia renewal date here</
     },
     {
         "slug": "pennsylvania-to-new-jersey-cpa-mobility",
+        "published": "2026-08-13",  # first-introduction commit date, from git history
         "title": "Pennsylvania CPA Practicing in New Jersey — What Actually Applies",
         "meta_description": (
             "Pennsylvania and New Jersey both overhauled their mobility rules within months "
@@ -19409,6 +19440,7 @@ renewal date here</a>.</p>
     },
     {
         "slug": "virginia-to-washington-dc-cpa-mobility",
+        "published": "2026-08-13",  # first-introduction commit date, from git history
         "title": "Virginia CPA Practicing in Washington, D.C. — What Actually Applies (and the November 8 Catch)",
         "meta_description": (
             "D.C. rewrote its CPA practice-privilege rule by emergency act effective August 10, "
@@ -19494,8 +19526,27 @@ def build_blog_article_page(article: dict) -> str:
             f"guide '{article['slug']}' has no row in data/guide_reviews.json -- "
             "add one with a real review date before shipping it"
         )
-    reviewed_on = fmt_date(date.fromisoformat(review_row["last_reviewed"]))
+    # Devin, 2026-08-15: blog posts need a visible date, framed as "last
+    # verified/reviewed" rather than "published", in the same badge language
+    # as the Verified Source seal -- so a post reads as "we keep checking
+    # this" rather than aging into "old post". "published" is the commit
+    # that first introduced the article (git history, computed once and
+    # stored as data rather than shelled out to git at build time -- fails
+    # loudly like review_row above rather than rendering an undated page).
+    published_iso = article.get("published")
+    if not published_iso:
+        raise RuntimeError(
+            f"guide '{article['slug']}' has no 'published' date in BLOG_ARTICLES -- "
+            "add one (the commit that first introduced it) before shipping it"
+        )
+    reviewed_iso = review_row["last_reviewed"]
+    reviewed_on = fmt_date(date.fromisoformat(reviewed_iso))
+    stamp_html = (
+        f'<div class="guide-verified-stamp"><span class="dot"></span>'
+        f'Last verified {esc(reviewed_on)}</div>'
+    )
     body = f"""<h1>{esc(article['title'])}</h1>
+{stamp_html}
 {article['body_html']}
 <div class="guide-disclosure">
 <p>This guide is general orientation, not a primary-source citation in itself &mdash; it draws on
@@ -19507,12 +19558,26 @@ link to the board page and codified rule, per our
 </div>
 <p class="backlink"><a href="../">&larr; Back to all guides</a></p>
 """
+    # datePublished/dateModified: invisible, SEO-only per Devin's ask --
+    # regardless of what's shown visually, search engines get the real dates.
+    blog_posting_schema = {
+        "@context": "https://schema.org",
+        "@type": "BlogPosting",
+        "headline": article["title"],
+        "description": article["meta_description"],
+        "url": f"{SITE_BASE_URL}/blog/{article['slug']}/",
+        "datePublished": published_iso,
+        "dateModified": reviewed_iso,
+        "author": {"@type": "Organization", "name": BRAND_NAME},
+        "publisher": {"@type": "Organization", "name": BRAND_NAME},
+    }
     return page_shell(
         f"{article['title']} — {SITE_NAME}",
         article["meta_description"],
         body,
         home_href="../../",
         canonical_path=f"/blog/{article['slug']}/",
+        json_ld=[blog_posting_schema],
     )
 
 

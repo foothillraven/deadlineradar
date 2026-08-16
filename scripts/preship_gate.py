@@ -499,6 +499,41 @@ def check_cpe_hours_currency(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_fee_basis_supported(repo_root: Path) -> list[str]:
+    """fee_basis='codified' must carry a citation_url; 'board_schedule' must
+    carry a citation_url or source_url. 'unverifiable' is unrestricted -- that
+    label IS the honest state of having nothing to point to.
+
+    Found live 2026-08-15: indiana-renewal-fee and montana-renewal-fee both
+    asserted fee_basis='codified' with NO citation_url at all -- not merely an
+    unfinished record, an unsupported claim sitting in shipped data. Nothing
+    was checking the label against the evidence backing it. 'codified' is the
+    strongest claim this dataset makes about a fee (there is a specific rule
+    section a reader can go read); it must not be assertable for free.
+    """
+    errors = []
+    path = repo_root / "data" / "renewal_fees.json"
+    if not path.exists():
+        return []
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for r in data["records"]:
+        basis = r.get("fee_basis")
+        if basis == "codified" and not r.get("citation_url"):
+            errors.append(
+                f"[FEEBASIS][{r.get('id')}] fee_basis='codified' but citation_url is empty -- "
+                f"a codified claim with no rule section to point to is unsupported. Either add "
+                f"the citation or downgrade to 'board_schedule'/'unverifiable' to match what "
+                f"is actually known."
+            )
+        elif basis == "board_schedule" and not r.get("citation_url") and not r.get("source_url"):
+            errors.append(
+                f"[FEEBASIS][{r.get('id')}] fee_basis='board_schedule' but neither citation_url "
+                f"nor source_url is set -- nothing backs the claim that a regulator publishes "
+                f"this figure."
+            )
+    return errors
+
+
 def check_renewal_fee_currency(repo_root: Path) -> list[str]:
     """Roadmap 2026-08-11 (14:30 item #6): the state pages now show a public,
     dated renewal-fee claim (or an honest "unconfirmed" disclosure) sourced
@@ -1931,6 +1966,7 @@ def main():
     all_errors += check_retired_claims_absent_from_guides(repo_root, html_files)
     all_errors += check_published_figures_link_source(html_files)
     all_errors += check_citations_are_primary(repo_root)
+    all_errors += check_fee_basis_supported(repo_root)
     all_errors += check_renewal_fee_currency(repo_root)
     all_errors += check_competitor_price_currency(repo_root)
     all_errors += check_field_computed_states_sync(repo_root)

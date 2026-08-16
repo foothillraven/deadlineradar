@@ -589,6 +589,11 @@ PAGE_CSS = """
     margin: 0.15rem 0 0.55rem;
   }
   .callout .rule { margin: 0; }
+  /* AuditLab/Devin 2026-08-16: the 5 special-shape callouts (Ohio/cohort-group/
+     CA/TX/NY) never had a citation link at all. Matches .cite's own tight
+     spacing rather than .callout p's looser default margin. */
+  .callout-cite { margin: 0.6rem 0 0; }
+  .callout-cite:empty { display: none; }
   /* Birth-month personalized finder (California/Texas only) -- lets a visitor
      see their own row instantly instead of self-cross-referencing the table.
      Reuses .signup-form's existing input/select/button/row styling for visual
@@ -4445,6 +4450,21 @@ def render_data_gap_records(records: list[dict]) -> str:
     return "\n".join(parts)
 
 
+def _callout_cite_html(record: dict) -> str:
+    """AuditLab/Devin, 2026-08-16: render_ohio, render_cohort_group_record,
+    render_california, render_texas, and render_new_york never called
+    _cite_chip_html() at all -- 9 records (oh-individual, ca-individual,
+    tx-individual, ny-individual, or-individual, ky-individual, ks-individual,
+    ne-individual, ri-all) had a real citation/citation_url in the data that
+    rendered on NO page anywhere on the site. The general render_data_gap_records()
+    path already called the chip; these five special-shape renderers were simply
+    written before that convention and never retrofitted. One wrapper so the
+    empty-citation guard (a record with no citation must render nothing, not an
+    empty paragraph) lives in one place instead of five near-identical copies."""
+    chip = _cite_chip_html(record)
+    return f'<p class="callout-cite">{chip}</p>' if chip else ""
+
+
 def render_ohio(record: dict) -> str:
     rows = "\n".join(
         f"<tr><td>{esc(g['group'])}</td><td>{', '.join(str(y) for y in g['years'])}</td>"
@@ -4455,6 +4475,7 @@ def render_ohio(record: dict) -> str:
   <div class="label">{esc(record['license_type_label'])}</div>
   <p class="rule">{esc(record['cycle_description'])}</p>
   <p>{esc(record.get('grace_period_note', ''))}</p>
+  {_callout_cite_html(record)}
 </div>
 <div class="table-wrap">
   <table>
@@ -4511,6 +4532,7 @@ def render_cohort_group_record(record: dict) -> str:
     return f"""<div class="callout">
   <div class="label">{esc(record['license_type_label'])}</div>
   <p class="rule">{esc(record['cycle_description'])}</p>
+  {_callout_cite_html(record)}
 </div>
 <div class="table-wrap">
   <table>
@@ -4534,6 +4556,7 @@ def render_california(record: dict, as_of: date) -> str:
   <p class="rule">{esc(record['cycle_description'])}</p>
   <p><strong>Enter your birth month and year below</strong> to see your date instantly, or
   look up your row in the full table yourself.</p>
+  {_callout_cite_html(record)}
 </div>
 {_birth_month_finder_html(needs_year=True)}
 <div class="table-wrap">
@@ -4560,6 +4583,7 @@ def render_texas(record: dict, as_of: date) -> str:
   <p><strong>Enter your birth month below</strong> to see your date instantly, or look up
   your row in the full table yourself. Texas renewal is annual, so this repeats every year
   on the same month.</p>
+  {_callout_cite_html(record)}
 </div>
 {_birth_month_finder_html(needs_year=False)}
 <div class="table-wrap">
@@ -4581,6 +4605,7 @@ def render_new_york(record: dict) -> str:
   <p>To find your exact triennial registration due date, check your registration
   certificate or look yourself up at
   <a href="{http_href(record['source_url'])}">NYSED Office of the Professions</a>.</p>
+  {_callout_cite_html(record)}
 </div>"""
 
 

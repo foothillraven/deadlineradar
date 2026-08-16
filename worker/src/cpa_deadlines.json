@@ -363,13 +363,13 @@
         "type": "unresolvable_needs_individual_expiration_year",
         "note": "Same gap as the individual record -- firm-specific, requires checking that firm's license record."
       },
-      "data_gap_note": "Same cohort-assignment gap as the individual record; a claimed license-number-parity mechanism was checked and removed (no primary-source support) -- confirm with the Board before computing a specific firm date.",
+      "data_gap_note": "Firm permits follow the same biennial June-30 cycle, and the same gap applies -- no primary source states how a permit is assigned to the odd or even year, including the license-number-parity rule some third-party summaries describe. Confirm with the Board before relying on a specific firm date.",
       "source_url": "https://licensing.reg.state.ma.us/public/dpl_fees/dpl_fees_results.asp?board_code=PA",
       "last_verified": "2026-08-14",
       "wave": 4,
       "citation_url": "https://malegislature.gov/Laws/GeneralLaws/PartI/TitleXVI/Chapter112/Section87B%201~2",
       "citation": "Mass. Gen. Laws ch. 112, 87B1/2(a)",
-      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://malegislature.gov/Laws/GeneralLaws/PartI/TitleXVI/Chapter112/Section87B%201~2.  Agent evidence: Firm-license statute serves to a plain fetcher: licenses to firms 'shall be issued initially, and renewed, for periods of two years but in any event expiring on the last day of June of the next year following issuance or renewal.' Matches biennial/June 30 and the record's point that the specific due year is per-firm (depends on issuance year). Firm fee $324.00 re-confirmed on the official DOL fee page."
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://malegislature.gov/Laws/GeneralLaws/PartI/TitleXVI/Chapter112/Section87B%201~2.  Agent evidence: Firm-license statute serves to a plain fetcher: licenses to firms 'shall be issued initially, and renewed, for periods of two years but in any event expiring on the last day of June of the next year following issuance or renewal.' Matches biennial/June 30 and the record's point that the specific due year is per-firm (depends on issuance year). Firm fee $324.00 re-confirmed on the official DOL fee page.\n\n2026-08-15 (AuditLab COPY-7): rewrote from internal-voice framing ('was checked and removed', 'the individual record') to reader-facing terms matching the sibling ma-individual record's phrasing exactly -- both notes render on the same page in consecutive paragraphs. Sixth fixed-one-missed-the-sibling instance today; survived COPY-5/6's noun/verb pattern matches because 'was checked and removed' is a passive construction naming neither."
     },
     {
       "id": "wa-individual",

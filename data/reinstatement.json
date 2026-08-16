@@ -298,7 +298,7 @@
       "penalty_cpe_notes": "No extra CPE beyond the normal 120-hour/3-year total (68 Ill. Admin. Code 1420.60/1420.70) -- restoration just requires those 120 hours to fall within the 3 years immediately preceding the restoration application, not an additional amount.",
       "penalty_ethics_hours": null,
       "lapse_trigger": "Individual license expires September 30 every 3 years (firm license: November 30) if not renewed in the 2-month pre-expiration window. No grace period -- practicing on an expired license is unlicensed activity from the day after expiration (68 Ill. Admin. Code 1420.80).",
-      "citation": "68 Ill. Admin. Code 1420.60 (Restoration); 1420.40 (Fees); 1420.80 (Renewals)",
+      "citation": "68 Ill. Admin. Code 1420.60 (Restoration); 1420.40 (Fees); 1420.70 (CPE requirement); 1420.80 (Renewals, cross-refs 1420.70)",
       "citation_url": "https://www.ilga.gov/commission/jcar/admincode/068/068014200000600R.html",
       "source_url": "https://idfpr.illinois.gov/profs/pa.html",
       "last_verified": "2026-07-25",

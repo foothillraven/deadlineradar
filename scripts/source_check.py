@@ -98,9 +98,17 @@ def _fetch(url: str) -> tuple[str, bytes | None, str, int | None]:
     # observation about the host, and since the preship gate now treats a
     # status-less failure as INCONCLUSIVE (rather than silently corroborating a
     # block claim), every unretried hiccup costs real coverage -- 5 records went
-    # unassessed on 2026-08-14 for exactly this reason. HTTPError is NOT retried:
-    # a 403/404 is a decisive answer, and re-asking a host that just refused us
-    # is both pointless and rude.
+    # unassessed on 2026-08-14 for exactly this reason.
+    #
+    # AuditLab SRC-5: a single HTTPError is not always decisive either.
+    # rules.sos.ga.gov returned 200x3 then 403x4 across a controlled retest with
+    # IDENTICAL headers minutes apart -- rate limiting, not a real block, and a
+    # single-sample BLOCKED on it would license writing a host-block claim into
+    # public copy that is false. 403/429/503 are the rate-limit-shaped codes and
+    # get the same one retry as a connection failure. 404/401/451 are decisive
+    # on the first try -- "not found" or "not authorized" does not become truer
+    # on a second attempt, and re-asking a host that gave a real answer is rude.
+    RETRIABLE_HTTP_CODES = {403, 429, 503}
     last_exc_status = None
     for attempt in range(2):
         try:
@@ -110,6 +118,9 @@ def _fetch(url: str) -> tuple[str, bytes | None, str, int | None]:
                 status = resp.status
             break
         except urllib.error.HTTPError as e:
+            if e.code in RETRIABLE_HTTP_CODES and attempt == 0:
+                time.sleep(2)
+                continue
             return ("BLOCKED", None, "", e.code)
         except Exception:
             last_exc_status = None

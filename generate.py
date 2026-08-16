@@ -2305,7 +2305,12 @@ PAGE_CSS = """
   .dr-map-state { fill: var(--border); stroke: var(--card-bg); stroke-width: 1.2; transition: fill 0.12s ease; }
   .dr-map-state--active { fill: #1f9e5c; }
   .dr-map-state--risk { fill: #c33737; }
-  .dr-map-state--home { fill: #1f9e5c; }
+  /* AuditLab MOB-7: was #1f9e5c, byte-identical to --active -- the exact
+     same collision shape as MOB-3, one line up in this block, just caught
+     later because the fix for that one didn't re-sweep the full palette.
+     Distinct amber-gold: a state colored --home in mobility mode must not
+     look like --active's "no license due soon" from the OTHER map mode. */
+  .dr-map-state--home { fill: #c9a227; }
   .dr-map-state--clear { fill: #6b8fd4; }
   .dr-map-state--action { fill: #d98a1f; }
   /* 2026-08-04: self-reported "we handled it" -- deliberately a distinct

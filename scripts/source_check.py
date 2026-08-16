@@ -35,6 +35,7 @@ import io
 import json
 import re
 import sys
+import time
 import html as html_mod
 import urllib.request
 import urllib.error
@@ -86,15 +87,29 @@ BOT_WALL_MARKERS = [
 def _fetch(url: str) -> tuple[str, bytes | None, str, int | None]:
     """Returns (status_class, body_bytes, content_type, http_status)."""
     req = urllib.request.Request(url, headers={"User-Agent": BROWSER_UA, "Accept": "*/*"})
-    try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
-            body = resp.read()
-            ctype = (resp.headers.get("Content-Type") or "").lower()
-            status = resp.status
-    except urllib.error.HTTPError as e:
-        return ("BLOCKED", None, "", e.code)
-    except Exception:
-        return ("BLOCKED", None, "", None)
+    # One retry, transient failures only. A single timeout or reset is not an
+    # observation about the host, and since the preship gate now treats a
+    # status-less failure as INCONCLUSIVE (rather than silently corroborating a
+    # block claim), every unretried hiccup costs real coverage -- 5 records went
+    # unassessed on 2026-08-14 for exactly this reason. HTTPError is NOT retried:
+    # a 403/404 is a decisive answer, and re-asking a host that just refused us
+    # is both pointless and rude.
+    last_exc_status = None
+    for attempt in range(2):
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
+                body = resp.read()
+                ctype = (resp.headers.get("Content-Type") or "").lower()
+                status = resp.status
+            break
+        except urllib.error.HTTPError as e:
+            return ("BLOCKED", None, "", e.code)
+        except Exception:
+            last_exc_status = None
+            if attempt == 0:
+                time.sleep(2)
+                continue
+            return ("BLOCKED", None, "", last_exc_status)
     if not (200 <= status < 300) or not body:
         return ("BLOCKED", body, ctype, status)
     return ("FETCHED", body, ctype, status)

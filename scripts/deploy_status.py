@@ -40,6 +40,14 @@ def git(*args):
     return out.decode("utf-8", errors="strict").replace("\r\n", "\n").strip()
 
 
+def git_ok(*args):
+    """True when the git command succeeds. Use where the EXIT CODE is the
+    answer -- git() keeps stdout only, so a failure there reads as empty
+    output, which several callers cannot distinguish from a clean result."""
+    return subprocess.run(["git", "-C", str(ROOT), *args],
+                          capture_output=True).returncode == 0
+
+
 def changed_json_keys(deployed, path):
     """Top-level record keys whose values differ between deployed and HEAD."""
     rel = str(path.relative_to(ROOT)).replace("\\", "/")
@@ -53,13 +61,34 @@ def changed_json_keys(deployed, path):
         return None
 
     def index(doc):
-        recs = doc.get("records", doc) if isinstance(doc, dict) else doc
+        """{key: record}, or None when this shape yields nothing comparable.
+
+        AuditLab DEPLOY-1: the original returned {} for any shape it could not
+        walk. An empty dict slipped past the `keys is None` guard, produced an
+        empty key set, and the file was then appended to NEITHER the
+        behavioural nor the inert list -- it vanished from the report while the
+        headline still read "nothing the worker serves has changed". Two of the
+        four mirrors are dict-shaped (firm_mobility_rules.json keyed by slug,
+        reg_change_events.json as {_meta, events}) and BOTH are imported by
+        worker code, so drift in either is behavioural by definition.
+
+        Returning None routes unknown shapes to behavioural, which is the safe
+        direction: it can over-warn, never under-warn. Deliberately not teaching
+        this function each dict shape -- precise field-level verdicts only earn
+        their keep for cpa_deadlines.json, where most fields are display-only.
+        For a file compiled wholesale into the Worker, "it changed" IS the
+        answer.
+        """
+        recs = doc.get("records") if isinstance(doc, dict) else doc
         if not isinstance(recs, list):
-            return {}
-        return {r.get("id") or r.get("state_slug"): r
-                for r in recs if isinstance(r, dict)}
+            return None
+        out = {r.get("id") or r.get("state_slug") or i: r
+               for i, r in enumerate(recs) if isinstance(r, dict)}
+        return out or None
 
     o, n = index(old), index(new)
+    if o is None or n is None:
+        return None  # not comparable -> caller treats as behavioural
     keys = set()
     for rid in set(o) | set(n):
         a, b = o.get(rid, {}), n.get(rid, {})
@@ -74,6 +103,21 @@ def main():
         print("no deploy marker; cannot assess drift")
         return 0
     deployed = MARKER.read_text(encoding="utf-8").strip()
+
+    # AuditLab DEPLOY-1(B): git() keeps stdout and drops the exit code, so a
+    # diff against a SHA this repo does not contain returns "" -- indistinguish-
+    # able from a genuinely clean deploy, and it printed the same reassuring
+    # "nothing to deploy" sentence. Reachable via shallow clone, a rebase or
+    # squash of the marked commit, or a corrupt marker: exactly the situations
+    # where a successor is least able to notice. Resolve the marker first.
+    if not git_ok("cat-file", "-e", f"{deployed}^{{commit}}"):
+        print(f"CANNOT ASSESS: marker commit {deployed[:9]} does not resolve in this repo "
+              f"(shallow clone, rebased/squashed history, or a corrupt "
+              f"worker/.last_deploy_commit). Deploy state is UNKNOWN -- this is not "
+              f"an all-clear. Re-point the marker at a commit that exists, or redeploy "
+              f"and let scripts/deploy_worker.py rewrite it.")
+        return 1
+
     head = git("rev-parse", "HEAD")
     if deployed == head:
         print(f"worker deploy current @ {head[:9]}")
@@ -100,7 +144,9 @@ def main():
     for f in data:
         keys = changed_json_keys(deployed, ROOT / f)
         if keys is None:
-            behavioural.append(f + " (unparseable/new -- assuming behavioural)")
+            behavioural.append(
+                f + " (new, unparseable, or a shape this script cannot compare "
+                    "field-by-field -- reported as behavioural on purpose)")
             continue
         hot = sorted(k for k in keys if k in read_names)
         cold = sorted(k for k in keys if k not in read_names)

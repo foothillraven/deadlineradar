@@ -7025,6 +7025,13 @@ mistyped. Find your state below, or head back to the homepage.</p>
         body,
         home_href="/",
         canonical_path="/404.html",
+        # AuditLab CRAWL-3: 404 BEHAVIOR was already correct (a genuinely
+        # missing path returns HTTP 404) -- only the literal /404.html
+        # artifact itself had no noindex, so a search engine that discovered
+        # it via an external link could index a page titled "Page not found"
+        # as ordinary content. Unlinked and absent from the sitemap already;
+        # this closes the one remaining discovery path.
+        extra_head='<meta name="robots" content="noindex">',
     )
 
 

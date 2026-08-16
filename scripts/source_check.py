@@ -46,6 +46,13 @@ BROWSER_UA = (
 )
 TIMEOUT_S = 30
 
+# Below this many characters of extracted text, a 2xx is not a readable source.
+# Set at 200 deliberately: the thinnest LEGITIMATE source observed in the corpus
+# is well above it, while the JS shells that prompted this (11 and 63 chars) sit
+# far below. Raising it much further would start swallowing short but real rule
+# pages, which is the false-positive direction that makes a check ignorable.
+_MIN_SOURCE_CHARS = 200
+
 # 2xx pages that are really failures -- learned set, extend as encountered.
 SOFT_404_MARKERS = [
     "site has moved",
@@ -185,6 +192,26 @@ def check(url: str) -> dict:
         result["classification"] = "SOFT_404"
         result["detail"] = "2xx but the served page is an error/moved placeholder (marker: %r)" % marker
         result["text_chars"] = len(text)
+        return result
+
+    # A handful of characters is not a source. rules.mt.gov and in.gov/legislative
+    # return 11 and 63 characters respectively -- JS shells whose real content
+    # never arrives to a plain fetch -- and both were classified CONFIRMED_TEXT
+    # on 2026-08-14, the same failure shape as the Arkansas crash page: a 2xx
+    # with a body that contains no source text. CONFIRMED_TEXT is what lets a
+    # caller say "I read this at the source", so it has to mean there was
+    # something to read. Routed to EXTRACTION_FAILED, which is already defined as
+    # OUR failure and already queues for a browser read -- never written up as a
+    # host block.
+    if len(text) < _MIN_SOURCE_CHARS:
+        result["classification"] = "EXTRACTION_FAILED"
+        result["detail"] = (
+            "2xx and parsed, but only %d characters of text -- almost certainly a "
+            "JS shell whose content never arrives to a plain fetch. Not readable "
+            "as a source; queue for a browser-session read." % len(text)
+        )
+        result["text_chars"] = len(text)
+        result["text_head"] = text[:240]
         return result
 
     result["classification"] = "CONFIRMED_TEXT"

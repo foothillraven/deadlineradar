@@ -179,7 +179,7 @@
       "exists": true,
       "citation": "A.R.S. section 32-725(G)",
       "citation_url": "https://codes.findlaw.com/az/title-32-professions-and-occupations/az-rev-st-sect-32-725/",
-      "notes": "Broader than the typical split: a no-AZ-office firm may practice, INCLUDING attest, without registration if owned/employing a limited-reciprocity-privilege holder in good standing at home. A.R.S. section 32-731 requires attest/compilation 'only through a registered firm' for firms that fall within the registration net otherwise (AZ office or don't meet the exemption conditions)."
+      "notes": "Broader than the typical split: a no-AZ-office firm may practice, INCLUDING attest, without registration if owned/employing a limited-reciprocity-privilege holder in good standing at home. A.R.S. section 32-731 requires attest/compilation 'only through a registered firm' for firms that fall within the registration net otherwise (AZ office or don't meet the exemption conditions). RESOLVED 2026-08-17: read both sections directly. Section 32-731(A) opens 'Except as provided in section 32-725, subsection G' -- an express statutory carve-out, not an inference. Section 32-731(B)'s second sentence independently confirms it, naming a 32-725(G)-qualified individual as a valid signer for attest/compilation reports. The two sections were never in tension; 32-731 explicitly defers to 32-725(G) by its own text."
     },
     "physical_office_trigger": {
       "exists": true,
@@ -194,10 +194,10 @@
       "notes": "Peer-review results required for new firm applications and reinstatement; less directly confirmed for ordinary biennial renewal specifically."
     },
     "confidence": "dual_source",
-    "source_disagreement": "Sections 32-725(G) (broad no-office exemption covering attest) and 32-731 (attest only through a registered firm) address different firm populations rather than truly conflicting, but read in isolation can appear contradictory -- noted for a compliance product.",
+    "source_disagreement": null,
     "state_slug": "arizona",
     "state": "Arizona",
-    "verified_date": "2026-08-07"
+    "verified_date": "2026-08-17"
   },
   "arkansas": {
     "attest_exemption": {

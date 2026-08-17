@@ -1179,25 +1179,25 @@
       "exists": true,
       "citation": "RSA 309-B:8, I(a)-(b)",
       "citation_url": "https://gc.nh.gov/rsa/html/XXX/309-B/309-B-8.htm",
-      "notes": "No-office firm doing non-attest services under CPA title doesn't need a permit via practice-privileged individuals; no-office firm doing attest for an NH-home-office client generally needs a permit unless it separately qualifies for a narrow mobility exemption (ownership/experience quals, practice-privilege individuals only, home-state licensure). Second source (Ac 302.05(a)-(b)) confirms the permit requirement ties to assurance/compilation for NH-home-office clients."
+      "notes": "No-office firm doing non-attest services under CPA title doesn't need a permit via practice-privileged individuals; no-office firm doing attest for an NH-home-office client generally needs a permit unless it separately qualifies for a narrow mobility exemption (ownership/experience quals, practice-privilege individuals only, home-state licensure). Second source (Ac 302.05(a)-(b)) confirms the permit requirement ties to assurance/compilation for NH-home-office clients. RESOLVED 2026-08-17: independently read the current adopted text at gc.nh.gov (Document #14399, eff 12-5-25) directly, not a secondary mirror -- confirms Ac 302.05 is titled \"CPA Firm Permit Requirements\" post-renumbering (formerly Ac 301.10) and subsection (b) reads verbatim: \"Each CPA firm seeking a permit to practice as a CPA firm in NH that provides assurance services or compilation services for a client having its home office in NH shall...\" -- exact match to this citation's use."
     },
     "physical_office_trigger": {
       "exists": true,
       "citation": "RSA 309-B:8, I(a)(1)-(2); Ac 303.05(c)",
       "citation_url": "https://gc.nh.gov/rsa/html/XXX/309-B/309-B-8.htm",
-      "notes": "Office-holding firm using CPA/CPA-firm designation needs a permit regardless of service mix; office-holding firms doing attest/compilation also need one. De facto independent trigger for essentially any NH-office accounting firm."
+      "notes": "Office-holding firm using CPA/CPA-firm designation needs a permit regardless of service mix; office-holding firms doing attest/compilation also need one. De facto independent trigger for essentially any NH-office accounting firm. RESOLVED 2026-08-17: Ac 303.05 is titled \"CPA Firms\" post-renumbering (formerly Ac 302.07), subsection (c) reads verbatim: \"The applicant CPA firm shall demonstrate, pursuant to RSA 309-B:8, I, that it has or will have a physical presence in NH by a date certain...\" -- exact match, confirmed against the state's own current text."
     },
     "peer_review_conditions_permit": {
       "exists": true,
       "citation": "RSA 309-B:8, VIII; Ac 302.07, Ac 303.05(g)-(i)",
       "citation_url": "https://gc.nh.gov/rsa/html/XXX/309-B/309-B-8.htm",
-      "notes": "Board shall require peer review as a condition to renewal of permits; rule requires a signed Peer Review Affidavit with each application/renewal, issuing only a time-limited conditional permit if the most recent review was adverse/qualified. Dual-sourced, unusually explicit."
+      "notes": "Board shall require peer review as a condition to renewal of permits; rule requires a signed Peer Review Affidavit with each application/renewal, issuing only a time-limited conditional permit if the most recent review was adverse/qualified. Dual-sourced, unusually explicit. RESOLVED 2026-08-17: confirmed directly -- Ac 302.07 (\"Affidavit for Peer Review\") and Ac 303.05(g)-(i) (peer-review-affidavit compliance, conditional permit on an adverse/qualified report) both read exactly as this citation describes under the current (Document #14399, eff 12-5-25) numbering."
     },
     "confidence": "dual_source",
-    "source_disagreement": "Ac 303.05(c) requires every permit applicant to demonstrate NH physical presence, which in isolation could seem to override the statutory no-office exemptions -- but firms qualifying for those exemptions never become 'applicants' under that rule, so no true conflict, just a readability trap.",
+    "source_disagreement": null,
     "state_slug": "new-hampshire",
     "state": "New Hampshire",
-    "verified_date": "2026-08-07"
+    "verified_date": "2026-08-17"
   },
   "new-jersey": {
     "attest_exemption": {

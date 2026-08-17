@@ -1967,7 +1967,7 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
  * -- but the response is IDENTICAL either way (firmLoginSentPage(env)): never
  * reveal whether a given email has an account.
  */
-async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<Response> {
+async function handleFirmLogin(request: Request, env: Env, ip: string, ctx: ExecutionContext): Promise<Response> {
   const allowed = await checkRateLimit(env.DB, ip, "firm_login", RATE_LIMIT_FIRM_LOGIN);
   if (!allowed) {
     return errorPage(429, "Too many requests from this address. Please try again later.");
@@ -2065,7 +2065,14 @@ async function handleFirmLogin(request: Request, env: Env, ip: string): Promise<
       RATE_LIMIT_FIRM_LOGIN_ACCOUNT
     );
     if (accountAllowed) {
-      await issueAndSendFirmLoginLink(env, existingMember.firm_id, email, purpose, existingMember.name, existingMember.id);
+      // ctx.waitUntil, NOT await (AuditLab TIMING-1, 2026-08-17): issuing
+      // the token writes to D1 and sends an HTTPS request to SendGrid, work
+      // the no-such-firm branch below never does. Awaiting it made the two
+      // branches differ by a visible ~100-500ms -- byte-identical bodies
+      // over a plainly different response time, the same timing oracle
+      // handleSubscriberLoginRequest() already had to fix (see its own
+      // comment). Off the response path, both branches return immediately.
+      ctx.waitUntil(issueAndSendFirmLoginLink(env, existingMember.firm_id, email, purpose, existingMember.name, existingMember.id));
     }
   }
   // No firm for this email, an inactive one, or the account bucket above was
@@ -8332,7 +8339,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
 
       if (url.pathname === "/firm/login") {
         try {
-          return await handleFirmLogin(request, env, ip);
+          return await handleFirmLogin(request, env, ip, ctx);
         } catch {
           return errorPage(400, "Something went wrong processing that request.");
         }

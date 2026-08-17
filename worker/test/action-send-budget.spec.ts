@@ -28,17 +28,35 @@ function okResponse(): Response {
   return new Response("{}", { status: 202 });
 }
 
-function testExecutionContext(): ExecutionContext {
+// AuditLab TIMING-1 (2026-08-17): handleFirmLogin now defers its send via
+// ctx.waitUntil (same fix as handleSubscriberLoginRequest already had) --
+// a no-op waitUntil() drops that promise entirely, so this file's own
+// send-completed assertion below raced the real fetch() and lost. Real
+// Cloudflare Workers run waitUntil-registered promises to completion (just
+// off the response path); this stub now does the same so tests can await
+// that completion explicitly instead of relying on incidental scheduling.
+function testExecutionContext(): ExecutionContext & { drain: () => Promise<void> } {
+  const pending: Promise<unknown>[] = [];
   return {
-    waitUntil() {},
+    waitUntil(promise: Promise<unknown>) {
+      pending.push(promise);
+    },
     passThroughOnException() {},
     props: {},
-  } as unknown as ExecutionContext;
+    async drain() {
+      await Promise.allSettled(pending);
+    },
+  } as unknown as ExecutionContext & { drain: () => Promise<void> };
 }
 
-async function workerFetch(request: Request, envOverrides: Record<string, unknown> = {}): Promise<Response> {
+async function workerFetch(
+  request: Request,
+  envOverrides: Record<string, unknown> = {}
+): Promise<{ response: Response; drain: () => Promise<void> }> {
   const worker = (await import("../src/index")).default;
-  return worker.fetch(request, { ...env, ...envOverrides } as never, testExecutionContext());
+  const ctx = testExecutionContext();
+  const response = await worker.fetch(request, { ...env, ...envOverrides } as never, ctx);
+  return { response, drain: ctx.drain };
 }
 
 async function todayCounts(): Promise<{ reminder: number; action: number }> {
@@ -59,7 +77,7 @@ describe("a real token-less magic-link request spends the ACTION budget, never t
     const before = await todayCounts();
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(okResponse());
     try {
-      const resp = await workerFetch(
+      const { response: resp, drain } = await workerFetch(
         new Request("https://deadline-radar.com/firm/login", {
           method: "POST",
           headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.240" },
@@ -72,6 +90,9 @@ describe("a real token-less magic-link request spends the ACTION budget, never t
         { SENDGRID_API_KEY: "test-key-not-real", TURNSTILE_SECRET_KEY: "test-secret-not-real" }
       );
       expect(resp.status).toBe(200);
+      // handleFirmLogin defers the send via ctx.waitUntil (TIMING-1) -- wait
+      // for it to actually finish before checking it happened.
+      await drain();
       // The magic-link send itself happened (fetch to SendGrid was called) --
       // proving allowMissingToken actually let this token-less request
       // through to the send path, not just to a generic success page.
@@ -89,7 +110,7 @@ describe("a real token-less magic-link request spends the ACTION budget, never t
 describe("AuditLab TS-1 revised recommendation: /firm/signup re-requires the token (writes a persistent row)", () => {
   it("a token-less POST /firm/signup is rejected, no firm row created, with Turnstile actually configured", async () => {
     const email = `ts1-signup-strict-${Date.now()}@example.com`;
-    const resp = await workerFetch(
+    const { response: resp } = await workerFetch(
       new Request("https://deadline-radar.com/firm/signup", {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.242" },

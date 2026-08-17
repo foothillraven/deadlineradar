@@ -777,9 +777,9 @@
   "west-virginia": {
     "attest_exemption": {
       "exists": true,
-      "citation": "W. Va. Code section 30-9-17(d)",
-      "citation_url": "https://code.wvlegislature.gov/30-9-17/",
-      "notes": "A no-WV-office firm not performing attest/compilation for a WV-home-office client may perform other professional services using the CPA/CPA-firm title without a permit, via a practice-privileged individual."
+      "citation": "W. Va. Code section 30-9-17(d); section 30-9-16(f)-(g) (mobility attest carve-out)",
+      "citation_url": "https://code.wvlegislature.gov/30-9-16/",
+      "notes": "A no-WV-office firm not performing attest/compilation for a WV-home-office client may perform other professional services using the CPA/CPA-firm title without a permit, via a practice-privileged individual. RESOLVED 2026-08-17: read section 30-9-16 (the mobility section itself) directly. For WV-home-office attest work specifically, subsection (f) requires it be performed through a firm holding BOTH a section 30-9-17 permit AND a section 30-9-19 authorization -- but subsection (g) carves out an individual substantial-equivalency practitioner: that individual may perform the same (f) attest services WITHOUT the 30-9-17 firm permit, but MUST still obtain the 30-9-19 authorization. So mobility grants relief from the permit specifically for a lone individual practitioner, never from the authorization, and never for a firm as such -- the two credentials are not granted or withheld together."
     },
     "physical_office_trigger": {
       "exists": true,
@@ -791,13 +791,13 @@
       "exists": true,
       "citation": "W. Va. Code section 30-9-19",
       "citation_url": "https://code.wvlegislature.gov/30-9-19/",
-      "notes": "Peer review compliance is a condition of a SEPARATE firm 'authorization' (section 30-9-19) needed to sign attest/compilation reports, distinct from the base firm 'permit' (section 30-9-17) whose own renewal provision doesn't list peer review."
+      "notes": "Peer review compliance is a condition of a SEPARATE firm 'authorization' (section 30-9-19) needed to sign attest/compilation reports, distinct from the base firm 'permit' (section 30-9-17) whose own renewal provision doesn't list peer review. CONFIRMED 2026-08-17 directly from section 30-9-16(g): the mobility section itself names the 30-9-19 authorization (not the 30-9-17 permit) as what an individual practitioner must obtain for WV-home-office attest work -- independent confirmation that peer review (a condition of the authorization) binds mobility-privileged individuals performing attest work, not just firms with a permit."
     },
-    "confidence": "single_source",
-    "source_disagreement": "WV splits credentials into a firm permit (section 30-9-17) and a separate authorization to sign attest/compilation reports (section 30-9-19); peer review attaches to the authorization, not explicitly the permit. Other states fold both into one firm license.",
+    "confidence": "dual_source",
+    "source_disagreement": null,
     "state_slug": "west-virginia",
     "state": "West Virginia",
-    "verified_date": "2026-08-07"
+    "verified_date": "2026-08-17"
   },
   "wisconsin": {
     "attest_exemption": {

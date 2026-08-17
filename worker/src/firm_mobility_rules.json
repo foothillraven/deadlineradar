@@ -1079,7 +1079,7 @@
       "exists": null,
       "citation": "Ohio Rev. Code section 4701.04(A); section 4701.14; Ohio Admin. Code 4701-13-02",
       "citation_url": "https://codes.ohio.gov/ohio-revised-code/section-4701.04",
-      "notes": "Statute requires registration only for a firm 'located in this state,' with no explicit attest carve-out for no-office firms, but OAC 4701-13-02 separately requires any firm issuing attest reports to notify/register as a peer review firm within 90 days without clearly limiting that duty to Ohio-located firms. Could not resolve the tension from primary text alone -- marked unclear rather than guessed."
+      "notes": "Statute requires registration only for a firm 'located in this state,' with no explicit attest carve-out for no-office firms, but OAC 4701-13-02 separately requires any firm issuing attest reports to notify/register as a peer review firm within 90 days without clearly limiting that duty to Ohio-located firms. Could not resolve the tension from primary text alone -- marked unclear rather than guessed. RE-VERIFIED 2026-08-17: independently re-read both texts at codes.ohio.gov (both current, statute amended eff. 2025-09-30, rule eff. 2025-09-01). Confirmed the tension is real, not resolvable with certainty from primary text alone: OAC 4701-13-02(C) requires 'any' attest-performing firm to 'register with the board as a peer review firm pursuant to section 4701.04,' with no explicit location qualifier in (C)/(D)/(E) themselves. One plausible reading: 'pursuant to section 4701.04' imports that section's own location-scoped registration mechanism, so a no-Ohio-office firm has nothing to register into. An equally plausible reading: (C) creates an independent trigger and 'pursuant to section 4701.04' means only 'via that section's process,' not its scope. Genuinely unresolved either way -- flagging both readings for whoever picks this up next rather than picking one without a textual tiebreaker."
     },
     "physical_office_trigger": {
       "exists": true,
@@ -1097,7 +1097,7 @@
     "source_disagreement": "Statute ties firm registration to being located in Ohio (implying no attest-specific trigger for no-office firms), but OAC 4701-13-02's 90-day notify-and-register duty for attest reports isn't clearly scoped to location -- unresolved tension drove the unclear call.",
     "state_slug": "ohio",
     "state": "Ohio",
-    "verified_date": "2026-08-07"
+    "verified_date": "2026-08-17"
   },
   "montana": {
     "attest_exemption": {

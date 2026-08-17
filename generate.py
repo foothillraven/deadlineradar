@@ -18352,6 +18352,72 @@ never a guess.</p>
 
 BLOG_ARTICLES = [
     {
+        "slug": "what-your-board-promises-about-renewal-reminders",
+        "published": "2026-08-17",  # first-introduction commit date, from git history
+        "title": "What Your State Board Actually Promises About Renewal Reminders",
+        "meta_description": (
+            "We checked what ten state boards actually commit to about renewal notices, in their "
+            "own rules -- and one state promises the opposite of what you'd expect."
+        ),
+        "body_html": """
+<p class="intro">Most CPAs assume their board will remind them before a license lapses. We checked
+what ten state boards actually commit to, in their own rules and their own words &mdash; and one
+state promises the opposite of what you'd expect.</p>
+
+<h2>Six states say it in codified rule: if their notice doesn't reach you, that's still on you</h2>
+<p><strong>Texas</strong> has two separate provisions, one for individual licenses and one for firm
+permits, both saying notice going astray doesn't move your deadline (22 TAC &sect; 515.3; 22 TAC
+&sect; 159.108).</p>
+<p><strong>Missouri</strong> is the cleanest example on record. One rule section requires the board
+to mail notice at least sixty days out to your last known address, then in the same breath:
+<em>"Failure to receive this notice does not relieve the licensee of the obligation biennially to
+renew the license to practice."</em> Missouri states the identical principle for firm permits, in a
+separate section (20 CSR 2010-2.070; 2010-2.072).</p>
+<p><strong>Minnesota</strong>'s rule reads: <em>"Failure to receive the notice by either means does
+not relieve a license holder of the obligation to renew a license or to pay the renewal fee"</em>
+(Minn. R. 2150.0060). <strong>Kentucky</strong> puts the same principle directly in the statute, not
+just a board rule (KRS 325.330(6)(c)). <strong>Iowa</strong>'s rule is worth reading closely: notice
+"may" be sent &mdash; not "will" (IAC 193A ch. 5). <strong>Indiana</strong> states the same principle,
+worded to cover renewal fees specifically (872 IAC 1-1-11).</p>
+<p>Three more states say the same thing, just not in the code &mdash; Virginia, Alaska, and South
+Dakota all publish it on the board's own site or newsletter rather than in a rule.</p>
+
+<h2>One state does the opposite</h2>
+<p><strong>New Jersey</strong>'s rule requires the Board to send a renewal notice at least 60 days
+before expiration &mdash; and if it doesn't, no monetary penalty applies to the licensee, as long as
+the license is renewed within 60 days of the date the notice was actually sent, or 30 days after the
+license's expiration date, whichever is later. New Jersey put the cost of a missed notice on the
+board, not on the licensee (N.J.A.C. 13:29-1.7).</p>
+
+<h2>Two states only contact you after you've already missed</h2>
+<p>North Carolina sends a demand letter once you've already blown the July 1 deadline. Louisiana
+sends a notice of default once you're already delinquent. Neither is a reminder &mdash; both are what
+happens next.</p>
+
+<h2>A few boards tell you, plainly, to go check yourself</h2>
+<p>Kansas says contact the office if your renewal form hasn't shown up by the first week of June.
+Washington's renewal page doesn't describe a notice process at all &mdash; it points you to CPAverify
+or its own licensee lookup. Hawaii says flatly: <em>"No other notice will be provided."</em></p>
+
+<h2>Lead time varies enormously</h2>
+<p>New York mails roughly four months out. Texas gives 30 days for an individual license, 90 for a
+firm permit. Several states we checked &mdash; Washington, Oregon, Massachusetts, D.C. &mdash; don't
+document a notice practice on their renewal pages at all.</p>
+
+<p><strong>A scope note, because it matters</strong>: this covers exactly the ten jurisdictions named
+above, checked individually against each one's own codified rule or official published notice. It
+isn't a claim about most states, or a typical state &mdash; only about these ten, specifically.</p>
+
+<h2>What this means if you're licensed in more than one state</h2>
+<p>Each board is only ever watching its own deadline, on its own timeline, sent to whatever address
+you gave it last. Nobody is watching the whole picture across states. That's the actual gap &mdash;
+not that boards don't try, but that no single board can, or is supposed to, aggregate across every
+state you're actually licensed in. <a href="../../for-firms/">See how multi-state tracking works for
+firms here</a>, or <a href="../../">set a free reminder for your own state</a> so you're not relying
+on any one board's notice arriving on time.</p>
+""",
+    },
+    {
         "slug": "how-a-superseded-rule-hid-on-an-official-site",
         "published": "2026-08-14",  # first-introduction commit date, from git history
         "title": "The State's Own Website Was Serving a Repealed Rule",

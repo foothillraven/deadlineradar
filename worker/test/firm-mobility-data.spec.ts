@@ -123,9 +123,9 @@ describe("locked-in dataset facts -- a change here should only come from a real 
     expect(unclear).toEqual(["guam", "utah", "wisconsin"]);
   });
 
-  it("exactly these states carry a real source_disagreement note (2026-08-17: WV, AZ, NJ, NM, NY, PA, USVI resolved via direct primary-source text)", () => {
+  it("exactly these states carry a real source_disagreement note (2026-08-17: WV, AZ, NJ, NM, NY, PA, USVI, VT resolved via direct primary-source text -- NE/OH genuinely unresolved, NH access-blocked)", () => {
     const disagreeing = rows.filter((r) => r.sourceDisagreement !== null).map((r) => r.stateSlug).sort();
-    expect(disagreeing).toEqual(["nebraska", "new-hampshire", "ohio", "vermont"].sort());
+    expect(disagreeing).toEqual(["nebraska", "new-hampshire", "ohio"].sort());
   });
 });
 

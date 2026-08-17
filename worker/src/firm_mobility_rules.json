@@ -354,7 +354,7 @@
       "exists": true,
       "citation": "26 V.S.A. section 74(a)-(b)",
       "citation_url": "https://legislature.vermont.gov/statutes/section/26/001/00074",
-      "notes": "Registration required for a VT-office firm (practicing/using CPA titling), and for a no-office firm performing attest-type services for a VT-home-office client. No-office firm performing non-attest/limited categories for a VT-home-office client is exempt, subject to ownership/practice-privilege conditions."
+      "notes": "Registration required for a VT-office firm (practicing/using CPA titling), and for a no-office firm performing attest-type services for a VT-home-office client. No-office firm performing non-attest/limited categories for a VT-home-office client is exempt, subject to ownership/practice-privilege conditions. RESOLVED 2026-08-17: independently re-read 26 V.S.A. 74(a)-(b) verbatim at legislature.vermont.gov. Matches the citation exactly: (a)(1)-(2) office-based triggers, (a)(3) the no-office attest trigger for a VT-home-office client, (b) the no-office non-attest exemption. The flagged secondary source (citing a repealed section 78) was never actually used as a citation here -- there is no real disagreement between the sources this record relies on, only a correctly-rejected bad source noted for awareness."
     },
     "physical_office_trigger": {
       "exists": true,
@@ -369,10 +369,10 @@
       "notes": "Board may require peer review as a renewal condition, no more than every 3 years; Rule 10.7 requires an attestation of peer review within the preceding 3 years in the renewal application. Firms with no attest services aren't required to undergo peer review."
     },
     "confidence": "dual_source",
-    "source_disagreement": "One secondary source cited a since-repealed statute section (26 V.S.A. section 78, repealed 2020-10-01) for peer-review discipline -- not used as a citation, flagged for awareness only.",
+    "source_disagreement": null,
     "state_slug": "vermont",
     "state": "Vermont",
-    "verified_date": "2026-08-07"
+    "verified_date": "2026-08-17"
   },
   "massachusetts": {
     "attest_exemption": {

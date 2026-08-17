@@ -1239,8 +1239,15 @@ PAGE_CSS = """
   .legend .swatch { width: 0.75rem; height: 0.75rem; border-radius: 3px; display: inline-block; margin-right: 0.4em; vertical-align: -1px; }
   .swatch--fixed { background: var(--map-fixed); }
   .swatch--variable { background: var(--map-variable); border: 1px solid var(--border); }
+  .map-territories {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem;
+    margin: -1.25rem 0 2rem; font-size: 0.85rem;
+  }
+  .map-territories .map-small-label { margin: 0; }
+  .map-territories .map-small-pills { flex-direction: row; flex-wrap: wrap; margin-bottom: 0; gap: 0.4rem; }
   @media (max-width: 700px) {
     .map-section { display: none; }
+    .map-territories { display: none; }
     .state-grid--mobile-fallback { display: grid; }
   }
   .state-card {
@@ -4992,6 +4999,15 @@ _MAP_SMALL_STATES = [
 
 _US_MAP_PATHS_PATH = ROOT / "assets" / "us-map" / "state-paths.json"
 
+# Roadmap (2026-08-17, Devin-noticed gap): the 4 territories have no landmass
+# in state-paths.json, so they're structurally absent from both the SVG map
+# and _MAP_SMALL_STATES's pill sidebar (that list is cross-referenced against
+# the same map data). Their own pages are fine -- this is purely a desktop
+# discoverability gap, since the mobile-width plain grid in build_index_page()
+# already includes them via the full `states` list. Sourced from `by_slug`
+# directly, alphabetical (no map-derived ordering exists for them).
+_TERRITORY_SLUGS = ["guam", "northern-mariana-islands", "puerto-rico", "us-virgin-islands"]
+
 
 def build_us_map_html(by_slug: dict[str, list[dict]]) -> str:
     """Interactive US map for the homepage (2026-07-10, replacing the old uniform 51-card
@@ -5031,6 +5047,30 @@ def build_us_map_html(by_slug: dict[str, list[dict]]) -> str:
     # whatever order state-paths.json happens to list states in.
     ordered_pills = [pills_by_slug[slug] for slug in _MAP_SMALL_STATES if slug in pills_by_slug]
 
+    # Territories have no landmass in state-paths.json, so they're never in
+    # map_states -- built straight from by_slug instead, same pill treatment.
+    territory_pills = []
+    for slug in _TERRITORY_SLUGS:
+        recs = by_slug.get(slug, [])
+        if not recs:
+            continue
+        hint = state_hint(recs)
+        state_name = recs[0]["state"]
+        variable = _hint_is_variable(hint)
+        title = f"{state_name} — {hint}"
+        territory_pills.append(
+            f'<a class="map-small-pill{" map-small-pill--variable" if variable else ""}" '
+            f'href="{esc(slug)}/" title="{esc(title)}">{esc(state_name)}</a>'
+        )
+    territories_html = ""
+    if territory_pills:
+        territories_html = f"""<div class="map-territories">
+    <p class="map-small-label">U.S. territories:</p>
+    <div class="map-small-pills">
+{chr(10).join(territory_pills)}
+    </div>
+  </div>"""
+
     svg = (
         '<svg class="us-map" viewBox="0 0 959 593" xmlns="http://www.w3.org/2000/svg" role="img" '
         'aria-label="Clickable map of US states -- select a state for its CPA renewal deadline">\n'
@@ -5053,6 +5093,7 @@ def build_us_map_html(by_slug: dict[str, list[dict]]) -> str:
     </div>
   </div>
 </div>
+{territories_html}
 <script>{_MAP_TOOLTIP_JS}</script>"""
 
 

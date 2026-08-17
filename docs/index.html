@@ -680,8 +680,15 @@
   .legend .swatch { width: 0.75rem; height: 0.75rem; border-radius: 3px; display: inline-block; margin-right: 0.4em; vertical-align: -1px; }
   .swatch--fixed { background: var(--map-fixed); }
   .swatch--variable { background: var(--map-variable); border: 1px solid var(--border); }
+  .map-territories {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem;
+    margin: -1.25rem 0 2rem; font-size: 0.85rem;
+  }
+  .map-territories .map-small-label { margin: 0; }
+  .map-territories .map-small-pills { flex-direction: row; flex-wrap: wrap; margin-bottom: 0; gap: 0.4rem; }
   @media (max-width: 700px) {
     .map-section { display: none; }
+    .map-territories { display: none; }
     .state-grid--mobile-fallback { display: grid; }
   }
   .state-card {
@@ -2060,6 +2067,15 @@
     </div>
   </div>
 </div>
+<div class="map-territories">
+    <p class="map-small-label">U.S. territories:</p>
+    <div class="map-small-pills">
+<a class="map-small-pill map-small-pill--variable" href="guam/" title="Guam — Varies — check your license">Guam</a>
+<a class="map-small-pill map-small-pill--variable" href="northern-mariana-islands/" title="Northern Mariana Islands — Varies — check your license">Northern Mariana Islands</a>
+<a class="map-small-pill map-small-pill--variable" href="puerto-rico/" title="Puerto Rico — Varies — check your license">Puerto Rico</a>
+<a class="map-small-pill" href="us-virgin-islands/" title="U.S. Virgin Islands — June 30, 2027">U.S. Virgin Islands</a>
+    </div>
+  </div>
 <script>(function(){var tip=document.getElementById("map-tooltip");var figure=tip?tip.closest(".map-figure"):null;if(!tip||!figure)return;var links=figure.querySelectorAll(".map-link");function show(el,evt){tip.textContent=el.getAttribute("data-tip")||"";tip.hidden=false;move(evt)}function move(evt){var rect=figure.getBoundingClientRect();var x=evt.clientX-rect.left+14;var y=evt.clientY-rect.top+14;tip.style.left=x+"px";tip.style.top=y+"px"}function hide(){tip.hidden=true}links.forEach(function(el){el.addEventListener("mouseenter",function(evt){show(el,evt)});el.addEventListener("mousemove",move);el.addEventListener("mouseleave",hide);el.addEventListener("focus",function(evt){tip.textContent=el.getAttribute("data-tip")||"";tip.hidden=false;var rect2=el.getBoundingClientRect();var frect=figure.getBoundingClientRect();tip.style.left=rect2.left-frect.left+"px";tip.style.top=rect2.top-frect.top-28+"px"});el.addEventListener("blur",hide)})})();</script>
 <div class="state-grid state-grid--mobile-fallback">
 <a class="state-card" href="alabama/" data-state-name="Alabama"><div class="state-name">Alabama</div><div class="state-hint">December 31, 2026</div></a>

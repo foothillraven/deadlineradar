@@ -678,8 +678,15 @@
   .legend .swatch { width: 0.75rem; height: 0.75rem; border-radius: 3px; display: inline-block; margin-right: 0.4em; vertical-align: -1px; }
   .swatch--fixed { background: var(--map-fixed); }
   .swatch--variable { background: var(--map-variable); border: 1px solid var(--border); }
+  .map-territories {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem;
+    margin: -1.25rem 0 2rem; font-size: 0.85rem;
+  }
+  .map-territories .map-small-label { margin: 0; }
+  .map-territories .map-small-pills { flex-direction: row; flex-wrap: wrap; margin-bottom: 0; gap: 0.4rem; }
   @media (max-width: 700px) {
     .map-section { display: none; }
+    .map-territories { display: none; }
     .state-grid--mobile-fallback { display: grid; }
   }
   .state-card {

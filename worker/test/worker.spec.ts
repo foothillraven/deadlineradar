@@ -1824,9 +1824,9 @@ describe("GET/POST/PATCH/DELETE /firm/licenses -- staff license CRUD (firm-dashb
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [, sendGridCallInit] = fetchSpy.mock.calls[0] as [string, RequestInit];
       const sentBody = JSON.parse(String(sendGridCallInit.body));
-      expect(sentBody.subject).toContain("Bennett CPA Group added you to DeadlineRadar");
+      expect(sentBody.subject).toContain("Bennett CPA Group added you to Deadline-Radar");
       const textContent = sentBody.content.find((c: { type: string }) => c.type === "text/plain").value as string;
-      expect(textContent).toContain("Bennett CPA Group added you to DeadlineRadar");
+      expect(textContent).toContain("Bennett CPA Group added you to Deadline-Radar");
       expect(textContent).toContain("/api/unsubscribe?token=");
       expect(textContent).not.toContain("/api/confirm?token=");
     } finally {
@@ -2604,7 +2604,7 @@ describe("emails.ts buildFirmStaffAddedEmail -- AuditLab EMAIL-1", () => {
     const hostile = "Acme\r\nBcc: attacker@evil.example\r\nX-Injected: yes";
     const built = buildFirmStaffAddedEmail(hostile, "Texas", "https://deadline-radar.com/api/unsubscribe?token=abc");
     expect(built.subject).not.toMatch(/[\r\n]/);
-    expect(built.subject).toBe("Acme Bcc: attacker@evil.example X-Injected: yes added you to DeadlineRadar");
+    expect(built.subject).toBe("Acme Bcc: attacker@evil.example X-Injected: yes added you to Deadline-Radar");
     // The body text is unaffected -- this is a subject-line-specific
     // control (header-injection surface), not a general sanitizer; the
     // firm name still reads naturally in the message body.

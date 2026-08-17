@@ -1142,8 +1142,8 @@ function buildSlackDigestText(firmName: string, items: SlackDigestItem[]): strin
   const count = items.length;
   const header =
     count === 1
-      ? `*DeadlineRadar: 1 renewal newly due for ${firmName}*`
-      : `*DeadlineRadar: ${count} renewals newly due for ${firmName}*`;
+      ? `*Deadline-Radar: 1 renewal newly due for ${firmName}*`
+      : `*Deadline-Radar: ${count} renewals newly due for ${firmName}*`;
   const lines = items.map((it) => `• ${it.stateName}: due ${it.deadlineDateStr} (${daysPhraseForSlack(it.daysRemaining)})`);
   return `${header}\n${lines.join("\n")}`;
 }
@@ -1358,8 +1358,8 @@ function buildTeamsDigestText(firmName: string, items: SlackDigestItem[]): strin
   const count = items.length;
   const header =
     count === 1
-      ? `DeadlineRadar: 1 renewal newly due for ${firmName}`
-      : `DeadlineRadar: ${count} renewals newly due for ${firmName}`;
+      ? `Deadline-Radar: 1 renewal newly due for ${firmName}`
+      : `Deadline-Radar: ${count} renewals newly due for ${firmName}`;
   const lines = items.map((it) => `- ${it.stateName}: due ${it.deadlineDateStr} (${daysPhraseForSlack(it.daysRemaining)})`);
   return `${header}\n${lines.join("\n")}`;
 }
@@ -1547,7 +1547,7 @@ function smsBodyFor(stateName: string, deadlineStr: string, daysRemaining: numbe
       : daysRemaining === 0
         ? "today"
         : `${-daysRemaining} day${daysRemaining !== -1 ? "s" : ""} ago`;
-  return `DeadlineRadar: your ${stateName} CPA renewal is due ${dp} (${deadlineStr}). Reply STOP to opt out.`;
+  return `Deadline-Radar: your ${stateName} CPA renewal is due ${dp} (${deadlineStr}). Reply STOP to opt out.`;
 }
 
 export async function runSmsAlertPass(env: Env, opts: RunSmsAlertOptions = {}): Promise<SmsAlertSummary> {

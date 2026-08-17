@@ -25,9 +25,9 @@ describe("buildReminderEmail() firm attribution", () => {
       "https://example.com/next", "https://example.com/stop", "https://example.com/unsub",
       "Alex", "Test Firm LLC"
     );
-    expect(built.textBody).toContain("This reminder is sent by Test Firm LLC via DeadlineRadar.");
+    expect(built.textBody).toContain("This reminder is sent by Test Firm LLC via Deadline-Radar.");
     expect(built.htmlBody).toContain("Test Firm LLC");
-    expect(built.htmlBody).toContain("via DeadlineRadar");
+    expect(built.htmlBody).toContain("via Deadline-Radar");
   });
 
   it("omits the attribution line when firmName is null (free-tier, byte-identical to before)", async () => {
@@ -38,7 +38,7 @@ describe("buildReminderEmail() firm attribution", () => {
       "Alex"
     );
     expect(built.textBody).not.toContain("sent by");
-    expect(built.htmlBody).not.toContain("via DeadlineRadar");
+    expect(built.htmlBody).not.toContain("via Deadline-Radar");
   });
 });
 
@@ -142,7 +142,7 @@ describe("scheduler.ts runReminderPass -- firm name + reply-to threaded through"
     });
 
     expect(capturedReplyTo).toBe("reply@schedwlfirm.com");
-    expect(capturedBody).toContain("This reminder is sent by Sched WL Firm via DeadlineRadar.");
+    expect(capturedBody).toContain("This reminder is sent by Sched WL Firm via Deadline-Radar.");
   });
 
   it("passes no firm name or reply-to for a free-tier (non-firm) subscriber", async () => {

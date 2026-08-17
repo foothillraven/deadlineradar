@@ -321,7 +321,7 @@ def build_texas_table(as_of: date) -> list[dict]:
 # HTML helpers -- presentation layer, redesigned this pass
 # ---------------------------------------------------------------------------
 
-SITE_NAME = "DeadlineRadar"
+SITE_NAME = "Deadline-Radar"
 SITE_TAGLINE = "CPA license renewal deadlines by state — verified and kept current"
 BRAND_NAME = "Moose & Raven LLC"
 JURISDICTION_COUNT = 51  # overwritten in main() from the real record count once data is loaded
@@ -5782,7 +5782,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   whole firm's staff across multiple states, the firm dashboard below is the same sourced-to-codified-
   law data in one roster view &mdash; who's current, who's at risk, and who needs to act.</p>
   <div class="dr-showcase-frame">
-    <img src="/showcase/roster.jpg" alt="Real screenshot of the DeadlineRadar firm roster: who's current, who's at risk, at a glance." width="1568" height="778" loading="lazy">
+    <img src="/showcase/roster.jpg" alt="Real screenshot of the Deadline-Radar firm roster: who's current, who's at risk, at a glance." width="1568" height="778" loading="lazy">
   </div>
   <p class="mock-caption">Real screenshot of our own shared live demo account &mdash; the same one
   you land on if you click "Live Demo" above &mdash; not a mockup. <a href="for-firms/" style="font-weight:600;">See the full product tour &rarr;</a></p>
@@ -5949,7 +5949,7 @@ href="/privacy/">Privacy Policy</a>.</p>
 """
     return page_shell(
         f"Terms of Service — {SITE_NAME}",
-        "The terms that govern using DeadlineRadar's free reminders and paid firm plans, including "
+        "The terms that govern using Deadline-Radar's free reminders and paid firm plans, including "
         "our self-serve cancellation and no-refund billing policy.",
         body,
         home_href="../",
@@ -6152,7 +6152,7 @@ own upgrade panel.</p>
 """
     return page_shell(
         f"Pricing — {SITE_NAME}",
-        "DeadlineRadar pricing: free individual reminders and free Practice Privilege Check for any "
+        "Deadline-Radar pricing: free individual reminders and free Practice Privilege Check for any "
         "firm, and firm plans from $199/year for up to 5 staff, up to $549/year for up to 35. Every "
         "firm tier has the identical feature set.",
         body,
@@ -6223,7 +6223,7 @@ looking at.</p>
 """
     return page_shell(
         f"Roadmap — {SITE_NAME}",
-        "Vote on what DeadlineRadar builds next -- SMS reminders, practice-management integrations, "
+        "Vote on what Deadline-Radar builds next -- SMS reminders, practice-management integrations, "
         "API access, and more. No account needed.",
         body,
         home_href="../",
@@ -6523,7 +6523,7 @@ href="/terms/">Terms of Service</a>.</p>
 """
     return page_shell(
         f"Privacy Policy — {SITE_NAME}",
-        "How DeadlineRadar collects, uses, and protects your information. We only send the CPA license "
+        "How Deadline-Radar collects, uses, and protects your information. We only send the CPA license "
         "deadline reminders you request — we never sell or share your data.",
         body,
         home_href="../",
@@ -6598,7 +6598,7 @@ href="https://www.rfc-editor.org/rfc/rfc9116">RFC&nbsp;9116</a>.</p>
 """
     return page_shell(
         f"Security & Trust — {SITE_NAME}",
-        "How DeadlineRadar protects your firm's data: encryption, access control, and incident "
+        "How Deadline-Radar protects your firm's data: encryption, access control, and incident "
         "response, explained in plain language with no compliance-theater claims.",
         body,
         home_href="../",
@@ -6643,7 +6643,7 @@ incidents) are tracked on our <a href="/changelog/">changelog</a>.</p>
 """
     return page_shell(
         f"Status — {SITE_NAME}",
-        "What DeadlineRadar actually runs on, and where a real incident would be posted -- no "
+        "What Deadline-Radar actually runs on, and where a real incident would be posted -- no "
         "fabricated uptime percentage or fake status widget.",
         body,
         home_href="../",
@@ -6804,7 +6804,7 @@ every date on this site.</p>
 """
     return page_shell(
         f"How We Verify Every Deadline — {SITE_NAME}",
-        "DeadlineRadar's sourcing standard: every CPA license renewal date traces to the state board's "
+        "Deadline-Radar's sourcing standard: every CPA license renewal date traces to the state board's "
         "own page plus the actual codified statute or rule behind it — never a guess.",
         body,
         home_href="../",
@@ -6841,7 +6841,7 @@ not every commit, but every change that could affect what a visitor sees. See
 """
     return page_shell(
         f"Changelog — {SITE_NAME}",
-        "A running record of material corrections and updates to DeadlineRadar's CPA license "
+        "A running record of material corrections and updates to Deadline-Radar's CPA license "
         "renewal data -- dated, plain-language, never hidden.",
         body,
         home_href="../",
@@ -7169,7 +7169,7 @@ Aurora, CO 80013</p>
 """
     return page_shell(
         f"Contact — {SITE_NAME}",
-        "Contact DeadlineRadar — questions, deadline corrections, or help with your CPA license "
+        "Contact Deadline-Radar — questions, deadline corrections, or help with your CPA license "
         "renewal reminders. Email us or start a live chat.",
         body,
         home_href="../",
@@ -7304,7 +7304,7 @@ _INDIVIDUAL_FAQ = [
     ),
     (
         "Are you affiliated with my state board of accountancy?",
-        "No. DeadlineRadar is an independent reminder and license-tracking service, not affiliated "
+        "No. Deadline-Radar is an independent reminder and license-tracking service, not affiliated "
         "with, endorsed by, or connected to any state board of accountancy, NASBA, or the AICPA. "
         "Always confirm your exact renewal date with your own board if you're ever unsure.",
     ),
@@ -7688,7 +7688,7 @@ to create an account yet? <a href="#firm-lead">Leave your email instead</a> and 
         f"For Firms — {SITE_NAME}",
         "CPA firm license tracking: roster, calendar, CPE hours, and individual Practice Privilege "
         "Check free forever, plus paid plans from $199/year (5 staff) to $549/year (35 staff) for the "
-        "map and firm-level registration check. Sourced to the same codified state law DeadlineRadar "
+        "map and firm-level registration check. Sourced to the same codified state law Deadline-Radar "
         "verifies for every state.",
         body,
         home_href="../",
@@ -7864,7 +7864,7 @@ def build_firm_login_page() -> str:
 
     return page_shell(
         f"Sign In / Create Account — {SITE_NAME}",
-        "Sign in to your DeadlineRadar firm dashboard, or create a new firm account to start "
+        "Sign in to your Deadline-Radar firm dashboard, or create a new firm account to start "
         "tracking your staff's CPA license renewals.",
         body,
         home_href="../",
@@ -8194,7 +8194,7 @@ def build_set_password_page() -> str:
 """
     return page_shell(
         f"Choose a password — {SITE_NAME}",
-        "Set your DeadlineRadar firm account password.",
+        "Set your Deadline-Radar firm account password.",
         body,
         home_href="../",
         canonical_path="/set-password/",
@@ -8291,7 +8291,7 @@ def build_firm_2fa_page() -> str:
 """
     return page_shell(
         f"Enter your code — {SITE_NAME}",
-        "Two-factor authentication code entry for DeadlineRadar firm accounts.",
+        "Two-factor authentication code entry for Deadline-Radar firm accounts.",
         body,
         home_href="../../",
         canonical_path="/firm-login/2fa/",
@@ -8376,7 +8376,7 @@ def build_signin_page() -> str:
 
     return page_shell(
         f"Sign In — {SITE_NAME}",
-        "Sign in to DeadlineRadar to see every CPA license renewal deadline we're tracking for "
+        "Sign in to Deadline-Radar to see every CPA license renewal deadline we're tracking for "
         "you. Free, no password required.",
         body,
         home_href="../",
@@ -9205,7 +9205,7 @@ def build_my_page(cpe_hours_by_slug: dict[str, dict]) -> str:
         <input type="tel" id="dr-sms-phone-input" placeholder="+15551234567">
         <label class="dr-sms-consent-label">
           <input type="checkbox" id="dr-sms-consent-checkbox">
-          I agree to receive automated CPA renewal deadline text reminders from DeadlineRadar at
+          I agree to receive automated CPA renewal deadline text reminders from Deadline-Radar at
           this number. Message and data rates may apply. Reply STOP to opt out, HELP for help.
         </label>
         <button type="submit">Send code</button>
@@ -9247,10 +9247,10 @@ def build_my_page(cpe_hours_by_slug: dict[str, dict]) -> str:
 
   <div class="dr-my-upsell">
     <h2>Tracking renewals for a team?</h2>
-    <p>DeadlineRadar for Firms puts every staff CPA's renewal on one roster, sorted by what needs
+    <p>Deadline-Radar for Firms puts every staff CPA's renewal on one roster, sorted by what needs
     attention soonest &mdash; plus CPE hour tracking and a calendar view. Free, no time limit, no card
     required.</p>
-    <p><a class="cta-button" href="/for-firms/">See DeadlineRadar for Firms &rarr;</a></p>
+    <p><a class="cta-button" href="/for-firms/">See Deadline-Radar for Firms &rarr;</a></p>
   </div>
 </div>
 <script>
@@ -9261,7 +9261,7 @@ var DR_CPE_REQUIREMENTS = {json.dumps(cpe_requirements_json)};
 
     return page_shell(
         f"Your deadlines — {SITE_NAME}",
-        "Your DeadlineRadar dashboard.",
+        "Your Deadline-Radar dashboard.",
         body,
         home_href="../",
         canonical_path="/my/",
@@ -9892,7 +9892,7 @@ function drRenderTable() {
     // real "nothing added yet" state -- offer the sample-data preview here.
     tbody.innerHTML = '<tr><td colspan="6">No staff on your roster yet -- add your first one below, or ' +
       '<button type="button" class="dr-link-btn" id="dr-sample-mode-enter-btn">see a sample roster</button> ' +
-      'to preview what DeadlineRadar looks like once it&rsquo;s populated.</td></tr>';
+      'to preview what Deadline-Radar looks like once it&rsquo;s populated.</td></tr>';
     return;
   }
   var visible = drOfficeGroupFilter
@@ -16640,7 +16640,7 @@ surfaces the changes that actually affect your roster's states.
 
 <p><a class="cta-button" href="{REMINDER_BACKEND_BASE_URL}/firm/demo-login">Try the live demo &rarr;</a></p>
 
-<p><strong>New to DeadlineRadar?</strong> See the <a href="/for-firms/">full firm overview</a> for
+<p><strong>New to Deadline-Radar?</strong> See the <a href="/for-firms/">full firm overview</a> for
 pricing, the whole feature set, and how renewal-date tracking fits alongside these three.</p>
 
 <p class="backlink"><a href="/">&larr; Back to all states</a></p>
@@ -17269,7 +17269,7 @@ def build_firm_dashboard_page(
         <h2>Reminder email branding</h2>
         <p class="signup-microcopy">Every reminder your staff receive already mentions your firm's
         name. Optionally set a reply-to address so a reply reaches you directly instead of
-        DeadlineRadar &mdash; reminders still send from DeadlineRadar's own address; only where a
+        Deadline-Radar &mdash; reminders still send from Deadline-Radar's own address; only where a
         reply goes changes.</p>
         <form id="dr-reply-to-form">
           <label for="dr-reply-to-input">Reply-to address (optional)</label>
@@ -17404,7 +17404,7 @@ def build_firm_dashboard_page(
       <div class="dr-account-panel">
         <h2>Sessions</h2>
         <p class="signup-microcopy">Where you're currently signed in. This can only show WHEN each
-        session signed in and was last active -- not device or location, which DeadlineRadar has
+        session signed in and was last active -- not device or location, which Deadline-Radar has
         never recorded.</p>
         <div id="dr-sessions-list"><p class="dr-panel-empty">Loading&hellip;</p></div>
         <p id="dr-session-revoke-error" role="alert" class="dr-account-err" hidden></p>
@@ -17517,7 +17517,7 @@ def build_firm_dashboard_page(
 <div id="dr-nps-modal" class="dr-modal-overlay" hidden>
   <div class="dr-modal" role="dialog" aria-modal="true" aria-labelledby="dr-nps-modal-title">
     <h2 id="dr-nps-modal-title">Quick question</h2>
-    <p class="dr-modal-hint">How likely are you to recommend DeadlineRadar to another firm?
+    <p class="dr-modal-hint">How likely are you to recommend Deadline-Radar to another firm?
     (0 = not at all, 10 = extremely likely)</p>
     <div class="dr-nps-scale" role="group" aria-label="Score, 0 to 10">
       <button type="button" class="dr-nps-score-btn" data-score="0">0</button>
@@ -17549,7 +17549,7 @@ def build_firm_dashboard_page(
     <form id="dr-testimonial-form">
       <label for="dr-testimonial-text" class="dr-visually-hidden">Your quote</label>
       <textarea id="dr-testimonial-text" maxlength="500" rows="3"
-      placeholder="What's DeadlineRadar done for your firm?"></textarea>
+      placeholder="What's Deadline-Radar done for your firm?"></textarea>
       <label class="dr-questionnaire-check"><input type="checkbox" id="dr-testimonial-can-publish" checked>
       You can quote me publicly, with my firm's name</label>
       <div class="dr-modal-actions">
@@ -17765,7 +17765,7 @@ renewal. Here's exactly when {esc(state_name)}'s firm-level filing is due.</p>
 <div class="firm-cta">
 <h2>Tracking this for more than one firm, or want someone else watching it?</h2>
 <p>Any individual CPA at your firm can already get free renewal reminders for their own license. What
-DeadlineRadar's firm tier adds is the view your admin doesn't get from 20 separate free sign-ups: one
+Deadline-Radar's firm tier adds is the view your admin doesn't get from 20 separate free sign-ups: one
 place to see the whole roster's status &mdash; including this firm-level filing &mdash; not 20 inboxes
 to hope someone's watching. <a href="../for-firms/">See firm-tier pricing &rarr;</a></p>
 </div>

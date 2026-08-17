@@ -268,7 +268,7 @@ import {
 } from "./stripe";
 import { buildIcs, type IcsEvent } from "./ics";
 
-const SITE_NAME_FOR_WORKER = "DeadlineRadar";
+const SITE_NAME_FOR_WORKER = "Deadline-Radar";
 
 // Brand glyph, kept in sync by eye with generate.py's _BRAND_GLYPH_SVG --
 // this worker has no build-time dependency on the static site's Python, so
@@ -339,7 +339,7 @@ body{min-height:100vh;display:flex;flex-direction:column;background:#f7f9fb;colo
 const ACTION_PAGES: Record<string, { heading: string; intro: string; button: string }> = {
   "/confirm": {
     heading: "Confirm your email",
-    intro: "Click below to confirm your email and start your DeadlineRadar reminders.",
+    intro: "Click below to confirm your email and start your Deadline-Radar reminders.",
     button: "Confirm my email",
   },
   "/unsubscribe": {
@@ -415,7 +415,7 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
     button: `Remind me again in ${SNOOZE_DAYS} days`,
   },
   "/firm/login/verify": {
-    heading: "Sign in to DeadlineRadar",
+    heading: "Sign in to Deadline-Radar",
     intro: "Click below to finish signing in.",
     button: "Sign in",
   },
@@ -437,7 +437,7 @@ const ACTION_PAGES: Record<string, { heading: string; intro: string; button: str
   // corporate mail scanners prefetch links, and a token consumed by a
   // scanner leaves the real person permanently stuck on "already used".
   "/subscriber/login/verify": {
-    heading: "Sign in to DeadlineRadar",
+    heading: "Sign in to Deadline-Radar",
     intro: "Click below to see the renewal deadlines we're tracking for you.",
     button: "Sign in",
   },
@@ -1410,7 +1410,7 @@ async function handleFirmLead(request: Request, env: Env, ip: string): Promise<R
         "Slow down a little",
         "<h1>Slow down a little</h1><p>Too many submissions from this address. Please try again in about " +
           "10 minutes.</p>" +
-          `<p><a href="${homeUrl}/for-firms/">&larr; Back to DeadlineRadar for Firms</a></p>`,
+          `<p><a href="${homeUrl}/for-firms/">&larr; Back to Deadline-Radar for Firms</a></p>`,
         homeUrl
       ),
       { status: 429, headers: { "Content-Type": "text/html; charset=utf-8", "Retry-After": String(RATE_LIMIT_FIRM_LEAD.windowSeconds) } }
@@ -1542,10 +1542,10 @@ const INVALID_CREDENTIALS_MESSAGE = "That email and password combination isn't r
 const SSO_FAILED_MESSAGE = "We couldn't complete that sign-in. Please try again.";
 
 const SSO_UNVERIFIED_EMAIL_MESSAGE =
-  "Your provider didn't confirm that email address is verified, so we can't connect it to a DeadlineRadar account. Please verify the address with your provider and try again.";
+  "Your provider didn't confirm that email address is verified, so we can't connect it to a Deadline-Radar account. Please verify the address with your provider and try again.";
 
 const SSO_NO_ACCOUNT_MESSAGE =
-  "We couldn't find a DeadlineRadar firm account for that email address. Please create your firm account first, then connect this sign-in method.";
+  "We couldn't find a Deadline-Radar firm account for that email address. Please create your firm account first, then connect this sign-in method.";
 
 const SSO_EMAIL_REASSIGNED_MESSAGE =
   "This sign-in method was connected under a different admin email, which has since changed. Please sign in with the current admin email (or a password/magic link) and reconnect it from the Account tab.";
@@ -1586,7 +1586,7 @@ function firmLoginSentPage(env: Env): string {
   const homeUrl = env.STATIC_SITE_BASE_URL || "";
   return htmlPage(
     "Check your email",
-    "<h1>Check your email</h1><p>If that email has (or can have) a DeadlineRadar firm account, we've " +
+    "<h1>Check your email</h1><p>If that email has (or can have) a Deadline-Radar firm account, we've " +
       "just sent a sign-in link. It expires in 15 minutes and works once &mdash; if it's expired by " +
       "the time you click it, just request a new one.</p>" +
       `<p>New here? If you haven't created a firm account yet, nothing will arrive for that address &mdash; ` +
@@ -1825,7 +1825,7 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
       return errorPage(
         400,
         domainGate.reason === "disposable"
-          ? "That looks like a temporary or disposable email address. DeadlineRadar works by emailing " +
+          ? "That looks like a temporary or disposable email address. Deadline-Radar works by emailing " +
               "you before your renewal is due, so please use an address you'll still be able to read " +
               "in a year -- a personal address is completely fine."
           : "We don't offer trial accounts to other compliance-software vendors."
@@ -2377,7 +2377,7 @@ async function handleFirm2faVerify(request: Request, env: Env, ip: string): Prom
   // ends in Set-Cookie: dr_firm_session with no separate GET-rendered
   // nonce of its own.
   if (!originAllowed(request, env)) {
-    return errorPage(400, "That sign-in couldn't be completed. Please sign in from the DeadlineRadar site.");
+    return errorPage(400, "That sign-in couldn't be completed. Please sign in from the Deadline-Radar site.");
   }
 
   const ipAllowed = await checkRateLimit(env.DB, ip, "firm_2fa_verify", RATE_LIMIT_FIRM_2FA_VERIFY);
@@ -2665,7 +2665,7 @@ async function handleFirmMemberInvite(request: Request, env: Env): Promise<Respo
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   // Devin, 2026-08-07: the free INDIVIDUAL product must never gain a
@@ -2763,7 +2763,7 @@ async function handleFirmMemberRoleChange(request: Request, env: Env, memberId: 
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_member_role_change", RATE_LIMIT_FIRM_MEMBER_ROLE_CHANGE);
@@ -2816,7 +2816,7 @@ async function handleFirmMemberRemove(request: Request, env: Env, memberId: stri
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_member_remove", RATE_LIMIT_FIRM_MEMBER_REMOVE);
@@ -2863,7 +2863,7 @@ async function handleFirmMemberMakePrimary(request: Request, env: Env, memberId:
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_member_make_primary", RATE_LIMIT_FIRM_MEMBER_MAKE_PRIMARY);
@@ -3034,7 +3034,7 @@ async function handleFirmBillingCheckout(request: Request, env: Env): Promise<Re
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   if (!env.STRIPE_SECRET_KEY) {
@@ -3178,7 +3178,7 @@ async function handleFirmBillingCancellationToggle(request: Request, env: Env, c
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   if (!env.STRIPE_SECRET_KEY) {
@@ -3243,7 +3243,7 @@ async function handleFirmAccountDelete(request: Request, env: Env): Promise<Resp
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_account_delete", RATE_LIMIT_FIRM_ACCOUNT_DELETE);
@@ -4035,7 +4035,7 @@ async function handleSubscriberChangeEmailRequest(request: Request, env: Env): P
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_change_email", RATE_LIMIT_SUBSCRIBER_CHANGE_EMAIL);
@@ -4138,7 +4138,7 @@ async function handleSubscriberProfileUpdate(request: Request, env: Env): Promis
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_profile_update", RATE_LIMIT_SUBSCRIBER_PROFILE_UPDATE);
@@ -4183,7 +4183,7 @@ async function handleSubscriberReminderCadenceSet(request: Request, env: Env): P
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_reminder_cadence", RATE_LIMIT_SUBSCRIBER_REMINDER_CADENCE);
@@ -4228,7 +4228,7 @@ async function handleSubscriberNotificationModeSet(request: Request, env: Env): 
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_notification_mode", RATE_LIMIT_SUBSCRIBER_NOTIFICATION_MODE);
@@ -4279,7 +4279,7 @@ async function handleSubscriberPhoneStartVerification(request: Request, env: Env
   }
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(
@@ -4344,7 +4344,7 @@ async function handleSubscriberPhoneStartVerification(request: Request, env: Env
     env.TWILIO_AUTH_TOKEN,
     env.TWILIO_FROM_NUMBER,
     phoneNumberRaw,
-    `Your DeadlineRadar verification code is ${code}. It expires in ${store.PHONE_VERIFICATION_TTL_MINUTES} minutes.`
+    `Your Deadline-Radar verification code is ${code}. It expires in ${store.PHONE_VERIFICATION_TTL_MINUTES} minutes.`
   );
   if (!sent) {
     return jsonResponse(502, { error: "Couldn't send the verification text. Please check the number and try again." });
@@ -4364,7 +4364,7 @@ async function handleSubscriberPhoneConfirmVerification(request: Request, env: E
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(
@@ -4411,7 +4411,7 @@ async function handleSubscriberPhoneOptOut(request: Request, env: Env): Promise<
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_phone_opt_out", RATE_LIMIT_SUBSCRIBER_PHONE_OPT_OUT);
@@ -4751,7 +4751,7 @@ async function handleSubscriberCpeEntryCreate(request: Request, env: Env): Promi
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_cpe_create", RATE_LIMIT_SUBSCRIBER_CPE_CREATE);
@@ -4834,7 +4834,7 @@ async function handleFirmStaffCpeReminder(request: Request, env: Env): Promise<R
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_staff_cpe_reminder", RATE_LIMIT_FIRM_STAFF_CPE_REMINDER);
@@ -5022,7 +5022,7 @@ async function handleFirmRuleChangeNotify(request: Request, env: Env): Promise<R
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_rule_change_notify", RATE_LIMIT_FIRM_RULE_CHANGE_NOTIFY);
@@ -5167,7 +5167,7 @@ async function handleRoadmapData(request: Request, env: Env): Promise<Response> 
  * request didn't already carry one. */
 async function handleRoadmapVote(request: Request, env: Env, ip: string): Promise<Response> {
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, ip, "roadmap_vote", RATE_LIMIT_ROADMAP_VOTE);
@@ -5212,7 +5212,7 @@ async function handleRoadmapVote(request: Request, env: Env, ip: string): Promis
  * and Turnstile the same way every other public form here does. */
 async function handleRoadmapNotifySignup(request: Request, env: Env, ip: string): Promise<Response> {
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, ip, "roadmap_notify_signup", RATE_LIMIT_ROADMAP_NOTIFY_SIGNUP);
@@ -5607,7 +5607,7 @@ async function handleFirmQuestionnaireSubmit(request: Request, env: Env): Promis
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   // AuditLab SEC-1 (2026-08-07): was missing on this and 6 sibling
@@ -5655,7 +5655,7 @@ async function handleFirmQuestionnaireDismiss(request: Request, env: Env): Promi
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   // AuditLab SEC-1 (2026-08-07).
@@ -5680,7 +5680,7 @@ async function handleOnboardingChecklistDismiss(request: Request, env: Env): Pro
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   // AuditLab SEC-1 (2026-08-07).
@@ -5705,7 +5705,7 @@ async function handleProductTourDismiss(request: Request, env: Env): Promise<Res
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   // AuditLab SEC-1 (2026-08-07).
@@ -5736,7 +5736,7 @@ async function handlePeerReviewSet(request: Request, env: Env): Promise<Response
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_peer_review_set", RATE_LIMIT_FIRM_PEER_REVIEW_SET);
@@ -5781,7 +5781,7 @@ async function handleReplyToSet(request: Request, env: Env): Promise<Response> {
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_reply_to_set", RATE_LIMIT_FIRM_REPLY_TO_SET);
@@ -5823,7 +5823,7 @@ async function handleReminderCadenceSet(request: Request, env: Env): Promise<Res
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_reminder_cadence_set", RATE_LIMIT_FIRM_REMINDER_CADENCE_SET);
@@ -5863,7 +5863,7 @@ async function handleRuleChangeAlertsSet(request: Request, env: Env): Promise<Re
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_rule_change_alerts_set", RATE_LIMIT_FIRM_RULE_CHANGE_ALERTS_SET);
@@ -5902,7 +5902,7 @@ async function handleAdminDigestSet(request: Request, env: Env): Promise<Respons
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_admin_digest_set", RATE_LIMIT_FIRM_ADMIN_DIGEST_SET);
@@ -6112,7 +6112,7 @@ async function handleFirmSlackDisconnect(request: Request, env: Env): Promise<Re
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   // Adversarial review (2026-08-09, model: opus, /firm/demo-login review):
@@ -6156,7 +6156,7 @@ async function handleFirmTeamsWebhookSet(request: Request, env: Env): Promise<Re
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   // Adversarial review (2026-08-09, model: opus, /firm/demo-login review):
@@ -6224,7 +6224,7 @@ async function handleNpsResponse(request: Request, env: Env): Promise<Response> 
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_nps", RATE_LIMIT_FIRM_NPS);
@@ -6265,7 +6265,7 @@ async function handleNpsDismiss(request: Request, env: Env): Promise<Response> {
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_nps_dismiss", RATE_LIMIT_FIRM_NPS);
@@ -6295,7 +6295,7 @@ async function handleTestimonialSubmit(request: Request, env: Env): Promise<Resp
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_testimonial", RATE_LIMIT_FIRM_TESTIMONIAL);
@@ -6398,7 +6398,7 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
   // exactly one call site, leaving every actual state-changing endpoint
   // unchecked. A second layer independent of browser SameSite enforcement.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   // Per-FIRM daily cap (not per-IP) -- see RATE_LIMIT_FIRM_LICENSE_CREATE's
@@ -6651,7 +6651,7 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   // Per-FIRM daily cap -- AuditLab F-2, 2026-08-02. This route previously
@@ -6926,7 +6926,7 @@ async function handleFirmLicenseDelete(request: Request, env: Env, id: string): 
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   // Per-FIRM daily cap -- AuditLab S-3, 2026-08-03. No send path here (unlike
@@ -6979,7 +6979,7 @@ async function handleFirmLicenseRenew(request: Request, env: Env, id: string): P
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   // Per-FIRM daily cap -- AuditLab S-3, 2026-08-03. Same reasoning as the
@@ -7087,7 +7087,7 @@ async function handleCpeEntryCreate(request: Request, env: Env): Promise<Respons
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "cpe_entry_create", RATE_LIMIT_CPE_ENTRY_CREATE);
@@ -7184,7 +7184,7 @@ async function handleCpeEntryDelete(request: Request, env: Env, id: string): Pro
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   // Per-FIRM daily cap -- AuditLab S-3, 2026-08-03. Same reasoning as
@@ -7259,7 +7259,7 @@ async function handleDocumentUpload(request: Request, env: Env, subscriberId: st
   if (valueLineDenial) return valueLineDenial;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const uploadAllowed = await checkRateLimit(env.DB, session.firmId, "firm_document_upload", RATE_LIMIT_FIRM_DOCUMENT_UPLOAD);
@@ -7398,7 +7398,7 @@ async function handleDocumentDelete(request: Request, env: Env, id: string): Pro
   if (valueLineDenial) return valueLineDenial;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   // AuditLab SEC-1 (2026-08-07): the original finding -- this endpoint had
@@ -8733,7 +8733,7 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
   // themselves. See originAllowed()'s docstring. Checked FIRST, before the
   // rate limit, so a cross-site attempt cannot burn the victim's bucket.
   if (!originAllowed(request, env)) {
-    return errorPage(400, "That sign-in couldn't be completed. Please sign in from the DeadlineRadar site.");
+    return errorPage(400, "That sign-in couldn't be completed. Please sign in from the Deadline-Radar site.");
   }
 
   const ipAllowed = await checkRateLimit(env.DB, ip, "firm_password_login", RATE_LIMIT_FIRM_PASSWORD_LOGIN);
@@ -9041,7 +9041,7 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, ip, "firm_password_set", RATE_LIMIT_FIRM_PASSWORD_SET);
@@ -9237,7 +9237,7 @@ async function handleFirm2faEnroll(request: Request, env: Env): Promise<Response
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   if (!env.TOTP_ENCRYPTION_KEY) {
@@ -9316,7 +9316,7 @@ async function handleFirm2faEnroll(request: Request, env: Env): Promise<Response
   }
 
   const secret = generateTotpSecretBase32();
-  return jsonResponse(200, { secret, otpauth_uri: buildOtpauthUri(secret, member.email, "DeadlineRadar") });
+  return jsonResponse(200, { secret, otpauth_uri: buildOtpauthUri(secret, member.email, "Deadline-Radar") });
 }
 
 /**
@@ -9340,7 +9340,7 @@ async function handleFirm2faEnrollConfirm(request: Request, env: Env): Promise<R
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   if (!env.TOTP_ENCRYPTION_KEY) {
@@ -9451,7 +9451,7 @@ async function handleFirm2faDisable(request: Request, env: Env): Promise<Respons
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.memberId, "firm_2fa_disable", RATE_LIMIT_FIRM_2FA_DISABLE);
@@ -9588,7 +9588,7 @@ async function handleFirmSignOutOtherDevices(request: Request, env: Env): Promis
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.sessionId, "firm_signout_other", RATE_LIMIT_FIRM_SIGNOUT_OTHER);
@@ -9671,7 +9671,7 @@ async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_change_email", RATE_LIMIT_FIRM_CHANGE_EMAIL);
@@ -10137,7 +10137,7 @@ async function handleOauthIdentityDelete(request: Request, env: Env, id: string)
   // got this check, this one didn't. Unlinking a firm's SSO identity is a
   // real state change with account-access consequences.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   // Per-FIRM daily cap -- AuditLab S-3, 2026-08-03. Same reasoning as
@@ -10195,7 +10195,7 @@ async function handleFirmSessionRevoke(request: Request, env: Env, id: string): 
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   if (id === session.sessionId) {
@@ -10697,7 +10697,7 @@ async function handleMobilityCompletionCreate(request: Request, env: Env): Promi
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_completion_create", RATE_LIMIT_MOBILITY_COMPLETION_CREATE);
@@ -10754,7 +10754,7 @@ async function handleMobilityCompletionDelete(request: Request, env: Env, id: st
 
   // CSRF defense-in-depth (2026-08-05) -- see handleFirmLicenseCreate's own comment.
   if (!originAllowed(request, env)) {
-    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the DeadlineRadar site." });
+    return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_completion_delete", RATE_LIMIT_MOBILITY_COMPLETION_DELETE);

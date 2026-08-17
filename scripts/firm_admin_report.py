@@ -130,7 +130,7 @@ def query_subscription_status(emails: list[str]) -> dict[str, list[dict]]:
 def build_report(firm_name: str, roster: list[dict], by_state: dict[str, list[dict]],
                   subs_by_email: dict[str, list[dict]]) -> str:
     lines = [
-        f"# DeadlineRadar — {firm_name} status",
+        f"# Deadline-Radar — {firm_name} status",
         "",
         "| Staff | State | License type | Next deadline | Pattern | Subscription | Verified status |",
         "|---|---|---|---|---|---|---|",

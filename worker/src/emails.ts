@@ -24,7 +24,7 @@
 import { escapeHtml } from "./validation";
 
 export const SITE_URL = "https://deadline-radar.com";
-export const SITE_NAME = "DeadlineRadar";
+export const SITE_NAME = "Deadline-Radar";
 export const BRAND_NAME = "Moose & Raven LLC";
 export const SENDER_LINE = `${SITE_NAME} (a ${BRAND_NAME} project)`;
 
@@ -400,7 +400,7 @@ export function buildReminderEmail(
   // walking away from the deadline entirely.
   const showSnooze = snoozeUrl !== null && threshold !== 1;
 
-  const firmAttribution = firmName ? `This reminder is sent by ${firmName} via DeadlineRadar.\n\n` : "";
+  const firmAttribution = firmName ? `This reminder is sent by ${firmName} via Deadline-Radar.\n\n` : "";
   const snoozeTextCta = showSnooze
     ? `Not ready to deal with this yet? Remind me again in ${SNOOZE_DAYS} days instead:\n${snoozeUrl}\n\n`
     : "";
@@ -422,7 +422,7 @@ export function buildReminderEmail(
       `${esc(lead)}</h1>` +
       p(
         `${htmlGreeting(firstName)}<br><br>` +
-          (firmName ? `This reminder is sent by <strong>${esc(firmName)}</strong> via DeadlineRadar.<br><br>` : "") +
+          (firmName ? `This reminder is sent by <strong>${esc(firmName)}</strong> via Deadline-Radar.<br><br>` : "") +
           `Your ${esc(stateName)} CPA license renewal is due <strong>${esc(deadlineDateStr)}</strong> ` +
           `(${esc(whenPhrase)}).`
       ) +
@@ -544,7 +544,7 @@ export function buildDigestEmail(
     .join("");
 
   const htmlBody = htmlShell(
-    `Your weekly DeadlineRadar summary -- ${count} ${count === 1 ? "renewal" : "renewals"} due`,
+    `Your weekly Deadline-Radar summary -- ${count} ${count === 1 ? "renewal" : "renewals"} due`,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `Your weekly summary</h1>` +
       p(
@@ -1128,7 +1128,7 @@ export function buildRuleChangeNotificationEmail(
     `This is informational only, not a determination about your own situation -- check Practice ` +
     `Privilege Check or confirm directly with the ${stateName} board of accountancy.\n\n` +
     `If this doesn't apply to you, you can safely ignore this email.\n\n` +
-    `Unsubscribe from these and other DeadlineRadar emails, one click, no sign-in: ${unsubscribeUrl}\n\n` +
+    `Unsubscribe from these and other Deadline-Radar emails, one click, no sign-in: ${unsubscribeUrl}\n\n` +
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
@@ -1151,7 +1151,7 @@ export function buildRuleChangeNotificationEmail(
       ) +
       p("If this doesn't apply to you, you can safely ignore this email.", 13, LIGHT.muted) +
       p(
-        `${textLink(unsubscribeUrl, "Unsubscribe")} from these and other DeadlineRadar emails, one ` +
+        `${textLink(unsubscribeUrl, "Unsubscribe")} from these and other Deadline-Radar emails, one ` +
           `click, no sign-in.`,
         13,
         LIGHT.muted
@@ -1488,7 +1488,7 @@ export function buildStaffUnsubscribedNotificationEmail(
 ): BuiltEmail {
   const addr = mailingAddress();
   const displayName = (staffLabel || staffEmail).replace(/[\r\n]+/g, " ");
-  const subject = `${displayName} unsubscribed from ${firmName}'s DeadlineRadar roster`;
+  const subject = `${displayName} unsubscribed from ${firmName}'s Deadline-Radar roster`;
 
   const textBody =
     `${textGreeting(adminName)}\n\n` +
@@ -1735,11 +1735,11 @@ export function buildFirmStaffAddedEmail(firmName: string, stateName: string, un
   // single point of failure that becomes live the moment either changes --
   // a firm-rename route, or a transport swap to raw SMTP. One line of
   // defense-in-depth at the point where the string is actually built.
-  const subject = `${firmName.replace(/[\r\n]+/g, " ")} added you to DeadlineRadar`;
+  const subject = `${firmName.replace(/[\r\n]+/g, " ")} added you to Deadline-Radar`;
 
   const textBody =
     `Hi there,\n\n` +
-    `${firmName} added you to DeadlineRadar to track your ${stateName} CPA license renewal. ` +
+    `${firmName} added you to Deadline-Radar to track your ${stateName} CPA license renewal. ` +
     `You'll get advance email reminders before it's due -- 60, 30, 14, 7, 3, and 1 day out. ` +
     `That's the whole schedule -- nothing else, ever: no marketing, no third-party offers.\n\n` +
     `Not you, or would you rather not be tracked this way? One click removes you, no questions ` +
@@ -1749,11 +1749,11 @@ export function buildFirmStaffAddedEmail(firmName: string, stateName: string, un
     `${textFooter(unsubscribeUrl, addr)}`;
 
   const htmlBody = htmlShell(
-    `${firmName} added you to DeadlineRadar`,
+    `${firmName} added you to Deadline-Radar`,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
-      `${esc(firmName)} added you to DeadlineRadar</h1>` +
+      `${esc(firmName)} added you to Deadline-Radar</h1>` +
       p(
-        `${esc(firmName)} added you to DeadlineRadar to track your ${esc(stateName)} CPA license ` +
+        `${esc(firmName)} added you to Deadline-Radar to track your ${esc(stateName)} CPA license ` +
           `renewal. You'll get advance email reminders before it's due &mdash; 60, 30, 14, 7, 3, and ` +
           `1 day out. That's the whole schedule &mdash; nothing else, ever: no marketing, no ` +
           `third-party offers.`
@@ -1851,10 +1851,10 @@ export function buildStaleDataAlertEmail(ageDays: number | null, guardMessage: s
   const asOfUnparseable = ageDays === null;
   const recordUnparseable = ageDays !== null && !Number.isFinite(ageDays);
   const subject = asOfUnparseable
-    ? "DeadlineRadar: reference data's as_of_date is unparseable -- all sends paused"
+    ? "Deadline-Radar: reference data's as_of_date is unparseable -- all sends paused"
     : recordUnparseable
-    ? "DeadlineRadar: a citation's last_verified date is unparseable -- all sends paused"
-    : `DeadlineRadar: reference data is ${ageDays} days old -- all sends paused`;
+    ? "Deadline-Radar: a citation's last_verified date is unparseable -- all sends paused"
+    : `Deadline-Radar: reference data is ${ageDays} days old -- all sends paused`;
   const fixInstruction = recordUnparseable
     ? "the record with the missing or unparseable last_verified value is fixed"
     : "data/cpa_deadlines.json's as_of_date is re-verified and bumped forward";

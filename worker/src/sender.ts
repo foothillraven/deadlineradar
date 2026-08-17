@@ -22,7 +22,7 @@ import type { BuiltEmail } from "./emails";
 
 const SENDGRID_API_URL = "https://api.sendgrid.com/v3/mail/send";
 const FROM_EMAIL = "noreply@deadline-radar.com";
-const FROM_NAME = "DeadlineRadar";
+const FROM_NAME = "Deadline-Radar";
 const SEND_TIMEOUT_MS = 10_000;
 
 export const DEFAULT_DAILY_SEND_CAP = 300;

@@ -46,7 +46,7 @@ function addOneDayIso(iso: string): string {
  * codebase's own "server writes are on a passed clock" testability
  * convention (deadline.ts, stripe.ts webhook handling, etc). */
 export function buildIcs(events: IcsEvent[], asOf: Date): string {
-  const lines: string[] = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//DeadlineRadar//Firm Calendar Export//EN", "CALSCALE:GREGORIAN"];
+  const lines: string[] = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Deadline-Radar//Firm Calendar Export//EN", "CALSCALE:GREGORIAN"];
   const dtstamp = icsDateStamp(asOf);
   for (const event of events) {
     lines.push(

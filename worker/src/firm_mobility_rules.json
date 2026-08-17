@@ -1004,7 +1004,7 @@
       "exists": true,
       "citation": "NY Education Law section 7406(2)(c); section 7408(3)",
       "citation_url": "https://www.nysenate.gov/legislation/laws/EDN/7408",
-      "notes": "Firm registration required if engaging in attest/compilation practice or using CPA/PA in its name; a firm limited to non-attest services may register but isn't required to. Confirmed by NYSED's own guidance pages."
+      "notes": "Firm registration required if engaging in attest/compilation practice or using CPA/PA in its name; a firm limited to non-attest services may register but isn't required to. Confirmed by NYSED's own guidance pages. RESOLVED 2026-08-17: independently re-read NY Education Law 7408(3)(a) verbatim -- 'Any firm... uses the title \"CPA\" or \"CPA firm\"... must register with the department,' with no office-presence qualifier anywhere in that clause. Confirms the earlier conclusion directly rather than just citing NYSED guidance a second time: the search-summary claim that a CPA-titled no-office firm could skip registration was simply incorrect, not a competing legitimate reading of a real primary source."
     },
     "physical_office_trigger": {
       "exists": false,
@@ -1019,10 +1019,10 @@
       "notes": "Peer review required as a condition to renewal of firm registration. Non-participating firms file an annual non-participation notice instead."
     },
     "confidence": "dual_source",
-    "source_disagreement": "A non-primary search summary suggested CPA-titled firms without a NY office could skip registration -- contradicts the verbatim statute and NYSED guidance, treated as a summarization artifact not a real conflict.",
+    "source_disagreement": null,
     "state_slug": "new-york",
     "state": "New York",
-    "verified_date": "2026-08-07"
+    "verified_date": "2026-08-17"
   },
   "north-carolina": {
     "attest_exemption": {

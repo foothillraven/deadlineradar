@@ -117,44 +117,64 @@ describe("SEC-1: previously-unlimited write endpoints now rate-limit", () => {
     expect(past).toBeLessThanOrEqual(DISMISS_BUCKET_MAX);
   }, 20000);
 
-  // handleFirmLogout/handleSubscriberLogout deliberately ALWAYS return 302 +
-  // a cookie-clear header, rate-limited or not -- "logout always succeeds
-  // from the caller's perspective" is pre-existing, intentional design
-  // (see the docstring on each), and the client-side cookie clear is
-  // harmless to always do. What SEC-1's fix actually bounds is the SERVER-
-  // SIDE row deletion, so the real assertion is "a fresh session's row
-  // stops getting deleted once the IP has exceeded the bucket," not a
-  // status code -- proven by minting a brand-new session before each call
-  // (so there's always something real to delete) and checking the last one
-  // survives.
-  it("/firm/logout: IP-keyed bucket eventually stops deleting fresh sessions", async () => {
+  // AuditLab LOGOUT-1 (2026-08-17): SEC-1's ORIGINAL fix gated the row
+  // deletion on the rate-limit bucket, same as every other endpoint in this
+  // file -- but that made logout look identical to success (302 + cookie
+  // clear) once the shared-IP bucket filled, while silently leaving the
+  // session row alive server-side. These two tests used to assert that
+  // false-success behavior as correct ("expected the bucket to have
+  // blocked the row deletion"); they now assert the fix -- the row
+  // deletion is UNCONDITIONAL, so a fresh session never survives its own
+  // logout call no matter how exhausted the bucket is. The rate-limit
+  // counter itself still fills (kept for abuse visibility), which the
+  // second assertion in each test proves directly against the table rather
+  // than inferring it from a status code.
+  it("/firm/logout: deletes the session row even once the IP's bucket is exhausted", async () => {
     const { id: firmId } = await store.createFirm(env.DB, { name: "SEC1 Logout Firm", adminEmail: `sec1-logout-${Date.now()}@example.com` });
+    const ip = "203.0.113.45";
     let lastRawToken = "";
     for (let i = 0; i < 35; i++) {
       const { rawSessionToken } = await store.createSession(env.DB, firmId);
       lastRawToken = rawSessionToken;
       await SELF.fetch(`${BASE}/firm/logout`, {
         method: "POST",
-        headers: { Cookie: `dr_firm_session=${rawSessionToken}`, "cf-connecting-ip": "203.0.113.45" },
+        headers: { Cookie: `dr_firm_session=${rawSessionToken}`, "cf-connecting-ip": ip },
       });
     }
     const stillLive = await store.verifySession(env.DB, lastRawToken);
-    expect(stillLive, "expected the bucket to have blocked the row deletion by the 35th attempt -- it didn't").not.toBeNull();
+    expect(stillLive, "LOGOUT-1 regression: the 35th session's row survived its own logout call").toBeNull();
+
+    const bucketHits = await env.DB.prepare("SELECT COUNT(*) as n FROM rate_limit_hits WHERE ip = ?1 AND bucket = 'firm_logout'").bind(ip).first<{ n: number }>();
+    // checkRateLimit's conditional INSERT stops firing once the count
+    // reaches limit.max (keeps the table from growing unboundedly, per its
+    // own comment) -- so 35 attempts caps the counter at exactly 30, not
+    // above it. >= proves the bucket genuinely filled without assuming the
+    // implementation never changes to keep counting past the cap.
+    expect(bucketHits?.n, "the rate-limit counter should still be recorded even though it no longer gates the deletion").toBeGreaterThanOrEqual(30);
   }, 20000);
 
-  it("/subscriber/logout: IP-keyed bucket eventually stops deleting fresh sessions", async () => {
+  it("/subscriber/logout: deletes the session row even once the IP's bucket is exhausted", async () => {
     const email = `sec1-sublogout-${Date.now()}@example.com`;
+    const ip = "203.0.113.46";
     let lastRawToken = "";
     for (let i = 0; i < 35; i++) {
       const { rawSessionToken } = await store.createSubscriberSession(env.DB, email);
       lastRawToken = rawSessionToken;
       await SELF.fetch(`${BASE}/subscriber/logout`, {
         method: "POST",
-        headers: { Cookie: `dr_sub_session=${rawSessionToken}`, "cf-connecting-ip": "203.0.113.46" },
+        headers: { Cookie: `dr_sub_session=${rawSessionToken}`, "cf-connecting-ip": ip },
       });
     }
     const stillLive = await store.verifySubscriberSession(env.DB, lastRawToken);
-    expect(stillLive, "expected the bucket to have blocked the row deletion by the 35th attempt -- it didn't").not.toBeNull();
+    expect(stillLive, "LOGOUT-1 regression: the 35th session's row survived its own logout call").toBeNull();
+
+    const bucketHits = await env.DB.prepare("SELECT COUNT(*) as n FROM rate_limit_hits WHERE ip = ?1 AND bucket = 'subscriber_logout'").bind(ip).first<{ n: number }>();
+    // checkRateLimit's conditional INSERT stops firing once the count
+    // reaches limit.max (keeps the table from growing unboundedly, per its
+    // own comment) -- so 35 attempts caps the counter at exactly 30, not
+    // above it. >= proves the bucket genuinely filled without assuming the
+    // implementation never changes to keep counting past the cap.
+    expect(bucketHits?.n, "the rate-limit counter should still be recorded even though it no longer gates the deletion").toBeGreaterThanOrEqual(30);
   }, 20000);
 
   it("a legitimate single dismiss still succeeds (the fix didn't break normal use)", async () => {

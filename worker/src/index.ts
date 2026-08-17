@@ -2485,12 +2485,21 @@ async function handleFirmLogout(request: Request, env: Env, ip: string): Promise
   // on IP, not firmId, since there's no verified session at this point
   // (the raw cookie may not even name a real session) -- same posture as
   // every other pre-session bucket in this file.
-  const allowed = await checkRateLimit(env.DB, ip, "firm_logout", RATE_LIMIT_LOGOUT);
-  if (allowed) {
-    const raw = getCookie(request, FIRM_SESSION_COOKIE_NAME);
-    if (raw) {
-      await store.deleteSession(env.DB, raw);
-    }
+  //
+  // AuditLab LOGOUT-1 (2026-08-17): the counter is still recorded (kept for
+  // abuse visibility -- IP-keyed, shared-NAT floods are still worth seeing),
+  // but it no longer GATES the deletion. It used to: once exhausted, this
+  // response looked identical to a real logout (cookie cleared, redirected)
+  // while the session row was never deleted, silently dropping a
+  // defense-in-depth backstop for anyone whose token had separately leaked
+  // (XSS, malware). Deleting a session by its own random 256-bit token has
+  // no enumeration/brute-force angle a rate limit would meaningfully guard
+  // against, so there is nothing worth trading away this response's
+  // documented "always succeeds" contract for.
+  await checkRateLimit(env.DB, ip, "firm_logout", RATE_LIMIT_LOGOUT);
+  const raw = getCookie(request, FIRM_SESSION_COOKIE_NAME);
+  if (raw) {
+    await store.deleteSession(env.DB, raw);
   }
   return new Response(null, {
     status: 302,
@@ -4562,12 +4571,13 @@ async function handleEmailEventsWebhook(request: Request, env: Env): Promise<Res
 async function handleSubscriberLogout(request: Request, env: Env, ip: string): Promise<Response> {
   // AuditLab SEC-1 (2026-08-07): same fix/reasoning as handleFirmLogout()'s
   // own comment above (IP-keyed, no verified session at this point).
-  const allowed = await checkRateLimit(env.DB, ip, "subscriber_logout", RATE_LIMIT_LOGOUT);
-  if (allowed) {
-    const raw = getCookie(request, SUBSCRIBER_SESSION_COOKIE_NAME);
-    if (raw) {
-      await store.deleteSubscriberSession(env.DB, raw);
-    }
+  // AuditLab LOGOUT-1 (2026-08-17): same fix as handleFirmLogout() above --
+  // the rate-limit counter is still recorded, but no longer gates the
+  // deletion. See that function's comment for the full reasoning.
+  await checkRateLimit(env.DB, ip, "subscriber_logout", RATE_LIMIT_LOGOUT);
+  const raw = getCookie(request, SUBSCRIBER_SESSION_COOKIE_NAME);
+  if (raw) {
+    await store.deleteSubscriberSession(env.DB, raw);
   }
   return new Response(null, {
     status: 302,

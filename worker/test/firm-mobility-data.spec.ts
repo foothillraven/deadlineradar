@@ -118,14 +118,14 @@ describe("locked-in dataset facts -- a change here should only come from a real 
     expect(unclear).toEqual(["maine", "massachusetts", "ohio", "tennessee"]);
   });
 
-  it("exactly 4 states have an unverified physical_office_trigger -- Guam, US Virgin Islands, Utah, Wisconsin", () => {
+  it("exactly 3 states have an unverified physical_office_trigger -- Guam, Utah, Wisconsin (2026-08-17: US Virgin Islands filled in)", () => {
     const unclear = rows.filter((r) => r.physicalOfficeTrigger.exists === null).map((r) => r.stateSlug).sort();
-    expect(unclear).toEqual(["guam", "us-virgin-islands", "utah", "wisconsin"]);
+    expect(unclear).toEqual(["guam", "utah", "wisconsin"]);
   });
 
-  it("exactly these states carry a real source_disagreement note (2026-08-17: WV, AZ, NJ, NM, NY, PA resolved via direct primary-source text)", () => {
+  it("exactly these states carry a real source_disagreement note (2026-08-17: WV, AZ, NJ, NM, NY, PA, USVI resolved via direct primary-source text)", () => {
     const disagreeing = rows.filter((r) => r.sourceDisagreement !== null).map((r) => r.stateSlug).sort();
-    expect(disagreeing).toEqual(["nebraska", "new-hampshire", "ohio", "us-virgin-islands", "vermont"].sort());
+    expect(disagreeing).toEqual(["nebraska", "new-hampshire", "ohio", "vermont"].sort());
   });
 });
 

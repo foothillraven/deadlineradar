@@ -552,27 +552,27 @@
   "us-virgin-islands": {
     "attest_exemption": {
       "exists": true,
-      "citation": "27 V.I.C. section 250e (Public Accountancy Act of 2014, Act No. 7596)",
+      "citation": "27 V.I.C. section 250d(a)(1)(C), (a)(2)-(3) (Public Accountancy Act of 2014, Act No. 7596)",
       "citation_url": "https://dlca.vi.gov/pdf/UAALegislationpass.pdf",
-      "notes": "Two independent search syntheses identify a UAA-model provision (matching Guam's framework) requiring firms issuing attest/compilation reports to enroll in peer review, implying non-attest-only firms fall outside the trigger. Primary text NOT independently verified -- Justia blocked (403), DLCA PDF exceeded fetch limits. Plausible but not document-verified."
+      "notes": "RESOLVED 2026-08-17: extracted and read the board's own compiled Act 7596 PDF directly (via curl + pypdf; WebFetch alone exceeded its download size limit on this file). Found the real section -- 250d, not 250e (250e is genuinely 'Appointment of a Resident Agent,' confirming the 2019 Justia archive was correct all along; the two search-derived syntheses that pointed at 250e were simply wrong about the number, though right about the substance). Section 250d(a)(1)(C): a no-VI-office firm performing attest services for a VI-home-office client MUST hold a permit -- no office-based exemption for attest. Section 250d(a)(2)-(3): a no-office firm may perform OTHER (non-attest) services via a practice-privileged individual without a firm permit. Same UAA-model shape as most other states in this dataset."
     },
     "physical_office_trigger": {
-      "exists": null,
-      "citation": "not found",
-      "citation_url": null,
-      "notes": "No source located addressing whether a bare physical VI office independently triggers registration regardless of services performed."
+      "exists": false,
+      "citation": "27 V.I.C. section 250d(a)(1)(A)-(B)",
+      "citation_url": "https://dlca.vi.gov/pdf/UAALegislationpass.pdf",
+      "notes": "FILLED 2026-08-17 (previously no source located): section 250d(a)(1)(A)-(B) requires a permit for 'any firm with an office in the Territory performing attest services' or 'with an office... that uses the title CPA or CPA firm' -- office presence alone is not an independent trigger, it's always paired with attest work or CPA-title use, matching the majority pattern in this dataset."
     },
     "peer_review_conditions_permit": {
       "exists": true,
-      "citation": "27 V.I.C. section 250e",
+      "citation": "27 V.I.C. section 250d(h)",
       "citation_url": "https://dlca.vi.gov/pdf/UAALegislationpass.pdf",
-      "notes": "Two independent search-derived syntheses: all CPA firms issuing attest/compilation reports must enroll in board-approved peer review; renewal application must confirm peer-review-required status. Not independently read from primary text."
+      "notes": "CONFIRMED 2026-08-17 at the correct citation (250d(h), not 250e): as a condition of permit renewal, applicants must undergo peer review no more than once every 3 years, verifying that individuals supervising attest/compilation services meet professional-standards competency requirements. Directly read, not inferred from a search synthesis."
     },
-    "confidence": "unverified",
-    "source_disagreement": "A 2019 Justia archival codification lists section 250e as 'Appointment of a resident agent,' not firm permits/peer review -- suggesting a renumbering under Act 7596 (2014) not reflected in that archive, or an error in secondary summaries. Substantive content was consistent across two searches; exact current citation number unconfirmed against primary text.",
+    "confidence": "dual_source",
+    "source_disagreement": null,
     "state_slug": "us-virgin-islands",
     "state": "US Virgin Islands",
-    "verified_date": "2026-08-07"
+    "verified_date": "2026-08-17"
   },
   "northern-mariana-islands": {
     "attest_exemption": {

@@ -985,7 +985,7 @@
       "exists": true,
       "citation": "NMSA 1978 section 61-28B-13(B)(1)-(2)",
       "citation_url": "https://codes.findlaw.com/nm/chapter-61-professional-and-occupational-licenses/nm-st-sect-61-28b-13/",
-      "notes": "Statute conditions the office trigger on attest work or CPA/CPA-firm title use; NM Board's FAQ states plainly a permit is required for any NM office -- functionally the same result in practice."
+      "notes": "Statute conditions the office trigger on attest work or CPA/CPA-firm title use; NM Board's FAQ states plainly a permit is required for any NM office -- functionally the same result in practice. RESOLVED 2026-08-17: independently re-read NMSA 61-28B-13(B) verbatim -- confirms the statute's own trigger is precisely conditioned on attest work or CPA/CPA-firm title use, never bare office presence alone. The Board's FAQ is informal, non-binding guidance, not an adopted rule -- it has no authority to override the statute's own text, so this was never a true legal conflict between two binding sources (unlike, for example, a statute-vs-formally-adopted-rule disagreement). The FAQ's looser phrasing is an oversimplification worth knowing about, not a competing legal answer."
     },
     "peer_review_conditions_permit": {
       "exists": true,
@@ -994,10 +994,10 @@
       "notes": "As a condition to permit renewal, applicant must undergo peer review per board rules. Confirmed by NMAC 16.60.4."
     },
     "confidence": "dual_source",
-    "source_disagreement": "Physical-office trigger: statute conditions it on attest work or CPA-title use, while Board FAQ states office presence alone as sufficient -- not a true conflict in practice, but FAQ oversimplifies an edge case.",
+    "source_disagreement": null,
     "state_slug": "new-mexico",
     "state": "New Mexico",
-    "verified_date": "2026-08-07"
+    "verified_date": "2026-08-17"
   },
   "new-york": {
     "attest_exemption": {

@@ -1214,15 +1214,15 @@
     },
     "peer_review_conditions_permit": {
       "exists": true,
-      "citation": "N.J.A.C. 13:29-1A.11(a)(2); 13:29-5.4(a)",
+      "citation": "N.J.A.C. 13:29-1A.11(a)(2); 13:29-5.4(a); N.J.S.A. 45:2B-59(a)(3), (c)(1)",
       "citation_url": "https://www.law.cornell.edu/regulations/new-jersey/N-J-A-C-13-29-1A-11",
-      "notes": "Triennial registration application must include peer review compliance forms; Peer Review Program participation mandatory for attest/accounting-and-auditing firms (report-free-compilation-only firms exempt). No explicit 'shall refuse to renew' clause found -- inferred from application-bundling + mandatory-participation rules rather than one unambiguous sentence."
+      "notes": "Triennial registration application must include peer review compliance forms; Peer Review Program participation mandatory for attest/accounting-and-auditing firms (report-free-compilation-only firms exempt). No explicit 'shall refuse to renew' clause found -- inferred from application-bundling + mandatory-participation rules rather than one unambiguous sentence. RESOLVED 2026-08-17: read 45:2B-59 verbatim at law.justia.com. Two DIFFERENT peer-review mechanisms exist in NJ law, not one in tension with itself: (c)(1) lets the board order a peer review as a discretionary REMEDY/SANCTION in a disciplinary proceeding ('in lieu of or in addition to' other discipline) -- that's a case-specific tool, not the standing requirement. Separately and independently, (a)(3) lets the board refuse to renew a registration for 'failure... to maintain compliance with the requirements for issuance or renewal' -- a general ground that reaches the STANDING peer-review-program participation mandate in 13:29-5.4(a), since that's one of the requirements for renewal. The two subsections describe different things; neither undermines the other. Peer review compliance is a real renewal gate via (a)(3), not merely remedial via (c)(1)."
     },
-    "confidence": "single_source",
-    "source_disagreement": "No direct conflict, but peer_review_conditions_permit is inferred from two rules rather than one explicit renewal-refusal clause, and N.J.S.A. 45:2B-59(c)(1) frames peer review as remedial/disciplinary rather than a standing renewal gate.",
+    "confidence": "dual_source",
+    "source_disagreement": null,
     "state_slug": "new-jersey",
     "state": "New Jersey",
-    "verified_date": "2026-08-07"
+    "verified_date": "2026-08-17"
   },
   "colorado": {
     "attest_exemption": {

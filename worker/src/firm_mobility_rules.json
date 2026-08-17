@@ -654,7 +654,7 @@
       "exists": false,
       "citation": "63 P.S. section 9.8h(a)(1) and (d)(3); section 9.5d",
       "citation_url": "https://www.pa.gov/content/dam/copapwp-pagov/en/dos/programs/professional-licensing/applications-and-forms/Acct%20Laws.pdf",
-      "notes": "PA does NOT gate on attest-vs-non-attest for no-office firms: the 'qualified unlicensed entity' mobility exemption (section 5.4) requires only no PA office + lawful home-state practice + individual practice-privilege/licensee performing the work -- NOT limited to non-attest work. The only attest-specific rule requires the individual in charge to be a real licensed CPA/PA, not that the firm itself get licensed. PA's gate is individual qualification, not firm-level service classification."
+      "notes": "PA does NOT gate on attest-vs-non-attest for no-office firms: the 'qualified unlicensed entity' mobility exemption (section 5.4) requires only no PA office + lawful home-state practice + individual practice-privilege/licensee performing the work -- NOT limited to non-attest work. The only attest-specific rule requires the individual in charge to be a real licensed CPA/PA, not that the firm itself get licensed. PA's gate is individual qualification, not firm-level service classification. RESOLVED 2026-08-17: independently read 63 P.S. 5.4 verbatim (extracted the board's own compiled CPA Law PDF directly). Confirmed word for word: the 'qualified unlicensed entity' exemption (5.4(b)-(d)) tests only (1) no PA office and (2) the individual performing the work being properly qualified under 5.2 or as a licensee -- no attest/non-attest distinction appears anywhere in section 5.4. This was always a correctly-sourced structural fact, not an unresolved disagreement between competing sources; the flag was really a product-design note (PA's model differs from OK/OR/SC's) that doesn't belong in a field meant to force a NOT_VERIFIED withhold."
     },
     "physical_office_trigger": {
       "exists": true,
@@ -669,10 +669,10 @@
       "notes": "As a condition for firm renewal license (or initial license for a firm previously practicing elsewhere), board requires peer review unless exempted. Dual-sourced via 49 Pa. Code 11.82(a)."
     },
     "confidence": "dual_source",
-    "source_disagreement": "PA's firm-mobility framework gates on whether the individual in charge holds an active license, not on service type (attest vs non-attest) the way OK/OR/SC do -- structural difference flagged for the product, not a simple yes/no fit.",
+    "source_disagreement": null,
     "state_slug": "pennsylvania",
     "state": "Pennsylvania",
-    "verified_date": "2026-08-07"
+    "verified_date": "2026-08-17"
   },
   "rhode-island": {
     "attest_exemption": {

@@ -1127,9 +1127,9 @@
   "nebraska": {
     "attest_exemption": {
       "exists": false,
-      "citation": "288 Neb. Admin. Code ch. 11, section 005.01; ch. 3, section 001; Neb. Rev. Stat. section 1-126",
-      "citation_url": "https://www.law.cornell.edu/regulations/nebraska/288-Neb-Admin-Code-ch-11-SS-005",
-      "notes": "Admin rule + Board guidance require firm registration for ANY public accounting work for an NE client, attest or not -- no clean no-office/non-attest exemption. Caveat: firm-registration statute is permissive ('may register') and individual-mobility statute ties routing-through-a-permitted-firm specifically to attestation, creating internal tension with the stricter rule/guidance (resolved in favor of the rule)."
+      "citation": "288 Neb. Admin. Code ch. 11, section 005.01; ch. 3, section 001; Neb. Rev. Stat. section 1-125.01(4)",
+      "citation_url": "https://nebraskalegislature.gov/laws/statutes.php?statute=1-125.01",
+      "notes": "Admin rule + Board guidance require firm registration for ANY public accounting work for an NE client, attest or not -- no clean no-office/non-attest exemption. Caveat: firm-registration statute is permissive ('may register') and individual-mobility statute ties routing-through-a-permitted-firm specifically to attestation, creating internal tension with the stricter rule/guidance (resolved in favor of the rule). CITATION CORRECTED 2026-08-17: the individual-mobility statute is section 1-125.01, not 1-126 (1-126 is unrelated -- optional partnership/LLC registration mechanics). Read 1-125.01(4) directly: 'Any person who exercises the practice privilege afforded under this section and who, for any entity with its home office in this state, performs attestation services, may only do so through a firm or an affiliated entity which holds a permit issued under section 1-136.' This conditions firm-permit routing on attestation specifically and is silent on non-attest work -- it doesn't affirmatively exempt non-attest work from all registration, but its silence is genuinely readable either way. Unlike Arizona (which had an express 'except as provided in' cross-reference), nothing in 1-125.01 or the admin rule itself resolves the silence one way or the other. Confirmed still current: statute effective 2026-07-18 (LB718), before this record's own last verification, so no post-verification drift."
     },
     "physical_office_trigger": {
       "exists": true,
@@ -1144,10 +1144,10 @@
       "notes": "Board may restrict permits based on peer review results; attest/compilation firms must furnish peer review evidence with renewal application; preparation-only firms exempt. Dual-sourced."
     },
     "confidence": "dual_source",
-    "source_disagreement": "Attest-exemption question only: firm-registration statute (permissive) and individual-mobility statute (attest-triggered routing) create some tension with the stricter administrative rule/Board guidance used as the primary answer.",
+    "source_disagreement": "Attest-exemption question only: the individual-mobility statute (Neb. Rev. Stat. 1-125.01(4)) conditions firm-permit routing on attestation specifically and is silent on non-attest work; the administrative rule (288 NAC ch. 11 section 005.01) requires registration for ANY public accounting work, attest or not, with no such carve-out. Genuinely unresolved by the statute's own text -- the stricter administrative rule is used as the primary answer, a conservative reading, not a forced resolution of the tension.",
     "state_slug": "nebraska",
     "state": "Nebraska",
-    "verified_date": "2026-08-07"
+    "verified_date": "2026-08-17"
   },
   "nevada": {
     "attest_exemption": {

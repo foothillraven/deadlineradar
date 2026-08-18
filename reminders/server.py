@@ -364,6 +364,26 @@ class Handler(BaseHTTPRequestHandler):
                 self._error_page(400, "Ohio needs your cohort group.")
                 return
             deadline_fields = {"cohort_group": cohort_group}
+        elif state_slug in ("kansas", "kentucky", "oregon", "nebraska"):
+            # 2026-08-18: Devin caught Kansas showing "Date not confirmed"
+            # live despite a real citation and cohort table -- Kansas/
+            # Kentucky/Oregon all key on a parity-determining number
+            # (certificate/license number) the licensee already knows;
+            # Nebraska keys on birth year instead (independently verified
+            # against its Board's own FAQ, not just the statute text) and
+            # is INVERTED (born-even renews in odd years). Same PII-
+            # minimization as California just above: only the parity is
+            # ever persisted, the raw number is used transiently right here
+            # and discarded.
+            parity_number = form.get("parity_number")
+            if not parity_number or not parity_number.strip().isdigit():
+                self._error_page(400, f"{state_slug.capitalize()} needs a valid number.")
+                return
+            last_digit = int(parity_number.strip()[-1])
+            is_odd = (last_digit % 2) == 1
+            if state_slug == "nebraska":
+                is_odd = not is_odd
+            deadline_fields = {"parity": "odd" if is_odd else "even"}
         elif form.get("license_type_id"):
             license_type_id = form.get("license_type_id")
             if len(license_type_id) > MAX_FIELD_LEN:

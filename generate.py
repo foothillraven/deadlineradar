@@ -213,7 +213,7 @@ SSO_PROVIDERS = [p.strip() for p in os.environ.get("DR_SSO_PROVIDERS", "google")
 # submission. New York was the original example (its rule depends on a fact,
 # first-registration date, this dataset doesn't have) but is not special --
 # any state whose records are ALL null/gapped hits the identical failure mode.
-_WORKER_FIELD_COMPUTED_STATES = {"california", "texas", "ohio"}
+_WORKER_FIELD_COMPUTED_STATES = {"california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska"}
 
 
 def _state_signup_supported(state_slug: str, records: list[dict]) -> bool:
@@ -279,6 +279,25 @@ def next_birth_month_parity_date(as_of: date, month: int, parity: str) -> date:
         year_is_target_parity = (y % 2 == 1) if parity == "odd" else (y % 2 == 0)
         if year_is_target_parity:
             d = date(y, month, month_last_day(y, month))
+            if d >= as_of:
+                return d
+        y += 1
+
+
+def next_fixed_date_parity(as_of: date, month: int, day: int, parity: str) -> date:
+    """Next occurrence of a FIXED month/day (not month-end -- Kansas/Kentucky/
+    Oregon/Nebraska all renew on one specific calendar date, not "last day of
+    the month"), in a year whose parity matches `parity`, on or after `as_of`.
+    Same "due today has not passed" rule as next_birth_month_parity_date's
+    own sibling. Unlike California/Texas, none of these 4 states' rules
+    depend on the licensee's birth MONTH -- only a parity-determining number
+    (license/certificate number, or birth year for Nebraska) -- so there is
+    exactly one fixed date per state, not a 12-row table."""
+    y = as_of.year
+    while True:
+        year_is_target_parity = (y % 2 == 1) if parity == "odd" else (y % 2 == 0)
+        if year_is_target_parity:
+            d = date(y, month, day)
             if d >= as_of:
                 return d
         y += 1
@@ -3157,6 +3176,13 @@ up automatically, so we'll remind you based on the date you give us.</p>"""
   <option value="Group 3">Group 3</option>
 </select>
 <p class="field-hint">Check your license certificate or the Accountancy Board of Ohio lookup if you're not sure.</p>"""
+    if state_slug in PARITY_LOOKUP_STATES:
+        cfg = PARITY_LOOKUP_STATES[state_slug]
+        return f"""<label for="parity_number">{esc(cfg['input_label'])}</label>
+<input type="text" inputmode="numeric" id="parity_number" name="parity_number" required
+  placeholder="{esc(cfg['input_hint'])}">
+<p class="field-hint">Only whether it's odd or even changes your renewal year -- we never store or
+display the number itself, just its parity.</p>"""
     computed = [r for r in records if r.get("next_deadline_computed")]
     if len(computed) > 1:
         options = "\n".join(
@@ -4489,6 +4515,132 @@ def _callout_cite_html(record: dict) -> str:
     return f'<p class="callout-cite">{chip}</p>' if chip else ""
 
 
+# 2026-08-18 (Devin caught live: Kansas showed "Date not confirmed" despite
+# having the full rule, cohort table, and a real citation -- the exact same
+# shape #57's CA/TX birth-month lookup solved: we know the rule, we're just
+# not asking the one input needed to resolve it). Independently verified
+# against each state's own primary source before building anything -- 4 of
+# the 6 flagged states share this identical mechanism (a parity-determining
+# number the licensee already knows, mapping to ONE fixed month/day, unlike
+# CA/TX's per-birth-month table): Kansas (certificate number), Kentucky and
+# Oregon (license number), Nebraska (birth year, and INVERTED -- born-even
+# renews in odd years, confirmed against the Board's own FAQ, not just the
+# statute's "age divisible by two" phrasing taken at face value). Ohio and
+# Rhode Island are genuinely NOT in this bucket -- their cohort assignment is
+# opaque board discretion with no public formula anywhere in the statute,
+# rule, or agency guidance (verified directly, not assumed) -- forcing a
+# picker there would mean inventing a formula that doesn't exist, so their
+# existing "check your certificate/the board's lookup tool" treatment is
+# already the correct, honest answer and is left unchanged.
+PARITY_LOOKUP_STATES: dict[str, dict] = {
+    "kansas": {
+        "month": 7, "day": 1,
+        "input_label": "Kansas CPA certificate number",
+        "input_hint": "Just the last digit works too.",
+        "parity_of": "your certificate number",
+        "inverted": False,
+    },
+    "kentucky": {
+        "month": 8, "day": 1,
+        "input_label": "Kentucky CPA license number",
+        "input_hint": "Just the last digit works too.",
+        "parity_of": "your license number",
+        "inverted": False,
+    },
+    "oregon": {
+        "month": 6, "day": 30,
+        "input_label": "Oregon CPA license number",
+        "input_hint": "Just the last digit works too.",
+        "parity_of": "your license number",
+        "inverted": False,
+    },
+    "nebraska": {
+        "month": 6, "day": 30,
+        "input_label": "Birth year",
+        "input_hint": "e.g. 1985",
+        "parity_of": "your birth year",
+        # Nebraska Board of Accountancy's own FAQ, not a naive reading of the
+        # statute's "age divisible by two" phrasing: born in an EVEN year ->
+        # renew in ODD years; born in an ODD year -> renew in EVEN years.
+        "inverted": True,
+    },
+}
+
+
+def _parity_lookup_html(state_slug: str) -> str:
+    cfg = PARITY_LOOKUP_STATES[state_slug]
+    return f"""<form class="signup-form signup-form--compact" onsubmit="return false" aria-label="Find your renewal date">
+  <div class="signup-form-row">
+    <div>
+      <label for="dr-pl-number" class="signup-form-compact-label">{esc(cfg['input_label'])}</label>
+      <input type="text" inputmode="numeric" id="dr-pl-number" placeholder="{esc(cfg['input_hint'])}">
+    </div>
+    <div><button type="button" id="dr-pl-go">Show my date</button></div>
+  </div>
+</form>
+<p id="dr-pl-result" class="dr-bf-result" hidden></p>"""
+
+
+def _parity_lookup_js(state_slug: str) -> str:
+    cfg = PARITY_LOOKUP_STATES[state_slug]
+    inverted_js = "true" if cfg["inverted"] else "false"
+    return f"""<script>
+(function() {{
+  var input = document.getElementById('dr-pl-number');
+  var goBtn = document.getElementById('dr-pl-go');
+  var result = document.getElementById('dr-pl-result');
+  var inverted = {inverted_js};
+  var lastRow = null;
+  function show() {{
+    var digits = (input.value || '').replace(/[^0-9]/g, '');
+    if (!digits) {{ result.hidden = false; result.textContent = 'Enter a number to see your date.'; return; }}
+    var lastDigit = parseInt(digits.charAt(digits.length - 1), 10);
+    var isOdd = (lastDigit % 2) === 1;
+    if (inverted) isOdd = !isOdd;
+    var row = document.querySelector('tr[data-parity="' + (isOdd ? 'odd' : 'even') + '"]');
+    if (!row) return;
+    if (lastRow) lastRow.classList.remove('dr-bf-highlight');
+    row.classList.add('dr-bf-highlight');
+    lastRow = row;
+    row.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+    var dateText = row.querySelectorAll('td')[1] ? row.querySelectorAll('td')[1].textContent : null;
+    result.hidden = false;
+    result.textContent = dateText ? ('Your next renewal: ' + dateText) : 'Enter a number to see your date.';
+  }}
+  goBtn.addEventListener('click', show);
+  input.addEventListener('input', show);
+}})();
+</script>"""
+
+
+def render_parity_lookup_state(state_slug: str, record: dict, as_of: date) -> str:
+    """California/Texas's #57 personalized-lookup pattern, generalized for a
+    state whose rule is ONE fixed month/day gated by a parity-determining
+    number rather than a 12-row birth-month table -- see PARITY_LOOKUP_STATES'
+    own comment for which 4 states this covers and why the other 2 flagged
+    states (Ohio, Rhode Island) are deliberately NOT here."""
+    cfg = PARITY_LOOKUP_STATES[state_slug]
+    odd_d = next_fixed_date_parity(as_of, cfg["month"], cfg["day"], "odd")
+    even_d = next_fixed_date_parity(as_of, cfg["month"], cfg["day"], "even")
+    return f"""<div class="callout">
+  <p class="rule">{esc(record['cycle_description'])}</p>
+  <p><strong>Enter {esc(cfg['parity_of'])} below</strong> to see your exact date instantly --
+  only whether it's odd or even changes your renewal year.</p>
+  {_callout_cite_html(record)}
+</div>
+{_parity_lookup_html(state_slug)}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>If {esc(cfg['parity_of'])} is&hellip;</th><th>Your next renewal deadline</th></tr></thead>
+    <tbody>
+    <tr data-parity="odd"><td>Odd</td><td>{esc(fmt_date(odd_d))}</td></tr>
+    <tr data-parity="even"><td>Even</td><td>{esc(fmt_date(even_d))}</td></tr>
+    </tbody>
+  </table>
+</div>
+{_parity_lookup_js(state_slug)}"""
+
+
 def render_ohio(record: dict) -> str:
     rows = "\n".join(
         f"<tr><td>{esc(g['group'])}</td><td>{', '.join(str(y) for y in g['years'])}</td>"
@@ -4892,6 +5044,19 @@ def build_state_page(
         deadline_html = render_texas(records[0], as_of)
     elif state_slug == "new-york":
         deadline_html = render_new_york(records[0])
+    elif state_slug in PARITY_LOOKUP_STATES:
+        # Kansas/Kentucky/Oregon/Nebraska each also carry a separate firm
+        # record with its own real next_deadline_computed (e.g. Kansas's
+        # firm permit is a fixed date, unrelated to the individual's
+        # certificate-parity rule) -- render the parity lookup for the
+        # cohort-groups (individual) record, then fall through to the
+        # ordinary computed-record renderer for any other records on the
+        # same page, same as the generic else-branch below would.
+        parity_record = next((r for r in records if r.get("cohort_groups")), None)
+        other_computed = [r for r in records if r.get("next_deadline_computed")]
+        deadline_html = render_parity_lookup_state(state_slug, parity_record, as_of) if parity_record else ""
+        if other_computed:
+            deadline_html += "\n" + render_simple_deadline_records(other_computed)
     else:
         computed = [r for r in records if r.get("next_deadline_computed")]
         cohort_records = [

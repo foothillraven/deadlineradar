@@ -31,6 +31,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from generate import (  # noqa: E402
     next_birth_month_parity_date,
     next_annual_month_end,
+    next_fixed_date_parity,
     fmt_date,
     STALENESS_THRESHOLD_DAYS,
 )
@@ -116,6 +117,15 @@ def compute_subscriber_deadline(subscriber: dict, as_of: date) -> tuple[date, st
             if g["group"] == group:
                 return date.fromisoformat(g["next_deadline"]), state_name
         return None
+
+    if state_slug in ("kansas", "kentucky", "oregon", "nebraska"):
+        parity = fields.get("parity")
+        if parity not in ("odd", "even"):
+            return None
+        month, day = {
+            "kansas": (7, 1), "kentucky": (8, 1), "oregon": (6, 30), "nebraska": (6, 30),
+        }[state_slug]
+        return next_fixed_date_parity(as_of, month, day, parity), state_name
 
     # Fixed-calendar states, possibly with multiple records (e.g. Florida's
     # odd/even cohort, Georgia's individual-vs-firm) -- the subscriber picks

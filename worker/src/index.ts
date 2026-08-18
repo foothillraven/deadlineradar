@@ -994,6 +994,28 @@ function resolveDeadlineInput(stateSlug: string, form: Record<string, string>): 
         deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
         userDeadline: null,
       };
+    } else if (stateSlug === "kansas" || stateSlug === "kentucky" || stateSlug === "oregon" || stateSlug === "nebraska") {
+      // 2026-08-18: Devin caught Kansas live showing "Date not confirmed"
+      // despite a real citation and cohort table -- generate.py's
+      // PARITY_LOOKUP_STATES comment has the full research writeup on why
+      // these 4 (and only these 4 of the 6 flagged states) are buildable.
+      // Same PII-minimization pattern as California above -- only the
+      // parity is ever persisted.
+      const parityNumber = form.parity_number;
+      if (!parityNumber || !/^\d+$/.test(parityNumber)) {
+        return errorPage(400, `${stateSlug.charAt(0).toUpperCase()}${stateSlug.slice(1)} needs a valid number.`);
+      }
+      const lastDigit = strictParseInt(parityNumber.slice(-1));
+      if (lastDigit === null) {
+        return errorPage(400, `${stateSlug.charAt(0).toUpperCase()}${stateSlug.slice(1)} needs a valid number.`);
+      }
+      let isOdd = lastDigit % 2 === 1;
+      if (stateSlug === "nebraska") isOdd = !isOdd; // Board's own FAQ: born-even renews odd years
+      return {
+        deadlineFields: { parity: isOdd ? "odd" : "even" },
+        deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+        userDeadline: null,
+      };
     } else if (form.license_type_id) {
       const licenseTypeId = form.license_type_id;
       if (licenseTypeId.length > MAX_FIELD_LEN) {
@@ -4960,7 +4982,7 @@ function stringFieldsOf(body: Record<string, unknown>): Record<string, string> {
   return out;
 }
 
-const DEADLINE_FIELD_KEYS = ["birth_month", "birth_year", "cohort_group", "license_type_id", "license_expiration_date"];
+const DEADLINE_FIELD_KEYS = ["birth_month", "birth_year", "cohort_group", "parity_number", "license_type_id", "license_expiration_date"];
 
 /** The dashboard's clean status vocabulary (loosely mirrors generate.py's
  * illustrative _MOCKUP_STATUS_CLASS terminology -- Confirmed/Pending/Needs

@@ -88,6 +88,23 @@ export function nextBirthMonthParityDate(asOf: Date, month: number, parity: "odd
   }
 }
 
+/** generate.py's `next_fixed_date_parity()` -- Kansas/Kentucky/Oregon/
+ * Nebraska's ONE fixed month/day (not month-end) gated by a parity-
+ * determining number, added 2026-08-18. */
+export function nextFixedDateParity(asOf: Date, month: number, day: number, parity: "odd" | "even"): Date {
+  const today = startOfUtcDay(asOf);
+  let y = asOf.getUTCFullYear();
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const yearIsTargetParity = parity === "odd" ? y % 2 === 1 : y % 2 === 0;
+    if (yearIsTargetParity) {
+      const d = utcDate(y, month, day);
+      if (d.getTime() >= today.getTime()) return d;
+    }
+    y += 1;
+  }
+}
+
 /** generate.py:105 `next_annual_month_end()`. */
 export function nextAnnualMonthEnd(asOf: Date, month: number): Date {
   const today = startOfUtcDay(asOf);
@@ -216,7 +233,7 @@ export const SUPPORTED_STATE_SLUGS: ReadonlySet<string> = new Set(DATA.records.m
 // _WORKER_FIELD_COMPUTED_STATES and fails the build on any difference.
 // Add a state to BOTH sets together, or the page and the worker disagree
 // on which fields to show/require and signup 400s in that state.
-const FIELD_COMPUTED_STATES = new Set(["california", "texas", "ohio"]);
+const FIELD_COMPUTED_STATES = new Set(["california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska"]);
 
 /** Whether the worker can EVER derive a deadline for this state from state
  * rules alone (via computeSubscriberDeadline below), with no user input
@@ -265,6 +282,24 @@ export function computeSubscriberDeadline(
     const record = stateRecords[0];
     const match = record?.cohort_groups?.find((g) => g.group === group);
     return match ? new Date(`${match.next_deadline}T00:00:00Z`) : null;
+  }
+
+  // 2026-08-18: Kansas/Kentucky/Oregon/Nebraska's ONE fixed month/day gated
+  // by a parity-determining number -- see nextFixedDateParity's own
+  // comment. `deadlineFields.parity` is already reduced to "odd"/"even" by
+  // the time it reaches here (server.py/index.ts strip the raw number
+  // before persisting, same PII-minimization as California's birth_year).
+  const PARITY_STATE_MONTH_DAY: Record<string, [number, number]> = {
+    kansas: [7, 1],
+    kentucky: [8, 1],
+    oregon: [6, 30],
+    nebraska: [6, 30],
+  };
+  if (stateSlug in PARITY_STATE_MONTH_DAY) {
+    const parity = deadlineFields.parity;
+    if (parity !== "odd" && parity !== "even") return null;
+    const [month, day] = PARITY_STATE_MONTH_DAY[stateSlug] as [number, number];
+    return nextFixedDateParity(asOf, month, day, parity);
   }
 
   // Fixed-calendar states, possibly with multiple records (e.g. Florida's

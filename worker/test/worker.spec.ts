@@ -6,6 +6,7 @@ import {
   dataFreshnessInfo,
   nextAnnualMonthEnd,
   nextBirthMonthParityDate,
+  nextFixedDateParity,
   StaleDataError,
   STALENESS_THRESHOLD_DAYS,
 } from "../src/deadline";
@@ -205,6 +206,36 @@ describe("POST /subscribe -- happy path (capture + confirmation-email path)", ()
     expect(row?.state_slug).toBe("georgia");
     expect(JSON.parse(row?.deadline_fields ?? "{}")).toEqual({ license_type_id: "ga-individual" });
     expect(row?.confirm_token).toBeTruthy();
+  });
+
+  it("2026-08-18: Kansas certificate-number signup only ever persists the parity, never the raw number (PII minimization)", async () => {
+    const email = `ks-parity-${Date.now()}@example.com`;
+    const resp = await postSubscribe({ email, state: "kansas", parity_number: "104583" }, "203.0.113.30");
+    expect(resp.status).toBe(200);
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
+    expect(row?.state_slug).toBe("kansas");
+    // 104583's last digit is 3 (odd) -- only "odd" is stored, "104583" itself
+    // never appears anywhere in the persisted record.
+    expect(JSON.parse(row?.deadline_fields ?? "{}")).toEqual({ parity: "odd" });
+    expect(row?.deadline_fields).not.toContain("104583");
+  });
+
+  it("2026-08-18: Nebraska birth-year signup stores the INVERTED parity (born-even persists as odd)", async () => {
+    const email = `ne-parity-${Date.now()}@example.com`;
+    const resp = await postSubscribe({ email, state: "nebraska", parity_number: "1990" }, "203.0.113.31");
+    expect(resp.status).toBe(200);
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
+    // 1990 is an even birth year -- Nebraska's own Board FAQ says born-even
+    // renews in ODD years, so the persisted parity must be "odd", not "even".
+    expect(JSON.parse(row?.deadline_fields ?? "{}")).toEqual({ parity: "odd" });
+  });
+
+  it("2026-08-18: rejects a non-numeric parity_number for the 4 new parity-lookup states", async () => {
+    const resp = await postSubscribe(
+      { email: `ky-badnum-${Date.now()}@example.com`, state: "kentucky", parity_number: "abc" },
+      "203.0.113.32"
+    );
+    expect(resp.status).toBe(400);
   });
 });
 
@@ -3059,6 +3090,47 @@ describe("deadlines.ts", () => {
     const asOf = new Date("2026-07-03T00:00:00Z");
     expect(computeSubscriberDeadline("ohio", { cohort_group: "Group 1" }, asOf)).not.toBeNull();
     expect(computeSubscriberDeadline("ohio", { cohort_group: "Group 9" }, asOf)).toBeNull();
+  });
+
+  it("nextFixedDateParity returns the next matching-parity FIXED date (not month-end) after asOf", () => {
+    // Kansas: July 1 of odd years. 2026-07-03 is already past July 1, 2026
+    // (an even year, wrong parity anyway) -- next odd-year July 1 is 2027.
+    const d = nextFixedDateParity(new Date("2026-07-03T00:00:00Z"), 7, 1, "odd");
+    expect(d.toISOString().slice(0, 10)).toBe("2027-07-01");
+  });
+
+  it("AuditLab DEADLINE-1 (same rule, ported): nextFixedDateParity does not roll forward a full cycle on the deadline's own due day", () => {
+    // Kentucky: August 1 of even years. Probed at various points on/around
+    // 2028-08-01 (an even year) -- due-today must not read as already past.
+    expect(nextFixedDateParity(new Date("2028-07-31T23:59:00Z"), 8, 1, "even").toISOString().slice(0, 10)).toBe(
+      "2028-08-01"
+    );
+    expect(nextFixedDateParity(new Date("2028-08-01T00:00:00Z"), 8, 1, "even").toISOString().slice(0, 10)).toBe(
+      "2028-08-01"
+    );
+    expect(nextFixedDateParity(new Date("2028-08-01T23:59:59Z"), 8, 1, "even").toISOString().slice(0, 10)).toBe(
+      "2028-08-01"
+    );
+    expect(nextFixedDateParity(new Date("2028-08-02T00:00:00Z"), 8, 1, "even").getUTCFullYear()).toBe(2030);
+  });
+
+  it("computeSubscriberDeadline resolves the 4 parity-lookup states (Kansas/Kentucky/Oregon/Nebraska) on their own fixed month/day", () => {
+    const asOf = new Date("2026-07-03T00:00:00Z");
+    expect(computeSubscriberDeadline("kansas", { parity: "odd" }, asOf)?.toISOString().slice(0, 10)).toBe(
+      "2027-07-01"
+    );
+    expect(computeSubscriberDeadline("kentucky", { parity: "even" }, asOf)?.toISOString().slice(0, 10)).toBe(
+      "2026-08-01"
+    );
+    expect(computeSubscriberDeadline("oregon", { parity: "odd" }, asOf)?.toISOString().slice(0, 10)).toBe(
+      "2027-06-30"
+    );
+    expect(computeSubscriberDeadline("nebraska", { parity: "even" }, asOf)?.toISOString().slice(0, 10)).toBe(
+      "2028-06-30"
+    );
+    // No/invalid parity -> null, never a guess.
+    expect(computeSubscriberDeadline("kansas", {}, asOf)).toBeNull();
+    expect(computeSubscriberDeadline("kansas", { parity: "sideways" }, asOf)).toBeNull();
   });
 
   it("checkDataFreshness throws StaleDataError once data is older than the threshold", () => {

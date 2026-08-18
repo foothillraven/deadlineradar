@@ -1704,6 +1704,7 @@ PAGE_CSS = """
   }
   .dr-csv-row-ready { color: var(--muted); }
   .dr-csv-row-error { color: #c33737; }
+  @media (prefers-color-scheme: dark) { .dr-csv-row-error { color: #ff8080; } }
   .dr-csv-row-added { color: #2e8b57; }
   .dr-panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-bottom: 1.2rem; }
   @media (max-width: 860px) { .dr-panel-row { grid-template-columns: 1fr; } }
@@ -1879,6 +1880,7 @@ PAGE_CSS = """
      red (#c33737) already used for "Overdue" everywhere else on this
      dashboard (Staff-at-risk list, Coverage donut, /my/ cards). */
   .dr-roster-panel .dr-deadline-overdue { color: #c33737; font-weight: 700; }
+  @media (prefers-color-scheme: dark) { .dr-roster-panel .dr-deadline-overdue { color: #ff8080; } }
 
   /* Actions used to be `position: sticky; right: 0` so it stayed reachable
      without scrolling. Reverted (2026-08-06, reported live + reproduced):
@@ -2027,6 +2029,11 @@ PAGE_CSS = """
   }
   .dr-btn-remove:hover:not(:disabled) { background: rgba(200, 55, 55, 0.1); }
   .dr-btn-remove:disabled { opacity: 0.45; cursor: default; }
+  /* 2026-08-17: the border's 3.09:1 clears the 3:1 non-text/UI-component
+     bar, but the text itself needs 4.5:1 against the dark card background
+     and #c33737 only reaches 3.09:1 there -- same brightened red already
+     used for every other dark-mode danger indicator on this dashboard. */
+  @media (prefers-color-scheme: dark) { .dr-btn-remove { color: #ff8080; border-color: #ff8080; } }
 
   /* Paid-tier upgrade buttons -- shared by the pricing page, the /pricing/
      cards, and the dashboard's own billing-panel upgrade prompt (2026-08-06:
@@ -2411,6 +2418,7 @@ PAGE_CSS = """
   .dr-cpe-recent-item:last-child { border-bottom: none; }
   .dr-cpe-recent-remove { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 6px; padding: 0.2rem 0.55rem; cursor: pointer; font-family: inherit; font-size: 0.78rem; }
   .dr-cpe-recent-remove:hover { background: var(--row-alt); color: #c33737; }
+  @media (prefers-color-scheme: dark) { .dr-cpe-recent-remove:hover { color: #ff8080; } }
 
   /* Roadmap #1/#2 (2026-08-07): documents modal list items -- same shape as
      .dr-cpe-recent-item just above. */
@@ -2419,6 +2427,7 @@ PAGE_CSS = """
   .dr-document-item a { font-weight: 600; }
   .dr-document-remove { border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--muted); border-radius: 6px; padding: 0.2rem 0.55rem; cursor: pointer; font-family: inherit; font-size: 0.78rem; margin-left: 0.5rem; }
   .dr-document-remove:hover { background: var(--row-alt); color: #c33737; }
+  @media (prefers-color-scheme: dark) { .dr-document-remove:hover { color: #ff8080; } }
   .dr-modal #dr-documents-list { margin: 1rem 0; }
 
   /* ---- SSO sign-in button + account settings (2026-07-30, auth suite) ---- */

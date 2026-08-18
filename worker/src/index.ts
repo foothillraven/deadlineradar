@@ -205,7 +205,6 @@ import {
   runSlackAlertPass,
   runTeamsAlertPass,
   runSmsAlertPass,
-  runAdminDigestAlertPass,
   runComplianceNewsletterPass,
 } from "./scheduler";
 import { isUsFederalHoliday } from "./holidays";
@@ -11029,26 +11028,25 @@ export default {
     // Roadmap #151 Phase 5 (2026-08-10): same independent-pass shape as
     // rule-change/digest above -- not deadline-urgency-sensitive (a
     // periodic roster bundle, not itself a specific day-count reminder), so
-    // no holiday skip. HOLD: this block ships in code but the worker
-    // deploy carrying it is deliberately held pending Devin's review of
-    // buildAdminDigestEmail()'s actual copy (emails.ts) -- same "code
-    // shipped, deploy held" posture the drip-course/rule-change-alert
-    // features used before their own first real send.
-    ctx.waitUntil(
-      (async () => {
-        try {
-          const summary = await runAdminDigestAlertPass(env);
-          console.log(`[admin-digest-cron] ${JSON.stringify(summary)}`);
-        } catch (err) {
-          if (err instanceof SchedulerStaleDataError) {
-            console.log(`[admin-digest-cron] paused -- stale reference data: ${err.message}`);
-            await notifyOperatorOfStaleData(env, err.message);
-          } else {
-            console.log(`[admin-digest-cron] error: ${String(err)}`);
-          }
-        }
-      })()
-    );
+    // no holiday skip.
+    //
+    // INCIDENT, fixed 2026-08-18: the comment here originally said "HOLD:
+    // ships in code but deploy is deliberately held pending Devin's review
+    // of buildAdminDigestEmail()'s copy" -- but nothing in the code actually
+    // enforced that. The deploy that shipped this comment also updated
+    // worker/.last_deploy_commit to include it, and this call ran on every
+    // cron tick from then on. Confirmed via firm_admin_digest_notified_thresholds:
+    // 6 real sends to real firm admin inboxes, 2026-08-10 through 2026-08-18,
+    // with copy Devin never signed off on -- a live violation of this
+    // project's own "code shipped, deploy held" pattern (and of CLAUDE.md's
+    // "a live newsletter send is plan-first" rule), not just a stale
+    // comment. The content itself is accurate and sober (checked before
+    // gating this off) -- this is a process gap, not a content defect.
+    // Actually short-circuited below now, not just documented, so the same
+    // mistake can't recur by relying on a comment alone. Re-enable only
+    // after Devin reviews buildAdminDigestEmail()'s copy and gives an
+    // explicit go -- then delete this block and restore the real call.
+    console.log("[admin-digest-cron] PAUSED pending Devin's copy review (see index.ts incident note, 2026-08-18) -- no send attempted.");
 
     // AuditLab NEWS-1 (MEDIUM, 2026-08-13, fixed same day): roadmap #124's
     // compliance-news newsletter pass was fully built (content selection,

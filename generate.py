@@ -6771,42 +6771,57 @@ this product's code, not a policy aspiration.</p>
 
 <h2>Data handling</h2>
 <p>We collect only what the reminder and license-tracking service actually needs to work -- see the
-full breakdown on our <a href="/privacy/">Privacy Policy</a>. A firm's roster data (staff names,
-emails, license states, CPE hours, any documents uploaded) is scoped strictly to that firm: every
-storage query used to read or write it is filtered by the requesting firm's own account id, not just
-checked once at the door. We do not sell or share your data with third parties, and we do not run
-advertising or cross-site tracking of any kind (see our <a href="/privacy/">cookie disclosure</a>).</p>
+full breakdown on our <a href="/privacy/">Privacy Policy</a>.</p>
+<ul>
+  <li><strong>Scoped by firm.</strong> Roster data (staff names, emails, license states, CPE hours, any
+  documents uploaded) is filtered by the requesting firm's own account id on every storage query -- not
+  just checked once at the door.</li>
+  <li><strong>Never sold or shared.</strong> No third-party data sales, no advertising, no cross-site
+  tracking of any kind (see our <a href="/privacy/">cookie disclosure</a>).</li>
+</ul>
 
 <h2>Encryption</h2>
-<p>Every connection to {esc(SITE_NAME)} is HTTPS-only -- we send an HTTP Strict-Transport-Security
-header instructing browsers to never downgrade to plain HTTP, on every response. Passwords are never
-stored in plain text: they're hashed with PBKDF2-HMAC-SHA256 at 100,000 iterations per password, each
-with its own random salt, using the same standard the U.S. federal government's own NIST password
-guidance describes. Session and login tokens are stored as one-way SHA-256 hashes, not the raw value a
-stolen database dump could reuse to sign in. Uploaded documents (license and CPE certificates) are
-served back only with <code>Content-Disposition: attachment</code> and
-<code>X-Content-Type-Options: nosniff</code> on every response, so a maliciously crafted file can never
-be interpreted as an inline webpage by a browser.</p>
+<ul>
+  <li><strong>HTTPS-only, always.</strong> Every connection sends an HTTP Strict-Transport-Security
+  header instructing browsers to never downgrade to plain HTTP.</li>
+  <li><strong>Passwords never stored in plain text.</strong> Hashed with PBKDF2-HMAC-SHA256 at 100,000
+  iterations, each with its own random salt -- the standard the U.S. federal government's own NIST
+  password guidance describes.</li>
+  <li><strong>Session and login tokens</strong> are stored as one-way SHA-256 hashes, not the raw value
+  a stolen database dump could reuse to sign in.</li>
+  <li><strong>Uploaded documents</strong> (license and CPE certificates) are served back only with
+  <code>Content-Disposition: attachment</code> and <code>X-Content-Type-Options: nosniff</code> on
+  every response, so a maliciously crafted file can never be interpreted as an inline webpage by a
+  browser.</li>
+</ul>
 
 <h2>Access control</h2>
-<p>Sign-in cookies are marked <code>HttpOnly</code> (invisible to any page script, including a
-successful XSS payload), <code>Secure</code> (HTTPS-only transmission), and scoped with
-<code>SameSite</code>. Every request that changes data -- adding staff, editing a record, changing a
-password -- is checked against the Origin header the browser itself sends, rejecting cross-site
-forgery attempts before they reach the database. Every write endpoint is rate-limited -- keyed to your
-account where one's already established, or to your IP address for the handful of actions (like
-signing out) that happen before a session exists to key on -- so a compromised session or a scripting
-bug can't be abused to hammer the system. We send a Content-
-Security-Policy, X-Frame-Options, and X-Content-Type-Options header on every response as additional,
-independent layers against the same class of attack.</p>
+<ul>
+  <li><strong>Sign-in cookies</strong> are marked <code>HttpOnly</code> (invisible to any page script,
+  including a successful XSS payload), <code>Secure</code> (HTTPS-only transmission), and scoped with
+  <code>SameSite</code>.</li>
+  <li><strong>Cross-site forgery protection:</strong> every request that changes data -- adding staff,
+  editing a record, changing a password -- is checked against the Origin header the browser itself
+  sends, rejected before it reaches the database.</li>
+  <li><strong>Rate limiting on every write endpoint</strong> -- keyed to your account where one exists,
+  or your IP address for the handful of actions (like signing out) that happen before a session exists
+  -- so a compromised session or a scripting bug can't be abused to hammer the system.</li>
+  <li><strong>Independent header layers:</strong> Content-Security-Policy, X-Frame-Options, and
+  X-Content-Type-Options on every response, as additional protection against the same class of
+  attack.</li>
+</ul>
 
 <h2>Incident response</h2>
 <p>We're a small, hands-on team, not a large enterprise with a dedicated security operations center --
-we won't claim otherwise. What that means in practice: a real person reviews this system regularly,
-security-relevant code changes go through the same scrutiny as everything else we ship, and if
-something ever goes wrong, we will tell affected firms directly and promptly, not bury it in a
-changelog. We do not currently hold a formal security certification (SOC 2, ISO 27001) or run a paid
-bug-bounty program -- if that changes, this page will say so, not before.</p>
+we won't claim otherwise. What that means in practice:</p>
+<ul>
+  <li>A real person reviews this system regularly, and security-relevant code changes go through the
+  same scrutiny as everything else we ship.</li>
+  <li>If something ever goes wrong, we will tell affected firms directly and promptly -- not bury it in
+  a changelog.</li>
+  <li>We do not currently hold a formal security certification (SOC 2, ISO 27001) or run a paid
+  bug-bounty program. If that changes, this page will say so, not before.</li>
+</ul>
 
 <h2>Found something?</h2>
 <p>If you believe you've found a security issue, email us directly at
@@ -6998,11 +7013,14 @@ codified law behind it, checked the way described above. A record without one ne
 
 <h2>What "Last verified" means</h2>
 <p>The date shown in each state's trust line is the last time we directly re-checked that state's
-citation against the primary source text (not just re-read our own notes about it). We periodically
-re-run an automated check across every cited source looking for two things: a broken or redirected
-link, and any sign the underlying rule has since been amended. When either turns up, we re-verify by
-hand before changing anything a visitor sees &mdash; an automated flag never silently rewrites a
-published date by itself.</p>
+citation against the primary source text &mdash; not just re-read our own notes about it. We
+periodically re-run an automated check across every cited source looking for two things:</p>
+<ul>
+  <li>a broken or redirected link, or</li>
+  <li>any sign the underlying rule has since been amended.</li>
+</ul>
+<p>When either turns up, we re-verify by hand before changing anything a visitor sees &mdash; an
+automated flag never silently rewrites a published date by itself.</p>
 
 <h2>Where this can still fall short, honestly</h2>
 <p>Some sources are genuinely harder to verify by automated means &mdash; a handful of citations point to
@@ -7756,12 +7774,13 @@ CPE hours, reinstatement, renewal fees) were individually re-checked against the
 <h2>What you get</h2>
 <p>A firm-wide view that answers what a spreadsheet can't: who's current, who's at risk, and who needs
 to act before a deadline &mdash; for every staff CPA and the firm's own registration, sourced to the same
-codified statute or rule we verify for every free state page on this site &mdash;
-<a href="../methodology/">see exactly how we verify every deadline</a>. Any individual CPA can already
-get free reminders on their own; what a firm gets here is the roster-level accountability view nobody's
-personal inbox provides, in one place. Reminders aren't limited to email either &mdash; connect Slack or
-Microsoft Teams and your admin gets a daily digest of newly-due renewals posted straight to the channel
-your team already watches, included on every paid plan.</p>
+codified statute or rule we verify for every free state page on this site
+(<a href="../methodology/">see exactly how we verify every deadline</a>).</p>
+<p>Any individual CPA can already get free reminders on their own &mdash; what a firm gets here is the
+roster-level accountability view nobody's personal inbox provides, in one place.</p>
+<p><strong>Reminders aren't limited to email.</strong> Connect Slack or Microsoft Teams and your admin
+gets a daily digest of newly-due renewals posted straight to the channel your team already watches,
+included on every paid plan.</p>
 
 <p>Preventing a missed deadline is the first job; being able to prove you tried is the second. The
 dashboard's Reports tab gives you a Compliance Summary and a full audit trail &mdash; a dated record of
@@ -7770,20 +7789,25 @@ file. Free on every tier, no export limit.</p>
 
 <h2>What Practice Privilege Check actually does</h2>
 <p>A different question from renewal dates: can this CPA provide this specific service in this specific
-state right now, without a local license &mdash; and what has to happen first? Pick a service type (Tax;
-Attest &mdash; audit, review, or other attest; or Other non-attest &mdash; consulting, advisory). Attest
-work frequently triggers a firm-registration requirement where tax work doesn't &mdash; that gap is the
-most common real-world mobility mistake, and this catches it. The determination needs two inputs only
-you can attest to &mdash; that the license is active and in good standing, and that the CPA meets
-substantial equivalence (150 semester hours, one year of experience, the Uniform CPA Exam) &mdash; we
-can't verify either one ourselves, so the answer is only as good as what you tell it, same honesty
-standard as every renewal date on this site. Verified in all 55 U.S. jurisdictions today, both for the
-individual question above and a separate firm-level registration check (does the FIRM itself need to
-register somewhere it has no office, even when the individual CPA is covered). The individual check is
-free on every tier, for any account &mdash; a free signup is all it takes, no card, no paid plan
-required; <a href="../pricing/">the firm-level check and the multistate coverage map are part of a
-paid plan</a>. Staff across more than one state? See how Map, Practice Privilege Check, and
-<a href="../rule-changes/">Rule Changes</a> work together on the
+state right now, without a local license &mdash; and what has to happen first?</p>
+<ul>
+  <li><strong>Pick a service type:</strong> Tax; Attest (audit, review, or other attest); or Other
+  non-attest (consulting, advisory).</li>
+  <li><strong>Watch for the attest gap:</strong> attest work frequently triggers a firm-registration
+  requirement where tax work doesn't &mdash; that's the most common real-world mobility mistake, and
+  this catches it.</li>
+  <li><strong>What you'll need to confirm:</strong> the license is active and in good standing, and the
+  CPA meets substantial equivalence (150 semester hours, one year of experience, the Uniform CPA Exam).
+  We can't verify either input ourselves &mdash; the answer is only as good as what you tell it, same
+  honesty standard as every renewal date on this site.</li>
+</ul>
+<p>Verified in all 55 U.S. jurisdictions today, both for the individual question above and a separate
+<strong>firm-level registration check</strong> &mdash; does the FIRM itself need to register somewhere
+it has no office, even when the individual CPA is covered.</p>
+<p>The individual check is free on every tier, for any account &mdash; a free signup is all it takes,
+no card, no paid plan required. <a href="../pricing/">The firm-level check and the multistate coverage
+map are part of a paid plan</a>. Staff across more than one state? See how Map, Practice Privilege
+Check, and <a href="../rule-changes/">Rule Changes</a> work together on the
 <a href="../multi-state-firms/">multi-state firm overview</a>.</p>
 
 {_product_showcase_html()}
@@ -7840,12 +7864,15 @@ Check are also <strong>free</strong> for a solo CPA &mdash;
 <div class="remind-panel" id="firm-signup">
   <div>
     <h2>Create your firm account</h2>
-    <p class="remind-copy">Self-serve, no card required. Your admin creates an account and adds staff
-    directly &mdash; name, email, state, and license type for each person &mdash; no concierge onboarding
-    where our team enters a roster for you. Reminders start right away for each person added, no
-    confirmation step to wait on, so your firm's coverage never has a silent gap. Each staff member
-    gets one transparent email the moment they're added, naming your firm and with an equally
-    prominent one-click opt-out.</p>
+    <p class="remind-copy"><strong>Self-serve, no card required.</strong></p>
+    <ul class="remind-copy">
+      <li>Your admin creates an account and adds staff directly &mdash; name, email, state, and license
+      type for each person. No concierge onboarding where our team enters a roster for you.</li>
+      <li>Reminders start right away for each person added, no confirmation step to wait on, so your
+      firm's coverage never has a silent gap.</li>
+      <li>Each staff member gets one transparent email the moment they're added, naming your firm, with
+      an equally prominent one-click opt-out.</li>
+    </ul>
     <p class="remind-promise">Free, no time limit, no card collected anywhere in this flow.</p>
   </div>
   <p><a class="cta-button" id="dr-firms-cta" href="../firm-login/#dr-view-signup">Create your firm account &rarr;</a></p>
@@ -7857,10 +7884,10 @@ Check are also <strong>free</strong> for a solo CPA &mdash;
 <p>Deadline accuracy comes from the same sourcing standard every free page on this site already uses
 &mdash; the codified statute or rule where we could confirm it, and clearly labelled where we could
 only confirm it against the board's own page &mdash; not a recurring human check-in on each staff
-member's status. Card checkout is rolling out
-across the tiers, Essentials through Enterprise &mdash; if you'd like it as soon as it opens for your
-plan, <a href="#firm-lead">leave your email</a> and we'll get you set up directly in the meantime, no
-invoice or sales call required. More than 35 staff?
+member's status.</p>
+<p>Card checkout is rolling out across the tiers, Essentials through Enterprise. If you'd like it as
+soon as it opens for your plan, <a href="#firm-lead">leave your email</a> and we'll get you set up
+directly in the meantime, no invoice or sales call required. More than 35 staff?
 <a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a> -- no formula, we'll work out what fits. Not ready
 to create an account yet? <a href="#firm-lead">Leave your email instead</a> and we'll follow up.</p>
 
@@ -16505,19 +16532,24 @@ first? Every answer is tied to the rule it came from.</p>
 
 <h2>What Practice Privilege Check actually does</h2>
 <p>A different question from renewal dates: can this CPA provide this specific service in this specific
-state right now, without a local license &mdash; and what has to happen first? Pick a service type (Tax;
-Attest &mdash; audit, review, or other attest; or Other non-attest &mdash; consulting, advisory). Attest
-work frequently triggers a firm-registration requirement where tax work doesn't &mdash; that gap is the
-most common real-world mobility mistake, and this catches it. The determination needs two inputs only
-you can attest to &mdash; that the license is active and in good standing, and that the CPA meets
-substantial equivalence (150 semester hours, one year of experience, the Uniform CPA Exam) &mdash; we
-can't verify either one ourselves, so the answer is only as good as what you tell it, same honesty
-standard as every renewal date on this site. Verified in all 55 U.S. jurisdictions today, both for the
-individual question above and a separate firm-level registration check (does the FIRM itself need to
-register somewhere it has no office, even when the individual CPA is covered). The individual check is
-free on every tier, for any account &mdash; a free signup is all it takes, no card, no paid plan
-required; <a href="/pricing/">the firm-level check and the multistate coverage map are part of a paid
-plan</a>.</p>
+state right now, without a local license &mdash; and what has to happen first?</p>
+<ul>
+  <li><strong>Pick a service type:</strong> Tax; Attest (audit, review, or other attest); or Other
+  non-attest (consulting, advisory).</li>
+  <li><strong>Watch for the attest gap:</strong> attest work frequently triggers a firm-registration
+  requirement where tax work doesn't &mdash; that's the most common real-world mobility mistake, and
+  this catches it.</li>
+  <li><strong>What you'll need to confirm:</strong> the license is active and in good standing, and the
+  CPA meets substantial equivalence (150 semester hours, one year of experience, the Uniform CPA Exam).
+  We can't verify either input ourselves &mdash; the answer is only as good as what you tell it, same
+  honesty standard as every renewal date on this site.</li>
+</ul>
+<p>Verified in all 55 U.S. jurisdictions today, both for the individual question above and a separate
+<strong>firm-level registration check</strong> &mdash; does the FIRM itself need to register somewhere
+it has no office, even when the individual CPA is covered.</p>
+<p>The individual check is free on every tier, for any account &mdash; a free signup is all it takes,
+no card, no paid plan required. <a href="/pricing/">The firm-level check and the multistate coverage
+map are part of a paid plan</a>.</p>
 
 <p><a class="cta-button" href="{REMINDER_BACKEND_BASE_URL}/firm/demo-login">Run a free check now &rarr;</a></p>
 
@@ -18596,12 +18628,17 @@ to mail notice at least sixty days out to your last known address, then in the s
 <em>"Failure to receive this notice does not relieve the licensee of the obligation biennially to
 renew the license to practice."</em> Missouri states the identical principle for firm permits, in a
 separate section (20 CSR 2010-2.070; 2010-2.072).</p>
-<p><strong>Minnesota</strong>'s rule reads: <em>"Failure to receive the notice by either means does
-not relieve a license holder of the obligation to renew a license or to pay the renewal fee"</em>
-(Minn. R. 2150.0060). <strong>Kentucky</strong> puts the same principle directly in the statute, not
-just a board rule (KRS 325.330(6)(c)). <strong>Iowa</strong>'s rule is worth reading closely: notice
-"may" be sent &mdash; not "will" (IAC 193A ch. 5). <strong>Indiana</strong> states the same principle,
-worded to cover renewal fees specifically (872 IAC 1-1-11).</p>
+<ul>
+  <li><strong>Minnesota:</strong> <em>"Failure to receive the notice by either means does not relieve a
+  license holder of the obligation to renew a license or to pay the renewal fee"</em> (Minn. R.
+  2150.0060).</li>
+  <li><strong>Kentucky</strong> puts the same principle directly in the statute, not just a board rule
+  (KRS 325.330(6)(c)).</li>
+  <li><strong>Iowa</strong>'s rule is worth reading closely: notice "may" be sent &mdash; not "will"
+  (IAC 193A ch. 5).</li>
+  <li><strong>Indiana</strong> states the same principle, worded to cover renewal fees specifically
+  (872 IAC 1-1-11).</li>
+</ul>
 <p>Three more states say the same thing, just not in the code &mdash; Virginia, Alaska, and South
 Dakota all publish it on the board's own site or newsletter rather than in a rule.</p>
 
@@ -19868,11 +19905,11 @@ def build_blog_article_page(article: dict) -> str:
 {stamp_html}
 {article['body_html']}
 <div class="guide-disclosure">
-<p>This guide is general orientation, not a primary-source citation in itself &mdash; it draws on
-board rules and, where available, this site's own verified dataset. Its factual claims were last
-reviewed against those sources on <strong>{esc(reviewed_on)}</strong>. For the current renewal date
-or CPE figures your state actually enforces, use the state page linked above: those carry a direct
-link to the board page and codified rule, per our
+<p><strong>General orientation, not a citation.</strong> This guide draws on board rules and, where
+available, this site's own verified dataset &mdash; it isn't a primary source in itself.
+<strong>Last checked against those sources: {esc(reviewed_on)}.</strong></p>
+<p>For the current renewal date or CPE figures your state actually enforces, use the state page linked
+above &mdash; it carries a direct link to the board page and codified rule, per our
 <a href="../../methodology/">verification standard</a>.</p>
 </div>
 <p class="backlink"><a href="../">&larr; Back to all guides</a></p>

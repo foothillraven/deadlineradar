@@ -1722,42 +1722,57 @@ this product's code, not a policy aspiration.</p>
 
 <h2>Data handling</h2>
 <p>We collect only what the reminder and license-tracking service actually needs to work -- see the
-full breakdown on our <a href="/privacy/">Privacy Policy</a>. A firm's roster data (staff names,
-emails, license states, CPE hours, any documents uploaded) is scoped strictly to that firm: every
-storage query used to read or write it is filtered by the requesting firm's own account id, not just
-checked once at the door. We do not sell or share your data with third parties, and we do not run
-advertising or cross-site tracking of any kind (see our <a href="/privacy/">cookie disclosure</a>).</p>
+full breakdown on our <a href="/privacy/">Privacy Policy</a>.</p>
+<ul>
+  <li><strong>Scoped by firm.</strong> Roster data (staff names, emails, license states, CPE hours, any
+  documents uploaded) is filtered by the requesting firm's own account id on every storage query -- not
+  just checked once at the door.</li>
+  <li><strong>Never sold or shared.</strong> No third-party data sales, no advertising, no cross-site
+  tracking of any kind (see our <a href="/privacy/">cookie disclosure</a>).</li>
+</ul>
 
 <h2>Encryption</h2>
-<p>Every connection to Deadline-Radar is HTTPS-only -- we send an HTTP Strict-Transport-Security
-header instructing browsers to never downgrade to plain HTTP, on every response. Passwords are never
-stored in plain text: they're hashed with PBKDF2-HMAC-SHA256 at 100,000 iterations per password, each
-with its own random salt, using the same standard the U.S. federal government's own NIST password
-guidance describes. Session and login tokens are stored as one-way SHA-256 hashes, not the raw value a
-stolen database dump could reuse to sign in. Uploaded documents (license and CPE certificates) are
-served back only with <code>Content-Disposition: attachment</code> and
-<code>X-Content-Type-Options: nosniff</code> on every response, so a maliciously crafted file can never
-be interpreted as an inline webpage by a browser.</p>
+<ul>
+  <li><strong>HTTPS-only, always.</strong> Every connection sends an HTTP Strict-Transport-Security
+  header instructing browsers to never downgrade to plain HTTP.</li>
+  <li><strong>Passwords never stored in plain text.</strong> Hashed with PBKDF2-HMAC-SHA256 at 100,000
+  iterations, each with its own random salt -- the standard the U.S. federal government's own NIST
+  password guidance describes.</li>
+  <li><strong>Session and login tokens</strong> are stored as one-way SHA-256 hashes, not the raw value
+  a stolen database dump could reuse to sign in.</li>
+  <li><strong>Uploaded documents</strong> (license and CPE certificates) are served back only with
+  <code>Content-Disposition: attachment</code> and <code>X-Content-Type-Options: nosniff</code> on
+  every response, so a maliciously crafted file can never be interpreted as an inline webpage by a
+  browser.</li>
+</ul>
 
 <h2>Access control</h2>
-<p>Sign-in cookies are marked <code>HttpOnly</code> (invisible to any page script, including a
-successful XSS payload), <code>Secure</code> (HTTPS-only transmission), and scoped with
-<code>SameSite</code>. Every request that changes data -- adding staff, editing a record, changing a
-password -- is checked against the Origin header the browser itself sends, rejecting cross-site
-forgery attempts before they reach the database. Every write endpoint is rate-limited -- keyed to your
-account where one's already established, or to your IP address for the handful of actions (like
-signing out) that happen before a session exists to key on -- so a compromised session or a scripting
-bug can't be abused to hammer the system. We send a Content-
-Security-Policy, X-Frame-Options, and X-Content-Type-Options header on every response as additional,
-independent layers against the same class of attack.</p>
+<ul>
+  <li><strong>Sign-in cookies</strong> are marked <code>HttpOnly</code> (invisible to any page script,
+  including a successful XSS payload), <code>Secure</code> (HTTPS-only transmission), and scoped with
+  <code>SameSite</code>.</li>
+  <li><strong>Cross-site forgery protection:</strong> every request that changes data -- adding staff,
+  editing a record, changing a password -- is checked against the Origin header the browser itself
+  sends, rejected before it reaches the database.</li>
+  <li><strong>Rate limiting on every write endpoint</strong> -- keyed to your account where one exists,
+  or your IP address for the handful of actions (like signing out) that happen before a session exists
+  -- so a compromised session or a scripting bug can't be abused to hammer the system.</li>
+  <li><strong>Independent header layers:</strong> Content-Security-Policy, X-Frame-Options, and
+  X-Content-Type-Options on every response, as additional protection against the same class of
+  attack.</li>
+</ul>
 
 <h2>Incident response</h2>
 <p>We're a small, hands-on team, not a large enterprise with a dedicated security operations center --
-we won't claim otherwise. What that means in practice: a real person reviews this system regularly,
-security-relevant code changes go through the same scrutiny as everything else we ship, and if
-something ever goes wrong, we will tell affected firms directly and promptly, not bury it in a
-changelog. We do not currently hold a formal security certification (SOC 2, ISO 27001) or run a paid
-bug-bounty program -- if that changes, this page will say so, not before.</p>
+we won't claim otherwise. What that means in practice:</p>
+<ul>
+  <li>A real person reviews this system regularly, and security-relevant code changes go through the
+  same scrutiny as everything else we ship.</li>
+  <li>If something ever goes wrong, we will tell affected firms directly and promptly -- not bury it in
+  a changelog.</li>
+  <li>We do not currently hold a formal security certification (SOC 2, ISO 27001) or run a paid
+  bug-bounty program. If that changes, this page will say so, not before.</li>
+</ul>
 
 <h2>Found something?</h2>
 <p>If you believe you've found a security issue, email us directly at

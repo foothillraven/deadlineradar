@@ -5754,6 +5754,16 @@ async function handlePeerReviewSet(request: Request, env: Env): Promise<Response
   }
 
   if (body.due_date === null) {
+    // AuditLab DEMO-3 class -- see handleFirmQuestionnaireSubmit's own
+    // comment. Missed on this and the 4 sibling firm-setting routes below
+    // (unlike the nag-dismiss routes, these persist to the SHARED demo
+    // firm row, so one demo visitor's change would outlive their session
+    // and greet the next visitor). Echo the requested value back rather
+    // than a bare ok:true -- the caller's own UI reflects the change for
+    // their visit, but nothing lands in the shared row.
+    if (session.firm.demo_locked) {
+      return jsonResponse(200, { peer_review_due_date: null });
+    }
     await store.setPeerReviewDueDate(env.DB, session.firmId, null);
     return jsonResponse(200, { peer_review_due_date: null });
   }
@@ -5763,6 +5773,9 @@ async function handlePeerReviewSet(request: Request, env: Env): Promise<Response
     return jsonResponse(400, { error: "Please enter a valid date." });
   }
 
+  if (session.firm.demo_locked) {
+    return jsonResponse(200, { peer_review_due_date: dueDateRaw });
+  }
   await store.setPeerReviewDueDate(env.DB, session.firmId, dueDateRaw);
   return jsonResponse(200, { peer_review_due_date: dueDateRaw });
 }
@@ -5799,6 +5812,11 @@ async function handleReplyToSet(request: Request, env: Env): Promise<Response> {
   }
 
   if (body.email === null) {
+    // AuditLab DEMO-3 class -- see handlePeerReviewSet's own comment just
+    // above for why this and the other firm-setting routes needed it too.
+    if (session.firm.demo_locked) {
+      return jsonResponse(200, { reply_to_email: null });
+    }
     await store.setReplyToEmail(env.DB, session.firmId, null);
     return jsonResponse(200, { reply_to_email: null });
   }
@@ -5808,6 +5826,9 @@ async function handleReplyToSet(request: Request, env: Env): Promise<Response> {
     return jsonResponse(400, { error: "That doesn't look like a valid email address." });
   }
 
+  if (session.firm.demo_locked) {
+    return jsonResponse(200, { reply_to_email: emailRaw });
+  }
   await store.setReplyToEmail(env.DB, session.firmId, emailRaw);
   return jsonResponse(200, { reply_to_email: emailRaw });
 }
@@ -5841,6 +5862,10 @@ async function handleReminderCadenceSet(request: Request, env: Env): Promise<Res
   }
 
   if (body.thresholds === null) {
+    // AuditLab DEMO-3 class -- see handlePeerReviewSet's own comment.
+    if (session.firm.demo_locked) {
+      return jsonResponse(200, { reminder_thresholds: null });
+    }
     await store.setReminderThresholds(env.DB, session.firmId, null);
     return jsonResponse(200, { reminder_thresholds: null });
   }
@@ -5850,6 +5875,9 @@ async function handleReminderCadenceSet(request: Request, env: Env): Promise<Res
     return jsonResponse(400, { error: "Please choose at least one valid reminder timing." });
   }
 
+  if (session.firm.demo_locked) {
+    return jsonResponse(200, { reminder_thresholds: parsed });
+  }
   const asJson = JSON.stringify(parsed);
   await store.setReminderThresholds(env.DB, session.firmId, asJson);
   return jsonResponse(200, { reminder_thresholds: parsed });
@@ -5884,6 +5912,10 @@ async function handleRuleChangeAlertsSet(request: Request, env: Env): Promise<Re
     return jsonResponse(400, { error: "Missing or invalid 'enabled' value." });
   }
 
+  // AuditLab DEMO-3 class -- see handlePeerReviewSet's own comment.
+  if (session.firm.demo_locked) {
+    return jsonResponse(200, { rule_change_alerts_enabled: body.enabled });
+  }
   await store.setFirmRuleChangeAlertsEnabled(env.DB, session.firmId, body.enabled);
   return jsonResponse(200, { rule_change_alerts_enabled: body.enabled });
 }
@@ -5923,6 +5955,10 @@ async function handleAdminDigestSet(request: Request, env: Env): Promise<Respons
     return jsonResponse(400, { error: "Missing or invalid 'enabled' value." });
   }
 
+  // AuditLab DEMO-3 class -- see handlePeerReviewSet's own comment.
+  if (session.firm.demo_locked) {
+    return jsonResponse(200, { admin_digest_enabled: body.enabled });
+  }
   await store.setFirmAdminDigestEnabled(env.DB, session.firmId, body.enabled);
   return jsonResponse(200, { admin_digest_enabled: body.enabled });
 }

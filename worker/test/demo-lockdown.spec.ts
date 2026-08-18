@@ -94,3 +94,79 @@ describe("DEMO-3: onboarding/feedback writes are silent no-ops on a demo-locked 
     expect(after?.product_tour_dismissed_at).not.toBeNull();
   });
 });
+
+function patch(path: string, cookie: string, body: unknown): Promise<Response> {
+  return SELF.fetch(`${BASE}${path}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", Cookie: cookie, Origin: "https://deadline-radar.com", "cf-connecting-ip": "203.0.113.61" },
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * 2026-08-17: unlike the routes above, these 5 firm-setting PATCH routes
+ * had NO demo_locked gate at all -- found live-testing the standing
+ * Category B backlog. Unlike the nag-dismiss routes (a one-time flag with
+ * nothing to revert), these persist to the SAME shared demo firm row every
+ * demo visitor reads on their next login -- one visitor's test PATCH would
+ * outlive their own session and greet the next visitor. Fixed to the same
+ * silent-no-op shape, but echoing the REQUESTED value back (not a bare
+ * ok:true) so the caller's own page still reflects their change for their
+ * visit, matching what a real save would look like from the UI's side.
+ */
+describe("DEMO-3 class (missed on the first pass): firm-setting PATCH routes are silent no-ops on a demo-locked firm", () => {
+  it("peer-review due-date PATCH echoes back but never persists", async () => {
+    const { firmId, cookie } = await createDemoFirmWithSession("Demo PR Firm", `demo-pr-${Date.now()}@example.com`);
+    const resp = await patch("/firm/peer-review", cookie, { due_date: "2099-12-31" });
+    expect(resp.status).toBe(200);
+    expect((await resp.json()) as { peer_review_due_date: string }).toEqual({ peer_review_due_date: "2099-12-31" });
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.peer_review_due_date).toBeNull();
+  });
+
+  it("reply-to PATCH echoes back but never persists", async () => {
+    const { firmId, cookie } = await createDemoFirmWithSession("Demo RT Firm", `demo-rt-${Date.now()}@example.com`);
+    const resp = await patch("/firm/reply-to", cookie, { email: "attacker-controlled@example.com" });
+    expect(resp.status).toBe(200);
+    expect((await resp.json()) as { reply_to_email: string }).toEqual({ reply_to_email: "attacker-controlled@example.com" });
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.reply_to_email).toBeNull();
+  });
+
+  it("reminder-cadence PATCH echoes back but never persists", async () => {
+    const { firmId, cookie } = await createDemoFirmWithSession("Demo RC Firm", `demo-rc-${Date.now()}@example.com`);
+    const resp = await patch("/firm/reminder-cadence", cookie, { thresholds: [30, 7] });
+    expect(resp.status).toBe(200);
+    expect((await resp.json()) as { reminder_thresholds: number[] }).toEqual({ reminder_thresholds: [30, 7] });
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.reminder_thresholds).toBeNull();
+  });
+
+  it("rule-change-alerts PATCH echoes back but never persists", async () => {
+    const { firmId, cookie } = await createDemoFirmWithSession("Demo RCA Firm", `demo-rca-${Date.now()}@example.com`);
+    const resp = await patch("/firm/rule-change-alerts", cookie, { enabled: false });
+    expect(resp.status).toBe(200);
+    expect((await resp.json()) as { rule_change_alerts_enabled: boolean }).toEqual({ rule_change_alerts_enabled: false });
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.rule_change_alerts_enabled).toBe(1); // still the DEFAULT 1, untouched
+  });
+
+  it("admin-digest PATCH echoes back but never persists", async () => {
+    const { firmId, cookie } = await createDemoFirmWithSession("Demo AD Firm", `demo-ad-${Date.now()}@example.com`);
+    const resp = await patch("/firm/admin-digest", cookie, { enabled: false });
+    expect(resp.status).toBe(200);
+    expect((await resp.json()) as { admin_digest_enabled: boolean }).toEqual({ admin_digest_enabled: false });
+    const firm = await store.getFirmById(env.DB, firmId);
+    expect(firm?.admin_digest_enabled).toBe(1); // still the DEFAULT 1, untouched
+  });
+
+  it("a NON-demo firm's peer-review PATCH still persists normally (the gate didn't overreach)", async () => {
+    const firm = await store.createFirm(env.DB, { name: "Real PR Firm", adminEmail: `real-pr-${Date.now()}@example.com` });
+    const { rawSessionToken } = await store.createSession(env.DB, firm.id);
+    const cookie = `dr_firm_session=${rawSessionToken}`;
+    const resp = await patch("/firm/peer-review", cookie, { due_date: "2099-06-30" });
+    expect(resp.status).toBe(200);
+    const after = await store.getFirmById(env.DB, firm.id);
+    expect(after?.peer_review_due_date).toBe("2099-06-30");
+  });
+});

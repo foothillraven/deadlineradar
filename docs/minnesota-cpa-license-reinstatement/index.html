@@ -1521,6 +1521,11 @@
   }
   .dr-btn-danger:hover:not(:disabled) { background: rgba(200, 55, 55, 0.1); }
   .dr-btn-danger:disabled { opacity: 0.45; cursor: default; }
+  
+  @media (prefers-color-scheme: dark) {
+    .dr-danger-zone h2 { color: #ff8080; }
+    .dr-btn-danger { color: #ff8080; border-color: #ff8080; }
+  }
 
   
   .signin-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; margin: 1.4rem 0 1.8rem; }

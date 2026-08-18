@@ -2454,6 +2454,14 @@ PAGE_CSS = """
   }
   .dr-btn-danger:hover:not(:disabled) { background: rgba(200, 55, 55, 0.1); }
   .dr-btn-danger:disabled { opacity: 0.45; cursor: default; }
+  /* 2026-08-17: same dark-mode contrast gap as .dr-btn-remove above -- the
+     Account tab's "Delete account" heading (16.8px/600, doesn't clear the
+     large-text 18.66px bar) and its button measured 3.09:1/3.23:1 against
+     the dark card background, both below the 4.5:1 text minimum. */
+  @media (prefers-color-scheme: dark) {
+    .dr-danger-zone h2 { color: #ff8080; }
+    .dr-btn-danger { color: #ff8080; border-color: #ff8080; }
+  }
 
   /* ---- Sign-in account chooser, /signin/ (2026-08-02) ---- */
   .signin-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; margin: 1.4rem 0 1.8rem; }

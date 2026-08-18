@@ -84,13 +84,25 @@ describe("dripCourseCycleFact()", () => {
     expect(fact.length).toBeLessThanOrEqual(230);
   });
 
-  it("AuditLab DRIP-1: a record with data_gap_note never gets excerpted, even though cycle_description exists -- falls back to the generic sentence", () => {
+  it("AuditLab DRIP-1: a record with data_gap_note and no computation formula never gets excerpted, even though cycle_description exists -- falls back to the generic sentence", () => {
     // Michigan: the public state page itself deliberately publishes no
     // computed date and shows a sourcing caveat (data_gap_note) instead --
     // the drip email must never be MORE assertive than the product's own
     // page for this exact record.
     const fact = dripCourseCycleFact("michigan");
     expect(fact).toMatch(/renewal cycles vary by state/);
+  });
+
+  it("2026-08-17 fix: a record with BOTH data_gap_note and a computation formula IS excerpted -- data_gap_note there records verification methodology, not a sourcing gap", () => {
+    // Texas: data_gap_note carries a confident dual-source verification
+    // trail (not a caveat), and the public page (render_texas() in
+    // generate.py) shows a fully confident birth-month lookup table with
+    // no uncertainty framing at all -- the OLD "any data_gap_note
+    // suppresses" rule was wrongly treating this the same as Michigan's
+    // genuine gap above.
+    const fact = dripCourseCycleFact("texas");
+    expect(fact).not.toMatch(/renewal cycles vary by state/);
+    expect(fact).toMatch(/birth month/i);
   });
 
   it("AuditLab DRIP-1: a cycle_description longer than the cap (no data_gap_note) falls back to the generic sentence rather than truncating mid-caveat", () => {

@@ -478,12 +478,23 @@ export const DRIP_COURSE_ENROLL_BATCH_SIZE = 50;
 interface DripCourseCpaRecord {
   state_slug: string;
   cycle_description?: string;
-  // AuditLab DRIP-1 (MEDIUM, 2026-08-09): present (non-null) means this
-  // record's own public state page deliberately publishes NO computed
-  // date and shows a sourcing caveat instead -- see dripCourseCycleFact()
-  // below for why that makes any excerpt of cycle_description unsafe to
-  // send here.
+  // AuditLab DRIP-1 (MEDIUM, 2026-08-09): present (non-null) was assumed to
+  // mean this record's own public state page deliberately publishes NO
+  // computed date and shows a sourcing caveat instead. 2026-08-17: that
+  // assumption broke for `computation`-backed records (Texas etc.) --
+  // data_gap_note is also used to record confident dual-source
+  // VERIFICATION methodology, unrelated to whether a date is published.
+  // Texas's own page (render_texas() in generate.py) shows a full
+  // confident birth-month lookup table, no caveat at all, despite
+  // carrying a data_gap_note -- see dripCourseCycleFact() below for how
+  // `computation` narrows this back to the intended signal.
   data_gap_note?: string | null;
+  // Present when the record's date is a per-licensee FORMULA (birth-month,
+  // etc.) rather than unknown -- the page still states the rule
+  // confidently (generate.py's render_texas()/computation-aware paths),
+  // so cycle_description is safe to quote even though no single
+  // next_deadline_computed date exists.
+  computation?: Record<string, unknown> | null;
 }
 const DRIP_COURSE_CPA_RECORDS = (cpaDataForDripCourse as unknown as { records: DripCourseCpaRecord[] }).records;
 
@@ -504,18 +515,22 @@ const DRIP_COURSE_GENERIC_CYCLE_FACT =
  * mid-sentence truncation preserves grammar but not meaning -- the cut can
  * land exactly between the claim and the caveat that qualifies it,
  * simulated to affect 14/55 states. Two guards now, both from the
- * finding's own cheapest-fix list: (1) a record with data_gap_note (the
- * public page itself deliberately publishes no date and shows a sourcing
- * caveat) never gets excerpted at all -- the email must never be MORE
- * assertive than the product's own page for that exact record; (2) the
- * excerpt is only used when the WHOLE cycle_description fits under the
- * cap, otherwise fall back to the generic (never-wrong) sentence rather
- * than ever truncating -- removes the truncation failure mode entirely
- * instead of patching individual instances of it. */
+ * finding's own cheapest-fix list: (1) a record with data_gap_note AND no
+ * `computation` formula (the public page itself deliberately publishes no
+ * date and shows a sourcing caveat) never gets excerpted at all -- the
+ * email must never be MORE assertive than the product's own page for that
+ * exact record. 2026-08-17: narrowed from "any data_gap_note" -- that was
+ * also silently suppressing `computation`-backed records (Texas etc.),
+ * whose public page states the rule confidently with no caveat at all;
+ * data_gap_note there records verification methodology, not a sourcing
+ * gap. (2) the excerpt is only used when the WHOLE cycle_description fits
+ * under the cap, otherwise fall back to the generic (never-wrong)
+ * sentence rather than ever truncating -- removes the truncation failure
+ * mode entirely instead of patching individual instances of it. */
 export function dripCourseCycleFact(stateSlug: string | null): string {
   if (!stateSlug) return DRIP_COURSE_GENERIC_CYCLE_FACT;
   const record = DRIP_COURSE_CPA_RECORDS.find((r) => r.state_slug === stateSlug && r.cycle_description);
-  if (record?.data_gap_note) return DRIP_COURSE_GENERIC_CYCLE_FACT;
+  if (record?.data_gap_note && !record.computation) return DRIP_COURSE_GENERIC_CYCLE_FACT;
   const desc = record?.cycle_description?.trim();
   if (!desc) return DRIP_COURSE_GENERIC_CYCLE_FACT;
   if (desc.length <= DRIP_COURSE_CYCLE_FACT_MAX_LEN) return desc;

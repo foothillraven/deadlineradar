@@ -1,0 +1,243 @@
+#!/usr/bin/env python3
+"""
+Draft Spanish translations for every i18n.py key that's missing/stale, write
+them into i18n.py with reviewed=False, and generate an AuditLab review-request
+file + a firmchat-ready one-liner.
+
+2026-08-19 (Devin's direct go-ahead, RC session): this is the "AuditLab loop"
+half of the Phase A rollout -- see i18n.py's own module docstring and
+Orchestrator/outbox/assetlab.md's 2026-08-19T13:20 plan entry for the full
+design. This script does the DRAFTING (Claude-authored, no paid MT API, no
+new cost) -- it deliberately never sets reviewed=True itself. Only AuditLab's
+own review (or a human) can flip that, via a follow-up edit to i18n.py's ES
+dict once the review verdict comes back. Running this script twice on an
+unreviewed draft is a no-op for that key (it's already the newest draft);
+it only re-drafts a key whose EN string changed since the last draft (the
+same staleness check the build gate uses).
+
+Usage: python3 scripts/es_translation_review.py
+"""
+
+from __future__ import annotations
+
+import pathlib
+import re
+import sys
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+import i18n  # noqa: E402
+
+I18N_PATH = REPO_ROOT / "i18n.py"
+AUDITLAB_INBOX = pathlib.Path(r"C:\Users\Devin\AuditLab\inbox")
+
+# ---------------------------------------------------------------------------
+# Drafts: Claude-translated Spanish for every EN key as of 2026-08-19. Real,
+# considered translations (not placeholder/machine-gibberish) -- neutral
+# Latin American Spanish register appropriate for a professional/legal
+# context, matching the site's own precise, sourcing-focused voice. Every
+# entry here is reviewed=False until AuditLab (or a human) confirms it.
+# ---------------------------------------------------------------------------
+DRAFTS: dict[str, str] = {
+    "site.tagline": "Fechas límite de renovación de licencias de CPA por estado — verificadas y actualizadas",
+    "nav.browse_states": "Explorar estados",
+    "nav.how_we_verify": "Cómo verificamos",
+    "nav.guides": "Guías",
+    "nav.for_firms": "Para firmas",
+    "nav.live_demo": "Demo en vivo",
+    "nav.sign_in": "Iniciar sesión",
+    "nav.get_reminders": "Recibir recordatorios",
+    "nav.dashboard": "Panel de control",
+    "footer.heading_data_method": "Datos y método",
+    "footer.link_mobility_rule_changes": "Cambios en normas de movilidad",
+    "footer.link_practice_privilege_check": "Verificación de privilegio de práctica",
+    "footer.link_multi_state_firms": "Firmas multiestatales",
+    "footer.heading_product": "Producto",
+    "footer.link_all_jurisdictions": "Las {count} jurisdicciones",
+    "footer.link_pricing": "Precios",
+    "footer.link_deadline_calculator": "Calculadora de fechas límite",
+    "footer.link_cpe_vs_license": "CPE vs. renovación de licencia",
+    "footer.link_roadmap": "Hoja de ruta",
+    "footer.heading_company": "Empresa",
+    "footer.link_contact": "Contacto",
+    "footer.link_security": "Seguridad",
+    "footer.link_status": "Estado del servicio",
+    "footer.link_terms": "Términos",
+    "footer.link_privacy": "Privacidad",
+    "footer.trust_chip": "Sin rastreadores de anuncios ni redes sociales. Solo análisis sin cookies.",
+    "footer.disclaimer_bold": "{site_name} es un servicio independiente de recordatorios operado por {brand_name}.",
+    "footer.disclaimer_rest": (
+        "No está afiliado, respaldado ni conectado con NASBA, el AICPA, ni ninguna junta estatal de "
+        "contabilidad. Las fechas de renovación se recopilan de fuentes públicas únicamente con fines "
+        "informativos — no constituyen asesoría legal, fiscal ni profesional. Confirme siempre su "
+        "fecha exacta de renovación con la junta de su estado o en su licencia."
+    ),
+    "methodology.title": "Cómo verificamos cada fecha límite",
+    "methodology.freshness_stat": (
+        "registros con fecha en los conjuntos de datos de este sitio (fechas límite de renovación, "
+        "horas de CPE, reincorporación, tarifas de renovación) fueron verificados individualmente "
+        "contra su fuente en los últimos {threshold_days} días, a la fecha de la última compilación "
+        "de esta página ({build_date}). La línea “Última verificación” de cada página "
+        "estatal muestra la fecha propia de esa cita específica — es el mismo dato, agregado "
+        "para todo el sitio."
+    ),
+    "methodology.intro": (
+        "Los CPA están capacitados para ser escépticos ante fuentes no verificadas — así que esto "
+        "es exactamente cómo se obtienen, verifican y mantienen actualizadas las fechas de este "
+        "sitio. Nada de lo siguiente es aspiracional; describe el estándar real ya aplicado a cada "
+        "página estatal."
+    ),
+    "methodology.h2_two_source_rule": "La regla de las dos fuentes",
+    "methodology.two_source_intro": "Toda fecha en este sitio debe remitirse a dos elementos independientes antes de publicarse:",
+    "methodology.two_source_item1": (
+        "<strong>La propia página de la junta estatal</strong> — la fuente en lenguaje sencillo "
+        "que la mayoría de las personas encontraría primero."
+    ),
+    "methodology.two_source_item2": (
+        "<strong>El estatuto codificado o la norma administrativa real</strong> de la que se deriva "
+        "el requisito de la junta — no un resumen, sino el texto legal primario mismo. Esa cita y un "
+        "enlace directo a ella se muestran debajo de cada fecha verificada en este sitio, con la "
+        "etiqueta “Fuente oficial”."
+    ),
+    "methodology.two_source_fallback": (
+        "Si no podemos encontrar o confirmar la segunda fuente, la fecha no se publica como un hecho "
+        "confirmado. En su lugar, la página lo indica claramente y le remite a la junta estatal "
+        "oficial para que determine su fecha límite exacta — no adivinamos, interpolamos ni "
+        "inferimos una fecha que no podamos respaldar con la ley primaria."
+    ),
+    "methodology.h2_verified_badge": "Qué significa la insignia “Verificado”",
+    "methodology.verified_badge_body": (
+        "Un recuadro destacado muestra una insignia <strong>Verificado</strong> solo cuando esa "
+        "fecha específica tiene una cita real a la ley codificada que la respalda, verificada de la "
+        "manera descrita arriba. Un registro sin ella nunca muestra la insignia — no existe un "
+        "estado intermedio donde una fecha parezca confirmada sin estarlo."
+    ),
+    "methodology.h2_last_verified": "Qué significa “Última verificación”",
+    "methodology.last_verified_intro": (
+        "La fecha que se muestra en la línea de confianza de cada estado es la última vez que "
+        "verificamos directamente la cita de ese estado contra el texto de la fuente primaria — "
+        "no solo releímos nuestras propias notas al respecto. Periódicamente volvemos a ejecutar "
+        "una verificación automatizada en cada fuente citada, buscando dos cosas:"
+    ),
+    "methodology.last_verified_item1": "un enlace roto o redirigido, o",
+    "methodology.last_verified_item2": "cualquier indicio de que la norma subyacente haya sido modificada desde entonces.",
+    "methodology.last_verified_followup": (
+        "Cuando aparece cualquiera de los dos, verificamos manualmente antes de cambiar algo que un "
+        "visitante vea — una alerta automatizada nunca reescribe silenciosamente una fecha "
+        "publicada por sí sola."
+    ),
+    "methodology.h2_fall_short": "Dónde esto todavía puede quedar corto, con honestidad",
+    "methodology.fall_short_body": (
+        "Algunas fuentes son genuinamente más difíciles de verificar por medios automatizados — un "
+        "puñado de citas remiten a documentos PDF o páginas renderizadas con JavaScript que nuestras "
+        "herramientas no pueden extraer automáticamente. Cuando ese es el caso, esas citas fueron "
+        "confirmadas individualmente a mano en el momento en que se publicaron; revelamos la "
+        "limitación de la herramienta en lugar de fingir que una verificación más sencilla la cubre. "
+        "Si una norma cambia entre nuestras verificaciones, use el enlace de contacto abajo para "
+        "señalarlo y la volveremos a verificar y corregir rápidamente."
+    ),
+    "methodology.h2_what_we_dont_verify": "Qué no verificamos de esta manera",
+    "methodology.dont_verify_body": (
+        "La finalización de horas de CPE es autoinformada dondequiera que este sitio o su nivel "
+        "para firmas la mencione — lo etiquetamos claramente y nunca le damos el mismo tratamiento "
+        "de “Verificado” que a una fecha de renovación con fuente. Tampoco verificamos de forma "
+        "independiente los futuros cambios de política de un estado; si un estado propone una nueva "
+        "norma que aún no ha entrado en vigor, esperamos a que se convierta en la norma vigente real "
+        "antes de citarla."
+    ),
+    "methodology.h2_see_for_yourself": "Compruébelo usted mismo",
+    "methodology.see_for_yourself_body": (
+        "Elija cualquier página estatal y busque la línea “Fuente oficial” debajo de su fecha "
+        "— la cita y el enlace “leer la norma” llevan al texto legal primario, no a un resumen. "
+        "Ese es el mismo estándar detrás de cada fecha en este sitio."
+    ),
+    "methodology.backlink_changelog": "Vea exactamente qué cambió y cuándo →",
+    "methodology.backlink_contact": "¿Encontró algo que parece incorrecto? Avísenos →",
+    "methodology.meta_description": (
+        "El estándar de verificación de Deadline-Radar: cada fecha de renovación de licencia de CPA "
+        "remite a la propia página de la junta estatal más el estatuto o norma codificada real "
+        "detrás de ella — nunca una suposición."
+    ),
+}
+
+
+def _format_es_dict(es: dict[str, dict]) -> str:
+    lines = ["ES: dict[str, dict] = {"]
+    for key in sorted(es):
+        entry = es[key]
+        lines.append(f"    {key!r}: {{")
+        lines.append(f"        \"text\": {entry['text']!r},")
+        lines.append(f"        \"en_hash\": {entry['en_hash']!r},")
+        lines.append(f"        \"reviewed\": {entry['reviewed']!r},")
+        lines.append("    },")
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def main() -> None:
+    stale = set(i18n.stale_or_missing_keys())
+    missing_drafts = stale - DRAFTS.keys()
+    if missing_drafts:
+        print(f"WARNING: {len(missing_drafts)} key(s) need translation but have no draft here: {sorted(missing_drafts)}")
+
+    new_es = dict(i18n.ES)  # keep any already-reviewed entries untouched
+    drafted_this_run = []
+    for key, text in DRAFTS.items():
+        if key not in i18n.EN:
+            print(f"WARNING: draft for unknown key {key!r} -- skipping (stale script?)")
+            continue
+        if key in stale:
+            new_es[key] = {"text": text, "en_hash": i18n.en_hash(key), "reviewed": False}
+            drafted_this_run.append(key)
+
+    if not drafted_this_run:
+        print("Nothing to draft -- every key is already translated, reviewed, and not stale.")
+        return
+
+    # Rewrite i18n.py's ES dict block in place.
+    src = I18N_PATH.read_text(encoding="utf-8")
+    new_block = _format_es_dict(new_es)
+    pattern = re.compile(r"^ES: dict\[str, dict\] = \{.*?\n\}|^ES: dict\[str, dict\] = \{\}", re.DOTALL | re.MULTILINE)
+    if not pattern.search(src):
+        raise SystemExit("Could not find 'ES: dict[str, dict] = {...}' block in i18n.py -- aborting, not writing.")
+    new_src = pattern.sub(new_block, src, count=1)
+    I18N_PATH.write_text(new_src, encoding="utf-8")
+    print(f"Drafted {len(drafted_this_run)} translation(s) into i18n.py, all reviewed=False: {sorted(drafted_this_run)}")
+
+    # Review-request file for AuditLab.
+    review_lines = [
+        "---",
+        "from: assetlab",
+        "to: auditlab",
+        f"date: {__import__('datetime').date.today().isoformat()}",
+        "type: review-request",
+        "---",
+        "",
+        "# Spanish translation review batch -- /es/methodology/ (Phase A proof-of-concept)",
+        "",
+        "Real review request (not the earlier heads-up) -- these are live drafts, please review.",
+        "",
+        "For each entry: does the Spanish text mean the same thing as the English source, with no",
+        "softened/changed claim? Numbers, dates, and any `{placeholder}` tokens must appear",
+        "unchanged (they're filled in with real data at build time, not translated). Report back",
+        "to `AssetLab/inbox/` per your own charter's \"report to both\" rule -- APPROVE or FLAG each",
+        "key, not just a batch verdict, so an approved subset can ship even if others need a redraft.",
+        "",
+    ]
+    for key in sorted(drafted_this_run):
+        review_lines.append(f"## `{key}`")
+        review_lines.append(f"**EN**: {i18n.EN[key]!r}")
+        review_lines.append(f"**ES (draft)**: {DRAFTS[key]!r}")
+        review_lines.append("")
+
+    if AUDITLAB_INBOX.is_dir():
+        out_path = AUDITLAB_INBOX / f"assetlab_{__import__('datetime').date.today().strftime('%Y%m%d')}_es_review_batch1.md"
+        out_path.write_text("\n".join(review_lines), encoding="utf-8")
+        print(f"Wrote review request: {out_path}")
+    else:
+        print(f"AuditLab inbox not found at {AUDITLAB_INBOX} -- review request NOT written, print only.")
+
+
+if __name__ == "__main__":
+    main()

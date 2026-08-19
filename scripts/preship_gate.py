@@ -1753,6 +1753,37 @@ def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_i18n_reviewed_entries_not_stale(repo_root: Path) -> list[str]:
+    """i18n.py's t() already refuses to show an unreviewed or stale Spanish
+    string at runtime (falls back to English) -- that's the primary
+    protection. This is the data-integrity backstop: if an ES entry is
+    marked reviewed=True but its stored en_hash does NOT match the
+    CURRENT hash of the English string it claims to translate, something
+    is wrong (a hand-edit set reviewed=True without actually re-approving
+    the new English text, or the hash was computed against stale EN).
+    That combination is exactly the "not self-certified" invariant this
+    whole i18n system exists to enforce -- fail loud rather than let a
+    reviewed-but-actually-stale translation quietly ship."""
+    sys.path.insert(0, str(repo_root))
+    try:
+        import i18n
+    except ImportError:
+        return []
+    errors = []
+    for key, entry in i18n.ES.items():
+        if key not in i18n.EN:
+            errors.append(f"[I18N] i18n.py ES has a translation for {key!r}, which no longer exists in EN -- remove the stale entry")
+            continue
+        if entry.get("reviewed") and entry.get("en_hash") != i18n.en_hash(key):
+            errors.append(
+                f"[I18N] i18n.py ES[{key!r}] is marked reviewed=True but its en_hash doesn't match "
+                f"the current English text -- either the English changed after review (needs a fresh "
+                f"draft + re-review, not reviewed=True carried over) or the hash was set wrong. "
+                f"A reviewed=True entry must always be provably translated FROM the current EN string."
+            )
+    return errors
+
+
 def check_email_link_helper_usage(repo_root: Path) -> list[str]:
     """AuditLab EMAIL-2 (LOW-MED, filed 2026-08-08, widened 2026-08-12): dark
     mode recolors links by CSS class (.dr-accent/.dr-btn), not by attribute --
@@ -1951,6 +1982,30 @@ def print_renewal_fee_staleness_advisory(repo_root: Path) -> None:
         pass
 
 
+def print_es_translation_review_advisory(repo_root: Path) -> None:
+    """Phase A i18n rollout (2026-08-19) status at a glance: how many keys
+    exist, how many have a reviewed+current Spanish translation, how many
+    are still pending AuditLab's review. Informational only -- t()'s own
+    runtime fallback is what actually keeps an unreviewed string off a
+    real page, this is just visibility into the review queue."""
+    sys.path.insert(0, str(repo_root))
+    try:
+        import i18n
+    except ImportError:
+        print("  (skipping ES translation-review advisory -- i18n.py not importable)")
+        return
+    print("\n--- es-translation-review advisory (does not affect gate exit code) ---")
+    total = len(i18n.EN)
+    pending = i18n.stale_or_missing_keys()
+    reviewed = total - len(pending)
+    print(f"i18n.py Phase A keys: {total}   reviewed & current: {reviewed}   pending review: {len(pending)}")
+    if pending:
+        print(f"  Pending (falls back to English until AuditLab approves): {', '.join(sorted(pending)[:10])}"
+              + (f" ... and {len(pending) - 10} more" if len(pending) > 10 else ""))
+    else:
+        print("  PASS -- every Phase A key has a reviewed, current Spanish translation.")
+
+
 def print_rule_change_monitoring_staleness_advisory(repo_root: Path) -> None:
     """Surfaces rule_change_monitoring_staleness_check.py (AuditLab MON-1,
     2026-08-04) as part of the normal pre-ship run, same treatment as the
@@ -2035,6 +2090,7 @@ def main():
     all_errors += check_demo_locked_email_coverage(repo_root)
     all_errors += check_write_endpoint_rate_limits(repo_root)
     all_errors += check_email_link_helper_usage(repo_root)
+    all_errors += check_i18n_reviewed_entries_not_stale(repo_root)
 
     print(f"Pre-ship gate: scanned {len(html_files)} rendered pages, {len(state_dirs)} state dirs.")
     if all_errors:
@@ -2049,6 +2105,7 @@ def main():
         print_rule_change_monitoring_staleness_advisory(repo_root)
         print_guide_review_staleness_advisory(repo_root)
         print_dual_credential_citation_advisory(repo_root)
+        print_es_translation_review_advisory(repo_root)
         print_seo_length_drift_advisory(html_files)
         sys.exit(1)
     print("\nPASS -- no violations found.")
@@ -2060,6 +2117,7 @@ def main():
     print_rule_change_monitoring_staleness_advisory(repo_root)
     print_guide_review_staleness_advisory(repo_root)
     print_dual_credential_citation_advisory(repo_root)
+    print_es_translation_review_advisory(repo_root)
     print_seo_length_drift_advisory(html_files)
     sys.exit(0)
 

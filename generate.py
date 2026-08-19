@@ -49,6 +49,8 @@ import tempfile
 import urllib.parse
 from datetime import date, datetime, timedelta, timezone
 
+from i18n import t as _t
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -2880,7 +2882,8 @@ _BRAND_GLYPH_SVG = """<svg class="brand-glyph" viewBox="0 0 32 32" fill="none" a
 
 
 def site_header(
-    home_href: str, hide_signin: bool = False, has_remind_anchor: bool = False, sticky_top_nav: bool = True
+    home_href: str, hide_signin: bool = False, has_remind_anchor: bool = False, sticky_top_nav: bool = True,
+    lang: str = "en",
 ) -> str:
     # hide_signin (2026-07-30, UX fix follow-up): the dashboard page
     # (build_firm_dashboard_page()) uses this SAME shared shell, but a
@@ -2894,7 +2897,7 @@ def site_header(
     # asking for a firm name with no way across. /signin/ leads with the
     # individual form and links straight to /firm-login/, so neither audience
     # lands at the wrong door. See build_signin_page().
-    signin_link_html = "" if hide_signin else '<a href="/signin/" class="nav-quiet" id="dr-nav-signin">Sign In</a>\n      '
+    signin_link_html = "" if hide_signin else f'<a href="/signin/" class="nav-quiet" id="dr-nav-signin">{esc(_t("nav.sign_in", lang))}</a>\n      '
     # A signed-in firm clicking any OTHER page on the site saw "Sign In"
     # again and had no way back to the dashboard without re-authenticating
     # (2026-08-03, direct report). The session cookie is HttpOnly by design
@@ -2937,7 +2940,7 @@ def site_header(
         fetch('{REMINDER_BACKEND_BASE_URL}/firm/logout', {{method: 'POST', credentials: 'include'}}).catch(function() {{}});
         return;
       }}
-      link.textContent = 'Dashboard'; link.href = '/firm-dashboard/';
+      link.textContent = {json.dumps(_t("nav.dashboard", lang))}; link.href = '/firm-dashboard/';
       link.classList.remove('nav-quiet'); link.classList.add('cta');
     }}).catch(function() {{}});
   }}).catch(function() {{}});
@@ -2974,12 +2977,12 @@ def site_header(
     </a>
     <button type="button" class="nav-toggle" id="dr-nav-toggle" aria-expanded="false" aria-controls="dr-nav-links" aria-label="Menu">&#9776;</button>
     <div class="nav-links" id="dr-nav-links">
-      <a href="/#all-states">Browse States</a>
-      <a href="/methodology/">How We Verify</a>
-      <a href="/blog/">Guides</a>
-      <a href="/for-firms/">For Firms</a>
-      <a href="{REMINDER_BACKEND_BASE_URL}/firm/demo-login">Live Demo</a>
-      {signin_link_html}<a href="{esc(remind_href)}" class="cta">Get reminders</a>
+      <a href="/#all-states">{esc(_t("nav.browse_states", lang))}</a>
+      <a href="/methodology/">{esc(_t("nav.how_we_verify", lang))}</a>
+      <a href="/blog/">{esc(_t("nav.guides", lang))}</a>
+      <a href="/for-firms/">{esc(_t("nav.for_firms", lang))}</a>
+      <a href="{REMINDER_BACKEND_BASE_URL}/firm/demo-login">{esc(_t("nav.live_demo", lang))}</a>
+      {signin_link_html}<a href="{esc(remind_href)}" class="cta">{esc(_t("nav.get_reminders", lang))}</a>
     </div>
   </div>
 </nav>
@@ -2987,11 +2990,13 @@ def site_header(
 {_NAV_TOGGLE_JS_HTML}
 <div class="wrap">
 <header class="site-header">
-  <div class="tagline">{esc(SITE_TAGLINE)}</div>
+  <div class="tagline">{esc(_t("site.tagline", lang))}</div>
 </header>"""
 
 
-def site_footer() -> str:
+def site_footer(lang: str = "en") -> str:
+    disclaimer_bold = _t("footer.disclaimer_bold", lang, site_name=SITE_NAME, brand_name=BRAND_NAME)
+    disclaimer_rest = _t("footer.disclaimer_rest", lang)
     return f"""</div>
 <footer class="site-footer">
   <div class="wrap">
@@ -3009,37 +3014,33 @@ def site_footer() -> str:
        exist for us). -->
   <div class="foot-columns">
     <div class="foot-col">
-      <h3>Data &amp; Method</h3>
-      <a href="/methodology/">How We Verify</a>
-      <a href="/rule-changes/">Mobility Rule Changes</a>
-      <a href="/practice-privilege-check/">Practice Privilege Check</a>
-      <a href="/multi-state-firms/">Multi-State Firms</a>
+      <h3>{esc(_t("footer.heading_data_method", lang))}</h3>
+      <a href="/methodology/">{esc(_t("nav.how_we_verify", lang))}</a>
+      <a href="/rule-changes/">{esc(_t("footer.link_mobility_rule_changes", lang))}</a>
+      <a href="/practice-privilege-check/">{esc(_t("footer.link_practice_privilege_check", lang))}</a>
+      <a href="/multi-state-firms/">{esc(_t("footer.link_multi_state_firms", lang))}</a>
     </div>
     <div class="foot-col">
-      <h3>Product</h3>
-      <a href="/">All {JURISDICTION_COUNT} jurisdictions</a>
-      <a href="/for-firms/">For Firms</a>
-      <a href="/pricing/">Pricing</a>
-      <a href="/deadline-calculator/">Deadline Calculator</a>
-      <a href="/blog/">Guides</a>
-      <a href="/blog/cpe-vs-license-renewal/">CPE vs. License Renewal</a>
-      <a href="/roadmap/">Roadmap</a>
+      <h3>{esc(_t("footer.heading_product", lang))}</h3>
+      <a href="/">{esc(_t("footer.link_all_jurisdictions", lang, count=JURISDICTION_COUNT))}</a>
+      <a href="/for-firms/">{esc(_t("nav.for_firms", lang))}</a>
+      <a href="/pricing/">{esc(_t("footer.link_pricing", lang))}</a>
+      <a href="/deadline-calculator/">{esc(_t("footer.link_deadline_calculator", lang))}</a>
+      <a href="/blog/">{esc(_t("nav.guides", lang))}</a>
+      <a href="/blog/cpe-vs-license-renewal/">{esc(_t("footer.link_cpe_vs_license", lang))}</a>
+      <a href="/roadmap/">{esc(_t("footer.link_roadmap", lang))}</a>
     </div>
     <div class="foot-col">
-      <h3>Company</h3>
-      <a href="/contact/">Contact</a>
-      <a href="/security/">Security</a>
-      <a href="/status/">Status</a>
-      <a href="/terms/">Terms</a>
-      <a href="/privacy/">Privacy</a>
+      <h3>{esc(_t("footer.heading_company", lang))}</h3>
+      <a href="/contact/">{esc(_t("footer.link_contact", lang))}</a>
+      <a href="/security/">{esc(_t("footer.link_security", lang))}</a>
+      <a href="/status/">{esc(_t("footer.link_status", lang))}</a>
+      <a href="/terms/">{esc(_t("footer.link_terms", lang))}</a>
+      <a href="/privacy/">{esc(_t("footer.link_privacy", lang))}</a>
     </div>
   </div>
-  <p class="foot-trust-chip"><a href="/security/">No ad or social trackers. Cookieless analytics only.</a></p>
-  <p class="disc"><strong>{esc(SITE_NAME)} is an independent reminder service operated by {esc(BRAND_NAME)}.</strong> It is not
-  affiliated with, endorsed by, or connected to NASBA, the AICPA, or any state board of
-  accountancy. Renewal dates are compiled from public sources for informational purposes only
-  &mdash; not legal, tax, or professional advice. Always confirm your exact renewal date with your
-  state board or on your license.</p>
+  <p class="foot-trust-chip"><a href="/security/">{esc(_t("footer.trust_chip", lang))}</a></p>
+  <p class="disc"><strong>{esc(disclaimer_bold)}</strong> {esc(disclaimer_rest)}</p>
   </div>
 </footer>"""
 
@@ -4124,10 +4125,11 @@ def page_shell(
     hide_signin: bool = False,
     has_remind_anchor: bool = False,
     sticky_top_nav: bool = True,
+    lang: str = "en",
 ) -> str:
     canonical_url = "https://deadline-radar.com" + canonical_path
     page_html = f"""<!doctype html>
-<html lang="en">
+<html lang="{esc(lang)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -4156,9 +4158,9 @@ def page_shell(
 {_SCROLL_REVEAL_HEAD_JS}
 </head>
 <body>
-{site_header(home_href, hide_signin=hide_signin, has_remind_anchor=has_remind_anchor, sticky_top_nav=sticky_top_nav)}
+{site_header(home_href, hide_signin=hide_signin, has_remind_anchor=has_remind_anchor, sticky_top_nav=sticky_top_nav, lang=lang)}
 {body}
-{site_footer()}
+{site_footer(lang=lang)}
 {_SHOW_PASSWORD_TOGGLE_HTML}
 {_COOKIE_NOTICE_HTML}
 {_SCROLL_REVEAL_BODY_JS}
@@ -7681,14 +7683,23 @@ def _sitewide_freshness_stat(real_today: date) -> tuple[int, int]:
     return verified_recent, len(_sitewide_freshness_dates_cache)
 
 
-def build_methodology_page(records: list[dict], real_today: date) -> str:
+def build_methodology_page(records: list[dict], real_today: date, lang: str = "en") -> str:
     """How-we-verify-our-data page (2026-07-15, per the orchestrator's 'press the
     validated bet' steer: apply the CPA-trust design lens by surfacing the sourcing
     method itself as a first-class trust asset, the way established compliance/legal
     reference sites do -- not by inventing any new claim, just making the standard
     already enforced everywhere else in this file (citation + citation_url on every
     record, honest null/gap-note when unverifiable) legible to a skeptical CPA
-    visitor in one place instead of leaving it implicit."""
+    visitor in one place instead of leaving it implicit.
+
+    2026-08-19: first page converted to the i18n.py keyed-string system
+    (Phase A proof-of-concept slice) -- every _t() call below defaults to
+    lang="en" and returns byte-identical prose to the pre-conversion
+    version, EXCEPT for cosmetic HTML-entity -> literal-Unicode-character
+    substitutions (&mdash;/&rarr;/&middot; -> —/→/· , straight quotes ->
+    curly) made deliberately so translators/Claude draft real characters,
+    not entity codes, inside a translatable string that never passes
+    through esc()."""
     verified_recent, total = _sitewide_freshness_stat(real_today)
     # Reuses the site's existing .callout box (no new CSS) -- same visual
     # treatment already used for the per-state "Verified" callouts, so this
@@ -7696,76 +7707,62 @@ def build_methodology_page(records: list[dict], real_today: date) -> str:
     # bespoke one-off.
     freshness_stat_html = (
         f'<div class="callout"><p><strong>{verified_recent} of {total}</strong> '
-        f"dated records across this site's datasets (renewal deadlines, CPE hours, reinstatement, "
-        f"renewal fees) were individually re-checked against their source within the last "
-        f"{STALENESS_THRESHOLD_DAYS} days, as of this page's last build ({real_today.isoformat()}). "
-        f"Every state page's own \"Last verified\" line shows that specific citation's own date &mdash; "
-        f"this is the same fact, rolled up across the whole site."
-        f"</p></div>"
+        + _t(
+            "methodology.freshness_stat",
+            lang,
+            threshold_days=STALENESS_THRESHOLD_DAYS,
+            build_date=real_today.isoformat(),
+        )
+        + "</p></div>"
     )
-    body = f"""<h1>How We Verify Every Deadline</h1>
+    body = f"""<h1>{_t("methodology.title", lang)}</h1>
 {freshness_stat_html}
-<p class="intro">CPAs are trained to be skeptical of unverified sources &mdash; so here is exactly how
-this site's dates are sourced, checked, and kept current. Nothing below is aspirational; it describes
-the actual standard already applied to every state page.</p>
+<p class="intro">{_t("methodology.intro", lang)}</p>
 
-<h2>The two-source rule</h2>
-<p>Every date on this site must trace to two independent things before it's published:</p>
+<h2>{_t("methodology.h2_two_source_rule", lang)}</h2>
+<p>{_t("methodology.two_source_intro", lang)}</p>
 <ol>
-  <li><strong>The state board's own page</strong> &mdash; the plain-English source most people would
-  find first.</li>
-  <li><strong>The actual codified statute or administrative rule</strong> the board's requirement
-  derives from &mdash; not a summary of it, the primary legal text itself. That citation and a direct
-  link to it are shown under every verified date on this site, labeled "Source of record."</li>
+  <li>{_t("methodology.two_source_item1", lang)}</li>
+  <li>{_t("methodology.two_source_item2", lang)}</li>
 </ol>
-<p>If we can't find or confirm the second source, the date is not published as a confirmed fact. Instead
-the page says so plainly and points you to the official state board to determine your own exact
-deadline &mdash; we do not guess, interpolate, or infer a date we can't back up with primary law.</p>
+<p>{_t("methodology.two_source_fallback", lang)}</p>
 
-<h2>What the "Verified" badge means</h2>
-<p>A callout shows a <strong>Verified</strong> badge only when that specific date has a real citation to
-codified law behind it, checked the way described above. A record without one never shows the badge
-&mdash; there is no in-between state where a date looks confirmed but isn't.</p>
+<h2>{_t("methodology.h2_verified_badge", lang)}</h2>
+<p>{_t("methodology.verified_badge_body", lang)}</p>
 
-<h2>What "Last verified" means</h2>
-<p>The date shown in each state's trust line is the last time we directly re-checked that state's
-citation against the primary source text &mdash; not just re-read our own notes about it. We
-periodically re-run an automated check across every cited source looking for two things:</p>
+<h2>{_t("methodology.h2_last_verified", lang)}</h2>
+<p>{_t("methodology.last_verified_intro", lang)}</p>
 <ul>
-  <li>a broken or redirected link, or</li>
-  <li>any sign the underlying rule has since been amended.</li>
+  <li>{_t("methodology.last_verified_item1", lang)}</li>
+  <li>{_t("methodology.last_verified_item2", lang)}</li>
 </ul>
-<p>When either turns up, we re-verify by hand before changing anything a visitor sees &mdash; an
-automated flag never silently rewrites a published date by itself.</p>
+<p>{_t("methodology.last_verified_followup", lang)}</p>
 
-<h2>Where this can still fall short, honestly</h2>
-<p>Some sources are genuinely harder to verify by automated means &mdash; a handful of citations point to
-PDF documents or JavaScript-rendered pages our tooling can't text-extract automatically. Where that's the
-case, those citations were still individually confirmed by hand at the time they were published; we
-disclose the tooling gap rather than pretend an easier check covers it. If a rule changes between our
-checks, use the contact link below to flag it and we'll re-verify and correct it quickly.</p>
+<h2>{_t("methodology.h2_fall_short", lang)}</h2>
+<p>{_t("methodology.fall_short_body", lang)}</p>
 
-<h2>What we don't verify this way</h2>
-<p>CPE hour completion is self-reported wherever this site or its firm tier ever discusses it &mdash;
-we label that clearly and never give it the same "Verified" treatment as a sourced renewal date. We also
-don't independently verify a state's future policy changes; if a state proposes a new rule that hasn't
-taken effect yet, we wait for it to become the actual current rule before citing it.</p>
+<h2>{_t("methodology.h2_what_we_dont_verify", lang)}</h2>
+<p>{_t("methodology.dont_verify_body", lang)}</p>
 
-<h2>See it for yourself</h2>
-<p>Pick any state page and look for the "Source of record" line under its date &mdash; the citation and
-the "read the rule" link go to the primary legal text, not a summary. That's the same standard behind
-every date on this site.</p>
+<h2>{_t("methodology.h2_see_for_yourself", lang)}</h2>
+<p>{_t("methodology.see_for_yourself_body", lang)}</p>
 
-<p class="backlink"><a href="/changelog/">See exactly what's changed and when &rarr;</a> &middot;
-<a href="/contact/">Found something that looks wrong? Tell us &rarr;</a></p>
+<p class="backlink"><a href="/changelog/">{_t("methodology.backlink_changelog", lang)}</a> &middot;
+<a href="/contact/">{_t("methodology.backlink_contact", lang)}</a></p>
 """
+    hreflang_html = (
+        '<link rel="alternate" hreflang="en" href="https://deadline-radar.com/methodology/">\n'
+        '<link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/methodology/">\n'
+        '<link rel="alternate" hreflang="x-default" href="https://deadline-radar.com/methodology/">'
+    )
     return page_shell(
-        f"How We Verify Every Deadline — {SITE_NAME}",
-        "Deadline-Radar's sourcing standard: every CPA license renewal date traces to the state board's "
-        "own page plus the actual codified statute or rule behind it — never a guess.",
+        f"{_t('methodology.title', lang)} — {SITE_NAME}",
+        _t("methodology.meta_description", lang),
         body,
-        home_href="../",
-        canonical_path="/methodology/",
+        home_href="../" if lang == "en" else "../../",
+        canonical_path="/methodology/" if lang == "en" else "/es/methodology/",
+        lang=lang,
+        extra_head=hreflang_html,
     )
 
 
@@ -20741,6 +20738,13 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/methodology/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/methodology/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/methodology/"/>
+  </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/es/methodology/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/methodology/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/methodology/"/>
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/changelog/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
@@ -20783,7 +20787,7 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
   </url>""")
     body = "\n".join(urls)
     return f"""<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
 {body}
 </urlset>
 """
@@ -21071,6 +21075,17 @@ def main() -> None:
     methodology_dir.mkdir(parents=True, exist_ok=True)
     (methodology_dir / "index.html").write_text(build_methodology_page(records, real_today), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/methodology/index.html")
+
+    # Phase A i18n proof-of-concept (2026-08-19, i18n.py) -- /es/methodology/
+    # is the first Spanish page. t()/i18n.py fall back to English for any
+    # unreviewed/missing key, so this renders safely even before AuditLab
+    # has reviewed anything -- see scripts/es_translation_review.py.
+    es_methodology_dir = SITE_DIR / "es" / "methodology"
+    es_methodology_dir.mkdir(parents=True, exist_ok=True)
+    (es_methodology_dir / "index.html").write_text(
+        build_methodology_page(records, real_today, lang="es"), encoding="utf-8"
+    )
+    print(f"wrote {SITE_DIR.name}/es/methodology/index.html")
 
     changelog_dir = SITE_DIR / "changelog"
     changelog_dir.mkdir(parents=True, exist_ok=True)

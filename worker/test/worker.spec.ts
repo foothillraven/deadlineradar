@@ -281,6 +281,23 @@ describe("POST /subscribe -- happy path (capture + confirmation-email path)", ()
     // derived from the hyphenated state_slug.
     expect(await nmResp.text()).toContain("New Mexico needs a valid birth month.");
   });
+
+  it("2026-08-18: Arizona signup persists only the derived parity (PII minimization, same as California) via the shared birth-month+year path", async () => {
+    const email = `az-parity-${Date.now()}@example.com`;
+    const resp = await postSubscribe({ email, state: "arizona", birth_month: "5", birth_year: "1991" }, "203.0.113.38");
+    expect(resp.status).toBe(200);
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
+    expect(row?.state_slug).toBe("arizona");
+    // 1991 is odd -- only "odd" is stored, the full birth year is discarded.
+    expect(JSON.parse(row?.deadline_fields ?? "{}")).toEqual({ birth_month: "5", birth_year_parity: "odd" });
+    expect(row?.deadline_fields).not.toContain("1991");
+  });
+
+  it("2026-08-18: rejects a missing birth year for Arizona with the correct state display name (not California's)", async () => {
+    const resp = await postSubscribe({ email: `az-noyear-${Date.now()}@example.com`, state: "arizona", birth_month: "5" }, "203.0.113.39");
+    expect(resp.status).toBe(400);
+    expect(await resp.text()).toContain("Arizona needs your birth month and birth year.");
+  });
 });
 
 describe("POST /subscribe -- validation", () => {
@@ -3203,6 +3220,17 @@ describe("deadlines.ts", () => {
       "2026-09-30"
     );
     expect(computeSubscriberDeadline("oklahoma", {}, asOf)).toBeNull();
+  });
+
+  it("2026-08-18: computeSubscriberDeadline resolves Arizona (birth-month + birth-year-parity, same mechanism as California)", () => {
+    const asOf = new Date("2026-07-03T00:00:00Z");
+    expect(computeSubscriberDeadline("arizona", { birth_month: "5", birth_year_parity: "odd" }, asOf)?.toISOString().slice(0, 10)).toBe(
+      "2027-05-31"
+    );
+    expect(computeSubscriberDeadline("arizona", { birth_month: "5", birth_year_parity: "even" }, asOf)?.toISOString().slice(0, 10)).toBe(
+      "2028-05-31"
+    );
+    expect(computeSubscriberDeadline("arizona", { birth_month: "5" }, asOf)).toBeNull();
   });
 
   it("checkDataFreshness throws StaleDataError once data is older than the threshold", () => {

@@ -235,7 +235,7 @@ export const SUPPORTED_STATE_SLUGS: ReadonlySet<string> = new Set(DATA.records.m
 // on which fields to show/require and signup 400s in that state.
 const FIELD_COMPUTED_STATES = new Set([
   "california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska", "idaho",
-  "oklahoma", "new-mexico",
+  "oklahoma", "new-mexico", "arizona",
 ]);
 
 /** Whether the worker can EVER derive a deadline for this state from state
@@ -263,7 +263,10 @@ export function computeSubscriberDeadline(
   const stateRecords = DATA.records.filter((r) => r.state_slug === stateSlug);
   if (stateRecords.length === 0) return null;
 
-  if (stateSlug === "california") {
+  if (stateSlug === "california" || stateSlug === "arizona") {
+    // Arizona added 2026-08-18 (AuditLab DNC sweep) -- same birth-month +
+    // birth-year-parity mechanism as California, see
+    // BIRTH_MONTH_YEAR_PARITY_STATES' comment in generate.py.
     const month = deadlineFields.birth_month;
     const parity = deadlineFields.birth_year_parity;
     if (!month || (parity !== "odd" && parity !== "even")) return null;

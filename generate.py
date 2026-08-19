@@ -215,7 +215,7 @@ SSO_PROVIDERS = [p.strip() for p in os.environ.get("DR_SSO_PROVIDERS", "google")
 # any state whose records are ALL null/gapped hits the identical failure mode.
 _WORKER_FIELD_COMPUTED_STATES = {
     "california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska", "idaho",
-    "oklahoma", "new-mexico",
+    "oklahoma", "new-mexico", "arizona",
 }
 
 
@@ -3148,7 +3148,7 @@ def _extra_fields_html(state_slug: str, records: list[dict], as_of: date) -> str
   min="{fmt_date_iso(min_date)}" max="{fmt_date_iso(max_date)}" required>
 <p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
 up automatically, so we'll remind you based on the date you give us.</p>"""
-    if state_slug == "california":
+    if state_slug == "california" or state_slug in BIRTH_MONTH_YEAR_PARITY_STATES:
         return f"""<div class="signup-form-row">
   <div>
     <label for="birth_month">Birth month</label>
@@ -4716,6 +4716,57 @@ def render_birth_month_annual_state(record: dict, as_of: date) -> str:
 {_birth_month_finder_js(needs_year=False)}"""
 
 
+# 2026-08-18 (AuditLab DNC sweep): Arizona individual renews on BOTH a
+# birth-month AND a birth-year-parity axis together (A.A.C. R4-1-345(B)(1))
+# -- California's exact table shape (12 months x odd/even birth-year
+# columns), not Kansas's single-fixed-month/day shape. Deliberately NOT
+# reusing render_california/build_california_table directly, same
+# "don't touch an already-verified page" reasoning as
+# BIRTH_MONTH_ANNUAL_STATES above -- a thin, separate generic pair here
+# instead (same underlying next_birth_month_parity_date() math).
+BIRTH_MONTH_YEAR_PARITY_STATES: set[str] = {"arizona"}
+
+
+def build_birth_month_year_parity_table(as_of: date) -> list[dict]:
+    rows = []
+    for m in range(1, 13):
+        odd_d = next_birth_month_parity_date(as_of, m, "odd")
+        even_d = next_birth_month_parity_date(as_of, m, "even")
+        rows.append({
+            "month": MONTH_NAMES[m - 1],
+            "odd_birth_year_next_deadline": fmt_date(odd_d),
+            "even_birth_year_next_deadline": fmt_date(even_d),
+        })
+    return rows
+
+
+def render_birth_month_year_parity_state(record: dict, as_of: date) -> str:
+    table = build_birth_month_year_parity_table(as_of)
+    rows = "\n".join(
+        f'<tr data-month="{i}"><td>{esc(r["month"])}</td><td>{esc(r["odd_birth_year_next_deadline"])}</td>'
+        f'<td>{esc(r["even_birth_year_next_deadline"])}</td></tr>'
+        for i, r in enumerate(table, start=1)
+    )
+    return f"""<div class="callout">
+  <p class="rule">{esc(record['cycle_description'])}</p>
+  <p><strong>Enter your birth month and year below</strong> to see your date instantly, or
+  look up your row in the full table yourself.</p>
+  {_callout_cite_html(record)}
+</div>
+{_birth_month_finder_html(needs_year=True)}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Birth month</th><th>Next deadline (odd birth year)</th><th>Next deadline (even birth year)</th></tr></thead>
+    <tbody>
+    {rows}
+    </tbody>
+  </table>
+</div>
+<p>Example: born in March of an odd year (e.g. 1985)? Your next deadline is the
+odd-birth-year date on the March row.</p>
+{_birth_month_finder_js(needs_year=True)}"""
+
+
 def render_ohio(record: dict) -> str:
     rows = "\n".join(
         f"<tr><td>{esc(g['group'])}</td><td>{', '.join(str(y) for y in g['years'])}</td>"
@@ -4794,6 +4845,38 @@ def render_cohort_group_record(record: dict) -> str:
   </table>
 </div>
 {footer}"""
+
+
+def _render_records_computed_cohort_gapped(records: list[dict]) -> str:
+    """The generic 3-way fallback (computed / cohort-groups / honest gap) --
+    shared by build_state_page()'s plain else-branch AND every special-shape
+    dispatch branch above it (PARITY_LOOKUP_STATES, BIRTH_MONTH_ANNUAL_STATES,
+    BIRTH_MONTH_YEAR_PARITY_STATES) for whichever records on the page AREN'T
+    the one record that special shape's own render function already handled.
+
+    2026-08-18 fix: each special-shape branch used to only re-render an
+    ALREADY-COMPUTED "other" record (e.g. Kansas's firm permit) and silently
+    dropped anything else -- safe by coincidence for Kansas/Kentucky/Oregon/
+    Nebraska/Idaho (every one of THEIR firm records happened to already be
+    computed), but the moment a state combining this shape with a genuinely
+    still-unconfirmed sibling record shipped (New Mexico's firm permit,
+    Oklahoma's -- wait, Oklahoma's firm actually IS computed; New Mexico's
+    isn't), that sibling record vanished from the page entirely instead of
+    showing "Date not confirmed" -- caught live on New Mexico right after
+    shipping. One shared function now, so every current and future
+    special-shape branch gets the full fallback automatically."""
+    computed = [r for r in records if r.get("next_deadline_computed")]
+    cohort_records = [r for r in records if not r.get("next_deadline_computed") and r.get("cohort_groups")]
+    gapped = [
+        r for r in records
+        if not r.get("next_deadline_computed") and not r.get("cohort_groups")
+    ]
+    html = render_simple_deadline_records(computed) if computed else ""
+    for r in cohort_records:
+        html += "\n" + render_cohort_group_record(r)
+    if gapped:
+        html += "\n" + render_data_gap_records(gapped)
+    return html
 
 
 def render_california(record: dict, as_of: date) -> str:
@@ -5120,45 +5203,42 @@ def build_state_page(
     elif state_slug == "new-york":
         deadline_html = render_new_york(records[0])
     elif state_slug in PARITY_LOOKUP_STATES:
-        # Kansas/Kentucky/Oregon/Nebraska each also carry a separate firm
-        # record with its own real next_deadline_computed (e.g. Kansas's
-        # firm permit is a fixed date, unrelated to the individual's
-        # certificate-parity rule) -- render the parity lookup for the
-        # cohort-groups (individual) record, then fall through to the
-        # ordinary computed-record renderer for any other records on the
-        # same page, same as the generic else-branch below would.
+        # Kansas/Kentucky/Oregon/Nebraska/Idaho each also carry a separate
+        # firm record -- render the parity lookup for the cohort-groups
+        # (individual) record, then render whatever's left on the page via
+        # the same full computed/cohort/gapped fallback the generic
+        # else-branch below uses (2026-08-18 fix: this used to only handle
+        # an already-computed "other" record, so a firm record that's
+        # itself still an honest data-gap -- e.g. New Mexico's, Arizona's --
+        # silently vanished from the page instead of showing "Date not
+        # confirmed". Caught live on New Mexico after shipping the sibling
+        # BIRTH_MONTH_ANNUAL_STATES branch below with the same bug).
         parity_record = next((r for r in records if r.get("cohort_groups")), None)
-        other_computed = [r for r in records if r.get("next_deadline_computed")]
         deadline_html = render_parity_lookup_state(state_slug, parity_record, as_of) if parity_record else ""
-        if other_computed:
-            deadline_html += "\n" + render_simple_deadline_records(other_computed)
+        other_records = [r for r in records if r is not parity_record]
+        if other_records:
+            deadline_html += "\n" + _render_records_computed_cohort_gapped(other_records)
     elif state_slug in BIRTH_MONTH_ANNUAL_STATES:
-        # Same shape as PARITY_LOOKUP_STATES' dispatch just above: render the
-        # birth-month lookup for the record marked as this shape, then fall
-        # through to the ordinary computed-record renderer for any other
-        # records on the same page (e.g. Oklahoma's firm registration, a
-        # separate fixed-calendar rule already computed).
+        # Same shape and same 2026-08-18 fix as PARITY_LOOKUP_STATES' branch
+        # just above.
         bma_record = next(
             (r for r in records if r.get("computation", {}).get("type") == "birth_month_annual"), None
         )
-        other_computed = [r for r in records if r.get("next_deadline_computed")]
         deadline_html = render_birth_month_annual_state(bma_record, as_of) if bma_record else ""
-        if other_computed:
-            deadline_html += "\n" + render_simple_deadline_records(other_computed)
+        other_records = [r for r in records if r is not bma_record]
+        if other_records:
+            deadline_html += "\n" + _render_records_computed_cohort_gapped(other_records)
+    elif state_slug in BIRTH_MONTH_YEAR_PARITY_STATES:
+        # Same shape and same 2026-08-18 fix as the two branches above.
+        bmyp_record = next(
+            (r for r in records if r.get("computation", {}).get("type") == "birth_month_parity"), None
+        )
+        deadline_html = render_birth_month_year_parity_state(bmyp_record, as_of) if bmyp_record else ""
+        other_records = [r for r in records if r is not bmyp_record]
+        if other_records:
+            deadline_html += "\n" + _render_records_computed_cohort_gapped(other_records)
     else:
-        computed = [r for r in records if r.get("next_deadline_computed")]
-        cohort_records = [
-            r for r in records if not r.get("next_deadline_computed") and r.get("cohort_groups")
-        ]
-        gapped = [
-            r for r in records
-            if not r.get("next_deadline_computed") and not r.get("cohort_groups")
-        ]
-        deadline_html = render_simple_deadline_records(computed)
-        for r in cohort_records:
-            deadline_html += "\n" + render_cohort_group_record(r)
-        if gapped:
-            deadline_html += "\n" + render_data_gap_records(gapped)
+        deadline_html = _render_records_computed_cohort_gapped(records)
 
     related_html = _related_states_html(state_slug, records, by_slug) if by_slug else ""
     nearby_html = _nearby_states_html(state_slug, by_slug) if by_slug else ""

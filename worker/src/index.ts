@@ -944,11 +944,15 @@ function resolveDeadlineInput(stateSlug: string, form: Record<string, string>): 
   const computable = isStateComputable(stateSlug);
 
   if (computable) {
-    if (stateSlug === "california") {
+    if (stateSlug === "california" || stateSlug === "arizona") {
+      // Arizona added 2026-08-18 (AuditLab DNC sweep) -- same birth-month +
+      // birth-year-parity mechanism as California, see
+      // BIRTH_MONTH_YEAR_PARITY_STATES' comment in generate.py.
+      const stateDisplayName = stateSlug === "arizona" ? "Arizona" : "California";
       const birthMonth = form.birth_month;
       const birthYear = form.birth_year;
       if (!birthMonth || !birthYear || birthYear.length > 4 || !/^\d+$/.test(birthYear)) {
-        return errorPage(400, "California needs your birth month and birth year.");
+        return errorPage(400, `${stateDisplayName} needs your birth month and birth year.`);
       }
       const birthMonthInt = strictParseInt(birthMonth);
       const birthYearInt = strictParseInt(birthYear);
@@ -960,7 +964,7 @@ function resolveDeadlineInput(stateSlug: string, form: Record<string, string>): 
         birthYearInt < 1900 ||
         birthYearInt > 2100
       ) {
-        return errorPage(400, "California needs a valid birth month and birth year.");
+        return errorPage(400, `${stateDisplayName} needs a valid birth month and birth year.`);
       }
       // Only the odd/even parity is ever persisted -- the full birth year is
       // used transiently right here and discarded (PII minimization), same

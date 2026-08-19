@@ -4998,6 +4998,100 @@ def render_anchor_year_term_records(records: list[dict], as_of: date) -> str:
     return "\n".join(blocks)
 
 
+# 2026-08-19 (AuditLab DNC sweep): New Mexico firm permits (NMSA 1978,
+# 61-28B-13(E)) also fix ONE shared month/day (June 30) with a personal
+# anchor year -- but unlike Washington/Puerto Rico, the TERM ITSELF varies
+# per permit (1 or 2 years, printed on the firm's own permit), not a fixed
+# state-wide constant. So this can't reuse ANCHOR_YEAR_TERM_STATES's rolling
+# "advance by a fixed term_years until >= as_of" logic -- there's no stable
+# term to roll forward BY beyond the one cycle the firm's permit actually
+# tells them. Deliberately a single-shot calculation (anchor_year + the
+# CHOSEN term, once), same honesty posture as the "bring your own future
+# date" license_expiration_date pattern elsewhere on this site: if that one
+# computed date has already passed, we say so rather than guess a further
+# rollover. Keyed by record id (only nm-firm today, but written the same
+# shape as ANCHOR_YEAR_TERM_STATES in case another state needs it).
+ANCHOR_YEAR_CHOSEN_TERM_STATES: dict[str, dict] = {
+    "nm-firm": {
+        "month": 6, "day": 30, "term_options": [1, 2],
+        "anchor_label": "Year your firm's permit was last issued or renewed",
+        "term_label": "Term length printed on that permit",
+    },
+}
+
+
+def _anchor_year_chosen_term_html(record_id: str) -> str:
+    cfg = ANCHOR_YEAR_CHOSEN_TERM_STATES[record_id]
+    term_options_html = "\n      ".join(
+        f'<option value="{t}">{t} year{"s" if t != 1 else ""}</option>' for t in cfg["term_options"]
+    )
+    return f"""<form class="signup-form signup-form--compact" onsubmit="return false" aria-label="Find your renewal date">
+  <div class="signup-form-row">
+    <div>
+      <label for="dr-ayct-{record_id}-year">{esc(cfg['anchor_label'])}</label>
+      <input type="number" inputmode="numeric" id="dr-ayct-{record_id}-year" placeholder="e.g. 2025" min="1900" max="2100">
+    </div>
+    <div>
+      <label for="dr-ayct-{record_id}-term">{esc(cfg['term_label'])}</label>
+      <select id="dr-ayct-{record_id}-term">
+        <option value="">Select&hellip;</option>
+      {term_options_html}
+      </select>
+    </div>
+    <div><button type="button" id="dr-ayct-{record_id}-go">Show my date</button></div>
+  </div>
+</form>
+<p id="dr-ayct-{record_id}-result" class="dr-bf-result" hidden></p>"""
+
+
+def _anchor_year_chosen_term_js(record_id: str, as_of: date) -> str:
+    cfg = ANCHOR_YEAR_CHOSEN_TERM_STATES[record_id]
+    return f"""<script>
+(function() {{
+  var yearInput = document.getElementById('dr-ayct-{record_id}-year');
+  var termSelect = document.getElementById('dr-ayct-{record_id}-term');
+  var goBtn = document.getElementById('dr-ayct-{record_id}-go');
+  var result = document.getElementById('dr-ayct-{record_id}-result');
+  var month = {cfg['month']}, day = {cfg['day']};
+  var asOf = new Date(Date.UTC({as_of.year}, {as_of.month - 1}, {as_of.day}));
+  var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  function fmt(d) {{ return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear(); }}
+  function show() {{
+    var y = parseInt(yearInput.value, 10);
+    var term = parseInt(termSelect.value, 10);
+    if (!y || y < 1900 || y > 2100 || (term !== 1 && term !== 2)) {{
+      result.hidden = false;
+      result.textContent = 'Enter your anchor year and term length to see your date.';
+      return;
+    }}
+    var d = new Date(Date.UTC(y + term, month - 1, day));
+    result.hidden = false;
+    if (d.getTime() < asOf.getTime()) {{
+      result.textContent = 'That date has already passed -- check the most recent firm permit for its exact renewal date.';
+    }} else {{
+      result.textContent = 'Your next renewal: ' + fmt(d);
+    }}
+  }}
+  goBtn.addEventListener('click', show);
+  yearInput.addEventListener('input', show);
+  termSelect.addEventListener('change', show);
+}})();
+</script>"""
+
+
+def render_anchor_year_chosen_term_record(record: dict, as_of: date) -> str:
+    record_id = record["id"]
+    return f"""<div class="callout">
+  <div class="label">{esc(record['license_type_label'])}</div>
+  <p class="rule">{esc(record['cycle_description'])}</p>
+  <p><strong>Enter the anchor year and term length below</strong> to see the exact next deadline
+  instantly.</p>
+  {_callout_cite_html(record)}
+</div>
+{_anchor_year_chosen_term_html(record_id)}
+{_anchor_year_chosen_term_js(record_id, as_of)}"""
+
+
 def render_ohio(record: dict) -> str:
     rows = "\n".join(
         f"<tr><td>{esc(g['group'])}</td><td>{', '.join(str(y) for y in g['years'])}</td>"
@@ -5457,6 +5551,20 @@ def build_state_page(
         )
         deadline_html = render_birth_month_annual_state(bma_record, as_of) if bma_record else ""
         other_records = [r for r in records if r is not bma_record]
+        # 2026-08-19: New Mexico is the first state where the individual
+        # record (birth_month_annual) and the firm record
+        # (anchor_year_chosen_term) need TWO DIFFERENT special renderers on
+        # the same page -- check other_records against every other
+        # record-id-keyed special dict too, not just the generic
+        # computed/cohort/gapped fallback, or the second special shape
+        # silently reverts to "Date not confirmed" the same way the
+        # 2026-08-18 bug did.
+        ayct_records = [r for r in other_records if r["id"] in ANCHOR_YEAR_CHOSEN_TERM_STATES]
+        if ayct_records:
+            deadline_html += "\n" + "\n".join(
+                render_anchor_year_chosen_term_record(r, as_of) for r in ayct_records
+            )
+            other_records = [r for r in other_records if r not in ayct_records]
         if other_records:
             deadline_html += "\n" + _render_records_computed_cohort_gapped(other_records)
     elif state_slug in BIRTH_MONTH_YEAR_PARITY_STATES:

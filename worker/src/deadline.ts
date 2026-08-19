@@ -116,6 +116,22 @@ export function nextAnnualMonthEnd(asOf: Date, month: number): Date {
   return d;
 }
 
+/** generate.py's `next_anchor_date_plus_term()` -- New Hampshire/Northern
+ * Mariana Islands's exact-N-years-from-your-own-date shape, added
+ * 2026-08-18. No separate fixed month/day: the anchor's own month/day
+ * carries forward unchanged, only the year advances by termYears at a
+ * time. Feb 29 anchors fall back to Feb 28 in a non-leap target year. */
+export function nextAnchorDatePlusTerm(anchor: Date, termYears: number, asOf: Date): Date {
+  const today = startOfUtcDay(asOf);
+  let d = anchor;
+  while (d.getTime() < today.getTime()) {
+    const targetYear = d.getUTCFullYear() + termYears;
+    const day = Math.min(d.getUTCDate(), monthLastDay(targetYear, d.getUTCMonth() + 1));
+    d = utcDate(targetYear, d.getUTCMonth() + 1, day);
+  }
+  return d;
+}
+
 export class StaleDataError extends Error {}
 
 function ageDaysFromAsOf(realToday: Date): number {
@@ -235,7 +251,7 @@ export const SUPPORTED_STATE_SLUGS: ReadonlySet<string> = new Set(DATA.records.m
 // on which fields to show/require and signup 400s in that state.
 const FIELD_COMPUTED_STATES = new Set([
   "california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska", "idaho",
-  "oklahoma", "new-mexico", "arizona",
+  "oklahoma", "new-mexico", "arizona", "new-hampshire", "northern-mariana-islands",
 ]);
 
 /** Whether the worker can EVER derive a deadline for this state from state
@@ -273,6 +289,17 @@ export function computeSubscriberDeadline(
     const monthInt = Number.parseInt(month, 10);
     if (!Number.isInteger(monthInt)) return null;
     return nextBirthMonthParityDate(asOf, monthInt, parity);
+  }
+
+  if (stateSlug === "new-hampshire" || stateSlug === "northern-mariana-islands") {
+    // ANCHOR_DATE_PLUS_TERM_STATES -- no fixed month/day, the anchor's own
+    // month/day carries forward, see generate.py's comment.
+    const ANCHOR_TERM_YEARS: Record<string, number> = { "new-hampshire": 2, "northern-mariana-islands": 3 };
+    const anchorDateStr = deadlineFields.anchor_date;
+    if (!anchorDateStr || !/^\d{4}-\d{2}-\d{2}$/.test(anchorDateStr)) return null;
+    const anchor = new Date(`${anchorDateStr}T00:00:00Z`);
+    if (Number.isNaN(anchor.getTime())) return null;
+    return nextAnchorDatePlusTerm(anchor, ANCHOR_TERM_YEARS[stateSlug] as number, asOf);
   }
 
   if (stateSlug === "texas" || stateSlug === "oklahoma" || stateSlug === "new-mexico") {

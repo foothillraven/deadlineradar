@@ -975,6 +975,33 @@ function resolveDeadlineInput(stateSlug: string, form: Record<string, string>): 
         deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
         userDeadline: null,
       };
+    } else if (stateSlug === "new-hampshire" || stateSlug === "northern-mariana-islands") {
+      // ANCHOR_DATE_PLUS_TERM_STATES (2026-08-18, AuditLab DNC sweep) -- no
+      // fixed month/day, exactly N years from the licensee's own last
+      // issuance/renewal date. Unlike license_expiration_date's "bring your
+      // own FUTURE date" (a raw pass-through), this is a PAST anchor date
+      // the worker computes forward from -- see generate.py's comment.
+      const anchorStateNames: Record<string, string> = { "new-hampshire": "New Hampshire", "northern-mariana-islands": "Northern Mariana Islands" };
+      const anchorDisplayName = anchorStateNames[stateSlug] as string;
+      const rawAnchor = (form.anchor_date ?? "").trim();
+      const parsedAnchor = parseStrictIsoDate(rawAnchor);
+      if (!parsedAnchor) {
+        return errorPage(400, `${anchorDisplayName} needs a valid issuance or renewal date.`);
+      }
+      const nowForAnchor = new Date();
+      const todayUtcForAnchor = new Date(Date.UTC(nowForAnchor.getUTCFullYear(), nowForAnchor.getUTCMonth(), nowForAnchor.getUTCDate()));
+      if (parsedAnchor.getTime() > todayUtcForAnchor.getTime()) {
+        return errorPage(400, `${anchorDisplayName} needs a date that already happened -- your last issuance or renewal, not a future date.`);
+      }
+      const minAnchorDate = new Date(todayUtcForAnchor.getTime() - 366 * 10 * 86_400_000);
+      if (parsedAnchor.getTime() < minAnchorDate.getTime()) {
+        return errorPage(400, `That date looks too far in the past -- please double-check your license.`);
+      }
+      return {
+        deadlineFields: { anchor_date: rawAnchor },
+        deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+        userDeadline: null,
+      };
     } else if (stateSlug === "texas" || stateSlug === "oklahoma" || stateSlug === "new-mexico") {
       // Oklahoma/New Mexico individual added 2026-08-18 (AuditLab DNC sweep)
       // -- same pure birth-month-annual mechanism as Texas, see
@@ -4994,7 +5021,7 @@ function stringFieldsOf(body: Record<string, unknown>): Record<string, string> {
   return out;
 }
 
-const DEADLINE_FIELD_KEYS = ["birth_month", "birth_year", "cohort_group", "parity_number", "license_type_id", "license_expiration_date"];
+const DEADLINE_FIELD_KEYS = ["birth_month", "birth_year", "cohort_group", "parity_number", "license_type_id", "license_expiration_date", "anchor_date"];
 
 /** The dashboard's clean status vocabulary (loosely mirrors generate.py's
  * illustrative _MOCKUP_STATUS_CLASS terminology -- Confirmed/Pending/Needs

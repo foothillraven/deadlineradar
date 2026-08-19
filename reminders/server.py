@@ -323,20 +323,23 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         deadline_fields: dict = {}
-        if state_slug == "california":
+        if state_slug in ("california", "arizona"):
+            # Arizona added 2026-08-18 (AuditLab DNC sweep) -- same shape as
+            # California.
+            state_display = "Arizona" if state_slug == "arizona" else "California"
             birth_month = form.get("birth_month")
             birth_year = form.get("birth_year")
             if not birth_month or not birth_year or len(birth_year) > 4 or not birth_year.isdigit():
-                self._error_page(400, "California needs your birth month and birth year.")
+                self._error_page(400, f"{state_display} needs your birth month and birth year.")
                 return
             try:
                 birth_month_int = int(birth_month)
                 birth_year_int = int(birth_year)
             except ValueError:
-                self._error_page(400, "California needs a valid birth month and birth year.")
+                self._error_page(400, f"{state_display} needs a valid birth month and birth year.")
                 return
             if not (1 <= birth_month_int <= 12) or not (1900 <= birth_year_int <= 2100):
-                self._error_page(400, "California needs a valid birth month and birth year.")
+                self._error_page(400, f"{state_display} needs a valid birth month and birth year.")
                 return
             # We ask for the user's actual birth year (natural to answer)
             # but only ever PERSIST the odd/even parity the deadline math
@@ -344,18 +347,21 @@ class Handler(BaseHTTPRequestHandler):
             # and discarded, never written to storage (PII minimization).
             parity = "odd" if birth_year_int % 2 == 1 else "even"
             deadline_fields = {"birth_month": str(birth_month_int), "birth_year_parity": parity}
-        elif state_slug == "texas":
+        elif state_slug in ("texas", "oklahoma", "new-mexico"):
+            # Oklahoma/New Mexico individual added 2026-08-18 -- same shape
+            # as Texas.
+            state_display = {"texas": "Texas", "oklahoma": "Oklahoma", "new-mexico": "New Mexico"}[state_slug]
             birth_month = form.get("birth_month")
             if not birth_month:
-                self._error_page(400, "Texas needs your birth month.")
+                self._error_page(400, f"{state_display} needs your birth month.")
                 return
             try:
                 birth_month_int = int(birth_month)
             except ValueError:
-                self._error_page(400, "Texas needs a valid birth month.")
+                self._error_page(400, f"{state_display} needs a valid birth month.")
                 return
             if not (1 <= birth_month_int <= 12):
-                self._error_page(400, "Texas needs a valid birth month.")
+                self._error_page(400, f"{state_display} needs a valid birth month.")
                 return
             deadline_fields = {"birth_month": str(birth_month_int)}
         elif state_slug == "ohio":
@@ -384,6 +390,27 @@ class Handler(BaseHTTPRequestHandler):
             if state_slug == "nebraska":
                 is_odd = not is_odd
             deadline_fields = {"parity": "odd" if is_odd else "even"}
+        elif state_slug in ("new-hampshire", "northern-mariana-islands"):
+            # ANCHOR_DATE_PLUS_TERM_STATES, added 2026-08-18 -- no fixed
+            # month/day, exactly N years from the licensee's own last
+            # issuance/renewal date. Unlike license_expiration_date's "bring
+            # your own FUTURE date", this is a PAST anchor date the site
+            # computes forward from.
+            state_display = {"new-hampshire": "New Hampshire", "northern-mariana-islands": "Northern Mariana Islands"}[state_slug]
+            raw_anchor = (form.get("anchor_date") or "").strip()
+            try:
+                parsed_anchor = date.fromisoformat(raw_anchor)
+            except ValueError:
+                self._error_page(400, f"{state_display} needs a valid issuance or renewal date.")
+                return
+            today = date.today()
+            if parsed_anchor > today:
+                self._error_page(400, f"{state_display} needs a date that already happened -- your last issuance or renewal, not a future date.")
+                return
+            if (today - parsed_anchor).days > 366 * 10:
+                self._error_page(400, "That date looks too far in the past -- please double-check your license.")
+                return
+            deadline_fields = {"anchor_date": raw_anchor}
         elif form.get("license_type_id"):
             license_type_id = form.get("license_type_id")
             if len(license_type_id) > MAX_FIELD_LEN:

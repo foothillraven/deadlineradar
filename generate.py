@@ -215,7 +215,7 @@ SSO_PROVIDERS = [p.strip() for p in os.environ.get("DR_SSO_PROVIDERS", "google")
 # any state whose records are ALL null/gapped hits the identical failure mode.
 _WORKER_FIELD_COMPUTED_STATES = {
     "california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska", "idaho",
-    "oklahoma", "new-mexico", "arizona",
+    "oklahoma", "new-mexico", "arizona", "new-hampshire", "northern-mariana-islands",
 }
 
 
@@ -312,6 +312,28 @@ def next_annual_month_end(as_of: date, month: int) -> date:
     d = date(as_of.year, month, month_last_day(as_of.year, month))
     if d < as_of:
         d = date(as_of.year + 1, month, month_last_day(as_of.year + 1, month))
+    return d
+
+
+def next_anchor_date_plus_term(anchor: date, term_years: int, as_of: date) -> date:
+    """2026-08-18 (AuditLab DNC sweep): New Hampshire (RSA 310:8, II) and
+    Northern Mariana Islands (Public Law 13-52 Sec. 6(b)/7(b)) both renew
+    EXACTLY `term_years` years after the licensee's own last issuance or
+    renewal date -- no separate fixed month/day the way Kansas/Washington/
+    Maryland have; the anchor date's own month/day carries forward
+    unchanged. Rolls forward in whole `term_years` increments from `anchor`
+    until reaching a date on or after `as_of` (a date due today has not
+    passed, same "due today" principle as next_fixed_date_parity()). Feb 29
+    anchors fall back to Feb 28 in a non-leap target year, standard
+    date-arithmetic convention -- rare in practice (needs an anchor of Feb
+    29 specifically) but must not raise."""
+    d = anchor
+    while d < as_of:
+        target_year = d.year + term_years
+        try:
+            d = d.replace(year=target_year)
+        except ValueError:
+            d = d.replace(year=target_year, day=28)  # Feb 29 -> Feb 28 in a non-leap year
     return d
 
 
@@ -3148,6 +3170,18 @@ def _extra_fields_html(state_slug: str, records: list[dict], as_of: date) -> str
   min="{fmt_date_iso(min_date)}" max="{fmt_date_iso(max_date)}" required>
 <p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
 up automatically, so we'll remind you based on the date you give us.</p>"""
+    if state_slug in ANCHOR_DATE_PLUS_TERM_STATES:
+        # Distinct from "bring your own date" above: this one is REAL
+        # computation (anchor + a fixed term, rolled forward), not a raw
+        # pass-through -- the worker recomputes forward from this anchor on
+        # every future cycle too, same as every other computed state.
+        min_date = as_of - timedelta(days=366 * 10)
+        max_date = as_of
+        return f"""<label for="anchor_date">Last issuance or renewal date</label>
+<input type="date" id="anchor_date" name="anchor_date"
+  min="{fmt_date_iso(min_date)}" max="{fmt_date_iso(max_date)}" required>
+<p class="field-hint">Your renewal cycle is exactly {ANCHOR_DATE_PLUS_TERM_STATES[state_slug]['term_years']}
+years after this date, same month and day, repeating.</p>"""
     if state_slug == "california" or state_slug in BIRTH_MONTH_YEAR_PARITY_STATES:
         return f"""<div class="signup-form-row">
   <div>
@@ -4767,6 +4801,82 @@ odd-birth-year date on the March row.</p>
 {_birth_month_finder_js(needs_year=True)}"""
 
 
+# 2026-08-18 (AuditLab DNC sweep): New Hampshire (RSA 310:8, II) and
+# Northern Mariana Islands (Public Law 13-52 Sec. 6(b)/7(b)) both renew
+# EXACTLY `term_years` after the licensee's/firm's own last issuance or
+# renewal date -- no separate fixed month/day the way every OTHER
+# personalized-lookup shape on this site has (Kansas et al. fix a month/day
+# and vary the year; this shape's month/day itself IS the personal anchor,
+# carried forward unchanged). Genuinely the simplest remaining math (plain
+# date + N years) but needs a real DATE input, not a month/parity picker --
+# its own UI shape, reusing next_anchor_date_plus_term().
+#
+# Both states cover individual AND firm with the IDENTICAL mechanism in one
+# unified record (confirmed word-for-word in AuditLab's own research for
+# CNMI: Sec. 6(b) and Sec. 7(b) are worded identically) -- unlike Guam,
+# these do NOT need splitting into separate individual/firm records.
+ANCHOR_DATE_PLUS_TERM_STATES: dict[str, dict] = {
+    "new-hampshire": {"term_years": 2},
+    "northern-mariana-islands": {"term_years": 3},
+}
+
+
+def _anchor_date_term_html(state_slug: str) -> str:
+    return f"""<form class="signup-form signup-form--compact" onsubmit="return false" aria-label="Find your renewal date">
+  <div class="signup-form-row">
+    <div>
+      <label for="dr-adt-date">Last issuance or renewal date</label>
+      <input type="date" id="dr-adt-date">
+    </div>
+    <div><button type="button" id="dr-adt-go">Show my date</button></div>
+  </div>
+</form>
+<p id="dr-adt-result" class="dr-bf-result" hidden></p>"""
+
+
+def _anchor_date_term_js(state_slug: str) -> str:
+    term_years = ANCHOR_DATE_PLUS_TERM_STATES[state_slug]["term_years"]
+    return f"""<script>
+(function() {{
+  var input = document.getElementById('dr-adt-date');
+  var goBtn = document.getElementById('dr-adt-go');
+  var result = document.getElementById('dr-adt-result');
+  var termYears = {term_years};
+  var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  function fmt(d) {{ return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear(); }}
+  function addYearsClamped(d, years) {{
+    var y = d.getUTCFullYear() + years, m = d.getUTCMonth(), day = d.getUTCDate();
+    var daysInTarget = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    if (day > daysInTarget) day = daysInTarget; // Feb 29 -> Feb 28 in a non-leap year
+    return new Date(Date.UTC(y, m, day));
+  }}
+  function show() {{
+    if (!input.value) {{ result.hidden = false; result.textContent = 'Enter a date to see your next deadline.'; return; }}
+    var parts = input.value.split('-');
+    var d = new Date(Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)));
+    var today = new Date();
+    var todayUtc = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+    while (d.getTime() < todayUtc.getTime()) {{ d = addYearsClamped(d, termYears); }}
+    result.hidden = false;
+    result.textContent = 'Your next renewal: ' + fmt(d);
+  }}
+  goBtn.addEventListener('click', show);
+  input.addEventListener('change', show);
+}})();
+</script>"""
+
+
+def render_anchor_date_term_state(state_slug: str, record: dict) -> str:
+    return f"""<div class="callout">
+  <p class="rule">{esc(record['cycle_description'])}</p>
+  <p><strong>Enter your last issuance or renewal date</strong> to see your exact next deadline
+  instantly -- the month and day carry forward unchanged, only the year advances.</p>
+  {_callout_cite_html(record)}
+</div>
+{_anchor_date_term_html(state_slug)}
+{_anchor_date_term_js(state_slug)}"""
+
+
 def render_ohio(record: dict) -> str:
     rows = "\n".join(
         f"<tr><td>{esc(g['group'])}</td><td>{', '.join(str(y) for y in g['years'])}</td>"
@@ -5235,6 +5345,18 @@ def build_state_page(
         )
         deadline_html = render_birth_month_year_parity_state(bmyp_record, as_of) if bmyp_record else ""
         other_records = [r for r in records if r is not bmyp_record]
+        if other_records:
+            deadline_html += "\n" + _render_records_computed_cohort_gapped(other_records)
+    elif state_slug in ANCHOR_DATE_PLUS_TERM_STATES:
+        # Same shape and same 2026-08-18 fix as the branches above -- New
+        # Hampshire/CNMI cover individual+firm in ONE unified record, so in
+        # practice there are no "other records" to fall through to, but
+        # handled the same defensive way regardless.
+        adt_record = next(
+            (r for r in records if r.get("computation", {}).get("type") == "anchor_date_plus_term"), None
+        )
+        deadline_html = render_anchor_date_term_state(state_slug, adt_record) if adt_record else ""
+        other_records = [r for r in records if r is not adt_record]
         if other_records:
             deadline_html += "\n" + _render_records_computed_cohort_gapped(other_records)
     else:

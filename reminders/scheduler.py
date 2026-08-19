@@ -32,6 +32,7 @@ from generate import (  # noqa: E402
     next_birth_month_parity_date,
     next_annual_month_end,
     next_fixed_date_parity,
+    next_anchor_date_plus_term,
     fmt_date,
     STALENESS_THRESHOLD_DAYS,
 )
@@ -95,7 +96,9 @@ def compute_subscriber_deadline(subscriber: dict, as_of: date) -> tuple[date, st
         return None
     state_name = state_records[0]["state"]
 
-    if state_slug == "california":
+    if state_slug in ("california", "arizona"):
+        # Arizona added 2026-08-18 (AuditLab DNC sweep) -- same shape as
+        # California.
         month = fields.get("birth_month")
         parity = fields.get("birth_year_parity")
         if not month or parity not in ("odd", "even"):
@@ -103,7 +106,9 @@ def compute_subscriber_deadline(subscriber: dict, as_of: date) -> tuple[date, st
         d = next_birth_month_parity_date(as_of, int(month), parity)
         return d, state_name
 
-    if state_slug == "texas":
+    if state_slug in ("texas", "oklahoma", "new-mexico"):
+        # Oklahoma/New Mexico individual added 2026-08-18 -- same shape as
+        # Texas.
         month = fields.get("birth_month")
         if not month:
             return None
@@ -127,6 +132,19 @@ def compute_subscriber_deadline(subscriber: dict, as_of: date) -> tuple[date, st
             "idaho": (6, 30),
         }[state_slug]
         return next_fixed_date_parity(as_of, month, day, parity), state_name
+
+    if state_slug in ("new-hampshire", "northern-mariana-islands"):
+        # ANCHOR_DATE_PLUS_TERM_STATES, added 2026-08-18 -- no fixed
+        # month/day, exactly N years from the licensee's own anchor date.
+        anchor_str = fields.get("anchor_date")
+        if not anchor_str:
+            return None
+        try:
+            anchor = date.fromisoformat(anchor_str)
+        except ValueError:
+            return None
+        term_years = {"new-hampshire": 2, "northern-mariana-islands": 3}[state_slug]
+        return next_anchor_date_plus_term(anchor, term_years, as_of), state_name
 
     # Fixed-calendar states, possibly with multiple records (e.g. Florida's
     # odd/even cohort, Georgia's individual-vs-firm) -- the subscriber picks

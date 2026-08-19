@@ -298,6 +298,45 @@ describe("POST /subscribe -- happy path (capture + confirmation-email path)", ()
     expect(resp.status).toBe(400);
     expect(await resp.text()).toContain("Arizona needs your birth month and birth year.");
   });
+
+  it("2026-08-18: New Hampshire and CNMI signups persist the anchor_date, a real PAST date not a future one", async () => {
+    const nhEmail = `nh-anchor-${Date.now()}@example.com`;
+    const nhResp = await postSubscribe({ email: nhEmail, state: "new-hampshire", anchor_date: "2024-09-15" }, "203.0.113.40");
+    expect(nhResp.status).toBe(200);
+    const nhRow = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(nhEmail).first<SubscriberRow>();
+    expect(nhRow?.state_slug).toBe("new-hampshire");
+    expect(JSON.parse(nhRow?.deadline_fields ?? "{}")).toEqual({ anchor_date: "2024-09-15" });
+
+    const cnmiEmail = `cnmi-anchor-${Date.now()}@example.com`;
+    const cnmiResp = await postSubscribe(
+      { email: cnmiEmail, state: "northern-mariana-islands", anchor_date: "2023-03-10" },
+      "203.0.113.41"
+    );
+    expect(cnmiResp.status).toBe(200);
+    const cnmiRow = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(cnmiEmail).first<SubscriberRow>();
+    expect(cnmiRow?.state_slug).toBe("northern-mariana-islands");
+    expect(JSON.parse(cnmiRow?.deadline_fields ?? "{}")).toEqual({ anchor_date: "2023-03-10" });
+  });
+
+  it("2026-08-18: rejects a future anchor_date for New Hampshire (must be a PAST issuance/renewal date)", async () => {
+    const farFuture = new Date();
+    farFuture.setUTCFullYear(farFuture.getUTCFullYear() + 1);
+    const resp = await postSubscribe(
+      { email: `nh-future-${Date.now()}@example.com`, state: "new-hampshire", anchor_date: farFuture.toISOString().slice(0, 10) },
+      "203.0.113.42"
+    );
+    expect(resp.status).toBe(400);
+    expect(await resp.text()).toContain("needs a date that already happened");
+  });
+
+  it("2026-08-18: rejects a malformed anchor_date for CNMI with the correct state display name", async () => {
+    const resp = await postSubscribe(
+      { email: `cnmi-bad-${Date.now()}@example.com`, state: "northern-mariana-islands", anchor_date: "not-a-date" },
+      "203.0.113.43"
+    );
+    expect(resp.status).toBe(400);
+    expect(await resp.text()).toContain("Northern Mariana Islands needs a valid issuance or renewal date.");
+  });
 });
 
 describe("POST /subscribe -- validation", () => {
@@ -3231,6 +3270,27 @@ describe("deadlines.ts", () => {
       "2028-05-31"
     );
     expect(computeSubscriberDeadline("arizona", { birth_month: "5" }, asOf)).toBeNull();
+  });
+
+  it("2026-08-18: computeSubscriberDeadline resolves New Hampshire/CNMI (exact N years from your own anchor date, no fixed month/day)", () => {
+    const asOf = new Date("2026-07-03T00:00:00Z");
+    // NH: 2 years. Anchor 2024-09-15 rolls once to 2026-09-15 (still ahead of asOf).
+    expect(
+      computeSubscriberDeadline("new-hampshire", { anchor_date: "2024-09-15" }, asOf)?.toISOString().slice(0, 10)
+    ).toBe("2026-09-15");
+    // CNMI: 3 years. Anchor 2023-03-10 -> 2026-03-10 already passed asOf -> rolls again to 2029-03-10.
+    expect(
+      computeSubscriberDeadline("northern-mariana-islands", { anchor_date: "2023-03-10" }, asOf)?.toISOString().slice(0, 10)
+    ).toBe("2029-03-10");
+    expect(computeSubscriberDeadline("new-hampshire", {}, asOf)).toBeNull();
+    expect(computeSubscriberDeadline("new-hampshire", { anchor_date: "not-a-date" }, asOf)).toBeNull();
+  });
+
+  it("2026-08-18: nextAnchorDatePlusTerm falls back Feb 29 to Feb 28 in a non-leap target year", () => {
+    const asOfEarly = new Date("2026-01-01T00:00:00Z");
+    expect(
+      computeSubscriberDeadline("new-hampshire", { anchor_date: "2024-02-29" }, asOfEarly)?.toISOString().slice(0, 10)
+    ).toBe("2026-02-28");
   });
 
   it("checkDataFreshness throws StaleDataError once data is older than the threshold", () => {

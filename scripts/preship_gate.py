@@ -893,6 +893,61 @@ def check_block_claims_corroborated(repo_root: Path) -> list[str]:
     return errors
 
 
+# ---------------------------------------------------------------------------
+# HEDGE-1 (2026-08-19, Orchestrator/accuracy_plan.md section 2, dispatched
+# 2026-08-18T18:05): the direct structural fix for how New Jersey happened.
+# NJ's 2026-07-17 verification_history entry already said the njcpa.org/
+# NASBA "December 31" figure was "insufficient to publish as fact" -- but
+# the record's data_gap_note stayed null (no reader-facing caveat at all)
+# and cycle_description/citation shipped that exact unverified claim as
+# settled fact anyway. The caveat existed in the record's OWN history;
+# nothing machine-enforced it reaching the reader. Same bug shape as the
+# Stripe classifier note and the admin-digest cron this session: a
+# human-readable warning existed, nothing checked it at build time.
+#
+# Deliberately narrow, not a blanket "hedge word" scanner: a record whose
+# verification_history discusses a PAST problem it has since fixed (this
+# session alone wrote dozens of entries like "AuditLab flagged X, checked
+# it, here's the correction") must NOT trip this -- only a record that (a)
+# has hedge language ANYWHERE in its own history, AND (b) currently ships
+# with NO data_gap_note at all (i.e. presents to the reader as fully
+# confirmed, no caveat whatsoever) is the exact NJ shape: an internal
+# caveat that never reached the surface. A record with any data_gap_note,
+# however worded, has already reflected SOME caveat and is not this bug.
+_HEDGE_MARKER_RE = re.compile(
+    r"insufficient to (ship|publish)|not enough to confirm|secondary source only|"
+    r"flagged\b.{0,40}\bnot fixed",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def check_hedge_language_enforced(repo_root: Path) -> list[str]:
+    """Fail the build if a record's own verification_history flags its
+    sourcing as insufficient/unconfirmed but the record currently ships
+    with no data_gap_note -- an internal caveat that never reached the
+    reader. See HEDGE-1 above."""
+    errors = []
+    for fname, field in _BLOCK_CLAIM_DATASETS:
+        path = repo_root / "data" / fname
+        if not path.exists():
+            continue
+        for r in json.loads(path.read_text(encoding="utf-8"))["records"]:
+            history = r.get("verification_history")
+            if not isinstance(history, str) or not _HEDGE_MARKER_RE.search(history):
+                continue
+            if r.get(field):
+                continue  # data_gap_note present -- caveat already reflected, not this bug
+            errors.append(
+                f"[HEDGE1][{r.get('id')}] {fname}: verification_history flags this record's own "
+                f"sourcing as insufficient/unconfirmed ({_HEDGE_MARKER_RE.search(history).group(0)!r}), "
+                f"but {field} is empty -- the record ships with no reader-facing caveat at all. "
+                f"Either the flagged claim was never actually corrected (add {field} explaining the "
+                f"gap, same as every other unconfirmed record) or the history entry describing a "
+                f"since-fixed problem needs a follow-up entry making clear it was resolved."
+            )
+    return errors
+
+
 def check_retired_claims_absent_from_guides(repo_root: Path, html_files) -> list[str]:
     """Retired claims must not survive in hand-written guide prose either.
 
@@ -1962,6 +2017,7 @@ def main():
     all_errors += check_stale_thresholds_unified(html_files)
     all_errors += check_derived_fee_consistency(repo_root)
     all_errors += check_block_claims_corroborated(repo_root)
+    all_errors += check_hedge_language_enforced(repo_root)
     all_errors += check_retired_claims_absent(repo_root)
     all_errors += check_retired_claims_absent_from_guides(repo_root, html_files)
     all_errors += check_published_figures_link_source(html_files)

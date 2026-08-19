@@ -132,6 +132,21 @@ export function nextAnchorDatePlusTerm(anchor: Date, termYears: number, asOf: Da
   return d;
 }
 
+/** generate.py's `next_anchor_year_term()` -- Washington/Puerto Rico's ONE
+ * shared fixed month/day (varying only by the licensee's own anchor
+ * year), added 2026-08-18. An N-way modulus split (termYears=3 for both),
+ * not a 2-way odd/even split like nextFixedDateParity(). */
+export function nextAnchorYearTerm(anchorYear: number, month: number, day: number, termYears: number, asOf: Date): Date {
+  const today = startOfUtcDay(asOf);
+  let y = anchorYear;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const d = utcDate(y, month, day);
+    if (d.getTime() >= today.getTime()) return d;
+    y += termYears;
+  }
+}
+
 export class StaleDataError extends Error {}
 
 function ageDaysFromAsOf(realToday: Date): number {
@@ -252,6 +267,7 @@ export const SUPPORTED_STATE_SLUGS: ReadonlySet<string> = new Set(DATA.records.m
 const FIELD_COMPUTED_STATES = new Set([
   "california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska", "idaho",
   "oklahoma", "new-mexico", "arizona", "new-hampshire", "northern-mariana-islands",
+  "washington", "puerto-rico",
 ]);
 
 /** Whether the worker can EVER derive a deadline for this state from state
@@ -289,6 +305,22 @@ export function computeSubscriberDeadline(
     const monthInt = Number.parseInt(month, 10);
     if (!Number.isInteger(monthInt)) return null;
     return nextBirthMonthParityDate(asOf, monthInt, parity);
+  }
+
+  if (stateSlug === "washington" || stateSlug === "puerto-rico") {
+    // ANCHOR_YEAR_TERM_SIGNUP_STATES -- one shared fixed month/day per
+    // state, only the anchor YEAR is personal. Washington's individual and
+    // firm records compute identically, see generate.py's comment.
+    const ANCHOR_YEAR_TERM: Record<string, [number, number, number]> = {
+      washington: [6, 30, 3],
+      "puerto-rico": [12, 1, 3],
+    };
+    const anchorYearStr = deadlineFields.anchor_year;
+    if (!anchorYearStr) return null;
+    const anchorYearInt = Number.parseInt(anchorYearStr, 10);
+    if (!Number.isInteger(anchorYearInt) || anchorYearInt < 1900 || anchorYearInt > 2100) return null;
+    const [month, day, termYears] = ANCHOR_YEAR_TERM[stateSlug] as [number, number, number];
+    return nextAnchorYearTerm(anchorYearInt, month, day, termYears, asOf);
   }
 
   if (stateSlug === "new-hampshire" || stateSlug === "northern-mariana-islands") {

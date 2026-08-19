@@ -337,6 +337,35 @@ describe("POST /subscribe -- happy path (capture + confirmation-email path)", ()
     expect(resp.status).toBe(400);
     expect(await resp.text()).toContain("Northern Mariana Islands needs a valid issuance or renewal date.");
   });
+
+  it("2026-08-18: Washington and Puerto Rico signups persist only the anchor_year (mod-3 term, not a full date)", async () => {
+    const waEmail = `wa-anchor-${Date.now()}@example.com`;
+    const waResp = await postSubscribe({ email: waEmail, state: "washington", anchor_year: "2024" }, "203.0.113.44");
+    expect(waResp.status).toBe(200);
+    const waRow = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(waEmail).first<SubscriberRow>();
+    expect(waRow?.state_slug).toBe("washington");
+    expect(JSON.parse(waRow?.deadline_fields ?? "{}")).toEqual({ anchor_year: "2024" });
+
+    const prEmail = `pr-anchor-${Date.now()}@example.com`;
+    const prResp = await postSubscribe({ email: prEmail, state: "puerto-rico", anchor_year: "2023" }, "203.0.113.45");
+    expect(prResp.status).toBe(200);
+    const prRow = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(prEmail).first<SubscriberRow>();
+    expect(prRow?.state_slug).toBe("puerto-rico");
+    expect(JSON.parse(prRow?.deadline_fields ?? "{}")).toEqual({ anchor_year: "2023" });
+  });
+
+  it("2026-08-18: rejects a missing/invalid anchor_year for Washington and Puerto Rico, with the correct state display name", async () => {
+    const waResp = await postSubscribe({ email: `wa-noyear-${Date.now()}@example.com`, state: "washington" }, "203.0.113.46");
+    expect(waResp.status).toBe(400);
+    expect(await waResp.text()).toContain("Washington needs a valid year.");
+
+    const prResp = await postSubscribe(
+      { email: `pr-badyear-${Date.now()}@example.com`, state: "puerto-rico", anchor_year: "not-a-year" },
+      "203.0.113.47"
+    );
+    expect(prResp.status).toBe(400);
+    expect(await prResp.text()).toContain("Puerto Rico needs a valid year.");
+  });
 });
 
 describe("POST /subscribe -- validation", () => {
@@ -3291,6 +3320,20 @@ describe("deadlines.ts", () => {
     expect(
       computeSubscriberDeadline("new-hampshire", { anchor_date: "2024-02-29" }, asOfEarly)?.toISOString().slice(0, 10)
     ).toBe("2026-02-28");
+  });
+
+  it("2026-08-18: computeSubscriberDeadline resolves Washington/Puerto Rico (fixed month/day, N-way anchor-YEAR term)", () => {
+    const asOf = new Date("2026-07-03T00:00:00Z");
+    // WA: June 30, mod 3. Anchor 2024 -> 2024-06-30 already passed asOf -> rolls to 2027-06-30.
+    expect(
+      computeSubscriberDeadline("washington", { anchor_year: "2024" }, asOf)?.toISOString().slice(0, 10)
+    ).toBe("2027-06-30");
+    // PR: Dec 1, mod 3. Anchor 2023 -> 2023-12-01 passed -> rolls to 2026-12-01 (still ahead of asOf).
+    expect(
+      computeSubscriberDeadline("puerto-rico", { anchor_year: "2023" }, asOf)?.toISOString().slice(0, 10)
+    ).toBe("2026-12-01");
+    expect(computeSubscriberDeadline("washington", {}, asOf)).toBeNull();
+    expect(computeSubscriberDeadline("washington", { anchor_year: "not-a-year" }, asOf)).toBeNull();
   });
 
   it("checkDataFreshness throws StaleDataError once data is older than the threshold", () => {

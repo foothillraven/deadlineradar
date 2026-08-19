@@ -975,6 +975,23 @@ function resolveDeadlineInput(stateSlug: string, form: Record<string, string>): 
         deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
         userDeadline: null,
       };
+    } else if (stateSlug === "washington" || stateSlug === "puerto-rico") {
+      // ANCHOR_YEAR_TERM_SIGNUP_STATES (2026-08-18) -- one shared fixed
+      // month/day per state, only the anchor YEAR is personal. Washington's
+      // individual and firm records compute identically, so one field
+      // covers both -- see generate.py's comment.
+      const anchorYearStateNames: Record<string, string> = { washington: "Washington", "puerto-rico": "Puerto Rico" };
+      const anchorYearDisplayName = anchorYearStateNames[stateSlug] as string;
+      const rawAnchorYear = (form.anchor_year ?? "").trim();
+      const anchorYearInt = strictParseInt(rawAnchorYear);
+      if (anchorYearInt === null || anchorYearInt < 1900 || anchorYearInt > 2100) {
+        return errorPage(400, `${anchorYearDisplayName} needs a valid year.`);
+      }
+      return {
+        deadlineFields: { anchor_year: String(anchorYearInt) },
+        deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+        userDeadline: null,
+      };
     } else if (stateSlug === "new-hampshire" || stateSlug === "northern-mariana-islands") {
       // ANCHOR_DATE_PLUS_TERM_STATES (2026-08-18, AuditLab DNC sweep) -- no
       // fixed month/day, exactly N years from the licensee's own last
@@ -5021,7 +5038,7 @@ function stringFieldsOf(body: Record<string, unknown>): Record<string, string> {
   return out;
 }
 
-const DEADLINE_FIELD_KEYS = ["birth_month", "birth_year", "cohort_group", "parity_number", "license_type_id", "license_expiration_date", "anchor_date"];
+const DEADLINE_FIELD_KEYS = ["birth_month", "birth_year", "cohort_group", "parity_number", "license_type_id", "license_expiration_date", "anchor_date", "anchor_year"];
 
 /** The dashboard's clean status vocabulary (loosely mirrors generate.py's
  * illustrative _MOCKUP_STATUS_CLASS terminology -- Confirmed/Pending/Needs

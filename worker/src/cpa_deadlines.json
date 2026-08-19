@@ -380,18 +380,21 @@
       "license_type": "individual",
       "license_type_label": "Individual CPA License",
       "renewal_pattern": "other",
-      "cycle_description": "Triennial (3-year) renewal cycle. The Washington State Board of Accountancy (acb.wa.gov) states: 'All credentialed individuals must renew between January 1 and April 30 every three years.' Late-fee window is May 1-Jun 30 (+$100 late fee); the credential lapses effective July 1 if not renewed or retired by June 30. CPE must be completed by December 31 of the year prior to the credential's expiration (i.e. before the Jan 1-Apr 30 renewal window opens).",
+      "cycle_description": "Triennial (3-year) renewal cycle. WAC 4-30-094 fixes the deadline: your license expires on June 30 of the third calendar year following the calendar year of your renewal (or initial licensure, if you've never renewed) -- the Board's own renewal page corroborates the January 1-April 30 filing window practically, with a May 1-June 30 late-fee window (+$100) before the credential lapses. CPE must be completed by December 31 of the year prior to expiration.",
       "next_deadline_computed": null,
       "computation": {
-        "type": "unresolvable_needs_individual_expiration_year",
-        "note": "The Board confirms the renewal WINDOW (Jan 1-Apr 30) and CYCLE LENGTH (3 years) but does not publish a birth-month, last-name, or license-number rule for which of the three years a given individual falls into -- that lives only on the individual's own license record (via WA's CPA Verify lookup tool or the Board directly). Cannot be reduced to a lookup table from state-level facts alone."
+        "type": "anchor_year_term",
+        "month": 6,
+        "day": 30,
+        "term_years": 3,
+        "note": "Next deadline = June 30, (your last renewal year or initial licensure year) + a whole multiple of 3. Requires the licensee's own anchor year -- not published at the state level, but knowable from your own license record."
       },
       "source_url": "https://acb.wa.gov/individual-licensing/renewal",
-      "last_verified": "2026-08-14",
+      "last_verified": "2026-08-18",
       "wave": 4,
       "citation_url": "https://app.leg.wa.gov/wac/default.aspx?cite=4-30-094",
       "citation": "WAC 4-30-094 (renewals); RCW 18.04.215 (three-year license period); WAC 4-30-133(1) (CPE reporting period)",
-      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://app.leg.wa.gov/wac/default.aspx?cite=4-30-094.  Agent evidence: WAC 4-30-094: renewal 'expires on June 30 of the third calendar year following the calendar year of renewal'; failure to file 'by April 30th of the year of expiration will result in late fees' and failure to file 'by June 30th of the year of renewal' means the license 'will lapse' -- RCW 18.04.215 confirms 'A license is issued every three years.' WAC 4-30-133(1) sets the CPE reporting period 'ending on December 31st of the subsequent third calendar year', supporting the CPE-by-Dec-31-prior-to-expiration claim. The 'window opens January 1' detail and the $100 late-fee amount (codified at WAC 4-30-038(6)) come from board publications, not this rule's text."
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://app.leg.wa.gov/wac/default.aspx?cite=4-30-094.  Agent evidence: WAC 4-30-094: renewal 'expires on June 30 of the third calendar year following the calendar year of renewal'; failure to file 'by April 30th of the year of expiration will result in late fees' and failure to file 'by June 30th of the year of renewal' means the license 'will lapse' -- RCW 18.04.215 confirms 'A license is issued every three years.' WAC 4-30-133(1) sets the CPE reporting period 'ending on December 31st of the subsequent third calendar year', supporting the CPE-by-Dec-31-prior-to-expiration claim. The 'window opens January 1' detail and the $100 late-fee amount (codified at WAC 4-30-038(6)) come from board publications, not this rule's text.\n\n2026-08-18 (AuditLab DNC sweep + AssetLab build): checked whether this converges to a universal answer the way Maryland firm's mod-2 cycle did -- it does NOT: WA's term is 3 years (mod 3, three possible residues), with no rule forcing every licensee onto the same residue the way MD's 'always even' construction did. Genuinely needs the licensee's own anchor year. Built the interactive year-based lookup (new ANCHOR_YEAR_TERM_STATES pattern, shared with the firm record below and Puerto Rico) -- fixed month/day (June 30), only the year varies per licensee, an N-way (not 2-way) modulus split. The prior computation.type's framing ('cannot be reduced to a lookup table from state-level facts alone') was the same conflation error found repeatedly this sweep -- true there's no state-level table, but fully computable given the licensee's own anchor year."
     },
     {
       "id": "wa-firm",
@@ -400,18 +403,21 @@
       "license_type": "firm",
       "license_type_label": "CPA Firm License",
       "renewal_pattern": "other",
-      "cycle_description": "Same triennial structure as individual licenses: renewal due by April 30 every three years, $100 late fee after April 30, firm license dissolved if not renewed by June 30. The specific year within a given firm's 3-year cycle is tied to that firm's own license record, not a published statewide cohort table.",
+      "cycle_description": "Same triennial structure as individual licenses: WAC 4-30-114(2) fixes the deadline at June 30 of the third calendar year following the calendar year of your firm's renewal (or initial licensure, if never renewed) -- the Board's own page corroborates the April 30 filing window and $100 late fee practically, with dissolution if not renewed by June 30.",
       "next_deadline_computed": null,
       "computation": {
-        "type": "unresolvable_needs_individual_expiration_year",
-        "note": "Same gap as the individual record -- firm-specific, requires checking that firm's license record via the Board's licensee/firm search tool."
+        "type": "anchor_year_term",
+        "month": 6,
+        "day": 30,
+        "term_years": 3,
+        "note": "Next deadline = June 30, (your firm's last renewal year or initial licensure year) + a whole multiple of 3. Identical mechanism to the individual record -- requires the firm's own anchor year."
       },
       "source_url": "https://acb.wa.gov/firm-licensing/cpa-firm-license-renewal",
-      "last_verified": "2026-08-14",
+      "last_verified": "2026-08-18",
       "wave": 4,
       "citation_url": "https://app.leg.wa.gov/wac/default.aspx?cite=4-30-114",
       "citation": "WAC 4-30-114(2) (renewal and maintenance of a CPA firm license)",
-      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://app.leg.wa.gov/wac/default.aspx?cite=4-30-114.  Agent evidence: WAC 4-30-114(2): 'The CPA firm license will expire on June 30th of the third calendar year following the calendar year of renewal', confirming the triennial cycle and June 30 cutoff. Caveat: the rule text states no April 30 firm filing deadline and no 'dissolved' language -- the April 30 due date rests on the board's published renewal page, and the $100 late fee is codified separately at WAC 4-30-038(6)."
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://app.leg.wa.gov/wac/default.aspx?cite=4-30-114.  Agent evidence: WAC 4-30-114(2): 'The CPA firm license will expire on June 30th of the third calendar year following the calendar year of renewal', confirming the triennial cycle and June 30 cutoff. Caveat: the rule text states no April 30 firm filing deadline and no 'dissolved' language -- the April 30 due date rests on the board's published renewal page, and the $100 late fee is codified separately at WAC 4-30-038(6).\n\n2026-08-18 (AuditLab DNC sweep + AssetLab build): same convergence check and same conclusion as the individual record -- genuinely needs personalization (mod-3, no forced convergence). Built alongside the individual record via the shared ANCHOR_YEAR_TERM_STATES pattern; both records compute identically, so the signup form uses one shared anchor-year field for the whole state rather than requiring a separate license-type selection."
     },
     {
       "id": "md-individual",
@@ -1608,16 +1614,23 @@
       "license_type": "individual",
       "license_type_label": "Individual CPA",
       "renewal_pattern": "other",
-      "cycle_description": "Puerto Rico CPA licenses renew on a triennial cycle: the CPE reporting period runs August 1 - July 31 across the 3-year term, and the license-renewal application/payment window is August 1 - December 1 of the licensee's expiration year (deadline December 1, with a documented option to request an extension to December 31 for outstanding CPE). Puerto Rico's own Board of Accountancy page (under the Dept. of State) does not itself publish this cycle or the specific dates -- it states only that NASBA has been designated to provide CPA licensing services, including renewals, and directs licensees there. The exact renewal cycle/date details we found come from NASBA's own Puerto Rico renewal materials and the Colegio de CPA de Puerto Rico (the mandatory professional association, not the government licensing board), which is a weaker source than our sourcing standard requires.",
+      "cycle_description": "Puerto Rico CPA licenses renew on a triennial cycle. Ley Num. 293 de 1945, Seccion 6 (20 L.P.R.A. 779) fixes the deadline directly: the Board issues a 3-year license, and every license expires December 1 of the third year following the year it was issued, renewable for additional 3-year terms. The CPE reporting period runs August 1 - July 31 across the 3-year term, and the renewal application/payment window is August 1 - December 1 of the expiration year (with a documented option to request an extension to December 31 for outstanding CPE).",
       "next_deadline_computed": null,
+      "computation": {
+        "type": "anchor_year_term",
+        "month": 12,
+        "day": 1,
+        "term_years": 3,
+        "note": "Next deadline = December 1, (the year your license was issued or last renewed) + a whole multiple of 3, per Ley 293 Sec. 6."
+      },
       "source_url": "https://www.statedepartment.pr.gov/juntas-examinadoras/certified-public-accountants",
       "secondary_source_url": "https://nasba.org/licensure/nasbalicensing/puerto-rico/",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-18",
       "wave": 4,
-      "citation": "Ley Núm. 293 de 15 de mayo de 1945, según enmendada ('Ley de Contabilidad Pública de Puerto Rico'); Reglamento de la Junta de Contabilidad Núm. 9612 del 17 de octubre de 2024 (educación continuada, secs. 5.01-5.25)",
+      "citation": "Ley Num. 293 de 15 de mayo de 1945, segun enmendada ('Ley de Contabilidad Publica de Puerto Rico'), Seccion 6 (20 L.P.R.A. 779); Reglamento de la Junta de Contabilidad Num. 9612 del 17 de octubre de 2024 (educacion continuada, secs. 5.01-5.25)",
       "citation_url": "https://bvirtualogp.pr.gov/ogp/Bvirtual/leyesreferencia/PDF/293-1945.pdf",
       "citation_class": "codified_law",
-      "data_gap_note": "Puerto Rico's own Board of Accountancy page confirms the governing law (Ley 293 of 1945) and that NASBA administers licensing/renewal on the Board's behalf, but does not itself publish the renewal cycle length or dates -- that detail is only corroborated via NASBA's PR renewal checklist and the Colegio de CPA (professional association, not the government board). Sources also conflict on the underlying mechanics: some describe a uniform triennial cycle for all licensees, others frame December 1 as a recurring annual deadline tied to each licensee's individual issuance-year cohort. Without a primary PR government source stating which 3-year cohort an individual licensee falls into, we cannot compute a single applicable next-renewal date. A visitor should check their actual PR license renewal notice or the NASBA Puerto Rico licensing portal rather than rely on a computed date."
+      "verification_history": "2026-08-13: initial record created, citation set to the general Ley 293 statute, data_gap_note flagged an unresolved conflict between a uniform-triennial-cycle framing and a recurring-annual-deadline framing, with no primary PR government source found to settle which 3-year cohort an individual falls into.\n\n2026-08-18 (AuditLab DNC sweep + AssetLab build): resolved the record's own stated blocker. WebFetch's inline reader failed to parse the cited PDF (same failure mode hit on several other citations this sweep); re-opened the saved binary with PyMuPDF and found Seccion 6 ('Licencias para ejercer', 20 L.P.R.A. 779) directly: 'La Junta expedira licencia ... por un periodo de tres (3) anos ... Toda licencia expirara el dia primero de diciembre del tercer ano siguiente al ano en que fue emitida, pero podra renovarse por periodos adicionales de tres (3) anos.' This is a codified fixed month/day (December 1) with an N-way (mod-3) anchor-year split -- same mechanism as Washington, no forced convergence to a single universal date, so it genuinely needs the licensee's own anchor year. Built via the shared ANCHOR_YEAR_TERM_STATES pattern. Note: Sec. 6 also covers firm registrations under the same mechanism, but no separate Puerto Rico firm record exists in this dataset to apply it to."
     },
     {
       "id": "guam-all",

@@ -216,6 +216,7 @@ SSO_PROVIDERS = [p.strip() for p in os.environ.get("DR_SSO_PROVIDERS", "google")
 _WORKER_FIELD_COMPUTED_STATES = {
     "california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska", "idaho",
     "oklahoma", "new-mexico", "arizona", "new-hampshire", "northern-mariana-islands",
+    "washington", "puerto-rico",
 }
 
 
@@ -335,6 +336,26 @@ def next_anchor_date_plus_term(anchor: date, term_years: int, as_of: date) -> da
         except ValueError:
             d = d.replace(year=target_year, day=28)  # Feb 29 -> Feb 28 in a non-leap year
     return d
+
+
+def next_anchor_year_term(anchor_year: int, month: int, day: int, term_years: int, as_of: date) -> date:
+    """2026-08-18 (AuditLab DNC sweep): Washington (WAC 4-30-094/114) and
+    Puerto Rico (Ley 293 Sec. 6) both fix ONE shared month/day for every
+    licensee -- June 30 (WA), December 1 (PR) -- but the specific YEAR
+    depends on the licensee's own anchor year (most recent renewal or
+    initial licensure), advancing forward in whole `term_years`
+    increments. Different from next_fixed_date_parity() (a 2-way odd/even
+    split) -- this is an N-way split (WA/PR are both term_years=3, so 3
+    possible answers depending on anchor_year's residue mod 3, not 2).
+    Different from next_anchor_date_plus_term() (NH/CNMI) -- there the
+    month/day itself IS the personal anchor; here the month/day is FIXED
+    per state and only the year is personal."""
+    y = anchor_year
+    while True:
+        d = date(y, month, day)
+        if d >= as_of:
+            return d
+        y += term_years
 
 
 def build_california_table(as_of: date) -> list[dict]:
@@ -3182,6 +3203,17 @@ up automatically, so we'll remind you based on the date you give us.</p>"""
   min="{fmt_date_iso(min_date)}" max="{fmt_date_iso(max_date)}" required>
 <p class="field-hint">Your renewal cycle is exactly {ANCHOR_DATE_PLUS_TERM_STATES[state_slug]['term_years']}
 years after this date, same month and day, repeating.</p>"""
+    if state_slug in ANCHOR_YEAR_TERM_SIGNUP_STATES:
+        # Washington's individual and firm records compute identically, so
+        # one shared anchor-year field covers both -- see
+        # ANCHOR_YEAR_TERM_SIGNUP_STATES' own comment.
+        cfg = ANCHOR_YEAR_TERM_SIGNUP_STATES[state_slug]
+        month_name = MONTH_NAMES[cfg["month"] - 1]
+        return f"""<label for="anchor_year">Year of your last renewal (or initial licensure, if never renewed)</label>
+<input type="number" inputmode="numeric" id="anchor_year" name="anchor_year"
+  min="1900" max="2100" placeholder="e.g. 2023" required>
+<p class="field-hint">Your renewal cycle always lands on {esc(month_name)} {cfg['day']}, every
+{cfg['term_years']} years from that anchor year.</p>"""
     if state_slug == "california" or state_slug in BIRTH_MONTH_YEAR_PARITY_STATES:
         return f"""<div class="signup-form-row">
   <div>
@@ -4877,6 +4909,95 @@ def render_anchor_date_term_state(state_slug: str, record: dict) -> str:
 {_anchor_date_term_js(state_slug)}"""
 
 
+# 2026-08-18 (AuditLab DNC sweep): Washington (WAC 4-30-094/114) and Puerto
+# Rico (Ley 293 Sec. 6) both fix ONE shared month/day for every licensee,
+# varying only by the licensee's own anchor YEAR -- an N-way modulus split
+# (term_years=3 for both), not a 2-way odd/even split like
+# PARITY_LOOKUP_STATES, and not a fully personal month/day like
+# ANCHOR_DATE_PLUS_TERM_STATES. Keyed by RECORD ID, not state_slug --
+# Washington is the first state where TWO records (individual AND firm)
+# both need this exact same kind of interactive lookup SIMULTANEOUSLY on
+# one page, so render_anchor_year_term_records() below renders one block
+# per qualifying record with unique per-record DOM ids, not a single
+# shared block the way every earlier pattern's dispatch assumed.
+ANCHOR_YEAR_TERM_STATES: dict[str, dict] = {
+    "wa-individual": {"month": 6, "day": 30, "term_years": 3, "anchor_label": "Year of your last renewal (or initial licensure, if never renewed)"},
+    "wa-firm": {"month": 6, "day": 30, "term_years": 3, "anchor_label": "Year of your firm's last renewal (or initial licensure, if never renewed)"},
+    "puerto-rico-individual": {"month": 12, "day": 1, "term_years": 3, "anchor_label": "Year you were first licensed"},
+}
+
+# For the SIGNUP form/worker computation only (not the on-page display
+# above): Washington's individual and firm records compute IDENTICALLY
+# (same month=6/day=30/term=3), so the signup form needs only ONE state-
+# wide anchor-year field, not a license_type_id selector plus per-record
+# config -- the resulting date is the same either way. Keyed by state_slug,
+# deliberately separate from the record-keyed dict above.
+ANCHOR_YEAR_TERM_SIGNUP_STATES: dict[str, dict] = {
+    "washington": {"month": 6, "day": 30, "term_years": 3},
+    "puerto-rico": {"month": 12, "day": 1, "term_years": 3},
+}
+
+
+def _anchor_year_term_html(record_id: str) -> str:
+    return f"""<form class="signup-form signup-form--compact" onsubmit="return false" aria-label="Find your renewal date">
+  <div class="signup-form-row">
+    <div>
+      <label for="dr-ayt-{record_id}-year">{esc(ANCHOR_YEAR_TERM_STATES[record_id]['anchor_label'])}</label>
+      <input type="number" inputmode="numeric" id="dr-ayt-{record_id}-year" placeholder="e.g. 2023" min="1900" max="2100">
+    </div>
+    <div><button type="button" id="dr-ayt-{record_id}-go">Show my date</button></div>
+  </div>
+</form>
+<p id="dr-ayt-{record_id}-result" class="dr-bf-result" hidden></p>"""
+
+
+def _anchor_year_term_js(record_id: str, as_of: date) -> str:
+    cfg = ANCHOR_YEAR_TERM_STATES[record_id]
+    return f"""<script>
+(function() {{
+  var input = document.getElementById('dr-ayt-{record_id}-year');
+  var goBtn = document.getElementById('dr-ayt-{record_id}-go');
+  var result = document.getElementById('dr-ayt-{record_id}-result');
+  var month = {cfg['month']}, day = {cfg['day']}, termYears = {cfg['term_years']};
+  var asOf = new Date(Date.UTC({as_of.year}, {as_of.month - 1}, {as_of.day}));
+  var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  function fmt(d) {{ return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear(); }}
+  function show() {{
+    var y = parseInt(input.value, 10);
+    if (!y || y < 1900 || y > 2100) {{ result.hidden = false; result.textContent = 'Enter a year to see your date.'; return; }}
+    var d = new Date(Date.UTC(y, month - 1, day));
+    while (d.getTime() < asOf.getTime()) {{ y += termYears; d = new Date(Date.UTC(y, month - 1, day)); }}
+    result.hidden = false;
+    result.textContent = 'Your next renewal: ' + fmt(d);
+  }}
+  goBtn.addEventListener('click', show);
+  input.addEventListener('input', show);
+}})();
+</script>"""
+
+
+def render_anchor_year_term_records(records: list[dict], as_of: date) -> str:
+    """Renders one interactive year-based calculator block per qualifying
+    record on the page -- Washington's individual AND firm records both
+    need this simultaneously, unlike every earlier personalized-lookup
+    dispatch (which only ever had ONE record needing the special
+    treatment per page)."""
+    blocks = []
+    for record in records:
+        record_id = record["id"]
+        if record_id not in ANCHOR_YEAR_TERM_STATES:
+            continue
+        blocks.append(f"""<div class="callout">
+  <div class="label">{esc(record['license_type_label'])}</div>
+  <p class="rule">{esc(record['cycle_description'])}</p>
+  <p><strong>Enter the anchor year below</strong> to see the exact next deadline instantly.</p>
+  {_callout_cite_html(record)}
+</div>
+{_anchor_year_term_html(record_id)}
+{_anchor_year_term_js(record_id, as_of)}""")
+    return "\n".join(blocks)
+
+
 def render_ohio(record: dict) -> str:
     rows = "\n".join(
         f"<tr><td>{esc(g['group'])}</td><td>{', '.join(str(y) for y in g['years'])}</td>"
@@ -5357,6 +5478,16 @@ def build_state_page(
         )
         deadline_html = render_anchor_date_term_state(state_slug, adt_record) if adt_record else ""
         other_records = [r for r in records if r is not adt_record]
+        if other_records:
+            deadline_html += "\n" + _render_records_computed_cohort_gapped(other_records)
+    elif any(r["id"] in ANCHOR_YEAR_TERM_STATES for r in records):
+        # Washington is the first state where TWO records (individual AND
+        # firm) both need this exact same kind of interactive lookup at
+        # once -- render_anchor_year_term_records() handles all qualifying
+        # records on the page together, not just one.
+        ayt_records = [r for r in records if r["id"] in ANCHOR_YEAR_TERM_STATES]
+        other_records = [r for r in records if r["id"] not in ANCHOR_YEAR_TERM_STATES]
+        deadline_html = render_anchor_year_term_records(ayt_records, as_of)
         if other_records:
             deadline_html += "\n" + _render_records_computed_cohort_gapped(other_records)
     else:

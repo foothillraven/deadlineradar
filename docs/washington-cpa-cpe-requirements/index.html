@@ -1752,11 +1752,11 @@ against the board's own page, never a guess.</p>
       <input type="email" id="cpe-email-washington" name="email" required placeholder="you@example.com">
       <button type="submit">Remind me</button>
     </div>
-    <label for="license_expiration_date">License expiration date</label>
-<input type="date" id="license_expiration_date" name="license_expiration_date"
-  min="2026-08-14" max="2030-02-13" required>
-<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
-up automatically, so we'll remind you based on the date you give us.</p>
+    <label for="anchor_year">Year of your last renewal (or initial licensure, if never renewed)</label>
+<input type="number" inputmode="numeric" id="anchor_year" name="anchor_year"
+  min="1900" max="2100" placeholder="e.g. 2023" required>
+<p class="field-hint">Your renewal cycle always lands on June 30, every
+3 years from that anchor year.</p>
   </form>
 </div>
 

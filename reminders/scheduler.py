@@ -33,6 +33,7 @@ from generate import (  # noqa: E402
     next_annual_month_end,
     next_fixed_date_parity,
     next_anchor_date_plus_term,
+    next_anchor_year_term,
     fmt_date,
     STALENESS_THRESHOLD_DAYS,
 )
@@ -132,6 +133,23 @@ def compute_subscriber_deadline(subscriber: dict, as_of: date) -> tuple[date, st
             "idaho": (6, 30),
         }[state_slug]
         return next_fixed_date_parity(as_of, month, day, parity), state_name
+
+    if state_slug in ("washington", "puerto-rico"):
+        # ANCHOR_YEAR_TERM_SIGNUP_STATES, added 2026-08-18 -- one shared
+        # fixed month/day per state, only the anchor YEAR is personal.
+        # Washington's individual and firm records compute identically, so
+        # one field covers both.
+        anchor_year_str = fields.get("anchor_year")
+        if not anchor_year_str:
+            return None
+        try:
+            anchor_year = int(anchor_year_str)
+        except ValueError:
+            return None
+        month, day, term_years = {
+            "washington": (6, 30, 3), "puerto-rico": (12, 1, 3),
+        }[state_slug]
+        return next_anchor_year_term(anchor_year, month, day, term_years, as_of), state_name
 
     if state_slug in ("new-hampshire", "northern-mariana-islands"):
         # ANCHOR_DATE_PLUS_TERM_STATES, added 2026-08-18 -- no fixed

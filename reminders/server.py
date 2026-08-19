@@ -390,6 +390,22 @@ class Handler(BaseHTTPRequestHandler):
             if state_slug == "nebraska":
                 is_odd = not is_odd
             deadline_fields = {"parity": "odd" if is_odd else "even"}
+        elif state_slug in ("washington", "puerto-rico"):
+            # ANCHOR_YEAR_TERM_SIGNUP_STATES, added 2026-08-18 -- one shared
+            # fixed month/day per state, only the anchor YEAR is personal.
+            # Washington's individual and firm records compute identically,
+            # so one field covers both -- see generate.py's comment.
+            state_display = {"washington": "Washington", "puerto-rico": "Puerto Rico"}[state_slug]
+            raw_anchor_year = (form.get("anchor_year") or "").strip()
+            try:
+                anchor_year_int = int(raw_anchor_year)
+            except ValueError:
+                self._error_page(400, f"{state_display} needs a valid year.")
+                return
+            if not (1900 <= anchor_year_int <= 2100):
+                self._error_page(400, f"{state_display} needs a valid year.")
+                return
+            deadline_fields = {"anchor_year": str(anchor_year_int)}
         elif state_slug in ("new-hampshire", "northern-mariana-islands"):
             # ANCHOR_DATE_PLUS_TERM_STATES, added 2026-08-18 -- no fixed
             # month/day, exactly N years from the licensee's own last

@@ -216,7 +216,7 @@ SSO_PROVIDERS = [p.strip() for p in os.environ.get("DR_SSO_PROVIDERS", "google")
 _WORKER_FIELD_COMPUTED_STATES = {
     "california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska", "idaho",
     "oklahoma", "new-mexico", "arizona", "new-hampshire", "northern-mariana-islands",
-    "washington", "puerto-rico",
+    "washington", "puerto-rico", "florida",
 }
 
 
@@ -356,6 +356,26 @@ def next_anchor_year_term(anchor_year: int, month: int, day: int, term_years: in
         if d >= as_of:
             return d
         y += term_years
+
+
+def next_certificate_date_initial_term(
+    cert_date: date, initial_periods: int, term_years: int, month: int, day: int, as_of: date
+) -> date:
+    """2026-08-19 (AuditLab DNC sweep): Florida individual (Fla. Admin. Code
+    R. 61H1-33.003(1)(a)) fixes the INITIAL reestablishment period to end on
+    the Nth fixed month/day (June 30, N=3 -- "the third June 30 following")
+    STRICTLY AFTER the licensee's own original certificate date; every
+    period after that is a standard fixed-term rollover from that computed
+    initial-end year -- exactly next_anchor_year_term()'s own math, reused
+    rather than re-derived. Different from next_anchor_date_plus_term()
+    (NH/CNMI): there the anchor's own month/day carries forward forever;
+    here the anchor DATE only determines the INITIAL year, then the fixed
+    month/day takes over for every period after."""
+    y0 = cert_date.year
+    fixed_date_y0 = date(y0, month, day)
+    first_following_year = y0 if cert_date < fixed_date_y0 else y0 + 1
+    initial_end_year = first_following_year + (initial_periods - 1)
+    return next_anchor_year_term(initial_end_year, month, day, term_years, as_of)
 
 
 def build_california_table(as_of: date) -> list[dict]:
@@ -3203,6 +3223,25 @@ up automatically, so we'll remind you based on the date you give us.</p>"""
   min="{fmt_date_iso(min_date)}" max="{fmt_date_iso(max_date)}" required>
 <p class="field-hint">Your renewal cycle is exactly {ANCHOR_DATE_PLUS_TERM_STATES[state_slug]['term_years']}
 years after this date, same month and day, repeating.</p>"""
+    if state_slug == "florida":
+        # 2026-08-19 (AuditLab DNC sweep): a real pre-existing bug found
+        # while building this -- with no license_type_id required, EVERY
+        # Florida signup silently fell through to the single-computed-
+        # record path and got fl-firm's date regardless of which license
+        # the subscriber actually has. Always show both fields (no JS
+        # show/hide) rather than build a new dynamic-field-swap mechanism:
+        # server-side validation (index.ts) enforces which one is actually
+        # required based on the selected license type.
+        return f"""<label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="fl-individual">Individual CPA license</option>
+  <option value="fl-firm">Firm license</option>
+</select>
+<label for="anchor_date">Original certificate date (individual license only)</label>
+<input type="date" id="anchor_date" name="anchor_date" max="{fmt_date_iso(as_of)}">
+<p class="field-hint">Only needed if you selected Individual CPA license above -- find it on your
+original Florida CPA certificate. Leave blank if you selected Firm license.</p>"""
     if state_slug in ANCHOR_YEAR_TERM_SIGNUP_STATES:
         # Washington's individual and firm records compute identically, so
         # one shared anchor-year field covers both -- see
@@ -5092,6 +5131,73 @@ def render_anchor_year_chosen_term_record(record: dict, as_of: date) -> str:
 {_anchor_year_chosen_term_js(record_id, as_of)}"""
 
 
+# 2026-08-19 (AuditLab DNC sweep): Florida individual (Fla. Admin. Code R.
+# 61H1-33.003(1)(a)) -- the INITIAL reestablishment period ends on the 3rd
+# fixed month/day (June 30) strictly after the licensee's own original
+# certificate date; every period after that is a standard fixed-term
+# rollover. Keyed by record id, same shape as the two patterns above, in
+# case another state needs this "initial period, then fixed term" shape.
+CERTIFICATE_DATE_INITIAL_TERM_STATES: dict[str, dict] = {
+    "fl-individual": {"month": 6, "day": 30, "initial_periods": 3, "term_years": 2},
+}
+
+
+def _certificate_date_term_html(record_id: str) -> str:
+    return f"""<form class="signup-form signup-form--compact" onsubmit="return false" aria-label="Find your renewal date">
+  <div class="signup-form-row">
+    <div>
+      <label for="dr-cdit-{record_id}-date">Your original certificate date</label>
+      <input type="date" id="dr-cdit-{record_id}-date">
+    </div>
+    <div><button type="button" id="dr-cdit-{record_id}-go">Show my date</button></div>
+  </div>
+</form>
+<p id="dr-cdit-{record_id}-result" class="dr-bf-result" hidden></p>"""
+
+
+def _certificate_date_term_js(record_id: str, as_of: date) -> str:
+    cfg = CERTIFICATE_DATE_INITIAL_TERM_STATES[record_id]
+    return f"""<script>
+(function() {{
+  var input = document.getElementById('dr-cdit-{record_id}-date');
+  var goBtn = document.getElementById('dr-cdit-{record_id}-go');
+  var result = document.getElementById('dr-cdit-{record_id}-result');
+  var month = {cfg['month']}, day = {cfg['day']}, initialPeriods = {cfg['initial_periods']}, termYears = {cfg['term_years']};
+  var asOf = new Date(Date.UTC({as_of.year}, {as_of.month - 1}, {as_of.day}));
+  var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  function fmt(d) {{ return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear(); }}
+  function show() {{
+    if (!input.value) {{ result.hidden = false; result.textContent = 'Enter your certificate date to see your next deadline.'; return; }}
+    var parts = input.value.split('-');
+    var certDate = new Date(Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)));
+    var y0 = certDate.getUTCFullYear();
+    var fixedDateY0 = new Date(Date.UTC(y0, month - 1, day));
+    var firstFollowingYear = certDate.getTime() < fixedDateY0.getTime() ? y0 : y0 + 1;
+    var y = firstFollowingYear + (initialPeriods - 1);
+    var d = new Date(Date.UTC(y, month - 1, day));
+    while (d.getTime() < asOf.getTime()) {{ y += termYears; d = new Date(Date.UTC(y, month - 1, day)); }}
+    result.hidden = false;
+    result.textContent = 'Your next renewal: ' + fmt(d);
+  }}
+  goBtn.addEventListener('click', show);
+  input.addEventListener('change', show);
+}})();
+</script>"""
+
+
+def render_certificate_date_term_record(record: dict, as_of: date) -> str:
+    record_id = record["id"]
+    return f"""<div class="callout">
+  <div class="label">{esc(record['license_type_label'])}</div>
+  <p class="rule">{esc(record['cycle_description'])}</p>
+  <p><strong>Enter your original certificate date below</strong> to see the exact next deadline
+  instantly.</p>
+  {_callout_cite_html(record)}
+</div>
+{_certificate_date_term_html(record_id)}
+{_certificate_date_term_js(record_id, as_of)}"""
+
+
 def render_ohio(record: dict) -> str:
     rows = "\n".join(
         f"<tr><td>{esc(g['group'])}</td><td>{', '.join(str(y) for y in g['years'])}</td>"
@@ -5596,6 +5702,15 @@ def build_state_page(
         ayt_records = [r for r in records if r["id"] in ANCHOR_YEAR_TERM_STATES]
         other_records = [r for r in records if r["id"] not in ANCHOR_YEAR_TERM_STATES]
         deadline_html = render_anchor_year_term_records(ayt_records, as_of)
+        if other_records:
+            deadline_html += "\n" + _render_records_computed_cohort_gapped(other_records)
+    elif any(r["id"] in CERTIFICATE_DATE_INITIAL_TERM_STATES for r in records):
+        # Florida individual: the initial-period-then-fixed-term shape.
+        # fl-firm (already computed, single shared date) falls through to
+        # the generic computed/cohort/gapped fallback below.
+        cdit_record = next((r for r in records if r["id"] in CERTIFICATE_DATE_INITIAL_TERM_STATES), None)
+        other_records = [r for r in records if r is not cdit_record]
+        deadline_html = render_certificate_date_term_record(cdit_record, as_of) if cdit_record else ""
         if other_records:
             deadline_html += "\n" + _render_records_computed_cohort_gapped(other_records)
     else:

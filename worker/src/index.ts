@@ -992,6 +992,47 @@ function resolveDeadlineInput(stateSlug: string, form: Record<string, string>): 
         deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
         userDeadline: null,
       };
+    } else if (stateSlug === "florida") {
+      // CERTIFICATE_DATE_INITIAL_TERM_STATES (2026-08-19, AuditLab DNC
+      // sweep) -- fl-individual (Fla. Admin. Code R. 61H1-33.003(1)(a)) is
+      // computable from the licensee's own ORIGINAL certificate date, but
+      // fl-firm is already a single shared computed date (Dec 31, odd
+      // years). A real pre-existing bug found while building this: with no
+      // license_type_id required, EVERY Florida signup (individual or
+      // firm) silently fell through to the single-computed-record path and
+      // got fl-firm's date regardless of which license the subscriber
+      // actually has. Requiring an explicit choice here closes that gap
+      // for new signups going forward.
+      const licenseTypeId = (form.license_type_id ?? "").trim();
+      if (licenseTypeId !== "fl-individual" && licenseTypeId !== "fl-firm") {
+        return errorPage(400, "Florida needs to know which license you have -- individual or firm.");
+      }
+      if (licenseTypeId === "fl-firm") {
+        return {
+          deadlineFields: { license_type_id: licenseTypeId },
+          deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+          userDeadline: null,
+        };
+      }
+      const rawCertDate = (form.anchor_date ?? "").trim();
+      const parsedCertDate = parseStrictIsoDate(rawCertDate);
+      if (!parsedCertDate) {
+        return errorPage(400, "Florida individual license needs your original certificate date (a real calendar date).");
+      }
+      const nowForCert = new Date();
+      const todayUtcForCert = new Date(Date.UTC(nowForCert.getUTCFullYear(), nowForCert.getUTCMonth(), nowForCert.getUTCDate()));
+      if (parsedCertDate.getTime() > todayUtcForCert.getTime()) {
+        return errorPage(400, "Florida needs a certificate date that already happened, not a future date.");
+      }
+      const minCertDate = new Date(Date.UTC(1930, 0, 1));
+      if (parsedCertDate.getTime() < minCertDate.getTime()) {
+        return errorPage(400, "That certificate date looks too far in the past -- please double-check your license.");
+      }
+      return {
+        deadlineFields: { license_type_id: licenseTypeId, anchor_date: rawCertDate },
+        deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+        userDeadline: null,
+      };
     } else if (stateSlug === "new-hampshire" || stateSlug === "northern-mariana-islands") {
       // ANCHOR_DATE_PLUS_TERM_STATES (2026-08-18, AuditLab DNC sweep) -- no
       // fixed month/day, exactly N years from the licensee's own last

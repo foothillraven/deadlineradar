@@ -147,6 +147,31 @@ export function nextAnchorYearTerm(anchorYear: number, month: number, day: numbe
   }
 }
 
+/** generate.py's `next_certificate_date_initial_term()` -- Florida
+ * individual (Fla. Admin. Code R. 61H1-33.003(1)(a)), added 2026-08-19.
+ * The INITIAL period ends on the Nth fixed month/day (June 30) STRICTLY
+ * AFTER the licensee's own certificate date (N=3, "the third June 30
+ * following"); every period after that is a standard fixed-term rollover
+ * from that computed initial-end year -- exactly nextAnchorYearTerm()'s
+ * own math, reused rather than re-derived. Different from
+ * nextAnchorDatePlusTerm() (NH/CNMI): there the anchor's own month/day
+ * carries forward forever; here the anchor DATE only determines the
+ * INITIAL year, then the fixed month/day (June 30) takes over. */
+export function nextCertificateDateInitialTerm(
+  certDate: Date,
+  initialPeriods: number,
+  termYears: number,
+  month: number,
+  day: number,
+  asOf: Date
+): Date {
+  const y0 = certDate.getUTCFullYear();
+  const fixedDateY0 = utcDate(y0, month, day);
+  const firstFollowingYear = certDate.getTime() < fixedDateY0.getTime() ? y0 : y0 + 1;
+  const initialEndYear = firstFollowingYear + (initialPeriods - 1);
+  return nextAnchorYearTerm(initialEndYear, month, day, termYears, asOf);
+}
+
 export class StaleDataError extends Error {}
 
 function ageDaysFromAsOf(realToday: Date): number {
@@ -267,7 +292,7 @@ export const SUPPORTED_STATE_SLUGS: ReadonlySet<string> = new Set(DATA.records.m
 const FIELD_COMPUTED_STATES = new Set([
   "california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska", "idaho",
   "oklahoma", "new-mexico", "arizona", "new-hampshire", "northern-mariana-islands",
-  "washington", "puerto-rico",
+  "washington", "puerto-rico", "florida",
 ]);
 
 /** Whether the worker can EVER derive a deadline for this state from state
@@ -323,6 +348,27 @@ export function computeSubscriberDeadline(
     return nextAnchorYearTerm(anchorYearInt, month, day, termYears, asOf);
   }
 
+  if (stateSlug === "florida") {
+    // CERTIFICATE_DATE_INITIAL_TERM_STATES -- fl-individual's own original
+    // certificate date determines the INITIAL period, fl-firm is already
+    // a single shared computed date. Requires an explicit license_type_id
+    // (see index.ts's comment on the pre-existing mis-assignment bug this
+    // closes).
+    const licenseTypeId = deadlineFields.license_type_id;
+    if (licenseTypeId === "fl-firm") {
+      const r = stateRecords.find((rec) => rec.id === "fl-firm" && rec.next_deadline_computed);
+      return r?.next_deadline_computed ? new Date(`${r.next_deadline_computed}T00:00:00Z`) : null;
+    }
+    if (licenseTypeId === "fl-individual") {
+      const anchorDateStr = deadlineFields.anchor_date;
+      if (!anchorDateStr || !/^\d{4}-\d{2}-\d{2}$/.test(anchorDateStr)) return null;
+      const anchor = new Date(`${anchorDateStr}T00:00:00Z`);
+      if (Number.isNaN(anchor.getTime())) return null;
+      return nextCertificateDateInitialTerm(anchor, 3, 2, 6, 30, asOf);
+    }
+    return null;
+  }
+
   if (stateSlug === "new-hampshire" || stateSlug === "northern-mariana-islands") {
     // ANCHOR_DATE_PLUS_TERM_STATES -- no fixed month/day, the anchor's own
     // month/day carries forward, see generate.py's comment.
@@ -372,9 +418,10 @@ export function computeSubscriberDeadline(
     return nextFixedDateParity(asOf, month, day, parity);
   }
 
-  // Fixed-calendar states, possibly with multiple records (e.g. Florida's
-  // odd/even cohort, Georgia's individual-vs-firm) -- the subscriber picks
-  // which record applies to them at signup (license_type_id).
+  // Fixed-calendar states, possibly with multiple records (e.g. Georgia's
+  // individual-vs-firm) -- the subscriber picks which record applies to
+  // them at signup (license_type_id). Florida has its own explicit branch
+  // above and never reaches here.
   const licenseTypeId = deadlineFields.license_type_id;
   if (licenseTypeId) {
     const r = stateRecords.find((rec) => rec.id === licenseTypeId && rec.next_deadline_computed);

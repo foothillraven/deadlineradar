@@ -1763,7 +1763,16 @@ never a guess.</p>
       <input type="email" id="reinstate-email-florida" name="email" required placeholder="you@example.com">
       <button type="submit">Remind me</button>
     </div>
-    
+    <label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="fl-individual">Individual CPA license</option>
+  <option value="fl-firm">Firm license</option>
+</select>
+<label for="anchor_date">Original certificate date (individual license only)</label>
+<input type="date" id="anchor_date" name="anchor_date" max="2026-08-13">
+<p class="field-hint">Only needed if you selected Individual CPA license above -- find it on your
+original Florida CPA certificate. Leave blank if you selected Firm license.</p>
   </form>
 </div>
 

@@ -390,6 +390,33 @@ class Handler(BaseHTTPRequestHandler):
             if state_slug == "nebraska":
                 is_odd = not is_odd
             deadline_fields = {"parity": "odd" if is_odd else "even"}
+        elif state_slug == "florida":
+            # CERTIFICATE_DATE_INITIAL_TERM_STATES, added 2026-08-19 -- a
+            # real pre-existing bug found while building this: with no
+            # license_type_id required, every Florida signup silently fell
+            # through to the single-computed-record path and got fl-firm's
+            # date regardless of which license the subscriber actually has.
+            license_type_id = (form.get("license_type_id") or "").strip()
+            if license_type_id not in ("fl-individual", "fl-firm"):
+                self._error_page(400, "Florida needs to know which license you have -- individual or firm.")
+                return
+            if license_type_id == "fl-firm":
+                deadline_fields = {"license_type_id": license_type_id}
+            else:
+                raw_cert_date = (form.get("anchor_date") or "").strip()
+                try:
+                    parsed_cert_date = date.fromisoformat(raw_cert_date)
+                except ValueError:
+                    self._error_page(400, "Florida individual license needs your original certificate date (a real calendar date).")
+                    return
+                today = date.today()
+                if parsed_cert_date > today:
+                    self._error_page(400, "Florida needs a certificate date that already happened, not a future date.")
+                    return
+                if parsed_cert_date < date(1930, 1, 1):
+                    self._error_page(400, "That certificate date looks too far in the past -- please double-check your license.")
+                    return
+                deadline_fields = {"license_type_id": license_type_id, "anchor_date": raw_cert_date}
         elif state_slug in ("washington", "puerto-rico"):
             # ANCHOR_YEAR_TERM_SIGNUP_STATES, added 2026-08-18 -- one shared
             # fixed month/day per state, only the anchor YEAR is personal.

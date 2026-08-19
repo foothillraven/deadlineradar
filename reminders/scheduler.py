@@ -34,6 +34,7 @@ from generate import (  # noqa: E402
     next_fixed_date_parity,
     next_anchor_date_plus_term,
     next_anchor_year_term,
+    next_certificate_date_initial_term,
     fmt_date,
     STALENESS_THRESHOLD_DAYS,
 )
@@ -133,6 +134,29 @@ def compute_subscriber_deadline(subscriber: dict, as_of: date) -> tuple[date, st
             "idaho": (6, 30),
         }[state_slug]
         return next_fixed_date_parity(as_of, month, day, parity), state_name
+
+    if state_slug == "florida":
+        # CERTIFICATE_DATE_INITIAL_TERM_STATES, added 2026-08-19 -- fl-firm
+        # is a single shared computed date; fl-individual is computable
+        # from the licensee's own original certificate date. Requires an
+        # explicit license_type_id (fixes a real pre-existing bug: without
+        # this, every Florida subscriber silently got fl-firm's date).
+        license_type_id = fields.get("license_type_id")
+        if license_type_id == "fl-firm":
+            record = next((r for r in state_records if r["id"] == "fl-firm"), None)
+            if record and record.get("next_deadline_computed"):
+                return date.fromisoformat(record["next_deadline_computed"]), state_name
+            return None
+        if license_type_id == "fl-individual":
+            cert_date_str = fields.get("anchor_date")
+            if not cert_date_str:
+                return None
+            try:
+                cert_date = date.fromisoformat(cert_date_str)
+            except ValueError:
+                return None
+            return next_certificate_date_initial_term(cert_date, 3, 2, 6, 30, as_of), state_name
+        return None
 
     if state_slug in ("washington", "puerto-rico"):
         # ANCHOR_YEAR_TERM_SIGNUP_STATES, added 2026-08-18 -- one shared

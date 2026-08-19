@@ -366,6 +366,56 @@ describe("POST /subscribe -- happy path (capture + confirmation-email path)", ()
     expect(prResp.status).toBe(400);
     expect(await prResp.text()).toContain("Puerto Rico needs a valid year.");
   });
+
+  it("2026-08-19: Florida requires an explicit license_type_id choice (fixes the pre-existing individual-vs-firm mis-assignment bug)", async () => {
+    const noChoiceResp = await postSubscribe({ email: `fl-nochoice-${Date.now()}@example.com`, state: "florida" }, "203.0.113.48");
+    expect(noChoiceResp.status).toBe(400);
+    expect(await noChoiceResp.text()).toContain("Florida needs to know which license you have -- individual or firm.");
+  });
+
+  it("2026-08-19: Florida firm signup persists only license_type_id, no anchor_date needed", async () => {
+    const email = `fl-firm-${Date.now()}@example.com`;
+    const resp = await postSubscribe({ email, state: "florida", license_type_id: "fl-firm" }, "203.0.113.49");
+    expect(resp.status).toBe(200);
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
+    expect(row?.state_slug).toBe("florida");
+    expect(JSON.parse(row?.deadline_fields ?? "{}")).toEqual({ license_type_id: "fl-firm" });
+  });
+
+  it("2026-08-19: Florida individual signup persists license_type_id and the certificate anchor_date", async () => {
+    const email = `fl-individual-${Date.now()}@example.com`;
+    const resp = await postSubscribe(
+      { email, state: "florida", license_type_id: "fl-individual", anchor_date: "2020-03-15" },
+      "203.0.113.50"
+    );
+    expect(resp.status).toBe(200);
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
+    expect(row?.state_slug).toBe("florida");
+    expect(JSON.parse(row?.deadline_fields ?? "{}")).toEqual({ license_type_id: "fl-individual", anchor_date: "2020-03-15" });
+  });
+
+  it("2026-08-19: rejects a missing/future/malformed certificate date for Florida individual", async () => {
+    const missingResp = await postSubscribe(
+      { email: `fl-nodate-${Date.now()}@example.com`, state: "florida", license_type_id: "fl-individual" },
+      "203.0.113.51"
+    );
+    expect(missingResp.status).toBe(400);
+    expect(await missingResp.text()).toContain("Florida individual license needs your original certificate date");
+
+    const farFuture = new Date();
+    farFuture.setUTCFullYear(farFuture.getUTCFullYear() + 1);
+    const futureResp = await postSubscribe(
+      {
+        email: `fl-future-${Date.now()}@example.com`,
+        state: "florida",
+        license_type_id: "fl-individual",
+        anchor_date: farFuture.toISOString().slice(0, 10),
+      },
+      "203.0.113.52"
+    );
+    expect(futureResp.status).toBe(400);
+    expect(await futureResp.text()).toContain("Florida needs a certificate date that already happened");
+  });
 });
 
 describe("POST /subscribe -- validation", () => {
@@ -3334,6 +3384,44 @@ describe("deadlines.ts", () => {
     ).toBe("2026-12-01");
     expect(computeSubscriberDeadline("washington", {}, asOf)).toBeNull();
     expect(computeSubscriberDeadline("washington", { anchor_year: "not-a-year" }, asOf)).toBeNull();
+  });
+
+  it("2026-08-19: computeSubscriberDeadline resolves Florida individual (certificate date -> third-following-June-30 initial period, then 2yr rollover)", () => {
+    const asOf = new Date("2026-07-03T00:00:00Z");
+    // Cert date BEFORE June 30 in its own year -> first following June 30 is
+    // the SAME year. 2020-03-15 -> first-following 2020, initial end
+    // 2020+2=2022-06-30, rolls (2yr) to 2028-06-30 by asOf.
+    expect(
+      computeSubscriberDeadline("florida", { license_type_id: "fl-individual", anchor_date: "2020-03-15" }, asOf)?.toISOString().slice(0, 10)
+    ).toBe("2028-06-30");
+    // Cert date ON June 30 itself -> not "following" its own date, so
+    // first-following is the NEXT year. 2020-06-30 -> first-following 2021,
+    // initial end 2021+2=2023-06-30, rolls to 2027-06-30 by asOf.
+    expect(
+      computeSubscriberDeadline("florida", { license_type_id: "fl-individual", anchor_date: "2020-06-30" }, asOf)?.toISOString().slice(0, 10)
+    ).toBe("2027-06-30");
+    // Cert date AFTER June 30 in its own year -> first-following is next
+    // year too. 2020-08-10 -> first-following 2021, initial end
+    // 2021+2=2023-06-30, rolls to 2027-06-30 by asOf (same as the exact-
+    // June-30 case above, confirming both branches converge correctly).
+    expect(
+      computeSubscriberDeadline("florida", { license_type_id: "fl-individual", anchor_date: "2020-08-10" }, asOf)?.toISOString().slice(0, 10)
+    ).toBe("2027-06-30");
+    // Recent certificate, still within its own initial period -- no
+    // rollover needed. 2024-01-10 -> first-following 2024, initial end
+    // 2024+2=2026-06-30, which is >= a 2026-01-01 asOf.
+    expect(
+      computeSubscriberDeadline("florida", { license_type_id: "fl-individual", anchor_date: "2024-01-10" }, new Date("2026-01-01T00:00:00Z"))?.toISOString().slice(0, 10)
+    ).toBe("2026-06-30");
+    expect(computeSubscriberDeadline("florida", { license_type_id: "fl-individual" }, asOf)).toBeNull();
+    expect(computeSubscriberDeadline("florida", {}, asOf)).toBeNull();
+  });
+
+  it("2026-08-19: computeSubscriberDeadline resolves Florida firm via its existing single computed date", () => {
+    const asOf = new Date("2026-07-03T00:00:00Z");
+    expect(
+      computeSubscriberDeadline("florida", { license_type_id: "fl-firm" }, asOf)?.toISOString().slice(0, 10)
+    ).toBe("2027-12-31");
   });
 
   it("checkDataFreshness throws StaleDataError once data is older than the threshold", () => {

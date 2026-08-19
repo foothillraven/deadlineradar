@@ -417,6 +417,30 @@ class Handler(BaseHTTPRequestHandler):
                     self._error_page(400, "That certificate date looks too far in the past -- please double-check your license.")
                     return
                 deadline_fields = {"license_type_id": license_type_id, "anchor_date": raw_cert_date}
+        elif state_slug == "guam":
+            # ANCHOR_YEAR_CHOSEN_TERM_SIGNUP_STATES, added 2026-08-19 --
+            # Guam individual (22 GCA 35106(b)) and firm (22 GCA 35107(b))
+            # use the IDENTICAL formula shape, so one shared field pair
+            # covers both -- no license_type_id disambiguation needed.
+            raw_anchor_year = (form.get("anchor_year") or "").strip()
+            try:
+                anchor_year_int = int(raw_anchor_year)
+            except ValueError:
+                self._error_page(400, "Guam needs a valid year.")
+                return
+            if not (1900 <= anchor_year_int <= 2100):
+                self._error_page(400, "Guam needs a valid year.")
+                return
+            raw_term = (form.get("term_years") or "").strip()
+            try:
+                term_int = int(raw_term)
+            except ValueError:
+                self._error_page(400, "Guam needs a valid term length (1, 2, or 3 years).")
+                return
+            if term_int not in (1, 2, 3):
+                self._error_page(400, "Guam needs a valid term length (1, 2, or 3 years).")
+                return
+            deadline_fields = {"anchor_year": str(anchor_year_int), "term_years": str(term_int)}
         elif state_slug in ("washington", "puerto-rico"):
             # ANCHOR_YEAR_TERM_SIGNUP_STATES, added 2026-08-18 -- one shared
             # fixed month/day per state, only the anchor YEAR is personal.

@@ -416,6 +416,28 @@ describe("POST /subscribe -- happy path (capture + confirmation-email path)", ()
     expect(futureResp.status).toBe(400);
     expect(await futureResp.text()).toContain("Florida needs a certificate date that already happened");
   });
+
+  it("2026-08-19: Guam signup persists anchor_year and term_years, no license_type_id disambiguation needed", async () => {
+    const email = `guam-${Date.now()}@example.com`;
+    const resp = await postSubscribe({ email, state: "guam", anchor_year: "2024", term_years: "3" }, "203.0.113.53");
+    expect(resp.status).toBe(200);
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
+    expect(row?.state_slug).toBe("guam");
+    expect(JSON.parse(row?.deadline_fields ?? "{}")).toEqual({ anchor_year: "2024", term_years: "3" });
+  });
+
+  it("2026-08-19: rejects a missing/invalid year or term for Guam", async () => {
+    const noYearResp = await postSubscribe({ email: `guam-noyear-${Date.now()}@example.com`, state: "guam", term_years: "2" }, "203.0.113.54");
+    expect(noYearResp.status).toBe(400);
+    expect(await noYearResp.text()).toContain("Guam needs a valid year.");
+
+    const badTermResp = await postSubscribe(
+      { email: `guam-badterm-${Date.now()}@example.com`, state: "guam", anchor_year: "2023", term_years: "4" },
+      "203.0.113.55"
+    );
+    expect(badTermResp.status).toBe(400);
+    expect(await badTermResp.text()).toContain("Guam needs a valid term length (1, 2, or 3 years).");
+  });
 });
 
 describe("POST /subscribe -- validation", () => {
@@ -3422,6 +3444,29 @@ describe("deadlines.ts", () => {
     expect(
       computeSubscriberDeadline("florida", { license_type_id: "fl-firm" }, asOf)?.toISOString().slice(0, 10)
     ).toBe("2027-12-31");
+  });
+
+  it("2026-08-19: computeSubscriberDeadline resolves Guam individual/firm identically (fixed June 30, CHOSEN 1-3yr term, single-shot no rollover)", () => {
+    const asOf = new Date("2026-07-03T00:00:00Z");
+    // 2024 + 3yr term = 2027-06-30, still ahead of asOf.
+    expect(
+      computeSubscriberDeadline("guam", { anchor_year: "2024", term_years: "3" }, asOf)?.toISOString().slice(0, 10)
+    ).toBe("2027-06-30");
+    // The math doesn't care whether it's meant as an individual or firm
+    // date -- same inputs, same answer, no license_type_id needed.
+    expect(
+      computeSubscriberDeadline("guam", { anchor_year: "2024", term_years: "3" }, asOf)?.toISOString().slice(0, 10)
+    ).toBe("2027-06-30");
+    // 2026 + 1yr term = 2027-06-30, still ahead.
+    expect(
+      computeSubscriberDeadline("guam", { anchor_year: "2026", term_years: "1" }, asOf)?.toISOString().slice(0, 10)
+    ).toBe("2027-06-30");
+    // 2020 + 3yr term = 2023-06-30, already passed -- no rollover assumed
+    // (the next actual term is unknowable from here), returns null rather
+    // than guessing.
+    expect(computeSubscriberDeadline("guam", { anchor_year: "2020", term_years: "3" }, asOf)).toBeNull();
+    expect(computeSubscriberDeadline("guam", { anchor_year: "2024" }, asOf)).toBeNull();
+    expect(computeSubscriberDeadline("guam", { anchor_year: "2024", term_years: "4" }, asOf)).toBeNull();
   });
 
   it("checkDataFreshness throws StaleDataError once data is older than the threshold", () => {

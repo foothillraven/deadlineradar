@@ -292,7 +292,7 @@ export const SUPPORTED_STATE_SLUGS: ReadonlySet<string> = new Set(DATA.records.m
 const FIELD_COMPUTED_STATES = new Set([
   "california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska", "idaho",
   "oklahoma", "new-mexico", "arizona", "new-hampshire", "northern-mariana-islands",
-  "washington", "puerto-rico", "florida",
+  "washington", "puerto-rico", "florida", "guam",
 ]);
 
 /** Whether the worker can EVER derive a deadline for this state from state
@@ -367,6 +367,27 @@ export function computeSubscriberDeadline(
       return nextCertificateDateInitialTerm(anchor, 3, 2, 6, 30, asOf);
     }
     return null;
+  }
+
+  if (stateSlug === "guam") {
+    // ANCHOR_YEAR_CHOSEN_TERM_SIGNUP_STATES -- Guam individual (22 GCA
+    // 35106(b)) and firm (22 GCA 35107(b)) use the IDENTICAL formula shape
+    // (fixed June 30, a CHOSEN term of 1-3 years), so one shared field
+    // pair covers both, unlike New Mexico where individual/firm needed
+    // different mechanisms. Single-shot, no further rollover assumed
+    // (same honesty posture as New Mexico firm): the term can vary each
+    // renewal, so once the computed date passes we can't safely predict
+    // the next one without a fresh anchor.
+    const anchorYearStr = deadlineFields.anchor_year;
+    const termStr = deadlineFields.term_years;
+    if (!anchorYearStr || !termStr) return null;
+    const anchorYearInt = Number.parseInt(anchorYearStr, 10);
+    const termInt = Number.parseInt(termStr, 10);
+    if (!Number.isInteger(anchorYearInt) || anchorYearInt < 1900 || anchorYearInt > 2100) return null;
+    if (![1, 2, 3].includes(termInt)) return null;
+    const d = utcDate(anchorYearInt + termInt, 6, 30);
+    const today = startOfUtcDay(asOf);
+    return d.getTime() >= today.getTime() ? d : null;
   }
 
   if (stateSlug === "new-hampshire" || stateSlug === "northern-mariana-islands") {

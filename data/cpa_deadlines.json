@@ -1646,23 +1646,54 @@
       "verification_history": "2026-08-13: initial record created, citation set to the general Ley 293 statute, data_gap_note flagged an unresolved conflict between a uniform-triennial-cycle framing and a recurring-annual-deadline framing, with no primary PR government source found to settle which 3-year cohort an individual falls into.\n\n2026-08-18 (AuditLab DNC sweep + AssetLab build): resolved the record's own stated blocker. WebFetch's inline reader failed to parse the cited PDF (same failure mode hit on several other citations this sweep); re-opened the saved binary with PyMuPDF and found Seccion 6 ('Licencias para ejercer', 20 L.P.R.A. 779) directly: 'La Junta expedira licencia ... por un periodo de tres (3) anos ... Toda licencia expirara el dia primero de diciembre del tercer ano siguiente al ano en que fue emitida, pero podra renovarse por periodos adicionales de tres (3) anos.' This is a codified fixed month/day (December 1) with an N-way (mod-3) anchor-year split -- same mechanism as Washington, no forced convergence to a single universal date, so it genuinely needs the licensee's own anchor year. Built via the shared ANCHOR_YEAR_TERM_STATES pattern. Note: Sec. 6 also covers firm registrations under the same mechanism, but no separate Puerto Rico firm record exists in this dataset to apply it to."
     },
     {
-      "id": "guam-all",
+      "id": "guam-individual",
       "state": "Guam",
       "state_slug": "guam",
-      "license_type": "all",
-      "license_type_label": "Individual CPA & Firm",
+      "license_type": "individual",
+      "license_type_label": "Individual CPA license",
       "renewal_pattern": "other",
-      "cycle_description": "Multiple third-party CPA-exam-prep sites (not the Board itself) describe Guam CPA licenses as renewing on a 3-year cycle expiring June 30, with a $100 renewal fee and 120 CPE hours (incl. 6 ethics, 30 accounting/auditing) required over the rolling period. We could not confirm this cycle against a current, live primary source, detailed below.",
+      "cycle_description": "22 Guam Code Ann. (GCA) 35106(b): individual licenses are issued and renewed for periods of not more than three years, but in any event expire on the last day of June. The specific year within your own up-to-3-year term is printed on your license, not published statewide -- but 25 GAR 2105(a)(1)(A) confirms the administrative filing deadline, whenever yours is due, always lands on June 30.",
       "next_deadline_computed": null,
+      "computation": {
+        "type": "anchor_year_chosen_term",
+        "month": 6,
+        "day": 30,
+        "term_options": [1, 2, 3],
+        "note": "Next deadline = June 30, (year your license was issued or last renewed) + (the 1-, 2-, or 3-year term shown on that license)."
+      },
       "source_url": "https://col.guamcourts.gov/sites/default/files/22gc035.pdf",
       "secondary_source_url": "https://col.guamcourts.gov/sites/default/files/25GAR002.pdf",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-19",
       "wave": 4,
-      "citation": "22 Guam Code Ann. (GCA) ch. 35 (Guam Accountancy Act of 2003); 25 Guam Admin. R. & Regs. (GAR) ch. 2 (Guam Board of Public Accountancy Regulations)",
+      "citation": "22 GCA 35106(b) (Issuance and Renewal of Licenses); 25 GAR 2105(a)(1)(A) (renewal application filing deadline)",
       "citation_url": "https://col.guamcourts.gov/sites/default/files/22gc035.pdf",
       "citation_class": "codified_law",
-      "data_gap_note": "The Guam Board of Accountancy's own web presence (guamboa.org) is the only board-run site we could find, but it has an expired TLS certificate and the only dated document discoverable on it is from November 2011, so we could not treat it as a current, confirmable source of the renewal cycle. Guam's official Compiler of Laws confirms the codified Guam Accountancy Act of 2003 (22 GCA ch. 35) and Board regulations (25 GAR ch. 2) exist and empower the Board to set renewal terms, but those PDFs could not be parsed for the exact renewal-date text. Third-party CPA exam-prep sites (uncorroborated by the Board itself) claim a 3-year cycle expiring June 30. Since we cannot confirm the specific date against a current primary source, we are not publishing a computed date. A visitor should contact the Guam Board of Accountancy directly (per Guam government records: tel. 671-647-0813) rather than rely on a computed date.",
-      "verification_history": "2026-08-03: citation_url/source_url repointed -- the Judiciary of Guam relaunched its site 2026-05-01, breaking the old guamcourts.gov/compileroflaws/... path; col.guamcourts.gov is the working host, confirmed live and byte-matching the same document per the mobility dataset's own verification.\n\n2026-08-14 (browser-queue clearance, premise RE-VERIFIED, no change): guamboa.org's TLS is still broken (strict HTTPS connect fails outright; only an insecure -k probe gets a 301), so the gap note's premise holds. The codified Compiler-of-Laws PDF this record cites fetches fine (93KB of text via source_check). Note for the next verifier: naive greps for 'renew'/'June 30' over the extracted PDF text return nothing -- the extraction has spacing artifacts, so search tolerantly before concluding anything about content."
+      "verification_history": "2026-08-03: citation_url/source_url repointed -- the Judiciary of Guam relaunched its site 2026-05-01, breaking the old guamcourts.gov/compileroflaws/... path; col.guamcourts.gov is the working host, confirmed live and byte-matching the same document per the mobility dataset's own verification.\n\n2026-08-14 (browser-queue clearance, premise RE-VERIFIED, no change): guamboa.org's TLS is still broken (strict HTTPS connect fails outright; only an insecure -k probe gets a 301), so the gap note's premise holds. The codified Compiler-of-Laws PDF this record cites fetches fine (93KB of text via source_check). Note for the next verifier: naive greps for 'renew'/'June 30' over the extracted PDF text return nothing -- the extraction has spacing artifacts, so search tolerantly before concluding anything about content.\n\n2026-08-18 (AuditLab DNC sweep): re-extracted both PDFs via PyMuPDF on WebFetch's saved binaries (WebFetch's inline reader again claimed 'compressed/encoded' but the text was there). Found 25 GAR 2105(a)(1)(A): 'Applications for renewal of licenses are due annually no later than June 30' -- concluded from this that individual licenses renew ANNUALLY, a single universal fixed date needing zero personalization (classified as an even-stronger fix than any bucket-a finding this sweep, since it needs no personal input at all). Flagged as a MAJOR FINDING correcting the record's own premise. Not built (outside AuditLab's charter).\n\n2026-08-19 (AssetLab build): before building the 'zero personalization' version, independently re-fetched 22 GCA ch. 35 directly (same PyMuPDF-on-saved-binary technique) to check the codified Act itself, not just the Board's regulation -- and found this DOES need personalization after all. 35106(b) (Issuance and Renewal of Licenses, the individual-license section of the ACT): 'Licenses shall be initially issued, and renewed, for periods of not more than three (3) years but in any event shall expire on the last day of June.' The Act is a HIGHER authority than the Board's own regulation, and it directly contradicts the 'annual, zero-personalization' read: 25 GAR 2105(a)(1)(A)'s 'due annually no later than June 30' describes the ADMINISTRATIVE filing deadline (whenever YOUR renewal happens to be due, file by June 30) -- it does not mean every single licensee renews every single year. This is the same class of conflation as the 'not published state-wide' vs 'not computable' error found repeatedly this sweep, but inverted: a real, previously-uncaught error that would have shipped a WRONG (too-frequent) deadline to every Guam individual visitor. Corrected: individual has the IDENTICAL up-to-3-years/June-30 shape as the firm record below, split into its own record accordingly (AuditLab's own call to split guam-all was right, even though its individual-classification was not). Built via the shared ANCHOR_YEAR_CHOSEN_TERM_STATES pattern, first shipped for New Mexico firm."
+    },
+    {
+      "id": "guam-firm",
+      "state": "Guam",
+      "state_slug": "guam",
+      "license_type": "firm",
+      "license_type_label": "Firm permit",
+      "renewal_pattern": "other",
+      "cycle_description": "22 GCA 35107(b): Firm Permits to Practice are issued and renewed for periods of not more than three years, but in any event expiring on the last day of June in the year of expiration. Same shape as the individual license above -- the specific year within your firm's own up-to-3-year term is printed on the permit, not published statewide.",
+      "next_deadline_computed": null,
+      "computation": {
+        "type": "anchor_year_chosen_term",
+        "month": 6,
+        "day": 30,
+        "term_options": [1, 2, 3],
+        "note": "Next deadline = June 30, (year your firm's permit was issued or last renewed) + (the 1-, 2-, or 3-year term shown on that permit)."
+      },
+      "source_url": "https://col.guamcourts.gov/sites/default/files/22gc035.pdf",
+      "secondary_source_url": "https://col.guamcourts.gov/sites/default/files/25GAR002.pdf",
+      "last_verified": "2026-08-19",
+      "wave": 4,
+      "citation": "22 GCA 35107(b) (Firm Permits to Practice); 25 GAR 2106(a)(1) (renewal application filing deadline)",
+      "citation_url": "https://col.guamcourts.gov/sites/default/files/22gc035.pdf",
+      "citation_class": "codified_law",
+      "verification_history": "2026-08-18 (AuditLab DNC sweep): re-extracted 22 GCA ch. 35 via PyMuPDF on WebFetch's saved binary and found 35107(b) directly: 'Firm Permits to Practice shall be initially issued and renewed for periods of not more than three years but in any event expiring on the last day of June in the year of expiration.' Confirmed via 25 GAR 2106(a)(1) that the administrative filing deadline is also 'due annually no later than June 30', consistent with the underlying term structure. Classified correctly as bucket (a), same computable-given-a-personal-anchor shape as several other firm records this sweep. Split out of the prior unified guam-all record into its own record, since the individual license (35106(b), see that record's own history) turned out to need the SAME treatment rather than the trivial fixed date AuditLab's report described elsewhere. Built 2026-08-19 via the shared ANCHOR_YEAR_CHOSEN_TERM_STATES pattern."
     },
     {
       "id": "northern-mariana-islands-all",

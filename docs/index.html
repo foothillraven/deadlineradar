@@ -1969,7 +1969,7 @@
   <div class="trust-row">
     <div class="item"><span class="n">55</span><span class="lbl">jurisdictions listed</span></div>
     <div class="item"><span class="n">42</span><span class="lbl">where we determine your exact date</span></div>
-    <div class="item"><span class="n">245 of 245</span><span class="lbl">dated records across all datasets re-checked in the last 30 days</span></div>
+    <div class="item"><span class="n">246 of 246</span><span class="lbl">dated records across all datasets re-checked in the last 30 days</span></div>
     
   </div>
   <p class="trust-footnote">In the remaining 13, renewal turns on a personal fact
@@ -2391,11 +2391,18 @@ original Florida CPA certificate. Leave blank if you selected Firm license.</p><
   <option value="ga-individual">Individual CPA license</option>
 <option value="ga-firm">Firm license</option>
 </select></div>
-<div class="signup-extra-fields" data-for-state="guam" hidden><label for="license_expiration_date">License expiration date</label>
-<input type="date" id="license_expiration_date" name="license_expiration_date"
-  min="2026-08-14" max="2030-02-13" required>
-<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
-up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="guam" hidden><label for="anchor_year">Year your license or permit was last issued or renewed</label>
+<input type="number" inputmode="numeric" id="anchor_year" name="anchor_year"
+  min="1900" max="2100" placeholder="e.g. 2024" required>
+<label for="term_years">Term length shown on that certificate or permit</label>
+<select id="term_years" name="term_years" required>
+  <option value="">Select&hellip;</option>
+  <option value="1">1 year</option>
+  <option value="2">2 years</option>
+  <option value="3">3 years</option>
+</select>
+<p class="field-hint">Your renewal always lands on June 30, that many years
+after your anchor year -- works whether you mean your own individual license or your firm's permit.</p></div>
 <div class="signup-extra-fields" data-for-state="idaho" hidden><label for="parity_number">Birth year</label>
 <input type="text" inputmode="numeric" id="parity_number" name="parity_number" required
   placeholder="e.g. 1985">

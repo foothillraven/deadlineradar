@@ -1033,6 +1033,28 @@ function resolveDeadlineInput(stateSlug: string, form: Record<string, string>): 
         deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
         userDeadline: null,
       };
+    } else if (stateSlug === "guam") {
+      // ANCHOR_YEAR_CHOSEN_TERM_SIGNUP_STATES (2026-08-19, AuditLab DNC
+      // sweep) -- Guam individual (22 GCA 35106(b)) and firm (22 GCA
+      // 35107(b)) use the IDENTICAL formula shape (fixed June 30, a
+      // CHOSEN 1-3 year term), so one shared field pair covers both --
+      // unlike Florida, no license_type_id disambiguation is needed since
+      // the math is the same regardless of which one the subscriber means.
+      const rawAnchorYear = (form.anchor_year ?? "").trim();
+      const anchorYearInt = strictParseInt(rawAnchorYear);
+      if (anchorYearInt === null || anchorYearInt < 1900 || anchorYearInt > 2100) {
+        return errorPage(400, "Guam needs a valid year.");
+      }
+      const rawTerm = (form.term_years ?? "").trim();
+      const termInt = strictParseInt(rawTerm);
+      if (termInt === null || ![1, 2, 3].includes(termInt)) {
+        return errorPage(400, "Guam needs a valid term length (1, 2, or 3 years).");
+      }
+      return {
+        deadlineFields: { anchor_year: String(anchorYearInt), term_years: String(termInt) },
+        deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
+        userDeadline: null,
+      };
     } else if (stateSlug === "new-hampshire" || stateSlug === "northern-mariana-islands") {
       // ANCHOR_DATE_PLUS_TERM_STATES (2026-08-18, AuditLab DNC sweep) -- no
       // fixed month/day, exactly N years from the licensee's own last
@@ -5079,7 +5101,7 @@ function stringFieldsOf(body: Record<string, unknown>): Record<string, string> {
   return out;
 }
 
-const DEADLINE_FIELD_KEYS = ["birth_month", "birth_year", "cohort_group", "parity_number", "license_type_id", "license_expiration_date", "anchor_date", "anchor_year"];
+const DEADLINE_FIELD_KEYS = ["birth_month", "birth_year", "cohort_group", "parity_number", "license_type_id", "license_expiration_date", "anchor_date", "anchor_year", "term_years"];
 
 /** The dashboard's clean status vocabulary (loosely mirrors generate.py's
  * illustrative _MOCKUP_STATUS_CLASS terminology -- Confirmed/Pending/Needs

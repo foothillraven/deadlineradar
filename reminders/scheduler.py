@@ -158,6 +158,26 @@ def compute_subscriber_deadline(subscriber: dict, as_of: date) -> tuple[date, st
             return next_certificate_date_initial_term(cert_date, 3, 2, 6, 30, as_of), state_name
         return None
 
+    if state_slug == "guam":
+        # ANCHOR_YEAR_CHOSEN_TERM_SIGNUP_STATES, added 2026-08-19 -- Guam
+        # individual (22 GCA 35106(b)) and firm (22 GCA 35107(b)) use the
+        # IDENTICAL formula shape, so one shared field pair covers both.
+        # Single-shot, no further rollover assumed (same honesty posture
+        # as New Mexico firm): the term can vary each renewal.
+        anchor_year_str = fields.get("anchor_year")
+        term_str = fields.get("term_years")
+        if not anchor_year_str or not term_str:
+            return None
+        try:
+            anchor_year = int(anchor_year_str)
+            term = int(term_str)
+        except ValueError:
+            return None
+        if term not in (1, 2, 3):
+            return None
+        d = date(anchor_year + term, 6, 30)
+        return (d, state_name) if d >= as_of else None
+
     if state_slug in ("washington", "puerto-rico"):
         # ANCHOR_YEAR_TERM_SIGNUP_STATES, added 2026-08-18 -- one shared
         # fixed month/day per state, only the anchor YEAR is personal.

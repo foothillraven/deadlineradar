@@ -216,7 +216,7 @@ SSO_PROVIDERS = [p.strip() for p in os.environ.get("DR_SSO_PROVIDERS", "google")
 _WORKER_FIELD_COMPUTED_STATES = {
     "california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska", "idaho",
     "oklahoma", "new-mexico", "arizona", "new-hampshire", "northern-mariana-islands",
-    "washington", "puerto-rico", "florida",
+    "washington", "puerto-rico", "florida", "guam",
 }
 
 
@@ -3242,6 +3242,25 @@ years after this date, same month and day, repeating.</p>"""
 <input type="date" id="anchor_date" name="anchor_date" max="{fmt_date_iso(as_of)}">
 <p class="field-hint">Only needed if you selected Individual CPA license above -- find it on your
 original Florida CPA certificate. Leave blank if you selected Firm license.</p>"""
+    if state_slug in ANCHOR_YEAR_CHOSEN_TERM_SIGNUP_STATES:
+        # Guam's individual and firm records use the IDENTICAL formula
+        # shape, so one shared anchor-year + term-length field pair covers
+        # both -- see ANCHOR_YEAR_CHOSEN_TERM_SIGNUP_STATES' own comment.
+        cfg = ANCHOR_YEAR_CHOSEN_TERM_SIGNUP_STATES[state_slug]
+        month_name = MONTH_NAMES[cfg["month"] - 1]
+        term_options_html = "\n  ".join(
+            f'<option value="{t}">{t} year{"s" if t != 1 else ""}</option>' for t in cfg["term_options"]
+        )
+        return f"""<label for="anchor_year">Year your license or permit was last issued or renewed</label>
+<input type="number" inputmode="numeric" id="anchor_year" name="anchor_year"
+  min="1900" max="2100" placeholder="e.g. 2024" required>
+<label for="term_years">Term length shown on that certificate or permit</label>
+<select id="term_years" name="term_years" required>
+  <option value="">Select&hellip;</option>
+  {term_options_html}
+</select>
+<p class="field-hint">Your renewal always lands on {esc(month_name)} {cfg['day']}, that many years
+after your anchor year -- works whether you mean your own individual license or your firm's permit.</p>"""
     if state_slug in ANCHOR_YEAR_TERM_SIGNUP_STATES:
         # Washington's individual and firm records compute identically, so
         # one shared anchor-year field covers both -- see
@@ -5056,6 +5075,41 @@ ANCHOR_YEAR_CHOSEN_TERM_STATES: dict[str, dict] = {
         "anchor_label": "Year your firm's permit was last issued or renewed",
         "term_label": "Term length printed on that permit",
     },
+    # Guam individual (22 GCA 35106(b)) and firm (22 GCA 35107(b)) are BOTH
+    # this same shape, added 2026-08-19 -- AuditLab's own sweep had flagged
+    # guam-individual as needing ZERO personalization (a simple annual June
+    # 30 date), based on 25 GAR 2105(a)(1)(A)'s "applications... due
+    # annually no later than June 30." Independently re-verified before
+    # building and found that read the regulation's ADMINISTRATIVE filing
+    # deadline as the LICENSE TERM -- the codified Act itself (a higher
+    # authority than the Board's own regulation) says at 35106(b): "Licenses
+    # shall be initially issued, and renewed, for periods of not more than
+    # three (3) years but in any event shall expire on the last day of
+    # June." Same "up to N years, one fixed month/day" shape as the firm
+    # permit (35107(b)), not the trivial annual case AuditLab's report
+    # described -- see the DNC sweep note in the individual record's own
+    # verification_history for the full correction.
+    "guam-individual": {
+        "month": 6, "day": 30, "term_options": [1, 2, 3],
+        "anchor_label": "Year your license was last issued or renewed",
+        "term_label": "Term length shown on your certificate",
+    },
+    "guam-firm": {
+        "month": 6, "day": 30, "term_options": [1, 2, 3],
+        "anchor_label": "Year your firm's permit was last issued or renewed",
+        "term_label": "Term length shown on that permit",
+    },
+}
+
+# For the SIGNUP form/worker computation only (not the on-page display
+# above): unlike New Mexico (where individual and firm need DIFFERENT
+# mechanisms), Guam's individual and firm records use the IDENTICAL formula
+# shape (same month/day, same term_options) -- the math doesn't depend on
+# which entity it's for, only on the anchor year and term the subscriber
+# actually enters. So one shared state-wide field pair covers both, same
+# simplification as ANCHOR_YEAR_TERM_SIGNUP_STATES for Washington.
+ANCHOR_YEAR_CHOSEN_TERM_SIGNUP_STATES: dict[str, dict] = {
+    "guam": {"month": 6, "day": 30, "term_options": [1, 2, 3]},
 }
 
 
@@ -5092,13 +5146,14 @@ def _anchor_year_chosen_term_js(record_id: str, as_of: date) -> str:
   var goBtn = document.getElementById('dr-ayct-{record_id}-go');
   var result = document.getElementById('dr-ayct-{record_id}-result');
   var month = {cfg['month']}, day = {cfg['day']};
+  var termOptions = {json.dumps(cfg['term_options'])};
   var asOf = new Date(Date.UTC({as_of.year}, {as_of.month - 1}, {as_of.day}));
   var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   function fmt(d) {{ return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear(); }}
   function show() {{
     var y = parseInt(yearInput.value, 10);
     var term = parseInt(termSelect.value, 10);
-    if (!y || y < 1900 || y > 2100 || (term !== 1 && term !== 2)) {{
+    if (!y || y < 1900 || y > 2100 || termOptions.indexOf(term) === -1) {{
       result.hidden = false;
       result.textContent = 'Enter your anchor year and term length to see your date.';
       return;
@@ -5118,9 +5173,18 @@ def _anchor_year_chosen_term_js(record_id: str, as_of: date) -> str:
 </script>"""
 
 
-def render_anchor_year_chosen_term_record(record: dict, as_of: date) -> str:
-    record_id = record["id"]
-    return f"""<div class="callout">
+def render_anchor_year_chosen_term_records(records: list[dict], as_of: date) -> str:
+    """Renders one interactive calculator block per qualifying record --
+    Guam is the first state where TWO records (individual AND firm) both
+    need this exact chosen-term shape simultaneously, same reason
+    render_anchor_year_term_records() (the fixed-term sibling) is
+    list-based rather than single-record."""
+    blocks = []
+    for record in records:
+        record_id = record["id"]
+        if record_id not in ANCHOR_YEAR_CHOSEN_TERM_STATES:
+            continue
+        blocks.append(f"""<div class="callout">
   <div class="label">{esc(record['license_type_label'])}</div>
   <p class="rule">{esc(record['cycle_description'])}</p>
   <p><strong>Enter the anchor year and term length below</strong> to see the exact next deadline
@@ -5128,7 +5192,8 @@ def render_anchor_year_chosen_term_record(record: dict, as_of: date) -> str:
   {_callout_cite_html(record)}
 </div>
 {_anchor_year_chosen_term_html(record_id)}
-{_anchor_year_chosen_term_js(record_id, as_of)}"""
+{_anchor_year_chosen_term_js(record_id, as_of)}""")
+    return "\n".join(blocks)
 
 
 # 2026-08-19 (AuditLab DNC sweep): Florida individual (Fla. Admin. Code R.
@@ -5667,9 +5732,7 @@ def build_state_page(
         # 2026-08-18 bug did.
         ayct_records = [r for r in other_records if r["id"] in ANCHOR_YEAR_CHOSEN_TERM_STATES]
         if ayct_records:
-            deadline_html += "\n" + "\n".join(
-                render_anchor_year_chosen_term_record(r, as_of) for r in ayct_records
-            )
+            deadline_html += "\n" + render_anchor_year_chosen_term_records(ayct_records, as_of)
             other_records = [r for r in other_records if r not in ayct_records]
         if other_records:
             deadline_html += "\n" + _render_records_computed_cohort_gapped(other_records)
@@ -5711,6 +5774,15 @@ def build_state_page(
         cdit_record = next((r for r in records if r["id"] in CERTIFICATE_DATE_INITIAL_TERM_STATES), None)
         other_records = [r for r in records if r is not cdit_record]
         deadline_html = render_certificate_date_term_record(cdit_record, as_of) if cdit_record else ""
+        if other_records:
+            deadline_html += "\n" + _render_records_computed_cohort_gapped(other_records)
+    elif any(r["id"] in ANCHOR_YEAR_CHOSEN_TERM_STATES for r in records):
+        # Guam is the first state where TWO records (individual AND firm)
+        # both need this exact chosen-term shape at once -- same reason
+        # ANCHOR_YEAR_TERM_STATES' branch above is list-based.
+        ayct_records = [r for r in records if r["id"] in ANCHOR_YEAR_CHOSEN_TERM_STATES]
+        other_records = [r for r in records if r["id"] not in ANCHOR_YEAR_CHOSEN_TERM_STATES]
+        deadline_html = render_anchor_year_chosen_term_records(ayct_records, as_of)
         if other_records:
             deadline_html += "\n" + _render_records_computed_cohort_gapped(other_records)
     else:

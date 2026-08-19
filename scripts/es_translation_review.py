@@ -200,6 +200,55 @@ DRAFTS: dict[str, str] = {
     "contact.chat_loading_hint": "Esto puede tardar unos segundos en una conexión lenta.",
     "contact.chat_ready": "Chat cargado — busque la burbuja en la esquina",
     "contact.chat_slow": "Todavía conectando — si esto no termina en unos segundos más, escríbanos en su lugar: {email}",
+    "msf.h1": "¿Dirige una firma de CPA multiestatal? Aquí está el panorama completo.",
+    "msf.intro": (
+        "Una firma con personal licenciado o ejerciendo en más de un estado tiene un problema "
+        "genuinamente distinto al de una firma de un solo estado: saber dónde puede trabajar "
+        "legalmente cada persona, detectarlo antes de que una norma cambie bajo sus pies, y "
+        "mantener una cita detrás de cada respuesta. Tres piezas de este sitio trabajan juntas "
+        "exactamente para eso."
+    ),
+    "msf.h2_map": "1. Mapa — vea en qué estados puede ejercer todo su equipo",
+    "msf.map_body": (
+        "Un mapa codificado por colores que muestra exactamente en qué estados su equipo puede "
+        "ejercer hoy sin una licencia local, más una verificación de registro a nivel de firma "
+        "para trabajo de certificación donde su propia firma (no solo el CPA individual) necesita "
+        "registrarse. Parte de un plan de firma de pago — {pricing_link}."
+    ),
+    "msf.see_plans": "ver planes",
+    "msf.h2_ppc": "2. Verificación de privilegio de práctica — confirme antes de que el personal asuma trabajo fuera del estado",
+    "msf.ppc_body": (
+        "Antes de que un CPA de su equipo asuma trabajo en un estado donde no tiene licencia "
+        "local, ejecute la verificación: tipo de servicio, estado de origen, estado de destino, y "
+        "la respuesta llega con la norma y la cita que la respaldan — nunca una suposición. "
+        "{ppc_link}."
+    ),
+    "msf.ppc_link_text": "Gratis para cualquier cuenta, sin plan de pago requerido",
+    "msf.h2_rule_changes": "3. Cambios de normas — un feed continuo, no una verificación única",
+    "msf.rule_changes_body": (
+        "Un feed continuo de cambios confirmados y pendientes a las normas de movilidad "
+        "interestatal de CPA — privilegios de práctica, requisitos de aviso/tarifa, y registro de "
+        "firmas — obtenido de la misma manera que cada fecha en este sitio: una cita al estatuto o "
+        "norma primaria donde pudimos confirmarla, y claramente etiquetado donde solo pudimos "
+        "confirmarla contra la propia página de la junta, nunca una suposición. El calendario de "
+        "su propia firma muestra los cambios que realmente afectan a los estados de su equipo. "
+        "{feed_link}."
+    ),
+    "msf.feed_link_text": "Vea el feed público completo",
+    "msf.try_demo": "Pruebe la demo en vivo →",
+    "msf.new_here_bold": "¿Nuevo en Deadline-Radar?",
+    "msf.new_here_rest": (
+        "Vea el {overview_link} para precios, el conjunto completo de funciones, y cómo el "
+        "seguimiento de fechas de renovación encaja junto con estas tres."
+    ),
+    "msf.overview_link_text": "resumen completo para firmas",
+    "msf.backlink_all_states": "← Volver a todos los estados",
+    "msf.title": "Firmas de CPA multiestatales: mapa, verificación de movilidad y cambios de normas",
+    "msf.meta_description": (
+        "Para una firma de CPA con personal en varios estados: un mapa de cobertura, una "
+        "Verificación de privilegio de práctica gratuita, y un feed continuo de cambios de normas "
+        "de movilidad — todo con fuentes y citas."
+    ),
 }
 
 

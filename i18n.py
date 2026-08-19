@@ -213,6 +213,52 @@ EN: dict[str, str] = {
     "contact.chat_loading_hint": "This can take a few seconds on a slow connection.",
     "contact.chat_ready": "Chat loaded — look for the bubble in the corner",
     "contact.chat_slow": "Still connecting — if this doesn't finish in a few more seconds, email us instead: {email}",
+    # /multi-state-firms/ -- build_multi_state_firms_page()
+    "msf.h1": "Running a Multi-State CPA Firm? Here's the Full Picture.",
+    "msf.intro": (
+        "A firm with staff licensed or practicing across more than one state has a genuinely "
+        "different problem than a single-state firm: knowing where everyone can legally work, "
+        "catching it before a rule changes underneath you, and keeping a citation behind every "
+        "answer. Three pieces of this site work together for exactly that."
+    ),
+    "msf.h2_map": "1. Map — see every state your team can practice in",
+    "msf.map_body": (
+        "A color-coded map of exactly which states your team can practice in today without a "
+        "local license, plus a firm-level registration check for attest work where your firm "
+        "itself (not just the individual CPA) needs to register. Part of a paid firm plan — "
+        "{pricing_link}."
+    ),
+    "msf.see_plans": "see plans",
+    "msf.h2_ppc": "2. Practice Privilege Check — verify before staff take on out-of-state work",
+    "msf.ppc_body": (
+        "Before a staff CPA takes on work in a state they're not locally licensed in, run the "
+        "check: service type, home state, target state, and the answer comes back with the rule "
+        "and citation behind it — never a guess. {ppc_link}."
+    ),
+    "msf.ppc_link_text": "Free for any account, no paid plan required",
+    "msf.h2_rule_changes": "3. Rule Changes — a running feed, not a one-time check",
+    "msf.rule_changes_body": (
+        "A running feed of confirmed and pending changes to interstate CPA mobility rules — "
+        "practice privileges, notice/fee requirements, and firm registration — sourced the same "
+        "way every date on this site is: a citation to the primary statute or rule where we could "
+        "confirm it, and clearly labelled where we could only confirm it against the board's own "
+        "page, never a guess. Your firm's own calendar surfaces the changes that actually affect "
+        "your roster's states. {feed_link}."
+    ),
+    "msf.feed_link_text": "See the full public feed",
+    "msf.try_demo": "Try the live demo →",
+    "msf.new_here_bold": "New to Deadline-Radar?",
+    "msf.new_here_rest": (
+        "See the {overview_link} for pricing, the whole feature set, and how renewal-date "
+        "tracking fits alongside these three."
+    ),
+    "msf.overview_link_text": "full firm overview",
+    "msf.backlink_all_states": "← Back to all states",
+    "msf.title": "Multi-State CPA Firms: Map, Mobility Check, and Rule Changes",
+    "msf.meta_description": (
+        "For a CPA firm with staff across multiple states: a coverage map, a free Practice "
+        "Privilege Check, and a running feed of mobility rule changes — all sourced and cited."
+    ),
 }
 
 
@@ -525,6 +571,96 @@ ES: dict[str, dict] = {
     'methodology.verified_badge_body': {
         "text": 'Un recuadro destacado muestra una insignia <strong>Verificado</strong> solo cuando esa fecha específica tiene una cita real a la ley codificada que la respalda, verificada de la manera descrita arriba. Un registro sin ella nunca muestra la insignia — no existe un estado intermedio donde una fecha parezca confirmada sin estarlo.',
         "en_hash": '9133faed51b64a34',
+        "reviewed": False,
+    },
+    'msf.backlink_all_states': {
+        "text": '← Volver a todos los estados',
+        "en_hash": '116d8e518da7ebb0',
+        "reviewed": False,
+    },
+    'msf.feed_link_text': {
+        "text": 'Vea el feed público completo',
+        "en_hash": 'a6b7dfba7a46fe57',
+        "reviewed": False,
+    },
+    'msf.h1': {
+        "text": '¿Dirige una firma de CPA multiestatal? Aquí está el panorama completo.',
+        "en_hash": '995b35a40657fce4',
+        "reviewed": False,
+    },
+    'msf.h2_map': {
+        "text": '1. Mapa — vea en qué estados puede ejercer todo su equipo',
+        "en_hash": 'd9ca0e416bf72b16',
+        "reviewed": False,
+    },
+    'msf.h2_ppc': {
+        "text": '2. Verificación de privilegio de práctica — confirme antes de que el personal asuma trabajo fuera del estado',
+        "en_hash": '1b970c435bfcdf55',
+        "reviewed": False,
+    },
+    'msf.h2_rule_changes': {
+        "text": '3. Cambios de normas — un feed continuo, no una verificación única',
+        "en_hash": '24fab8ed43ef3163',
+        "reviewed": False,
+    },
+    'msf.intro': {
+        "text": 'Una firma con personal licenciado o ejerciendo en más de un estado tiene un problema genuinamente distinto al de una firma de un solo estado: saber dónde puede trabajar legalmente cada persona, detectarlo antes de que una norma cambie bajo sus pies, y mantener una cita detrás de cada respuesta. Tres piezas de este sitio trabajan juntas exactamente para eso.',
+        "en_hash": 'df89adddee99fb48',
+        "reviewed": False,
+    },
+    'msf.map_body': {
+        "text": 'Un mapa codificado por colores que muestra exactamente en qué estados su equipo puede ejercer hoy sin una licencia local, más una verificación de registro a nivel de firma para trabajo de certificación donde su propia firma (no solo el CPA individual) necesita registrarse. Parte de un plan de firma de pago — {pricing_link}.',
+        "en_hash": 'bf6e29d476fad8f9',
+        "reviewed": False,
+    },
+    'msf.meta_description': {
+        "text": 'Para una firma de CPA con personal en varios estados: un mapa de cobertura, una Verificación de privilegio de práctica gratuita, y un feed continuo de cambios de normas de movilidad — todo con fuentes y citas.',
+        "en_hash": '2db9cec4bc7c6c31',
+        "reviewed": False,
+    },
+    'msf.new_here_bold': {
+        "text": '¿Nuevo en Deadline-Radar?',
+        "en_hash": 'a377ab1ca0457c97',
+        "reviewed": False,
+    },
+    'msf.new_here_rest': {
+        "text": 'Vea el {overview_link} para precios, el conjunto completo de funciones, y cómo el seguimiento de fechas de renovación encaja junto con estas tres.',
+        "en_hash": 'c992446c0c6f005c',
+        "reviewed": False,
+    },
+    'msf.overview_link_text': {
+        "text": 'resumen completo para firmas',
+        "en_hash": '36f6173bffc454fd',
+        "reviewed": False,
+    },
+    'msf.ppc_body': {
+        "text": 'Antes de que un CPA de su equipo asuma trabajo en un estado donde no tiene licencia local, ejecute la verificación: tipo de servicio, estado de origen, estado de destino, y la respuesta llega con la norma y la cita que la respaldan — nunca una suposición. {ppc_link}.',
+        "en_hash": 'e92e4be0a06603ba',
+        "reviewed": False,
+    },
+    'msf.ppc_link_text': {
+        "text": 'Gratis para cualquier cuenta, sin plan de pago requerido',
+        "en_hash": 'e3e7ab62fcddaa42',
+        "reviewed": False,
+    },
+    'msf.rule_changes_body': {
+        "text": 'Un feed continuo de cambios confirmados y pendientes a las normas de movilidad interestatal de CPA — privilegios de práctica, requisitos de aviso/tarifa, y registro de firmas — obtenido de la misma manera que cada fecha en este sitio: una cita al estatuto o norma primaria donde pudimos confirmarla, y claramente etiquetado donde solo pudimos confirmarla contra la propia página de la junta, nunca una suposición. El calendario de su propia firma muestra los cambios que realmente afectan a los estados de su equipo. {feed_link}.',
+        "en_hash": 'd0fa020ab8c1681b',
+        "reviewed": False,
+    },
+    'msf.see_plans': {
+        "text": 'ver planes',
+        "en_hash": '70bc8613cdb53212',
+        "reviewed": False,
+    },
+    'msf.title': {
+        "text": 'Firmas de CPA multiestatales: mapa, verificación de movilidad y cambios de normas',
+        "en_hash": 'df39614c32f5145b',
+        "reviewed": False,
+    },
+    'msf.try_demo': {
+        "text": 'Pruebe la demo en vivo →',
+        "en_hash": 'f6fe3745b0891272',
         "reviewed": False,
     },
     'nav.browse_states': {

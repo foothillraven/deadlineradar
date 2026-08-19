@@ -47,6 +47,14 @@
   <url>
     <loc>https://deadline-radar.com/multi-state-firms/</loc>
     <lastmod>2026-08-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://deadline-radar.com/multi-state-firms/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/multi-state-firms/"/>
+  </url>
+  <url>
+    <loc>https://deadline-radar.com/es/multi-state-firms/</loc>
+    <lastmod>2026-08-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://deadline-radar.com/multi-state-firms/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/multi-state-firms/"/>
   </url>
   <url>
     <loc>https://deadline-radar.com/deadline-calculator/</loc>

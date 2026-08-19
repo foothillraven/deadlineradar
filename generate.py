@@ -17573,7 +17573,7 @@ view instead of one state at a time.</p>
     )
 
 
-def build_multi_state_firms_page() -> str:
+def build_multi_state_firms_page(lang: str = "en") -> str:
     """Roadmap #337: one page assembling Map + Practice Privilege Check +
     Rule Changes for a firm whose staff span multiple states -- explicitly
     ONE page, not six state-segment pages (the item's own instruction).
@@ -17581,45 +17581,42 @@ def build_multi_state_firms_page() -> str:
     verbatim (the Map value-callout text from the dashboard, the rule-
     changes feed's own intro sentence) rather than inventing new marketing
     claims about features described precisely elsewhere."""
-    body = f"""<h1>Running a Multi-State CPA Firm? Here's the Full Picture.</h1>
-<p class="intro">A firm with staff licensed or practicing across more than one state has a genuinely
-different problem than a single-state firm: knowing where everyone can legally work, catching it before
-a rule changes underneath you, and keeping a citation behind every answer. Three pieces of this site
-work together for exactly that.</p>
+    pricing_link = f'<a href="/pricing/">{esc(_t("msf.see_plans", lang))}</a>'
+    ppc_link = f'<a href="/practice-privilege-check/">{esc(_t("msf.ppc_link_text", lang))}</a>'
+    feed_link = f'<a href="/rule-changes/">{esc(_t("msf.feed_link_text", lang))}</a>'
+    overview_link = f'<a href="/for-firms/">{esc(_t("msf.overview_link_text", lang))}</a>'
+    body = f"""<h1>{_t("msf.h1", lang)}</h1>
+<p class="intro">{_t("msf.intro", lang)}</p>
 
-<h2>1. Map &mdash; see every state your team can practice in</h2>
-<p>A color-coded map of exactly which states your team can practice in today without a local license,
-plus a firm-level registration check for attest work where your firm itself (not just the individual
-CPA) needs to register. Part of a paid firm plan &mdash; <a href="/pricing/">see plans</a>.</p>
+<h2>{_t("msf.h2_map", lang)}</h2>
+<p>{_t("msf.map_body", lang, pricing_link=pricing_link)}</p>
 
-<h2>2. Practice Privilege Check &mdash; verify before staff take on out-of-state work</h2>
-<p>Before a staff CPA takes on work in a state they're not locally licensed in, run the check: service
-type, home state, target state, and the answer comes back with the rule and citation behind it &mdash;
-never a guess. <a href="/practice-privilege-check/">Free for any account, no paid plan required</a>.</p>
+<h2>{_t("msf.h2_ppc", lang)}</h2>
+<p>{_t("msf.ppc_body", lang, ppc_link=ppc_link)}</p>
 
-<h2>3. Rule Changes &mdash; a running feed, not a one-time check</h2>
-<p>A running feed of confirmed and pending changes to interstate CPA mobility rules &mdash; practice
-privileges, notice/fee requirements, and firm registration &mdash; sourced the same way every date on
-this site is: a citation to the primary statute or rule where we could confirm it, and clearly labelled
-where we could only confirm it against the board's own page, never a guess. Your firm's own calendar
-surfaces the changes that actually affect your roster's states.
-<a href="/rule-changes/">See the full public feed</a>.</p>
+<h2>{_t("msf.h2_rule_changes", lang)}</h2>
+<p>{_t("msf.rule_changes_body", lang, feed_link=feed_link)}</p>
 
-<p><a class="cta-button" href="{REMINDER_BACKEND_BASE_URL}/firm/demo-login">Try the live demo &rarr;</a></p>
+<p><a class="cta-button" href="{REMINDER_BACKEND_BASE_URL}/firm/demo-login">{_t("msf.try_demo", lang)}</a></p>
 
-<p><strong>New to Deadline-Radar?</strong> See the <a href="/for-firms/">full firm overview</a> for
-pricing, the whole feature set, and how renewal-date tracking fits alongside these three.</p>
+<p><strong>{_t("msf.new_here_bold", lang)}</strong> {_t("msf.new_here_rest", lang, overview_link=overview_link)}</p>
 
-<p class="backlink"><a href="/">&larr; Back to all states</a></p>
+<p class="backlink"><a href="/">{_t("msf.backlink_all_states", lang)}</a></p>
 """
+    hreflang_html = (
+        '<link rel="alternate" hreflang="en" href="https://deadline-radar.com/multi-state-firms/">\n'
+        '<link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/multi-state-firms/">\n'
+        '<link rel="alternate" hreflang="x-default" href="https://deadline-radar.com/multi-state-firms/">'
+    )
     return page_shell(
-        f"Multi-State CPA Firms: Map, Mobility Check, and Rule Changes — {SITE_NAME}",
-        "For a CPA firm with staff across multiple states: a coverage map, a free Practice Privilege "
-        "Check, and a running feed of mobility rule changes -- all sourced and cited.",
+        f"{_t('msf.title', lang)} — {SITE_NAME}",
+        _t("msf.meta_description", lang),
         body,
-        home_href="../",
-        canonical_path="/multi-state-firms/",
+        home_href="../" if lang == "en" else "../../",
+        canonical_path="/multi-state-firms/" if lang == "en" else "/es/multi-state-firms/",
         has_remind_anchor=False,
+        lang=lang,
+        extra_head=hreflang_html,
     )
 
 
@@ -20729,6 +20726,13 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/multi-state-firms/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/multi-state-firms/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/multi-state-firms/"/>
+  </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/es/multi-state-firms/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/multi-state-firms/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/multi-state-firms/"/>
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/deadline-calculator/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
@@ -21061,6 +21065,11 @@ def main() -> None:
     multi_state_dir.mkdir(parents=True, exist_ok=True)
     (multi_state_dir / "index.html").write_text(build_multi_state_firms_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/multi-state-firms/index.html")
+
+    es_multi_state_dir = SITE_DIR / "es" / "multi-state-firms"
+    es_multi_state_dir.mkdir(parents=True, exist_ok=True)
+    (es_multi_state_dir / "index.html").write_text(build_multi_state_firms_page(lang="es"), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/es/multi-state-firms/index.html")
 
     deadline_calc_dir = SITE_DIR / "deadline-calculator"
     deadline_calc_dir.mkdir(parents=True, exist_ok=True)

@@ -159,6 +159,47 @@ DRAFTS: dict[str, str] = {
         "remite a la propia página de la junta estatal más el estatuto o norma codificada real "
         "detrás de ella — nunca una suposición."
     ),
+    "contact.h1": "Contacto",
+    "contact.intro": "Preguntas, una corrección a una fecha límite, o cualquier otra cosa — nos gustaría saber de usted.",
+    "contact.h2_email_us": "Escríbanos",
+    "contact.email_body": (
+        "Leemos cada mensaje y normalmente respondemos en un par de días hábiles. Este es un "
+        "proyecto pequeño e independiente — hay una persona real del otro lado, no una cola de "
+        "soporte. Nuestra dirección también se publica de forma legible por máquina en "
+        "{security_txt_link} según {rfc_link}."
+    ),
+    "contact.privacy_policy_link_text": "Política de Privacidad",
+    "contact.h2_live_chat": "Chat en vivo",
+    "contact.live_chat_body": (
+        "¿Prefiere hablarlo ahora mismo? Iniciar un chat carga un widget de chat en vivo (Tawk.to) "
+        "— no se ejecuta en esta página hasta que hace clic en el botón de abajo, por lo que "
+        "nunca establece su propia cookie a menos que realmente lo use. Consulte nuestra "
+        "{privacy_link} para saber qué comparte ese widget y qué no."
+    ),
+    "contact.live_chat_button": "Iniciar un chat en vivo",
+    "contact.h2_wrong_date": "¿Encontró una fecha incorrecta?",
+    "contact.wrong_date_body": (
+        "Las fechas límite se recopilan de fuentes oficiales de las juntas estatales y trabajamos "
+        "arduamente para mantenerlas actualizadas, pero las normas cambian. Si una fecha parece "
+        "incorrecta, envíenos por correo el estado y lo que está viendo, y la verificaremos "
+        "contra la fuente y la corregiremos rápidamente. Siempre confirme su fecha límite exacta "
+        "con la junta de su estado antes de confiar en ella."
+    ),
+    "contact.h2_stop_reminders": "Detenga sus recordatorios",
+    "contact.stop_reminders_body": (
+        "La forma más rápida de detener los recordatorios es el enlace de baja de un clic al "
+        "final de cualquier correo que enviemos — es instantáneo y permanente. También puede "
+        "escribirnos por correo."
+    ),
+    "contact.h2_mailing_address": "Dirección postal",
+    "contact.meta_description": (
+        "Contacte a Deadline-Radar — preguntas, correcciones de fechas límite, o ayuda con sus "
+        "recordatorios de renovación de licencia de CPA. Escríbanos por correo o inicie un chat en vivo."
+    ),
+    "contact.chat_loading": "Cargando chat…",
+    "contact.chat_loading_hint": "Esto puede tardar unos segundos en una conexión lenta.",
+    "contact.chat_ready": "Chat cargado — busque la burbuja en la esquina",
+    "contact.chat_slow": "Todavía conectando — si esto no termina en unos segundos más, escríbanos en su lugar: {email}",
 }
 
 

@@ -8031,35 +8031,29 @@ mistyped. Find your state below, or head back to the homepage.</p>
     )
 
 
-def build_contact_page() -> str:
-    body = f"""<h1>Contact</h1>
-<p class="intro">Questions, a correction to a deadline, or anything else &mdash; we'd like to hear from you.</p>
+def build_contact_page(lang: str = "en") -> str:
+    security_txt_link = '<a href="/.well-known/security.txt">/.well-known/security.txt</a>'
+    rfc_link = '<a href="https://www.rfc-editor.org/rfc/rfc9116">RFC&nbsp;9116</a>'
+    privacy_link = f'<a href="/privacy/">{esc(_t("contact.privacy_policy_link_text", lang))}</a>'
+    body = f"""<h1>{_t("contact.h1", lang)}</h1>
+<p class="intro">{_t("contact.intro", lang)}</p>
 
-<h2>Email us</h2>
+<h2>{_t("contact.h2_email_us", lang)}</h2>
 <p><a href="mailto:{esc(CONTACT_EMAIL)}">{esc(CONTACT_EMAIL)}</a></p>
-<p>We read every message and usually reply within a couple of business days. This is a small, independent
-project &mdash; there's a real person on the other end, not a support queue. Our address is also published
-machine-readably at <a href="/.well-known/security.txt">/.well-known/security.txt</a> per <a
-href="https://www.rfc-editor.org/rfc/rfc9116">RFC&nbsp;9116</a>.</p>
+<p>{_t("contact.email_body", lang, security_txt_link=security_txt_link, rfc_link=rfc_link)}</p>
 
-<h2>Live chat</h2>
-<p>Prefer to talk it through right now? Starting a chat loads a live-chat widget (Tawk.to) -- it isn't
-running on this page until you click the button below, so it never sets its own cookie unless you
-actually use it. See our <a href="/privacy/">Privacy Policy</a> for what that widget does and doesn't
-share.</p>
-<button type="button" class="dr-link-btn" id="dr-live-chat-btn">Start a live chat</button>
+<h2>{_t("contact.h2_live_chat", lang)}</h2>
+<p>{_t("contact.live_chat_body", lang, privacy_link=privacy_link)}</p>
+<button type="button" class="dr-link-btn" id="dr-live-chat-btn">{_t("contact.live_chat_button", lang)}</button>
 <p class="field-hint" id="dr-live-chat-status" hidden></p>
 
-<h2>Spotted a wrong date?</h2>
-<p>Deadlines are compiled from official state board sources and we work hard to keep them current, but
-rules change. If a date looks off, email us the state and what you're seeing and we'll verify it against
-the source and fix it fast. Always confirm your exact deadline with your state board before relying on it.</p>
+<h2>{_t("contact.h2_wrong_date", lang)}</h2>
+<p>{_t("contact.wrong_date_body", lang)}</p>
 
-<h2>Stop your reminders</h2>
-<p>The fastest way to stop reminders is the one-click unsubscribe link at the bottom of any email we send
-&mdash; it's instant and permanent. You're welcome to email us too.</p>
+<h2>{_t("contact.h2_stop_reminders", lang)}</h2>
+<p>{_t("contact.stop_reminders_body", lang)}</p>
 
-<h2>Mailing address</h2>
+<h2>{_t("contact.h2_mailing_address", lang)}</h2>
 <p>{esc(SITE_NAME)} by {esc(BRAND_NAME)}<br>
 18121 E Hampden Ave, Unit C #1324<br>
 Aurora, CO 80013</p>
@@ -8077,10 +8071,10 @@ Aurora, CO 80013</p>
     // downloading (s1.onload firing is not the same moment as the widget
     // being usable), so the button's own text is now the loud, impossible-
     // to-miss cue, not a small line of text below it.
-    btn.textContent = 'Loading chat\\u2026';
+    btn.textContent = {json.dumps(_t("contact.chat_loading", lang))};
     if (status) {{
       status.hidden = false;
-      status.textContent = 'This can take a few seconds on a slow connection.';
+      status.textContent = {json.dumps(_t("contact.chat_loading_hint", lang))};
     }}
     // Roadmap #59: script injected here, not on page load -- see
     // TAWK_TO_PROPERTY_ID's own comment in generate.py for why this stays
@@ -8102,7 +8096,7 @@ Aurora, CO 80013</p>
         ready = true;
         clearInterval(poll);
         if (status) status.hidden = true;
-        btn.textContent = 'Chat loaded \\u2014 look for the bubble in the corner';
+        btn.textContent = {json.dumps(_t("contact.chat_ready", lang))};
       }}
     }}, 300);
     // Live report (2026-08-12): give up on the "it's loading" framing after
@@ -8112,8 +8106,7 @@ Aurora, CO 80013</p>
     // load still updates the text the moment it's ready.
     setTimeout(function () {{
       if (!ready && status) {{
-        status.textContent = "Still connecting -- if this doesn't finish in a few more seconds, " +
-          "email us instead: {esc(CONTACT_EMAIL)}";
+        status.textContent = {json.dumps(_t("contact.chat_slow", lang, email=CONTACT_EMAIL))};
       }}
     }}, 8000);
     s0.parentNode.insertBefore(s1, s0);
@@ -8121,13 +8114,19 @@ Aurora, CO 80013</p>
 }})();
 </script>
 """
+    hreflang_html = (
+        '<link rel="alternate" hreflang="en" href="https://deadline-radar.com/contact/">\n'
+        '<link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/contact/">\n'
+        '<link rel="alternate" hreflang="x-default" href="https://deadline-radar.com/contact/">'
+    )
     return page_shell(
-        f"Contact — {SITE_NAME}",
-        "Contact Deadline-Radar — questions, deadline corrections, or help with your CPA license "
-        "renewal reminders. Email us or start a live chat.",
+        f"{_t('contact.h1', lang)} — {SITE_NAME}",
+        _t("contact.meta_description", lang),
         body,
-        home_href="../",
-        canonical_path="/contact/",
+        home_href="../" if lang == "en" else "../../",
+        canonical_path="/contact/" if lang == "en" else "/es/contact/",
+        lang=lang,
+        extra_head=hreflang_html,
     )
 
 
@@ -20702,6 +20701,13 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/contact/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/contact/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/contact/"/>
+  </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/es/contact/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/contact/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/contact/"/>
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/terms/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
@@ -21070,6 +21076,11 @@ def main() -> None:
     contact_dir.mkdir(parents=True, exist_ok=True)
     (contact_dir / "index.html").write_text(build_contact_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/contact/index.html")
+
+    es_contact_dir = SITE_DIR / "es" / "contact"
+    es_contact_dir.mkdir(parents=True, exist_ok=True)
+    (es_contact_dir / "index.html").write_text(build_contact_page(lang="es"), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/es/contact/index.html")
 
     methodology_dir = SITE_DIR / "methodology"
     methodology_dir.mkdir(parents=True, exist_ok=True)

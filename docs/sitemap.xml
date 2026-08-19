@@ -11,6 +11,14 @@
   <url>
     <loc>https://deadline-radar.com/contact/</loc>
     <lastmod>2026-08-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://deadline-radar.com/contact/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/contact/"/>
+  </url>
+  <url>
+    <loc>https://deadline-radar.com/es/contact/</loc>
+    <lastmod>2026-08-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://deadline-radar.com/contact/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/contact/"/>
   </url>
   <url>
     <loc>https://deadline-radar.com/terms/</loc>

@@ -259,6 +259,64 @@ EN: dict[str, str] = {
         "For a CPA firm with staff across multiple states: a coverage map, a free Practice "
         "Privilege Check, and a running feed of mobility rule changes — all sourced and cited."
     ),
+    # /practice-privilege-check/ -- build_practice_privilege_landing_page()
+    "ppc.h1": "Practice Privilege Check: Can a CPA Work in Another State Without a License?",
+    "ppc.subhead": (
+        "Can this CPA provide this service in this state — and what has to happen first? "
+        "Every answer is tied to the rule it came from."
+    ),
+    "ppc.callout_bold": "Informational, not legal advice.",
+    "ppc.callout_rest": (
+        "Practice-privilege rules change, and they depend on facts we can't see. We show you the "
+        "rule and where it came from so you can check it yourself — and where we haven't "
+        "verified something against a primary source, we say so instead of guessing. Confirm with "
+        "the state board before you rely on any answer here."
+    ),
+    "ppc.h2_what_it_does": "What Practice Privilege Check actually does",
+    "ppc.what_it_does_intro": (
+        "A different question from renewal dates: can this CPA provide this specific service in "
+        "this specific state right now, without a local license — and what has to happen first?"
+    ),
+    "ppc.item_pick_service_bold": "Pick a service type:",
+    "ppc.item_pick_service_rest": "Tax; Attest (audit, review, or other attest); or Other non-attest (consulting, advisory).",
+    "ppc.item_attest_gap_bold": "Watch for the attest gap:",
+    "ppc.item_attest_gap_rest": (
+        "attest work frequently triggers a firm-registration requirement where tax work doesn't "
+        "— that's the most common real-world mobility mistake, and this catches it."
+    ),
+    "ppc.item_confirm_bold": "What you'll need to confirm:",
+    "ppc.item_confirm_rest": (
+        "the license is active and in good standing, and the CPA meets substantial equivalence "
+        "(150 semester hours, one year of experience, the Uniform CPA Exam). We can't verify "
+        "either input ourselves — the answer is only as good as what you tell it, same "
+        "honesty standard as every renewal date on this site."
+    ),
+    "ppc.coverage_body": (
+        "Verified in all 55 U.S. jurisdictions today, both for the individual question above and "
+        "a separate <strong>firm-level registration check</strong> — does the FIRM itself need to "
+        "register somewhere it has no office, even when the individual CPA is covered."
+    ),
+    "ppc.free_tier_body": (
+        "The individual check is free on every tier, for any account — a free signup is all "
+        "it takes, no card, no paid plan required. {pricing_link}."
+    ),
+    "ppc.free_tier_link_text": "The firm-level check and the multistate coverage map are part of a paid plan",
+    "ppc.run_check": "Run a free check now →",
+    "ppc.tracking_bold": "Tracking a whole firm's roster, not just one lookup?",
+    "ppc.tracking_rest": (
+        "See the {overview_link} — Roster, Calendar, CPE tracking, and individual Practice "
+        "Privilege Check are free there too; paid tiers add the multistate map and the firm-level "
+        "registration check. See {pricing_link2}."
+    ),
+    "ppc.overview_link_text": "firm overview",
+    "ppc.full_pricing_link_text": "full pricing",
+    "ppc.backlink_all_states": "← Back to all states",
+    "ppc.title": "Practice Privilege Check",
+    "ppc.meta_description": (
+        "What CPA practice privilege (mobility) means, how substantial equivalence works, and how "
+        "to check whether a CPA can serve a client in another state without a local license — "
+        "free, verified in all 55 U.S. jurisdictions."
+    ),
 }
 
 
@@ -701,6 +759,121 @@ ES: dict[str, dict] = {
     'nav.sign_in': {
         "text": 'Iniciar sesión',
         "en_hash": 'bcc0bcc9140b0c97',
+        "reviewed": False,
+    },
+    'ppc.backlink_all_states': {
+        "text": '← Volver a todos los estados',
+        "en_hash": '116d8e518da7ebb0',
+        "reviewed": False,
+    },
+    'ppc.callout_bold': {
+        "text": 'Informativo, no asesoría legal.',
+        "en_hash": '7808cd56162dfcd4',
+        "reviewed": False,
+    },
+    'ppc.callout_rest': {
+        "text": 'Las normas de privilegio de práctica cambian, y dependen de hechos que no podemos ver. Le mostramos la norma y de dónde proviene para que pueda verificarla usted mismo — y donde no hemos verificado algo contra una fuente primaria, lo decimos en lugar de adivinar. Confirme con la junta estatal antes de confiar en cualquier respuesta aquí.',
+        "en_hash": 'e7572963bd42c96b',
+        "reviewed": False,
+    },
+    'ppc.coverage_body': {
+        "text": 'Verificado en las 55 jurisdicciones de EE. UU. hoy, tanto para la pregunta individual de arriba como para una <strong>verificación de registro a nivel de firma</strong> separada — si la FIRMA misma necesita registrarse en algún lugar donde no tiene oficina, incluso cuando el CPA individual está cubierto.',
+        "en_hash": '02b1c73e5c9a0836',
+        "reviewed": False,
+    },
+    'ppc.free_tier_body': {
+        "text": 'La verificación individual es gratuita en todos los niveles, para cualquier cuenta — un registro gratuito es todo lo que se necesita, sin tarjeta, sin plan de pago requerido. {pricing_link}.',
+        "en_hash": '5ec420f51ca1d848',
+        "reviewed": False,
+    },
+    'ppc.free_tier_link_text': {
+        "text": 'La verificación a nivel de firma y el mapa de cobertura multiestatal son parte de un plan de pago',
+        "en_hash": 'eb07b4dd34ea150b',
+        "reviewed": False,
+    },
+    'ppc.full_pricing_link_text': {
+        "text": 'los precios completos',
+        "en_hash": 'c2504a2f405b4965',
+        "reviewed": False,
+    },
+    'ppc.h1': {
+        "text": 'Verificación de privilegio de práctica: ¿puede un CPA trabajar en otro estado sin licencia?',
+        "en_hash": '87a0ea2bc82b5a93',
+        "reviewed": False,
+    },
+    'ppc.h2_what_it_does': {
+        "text": 'Qué hace realmente Verificación de privilegio de práctica',
+        "en_hash": '59cbfffc71e3cc8c',
+        "reviewed": False,
+    },
+    'ppc.item_attest_gap_bold': {
+        "text": 'Cuidado con el vacío de certificación:',
+        "en_hash": 'c02136f1660a298a',
+        "reviewed": False,
+    },
+    'ppc.item_attest_gap_rest': {
+        "text": 'el trabajo de certificación frecuentemente activa un requisito de registro de firma donde el trabajo de impuestos no lo hace — ese es el error de movilidad más común en la práctica real, y esto lo detecta.',
+        "en_hash": '2e8f0a2375570ee1',
+        "reviewed": False,
+    },
+    'ppc.item_confirm_bold': {
+        "text": 'Lo que necesitará confirmar:',
+        "en_hash": 'c06a9eb3db6624ac',
+        "reviewed": False,
+    },
+    'ppc.item_confirm_rest': {
+        "text": 'que la licencia esté activa y en regla, y que el CPA cumpla con la equivalencia sustancial (150 horas semestrales, un año de experiencia, el Examen Uniforme de CPA). No podemos verificar ninguno de los dos datos nosotros mismos — la respuesta es tan buena como lo que usted indique, el mismo estándar de honestidad que cada fecha de renovación en este sitio.',
+        "en_hash": '3915218c6b09d85b',
+        "reviewed": False,
+    },
+    'ppc.item_pick_service_bold': {
+        "text": 'Elija un tipo de servicio:',
+        "en_hash": 'c4d4753c649835d7',
+        "reviewed": False,
+    },
+    'ppc.item_pick_service_rest': {
+        "text": 'Impuestos; Certificación (auditoría, revisión, u otra certificación); u Otro no certificado (consultoría, asesoría).',
+        "en_hash": '6b98fc4b698f9cf2',
+        "reviewed": False,
+    },
+    'ppc.meta_description': {
+        "text": 'Qué significa el privilegio de práctica (movilidad) de CPA, cómo funciona la equivalencia sustancial, y cómo verificar si un CPA puede atender a un cliente en otro estado sin una licencia local — gratis, verificado en las 55 jurisdicciones de EE. UU.',
+        "en_hash": '14f9c079ff6173df',
+        "reviewed": False,
+    },
+    'ppc.overview_link_text': {
+        "text": 'resumen para firmas',
+        "en_hash": '3f6d1dad09e67630',
+        "reviewed": False,
+    },
+    'ppc.run_check': {
+        "text": 'Ejecute una verificación gratuita ahora →',
+        "en_hash": '7f8c29ac81913ae1',
+        "reviewed": False,
+    },
+    'ppc.subhead': {
+        "text": '¿Puede este CPA prestar este servicio en este estado — y qué tiene que suceder primero? Cada respuesta está vinculada a la norma de la que proviene.',
+        "en_hash": '5858df5cb22dc3cd',
+        "reviewed": False,
+    },
+    'ppc.title': {
+        "text": 'Verificación de privilegio de práctica',
+        "en_hash": '45adea10b3b47ad0',
+        "reviewed": False,
+    },
+    'ppc.tracking_bold': {
+        "text": '¿Está siguiendo el personal de toda una firma, no solo una consulta?',
+        "en_hash": '6d356959f481b6e4',
+        "reviewed": False,
+    },
+    'ppc.tracking_rest': {
+        "text": 'Vea el {overview_link} — Roster, Calendario, seguimiento de CPE, y la Verificación de privilegio de práctica individual también son gratis allí; los niveles de pago agregan el mapa multiestatal y la verificación de registro a nivel de firma. Vea {pricing_link2}.',
+        "en_hash": 'b7aa7c7b031dda01',
+        "reviewed": False,
+    },
+    'ppc.what_it_does_intro': {
+        "text": 'Una pregunta distinta a las fechas de renovación: ¿puede este CPA prestar este servicio específico en este estado específico ahora mismo, sin una licencia local — y qué tiene que suceder primero?',
+        "en_hash": '6d90d13b10200e27',
         "reviewed": False,
     },
     'site.tagline': {

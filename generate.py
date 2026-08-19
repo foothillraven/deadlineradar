@@ -17217,7 +17217,7 @@ var drMobStaffLicenses = [];
     )
 
 
-def build_practice_privilege_landing_page() -> str:
+def build_practice_privilege_landing_page(lang: str = "en") -> str:
     """Roadmap #339: Practice Privilege Check gets its own page. The actual
     tool lives at /firm-mobility/, but that page is noindex (it's built as a
     dashboard-shell screen, same family as /firm-dashboard/ -- see that
@@ -17231,56 +17231,46 @@ def build_practice_privilege_landing_page() -> str:
     invented), and sends anyone who wants to actually run a check to the
     real tool at /firm-mobility/.
     """
-    body = f"""<h1>Practice Privilege Check: Can a CPA Work in Another State Without a License?</h1>
-<p class="subhead">Can this CPA provide this service in this state &mdash; and what has to happen
-first? Every answer is tied to the rule it came from.</p>
+    pricing_link = f'<a href="/pricing/">{esc(_t("ppc.free_tier_link_text", lang))}</a>'
+    overview_link = f'<a href="/for-firms/">{esc(_t("ppc.overview_link_text", lang))}</a>'
+    pricing_link2 = f'<a href="/pricing/">{esc(_t("ppc.full_pricing_link_text", lang))}</a>'
+    body = f"""<h1>{_t("ppc.h1", lang)}</h1>
+<p class="subhead">{_t("ppc.subhead", lang)}</p>
 
 <div class="dr-mobility-callout">
-  <strong>Informational, not legal advice.</strong> Practice-privilege rules change, and they depend on
-  facts we can't see. We show you the rule and where it came from so you can check it yourself &mdash;
-  and where we haven't verified something against a primary source, we say so instead of guessing.
-  Confirm with the state board before you rely on any answer here.
+  <strong>{_t("ppc.callout_bold", lang)}</strong> {_t("ppc.callout_rest", lang)}
 </div>
 
-<h2>What Practice Privilege Check actually does</h2>
-<p>A different question from renewal dates: can this CPA provide this specific service in this specific
-state right now, without a local license &mdash; and what has to happen first?</p>
+<h2>{_t("ppc.h2_what_it_does", lang)}</h2>
+<p>{_t("ppc.what_it_does_intro", lang)}</p>
 <ul>
-  <li><strong>Pick a service type:</strong> Tax; Attest (audit, review, or other attest); or Other
-  non-attest (consulting, advisory).</li>
-  <li><strong>Watch for the attest gap:</strong> attest work frequently triggers a firm-registration
-  requirement where tax work doesn't &mdash; that's the most common real-world mobility mistake, and
-  this catches it.</li>
-  <li><strong>What you'll need to confirm:</strong> the license is active and in good standing, and the
-  CPA meets substantial equivalence (150 semester hours, one year of experience, the Uniform CPA Exam).
-  We can't verify either input ourselves &mdash; the answer is only as good as what you tell it, same
-  honesty standard as every renewal date on this site.</li>
+  <li><strong>{_t("ppc.item_pick_service_bold", lang)}</strong> {_t("ppc.item_pick_service_rest", lang)}</li>
+  <li><strong>{_t("ppc.item_attest_gap_bold", lang)}</strong> {_t("ppc.item_attest_gap_rest", lang)}</li>
+  <li><strong>{_t("ppc.item_confirm_bold", lang)}</strong> {_t("ppc.item_confirm_rest", lang)}</li>
 </ul>
-<p>Verified in all 55 U.S. jurisdictions today, both for the individual question above and a separate
-<strong>firm-level registration check</strong> &mdash; does the FIRM itself need to register somewhere
-it has no office, even when the individual CPA is covered.</p>
-<p>The individual check is free on every tier, for any account &mdash; a free signup is all it takes,
-no card, no paid plan required. <a href="/pricing/">The firm-level check and the multistate coverage
-map are part of a paid plan</a>.</p>
+<p>{_t("ppc.coverage_body", lang)}</p>
+<p>{_t("ppc.free_tier_body", lang, pricing_link=pricing_link)}</p>
 
-<p><a class="cta-button" href="{REMINDER_BACKEND_BASE_URL}/firm/demo-login">Run a free check now &rarr;</a></p>
+<p><a class="cta-button" href="{REMINDER_BACKEND_BASE_URL}/firm/demo-login">{_t("ppc.run_check", lang)}</a></p>
 
-<p><strong>Tracking a whole firm's roster, not just one lookup?</strong> See the
-<a href="/for-firms/">firm overview</a> &mdash; Roster, Calendar, CPE tracking, and individual Practice
-Privilege Check are free there too; paid tiers add the multistate map and the firm-level registration
-check. See <a href="/pricing/">full pricing</a>.</p>
+<p><strong>{_t("ppc.tracking_bold", lang)}</strong> {_t("ppc.tracking_rest", lang, overview_link=overview_link, pricing_link2=pricing_link2)}</p>
 
-<p class="backlink"><a href="/">&larr; Back to all states</a></p>
+<p class="backlink"><a href="/">{_t("ppc.backlink_all_states", lang)}</a></p>
 """
+    hreflang_html = (
+        '<link rel="alternate" hreflang="en" href="https://deadline-radar.com/practice-privilege-check/">\n'
+        '<link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/practice-privilege-check/">\n'
+        '<link rel="alternate" hreflang="x-default" href="https://deadline-radar.com/practice-privilege-check/">'
+    )
     return page_shell(
-        f"Practice Privilege Check — {SITE_NAME}",
-        "What CPA practice privilege (mobility) means, how substantial equivalence works, and how to "
-        "check whether a CPA can serve a client in another state without a local license -- free, "
-        "verified in all 55 U.S. jurisdictions.",
+        f"{_t('ppc.title', lang)} — {SITE_NAME}",
+        _t("ppc.meta_description", lang),
         body,
-        home_href="../",
-        canonical_path="/practice-privilege-check/",
+        home_href="../" if lang == "en" else "../../",
+        canonical_path="/practice-privilege-check/" if lang == "en" else "/es/practice-privilege-check/",
         has_remind_anchor=False,
+        lang=lang,
+        extra_head=hreflang_html,
     )
 
 
@@ -20723,6 +20713,13 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/practice-privilege-check/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/practice-privilege-check/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/practice-privilege-check/"/>
+  </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/es/practice-privilege-check/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/practice-privilege-check/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/practice-privilege-check/"/>
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/multi-state-firms/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
@@ -21060,6 +21057,11 @@ def main() -> None:
     ppc_dir.mkdir(parents=True, exist_ok=True)
     (ppc_dir / "index.html").write_text(build_practice_privilege_landing_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/practice-privilege-check/index.html")
+
+    es_ppc_dir = SITE_DIR / "es" / "practice-privilege-check"
+    es_ppc_dir.mkdir(parents=True, exist_ok=True)
+    (es_ppc_dir / "index.html").write_text(build_practice_privilege_landing_page(lang="es"), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/es/practice-privilege-check/index.html")
 
     multi_state_dir = SITE_DIR / "multi-state-firms"
     multi_state_dir.mkdir(parents=True, exist_ok=True)

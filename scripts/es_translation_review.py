@@ -249,6 +249,68 @@ DRAFTS: dict[str, str] = {
         "Verificación de privilegio de práctica gratuita, y un feed continuo de cambios de normas "
         "de movilidad — todo con fuentes y citas."
     ),
+    "ppc.h1": "Verificación de privilegio de práctica: ¿puede un CPA trabajar en otro estado sin licencia?",
+    "ppc.subhead": (
+        "¿Puede este CPA prestar este servicio en este estado — y qué tiene que suceder "
+        "primero? Cada respuesta está vinculada a la norma de la que proviene."
+    ),
+    "ppc.callout_bold": "Informativo, no asesoría legal.",
+    "ppc.callout_rest": (
+        "Las normas de privilegio de práctica cambian, y dependen de hechos que no podemos ver. Le "
+        "mostramos la norma y de dónde proviene para que pueda verificarla usted mismo — y "
+        "donde no hemos verificado algo contra una fuente primaria, lo decimos en lugar de "
+        "adivinar. Confirme con la junta estatal antes de confiar en cualquier respuesta aquí."
+    ),
+    "ppc.h2_what_it_does": "Qué hace realmente Verificación de privilegio de práctica",
+    "ppc.what_it_does_intro": (
+        "Una pregunta distinta a las fechas de renovación: ¿puede este CPA prestar este servicio "
+        "específico en este estado específico ahora mismo, sin una licencia local — y qué tiene "
+        "que suceder primero?"
+    ),
+    "ppc.item_pick_service_bold": "Elija un tipo de servicio:",
+    "ppc.item_pick_service_rest": "Impuestos; Certificación (auditoría, revisión, u otra certificación); u Otro no certificado (consultoría, asesoría).",
+    "ppc.item_attest_gap_bold": "Cuidado con el vacío de certificación:",
+    "ppc.item_attest_gap_rest": (
+        "el trabajo de certificación frecuentemente activa un requisito de registro de firma "
+        "donde el trabajo de impuestos no lo hace — ese es el error de movilidad más común en "
+        "la práctica real, y esto lo detecta."
+    ),
+    "ppc.item_confirm_bold": "Lo que necesitará confirmar:",
+    "ppc.item_confirm_rest": (
+        "que la licencia esté activa y en regla, y que el CPA cumpla con la equivalencia "
+        "sustancial (150 horas semestrales, un año de experiencia, el Examen Uniforme de CPA). No "
+        "podemos verificar ninguno de los dos datos nosotros mismos — la respuesta es tan buena "
+        "como lo que usted indique, el mismo estándar de honestidad que cada fecha de renovación "
+        "en este sitio."
+    ),
+    "ppc.coverage_body": (
+        "Verificado en las 55 jurisdicciones de EE. UU. hoy, tanto para la pregunta individual "
+        "de arriba como para una <strong>verificación de registro a nivel de firma</strong> "
+        "separada — si la FIRMA misma necesita registrarse en algún lugar donde no tiene "
+        "oficina, incluso cuando el CPA individual está cubierto."
+    ),
+    "ppc.free_tier_body": (
+        "La verificación individual es gratuita en todos los niveles, para cualquier cuenta — "
+        "un registro gratuito es todo lo que se necesita, sin tarjeta, sin plan de pago "
+        "requerido. {pricing_link}."
+    ),
+    "ppc.free_tier_link_text": "La verificación a nivel de firma y el mapa de cobertura multiestatal son parte de un plan de pago",
+    "ppc.run_check": "Ejecute una verificación gratuita ahora →",
+    "ppc.tracking_bold": "¿Está siguiendo el personal de toda una firma, no solo una consulta?",
+    "ppc.tracking_rest": (
+        "Vea el {overview_link} — Roster, Calendario, seguimiento de CPE, y la Verificación de "
+        "privilegio de práctica individual también son gratis allí; los niveles de pago agregan "
+        "el mapa multiestatal y la verificación de registro a nivel de firma. Vea {pricing_link2}."
+    ),
+    "ppc.overview_link_text": "resumen para firmas",
+    "ppc.full_pricing_link_text": "los precios completos",
+    "ppc.backlink_all_states": "← Volver a todos los estados",
+    "ppc.title": "Verificación de privilegio de práctica",
+    "ppc.meta_description": (
+        "Qué significa el privilegio de práctica (movilidad) de CPA, cómo funciona la "
+        "equivalencia sustancial, y cómo verificar si un CPA puede atender a un cliente en otro "
+        "estado sin una licencia local — gratis, verificado en las 55 jurisdicciones de EE. UU."
+    ),
 }
 
 

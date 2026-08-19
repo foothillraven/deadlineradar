@@ -317,6 +317,80 @@ EN: dict[str, str] = {
         "to check whether a CPA can serve a client in another state without a local license — "
         "free, verified in all 55 U.S. jurisdictions."
     ),
+    # /deadline-calculator/ -- build_deadline_calculator_page(). Scope note:
+    # the interactive calculator widget itself (state dropdown, JS result
+    # text) and the state-name/cycle-type table cells are NOT converted --
+    # same "computed personal data, not marketing copy" reasoning that
+    # keeps the 55 state pages out of Phase A. Only the surrounding static
+    # prose is keyed here.
+    "calc.h1": "CPA License Renewal Deadline Calculator",
+    "calc.intro": (
+        "Select your state below — and your birth month or cohort group, if your state's rule "
+        "needs one — to see your exact renewal deadline right here. Free, no signup, no account "
+        "required. Every date is sourced — to your state board's codified statute or rule where "
+        "we could confirm it against primary law, and clearly labelled where we could only "
+        "confirm it against the board's own page — {methodology_link}."
+    ),
+    "calc.see_exactly_how": "see exactly how",
+    "calc.trust_jurisdictions": "jurisdictions covered",
+    "calc.trust_determined": "where we compute your exact date",
+    "calc.trust_records": "dated records across all datasets re-checked in the last 30 days",
+    "calc.h2_what_calculated_looks_like": "What “calculated” actually looks like, state by state",
+    "calc.what_calculated_intro": (
+        "This isn't one formula — every state renews on its own rule, and those rules take "
+        "genuinely different shapes. A few real examples, straight from the same dataset the "
+        "calculator above draws on:"
+    ),
+    "calc.table_th_state": "State",
+    "calc.table_th_cycle_type": "Cycle type",
+    "calc.table_th_returns": "What the tool returns",
+    "calc.answer_personal_fact": "Depends on a personal fact — the calculator above asks for it, then answers",
+    "calc.answer_no_public_rule": "No public rule ties this to a knowable input — the calculator says so, honestly",
+    "calc.h2_how_it_works": "How this actually works",
+    "calc.how_it_works_body": (
+        "Picking your state above looks itself up in the exact same dataset that state's own page "
+        "renders from — there's no second, different formula running here. Most states resolve "
+        "to one plain date immediately. States whose rule depends on a personal fact — your "
+        "birth month, or which cohort group your license falls in — ask for that fact before "
+        "answering, using the exact same inputs that state's own rule actually uses. Either way, "
+        "the date you get is never estimated or guessed — if we can't confirm it against a "
+        "primary source, the calculator says so instead of showing a number, same as the Florida "
+        "row above."
+    ),
+    "calc.prefer_browse": "Prefer to browse a state's full page directly instead of using the calculator above?",
+    "calc.h2_faq": "Frequently asked",
+    "calc.faq1_q": "Is this actually free?",
+    "calc.faq1_a": (
+        "Yes — looking up your own renewal date has never required an account, a signup, or a "
+        "fee. The paid tier is for firms tracking a whole staff roster in one place, not for an "
+        "individual checking their own date."
+    ),
+    "calc.faq2_q": "Why does my state say “enter your date” instead of showing one?",
+    "calc.faq2_a": (
+        "Some states' renewal cycles genuinely depend on a fact we don't have — when you were "
+        "originally licensed, which cohort group you're in, or similar — and the state board "
+        "itself doesn't publish a lookup we can compute from. Rather than guess, the page says so "
+        "and lets you enter your own known date to track from there."
+    ),
+    "calc.faq3_q": "How do you know these dates are right?",
+    "calc.faq3_a": (
+        "Every date traces to either the state board's own published page or the actual codified "
+        "statute/rule, with the date we last confirmed it shown on that state's own page — see "
+        "the {verification_writeup_link}."
+    ),
+    "calc.verification_writeup_link_text": "full verification writeup",
+    "calc.tracking_bold": "Tracking a whole firm's staff, not just your own license?",
+    "calc.tracking_rest": (
+        "See the {overview_link} — the same free, sourced deadline data in one roster view "
+        "instead of one state at a time."
+    ),
+    "calc.overview_link_text": "firm overview",
+    "calc.backlink_all_states": "← Back to all states",
+    "calc.title": "CPA License Renewal Deadline Calculator",
+    "calc.meta_description": (
+        "Free CPA license renewal deadline calculator — pick your state, get your exact renewal "
+        "date, sourced to your state board's own rule. No signup required."
+    ),
 }
 
 
@@ -326,6 +400,156 @@ EN: dict[str, str] = {
 # directly with reviewed=True. See module docstring.
 # ---------------------------------------------------------------------------
 ES: dict[str, dict] = {
+    'calc.answer_no_public_rule': {
+        "text": 'Ninguna norma pública vincula esto a un dato conocible — la calculadora lo indica, con honestidad',
+        "en_hash": '49eb743f39981a7a',
+        "reviewed": False,
+    },
+    'calc.answer_personal_fact': {
+        "text": 'Depende de un dato personal — la calculadora de arriba lo solicita y luego responde',
+        "en_hash": '31e2ae91c4be6298',
+        "reviewed": False,
+    },
+    'calc.backlink_all_states': {
+        "text": '← Volver a todos los estados',
+        "en_hash": '116d8e518da7ebb0',
+        "reviewed": False,
+    },
+    'calc.faq1_a': {
+        "text": 'Sí — buscar su propia fecha de renovación nunca ha requerido una cuenta, un registro, ni una tarifa. El nivel de pago es para firmas que siguen el personal de toda una plantilla en un solo lugar, no para una persona que verifica su propia fecha.',
+        "en_hash": 'ab900442e2387f17',
+        "reviewed": False,
+    },
+    'calc.faq1_q': {
+        "text": '¿Esto es realmente gratis?',
+        "en_hash": 'df21c6549d0935a3',
+        "reviewed": False,
+    },
+    'calc.faq2_a': {
+        "text": 'Algunos ciclos de renovación estatales genuinamente dependen de un dato que no tenemos — cuándo fue licenciado originalmente, a qué grupo de cohorte pertenece, o algo similar — y la propia junta estatal no publica una consulta de la que podamos calcularlo. En lugar de adivinar, la página lo indica y le permite ingresar su propia fecha conocida para hacer seguimiento desde ahí.',
+        "en_hash": 'bb073024d8770490',
+        "reviewed": False,
+    },
+    'calc.faq2_q': {
+        "text": '¿Por qué mi estado dice “ingrese su fecha” en lugar de mostrar una?',
+        "en_hash": '07d33e7c54453c2c',
+        "reviewed": False,
+    },
+    'calc.faq3_a': {
+        "text": 'Cada fecha remite ya sea a la propia página publicada de la junta estatal o al estatuto/norma codificada real, con la fecha en que la confirmamos por última vez mostrada en la propia página de ese estado — vea {verification_writeup_link}.',
+        "en_hash": '63e2990771bd11e3',
+        "reviewed": False,
+    },
+    'calc.faq3_q': {
+        "text": '¿Cómo sabe que estas fechas son correctas?',
+        "en_hash": '8405553712638fcb',
+        "reviewed": False,
+    },
+    'calc.h1': {
+        "text": 'Calculadora de fechas límite de renovación de licencia de CPA',
+        "en_hash": 'b1c1ab4dab8f32f5',
+        "reviewed": False,
+    },
+    'calc.h2_faq': {
+        "text": 'Preguntas frecuentes',
+        "en_hash": '980ef788f803854f',
+        "reviewed": False,
+    },
+    'calc.h2_how_it_works': {
+        "text": 'Cómo funciona esto realmente',
+        "en_hash": '4603d55140703671',
+        "reviewed": False,
+    },
+    'calc.h2_what_calculated_looks_like': {
+        "text": 'Cómo se ve “calculado” realmente, estado por estado',
+        "en_hash": 'b06fa2fbff4dbe66',
+        "reviewed": False,
+    },
+    'calc.how_it_works_body': {
+        "text": 'Seleccionar su estado arriba lo busca en el mismo conjunto de datos exacto del que se renderiza la propia página de ese estado — no hay una segunda fórmula distinta ejecutándose aquí. La mayoría de los estados se resuelven a una sola fecha de inmediato. Los estados cuya norma depende de un dato personal — su mes de nacimiento, o a qué grupo de cohorte pertenece su licencia — solicitan ese dato antes de responder, usando exactamente los mismos datos que la norma de ese estado realmente usa. De cualquier forma, la fecha que obtiene nunca se estima ni se adivina — si no podemos confirmarla contra una fuente primaria, la calculadora lo indica en lugar de mostrar un número, igual que la fila de Florida arriba.',
+        "en_hash": 'a39d4ac700bbe10e',
+        "reviewed": False,
+    },
+    'calc.intro': {
+        "text": 'Seleccione su estado abajo — y su mes de nacimiento o grupo de cohorte, si la norma de su estado lo requiere — para ver su fecha límite de renovación exacta aquí mismo. Gratis, sin registro, sin cuenta requerida. Cada fecha tiene fuente — al estatuto o norma codificada de la junta de su estado donde pudimos confirmarla contra la ley primaria, y claramente etiquetada donde solo pudimos confirmarla contra la propia página de la junta — {methodology_link}.',
+        "en_hash": '55921c7a6a3d7ff1',
+        "reviewed": False,
+    },
+    'calc.meta_description': {
+        "text": 'Calculadora gratuita de fechas límite de renovación de licencia de CPA — elija su estado, obtenga su fecha de renovación exacta, con fuente en la propia norma de la junta de su estado. No se requiere registro.',
+        "en_hash": 'cf4bc65387a13047',
+        "reviewed": False,
+    },
+    'calc.overview_link_text': {
+        "text": 'resumen para firmas',
+        "en_hash": '3f6d1dad09e67630',
+        "reviewed": False,
+    },
+    'calc.prefer_browse': {
+        "text": '¿Prefiere explorar la página completa de un estado directamente en lugar de usar la calculadora de arriba?',
+        "en_hash": '453e76467d6d1aad',
+        "reviewed": False,
+    },
+    'calc.see_exactly_how': {
+        "text": 'vea exactamente cómo',
+        "en_hash": '912c78494d4afd19',
+        "reviewed": False,
+    },
+    'calc.table_th_cycle_type': {
+        "text": 'Tipo de ciclo',
+        "en_hash": '8d02fef87a0950bd',
+        "reviewed": False,
+    },
+    'calc.table_th_returns': {
+        "text": 'Qué devuelve la herramienta',
+        "en_hash": '4e1c758fdd2493bd',
+        "reviewed": False,
+    },
+    'calc.table_th_state': {
+        "text": 'Estado',
+        "en_hash": 'a3b50c476732c740',
+        "reviewed": False,
+    },
+    'calc.title': {
+        "text": 'Calculadora de fechas límite de renovación de licencia de CPA',
+        "en_hash": 'b1c1ab4dab8f32f5',
+        "reviewed": False,
+    },
+    'calc.tracking_bold': {
+        "text": '¿Está siguiendo al personal de toda una firma, no solo su propia licencia?',
+        "en_hash": '1280dd36fae3291a',
+        "reviewed": False,
+    },
+    'calc.tracking_rest': {
+        "text": 'Vea el {overview_link} — los mismos datos de fechas límite gratuitos y con fuente en una sola vista de plantilla en lugar de un estado a la vez.',
+        "en_hash": '509ff165cdf7906e',
+        "reviewed": False,
+    },
+    'calc.trust_determined': {
+        "text": 'donde calculamos su fecha exacta',
+        "en_hash": '3c86e69a480dbb56',
+        "reviewed": False,
+    },
+    'calc.trust_jurisdictions': {
+        "text": 'jurisdicciones cubiertas',
+        "en_hash": '56604af188f2bf67',
+        "reviewed": False,
+    },
+    'calc.trust_records': {
+        "text": 'registros con fecha en todos los conjuntos de datos re-verificados en los últimos 30 días',
+        "en_hash": 'f03eb3ba4d8c0f2a',
+        "reviewed": False,
+    },
+    'calc.verification_writeup_link_text': {
+        "text": 'el resumen completo de verificación',
+        "en_hash": 'cfc9493e65b8e6a6',
+        "reviewed": False,
+    },
+    'calc.what_calculated_intro': {
+        "text": 'Esto no es una sola fórmula — cada estado renueva según su propia norma, y esas normas toman formas genuinamente distintas. Algunos ejemplos reales, directamente del mismo conjunto de datos del que se nutre la calculadora de arriba:',
+        "en_hash": 'cf483167dc0e6e13',
+        "reviewed": False,
+    },
     'contact.chat_loading': {
         "text": 'Cargando chat…',
         "en_hash": '043e8f3c0b4c84cb',

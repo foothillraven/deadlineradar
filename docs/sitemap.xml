@@ -67,6 +67,14 @@
   <url>
     <loc>https://deadline-radar.com/deadline-calculator/</loc>
     <lastmod>2026-08-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://deadline-radar.com/deadline-calculator/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/deadline-calculator/"/>
+  </url>
+  <url>
+    <loc>https://deadline-radar.com/es/deadline-calculator/</loc>
+    <lastmod>2026-08-13</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://deadline-radar.com/deadline-calculator/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/deadline-calculator/"/>
   </url>
   <url>
     <loc>https://deadline-radar.com/roadmap/</loc>

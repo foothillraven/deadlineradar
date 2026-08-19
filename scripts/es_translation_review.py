@@ -311,6 +311,78 @@ DRAFTS: dict[str, str] = {
         "equivalencia sustancial, y cómo verificar si un CPA puede atender a un cliente en otro "
         "estado sin una licencia local — gratis, verificado en las 55 jurisdicciones de EE. UU."
     ),
+    "calc.h1": "Calculadora de fechas límite de renovación de licencia de CPA",
+    "calc.intro": (
+        "Seleccione su estado abajo — y su mes de nacimiento o grupo de cohorte, si la norma de "
+        "su estado lo requiere — para ver su fecha límite de renovación exacta aquí mismo. "
+        "Gratis, sin registro, sin cuenta requerida. Cada fecha tiene fuente — al estatuto o "
+        "norma codificada de la junta de su estado donde pudimos confirmarla contra la ley "
+        "primaria, y claramente etiquetada donde solo pudimos confirmarla contra la propia "
+        "página de la junta — {methodology_link}."
+    ),
+    "calc.see_exactly_how": "vea exactamente cómo",
+    "calc.trust_jurisdictions": "jurisdicciones cubiertas",
+    "calc.trust_determined": "donde calculamos su fecha exacta",
+    "calc.trust_records": "registros con fecha en todos los conjuntos de datos re-verificados en los últimos 30 días",
+    "calc.h2_what_calculated_looks_like": "Cómo se ve “calculado” realmente, estado por estado",
+    "calc.what_calculated_intro": (
+        "Esto no es una sola fórmula — cada estado renueva según su propia norma, y esas normas "
+        "toman formas genuinamente distintas. Algunos ejemplos reales, directamente del mismo "
+        "conjunto de datos del que se nutre la calculadora de arriba:"
+    ),
+    "calc.table_th_state": "Estado",
+    "calc.table_th_cycle_type": "Tipo de ciclo",
+    "calc.table_th_returns": "Qué devuelve la herramienta",
+    "calc.answer_personal_fact": "Depende de un dato personal — la calculadora de arriba lo solicita y luego responde",
+    "calc.answer_no_public_rule": "Ninguna norma pública vincula esto a un dato conocible — la calculadora lo indica, con honestidad",
+    "calc.h2_how_it_works": "Cómo funciona esto realmente",
+    "calc.how_it_works_body": (
+        "Seleccionar su estado arriba lo busca en el mismo conjunto de datos exacto del que se "
+        "renderiza la propia página de ese estado — no hay una segunda fórmula distinta "
+        "ejecutándose aquí. La mayoría de los estados se resuelven a una sola fecha de inmediato. "
+        "Los estados cuya norma depende de un dato personal — su mes de nacimiento, o a qué "
+        "grupo de cohorte pertenece su licencia — solicitan ese dato antes de responder, usando "
+        "exactamente los mismos datos que la norma de ese estado realmente usa. De cualquier "
+        "forma, la fecha que obtiene nunca se estima ni se adivina — si no podemos confirmarla "
+        "contra una fuente primaria, la calculadora lo indica en lugar de mostrar un número, "
+        "igual que la fila de Florida arriba."
+    ),
+    "calc.prefer_browse": "¿Prefiere explorar la página completa de un estado directamente en lugar de usar la calculadora de arriba?",
+    "calc.h2_faq": "Preguntas frecuentes",
+    "calc.faq1_q": "¿Esto es realmente gratis?",
+    "calc.faq1_a": (
+        "Sí — buscar su propia fecha de renovación nunca ha requerido una cuenta, un registro, ni "
+        "una tarifa. El nivel de pago es para firmas que siguen el personal de toda una plantilla "
+        "en un solo lugar, no para una persona que verifica su propia fecha."
+    ),
+    "calc.faq2_q": "¿Por qué mi estado dice “ingrese su fecha” en lugar de mostrar una?",
+    "calc.faq2_a": (
+        "Algunos ciclos de renovación estatales genuinamente dependen de un dato que no tenemos "
+        "— cuándo fue licenciado originalmente, a qué grupo de cohorte pertenece, o algo similar "
+        "— y la propia junta estatal no publica una consulta de la que podamos calcularlo. En "
+        "lugar de adivinar, la página lo indica y le permite ingresar su propia fecha conocida "
+        "para hacer seguimiento desde ahí."
+    ),
+    "calc.faq3_q": "¿Cómo sabe que estas fechas son correctas?",
+    "calc.faq3_a": (
+        "Cada fecha remite ya sea a la propia página publicada de la junta estatal o al estatuto/"
+        "norma codificada real, con la fecha en que la confirmamos por última vez mostrada en la "
+        "propia página de ese estado — vea {verification_writeup_link}."
+    ),
+    "calc.verification_writeup_link_text": "el resumen completo de verificación",
+    "calc.tracking_bold": "¿Está siguiendo al personal de toda una firma, no solo su propia licencia?",
+    "calc.tracking_rest": (
+        "Vea el {overview_link} — los mismos datos de fechas límite gratuitos y con fuente en una "
+        "sola vista de plantilla en lugar de un estado a la vez."
+    ),
+    "calc.overview_link_text": "resumen para firmas",
+    "calc.backlink_all_states": "← Volver a todos los estados",
+    "calc.title": "Calculadora de fechas límite de renovación de licencia de CPA",
+    "calc.meta_description": (
+        "Calculadora gratuita de fechas límite de renovación de licencia de CPA — elija su "
+        "estado, obtenga su fecha de renovación exacta, con fuente en la propia norma de la "
+        "junta de su estado. No se requiere registro."
+    ),
 }
 
 

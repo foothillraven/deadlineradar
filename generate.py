@@ -17445,7 +17445,7 @@ var DR_CALC_DATA = {json.dumps(data)};
 </script>"""
 
 
-def build_deadline_calculator_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
+def build_deadline_calculator_page(by_slug: dict[str, list[dict]], as_of: date, lang: str = "en") -> str:
     """Roadmap #125 ("free public tools -- no-signup deadline calculator").
     Same "dedicated, SEO-targeted landing page pointing at an existing free
     tool" pattern as build_practice_privilege_landing_page() -- the
@@ -17488,78 +17488,66 @@ def build_deadline_calculator_page(by_slug: dict[str, list[dict]], as_of: date) 
         if nd:
             answer = esc(fmt_date(date.fromisoformat(nd)))
         elif r["renewal_pattern"] in ("birth_month", "fixed_calendar_cohort", "license_number_cohort"):
-            answer = "Depends on a personal fact &mdash; the calculator above asks for it, then answers"
+            answer = esc(_t("calc.answer_personal_fact", lang))
         else:
-            answer = "No public rule ties this to a knowable input &mdash; the calculator says so, honestly"
+            answer = esc(_t("calc.answer_no_public_rule", lang))
         example_rows.append(
             f"<tr><td>{esc(r['state'])}</td><td>{esc(r['renewal_pattern'].replace('_', ' '))}</td>"
             f"<td>{answer}</td></tr>"
         )
 
-    body = f"""<h1>CPA License Renewal Deadline Calculator</h1>
-<p class="intro">Select your state below &mdash; and your birth month or cohort group, if your state's
-rule needs one &mdash; to see your exact renewal deadline right here. Free, no signup, no account
-required. Every date is sourced &mdash; to your state board's codified statute or rule where we could
-confirm it against primary law, and clearly labelled where we could only confirm it against the
-board's own page &mdash; <a href="/methodology/">see exactly how</a>.</p>
+    methodology_link = f'<a href="/methodology/">{esc(_t("calc.see_exactly_how", lang))}</a>'
+    verification_writeup_link = f'<a href="/methodology/">{esc(_t("calc.verification_writeup_link_text", lang))}</a>'
+    overview_link = f'<a href="/for-firms/">{esc(_t("calc.overview_link_text", lang))}</a>'
+    body = f"""<h1>{_t("calc.h1", lang)}</h1>
+<p class="intro">{_t("calc.intro", lang, methodology_link=methodology_link)}</p>
 
 {_deadline_calculator_widget_html(by_slug, as_of)}
 
 <div class="trust-row">
-  <div class="item"><span class="n">{cov["total"]}</span><span class="lbl">jurisdictions covered</span></div>
-  <div class="item"><span class="n">{cov["determined"]}</span><span class="lbl">where we compute your exact date</span></div>
-  <div class="item"><span class="n">{verified_recent} of {total_citations}</span><span class="lbl">dated records across all datasets re-checked in the last 30 days</span></div>
+  <div class="item"><span class="n">{cov["total"]}</span><span class="lbl">{_t("calc.trust_jurisdictions", lang)}</span></div>
+  <div class="item"><span class="n">{cov["determined"]}</span><span class="lbl">{_t("calc.trust_determined", lang)}</span></div>
+  <div class="item"><span class="n">{verified_recent} of {total_citations}</span><span class="lbl">{_t("calc.trust_records", lang)}</span></div>
 </div>
 
-<h2>What "calculated" actually looks like, state by state</h2>
-<p>This isn't one formula &mdash; every state renews on its own rule, and those rules take genuinely
-different shapes. A few real examples, straight from the same dataset the calculator above draws on:</p>
+<h2>{_t("calc.h2_what_calculated_looks_like", lang)}</h2>
+<p>{_t("calc.what_calculated_intro", lang)}</p>
 <table class="calc-example-table">
-<thead><tr><th>State</th><th>Cycle type</th><th>What the tool returns</th></tr></thead>
+<thead><tr><th>{_t("calc.table_th_state", lang)}</th><th>{_t("calc.table_th_cycle_type", lang)}</th><th>{_t("calc.table_th_returns", lang)}</th></tr></thead>
 <tbody>
 {chr(10).join(example_rows)}
 </tbody>
 </table>
 
-<h2>How this actually works</h2>
-<p>Picking your state above looks itself up in the exact same dataset that state's own page renders
-from &mdash; there's no second, different formula running here. Most states resolve to one plain
-date immediately. States whose rule depends on a personal fact &mdash; your birth month, or which
-cohort group your license falls in &mdash; ask for that fact before answering, using the exact same
-inputs that state's own rule actually uses. Either way, the date you get is never estimated or
-guessed &mdash; if we can't confirm it against a primary source, the calculator says so instead of
-showing a number, same as the Florida row above.</p>
+<h2>{_t("calc.h2_how_it_works", lang)}</h2>
+<p>{_t("calc.how_it_works_body", lang)}</p>
 
-<p>Prefer to browse a state's full page directly instead of using the calculator above?</p>
+<p>{_t("calc.prefer_browse", lang)}</p>
 {_state_quick_search_html(by_slug)}
 
-<h2>Frequently asked</h2>
-<p><strong>Is this actually free?</strong> Yes &mdash; looking up your own renewal date has never
-required an account, a signup, or a fee. The paid tier is for firms tracking a whole staff roster in
-one place, not for an individual checking their own date.</p>
-<p><strong>Why does my state say "enter your date" instead of showing one?</strong> Some states'
-renewal cycles genuinely depend on a fact we don't have &mdash; when you were originally licensed,
-which cohort group you're in, or similar &mdash; and the state board itself doesn't publish a lookup
-we can compute from. Rather than guess, the page says so and lets you enter your own known date to
-track from there.</p>
-<p><strong>How do you know these dates are right?</strong> Every date traces to either the state
-board's own published page or the actual codified statute/rule, with the date we last confirmed it
-shown on that state's own page &mdash; see the <a href="/methodology/">full verification writeup</a>.</p>
+<h2>{_t("calc.h2_faq", lang)}</h2>
+<p><strong>{_t("calc.faq1_q", lang)}</strong> {_t("calc.faq1_a", lang)}</p>
+<p><strong>{_t("calc.faq2_q", lang)}</strong> {_t("calc.faq2_a", lang)}</p>
+<p><strong>{_t("calc.faq3_q", lang)}</strong> {_t("calc.faq3_a", lang, verification_writeup_link=verification_writeup_link)}</p>
 
-<p><strong>Tracking a whole firm's staff, not just your own license?</strong> See the
-<a href="/for-firms/">firm overview</a> &mdash; the same free, sourced deadline data in one roster
-view instead of one state at a time.</p>
+<p><strong>{_t("calc.tracking_bold", lang)}</strong> {_t("calc.tracking_rest", lang, overview_link=overview_link)}</p>
 
-<p class="backlink"><a href="/">&larr; Back to all states</a></p>
+<p class="backlink"><a href="/">{_t("calc.backlink_all_states", lang)}</a></p>
 """
+    hreflang_html = (
+        '<link rel="alternate" hreflang="en" href="https://deadline-radar.com/deadline-calculator/">\n'
+        '<link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/deadline-calculator/">\n'
+        '<link rel="alternate" hreflang="x-default" href="https://deadline-radar.com/deadline-calculator/">'
+    )
     return page_shell(
-        f"CPA License Renewal Deadline Calculator — {SITE_NAME}",
-        "Free CPA license renewal deadline calculator -- pick your state, get your exact renewal "
-        "date, sourced to your state board's own rule. No signup required.",
+        f"{_t('calc.title', lang)} — {SITE_NAME}",
+        _t("calc.meta_description", lang),
         body,
-        home_href="../",
-        canonical_path="/deadline-calculator/",
+        home_href="../" if lang == "en" else "../../",
+        canonical_path="/deadline-calculator/" if lang == "en" else "/es/deadline-calculator/",
         has_remind_anchor=False,
+        lang=lang,
+        extra_head=hreflang_html,
     )
 
 
@@ -20733,6 +20721,13 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/deadline-calculator/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/deadline-calculator/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/deadline-calculator/"/>
+  </url>""", f"""  <url>
+    <loc>{SITE_BASE_URL}/es/deadline-calculator/</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/deadline-calculator/"/>
+    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/deadline-calculator/"/>
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/roadmap/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
@@ -21077,6 +21072,13 @@ def main() -> None:
     deadline_calc_dir.mkdir(parents=True, exist_ok=True)
     (deadline_calc_dir / "index.html").write_text(build_deadline_calculator_page(by_slug, as_of), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/deadline-calculator/index.html")
+
+    es_deadline_calc_dir = SITE_DIR / "es" / "deadline-calculator"
+    es_deadline_calc_dir.mkdir(parents=True, exist_ok=True)
+    (es_deadline_calc_dir / "index.html").write_text(
+        build_deadline_calculator_page(by_slug, as_of, lang="es"), encoding="utf-8"
+    )
+    print(f"wrote {SITE_DIR.name}/es/deadline-calculator/index.html")
 
     roadmap_dir = SITE_DIR / "roadmap"
     roadmap_dir.mkdir(parents=True, exist_ok=True)

@@ -2110,6 +2110,12 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
   <option value="co-individual">Certified Public Accountant (Individual Certificate)</option>
 <option value="co-firm">Public Accounting Firm Registration</option>
 </select></div>
+<div class="signup-extra-fields" data-for-state="connecticut" hidden><label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ct-individual">Individual CPA License</option>
+<option value="ct-firm">CPA Firm Permit</option>
+</select></div>
 <div class="signup-extra-fields" data-for-state="georgia" hidden><label for="license_type_id">Which license?</label>
 <select id="license_type_id" name="license_type_id" required>
   <option value="">Select the one that applies to you</option>
@@ -2121,6 +2127,11 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
   min="2026-08-14" max="2030-02-13" required>
 <p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
 up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="idaho" hidden><label for="parity_number">Birth year</label>
+<input type="text" inputmode="numeric" id="parity_number" name="parity_number" required
+  placeholder="e.g. 1985">
+<p class="field-hint">Only whether it's odd or even changes your renewal year -- we never store or
+display the number itself, just its parity.</p></div>
 <div class="signup-extra-fields" data-for-state="illinois" hidden><label for="license_type_id">Which license?</label>
 <select id="license_type_id" name="license_type_id" required>
   <option value="">Select the one that applies to you</option>
@@ -2209,11 +2220,23 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
   min="2026-08-14" max="2030-02-13" required>
 <p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
 up automatically, so we'll remind you based on the date you give us.</p></div>
-<div class="signup-extra-fields" data-for-state="new-mexico" hidden><label for="license_expiration_date">License expiration date</label>
-<input type="date" id="license_expiration_date" name="license_expiration_date"
-  min="2026-08-14" max="2030-02-13" required>
-<p class="field-hint">Enter the expiration date printed on your license -- we can't look this one
-up automatically, so we'll remind you based on the date you give us.</p></div>
+<div class="signup-extra-fields" data-for-state="new-mexico" hidden><label for="birth_month">Birth month</label>
+<select id="birth_month" name="birth_month" required>
+  <option value="">Select&hellip;</option>
+  <option value="1">January</option>
+<option value="2">February</option>
+<option value="3">March</option>
+<option value="4">April</option>
+<option value="5">May</option>
+<option value="6">June</option>
+<option value="7">July</option>
+<option value="8">August</option>
+<option value="9">September</option>
+<option value="10">October</option>
+<option value="11">November</option>
+<option value="12">December</option>
+</select>
+<p class="field-hint">New Mexico renewal is due by the last day of your birth month, every year.</p></div>
 <div class="signup-extra-fields" data-for-state="new-york" hidden><label for="license_expiration_date">License expiration date</label>
 <input type="date" id="license_expiration_date" name="license_expiration_date"
   min="2026-08-14" max="2030-02-13" required>
@@ -2238,6 +2261,23 @@ up automatically, so we'll remind you based on the date you give us.</p></div>
   <option value="Group 3">Group 3</option>
 </select>
 <p class="field-hint">Check your license certificate or the Accountancy Board of Ohio lookup if you're not sure.</p></div>
+<div class="signup-extra-fields" data-for-state="oklahoma" hidden><label for="birth_month">Birth month</label>
+<select id="birth_month" name="birth_month" required>
+  <option value="">Select&hellip;</option>
+  <option value="1">January</option>
+<option value="2">February</option>
+<option value="3">March</option>
+<option value="4">April</option>
+<option value="5">May</option>
+<option value="6">June</option>
+<option value="7">July</option>
+<option value="8">August</option>
+<option value="9">September</option>
+<option value="10">October</option>
+<option value="11">November</option>
+<option value="12">December</option>
+</select>
+<p class="field-hint">Oklahoma renewal is due by the last day of your birth month, every year.</p></div>
 <div class="signup-extra-fields" data-for-state="oregon" hidden><label for="parity_number">Oregon CPA license number</label>
 <input type="text" inputmode="numeric" id="parity_number" name="parity_number" required
   placeholder="Just the last digit works too.">

@@ -971,12 +971,19 @@ function resolveDeadlineInput(stateSlug: string, form: Record<string, string>): 
         deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
         userDeadline: null,
       };
-    } else if (stateSlug === "texas") {
+    } else if (stateSlug === "texas" || stateSlug === "oklahoma" || stateSlug === "new-mexico") {
+      // Oklahoma/New Mexico individual added 2026-08-18 (AuditLab DNC sweep)
+      // -- same pure birth-month-annual mechanism as Texas, see
+      // BIRTH_MONTH_ANNUAL_STATES' comment in generate.py. Display name
+      // hand-mapped, not slug.charAt(0).toUpperCase()-derived -- "new-mexico"
+      // would otherwise read "New-mexico" in user-facing error copy.
+      const STATE_DISPLAY_NAMES: Record<string, string> = { texas: "Texas", oklahoma: "Oklahoma", "new-mexico": "New Mexico" };
+      const stateDisplayName = STATE_DISPLAY_NAMES[stateSlug] ?? stateSlug;
       const birthMonth = form.birth_month;
-      if (!birthMonth) return errorPage(400, "Texas needs your birth month.");
+      if (!birthMonth) return errorPage(400, `${stateDisplayName} needs your birth month.`);
       const birthMonthInt = strictParseInt(birthMonth);
       if (birthMonthInt === null || birthMonthInt < 1 || birthMonthInt > 12) {
-        return errorPage(400, "Texas needs a valid birth month.");
+        return errorPage(400, `${stateDisplayName} needs a valid birth month.`);
       }
       return {
         deadlineFields: { birth_month: String(birthMonthInt) },
@@ -993,13 +1000,15 @@ function resolveDeadlineInput(stateSlug: string, form: Record<string, string>): 
         deadlineSource: store.DEADLINE_SOURCE_COMPUTED,
         userDeadline: null,
       };
-    } else if (stateSlug === "kansas" || stateSlug === "kentucky" || stateSlug === "oregon" || stateSlug === "nebraska") {
+    } else if (stateSlug === "kansas" || stateSlug === "kentucky" || stateSlug === "oregon" || stateSlug === "nebraska" || stateSlug === "idaho") {
       // 2026-08-18: Devin caught Kansas live showing "Date not confirmed"
       // despite a real citation and cohort table -- generate.py's
       // PARITY_LOOKUP_STATES comment has the full research writeup on why
-      // these 4 (and only these 4 of the 6 flagged states) are buildable.
-      // Same PII-minimization pattern as California above -- only the
-      // parity is ever persisted.
+      // these states are buildable. Same PII-minimization pattern as
+      // California above -- only the parity is ever persisted.
+      // Idaho added same day, same shape (birth-year parity), sourced to
+      // DOPL's own current press release rather than the codified rule,
+      // which hasn't caught up yet -- see PARITY_LOOKUP_STATES' comment.
       const parityNumber = form.parity_number;
       if (!parityNumber || !/^\d+$/.test(parityNumber)) {
         return errorPage(400, `${stateSlug.charAt(0).toUpperCase()}${stateSlug.slice(1)} needs a valid number.`);

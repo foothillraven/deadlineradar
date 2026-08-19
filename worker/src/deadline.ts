@@ -233,7 +233,10 @@ export const SUPPORTED_STATE_SLUGS: ReadonlySet<string> = new Set(DATA.records.m
 // _WORKER_FIELD_COMPUTED_STATES and fails the build on any difference.
 // Add a state to BOTH sets together, or the page and the worker disagree
 // on which fields to show/require and signup 400s in that state.
-const FIELD_COMPUTED_STATES = new Set(["california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska"]);
+const FIELD_COMPUTED_STATES = new Set([
+  "california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska", "idaho",
+  "oklahoma", "new-mexico",
+]);
 
 /** Whether the worker can EVER derive a deadline for this state from state
  * rules alone (via computeSubscriberDeadline below), with no user input
@@ -269,7 +272,11 @@ export function computeSubscriberDeadline(
     return nextBirthMonthParityDate(asOf, monthInt, parity);
   }
 
-  if (stateSlug === "texas") {
+  if (stateSlug === "texas" || stateSlug === "oklahoma" || stateSlug === "new-mexico") {
+    // Same pure birth-month-annual mechanism as Texas -- see
+    // BIRTH_MONTH_ANNUAL_STATES' comment in generate.py for why Oklahoma
+    // and New Mexico individual are the same shape (2026-08-18 AuditLab
+    // DNC sweep).
     const month = deadlineFields.birth_month;
     if (!month) return null;
     const monthInt = Number.parseInt(month, 10);
@@ -294,6 +301,7 @@ export function computeSubscriberDeadline(
     kentucky: [8, 1],
     oregon: [6, 30],
     nebraska: [6, 30],
+    idaho: [6, 30],
   };
   if (stateSlug in PARITY_STATE_MONTH_DAY) {
     const parity = deadlineFields.parity;

@@ -118,12 +118,13 @@ def compute_subscriber_deadline(subscriber: dict, as_of: date) -> tuple[date, st
                 return date.fromisoformat(g["next_deadline"]), state_name
         return None
 
-    if state_slug in ("kansas", "kentucky", "oregon", "nebraska"):
+    if state_slug in ("kansas", "kentucky", "oregon", "nebraska", "idaho"):
         parity = fields.get("parity")
         if parity not in ("odd", "even"):
             return None
         month, day = {
             "kansas": (7, 1), "kentucky": (8, 1), "oregon": (6, 30), "nebraska": (6, 30),
+            "idaho": (6, 30),
         }[state_slug]
         return next_fixed_date_parity(as_of, month, day, parity), state_name
 

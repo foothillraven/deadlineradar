@@ -213,7 +213,10 @@ SSO_PROVIDERS = [p.strip() for p in os.environ.get("DR_SSO_PROVIDERS", "google")
 # submission. New York was the original example (its rule depends on a fact,
 # first-registration date, this dataset doesn't have) but is not special --
 # any state whose records are ALL null/gapped hits the identical failure mode.
-_WORKER_FIELD_COMPUTED_STATES = {"california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska"}
+_WORKER_FIELD_COMPUTED_STATES = {
+    "california", "texas", "ohio", "kansas", "kentucky", "oregon", "nebraska", "idaho",
+    "oklahoma", "new-mexico",
+}
 
 
 def _state_signup_supported(state_slug: str, records: list[dict]) -> bool:
@@ -3160,13 +3163,16 @@ up automatically, so we'll remind you based on the date you give us.</p>"""
   </div>
 </div>
 <p class="field-hint">Your renewal cycle is set by your birth month and whether your birth year is odd or even.</p>"""
-    if state_slug == "texas":
+    if state_slug == "texas" or state_slug in BIRTH_MONTH_ANNUAL_STATES:
+        state_name_for_hint = {"texas": "Texas", "oklahoma": "Oklahoma", "new-mexico": "New Mexico"}.get(
+            state_slug, state_slug.title()
+        )
         return f"""<label for="birth_month">Birth month</label>
 <select id="birth_month" name="birth_month" required>
   <option value="">Select&hellip;</option>
   {_MONTH_OPTIONS}
 </select>
-<p class="field-hint">Texas renewal is due by the last day of your birth month, every year.</p>"""
+<p class="field-hint">{esc(state_name_for_hint)} renewal is due by the last day of your birth month, every year.</p>"""
     if state_slug == "ohio":
         return """<label for="cohort_group">Your cohort group</label>
 <select id="cohort_group" name="cohort_group" required>
@@ -4564,6 +4570,29 @@ PARITY_LOOKUP_STATES: dict[str, dict] = {
         # renew in ODD years; born in an ODD year -> renew in EVEN years.
         "inverted": True,
     },
+    # Idaho (2026-08-18, Devin's own correction to the accuracy standard --
+    # "the rule is changing" is not the same as "unknown"). Confirmed via
+    # AuditLab's DNC sweep: DOPL's own press release (dopl.idaho.gov,
+    # 2026-04-20) states the mid-transition schedule directly -- odd-birth-
+    # year CPAs' licenses expire June 30, 2027; even-birth-year expire June
+    # 30, 2028. next_fixed_date_parity(as_of=2026, 6, 30, parity) produces
+    # exactly these two dates from today's build date, and correctly rolls
+    # forward in 2-year steps after that -- Idaho Code 54-211 confirms the
+    # underlying cycle is genuinely biennial going forward, so the parity
+    # relationship holds beyond this one transition, not just for it.
+    # UNLIKE Kansas/Kentucky/Oregon/Nebraska, the codified rule itself
+    # (IDAPA 24.30.01 Section 108.01) has NOT caught up to this yet -- it
+    # still literally says annual June 30 renewal. The explicit, honest
+    # caveat about that lag is baked into cycle_description below (the only
+    # record field render_parity_lookup_state() actually displays), per
+    # Devin's own instruction not to hide it.
+    "idaho": {
+        "month": 6, "day": 30,
+        "input_label": "Birth year",
+        "input_hint": "e.g. 1985",
+        "parity_of": "your birth year",
+        "inverted": False,
+    },
 }
 
 
@@ -4639,6 +4668,52 @@ def render_parity_lookup_state(state_slug: str, record: dict, as_of: date) -> st
   </table>
 </div>
 {_parity_lookup_js(state_slug)}"""
+
+
+# 2026-08-18 (AuditLab DNC sweep): Oklahoma and New Mexico individual both
+# renew on a PURE birth-month-annual cycle -- no year-parity dimension at
+# all, structurally identical to Texas's already-shipped `render_texas`/
+# `build_texas_table` (both records' own `computation.rule`/`cycle_description`
+# say so explicitly: "same shape as Texas"). Deliberately NOT reusing
+# `render_texas`/`build_texas_table` directly -- those are still hardcoded to
+# `state_slug == "texas"` in the dispatch below and already shipping; adding a
+# thin, separate generic pair here (same underlying `next_annual_month_end()`
+# math) avoids any risk of an unintended behavior change to an
+# already-verified page for the sake of DRYing up ~15 lines.
+BIRTH_MONTH_ANNUAL_STATES: set[str] = {"oklahoma", "new-mexico"}
+
+
+def build_birth_month_annual_table(as_of: date) -> list[dict]:
+    rows = []
+    for m in range(1, 13):
+        d = next_annual_month_end(as_of, m)
+        rows.append({"month": MONTH_NAMES[m - 1], "next_deadline": fmt_date(d)})
+    return rows
+
+
+def render_birth_month_annual_state(record: dict, as_of: date) -> str:
+    table = build_birth_month_annual_table(as_of)
+    rows = "\n".join(
+        f'<tr data-month="{i}"><td>{esc(r["month"])}</td><td>{esc(r["next_deadline"])}</td></tr>'
+        for i, r in enumerate(table, start=1)
+    )
+    return f"""<div class="callout">
+  <p class="rule">{esc(record['cycle_description'])}</p>
+  <p><strong>Enter your birth month below</strong> to see your date instantly, or look up
+  your row in the full table yourself. Renewal is annual, so this repeats every year on the
+  same month.</p>
+  {_callout_cite_html(record)}
+</div>
+{_birth_month_finder_html(needs_year=False)}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Birth month</th><th>Next renewal deadline</th></tr></thead>
+    <tbody>
+    {rows}
+    </tbody>
+  </table>
+</div>
+{_birth_month_finder_js(needs_year=False)}"""
 
 
 def render_ohio(record: dict) -> str:
@@ -5055,6 +5130,19 @@ def build_state_page(
         parity_record = next((r for r in records if r.get("cohort_groups")), None)
         other_computed = [r for r in records if r.get("next_deadline_computed")]
         deadline_html = render_parity_lookup_state(state_slug, parity_record, as_of) if parity_record else ""
+        if other_computed:
+            deadline_html += "\n" + render_simple_deadline_records(other_computed)
+    elif state_slug in BIRTH_MONTH_ANNUAL_STATES:
+        # Same shape as PARITY_LOOKUP_STATES' dispatch just above: render the
+        # birth-month lookup for the record marked as this shape, then fall
+        # through to the ordinary computed-record renderer for any other
+        # records on the same page (e.g. Oklahoma's firm registration, a
+        # separate fixed-calendar rule already computed).
+        bma_record = next(
+            (r for r in records if r.get("computation", {}).get("type") == "birth_month_annual"), None
+        )
+        other_computed = [r for r in records if r.get("next_deadline_computed")]
+        deadline_html = render_birth_month_annual_state(bma_record, as_of) if bma_record else ""
         if other_computed:
             deadline_html += "\n" + render_simple_deadline_records(other_computed)
     else:

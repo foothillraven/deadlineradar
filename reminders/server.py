@@ -364,7 +364,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._error_page(400, "Ohio needs your cohort group.")
                 return
             deadline_fields = {"cohort_group": cohort_group}
-        elif state_slug in ("kansas", "kentucky", "oregon", "nebraska"):
+        elif state_slug in ("kansas", "kentucky", "oregon", "nebraska", "idaho"):
             # 2026-08-18: Devin caught Kansas showing "Date not confirmed"
             # live despite a real citation and cohort table -- Kansas/
             # Kentucky/Oregon all key on a parity-determining number

@@ -709,15 +709,15 @@
       "license_type": "cpa_firm",
       "license_type_label": "CPA Firm Permit",
       "renewal_pattern": "other",
-      "cycle_description": "The CPA Firm Permit renewal form/fee is bundled on the same official page and renewal-period as the individual license (notices emailed Oct-Dec 31), which states annual/Dec 31 renewal -- but that exact sentence names only 'license and/or registration,' not 'Firm Permit' specifically, so the Dec 31 date for firm permits is inferred from bundling/context, not a directly-quoted statement.",
-      "next_deadline_computed": null,
-      "data_gap_note": "Conn. Gen. Stat. 20-281e(b) (firm permit statute): 'Permits shall be initially issued and renewed annually. Applications for permits shall be made in such form, and in the case of applications for renewal, between such dates as the board may by regulation specify' -- i.e. the statute explicitly delegates the firm-permit renewal date to board regulation, it does not fix Dec 31 itself. RCSA 20-280-25(a)'s exact text governs the 'license' (individual), not the 'permit' (firm): 'A license issued under chapter 389 ... shall be valid ... from January 1 to December 31.' No RCSA section was found that sets a firm-permit-specific date. Visitors should confirm their firm permit's exact renewal date with CT DCP or on the permit itself.",
+      "cycle_description": "Annual renewal, fixed calendar date. The Connecticut Department of Consumer Protection's dedicated \"Certified Public Accountancy Firms\" page (a page specifically about firm permits, not bundled with individual-license content) states plainly: \"All firm registrations expire annually on December 31st.\" The renewal statute (Conn. Gen. Stat. 20-281e(b)) confirms the annual cycle but delegates the specific renewal date to board regulation rather than fixing it in the statute itself -- no located regulation section states a firm-specific date, so December 31 comes from DCP's own current operational guidance, not yet from codified rule text.",
+      "next_deadline_computed": "2026-12-31",
       "source_url": "https://portal.ct.gov/dcp/license-services-division/license-division/cpa-renewal",
-      "last_verified": "2026-08-14",
+      "last_verified": "2026-08-18",
       "wave": 5,
-      "verification_history": "2026-07-30: re-checked, no rule change found -- the same conclusion (no RCSA section sets a firm-permit-specific date) still holds.\n\n2026-08-14 (substance queue, CT): PA 25-36 (HB 7020) enacted, effective 2025-10-01. It rewrites initial certification pathways (20-281c) and replaces NASBA substantial-equivalency mobility with a license-in-good-standing practice privilege (20-281n). It does NOT amend 20-281d (renewal) or RCSA 20-280-25 -- the sections carrying this site's renewal deadline, 40hr/1yr CPE, ethics, reinstatement, and $565 figures. No published figure affected.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.cga.ct.gov/current/pub/chap_389.htm.  Agent evidence: 20-281e(b) (verified in fetched cga.ct.gov text): 'Permits shall be initially issued and renewed annually. Applications for permits shall be made in such form, and in the case of applications for renewal, between such dates as the board may by regulation specify.' The annual cycle is thus statutory, but no statute or located regulation fixes December 31 for FIRM permits -- RCSA 20-280-25(a) ('valid for a period of one year from January 1 to December 31', eregulations.ct.gov, amended 8/8/2024) covers licenses only, so the Dec 31 firm-permit date still rests on DCP's renewal page, exactly as the record's caveat states. P.A. 25-36 (eff. 10/1/2025) amends 20-279b, 20-280(g), 20-281c and 20-281n per the act PDF; 20-281e is unchanged.",
       "citation_url": "https://www.cga.ct.gov/current/pub/chap_389.htm",
-      "citation": "Conn. Gen. Stat. 20-281e(b) (annual firm-permit renewal; renewal dates delegated to board regulation); cf. Regs. Conn. State Agencies 20-280-25(a) (Jan 1-Dec 31 license cycle, licenses only)"
+      "citation": "Conn. Gen. Stat. 20-281e(b) (annual firm-permit renewal, statutory); December 31 date per DCP's dedicated \"Certified Public Accountancy Firms\" page (portal.ct.gov), current Board guidance -- no codified statute or regulation fixes this specific date for firm permits",
+      "citation_class": "operational_record",
+      "verification_history": "2026-07-30: re-checked, no rule change found -- the same conclusion (no RCSA section sets a firm-permit-specific date) still holds.\n\n2026-08-14 (substance queue, CT): PA 25-36 (HB 7020) enacted, effective 2025-10-01. It rewrites initial certification pathways (20-281c) and replaces NASBA substantial-equivalency mobility with a license-in-good-standing practice privilege (20-281n). It does NOT amend 20-281d (renewal) or RCSA 20-280-25 -- the sections carrying this site's renewal deadline, 40hr/1yr CPE, ethics, reinstatement, and $565 figures. No published figure affected.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.cga.ct.gov/current/pub/chap_389.htm.  Agent evidence: 20-281e(b) (verified in fetched cga.ct.gov text): 'Permits shall be initially issued and renewed annually. Applications for permits shall be made in such form, and in the case of applications for renewal, between such dates as the board may by regulation specify.' The annual cycle is thus statutory, but no statute or located regulation fixes December 31 for FIRM permits -- RCSA 20-280-25(a) ('valid for a period of one year from January 1 to December 31', eregulations.ct.gov, amended 8/8/2024) covers licenses only, so the Dec 31 firm-permit date still rests on DCP's renewal page, exactly as the record's caveat states. P.A. 25-36 (eff. 10/1/2025) amends 20-279b, 20-280(g), 20-281c and 20-281n per the act PDF; 20-281e is unchanged.\n\n2026-08-18 (AuditLab DNC sweep): independently fetched portal.ct.gov's DEDICATED \"Certified Public Accountancy Firms\" page (not the bundled general-CPA-renewal page this record previously cited) -- confirmed twice (WebFetch + Chrome cross-check), states plainly and unconditionally: \"All firm registrations expire annually on December 31st.\" This is a direct, unhedged, dedicated-page statement naming firm registrations specifically -- stronger sourcing than either this record's prior citation or the site's own existing Connecticut blog post had found, though still not codified (confirmed via an independent eRegulations/LII search: only RCSA 20-281-1 through -12, governing peer-review timing, exist; nothing on expiration). Editorial decision (matching Idaho's same-day treatment): show December 31 as CT's firm-permit date with citation_class operational_record, honestly disclosing this is the Board's own current guidance rather than codified law."
     },
     {
       "id": "la-individual",
@@ -911,11 +911,11 @@
       },
       "ce_deadline_note": "CPE tracked on a calendar-year basis, a separate cycle from the birth-month renewal date; the Board's table pairs each birth-month deadline with a specific CPE Reporting Year that typically lags the renewal date.",
       "source_url": "https://oklahoma.gov/oab/departments/licensing.html",
-      "last_verified": "2026-08-14",
+      "last_verified": "2026-08-18",
       "wave": 3,
       "citation_url": "https://www.oscn.net/applications/oscn/DeliverDocument.asp?CiteID=95028",
       "citation": "Okla. Stat. tit. 59, 15.14A(C); see also Okla. Stat. tit. 59, 15.14(C)",
-      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.oscn.net/applications/oscn/DeliverDocument.asp?CiteID=95028.  Agent evidence: Statute text verified: 'All permits issued shall be renewed on the last day of the individual's birth month in conjunction with the registrant's certificate or license renewal' (15.14A) and the permit is 'an annual permit'; 15.14(C) (CiteID 95027) adds 'All valid certificates or licenses shall be renewed by the last day of the individuals' birth months. Renewal will be effective for a twelve-month period.' Confirms annual, genuine birth-month cycle."
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.oscn.net/applications/oscn/DeliverDocument.asp?CiteID=95028.  Agent evidence: Statute text verified: 'All permits issued shall be renewed on the last day of the individual's birth month in conjunction with the registrant's certificate or license renewal' (15.14A) and the permit is 'an annual permit'; 15.14(C) (CiteID 95027) adds 'All valid certificates or licenses shall be renewed by the last day of the individuals' birth months. Renewal will be effective for a twelve-month period.' Confirms annual, genuine birth-month cycle.\n\n2026-08-18 (AuditLab DNC sweep + AssetLab build): re-confirmed the statute text is a complete, deterministic formula, simpler than Kansas/Arizona (no year-parity) and simpler than Washington/Maryland/Florida (no multi-year anchor math) -- purely birth-month, every year, same shape as Texas's already-shipped lookup. Built the interactive birth-month lookup (generic BIRTH_MONTH_ANNUAL_STATES pattern, shared with New Mexico individual)."
     },
     {
       "id": "ok-firm",
@@ -1167,14 +1167,17 @@
       "renewal_pattern": "birth_month",
       "cycle_description": "Annual. Each individual license has a staggered expiration date tied to the licensee's own birth month -- renewal (fee + CPE report) is due by the last day of that birth month every year (16.60.3.9.I NMAC).",
       "next_deadline_computed": null,
-      "data_gap_note": "Your exact renewal date depends on your birth month -- we cannot determine that from state-level data alone. Confirm your renewal date with the New Mexico Regulation and Licensing Department or on your license.",
+      "computation": {
+        "type": "birth_month_annual",
+        "rule": "Expires last day of the licensee's birth month, every year -- same shape as Texas/Oklahoma."
+      },
       "source_url": "https://www.rld.nm.gov/boards-and-commissions/individual-boards-and-commissions/accountancy/faqs/",
       "secondary_source_url": "https://www.srca.nm.gov/parts/title16/16.060.0003.html",
-      "last_verified": "2026-08-14",
+      "last_verified": "2026-08-18",
       "wave": 6,
       "citation_url": "https://www.srca.nm.gov/parts/title16/16.060.0003.html",
       "citation": "16.60.3.9(I) NMAC",
-      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.srca.nm.gov/parts/title16/16.060.0003.html.  Agent evidence: Official NM Commission of Public Records/SRCA text of 16.60.3.9 NMAC, subsection I: 'Deadline for receipt of certificate/license renewal applications and supporting continuing professional education affidavits or reports is no later than the last day of the CPA or RPA certificate/license holder's birth month or the next business day if the deadline date falls on a weekend or holiday.' Confirms annual, birth-month-staggered renewal exactly as claimed."
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.srca.nm.gov/parts/title16/16.060.0003.html.  Agent evidence: Official NM Commission of Public Records/SRCA text of 16.60.3.9 NMAC, subsection I: 'Deadline for receipt of certificate/license renewal applications and supporting continuing professional education affidavits or reports is no later than the last day of the CPA or RPA certificate/license holder's birth month or the next business day if the deadline date falls on a weekend or holiday.' Confirms annual, birth-month-staggered renewal exactly as claimed.\n\n2026-08-18 (AuditLab DNC sweep + AssetLab build): the prior data_gap_note's framing (\"we cannot determine that from state-level data alone\") conflated no-state-level-table with not-computable -- it's fully computable given the licensee's own birth month, same as Oklahoma. Removed the gap note, built the interactive birth-month lookup (generic BIRTH_MONTH_ANNUAL_STATES pattern, shared with Oklahoma)."
     },
     {
       "id": "nm-firm",
@@ -1235,16 +1238,29 @@
       "license_type": "individual",
       "license_type_label": "Individual CPA/LPA license",
       "renewal_pattern": "other",
-      "cycle_description": "Idaho is mid-transition (announced May 2026) from annual to biennial renewal, staggered by birth-year parity. The current codified rule still states annual June 30 renewal, while the Board's own site describes an in-progress biennial rollout -- a genuine conflict between two current official sources during the transition.",
+      "cycle_description": "Idaho is mid-transition (announced May 2026) from annual to biennial renewal, staggered by birth-year parity: odd-birth-year CPAs' licenses expire June 30, 2027; even-birth-year expire June 30, 2028 -- per the Idaho Board's own current guidance (DOPL press release, dated 2026-04-20). The administrative rule implementing this (IDAPA 24.30.01 Section 108) has NOT yet been formally amended to match -- it still literally states annual June 30 renewal. Idaho Code 54-211 confirms the underlying statute has already moved to a genuinely biennial cycle, so this parity relationship is expected to continue beyond the transition, not just describe it -- but the specific dates above come from the Board's operational guidance, not yet from the codified rule text itself.",
       "next_deadline_computed": null,
-      "data_gap_note": "Idaho is in the middle of a licensure-cycle change (announced May 2026): the Board's site describes a new birth-year-parity biennial schedule, but the current administrative rule (IDAPA 24.30.01 § 108) still states annual June 30 renewal with no cohort/biennial language yet. We can't safely compute your next date during this transition. Confirm your exact renewal date with the Idaho Division of Occupational and Professional Licenses or on your license.",
+      "cohort_groups": [
+        {
+          "group": "Odd-birth-year CPAs",
+          "deadline_pattern": "June 30 following an odd-numbered year",
+          "next_deadline": "2027-06-30"
+        },
+        {
+          "group": "Even-birth-year CPAs",
+          "deadline_pattern": "June 30 following an even-numbered year",
+          "next_deadline": "2028-06-30"
+        }
+      ],
+      "data_gap_note": null,
       "source_url": "https://dopl.idaho.gov/pressrelease/big-changes-are-on-the-way-stay-informed-about-important-licensure-updates-that-may-impact-your-renewal-cycle-21/",
       "secondary_source_url": "https://adminrules.idaho.gov/rules/current/24/243001.pdf",
-      "last_verified": "2026-08-14",
+      "last_verified": "2026-08-18",
       "wave": 6,
-      "citation_url": "https://adminrules.idaho.gov/rules/current/24/243001.pdf",
-      "citation": "IDAPA 24.30.01 (Idaho Accountancy Rules), Section 108.01 - Annual License Renewal; cf. Idaho Code 54-211(3)(b) (as amended, biennial)",
-      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://adminrules.idaho.gov/rules/current/24/243001.pdf.  Agent evidence: Rule 108.01 (marked 3-28-23) still reads: 'Renewal. Licenses expire on June 30 of each year.' Meanwhile Idaho Code 54-211 (legislature.idaho.gov, current text) now provides a license 'effective for no more than twenty-four (24) months... then be subject to biennial renewal,' and the DOPL press release confirms the transition begins May 1, 2026, staggered by birth-year parity (odd DOB expire June 30, 2027; even DOB June 30, 2028). Genuine conflict as claimed -- the same IDAPA rule's fee table (Section 400, eff. 7-1-25) already lists biennial amounts, so the rule is partially updated while Section 108.01 remains annual."
+      "citation_url": "https://dopl.idaho.gov/pressrelease/big-changes-are-on-the-way-stay-informed-about-important-licensure-updates-that-may-impact-your-renewal-cycle-21/",
+      "citation": "Idaho DOPL press release (dopl.idaho.gov, dated 2026-04-20), current Board guidance; cf. IDAPA 24.30.01 Section 108.01 (codified rule, not yet amended to match) and Idaho Code 54-211 (statute, already biennial)",
+      "citation_class": "operational_record",
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://adminrules.idaho.gov/rules/current/24/243001.pdf.  Agent evidence: Rule 108.01 (marked 3-28-23) still reads: 'Renewal. Licenses expire on June 30 of each year.' Meanwhile Idaho Code 54-211 (legislature.idaho.gov, current text) now provides a license 'effective for no more than twenty-four (24) months... then be subject to biennial renewal,' and the DOPL press release confirms the transition begins May 1, 2026, staggered by birth-year parity (odd DOB expire June 30, 2027; even DOB June 30, 2028). Genuine conflict as claimed -- the same IDAPA rule's fee table (Section 400, eff. 7-1-25) already lists biennial amounts, so the rule is partially updated while Section 108.01 remains annual.\n\n2026-08-18 (AuditLab DNC sweep, re-verified all 3 sources independently): DOPL press release (2026-04-20) confirmed again -- concrete current-cycle dates as above. IDAPA 24.30.01 Section 108.01 re-confirmed still literally annual, unamended. Idaho Code 54-211 re-confirmed already biennial. Verdict: genuine, current, unresolved three-way conflict -- not stale, not fabricated. Devin's correction to the accuracy standard: \"the rule is changing\" is not \"unknown\" -- a pending transition almost always still has a real, currently-effective date. Built the personalized birth-year-parity lookup (same shape as Kansas/Kentucky/Oregon/Nebraska) sourced to DOPL's current guidance, with the rule-lag caveat stated plainly in cycle_description per Devin's explicit instruction not to hide it. This is a product/editorial decision to show the Board's own current operational guidance ahead of the codified rule catching up, not a claim that the codified rule itself says this."
     },
     {
       "id": "id-firm",

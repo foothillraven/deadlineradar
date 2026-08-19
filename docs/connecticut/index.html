@@ -1737,18 +1737,18 @@
 <div class="sheet">
   <div class="sheethead">
     <span>CPA Firm Permit</span>
-    <div class="stamp stamp--unconfirmed"><span class="dot"></span>Date not confirmed</div>
+    <div class="stamp"><span class="dot"></span>Last verified 2026-08-18</div>
   </div>
   <div class="rowlist">
     <div class="frow">
       <div class="k">Next renewal date</div>
-      <div class="v">Not confirmed<small>The CPA Firm Permit renewal form/fee is bundled on the same official page and renewal-period as the individual license (notices emailed Oct-Dec 31), which states annual/Dec 31 renewal -- but that exact sentence names only &#x27;license and/or registration,&#x27; not &#x27;Firm Permit&#x27; specifically, so the Dec 31 date for firm permits is inferred from bundling/context, not a directly-quoted statement.</small></div>
+      <div class="v">December 31, 2026<small>Annual renewal, fixed calendar date. The Connecticut Department of Consumer Protection&#x27;s dedicated &quot;Certified Public Accountancy Firms&quot; page (a page specifically about firm permits, not bundled with individual-license content) states plainly: &quot;All firm registrations expire annually on December 31st.&quot; The renewal statute (Conn. Gen. Stat. 20-281e(b)) confirms the annual cycle but delegates the specific renewal date to board regulation rather than fixing it in the statute itself -- no located regulation section states a firm-specific date, so December 31 comes from DCP&#x27;s own current operational guidance, not yet from codified rule text.</small></div>
       <div class="side side--stacked">
-        <a class="cite" href="https://www.cga.ct.gov/current/pub/chap_389.htm" title="Conn. Gen. Stat. 20-281e(b) (annual firm-permit renewal; renewal dates delegated to board regulation); cf. Regs. Conn. State Agencies 20-280-25(a) (Jan 1-Dec 31 license cycle, licenses only)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Conn. Gen. Stat. 20-281e(b) (annual firm-permit renewal; renewal dates delegated to board regulation); cf. Regs. Conn. State Agencies 20-280-25(a) (Jan 1-Dec 31 license cycle, licenses only)</a><div class="verified unconfirmed">Anchor year not confirmed</div>
+        <a class="cite" href="https://www.cga.ct.gov/current/pub/chap_389.htm" title="Conn. Gen. Stat. 20-281e(b) (annual firm-permit renewal, statutory); December 31 date per DCP&#x27;s dedicated &quot;Certified Public Accountancy Firms&quot; page (portal.ct.gov), current Board guidance -- no codified statute or regulation fixes this specific date for firm permits"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6.5 2.5h5.5a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5.5z" stroke="currentColor" stroke-width="1.3"/><path d="M6.5 2.5V5a.5.5 0 0 0 .5.5h2.5" stroke="currentColor" stroke-width="1.3"/></svg>Conn. Gen. Stat. 20-281e(b) (annual firm-permit renewal, statutory); December 31 date per DCP&#x27;s dedicated &quot;Certified Public Accountancy Firms&quot; page (portal.ct.gov), current Board guidance -- no codified statute or regulation fixes this specific date for firm permits</a>
+        <div class="verified"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Confirmed via official records</div>
       </div>
     </div>
   </div>
-  <div class="sheetfoot">Conn. Gen. Stat. 20-281e(b) (firm permit statute): &#x27;Permits shall be initially issued and renewed annually. Applications for permits shall be made in such form, and in the case of applications for renewal, between such dates as the board may by regulation specify&#x27; -- i.e. the statute explicitly delegates the firm-permit renewal date to board regulation, it does not fix Dec 31 itself. RCSA 20-280-25(a)&#x27;s exact text governs the &#x27;license&#x27; (individual), not the &#x27;permit&#x27; (firm): &#x27;A license issued under chapter 389 ... shall be valid ... from January 1 to December 31.&#x27; No RCSA section was found that sets a firm-permit-specific date. Visitors should confirm their firm permit&#x27;s exact renewal date with CT DCP or on the permit itself.</div>
 </div>
 <div class="trust-line">
   <strong data-verified="2026-08-14">Last verified: 2026-08-14</strong> &middot; checked against the state's codified statute or administrative rule, not just a board webpage &mdash; if we can't verify a date against primary law, we say so instead of guessing (<a href="/methodology/">see how we verify every deadline</a>). Always confirm with the
@@ -1777,7 +1777,12 @@
     <input type="text" id="first_name" name="first_name" maxlength="60" autocomplete="given-name" placeholder="For a personal greeting, e.g. David">
     <label for="email">Email address</label>
     <input type="email" id="email" name="email" required placeholder="you@example.com">
-    
+    <label for="license_type_id">Which license?</label>
+<select id="license_type_id" name="license_type_id" required>
+  <option value="">Select the one that applies to you</option>
+  <option value="ct-individual">Individual CPA License</option>
+<option value="ct-firm">CPA Firm Permit</option>
+</select>
     <button type="submit">Remind me</button>
   </form>
 </div>

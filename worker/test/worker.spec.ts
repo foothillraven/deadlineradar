@@ -230,12 +230,56 @@ describe("POST /subscribe -- happy path (capture + confirmation-email path)", ()
     expect(JSON.parse(row?.deadline_fields ?? "{}")).toEqual({ parity: "odd" });
   });
 
+  it("2026-08-18: Idaho birth-year signup persists the parity, non-inverted (unlike Nebraska), and never the raw birth year (PII minimization)", async () => {
+    const email = `id-parity-${Date.now()}@example.com`;
+    const resp = await postSubscribe({ email, state: "idaho", parity_number: "1985" }, "203.0.113.33");
+    expect(resp.status).toBe(200);
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(email).first<SubscriberRow>();
+    expect(row?.state_slug).toBe("idaho");
+    // 1985's last digit is 5 (odd) -- Idaho is NOT inverted (unlike Nebraska),
+    // so an odd birth year persists as "odd" directly, matching DOPL's own
+    // stated odd-birth-year -> odd-year renewal mapping.
+    expect(JSON.parse(row?.deadline_fields ?? "{}")).toEqual({ parity: "odd" });
+    expect(row?.deadline_fields).not.toContain("1985");
+  });
+
   it("2026-08-18: rejects a non-numeric parity_number for the 4 new parity-lookup states", async () => {
     const resp = await postSubscribe(
       { email: `ky-badnum-${Date.now()}@example.com`, state: "kentucky", parity_number: "abc" },
       "203.0.113.32"
     );
     expect(resp.status).toBe(400);
+  });
+
+  it("2026-08-18: Oklahoma and New Mexico individual signups persist birth_month via the same path as Texas", async () => {
+    const okEmail = `ok-birthmonth-${Date.now()}@example.com`;
+    const okResp = await postSubscribe({ email: okEmail, state: "oklahoma", birth_month: "4" }, "203.0.113.34");
+    expect(okResp.status).toBe(200);
+    const okRow = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(okEmail).first<SubscriberRow>();
+    expect(okRow?.state_slug).toBe("oklahoma");
+    expect(JSON.parse(okRow?.deadline_fields ?? "{}")).toEqual({ birth_month: "4" });
+
+    const nmEmail = `nm-birthmonth-${Date.now()}@example.com`;
+    const nmResp = await postSubscribe({ email: nmEmail, state: "new-mexico", birth_month: "11" }, "203.0.113.35");
+    expect(nmResp.status).toBe(200);
+    const nmRow = await env.DB.prepare("SELECT * FROM subscribers WHERE email = ?1").bind(nmEmail).first<SubscriberRow>();
+    expect(nmRow?.state_slug).toBe("new-mexico");
+    expect(JSON.parse(nmRow?.deadline_fields ?? "{}")).toEqual({ birth_month: "11" });
+  });
+
+  it("2026-08-18: rejects a missing/invalid birth_month for Oklahoma and New Mexico, with the correct state display name (not a raw hyphenated slug)", async () => {
+    const okResp = await postSubscribe({ email: `ok-nomonth-${Date.now()}@example.com`, state: "oklahoma" }, "203.0.113.36");
+    expect(okResp.status).toBe(400);
+    expect(await okResp.text()).toContain("Oklahoma needs your birth month.");
+
+    const nmResp = await postSubscribe(
+      { email: `nm-badmonth-${Date.now()}@example.com`, state: "new-mexico", birth_month: "13" },
+      "203.0.113.37"
+    );
+    expect(nmResp.status).toBe(400);
+    // "New Mexico", not "New-mexico" -- the display name is hand-mapped, not
+    // derived from the hyphenated state_slug.
+    expect(await nmResp.text()).toContain("New Mexico needs a valid birth month.");
   });
 });
 
@@ -3131,6 +3175,34 @@ describe("deadlines.ts", () => {
     // No/invalid parity -> null, never a guess.
     expect(computeSubscriberDeadline("kansas", {}, asOf)).toBeNull();
     expect(computeSubscriberDeadline("kansas", { parity: "sideways" }, asOf)).toBeNull();
+  });
+
+  it("2026-08-18: computeSubscriberDeadline resolves Idaho (birth-year parity) matching DOPL's own stated current-cycle dates exactly", () => {
+    const asOf = new Date("2026-07-03T00:00:00Z");
+    // Odd-birth-year -> June 30, 2027; even-birth-year -> June 30, 2028 --
+    // exactly what dopl.idaho.gov's 2026-04-20 press release states, not
+    // just a formula extrapolation.
+    expect(computeSubscriberDeadline("idaho", { parity: "odd" }, asOf)?.toISOString().slice(0, 10)).toBe(
+      "2027-06-30"
+    );
+    expect(computeSubscriberDeadline("idaho", { parity: "even" }, asOf)?.toISOString().slice(0, 10)).toBe(
+      "2028-06-30"
+    );
+    expect(computeSubscriberDeadline("idaho", {}, asOf)).toBeNull();
+  });
+
+  it("2026-08-18: computeSubscriberDeadline resolves Oklahoma/New Mexico individual (pure birth-month-annual, same shape as Texas)", () => {
+    const asOf = new Date("2026-07-03T00:00:00Z");
+    // A month already past its 2026 occurrence rolls to 2027; a month still
+    // ahead in 2026 stays 2026 -- exactly the same next_annual_month_end()
+    // math Texas already uses.
+    expect(computeSubscriberDeadline("oklahoma", { birth_month: "3" }, asOf)?.toISOString().slice(0, 10)).toBe(
+      "2027-03-31"
+    );
+    expect(computeSubscriberDeadline("new-mexico", { birth_month: "9" }, asOf)?.toISOString().slice(0, 10)).toBe(
+      "2026-09-30"
+    );
+    expect(computeSubscriberDeadline("oklahoma", {}, asOf)).toBeNull();
   });
 
   it("checkDataFreshness throws StaleDataError once data is older than the threshold", () => {

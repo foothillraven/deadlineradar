@@ -192,12 +192,35 @@ _PROSE_INTERNAL_NAME_RE = re.compile(
     r"BettingBot|FleetDeck|firmchat|HANDOFF)\b"
 )
 
+# GATE-1 hardening (AuditLab, COPY-3 2026-08-14 residual report, implemented
+# 2026-08-20): COPY-3's own writeup named the second half of the shape it was
+# fixing -- "snake_case identifiers and [A-Z]+-\d+ finding IDs are
+# mechanically detectable" -- but only the snake_case half was ever built.
+# The finding-ID half (every AuditLab/AssetLab finding across this whole
+# session -- COPY-3, GATE-1, BADGE-2, SILENT-1, DATA-12, CITE-26, ...) never
+# got a detector, so a note like "see COPY-3" pasted into reader copy would
+# sail past every existing check the same way COPY-3 itself did. Same
+# rationale as the snake_case rule: no legitimate reader-facing sentence on
+# this site refers to itself by an internal tracker's finding ID.
+_PROSE_FINDING_ID_RE = re.compile(r"\b[A-Z]{2,10}-\d{1,4}\b")
+
 # Tokens that are legitimately part of reader-facing prose. Keep this SHORT
 # and justified per entry -- an unexplained entry defeats the whole point.
 _PROSE_SNAKE_CASE_ALLOWLIST: dict[str, str] = {
     # (none currently -- the 2026-08-14 baseline sweep of all 235 rendered
     # pages found zero legitimate snake_case tokens in extracted prose. If a
     # future hit is genuinely reader-appropriate, add it here WITH a reason.)
+}
+
+# GATE-1's finding-ID shape also matches real legal/technical citation
+# formats that happen to look like a tracker ID. Confirmed by a full sweep of
+# docs/ on 2026-08-20 -- these are the only 3 tokens live on the site today
+# that match the shape, and all 3 are genuine reader-facing citations, not a
+# leaked finding ID.
+_PROSE_FINDING_ID_ALLOWLIST: dict[str, str] = {
+    "PRE-2024": "Georgia CPE page's plain-English 'PRE-2024' cohort label, not a finding ID",
+    "RICR-00": "Rhode Island's own regulatory citation prefix (Rhode Island Code of Regulations)",
+    "SHA-256": "the security page's cryptographic hash-algorithm name",
 }
 
 
@@ -252,6 +275,16 @@ def check_prose_leak_shapes(html_files: list[Path]) -> list[str]:
                 f"[SHAPE][{f}] internal fleet name '{m.group(0)}' in rendered prose -- "
                 f"...{snippet}... (internal agent/tool names are meaningless to a customer and "
                 f"disclose how the site is built)"
+            )
+        for m in _PROSE_FINDING_ID_RE.finditer(prose):
+            token = m.group(0)
+            if token in _PROSE_FINDING_ID_ALLOWLIST:
+                continue
+            snippet = prose[max(0, m.start() - 60): m.end() + 90].replace("\n", " ").strip()
+            errors.append(
+                f"[SHAPE][{f}] internal finding-ID shape '{token}' in rendered prose -- "
+                f"...{snippet}... (looks like an AuditLab/AssetLab tracker ID pasted into copy; "
+                f"reword in plain English or, if it's a genuine citation, allowlist WITH a reason)"
             )
     return errors
 

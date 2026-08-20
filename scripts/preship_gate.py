@@ -1040,8 +1040,31 @@ def check_hedge_language_enforced(repo_root: Path) -> list[str]:
 # matches all 4 records that currently and correctly carry the flag
 # (dc-all, de-all, ak-firm, us-virgin-islands-all), zero false positives
 # against the other 85.
+#
+# AuditLab re-verify (same day): a hand-built phrase list, the same SRC-7
+# shape -- tested it against 8 plausible future phrasings and missed all 8,
+# including the gate's OWN docstring wording ("doesn't establish"). Widened
+# the verb list and added a few more phrase shapes (silent-on, inferred-not-
+# cited, corroborated-separately). Deliberately did NOT go as far as a bare
+# "does not (establish|cover|confirm|state|name)" with no "itself" anchor --
+# tested that broader version against the live dataset first and it produced
+# a real false positive on or-individual, whose "The Board's page does NOT
+# state how parity is originally assigned" is legitimate prose about a fact
+# the record explicitly does NOT claim (only the recurring pattern, which
+# IS fully cited) -- not an admission that its OWN claim is under-cited.
+# Unlike SRC-7's "over-matching is cheap" (a missed live-check), a false
+# positive here would push someone to add a citation_covers_full_claim=false
+# flag to a record that is genuinely fully covered, which is its own kind of
+# dishonesty. The "itself" anchor is the line between "this citation doesn't
+# itself establish X" (an admission about THIS record's own coverage) and
+# "the source doesn't state Y" (routine prose about an unrelated fact) --
+# kept it. Re-tested full coverage + zero false positives after this change.
 _PARTIAL_CITATION_ADMISSION_RE = re.compile(
-    r"does not itself (state|name|spell out)|not independently confirmed|instead confirmed|confirmed instead",
+    r"does not itself (state|name|spell out|establish|cover|confirm)|"
+    r"not independently confirmed|not confirmed in|"
+    r"instead confirmed|confirmed instead|corroborated (?:separately|instead)|"
+    r"(?:is|remains|stays) silent on|"
+    r"inferred,? not cited|inferred rather than cited",
     re.IGNORECASE,
 )
 

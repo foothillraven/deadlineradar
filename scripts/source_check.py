@@ -222,6 +222,30 @@ def _extract_pdf(body: bytes) -> str | None:
     return None
 
 
+def _extract_docx(body: bytes) -> str | None:
+    """SRC-10 (AuditLab, 2026-08-20): a .docx is a ZIP container, and
+    _extract_html() previously handled it by decoding the raw ZIP bytes as
+    UTF-8 text -- which "succeeds" (it's valid-enough UTF-8-with-
+    replacement-chars) and produces tens of thousands of characters of
+    binary noise, clearing every length floor in this module and reporting
+    CONFIRMED_TEXT for a document nobody actually read. Live case: Maine's
+    official .docx fee schedule (introduced by CITE-34's citation_url
+    repoint) -- correct data, false CONFIRMED_TEXT read of the wrapper.
+    Reads word/document.xml directly (the actual document body inside the
+    OOXML zip) and strips markup the same way _extract_html() does."""
+    try:
+        import zipfile
+
+        with zipfile.ZipFile(io.BytesIO(body)) as z:
+            xml = z.read("word/document.xml").decode("utf-8", errors="replace")
+        text = re.sub(r"<[^>]+>", " ", xml)
+        text = html_mod.unescape(text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text or None
+    except Exception:
+        return None
+
+
 def _extract_html(body: bytes) -> str | None:
     try:
         raw = body.decode("utf-8", errors="replace")
@@ -244,7 +268,13 @@ def check(url: str) -> dict:
         return result
 
     is_pdf = "pdf" in ctype or (body is not None and body[:5] == b"%PDF-")
-    text = _extract_pdf(body) if is_pdf else _extract_html(body)
+    is_docx = "officedocument" in ctype or (body is not None and body[:4] == b"PK\x03\x04")
+    if is_pdf:
+        text = _extract_pdf(body)
+    elif is_docx:
+        text = _extract_docx(body)
+    else:
+        text = _extract_html(body)
 
     if text is None:
         result["classification"] = "EXTRACTION_FAILED"

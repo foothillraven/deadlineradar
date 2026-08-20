@@ -1897,6 +1897,15 @@ export function buildAccountDeletionNotificationEmail(details: {
    * have been attempted but the attempt itself threw.
    */
   refundCents: number | null | "failed";
+  /**
+   * AuditLab BILL-6 (2026-08-20): a cancel-only failure (Stripe subscription
+   * cancellation throws, refund succeeds or nothing was owed) used to be
+   * completely unsignaled -- the original design's rationale was that it's
+   * RARER than a refund failure, but the resulting harm is identical to
+   * BILL-5's: the deleted firm's subscription stays ACTIVE and bills again
+   * next period. Mirrors refundCents's own tri-state reasoning, one leg over.
+   */
+  cancelFailed: boolean;
 }): BuiltEmail {
   const safeFirmName = details.firmName.replace(/[\r\n]+/g, " ");
   const safeEmail = details.adminEmail.replace(/[\r\n]+/g, " ");
@@ -1908,13 +1917,17 @@ export function buildAccountDeletionNotificationEmail(details: {
       : details.refundCents !== null
         ? `$${(details.refundCents / 100).toFixed(2)} (prorated, unused time)`
         : "(none)";
+  const cancelLine = details.cancelFailed
+    ? "CANCELLATION FAILED -- reconcile manually (Stripe subscription may still be ACTIVE and will bill again next period; check the Stripe dashboard directly)"
+    : "ok";
 
   const textBody =
     `Firm: ${details.firmName}\n` +
     `Admin email: ${details.adminEmail}\n` +
     `Reason given: ${details.reason ?? "(skipped)"}\n` +
     `Detail: ${safeDetail ?? "(none)"}\n` +
-    `Refund issued: ${refundLine}\n\n` +
+    `Refund issued: ${refundLine}\n` +
+    `Subscription cancellation: ${cancelLine}\n\n` +
     `Account is deactivated immediately; the data hard-deletes automatically in 30 days.`;
 
   const htmlBody =
@@ -1925,6 +1938,7 @@ export function buildAccountDeletionNotificationEmail(details: {
     `<li>Reason given: ${esc(details.reason ?? "(skipped)")}</li>` +
     `<li>Detail: ${esc(safeDetail ?? "(none)")}</li>` +
     `<li>Refund issued: ${esc(refundLine)}</li>` +
+    `<li>Subscription cancellation: ${esc(cancelLine)}</li>` +
     `</ul>` +
     `<p>Account is deactivated immediately; the data hard-deletes automatically in 30 days.</p>`;
 

@@ -3496,16 +3496,24 @@ async function handleFirmAccountDelete(request: Request, env: Env): Promise<Resp
   // failed" ("failed") -- see buildAccountDeletionNotificationEmail's own
   // docstring for why that distinction is the whole point of this email.
   let refundCents: number | null | "failed" = null;
+  // AuditLab BILL-6 (2026-08-20): the original "not separately signaled"
+  // posture above reasoned about FREQUENCY (a cancel-only failure is rarer
+  // than a refund failure), but the finding was about CONSEQUENCE -- and a
+  // cancel-only failure produces the EXACT harm BILL-5 was fixed for: a
+  // deleted, inaccessible firm's Stripe subscription stays ACTIVE and bills
+  // again next period, discovered by the cardholder as an unauthorized-
+  // looking charge. "Rarer" doesn't change what happens when it occurs.
+  // Mirrors refundCents's own tri-state so a cancel-only failure is no
+  // longer indistinguishable from the common "cancelled clean" case.
+  let cancelFailed = false;
   if (env.STRIPE_SECRET_KEY && firm.stripe_subscription_id) {
     try {
       await cancelSubscriptionImmediately(env.STRIPE_SECRET_KEY, firm.stripe_subscription_id);
     } catch {
-      // Non-fatal -- see the block comment above. The notification email
-      // below still fires and (via refundCents) signals reconciliation is
-      // needed whenever the REFUND leg below also has trouble; a
-      // cancellation-only failure with a clean refund is rarer and not
-      // separately signaled here, matching the original design's own
-      // "one notification, human reconciles" posture -- not a new gap.
+      // Non-fatal to the deletion itself (access is already gone via
+      // status='deleted' above) -- but now signaled via cancelFailed, same
+      // reconciliation posture refundCents already established.
+      cancelFailed = true;
     }
 
     try {
@@ -3590,6 +3598,7 @@ async function handleFirmAccountDelete(request: Request, env: Env): Promise<Resp
           reason,
           detail,
           refundCents,
+          cancelFailed,
         });
         await sendViaSendGrid(env.SENDGRID_API_KEY, INTERNAL_NOTIFY_EMAIL, built, env.EMAIL_ALLOWLIST);
       }

@@ -1417,7 +1417,7 @@
       "license_type": "firm",
       "license_type_label": "Firm permit",
       "renewal_pattern": "fixed_calendar",
-      "cycle_description": "Biennial. All CPA firm permits share the same statewide fixed licensing period as individual licenses. 12 AAC 04.280(c) establishes the biennial mechanic and a December 31 filing deadline; it does not itself name which two-year window is current. The current window -- January 1, 2026 to December 31, 2027 -- is confirmed instead via the Board's own published materials and the arithmetic of a continuous biennial cycle from a known anchor period (see verification_note).",
+      "cycle_description": "Biennial. All CPA firm permits share the same statewide fixed licensing period as individual licenses. 12 AAC 04.280(c) establishes the biennial mechanic and a December 31 filing deadline; it does not itself name which two-year window is current. The current window -- January 1, 2026 to December 31, 2027 -- is confirmed instead directly against the Board's own hosted regulations PDF.",
       "next_deadline_computed": "2027-12-31",
       "source_url": "https://www.commerce.alaska.gov/web/Portals/5/pub/cpa4062.pdf",
       "secondary_source_url": "https://www.commerce.alaska.gov/web/portals/5/pub/CPARegulations.pdf",

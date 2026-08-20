@@ -6610,9 +6610,23 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
   const seatCap = seatCapForFirmTier(session.firm.plan_tier, session.firm.created_at);
   const currentSeatCount = await store.countFirmLicenses(env.DB, session.firmId);
   if (currentSeatCount >= seatCap) {
+    // P1 (ValueLab pricing/billing report, ruled 2026-08-20): "Upgrade to
+    // add more" pointed at /firm-dashboard/#account regardless of who hit
+    // this -- correct for a free/pilot firm (that panel's real checkout
+    // buttons genuinely start a paid subscription), but a firm ALREADY on
+    // a named paid tier has no self-serve path to a HIGHER tier there --
+    // today that's cancel, wait for annual billing to clear (up to 12
+    // months), then re-buy. Pointing an already-paying customer at a panel
+    // with nothing to click for their actual situation was the bug;
+    // distinguishing on firmTierByPlanTier() (null for free/pilot, a real
+    // tier def otherwise) sends each to the step that's actually real for
+    // them.
+    const onPaidTier = firmTierByPlanTier(session.firm.plan_tier) !== null;
     return jsonResponse(402, {
-      error: `Your plan covers up to ${seatCap} staff. Upgrade to add more.`,
-      pay_now_url: "/firm-dashboard/#account",
+      error: onPaidTier
+        ? `Your plan covers up to ${seatCap} staff. Email us and we'll move you up to a higher tier -- there's no self-serve tier change yet.`
+        : `Your plan covers up to ${seatCap} staff. Upgrade to add more.`,
+      pay_now_url: onPaidTier ? "/contact/" : "/firm-dashboard/#account",
     });
   }
 

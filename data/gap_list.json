@@ -211,7 +211,7 @@
       "state": "District of Columbia",
       "state_slug": "dc",
       "field": "data_gap_note",
-      "note": "The $295 reinstatement fee is stated on the Board's own page, but no codified DCMR fee schedule or DC Register notice stating that exact number could be located -- only the general statutory authority for the Board to set fees. Recommend a manual check with the Board if you want the fee confirmed against a published rule rather than just the agency's own page.",
+      "note": "The $295 reinstatement fee is stated on the Board's own page, but no codified DCMR fee schedule or DC Register notice stating that exact number could be located -- only the general statutory authority for the Board to set fees. Recommend a manual check with the Board if you want the fee confirmed against a published rule rather than just the agency's own page. Separately: the 40-hour/120-hour-cap CPE figure is codified in 17 DCMR Sec2530.3, but the link above goes to D.C. Code Sec47-2851.10 (a different instrument) rather than the DCMR section itself -- the District has no stable web address for individual DCMR sections (confirmed by the same investigation that pointed the CPE-hours page's own link at a reporting-form PDF instead, since DC's regulations site has no per-section permalink and no independent legal-mirror site republishes DCMR). The 40-hour/120-hour figure itself is correct, just not independently confirmable against a linkable primary text.",
       "is_block_claim": false
     },
     {

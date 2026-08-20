@@ -339,11 +339,13 @@
       "fee_notes": "LARA's official fee table lists a $100/year individual license fee; Michigan CPA licenses renew on a 2-year cycle, so the total renewal fee is $200 ($20 more if late).",
       "source_url": "https://www.michigan.gov/lara/bureau-list/bpl/occ/prof/accountancy/lic-info/license-fees",
       "confidence": "high",
-      "verified_date": "2026-08-14",
+      "verified_date": "2026-08-20",
       "verification_history": "2026-08-14 (source_check sweep): the gap note claimed the narrative renewal page 'returned an automated-access block'. Re-tested with the new classifier: michigan.gov serves the page to a plain browser-UA fetch (23.5KB of real content) -- the earlier conclusion was the same misdiagnosis class as MA/Utah. The live official fee table states 'Per Year License Fees: ... Individual 100.00', which corroborates the published $200 as one biennial renewal (2 x $100/yr on Michigan's 2-year cycle). Gap note removed; nothing was actually unverifiable.\n\n2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-338-2211. The amount is codified in the rule/statute text cited here. Agent evidence: MCL 338.2211(1)(b): '(b) License to practice for individuals and firms, per year 100.00'; MCL 339.409(2): if renewals are biennial 'the fee required shall be twice... the per year amount' -- yielding the $200 biennial renewal. The '$20 more if late' is also codified: MCL 338.2206 'The department shall charge a $20.00 late renewal fee.'",
-      "citation_url": "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-338-2211",
+      "citation_url": "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-339-409",
+      "secondary_source_url": "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-338-2211",
       "citation": "MCL 338.2211(1)(b) (State License Fee Act; license to practice, per year, $100.00), doubled for the biennial cycle per MCL 339.409(2); late fee MCL 338.2206",
-      "fee_basis": "codified"
+      "fee_basis": "codified",
+      "verification_history": "2026-08-20 (CITE-34, self-directed fix): citation_url linked MCL 338.2211 (the $100/yr base rate) while the $200 headline figure this record actually displays comes from the doubling mechanism at MCL 339.409(2). Re-fetched 339.409 directly and confirmed verbatim: '(2) License and registration fees shall be prescribed on a per year basis. If licenses and registrations are established by rules promulgated by the department under section 202 as biennial or triennial renewals, the fee required shall be twice or 3 times, as appropriate, the per year amount.' Repointed citation_url to 339.409; moved 338.2211 (which does support the underlying $100/yr rate) to secondary_source_url."
     },
     {
       "id": "minnesota-renewal-fee",

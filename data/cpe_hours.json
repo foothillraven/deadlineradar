@@ -409,7 +409,8 @@
       "state": "Minnesota",
       "state_slug": "minnesota",
       "citation": "Minn. R. 1105.3000; 1105.3100, subp. 4(F)",
-      "citation_url": "https://www.revisor.mn.gov/rules/1105.3000/",
+      "citation_url": "https://www.revisor.mn.gov/rules/1105.3100/",
+      "secondary_source_url": "https://www.revisor.mn.gov/rules/1105.3000/",
       "source_url": "https://mn.gov/boa/continuing-education/",
       "total_hours": 120,
       "period_years": 3,
@@ -417,7 +418,8 @@
       "ethics_hours": 8,
       "ethics_period_years": 3,
       "notes": "120 hours in a rolling 3-year period, minimum 20 hours each year (Minn. R. 1105.3000). Within that 120, at least 8 hours must be in regulatory or behavioral ethics (Minn. R. 1105.3100, subpart 4, item F) -- confirmed against both the codified rule text and the Board's own CPE page, which states the same 8-hour figure in plain language: \"Each reporting year you must earn a minimum of 20 hours... In any given three-year reporting period, you must have a minimum of 120 hours, with 8 of those hours being in regulatory (technical) or behavioral (nontechnical) ethics.\"",
-      "verified_date": "2026-08-13"
+      "verified_date": "2026-08-20",
+      "verification_history": "2026-08-20 (CITE-33, AuditLab -- self-directed fix): AuditLab found citation_url pointed at 1105.3000 (the 120hr/20hr figures) while the ethics_hours=8 figure is in 1105.3100, a page identifier-presence checks missed because 1105.3000's text cross-references \"1105.3100\" without containing its content -- a genuine false negative in automated link-scope detection. Re-fetched 1105.3100 directly and confirmed verbatim: \"at least eight hours must be obtained in regulatory ethics or behavioral ethics.\" Repointed citation_url to 1105.3100 (the ethics-figure headline for this specific link-scope gap); moved the former citation_url (1105.3000, which does support total_hours/annual_minimum_hours) to secondary_source_url."
     },
     {
       "id": "ms-cpe",

@@ -1664,7 +1664,17 @@ PAGE_CSS = """
      handler's getElementById lookup) -- this file styles by class only,
      never a bare id selector. */
   .dr-mob-complete-wrap { margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid var(--border); }
-  .dr-nav-soon { color: #6e8296; cursor: default; }
+  /* CONTRAST-2 re-verify (AuditLab, 2026-08-20): the original #6e8296 was
+     measured against --panel-dark's DARK-theme value only (4.51:1, passing
+     by 0.01) -- the default/light theme redefines --panel-dark separately
+     (#152c3e vs #0d1824), where the same color is 3.62:1, below 4.5. Likely
+     WCAG-exempt as an inactive component's label, but cheap to just clear
+     the bar outright rather than lean on the exemption: #8095aa holds
+     >=4.5:1 in BOTH themes with a real margin (4.65 light, 5.79 dark; the
+     4.51-in-one-theme trap doesn't just repeat one theme darker), verified
+     by direct WCAG relative-luminance computation, not eyeballed -- while
+     staying visually de-emphasised against .dr-nav a's #b9cad9 active links. */
+  .dr-nav-soon { color: #8095aa; cursor: default; }
   .dr-soon-badge {
     margin-left: auto; font-size: 0.6rem; letter-spacing: 0.04em; text-transform: uppercase;
     background: rgba(255,255,255,.09); color: #9fb1c2; padding: 0.15em 0.5em; border-radius: 999px; white-space: nowrap;

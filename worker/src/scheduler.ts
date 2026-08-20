@@ -293,12 +293,36 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
     }
     if (deadline === null) {
       summary.skipped_no_deadline += 1;
+      // SILENT-1 (AuditLab, 2026-08-19): this branch is exactly the
+      // "believes they're covered, never told otherwise" gap -- log it
+      // durably instead of letting the count evaporate into a console.log
+      // line nobody watches. Best-effort: a logging failure must not skip
+      // this subscriber's own summary accounting above, which already ran.
+      try {
+        await store.logSilentDrop(env.DB, sub.id, sub.email, sub.state_slug, "no_computable_deadline");
+      } catch {
+        // See comment above -- never let this fail the pass.
+      }
       continue;
     }
     const stateName = stateNameForSlug(sub.state_slug);
     if (stateName === null) {
       summary.skipped_no_deadline += 1;
+      try {
+        await store.logSilentDrop(env.DB, sub.id, sub.email, sub.state_slug, "unknown_state");
+      } catch {
+        // See comment above.
+      }
       continue;
+    }
+    // A deadline computed cleanly this run -- if this subscriber had a
+    // still-open silent_drop_log row from an earlier run, close it. Cheap
+    // no-op (a conditional UPDATE matching zero rows) for the common case
+    // of a subscriber who was never affected.
+    try {
+      await store.resolveSilentDrop(env.DB, sub.id);
+    } catch {
+      // Best-effort, same reasoning as the two logSilentDrop() calls above.
     }
 
     const daysRemaining = Math.round((deadline.getTime() - asOfDay.getTime()) / MS_PER_DAY);

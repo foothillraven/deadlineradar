@@ -4151,6 +4151,110 @@ describe("store.claimStaleDataAlertForToday (AuditLab STALE-3)", () => {
   });
 });
 
+describe("store.logSilentDrop / resolveSilentDrop (AuditLab SILENT-1)", () => {
+  it("logs a fresh drop, keeps first_detected_at across repeated drops, then resolves", async () => {
+    const id = `silent-drop-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    await env.DB.prepare(`DELETE FROM silent_drop_log WHERE subscriber_id = ?1`).bind(id).run();
+
+    await store.logSilentDrop(env.DB, id, "still-dropped@example.com", "florida", "no_computable_deadline");
+    const first = await env.DB.prepare(`SELECT * FROM silent_drop_log WHERE subscriber_id = ?1`).bind(id).first<{
+      first_detected_at: string;
+      last_seen_at: string;
+      resolved_at: string | null;
+      reason: string;
+    }>();
+    expect(first?.reason).toBe("no_computable_deadline");
+    expect(first?.resolved_at).toBeNull();
+    expect(first?.first_detected_at).toBe(first?.last_seen_at);
+
+    // A later run, still dropped -- first_detected_at must NOT move, even
+    // though last_seen_at (and possibly the reason) can.
+    await new Promise((r) => setTimeout(r, 5));
+    await store.logSilentDrop(env.DB, id, "still-dropped@example.com", "florida", "unknown_state");
+    const second = await env.DB.prepare(`SELECT * FROM silent_drop_log WHERE subscriber_id = ?1`).bind(id).first<{
+      first_detected_at: string;
+      last_seen_at: string;
+      reason: string;
+    }>();
+    expect(second?.first_detected_at).toBe(first?.first_detected_at);
+    expect(second?.reason).toBe("unknown_state");
+
+    // Resolved: a clean deadline computation closes the row.
+    await store.resolveSilentDrop(env.DB, id);
+    const resolved = await env.DB.prepare(`SELECT resolved_at FROM silent_drop_log WHERE subscriber_id = ?1`)
+      .bind(id)
+      .first<{ resolved_at: string | null }>();
+    expect(resolved?.resolved_at).not.toBeNull();
+
+    // Resolving an already-resolved row a second time must not overwrite
+    // the original resolved_at (the "when did this get fixed" question
+    // should have one stable answer, not a moving one).
+    const resolvedAt = resolved!.resolved_at;
+    await new Promise((r) => setTimeout(r, 5));
+    await store.resolveSilentDrop(env.DB, id);
+    const resolvedAgain = await env.DB.prepare(`SELECT resolved_at FROM silent_drop_log WHERE subscriber_id = ?1`)
+      .bind(id)
+      .first<{ resolved_at: string | null }>();
+    expect(resolvedAgain?.resolved_at).toBe(resolvedAt);
+
+    // Re-dropped after being resolved: resolved_at clears again.
+    await store.logSilentDrop(env.DB, id, "still-dropped@example.com", "florida", "no_computable_deadline");
+    const reDropped = await env.DB.prepare(`SELECT resolved_at FROM silent_drop_log WHERE subscriber_id = ?1`)
+      .bind(id)
+      .first<{ resolved_at: string | null }>();
+    expect(reDropped?.resolved_at).toBeNull();
+
+    await env.DB.prepare(`DELETE FROM silent_drop_log WHERE subscriber_id = ?1`).bind(id).run();
+  });
+
+  it("resolving a subscriber with no drop row is a harmless no-op", async () => {
+    await expect(store.resolveSilentDrop(env.DB, "never-was-dropped-xyz")).resolves.toBeUndefined();
+  });
+
+  it("runReminderPass actually calls logSilentDrop/resolveSilentDrop -- not just tested in isolation", async () => {
+    // Guards against the exact trap this codebase has hit before: a helper
+    // function fully unit-tested but never wired into the real pass that's
+    // supposed to call it. This test exercises runReminderPass() itself,
+    // not logSilentDrop()/resolveSilentDrop() directly.
+    const { runReminderPass } = await import("../src/scheduler");
+    const email = `sched-silent1-${Date.now()}@example.com`;
+    // florida with no license_type_id is the exact real-world shape
+    // SILENT-1 was filed against: computeSubscriberDeadline("florida", {})
+    // returns null.
+    const rec = await store.addPending(env.DB, {
+      email,
+      stateSlug: "florida",
+      deadlineFields: {},
+      firstName: "Tester",
+      skipConfirmation: true,
+    });
+
+    const asOf = new Date(Date.UTC(2026, 6, 24));
+    const summary1 = await runReminderPass(env, { asOf, send: async () => true });
+    expect(summary1.skipped_no_deadline).toBeGreaterThan(0);
+
+    const row1 = await env.DB.prepare(`SELECT * FROM silent_drop_log WHERE subscriber_id = ?1`).bind(rec.id).first<{
+      reason: string;
+      resolved_at: string | null;
+    }>();
+    expect(row1?.reason).toBe("no_computable_deadline");
+    expect(row1?.resolved_at).toBeNull();
+
+    // Fix the subscriber's fields (what a real re-subscribe / backfill
+    // would do) and re-run -- the row should close.
+    await env.DB.prepare(`UPDATE subscribers SET deadline_fields = ?1 WHERE id = ?2`)
+      .bind(JSON.stringify({ license_type_id: "fl-firm" }), rec.id)
+      .run();
+    await runReminderPass(env, { asOf, send: async () => true });
+    const row2 = await env.DB.prepare(`SELECT resolved_at FROM silent_drop_log WHERE subscriber_id = ?1`)
+      .bind(rec.id)
+      .first<{ resolved_at: string | null }>();
+    expect(row2?.resolved_at).not.toBeNull();
+
+    await env.DB.prepare(`DELETE FROM silent_drop_log WHERE subscriber_id = ?1`).bind(rec.id).run();
+  });
+});
+
 describe("emails.ts buildStaleDataAlertEmail (AuditLab STALE-3)", () => {
   it("numeric ageDays: subject and body both name the actual age", async () => {
     const { buildStaleDataAlertEmail } = await import("../src/emails");

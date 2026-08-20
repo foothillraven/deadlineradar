@@ -12,6 +12,16 @@ one through reminders/scheduler.py's own compute_subscriber_deadline() --
 the exact function the real reminder cron uses -- so a silent drop here IS
 a silent drop in production, not a re-implementation that could disagree.
 
+2026-08-20 (Devin's own "wire it into a surface" directive): also reads
+`silent_drop_log` (migration 0067) -- the durable table
+worker/src/scheduler.ts's runReminderPass() now upserts into on every real
+production cron run. That table is the actual dashboard: it answers "how
+long has this subscriber been silently dropped" and "did a fix land,
+however briefly", which a point-in-time live check like the one above
+cannot. This script reports both: the live snapshot (is it broken RIGHT
+NOW) and the persisted history (is it broken according to the real cron's
+own runs, and since when).
+
 Usage:
     python scripts/silent_dropped_subscribers_check.py
 
@@ -35,11 +45,7 @@ sys.path.insert(0, str(ROOT))
 from reminders.scheduler import compute_subscriber_deadline  # noqa: E402
 
 
-def fetch_confirmed_subscribers() -> list[dict]:
-    sql = (
-        "SELECT id, email, state_slug, deadline_fields, confirmed_at "
-        "FROM subscribers WHERE status = 'confirmed'"
-    )
+def _run_d1_query(sql: str) -> list[dict]:
     npx = shutil.which("npx")
     if npx is None:
         raise SystemExit("Could not find `npx` on PATH -- required to run `wrangler d1 execute`.")
@@ -58,6 +64,22 @@ def fetch_confirmed_subscribers() -> list[dict]:
     return payload[0]["results"] if payload and payload[0].get("results") else []
 
 
+def fetch_confirmed_subscribers() -> list[dict]:
+    return _run_d1_query(
+        "SELECT id, email, state_slug, deadline_fields, confirmed_at FROM subscribers WHERE status = 'confirmed'"
+    )
+
+
+def fetch_silent_drop_log() -> list[dict]:
+    """The durable table runReminderPass() (worker/src/scheduler.ts,
+    migration 0067) upserts on every real production cron run -- the
+    persisted half of this report, not a live re-check."""
+    return _run_d1_query(
+        "SELECT subscriber_id, email, state_slug, reason, first_detected_at, last_seen_at, resolved_at "
+        "FROM silent_drop_log WHERE resolved_at IS NULL ORDER BY first_detected_at ASC"
+    )
+
+
 def main() -> None:
     today = datetime.now(timezone.utc).date()
     subscribers = fetch_confirmed_subscribers()
@@ -72,21 +94,33 @@ def main() -> None:
         if result is None:
             dropped.append(row)
 
+    open_log_rows = fetch_silent_drop_log()
+
     print(f"silent-dropped-subscribers-check @ {today.isoformat()}")
-    print(f"  confirmed subscribers checked: {len(subscribers)}")
-    print(f"  resolve to NO computable deadline (will never be reminded): {len(dropped)}")
+    print(f"  confirmed subscribers checked (live, right now): {len(subscribers)}")
+    print(f"  resolve to NO computable deadline (live, right now): {len(dropped)}")
+    print(f"  open in silent_drop_log (persisted, per the real cron's own runs): {len(open_log_rows)}")
+
     if dropped:
         print()
-        print("  These subscribers believe they are covered. Nothing on their end reveals")
-        print("  otherwise. Each needs either a fields backfill, a re-subscribe prompt, or")
-        print("  (if their state genuinely can't be computed, e.g. legacy test rows) removal")
-        print("  from this list by design -- not silence.")
+        print("  LIVE SNAPSHOT -- these subscribers believe they are covered. Nothing on")
+        print("  their end reveals otherwise. Each needs either a fields backfill, a")
+        print("  re-subscribe prompt, or (if their state genuinely can't be computed, e.g.")
+        print("  legacy test rows) removal from this list by design -- not silence.")
         print()
         for row in dropped:
             print(f"    - {row['email']}  state={row['state_slug']}  "
                   f"fields={row.get('deadline_fields')}  confirmed_at={row.get('confirmed_at')}")
-        sys.exit(1)
-    sys.exit(0)
+
+    if open_log_rows:
+        print()
+        print("  PERSISTED HISTORY -- open since the real cron first saw each one:")
+        print()
+        for row in open_log_rows:
+            print(f"    - {row['email']}  state={row['state_slug']}  reason={row['reason']}  "
+                  f"first_detected_at={row['first_detected_at']}  last_seen_at={row['last_seen_at']}")
+
+    sys.exit(1 if (dropped or open_log_rows) else 0)
 
 
 if __name__ == "__main__":

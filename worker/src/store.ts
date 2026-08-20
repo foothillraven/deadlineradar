@@ -4799,6 +4799,54 @@ export async function claimStaleDataAlertForToday(db: D1Database, dayUtc: string
   return (result.meta.changes ?? 0) > 0;
 }
 
+/** AuditLab SILENT-1 (HIGH, 2026-08-19), migration 0067: called from
+ * runReminderPass() every time a confirmed subscriber's deadline fails to
+ * compute -- the exact "believes they're covered, told nothing" gap.
+ * Upserts one row per subscriber (not one row per occurrence -- this is a
+ * durable CURRENT-STATE table, not an unbounded event log): a subscriber
+ * dropped for the first time gets first_detected_at = last_seen_at = now;
+ * one still dropped on a later run gets last_seen_at advanced and
+ * resolved_at re-cleared (covers the resolved-then-broke-again case, not
+ * just monotonic "still broken"). See resolveSilentDrop() below for the
+ * other half. */
+export async function logSilentDrop(
+  db: D1Database,
+  subscriberId: string,
+  email: string,
+  stateSlug: string,
+  reason: string
+): Promise<void> {
+  const now = nowIso();
+  await db
+    .prepare(
+      `INSERT INTO silent_drop_log (subscriber_id, email, state_slug, reason, first_detected_at, last_seen_at, resolved_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?5, NULL)
+       ON CONFLICT(subscriber_id) DO UPDATE SET
+         email = excluded.email,
+         state_slug = excluded.state_slug,
+         reason = excluded.reason,
+         last_seen_at = excluded.last_seen_at,
+         resolved_at = NULL`
+    )
+    .bind(subscriberId, email, stateSlug, reason, now)
+    .run();
+}
+
+/** Closes a silent_drop_log row the first run a previously-affected
+ * subscriber's deadline computes cleanly again. Conditional UPDATE
+ * (resolved_at IS NULL) so calling this for every successfully-computed
+ * subscriber on every run -- the common case, never affected -- is a cheap
+ * no-op rather than a needless write; only a subscriber with a real open
+ * row is actually touched. resolved_at is left in place on subsequent
+ * clean runs (not re-written), so it answers "when did this get fixed",
+ * not just "was it ever fixed". */
+export async function resolveSilentDrop(db: D1Database, subscriberId: string): Promise<void> {
+  await db
+    .prepare(`UPDATE silent_drop_log SET resolved_at = ?1 WHERE subscriber_id = ?2 AND resolved_at IS NULL`)
+    .bind(nowIso(), subscriberId)
+    .run();
+}
+
 /** Roadmap #24: distinct confirmed digest-mode emails, PERIOD -- the
  * digest_next_send_at window is deliberately NOT filtered here (AuditLab
  * DIGEST-1, 2026-08-09). The window only decides whether a NON-urgent item

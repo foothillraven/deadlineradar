@@ -672,6 +672,14 @@ PAGE_CSS = """
   .nav-toggle {
     display: none; border: 1px solid var(--border-strong); background: var(--card-bg); color: var(--fg);
     border-radius: 6px; font-size: 1.15rem; line-height: 1; cursor: pointer; padding: 0.35rem 0.6rem;
+    /* A11Y-10 (AuditLab, 2026-08-20): measured live at 32x38px -- passes
+       WCAG 2.5.8's 24x24 AA minimum (not a conformance failure) but falls
+       under Apple HIG (44x44) and Material (48x48) for the single most-
+       tapped control on a mobile page. min-width/min-height rather than
+       more padding alone, so the target size is guaranteed regardless of
+       how the glyph itself renders across fonts/browsers; text-align
+       keeps the glyph centered in the now-larger box. */
+    min-width: 44px; min-height: 44px; text-align: center;
   }
   @media (max-width: 680px) {
     .nav-toggle { display: block; }

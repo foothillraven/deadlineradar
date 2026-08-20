@@ -1023,6 +1023,58 @@ def check_hedge_language_enforced(repo_root: Path) -> list[str]:
     return errors
 
 
+# AuditLab CITE-29 (2026-08-20): CITE-13's own fix (same commit as CITE-12's,
+# which DID set the flag) rewrote ak-firm's cycle_description to admit its
+# citation doesn't establish the current renewal window, but forgot the
+# machine-readable half -- citation_covers_full_claim stayed unset (defaults
+# True). trust_line() reads ONLY that flag, so /alaska/ rendered the exact
+# contradiction the flag exists to prevent: "checked against ... not just a
+# board webpage" directly beside a caveat admitting a board document is
+# exactly what established the date. The existing dual-credential-citation
+# advisory (above) couldn't have caught this even in principle -- ak-firm's
+# license_type_label is "Firm permit," a single credential, never in that
+# advisory's candidate population at all. This is the third instance today
+# of the same shape (SRC-8's missed field, CITE-28's un-updated helper): a
+# prose fix shipped without its machine-readable sibling. Closes the CLASS,
+# not just ak-firm -- tested against the full live dataset before adopting:
+# matches all 4 records that currently and correctly carry the flag
+# (dc-all, de-all, ak-firm, us-virgin-islands-all), zero false positives
+# against the other 85.
+_PARTIAL_CITATION_ADMISSION_RE = re.compile(
+    r"does not itself (state|name|spell out)|not independently confirmed|instead confirmed|confirmed instead",
+    re.IGNORECASE,
+)
+
+
+def check_partial_citation_flag_set(repo_root: Path) -> list[str]:
+    """A cpa_deadlines.json record whose cycle_description admits its own
+    citation doesn't establish the full claim must set
+    citation_covers_full_claim=False -- otherwise trust_line() (which reads
+    ONLY that flag, never the prose) asserts full codified-law confirmation
+    right beside a caveat saying otherwise. See CITE-29."""
+    data_path = repo_root / "data" / "cpa_deadlines.json"
+    if not data_path.exists():
+        return []
+    data = json.loads(data_path.read_text(encoding="utf-8"))
+    errors = []
+    for r in data["records"]:
+        cd = r.get("cycle_description")
+        if not isinstance(cd, str):
+            continue
+        match = _PARTIAL_CITATION_ADMISSION_RE.search(cd)
+        if not match:
+            continue
+        if r.get("citation_covers_full_claim", True) is False:
+            continue  # already flagged -- the contradiction is already suppressed
+        errors.append(
+            f"[CITE29][{r.get('id')}] cycle_description admits its citation doesn't establish the "
+            f"full claim ({match.group(0)!r}), but citation_covers_full_claim is unset (defaults "
+            f"True) -- trust_line() will render the confident 'not just a board webpage' sentence "
+            f"directly beside this admission. Set citation_covers_full_claim: false."
+        )
+    return errors
+
+
 def check_retired_claims_absent_from_guides(repo_root: Path, html_files) -> list[str]:
     """Retired claims must not survive in hand-written guide prose either.
 
@@ -2168,6 +2220,7 @@ def main():
     all_errors += check_derived_fee_consistency(repo_root)
     all_errors += check_block_claims_corroborated(repo_root)
     all_errors += check_hedge_language_enforced(repo_root)
+    all_errors += check_partial_citation_flag_set(repo_root)
     all_errors += check_retired_claims_absent(repo_root)
     all_errors += check_retired_claims_absent_from_guides(repo_root, html_files)
     all_errors += check_published_figures_link_source(html_files)

@@ -1194,7 +1194,10 @@
         "type": "anchor_year_chosen_term",
         "month": 6,
         "day": 30,
-        "term_options": [1, 2],
+        "term_options": [
+          1,
+          2
+        ],
         "note": "Next deadline = June 30, (year your permit was last issued/renewed) + (the 1- or 2-year term printed on that same permit). Unlike Washington/Puerto Rico, the term itself varies per permit -- not a fixed state-wide constant -- so this is a single-shot calculation from the firm's own two permit facts, not a repeating rollover."
       },
       "source_url": "https://www.rld.nm.gov/wp-content/uploads/2021/06/Public-Accountancy-Act-and-Rules.pdf",
@@ -1329,11 +1332,13 @@
       "renewal_pattern": "fixed_calendar",
       "cycle_description": "Annual. All Montana license categories (CPA, Licensed Public Accountant) and firm registration expire December 31 of each year -- a single fixed date, no cohort split.",
       "next_deadline_computed": "2026-12-31",
+      "data_gap_note": "Montana's official ARM host (rules.mt.gov) serves no per-section rule text -- it is now a JavaScript SPA that returns only an empty shell to automated fetches, and the legacy mtrules.org mirror no longer resolves. The renewal date and requirements are confirmed instead on the Board's own license-information page, which states them in plain language matching this record exactly.",
       "source_url": "https://boards.bsd.dli.mt.gov/public-accountants/license-information/",
       "secondary_source_url": "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-24.101.413",
       "last_verified": "2026-08-14",
       "wave": 7,
-      "citation": "Mont. Admin. R. 24.101.413",
+      "citation": "Montana Board of Accountancy license-information page (boards.bsd.dli.mt.gov), current Board guidance; cf. Mont. Admin. R. 24.101.413 (codified rule -- the official ARM host serves no text for any section)",
+      "citation_class": "operational_record",
       "citation_url": "https://boards.bsd.dli.mt.gov/public-accountants/license-information/index",
       "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Montana's official ARM host rules.mt.gov is now an Esper JavaScript SPA: /gateway/ruleno.asp?RN=24.101.413 and the new /browse/collections/.../sections/... URLs both return only an 894-byte React shell (verified with a Chrome User-Agent); /api/* on port 443 returns S3 AccessDenied, the real API on :8443 returns 'Unauthorized' then times out, the legacy mtrules.org host no longer resolves, and sosmt.gov 403s its BulkDownloadSpecs.pdf. No per-section official ARM URL serves text. Fell back to the board's own publication, which confirms the figure: 'All licenses must be renewed by December 31 of each year, or a 100% late fee will be added to the renewal fee' and 'No fee is currently charged for annual firm registration, but it must still be filed by December 31'; the board home page adds 'All licensee's and firms under the Board, regardless of status, are required to renewal annually by December 31st.' Single fixed date, no cohort split, firms included - matches. Caveat: this is the board's statement of the requirement, not verbatim ARM 24.101.413 text, so an ARM-vs-board divergence cou [...]"
     },
@@ -1651,7 +1656,11 @@
         "type": "anchor_year_chosen_term",
         "month": 6,
         "day": 30,
-        "term_options": [1, 2, 3],
+        "term_options": [
+          1,
+          2,
+          3
+        ],
         "note": "Next deadline = June 30, (year your license was issued or last renewed) + (the 1-, 2-, or 3-year term shown on that license)."
       },
       "source_url": "https://col.guamcourts.gov/sites/default/files/22gc035.pdf",
@@ -1676,7 +1685,11 @@
         "type": "anchor_year_chosen_term",
         "month": 6,
         "day": 30,
-        "term_options": [1, 2, 3],
+        "term_options": [
+          1,
+          2,
+          3
+        ],
         "note": "Next deadline = June 30, (year your firm's permit was issued or last renewed) + (the 1-, 2-, or 3-year term shown on that permit)."
       },
       "source_url": "https://col.guamcourts.gov/sites/default/files/22gc035.pdf",

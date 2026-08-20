@@ -4227,7 +4227,8 @@ def _record_fully_cited(record: dict) -> bool:
     return bool(record.get("citation")) and record.get("citation_covers_full_claim", True)
 
 
-def trust_line(last_verified: str, source_url: str, has_citation: bool) -> str:
+def trust_line(last_verified: str, source_url: str, has_citation: bool,
+                is_operational_record: bool = False) -> str:
     """AuditLab DATA-1 (HIGH, 2026-08-04): this unconditionally asserted "checked
     against the state's codified statute or administrative rule, not just a board
     webpage" on every page, including 11 records across 9 states that have ONLY a
@@ -4238,8 +4239,34 @@ def trust_line(last_verified: str, source_url: str, has_citation: bool) -> str:
     so plainly"). `has_citation` now gates which sentence renders -- same signal
     _source_cite_html()/_verified_badge_html() already use (record.get("citation")),
     so a record can never show the "Verified" badge or a Source-of-record block
-    while this text still claims primary-law verification, or vice versa."""
-    if has_citation:
+    while this text still claims primary-law verification, or vice versa.
+
+    CITE-27 (AuditLab, 2026-08-20): `has_citation` alone still let this claim
+    "not just a board webpage" render for a citation_class=="operational_record"
+    record -- Montana's `mt-all` had a real citation string, so has_citation was
+    True, while its citation_url genuinely IS just a board webpage (the ARM host
+    serves no per-section text). The other two provenance signals on the same
+    page (_source_cite_html's label, _verified_badge_html's verified_text)
+    already branch on this via _is_operational_record(); this was the one place
+    that didn't, so the page's most-read sentence kept the promise the other two
+    signals had already qualified. `is_operational_record` closes that gap with
+    its own honest sentence rather than reusing either existing one verbatim.
+
+    Deliberately reason-agnostic, matching _source_cite_html's own label: the
+    records carrying this flag are operational_record for genuinely different
+    reasons (Montana's ARM host serves no text at all; Florida/Illinois/Colorado/
+    Maine are instead sourced from a STRONGER open-data license register;
+    Idaho's board guidance is simply more current than an unamended rule; a
+    first draft of this sentence named Montana's specific reason and would have
+    been flatly wrong on the other eight records)."""
+    if is_operational_record:
+        sourcing_claim = (
+            "checked against the regulator's own official records rather than codified statute or "
+            "administrative rule text &mdash; see the citation above for exactly what we checked and "
+            "why; we say so instead of presenting it as primary law "
+            '(<a href="/methodology/">see how we verify every deadline</a>)'
+        )
+    elif has_citation:
         sourcing_claim = (
             "checked against the state's codified statute or administrative rule, not just a board "
             "webpage &mdash; if we can't verify a date against primary law, we say so instead of "
@@ -5895,7 +5922,7 @@ def build_state_page(
     body = f"""{_seal_html(last_verified)}<h1>{esc(title)}</h1>
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
 {deadline_html}
-{trust_line(last_verified, source_url, all(_record_fully_cited(r) for r in records))}
+{trust_line(last_verified, source_url, all(_record_fully_cited(r) for r in records), all(_is_operational_record(r) for r in records))}
 {_flag_wrong_html(state_name, state_slug)}
 {signup_form_for_state(state_slug, state_name, records, as_of)}
 {_cpe_affiliate_html()}
@@ -18792,7 +18819,7 @@ renewal. Here's exactly when {esc(state_name)}'s firm-level filing is due.</p>
   <p class="rule">{esc(record['cycle_description'])}</p>
   {_source_cite_html(record)}
 </div>
-{trust_line(record['last_verified'], record['source_url'], _record_fully_cited(record))}
+{trust_line(record['last_verified'], record['source_url'], _record_fully_cited(record), _is_operational_record(record))}
 
 <div class="firm-cta">
 <h2>Tracking this for more than one firm, or want someone else watching it?</h2>
@@ -19356,7 +19383,7 @@ never a guess.</p>
 
 <p><strong>What triggers lapsed status:</strong> {esc(record['lapse_trigger'])}</p>
 
-{trust_line(record["last_verified"], record["source_url"], _record_fully_cited(record))}
+{trust_line(record["last_verified"], record["source_url"], _record_fully_cited(record), _is_operational_record(record))}
 
 {_reinstatement_signup_html(record["state_slug"], state_name, renewal_records, as_of)}
 

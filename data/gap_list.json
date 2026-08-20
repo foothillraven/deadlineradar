@@ -4,7 +4,7 @@
     "purpose": "SRC-4 (AuditLab, 2026-08-14): mechanically-derived inventory of every record carrying a sourcing gap/verification note, regenerated on every preship_gate.py run so it can never go stale or be a remembered subset."
   },
   "total_records": 246,
-  "gap_record_count": 50,
+  "gap_record_count": 53,
   "block_claim_count": 3,
   "entries": [
     {
@@ -99,6 +99,15 @@
     },
     {
       "dataset": "cpa_deadlines.json",
+      "id": "mt-all",
+      "state": "Montana",
+      "state_slug": "montana",
+      "field": "data_gap_note",
+      "note": "Montana's official ARM host (rules.mt.gov) serves no per-section rule text -- it is now a JavaScript SPA that returns only an empty shell to automated fetches, and the legacy mtrules.org mirror no longer resolves. The renewal date and requirements are confirmed instead on the Board's own license-information page, which states them in plain language matching this record exactly.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpa_deadlines.json",
       "id": "ak-individual",
       "state": "Alaska",
       "state_slug": "alaska",
@@ -149,6 +158,15 @@
       "state_slug": "georgia",
       "field": "data_gap_note",
       "note": "Georgia has two official versions of this rule in circulation and they do not agree. The Secretary of State's rules site (rules.sos.ga.gov/gac/20-11) still serves the PRE-2024 text -- 80 hours with 16 in accounting and auditing, and no ethics requirement at all. The Board's own published Rule 20-11, effective January 1, 2024, is the current one and is what this record follows. If you look the rule up on the Secretary of State's site and see different numbers, that is why; confirm with the Board.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpe_hours.json",
+      "id": "mt-cpe",
+      "state": "Montana",
+      "state_slug": "montana",
+      "field": "data_gap_note",
+      "note": "Montana's official ARM host (rules.mt.gov) serves no per-section rule text -- the same JavaScript single-page app described on mt-all's record, which returns only an empty shell regardless of fetch method. The 120-hour/3-year requirement, the 50% technical-subjects rule, and the 2-hour ethics minimum are confirmed instead on the Board's own CPE page and its CPE bulletin PDF, which state them in plain language matching this record exactly.",
       "is_block_claim": false
     },
     {
@@ -248,6 +266,15 @@
       "state_slug": "minnesota",
       "field": "data_gap_note",
       "note": "The $20 fee is confirmed directly in codified statute. The board's own pages -- read in a browser -- do not state the figure in plain language anywhere we could find (the reinstatement section discusses process only), so the statute is the source, not a board page.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "montana-reinstatement",
+      "state": "Montana",
+      "state_slug": "montana",
+      "field": "data_gap_note",
+      "note": "Montana's official ARM host (rules.mt.gov) serves no per-section rule text for 24.201.2106, 24.101.413, or 24.101.403 -- the same JavaScript single-page app described on mt-all's record, which returns only an empty shell regardless of fetch method; only 24.201.2161 is referenced on the linked Board page itself. The reinstatement CPE requirement and the late-fee formula are confirmed instead on the Board's own License Reactivation and license-information pages, which state them in plain language matching this record exactly.",
       "is_block_claim": false
     },
     {

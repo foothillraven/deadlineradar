@@ -4410,6 +4410,22 @@ def _verified_badge_html(record: dict) -> str:
     return f'<span class="verified-badge"{dv_attr}>{label}</span>'
 
 
+def _last_checked_suffix_html(verified_date: str | None, data_gap_note: str | None) -> str:
+    """BADGE-2 (AuditLab, 2026-08-20): build_cpe_page() and build_reinstatement_page()
+    both suppress the 'Verified <date>' trust badge on a data_gap_note record (right
+    call -- a record admitting an unconfirmed sourcing leg shouldn't carry an
+    unconditional trust claim) but the single <span> carried BOTH the trust word and
+    the freshness date, so suppressing it dropped both. The date still exists in the
+    data and preship_gate.py's staleness gate still enforces it against the build --
+    only the page stopped showing it. Restores the freshness half (not the trust
+    half) as a neutral sentence appended to the sourcing-note paragraph itself, so
+    the 5 pages carrying a gap note -- exactly the ones where "when was this last
+    checked" matters most -- can still answer it."""
+    if not data_gap_note or not verified_date:
+        return ""
+    return f" (Last checked {esc(verified_date)}.)"
+
+
 _seal_uid_counter = [0]
 
 
@@ -18960,7 +18976,9 @@ def build_cpe_hours_page(
     _cpe_dv_attr = f' data-verified="{esc(cpe_verified_date)}"' if cpe_verified_date else ""
     verified_badge_html = "" if data_gap_note else f'<span class="verified-badge"{_cpe_dv_attr}>{verified_badge_label}</span>'
     sourcing_note_html = (
-        f'<p class="disclosure">Sourcing note: {esc(data_gap_note)}</p>' if data_gap_note else ""
+        f'<p class="disclosure">Sourcing note: {esc(data_gap_note)}'
+        f'{_last_checked_suffix_html(cpe_verified_date, data_gap_note)}</p>'
+        if data_gap_note else ""
     )
 
     body = f"""<h1>{esc(title)}</h1>
@@ -19308,7 +19326,9 @@ def build_reinstatement_page(record: dict, renewal_records: list[dict], cpe_reco
     _rein_dv_attr = f' data-verified="{esc(reinstatement_verified_date)}"' if reinstatement_verified_date else ""
     verified_badge_html = "" if data_gap_note else f'<span class="verified-badge"{_rein_dv_attr}>{verified_badge_label}</span>'
     sourcing_note_html = (
-        f'<p class="disclosure">Sourcing note: {esc(data_gap_note)}</p>' if data_gap_note else ""
+        f'<p class="disclosure">Sourcing note: {esc(data_gap_note)}'
+        f'{_last_checked_suffix_html(reinstatement_verified_date, data_gap_note)}</p>'
+        if data_gap_note else ""
     )
 
     body = f"""<h1>{esc(title)}</h1>

@@ -44,12 +44,34 @@ import json
 import os
 import pathlib
 import re
+import shutil
 import subprocess
 import tempfile
 import urllib.parse
 from datetime import date, datetime, timedelta, timezone
 
 from i18n import t as _t
+
+_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"\s+")
+
+
+def _es_page_has_real_translation(en_html: str, es_html: str) -> bool:
+    """AuditLab ES-2 (2026-08-19): a page rendered with lang="es" whose EVERY
+    Phase A key is still unreviewed/stale falls back to English for all of
+    them via i18n.t() -- so the "Spanish" page is byte-for-byte English
+    except for a handful of metadata attributes (lang=, canonical, og:url,
+    hreflang, relative link depth). All of those live in tag attributes,
+    never in visible text -- so stripping tags and comparing what's left is
+    exactly the test AuditLab used by hand to find the bug (diffing the two
+    renders and confirming the only delta was metadata). Deliberately NOT a
+    per-key reviewed-ratio check: that would need a key-to-page registry
+    that doesn't exist, and would still have to answer "how much is
+    enough" -- this instead measures the actual thing that matters, whether
+    a reader would see any different words."""
+    strip = lambda h: _WS_RE.sub(" ", _TAG_RE.sub(" ", h)).strip()
+    return strip(en_html) != strip(es_html)
+
 
 # ---------------------------------------------------------------------------
 # Config
@@ -7721,7 +7743,9 @@ def _sitewide_freshness_stat(real_today: date) -> tuple[int, int]:
     return verified_recent, len(_sitewide_freshness_dates_cache)
 
 
-def build_methodology_page(records: list[dict], real_today: date, lang: str = "en") -> str:
+def build_methodology_page(
+    records: list[dict], real_today: date, lang: str = "en", publish_es: bool = True
+) -> str:
     """How-we-verify-our-data page (2026-07-15, per the orchestrator's 'press the
     validated bet' steer: apply the CPA-trust design lens by surfacing the sourcing
     method itself as a first-class trust asset, the way established compliance/legal
@@ -7788,11 +7812,13 @@ def build_methodology_page(records: list[dict], real_today: date, lang: str = "e
 <p class="backlink"><a href="/changelog/">{_t("methodology.backlink_changelog", lang)}</a> &middot;
 <a href="/contact/">{_t("methodology.backlink_contact", lang)}</a></p>
 """
+    # ES-2 (AuditLab, 2026-08-19): only advertise a Spanish sibling that
+    # actually exists -- see _es_page_has_real_translation()/publish_es in main().
     hreflang_html = (
         '<link rel="alternate" hreflang="en" href="https://deadline-radar.com/methodology/">\n'
         '<link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/methodology/">\n'
         '<link rel="alternate" hreflang="x-default" href="https://deadline-radar.com/methodology/">'
-    )
+    ) if publish_es else ""
     return page_shell(
         f"{_t('methodology.title', lang)} — {SITE_NAME}",
         _t("methodology.meta_description", lang),
@@ -8069,7 +8095,7 @@ mistyped. Find your state below, or head back to the homepage.</p>
     )
 
 
-def build_contact_page(lang: str = "en") -> str:
+def build_contact_page(lang: str = "en", publish_es: bool = True) -> str:
     security_txt_link = '<a href="/.well-known/security.txt">/.well-known/security.txt</a>'
     rfc_link = '<a href="https://www.rfc-editor.org/rfc/rfc9116">RFC&nbsp;9116</a>'
     privacy_link = f'<a href="/privacy/">{esc(_t("contact.privacy_policy_link_text", lang))}</a>'
@@ -8152,11 +8178,13 @@ Aurora, CO 80013</p>
 }})();
 </script>
 """
+    # ES-2 (AuditLab, 2026-08-19): only advertise a Spanish sibling that
+    # actually exists -- see _es_page_has_real_translation()/publish_es in main().
     hreflang_html = (
         '<link rel="alternate" hreflang="en" href="https://deadline-radar.com/contact/">\n'
         '<link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/contact/">\n'
         '<link rel="alternate" hreflang="x-default" href="https://deadline-radar.com/contact/">'
-    )
+    ) if publish_es else ""
     return page_shell(
         f"{_t('contact.h1', lang)} — {SITE_NAME}",
         _t("contact.meta_description", lang),
@@ -17255,7 +17283,7 @@ var drMobStaffLicenses = [];
     )
 
 
-def build_practice_privilege_landing_page(lang: str = "en") -> str:
+def build_practice_privilege_landing_page(lang: str = "en", publish_es: bool = True) -> str:
     """Roadmap #339: Practice Privilege Check gets its own page. The actual
     tool lives at /firm-mobility/, but that page is noindex (it's built as a
     dashboard-shell screen, same family as /firm-dashboard/ -- see that
@@ -17295,11 +17323,13 @@ def build_practice_privilege_landing_page(lang: str = "en") -> str:
 
 <p class="backlink"><a href="/">{_t("ppc.backlink_all_states", lang)}</a></p>
 """
+    # ES-2 (AuditLab, 2026-08-19): only advertise a Spanish sibling that
+    # actually exists -- see _es_page_has_real_translation()/publish_es in main().
     hreflang_html = (
         '<link rel="alternate" hreflang="en" href="https://deadline-radar.com/practice-privilege-check/">\n'
         '<link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/practice-privilege-check/">\n'
         '<link rel="alternate" hreflang="x-default" href="https://deadline-radar.com/practice-privilege-check/">'
-    )
+    ) if publish_es else ""
     return page_shell(
         f"{_t('ppc.title', lang)} — {SITE_NAME}",
         _t("ppc.meta_description", lang),
@@ -17483,7 +17513,9 @@ var DR_CALC_DATA = {json.dumps(data)};
 </script>"""
 
 
-def build_deadline_calculator_page(by_slug: dict[str, list[dict]], as_of: date, lang: str = "en") -> str:
+def build_deadline_calculator_page(
+    by_slug: dict[str, list[dict]], as_of: date, lang: str = "en", publish_es: bool = True
+) -> str:
     """Roadmap #125 ("free public tools -- no-signup deadline calculator").
     Same "dedicated, SEO-targeted landing page pointing at an existing free
     tool" pattern as build_practice_privilege_landing_page() -- the
@@ -17572,11 +17604,13 @@ def build_deadline_calculator_page(by_slug: dict[str, list[dict]], as_of: date, 
 
 <p class="backlink"><a href="/">{_t("calc.backlink_all_states", lang)}</a></p>
 """
+    # ES-2 (AuditLab, 2026-08-19): only advertise a Spanish sibling that
+    # actually exists -- see _es_page_has_real_translation()/publish_es in main().
     hreflang_html = (
         '<link rel="alternate" hreflang="en" href="https://deadline-radar.com/deadline-calculator/">\n'
         '<link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/deadline-calculator/">\n'
         '<link rel="alternate" hreflang="x-default" href="https://deadline-radar.com/deadline-calculator/">'
-    )
+    ) if publish_es else ""
     return page_shell(
         f"{_t('calc.title', lang)} — {SITE_NAME}",
         _t("calc.meta_description", lang),
@@ -17589,7 +17623,7 @@ def build_deadline_calculator_page(by_slug: dict[str, list[dict]], as_of: date, 
     )
 
 
-def build_multi_state_firms_page(lang: str = "en") -> str:
+def build_multi_state_firms_page(lang: str = "en", publish_es: bool = True) -> str:
     """Roadmap #337: one page assembling Map + Practice Privilege Check +
     Rule Changes for a firm whose staff span multiple states -- explicitly
     ONE page, not six state-segment pages (the item's own instruction).
@@ -17619,11 +17653,13 @@ def build_multi_state_firms_page(lang: str = "en") -> str:
 
 <p class="backlink"><a href="/">{_t("msf.backlink_all_states", lang)}</a></p>
 """
+    # ES-2 (AuditLab, 2026-08-19): only advertise a Spanish sibling that
+    # actually exists -- see _es_page_has_real_translation()/publish_es in main().
     hreflang_html = (
         '<link rel="alternate" hreflang="en" href="https://deadline-radar.com/multi-state-firms/">\n'
         '<link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/multi-state-firms/">\n'
         '<link rel="alternate" hreflang="x-default" href="https://deadline-radar.com/multi-state-firms/">'
-    )
+    ) if publish_es else ""
     return page_shell(
         f"{_t('msf.title', lang)} — {SITE_NAME}",
         _t("msf.meta_description", lang),
@@ -20704,24 +20740,44 @@ way as every state page on this site.</p>
     )
 
 
-def build_sitemap(states: list[dict], as_of: date) -> str:
+def _translated_page_sitemap_urls(slug: str, as_of: date, es_ready: bool) -> str:
+    """ES-2 (AuditLab, 2026-08-19): don't emit an /es/<slug>/ sitemap entry
+    or a reciprocal hreflang="es" tag on the English page unless the
+    Spanish page actually has real translated content -- see
+    _es_page_has_real_translation() and the publish_es plumbing in main().
+    A page with no Spanish sibling gets a plain entry, same shape as every
+    other untranslated page on the site (no hreflang tags at all)."""
+    en_url = f"{SITE_BASE_URL}/{slug}/"
+    if not es_ready:
+        return f"""  <url>
+    <loc>{en_url}</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+  </url>"""
+    es_url = f"{SITE_BASE_URL}/es/{slug}/"
+    return f"""  <url>
+    <loc>{en_url}</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="{en_url}"/>
+    <xhtml:link rel="alternate" hreflang="es" href="{es_url}"/>
+  </url>""" + f"""  <url>
+    <loc>{es_url}</loc>
+    <lastmod>{as_of.isoformat()}</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="{en_url}"/>
+    <xhtml:link rel="alternate" hreflang="es" href="{es_url}"/>
+  </url>"""
+
+
+def build_sitemap(states: list[dict], as_of: date, es_ready: dict[str, bool] | None = None) -> str:
+    es_ready = es_ready or {}
     urls = [f"""  <url>
     <loc>{SITE_BASE_URL}/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/privacy/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
-  </url>""", f"""  <url>
-    <loc>{SITE_BASE_URL}/contact/</loc>
-    <lastmod>{as_of.isoformat()}</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/contact/"/>
-    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/contact/"/>
-  </url>""", f"""  <url>
-    <loc>{SITE_BASE_URL}/es/contact/</loc>
-    <lastmod>{as_of.isoformat()}</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/contact/"/>
-    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/contact/"/>
-  </url>""", f"""  <url>
+  </url>""",
+        _translated_page_sitemap_urls("contact", as_of, es_ready.get("contact", False)),
+        f"""  <url>
     <loc>{SITE_BASE_URL}/terms/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
@@ -20736,37 +20792,11 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/pricing/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
-  </url>""", f"""  <url>
-    <loc>{SITE_BASE_URL}/practice-privilege-check/</loc>
-    <lastmod>{as_of.isoformat()}</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/practice-privilege-check/"/>
-    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/practice-privilege-check/"/>
-  </url>""", f"""  <url>
-    <loc>{SITE_BASE_URL}/es/practice-privilege-check/</loc>
-    <lastmod>{as_of.isoformat()}</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/practice-privilege-check/"/>
-    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/practice-privilege-check/"/>
-  </url>""", f"""  <url>
-    <loc>{SITE_BASE_URL}/multi-state-firms/</loc>
-    <lastmod>{as_of.isoformat()}</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/multi-state-firms/"/>
-    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/multi-state-firms/"/>
-  </url>""", f"""  <url>
-    <loc>{SITE_BASE_URL}/es/multi-state-firms/</loc>
-    <lastmod>{as_of.isoformat()}</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/multi-state-firms/"/>
-    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/multi-state-firms/"/>
-  </url>""", f"""  <url>
-    <loc>{SITE_BASE_URL}/deadline-calculator/</loc>
-    <lastmod>{as_of.isoformat()}</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/deadline-calculator/"/>
-    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/deadline-calculator/"/>
-  </url>""", f"""  <url>
-    <loc>{SITE_BASE_URL}/es/deadline-calculator/</loc>
-    <lastmod>{as_of.isoformat()}</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/deadline-calculator/"/>
-    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/deadline-calculator/"/>
-  </url>""", f"""  <url>
+  </url>""",
+        _translated_page_sitemap_urls("practice-privilege-check", as_of, es_ready.get("practice-privilege-check", False)),
+        _translated_page_sitemap_urls("multi-state-firms", as_of, es_ready.get("multi-state-firms", False)),
+        _translated_page_sitemap_urls("deadline-calculator", as_of, es_ready.get("deadline-calculator", False)),
+        f"""  <url>
     <loc>{SITE_BASE_URL}/roadmap/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
@@ -20775,17 +20805,9 @@ def build_sitemap(states: list[dict], as_of: date) -> str:
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/signin/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
-  </url>""", f"""  <url>
-    <loc>{SITE_BASE_URL}/methodology/</loc>
-    <lastmod>{as_of.isoformat()}</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/methodology/"/>
-    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/methodology/"/>
-  </url>""", f"""  <url>
-    <loc>{SITE_BASE_URL}/es/methodology/</loc>
-    <lastmod>{as_of.isoformat()}</lastmod>
-    <xhtml:link rel="alternate" hreflang="en" href="{SITE_BASE_URL}/methodology/"/>
-    <xhtml:link rel="alternate" hreflang="es" href="{SITE_BASE_URL}/es/methodology/"/>
-  </url>""", f"""  <url>
+  </url>""",
+        _translated_page_sitemap_urls("methodology", as_of, es_ready.get("methodology", False)),
+        f"""  <url>
     <loc>{SITE_BASE_URL}/changelog/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
   </url>""", f"""  <url>
@@ -21044,11 +21066,9 @@ def main() -> None:
     # is the only step needed to bring the pages back. COMPETITOR_FACTS/
     # MYCPE_ONE_FACTS/the 90-day price-freshness gate are all left intact.
 
-    # sitemap.xml (below) reads FIRM_LANDING_PAGES, CPE_HOURS_PAGES,
-    # REINSTATEMENT_PAGES, and COMPETITOR_COMPARE_PAGES, so it must be
-    # written AFTER every loop above populates them.
-    (SITE_DIR / "sitemap.xml").write_text(build_sitemap(built, as_of), encoding="utf-8")
-    print(f"wrote {SITE_DIR.name}/sitemap.xml")
+    # sitemap.xml write moved below, after the translated pages (it also
+    # needs es_ready, computed while writing those -- see ES-2).
+    es_ready: dict[str, bool] = {}
 
     (SITE_DIR / "robots.txt").write_text(build_robots(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/robots.txt")
@@ -21086,68 +21106,133 @@ def main() -> None:
     (pricing_dir / "index.html").write_text(build_pricing_page(by_slug, as_of), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/pricing/index.html")
 
+    # ES-2 (AuditLab, 2026-08-19): only publish the /es/ page (file,
+    # sitemap entry, reciprocal hreflang) if it would show real Spanish
+    # content -- see _es_page_has_real_translation().
+    _ppc_es_check = build_practice_privilege_landing_page(lang="es")
+    es_ready["practice-privilege-check"] = _es_page_has_real_translation(
+        build_practice_privilege_landing_page(), _ppc_es_check
+    )
+
     ppc_dir = SITE_DIR / "practice-privilege-check"
     ppc_dir.mkdir(parents=True, exist_ok=True)
-    (ppc_dir / "index.html").write_text(build_practice_privilege_landing_page(), encoding="utf-8")
+    (ppc_dir / "index.html").write_text(
+        build_practice_privilege_landing_page(publish_es=es_ready["practice-privilege-check"]),
+        encoding="utf-8",
+    )
     print(f"wrote {SITE_DIR.name}/practice-privilege-check/index.html")
 
     es_ppc_dir = SITE_DIR / "es" / "practice-privilege-check"
-    es_ppc_dir.mkdir(parents=True, exist_ok=True)
-    (es_ppc_dir / "index.html").write_text(build_practice_privilege_landing_page(lang="es"), encoding="utf-8")
-    print(f"wrote {SITE_DIR.name}/es/practice-privilege-check/index.html")
+    if es_ready["practice-privilege-check"]:
+        es_ppc_dir.mkdir(parents=True, exist_ok=True)
+        (es_ppc_dir / "index.html").write_text(_ppc_es_check, encoding="utf-8")
+        print(f"wrote {SITE_DIR.name}/es/practice-privilege-check/index.html")
+    elif es_ppc_dir.exists():
+        shutil.rmtree(es_ppc_dir)
+        print(f"removed {SITE_DIR.name}/es/practice-privilege-check/ (ES-2: no real translation yet)")
+
+    # ES-2 (AuditLab, 2026-08-19): see the practice-privilege-check block above.
+    _msf_es_check = build_multi_state_firms_page(lang="es")
+    es_ready["multi-state-firms"] = _es_page_has_real_translation(
+        build_multi_state_firms_page(), _msf_es_check
+    )
 
     multi_state_dir = SITE_DIR / "multi-state-firms"
     multi_state_dir.mkdir(parents=True, exist_ok=True)
-    (multi_state_dir / "index.html").write_text(build_multi_state_firms_page(), encoding="utf-8")
+    (multi_state_dir / "index.html").write_text(
+        build_multi_state_firms_page(publish_es=es_ready["multi-state-firms"]), encoding="utf-8"
+    )
     print(f"wrote {SITE_DIR.name}/multi-state-firms/index.html")
 
     es_multi_state_dir = SITE_DIR / "es" / "multi-state-firms"
-    es_multi_state_dir.mkdir(parents=True, exist_ok=True)
-    (es_multi_state_dir / "index.html").write_text(build_multi_state_firms_page(lang="es"), encoding="utf-8")
-    print(f"wrote {SITE_DIR.name}/es/multi-state-firms/index.html")
+    if es_ready["multi-state-firms"]:
+        es_multi_state_dir.mkdir(parents=True, exist_ok=True)
+        (es_multi_state_dir / "index.html").write_text(_msf_es_check, encoding="utf-8")
+        print(f"wrote {SITE_DIR.name}/es/multi-state-firms/index.html")
+    elif es_multi_state_dir.exists():
+        shutil.rmtree(es_multi_state_dir)
+        print(f"removed {SITE_DIR.name}/es/multi-state-firms/ (ES-2: no real translation yet)")
+
+    # ES-2 (AuditLab, 2026-08-19): see the practice-privilege-check block above.
+    _calc_es_check = build_deadline_calculator_page(by_slug, as_of, lang="es")
+    es_ready["deadline-calculator"] = _es_page_has_real_translation(
+        build_deadline_calculator_page(by_slug, as_of), _calc_es_check
+    )
 
     deadline_calc_dir = SITE_DIR / "deadline-calculator"
     deadline_calc_dir.mkdir(parents=True, exist_ok=True)
-    (deadline_calc_dir / "index.html").write_text(build_deadline_calculator_page(by_slug, as_of), encoding="utf-8")
+    (deadline_calc_dir / "index.html").write_text(
+        build_deadline_calculator_page(by_slug, as_of, publish_es=es_ready["deadline-calculator"]),
+        encoding="utf-8",
+    )
     print(f"wrote {SITE_DIR.name}/deadline-calculator/index.html")
 
     es_deadline_calc_dir = SITE_DIR / "es" / "deadline-calculator"
-    es_deadline_calc_dir.mkdir(parents=True, exist_ok=True)
-    (es_deadline_calc_dir / "index.html").write_text(
-        build_deadline_calculator_page(by_slug, as_of, lang="es"), encoding="utf-8"
-    )
-    print(f"wrote {SITE_DIR.name}/es/deadline-calculator/index.html")
+    if es_ready["deadline-calculator"]:
+        es_deadline_calc_dir.mkdir(parents=True, exist_ok=True)
+        (es_deadline_calc_dir / "index.html").write_text(_calc_es_check, encoding="utf-8")
+        print(f"wrote {SITE_DIR.name}/es/deadline-calculator/index.html")
+    elif es_deadline_calc_dir.exists():
+        shutil.rmtree(es_deadline_calc_dir)
+        print(f"removed {SITE_DIR.name}/es/deadline-calculator/ (ES-2: no real translation yet)")
 
     roadmap_dir = SITE_DIR / "roadmap"
     roadmap_dir.mkdir(parents=True, exist_ok=True)
     (roadmap_dir / "index.html").write_text(build_roadmap_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/roadmap/index.html")
 
+    # ES-2 (AuditLab, 2026-08-19): see the practice-privilege-check block above.
+    _contact_es_check = build_contact_page(lang="es")
+    es_ready["contact"] = _es_page_has_real_translation(build_contact_page(), _contact_es_check)
+
     contact_dir = SITE_DIR / "contact"
     contact_dir.mkdir(parents=True, exist_ok=True)
-    (contact_dir / "index.html").write_text(build_contact_page(), encoding="utf-8")
+    (contact_dir / "index.html").write_text(
+        build_contact_page(publish_es=es_ready["contact"]), encoding="utf-8"
+    )
     print(f"wrote {SITE_DIR.name}/contact/index.html")
 
     es_contact_dir = SITE_DIR / "es" / "contact"
-    es_contact_dir.mkdir(parents=True, exist_ok=True)
-    (es_contact_dir / "index.html").write_text(build_contact_page(lang="es"), encoding="utf-8")
-    print(f"wrote {SITE_DIR.name}/es/contact/index.html")
+    if es_ready["contact"]:
+        es_contact_dir.mkdir(parents=True, exist_ok=True)
+        (es_contact_dir / "index.html").write_text(_contact_es_check, encoding="utf-8")
+        print(f"wrote {SITE_DIR.name}/es/contact/index.html")
+    elif es_contact_dir.exists():
+        shutil.rmtree(es_contact_dir)
+        print(f"removed {SITE_DIR.name}/es/contact/ (ES-2: no real translation yet)")
+
+    # Phase A i18n proof-of-concept (2026-08-19, i18n.py) -- /es/methodology/
+    # was the first Spanish page. t()/i18n.py fall back to English for any
+    # unreviewed/missing key, so this renders safely even before AuditLab
+    # has reviewed anything -- see scripts/es_translation_review.py.
+    # ES-2 (AuditLab, 2026-08-19): see the practice-privilege-check block above.
+    _methodology_es_check = build_methodology_page(records, real_today, lang="es")
+    es_ready["methodology"] = _es_page_has_real_translation(
+        build_methodology_page(records, real_today), _methodology_es_check
+    )
 
     methodology_dir = SITE_DIR / "methodology"
     methodology_dir.mkdir(parents=True, exist_ok=True)
-    (methodology_dir / "index.html").write_text(build_methodology_page(records, real_today), encoding="utf-8")
+    (methodology_dir / "index.html").write_text(
+        build_methodology_page(records, real_today, publish_es=es_ready["methodology"]), encoding="utf-8"
+    )
     print(f"wrote {SITE_DIR.name}/methodology/index.html")
 
-    # Phase A i18n proof-of-concept (2026-08-19, i18n.py) -- /es/methodology/
-    # is the first Spanish page. t()/i18n.py fall back to English for any
-    # unreviewed/missing key, so this renders safely even before AuditLab
-    # has reviewed anything -- see scripts/es_translation_review.py.
     es_methodology_dir = SITE_DIR / "es" / "methodology"
-    es_methodology_dir.mkdir(parents=True, exist_ok=True)
-    (es_methodology_dir / "index.html").write_text(
-        build_methodology_page(records, real_today, lang="es"), encoding="utf-8"
-    )
-    print(f"wrote {SITE_DIR.name}/es/methodology/index.html")
+    if es_ready["methodology"]:
+        es_methodology_dir.mkdir(parents=True, exist_ok=True)
+        (es_methodology_dir / "index.html").write_text(_methodology_es_check, encoding="utf-8")
+        print(f"wrote {SITE_DIR.name}/es/methodology/index.html")
+    elif es_methodology_dir.exists():
+        shutil.rmtree(es_methodology_dir)
+        print(f"removed {SITE_DIR.name}/es/methodology/ (ES-2: no real translation yet)")
+
+    # sitemap.xml reads FIRM_LANDING_PAGES, CPE_HOURS_PAGES,
+    # REINSTATEMENT_PAGES, COMPETITOR_COMPARE_PAGES (populated by loops
+    # earlier in main()) and es_ready (populated by the translated-page
+    # blocks just above) -- must be written after both.
+    (SITE_DIR / "sitemap.xml").write_text(build_sitemap(built, as_of, es_ready), encoding="utf-8")
+    print(f"wrote {SITE_DIR.name}/sitemap.xml")
 
     changelog_dir = SITE_DIR / "changelog"
     changelog_dir.mkdir(parents=True, exist_ok=True)

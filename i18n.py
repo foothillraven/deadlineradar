@@ -391,6 +391,166 @@ EN: dict[str, str] = {
         "Free CPA license renewal deadline calculator — pick your state, get your exact renewal "
         "date, sourced to your state board's own rule. No signup required."
     ),
+    # /pricing/ -- build_pricing_page(). Shared with /for-firms/: the FAQ
+    # (_FIRM_FAQ) and the feature-table row labels.
+    "pricing.h1": "Pricing",
+    "pricing.intro": (
+        "Roster, calendar, CPE-hours tracking, and individual Practice Privilege Check are "
+        "<strong>free for any firm, up to 3 staff</strong>, no card required, no time limit. Paid "
+        "firm plans add the multistate map and the firm-level registration check — every paid "
+        "tier has the identical feature set, priced only by how many staff it covers; nothing is "
+        "held back on a cheaper plan."
+    ),
+    "pricing.freshness_stat": (
+        "dated records across this site's datasets (renewal deadlines, CPE hours, reinstatement, "
+        "renewal fees) were individually re-checked against their source within the last "
+        "{threshold_days} days — {methodology_link}."
+    ),
+    "pricing.methodology_link_text": "see exactly how we verify every deadline",
+    "pricing.h2_included": "What's actually included, free vs. paid",
+    "pricing.included_intro": (
+        "Every paid tier (Essentials through Enterprise) has the identical feature set, priced "
+        "only by staff count. This table is the real, code-verified breakdown — not a "
+        "marketing summary."
+    ),
+    "pricing.table_caption": "Free vs. paid firm plan feature comparison",
+    "pricing.table_th_feature": "Feature",
+    "pricing.table_th_free": "Free",
+    "pricing.table_th_paid": "Paid (any tier)",
+    "pricing.row_roster": "Roster &amp; staff license tracking",
+    "pricing.row_roster_free": "Up to 3 staff",
+    "pricing.row_roster_paid": "Up to 35 staff (Enterprise)",
+    "pricing.row_calendar": "Calendar view",
+    "pricing.row_cpe": "CPE-hour tracking",
+    "pricing.row_compliance": "Compliance Summary &amp; audit trail export",
+    "pricing.row_email_reminders": "Email renewal reminders",
+    "pricing.row_ppc": "Individual Practice Privilege Check",
+    "pricing.row_slack_teams": "Slack &amp; Teams deadline alerts",
+    "pricing.row_documents": "Document storage (2MB/file, 50MB/firm)",
+    "pricing.row_invite": "Invite teammates to sign in",
+    "pricing.row_invite_free": "Just you",
+    "pricing.row_map": "Multistate Map view",
+    "pricing.row_map_free": "Solo accounts only*",
+    "pricing.row_firm_reg_check": "Firm-level registration check",
+    "pricing.row_referral": "Refer firms: 10% off per referral, up to 100%",
+    "pricing.cell_yes": "Yes",
+    "pricing.cell_no": "No",
+    "pricing.footnote_solo": (
+        "* A solo account (you're the only person signed in, no team invited) gets the Map and "
+        "the firm-level registration check free too — inviting a teammate is itself a "
+        "paid-tier feature, so a genuinely one-person account is where \"free\" and \"everything "
+        "included\" overlap."
+    ),
+    "pricing.h2_plans": "Plans",
+    "pricing.plans_intro": (
+        "If you don't already have a firm account, the buttons below start free signup first; if "
+        "you're already signed in, they go straight to checkout for that tier, same as the "
+        "dashboard's own upgrade panel."
+    ),
+    "pricing.card_individual_title": "Individual",
+    "pricing.card_individual_price": "Free",
+    "pricing.card_individual_detail": (
+        "Your own CPE-hour tracking and Practice Privilege Check — included at no cost for a "
+        "solo CPA tracking just your own license. Just want free renewal reminders? "
+        "{signup_link} — no account needed."
+    ),
+    "pricing.signup_free_link_text": "Sign up free",
+    "pricing.card_individual_cta": "Create a free account",
+    "pricing.staff_up_to": "Up to {n} staff.",
+    "pricing.card_more_title": "More than 35 staff?",
+    "pricing.card_more_detail": "{contact_link} — no formula, we'll work out what fits.",
+    "pricing.contact_us_link_text": "Contact us",
+    "pricing.includes_map": "Multistate Map",
+    "pricing.includes_firm_reg": "Firm-level registration check",
+    "pricing.includes_slack_teams": "Slack &amp; Teams alerts",
+    "pricing.includes_documents": "Document storage",
+    "pricing.includes_referral": "Referral discounts, up to 100%",
+    "pricing.faq_heading": "Questions firms ask before signing up",
+    "pricing.backlink_body": "See exactly {methodology_link2}, or read the {breakdown_link}.",
+    "pricing.methodology_link_text2": "how we verify every deadline",
+    "pricing.breakdown_link_text": "full firm-tier breakdown",
+    "pricing.title": "Pricing",
+    "pricing.meta_description": (
+        "Deadline-Radar pricing: free individual reminders and free Practice Privilege Check for "
+        "any firm, and firm plans from $199/year for up to 5 staff, up to $549/year for up to 35. "
+        "Every firm tier has the identical feature set."
+    ),
+    # Shared FAQ (_FIRM_FAQ), used by /pricing/ and /for-firms/. Indexed
+    # 1-8 in source order rather than named -- 8 distinct Q&As with no
+    # natural short slug.
+    "faq.firm.1_q": "Is the license status actually verified, or just self-reported?",
+    "faq.firm.1_a": (
+        "The renewal DATES are verified the same rigorous way every free page on this site is: "
+        "sourced to the codified statute or rule where we could confirm it, and clearly labelled "
+        "where we could only confirm it against the board's own page, cited and rechecked on our "
+        "freshness cadence — {methodology_link}. What this is <em>not</em> is a recurring human "
+        "lookup of each staff member's individual license status — there's no manual check-in "
+        "against the state board or CPAverify.org on your behalf. Signup itself is self-serve: "
+        "your admin adds the roster directly, and reminders start right away for each person — "
+        "no confirmation step to wait on. Each staff member still gets one transparent email the "
+        "moment they're added, naming your firm and with an equally prominent one-click opt-out."
+    ),
+    "faq.firm.2_q": "What if my staff are licensed in a birth-month or “bring your own date” state?",
+    "faq.firm.2_a": (
+        "Still tracked the same way it works on the free tier: that staff member enters their own "
+        "birth month or license expiration date once, and it shows up on your roster view like "
+        "everyone else's."
+    ),
+    "faq.firm.3_q": "Can I cancel anytime?",
+    "faq.firm.3_a": (
+        "Yes. Roster, calendar, CPE Hours, and individual Practice Privilege Check are free with "
+        "no card required and no time limit. If you upgrade for the map and firm-level "
+        "registration check, you can cancel that subscription at any point — there's no "
+        "contract to get out of, and your account just drops back to the free tier at the end of "
+        "the period you already paid for."
+    ),
+    "faq.firm.4_q": "Which plan should my firm pick?",
+    "faq.firm.4_a": (
+        "Whatever covers your current staff count — Essentials (up to 5), Growth (up to "
+        "10), Professional (up to 20), or Enterprise (up to 35). Every tier has the exact same "
+        "feature set (Roster, Calendar, Map, CPE Hours, Practice Privilege Check); the only thing "
+        "that changes between tiers is how many staff it covers, never what it can do. "
+        # P1 (ValueLab pricing/billing report, ruled 2026-08-20): the old
+        # claim here ("moving up a tier, not losing anything") described a
+        # self-serve upgrade flow that doesn't exist -- today the only path
+        # is cancel, wait for annual billing to clear (up to 12 months),
+        # then re-buy the higher tier. A paying customer acting on this
+        # exact sentence hits that wall. Whether to BUILD real self-serve
+        # upgrade is a separate, non-Oct-1 question; this just stops the
+        # copy promising something the product doesn't do yet.
+        "Email us and we'll move you up; there's no self-serve tier change yet."
+    ),
+    "faq.firm.5_q": "I'm a single CPA, not a firm — is this for me?",
+    "faq.firm.5_a": (
+        "This page is about the firm tier: a roster for whoever is tracking multiple staff CPAs. "
+        "If you're only tracking your own license, the free individual reminders on our homepage "
+        "already cover that at no cost, unchanged. CPE-hour tracking and Practice Privilege Check "
+        "are also free for a solo CPA — {create_account_link} to use them."
+    ),
+    "faq.firm.create_account_link_text": "create a free account",
+    "faq.firm.6_q": "Do you track CPE hours too?",
+    "faq.firm.6_a": (
+        "Yes — the dashboard has a CPE Hours tab where your firm can log completed hours "
+        "against each state's own requirement. That log is your own self-reported record, not "
+        "independently verified, and we keep it clearly labeled and separate from the sourced "
+        "renewal dates — we won't blur the two."
+    ),
+    "faq.firm.7_q": "How is this different from my staff just signing up for free individually?",
+    "faq.firm.7_a": (
+        "Nothing stops them from doing that today, and it's not a bad idea either way. What the "
+        "firm tier adds is the view your admin doesn't get from 20 separate free sign-ups: one "
+        "roster, one place to see who's current and who's at risk, plus the firm's own "
+        "registration — not 20 inboxes to hope someone's watching."
+    ),
+    "faq.firm.8_q": "Who actually sets up my staff -- your team, or us?",
+    "faq.firm.8_a": (
+        "You do, directly, through the self-serve dashboard: your admin adds each staff member's "
+        "name, email, state, and license type, and their reminders start right away — no "
+        "waiting on them to confirm anything, so your firm's coverage never has a silent gap. "
+        "There's no concierge onboarding where our team collects a roster by email and enters it "
+        "for you. Each staff member gets one transparent email the moment they're added, naming "
+        "your firm and with an equally prominent one-click opt-out, so nobody is tracked silently."
+    ),
 }
 
 

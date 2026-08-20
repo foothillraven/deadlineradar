@@ -7160,7 +7160,7 @@ href="/privacy/">Privacy Policy</a>.</p>
     )
 
 
-def _pricing_feature_table_rows_html() -> str:
+def _pricing_feature_table_rows_html(lang: str = "en") -> str:
     """Free-vs-paid feature grid (2026-08-09, Devin-greenlit, ValueLab's #1 site
     fix -- "you are underselling a better product than you appear to have").
     Every row below is checked directly against the shipped code, not
@@ -7213,19 +7213,21 @@ def _pricing_feature_table_rows_html() -> str:
       above, so it can't share their asterisk without implying a firm with
       teammates doesn't get it too. It does.
     """
+    yes = _t("pricing.cell_yes", lang)
+    no = _t("pricing.cell_no", lang)
     rows = [
-        ("Roster &amp; staff license tracking", "Up to 3 staff", "Up to 35 staff (Enterprise)"),
-        ("Calendar view", "Yes", "Yes"),
-        ("CPE-hour tracking", "Yes", "Yes"),
-        ("Compliance Summary &amp; audit trail export", "Yes", "Yes"),
-        ("Email renewal reminders", "Yes", "Yes"),
-        ("Individual Practice Privilege Check", "Yes", "Yes"),
-        ("Slack &amp; Teams deadline alerts", "No", "Yes"),
-        ("Document storage (2MB/file, 50MB/firm)", "No", "Yes"),
-        ("Invite teammates to sign in", "Just you", "Yes"),
-        ("Multistate Map view", "Solo accounts only*", "Yes"),
-        ("Firm-level registration check", "Solo accounts only*", "Yes"),
-        ("Refer firms: 10% off per referral, up to 100%", "No", "Yes"),
+        (_t("pricing.row_roster", lang), _t("pricing.row_roster_free", lang), _t("pricing.row_roster_paid", lang)),
+        (_t("pricing.row_calendar", lang), yes, yes),
+        (_t("pricing.row_cpe", lang), yes, yes),
+        (_t("pricing.row_compliance", lang), yes, yes),
+        (_t("pricing.row_email_reminders", lang), yes, yes),
+        (_t("pricing.row_ppc", lang), yes, yes),
+        (_t("pricing.row_slack_teams", lang), no, yes),
+        (_t("pricing.row_documents", lang), no, yes),
+        (_t("pricing.row_invite", lang), _t("pricing.row_invite_free", lang), yes),
+        (_t("pricing.row_map", lang), _t("pricing.row_map_free", lang), yes),
+        (_t("pricing.row_firm_reg_check", lang), _t("pricing.row_map_free", lang), yes),
+        (_t("pricing.row_referral", lang), no, yes),
     ]
     return "\n".join(f"  <tr><td>{label}</td><td>{free_cell}</td><td>{paid_cell}</td></tr>" for label, free_cell, paid_cell in rows)
 
@@ -7239,16 +7241,17 @@ def _pricing_feature_table_rows_html() -> str:
 # intro), the same short list is honestly reusable across all 4 cards rather than
 # inventing a fake per-tier difference. Mirrors _pricing_feature_table_rows_html()'s own
 # paid-only rows above, just compacted.
-_PAID_TIER_INCLUDES_HTML = """<ul class="pricing-includes">
-      <li>Multistate Map</li>
-      <li>Firm-level registration check</li>
-      <li>Slack &amp; Teams alerts</li>
-      <li>Document storage</li>
-      <li>Referral discounts, up to 100%</li>
+def _paid_tier_includes_html(lang: str = "en") -> str:
+    return f"""<ul class="pricing-includes">
+      <li>{_t("pricing.includes_map", lang)}</li>
+      <li>{_t("pricing.includes_firm_reg", lang)}</li>
+      <li>{_t("pricing.includes_slack_teams", lang)}</li>
+      <li>{_t("pricing.includes_documents", lang)}</li>
+      <li>{_t("pricing.includes_referral", lang)}</li>
     </ul>"""
 
 
-def build_pricing_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
+def build_pricing_page(by_slug: dict[str, list[dict]], as_of: date, lang: str = "en", publish_es: bool = True) -> str:
     """Task #8 (2026-08-06): a dedicated /pricing/ page. Devin's rationale (the
     task's own record): an individual visitor may never click into
     /for-firms/, so today they never see ANY pricing. This is the one
@@ -7270,99 +7273,107 @@ def build_pricing_page(by_slug: dict[str, list[dict]], as_of: date) -> str:
     that: free, a real signup link, no mailto dead end.
     """
     _verified_recent, _total_citations = _sitewide_freshness_stat(as_of)
-    body = f"""<h1>Pricing</h1>
-<p class="intro">Roster, calendar, CPE-hours tracking, and individual Practice Privilege Check are
-<strong>free for any firm, up to 3 staff</strong>, no card required, no time limit. Paid firm plans add
-the multistate map and the firm-level registration check &mdash; every paid tier has the identical
-feature set, priced only by how many staff it covers; nothing is held back on a cheaper plan.</p>
-<p class="field-hint"><strong>{_verified_recent} of {_total_citations}</strong> dated records across this site's datasets (renewal deadlines,
-CPE hours, reinstatement, renewal fees) were individually re-checked against their source within the last {STALENESS_THRESHOLD_DAYS} days
-&mdash; <a href="/methodology/">see exactly how we verify every deadline</a>.</p>
+    methodology_link = f'<a href="/methodology/">{esc(_t("pricing.methodology_link_text", lang))}</a>'
+    signup_link = f'<a href="/#remind">{esc(_t("pricing.signup_free_link_text", lang))}</a>'
+    contact_link = f'<a href="mailto:{esc(CONTACT_EMAIL)}">{esc(_t("pricing.contact_us_link_text", lang))}</a>'
+    methodology_link2 = f'<a href="/methodology/">{esc(_t("pricing.methodology_link_text2", lang))}</a>'
+    breakdown_link = f'<a href="/for-firms/">{esc(_t("pricing.breakdown_link_text", lang))}</a>'
+    body = f"""<h1>{_t("pricing.h1", lang)}</h1>
+<p class="intro">{_t("pricing.intro", lang)}</p>
+<p class="field-hint"><strong>{_verified_recent} of {_total_citations}</strong> {_t("pricing.freshness_stat", lang, threshold_days=STALENESS_THRESHOLD_DAYS, methodology_link=methodology_link)}</p>
 
-<h2>What's actually included, free vs. paid</h2>
-<p class="intro">Every paid tier (Essentials through Enterprise) has the identical feature set, priced
-only by staff count. This table is the real, code-verified breakdown &mdash; not a marketing summary.</p>
+<h2>{_t("pricing.h2_included", lang)}</h2>
+<p class="intro">{_t("pricing.included_intro", lang)}</p>
 
 <div class="table-wrap">
 <table class="compare-table">
-  <caption class="dr-visually-hidden">Free vs. paid firm plan feature comparison</caption>
+  <caption class="dr-visually-hidden">{_t("pricing.table_caption", lang)}</caption>
   <thead>
-    <tr><th scope="col">Feature</th><th scope="col">Free</th><th scope="col">Paid (any tier)</th></tr>
+    <tr><th scope="col">{_t("pricing.table_th_feature", lang)}</th><th scope="col">{_t("pricing.table_th_free", lang)}</th><th scope="col">{_t("pricing.table_th_paid", lang)}</th></tr>
   </thead>
   <tbody>
-{_pricing_feature_table_rows_html()}
+{_pricing_feature_table_rows_html(lang)}
   </tbody>
 </table>
 </div>
-<p class="field-hint">* A solo account (you're the only person signed in, no team invited) gets the Map
-and the firm-level registration check free too &mdash; inviting a teammate is itself a paid-tier
-feature, so a genuinely one-person account is where "free" and "everything included"
-overlap.</p>
+<p class="field-hint">{_t("pricing.footnote_solo", lang)}</p>
 
-<h2>Plans</h2>
-<p class="field-hint">If you don't already have a firm account, the buttons below start free signup
-first; if you're already signed in, they go straight to checkout for that tier, same as the dashboard's
-own upgrade panel.</p>
+<h2>{_t("pricing.h2_plans", lang)}</h2>
+<p class="field-hint">{_t("pricing.plans_intro", lang)}</p>
 <p id="dr-pricing-error" role="alert" class="field-hint" style="color:#c33737;" hidden></p>
 
 <div class="pricing-grid">
   <div class="pricing-card" id="individual">
-    <h2>Individual</h2>
-    <p class="price">Free</p>
-    <p class="detail">Your own CPE-hour tracking and Practice Privilege Check &mdash; included at no
-    cost for a solo CPA tracking just your own license. Just want free renewal reminders?
-    <a href="/#remind">Sign up free</a> &mdash; no account needed.</p>
-    <a class="dr-paywall-tier-btn" href="/firm-login/#dr-view-signup">Create a free account</a>
+    <h2>{_t("pricing.card_individual_title", lang)}</h2>
+    <p class="price">{_t("pricing.card_individual_price", lang)}</p>
+    <p class="detail">{_t("pricing.card_individual_detail", lang, signup_link=signup_link)}</p>
+    <a class="dr-paywall-tier-btn" href="/firm-login/#dr-view-signup">{_t("pricing.card_individual_cta", lang)}</a>
   </div>
   <div class="pricing-card" id="essentials">
     <h2>Essentials</h2>
     <p class="price">$199<span>/year</span></p>
-    <p class="detail">Up to 5 staff.</p>
-    {_PAID_TIER_INCLUDES_HTML}
+    <p class="detail">{_t("pricing.staff_up_to", lang, n=5)}</p>
+    {_paid_tier_includes_html(lang)}
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_starter">Get Essentials</button>
   </div>
   <div class="pricing-card" id="growth">
     <h2>Growth</h2>
     <p class="price">$299<span>/year</span></p>
-    <p class="detail">Up to 10 staff.</p>
-    {_PAID_TIER_INCLUDES_HTML}
+    <p class="detail">{_t("pricing.staff_up_to", lang, n=10)}</p>
+    {_paid_tier_includes_html(lang)}
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_growth">Get Growth</button>
   </div>
   <div class="pricing-card" id="professional">
     <h2>Professional</h2>
     <p class="price">$399<span>/year</span></p>
-    <p class="detail">Up to 20 staff.</p>
-    {_PAID_TIER_INCLUDES_HTML}
+    <p class="detail">{_t("pricing.staff_up_to", lang, n=20)}</p>
+    {_paid_tier_includes_html(lang)}
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_standard">Get Professional</button>
   </div>
   <div class="pricing-card" id="enterprise">
     <h2>Enterprise</h2>
     <p class="price">$549<span>/year</span></p>
-    <p class="detail">Up to 35 staff.</p>
-    {_PAID_TIER_INCLUDES_HTML}
+    <p class="detail">{_t("pricing.staff_up_to", lang, n=35)}</p>
+    {_paid_tier_includes_html(lang)}
     <button type="button" class="dr-paywall-tier-btn dr-pricing-tier-btn" data-tier="firm_scale">Get Enterprise</button>
   </div>
   <div class="pricing-card pricing-card--wide">
-    <h2>More than 35 staff?</h2>
-    <p class="detail"><a href="mailto:{esc(CONTACT_EMAIL)}">Contact us</a> &mdash; no formula, we'll work out what fits.</p>
+    <h2>{_t("pricing.card_more_title", lang)}</h2>
+    <p class="detail">{_t("pricing.card_more_detail", lang, contact_link=contact_link)}</p>
   </div>
 </div>
 
-{_firm_faq_html()}
+{_firm_faq_html(lang)}
 
-<p class="backlink">See exactly <a href="/methodology/">how we verify every deadline</a>, or read the
-<a href="/for-firms/">full firm-tier breakdown</a>.</p>
+<p class="backlink">{_t("pricing.backlink_body", lang, methodology_link2=methodology_link2, breakdown_link=breakdown_link)}</p>
 """
+    # P5 (ValueLab pricing/billing report, ruled 2026-08-20): pricing predates
+    # ES-2's systematic fix and never got migrated to it -- hreflang="es" was
+    # hard-coded here regardless of whether /es/pricing/ actually had real
+    # Spanish content. It didn't (i18n Phase A review is still 0/141 keys),
+    # so this shipped a reciprocal hreflang pair pointing search engines at
+    # an English page wearing lang="es". Same publish_es gate as
+    # build_contact_page()/build_methodology_page() etc. -- see
+    # _es_page_has_real_translation()'s own docstring.
+    hreflang_html = (
+        (
+            '<link rel="alternate" hreflang="en" href="https://deadline-radar.com/pricing/">\n'
+            '<link rel="alternate" hreflang="es" href="https://deadline-radar.com/es/pricing/">\n'
+            '<link rel="alternate" hreflang="x-default" href="https://deadline-radar.com/pricing/">'
+        )
+        if publish_es
+        else ""
+    )
     return page_shell(
-        f"Pricing — {SITE_NAME}",
-        "Deadline-Radar pricing: free individual reminders and free Practice Privilege Check for any "
-        "firm, and firm plans from $199/year for up to 5 staff, up to $549/year for up to 35. Every "
-        "firm tier has the identical feature set.",
+        f"{_t('pricing.title', lang)} — {SITE_NAME}",
+        _t("pricing.meta_description", lang),
         body,
-        home_href="../",
-        canonical_path="/pricing/",
-        json_ld=[_firm_faq_schema()],
+        home_href="../" if lang == "en" else "../../",
+        canonical_path="/pricing/" if lang == "en" else "/es/pricing/",
+        json_ld=[_firm_faq_schema(lang)],
         has_remind_anchor=False,
+        lang=lang,
+        extra_head=hreflang_html,
     ) + _PRICING_CHECKOUT_JS_HTML
 
 
@@ -8600,78 +8611,22 @@ def _individual_faq_html() -> str:
 </div>"""
 
 
-_FIRM_FAQ = [
-    (
-        "Is the license status actually verified, or just self-reported?",
-        "The renewal DATES are verified the same rigorous way every free page on this site is: "
-        "sourced to the codified statute or rule where we could confirm it, and clearly labelled "
-        "where we could only confirm it against the board's own page, cited and rechecked on our "
-        "freshness cadence "
-        "&mdash; <a href=\"../methodology/\">see exactly how</a>. What this is <em>not</em> is a "
-        "recurring human lookup of each staff member's individual license status &mdash; there's no "
-        "manual check-in against the state board or CPAverify.org on your behalf. Signup itself is "
-        "self-serve: your admin adds the roster directly, and reminders start right away for each "
-        "person &mdash; no confirmation step to wait on. Each staff member still gets one "
-        "transparent email the moment they're added, naming your firm and with an equally "
-        "prominent one-click opt-out.",
-    ),
-    (
-        "What if my staff are licensed in a birth-month or \"bring your own date\" state?",
-        "Still tracked the same way it works on the free tier: that staff member enters their own "
-        "birth month or license expiration date once, and it shows up on your roster view like "
-        "everyone else's.",
-    ),
-    (
-        "Can I cancel anytime?",
-        "Yes. Roster, calendar, CPE Hours, and individual Practice Privilege Check are free with no "
-        "card required and no time limit. If you upgrade for the map and firm-level registration "
-        "check, you can cancel that subscription at any point &mdash; there's no contract to get out "
-        "of, and your account just drops back to the free tier at the end of the period you already "
-        "paid for.",
-    ),
-    (
-        "Which plan should my firm pick?",
-        "Whatever covers your current staff count &mdash; Essentials (up to 5), Growth (up to 10), "
-        "Professional (up to 20), or Enterprise (up to 35). Every tier has the exact same feature set (Roster, Calendar, Map, CPE "
-        "Hours, Practice Privilege Check); the only thing that changes between tiers is how many "
-        "staff it covers, never what it can do. Outgrowing your plan later just means moving up a "
-        "tier, not losing anything.",
-    ),
-    (
-        "I'm a single CPA, not a firm — is this for me?",
-        "This page is about the firm tier: a roster for whoever is tracking multiple staff CPAs. If "
-        "you're only tracking your own license, the free individual reminders on our homepage "
-        "already cover that at no cost, unchanged. CPE-hour tracking and Practice Privilege Check are "
-        "also free for a solo CPA &mdash; <a href=\"/firm-login/#dr-view-signup\">create a free "
-        "account</a> to use them.",
-    ),
-    (
-        "Do you track CPE hours too?",
-        "Yes &mdash; the dashboard has a CPE Hours tab where your firm can log completed hours "
-        "against each state's own requirement. That log is your own self-reported record, not "
-        "independently verified, and we keep it clearly labeled and separate from the sourced "
-        "renewal dates &mdash; we won't blur the two.",
-    ),
-    (
-        "How is this different from my staff just signing up for free individually?",
-        "Nothing stops them from doing that today, and it's not a bad idea either way. What the "
-        "firm tier adds is the view your admin doesn't get from 20 separate free sign-ups: one "
-        "roster, one place to see who's current and who's at risk, plus the firm's own "
-        "registration &mdash; not 20 inboxes to hope someone's watching.",
-    ),
-    (
-        "Who actually sets up my staff -- your team, or us?",
-        "You do, directly, through the self-serve dashboard: your admin adds each staff "
-        "member's name, email, state, and license type, and their reminders start right away "
-        "&mdash; no waiting on them to confirm anything, so your firm's coverage never has a silent "
-        "gap. There's no concierge onboarding where our team collects a roster by email and enters "
-        "it for you. Each staff member gets one transparent email the moment they're added, naming "
-        "your firm and with an equally prominent one-click opt-out, so nobody is tracked silently.",
-    ),
-]
+def _firm_faq(lang: str = "en") -> list[tuple[str, str]]:
+    methodology_link = f'<a href="../methodology/">{esc(_t("calc.see_exactly_how", lang))}</a>'
+    create_account_link = f'<a href="/firm-login/#dr-view-signup">{esc(_t("faq.firm.create_account_link_text", lang))}</a>'
+    return [
+        (_t("faq.firm.1_q", lang), _t("faq.firm.1_a", lang, methodology_link=methodology_link)),
+        (_t("faq.firm.2_q", lang), _t("faq.firm.2_a", lang)),
+        (_t("faq.firm.3_q", lang), _t("faq.firm.3_a", lang)),
+        (_t("faq.firm.4_q", lang), _t("faq.firm.4_a", lang)),
+        (_t("faq.firm.5_q", lang), _t("faq.firm.5_a", lang, create_account_link=create_account_link)),
+        (_t("faq.firm.6_q", lang), _t("faq.firm.6_a", lang)),
+        (_t("faq.firm.7_q", lang), _t("faq.firm.7_a", lang)),
+        (_t("faq.firm.8_q", lang), _t("faq.firm.8_a", lang)),
+    ]
 
 
-def _firm_faq_schema() -> dict:
+def _firm_faq_schema(lang: str = "en") -> dict:
     """AuditLab SCHEMA-1 (LOW, filed 2026-08-09, fixed 2026-08-13): FAQPage
     structured data for the firm FAQ -- /pricing/ and /for-firms/ each
     rendered these 8 questions via <details>/<summary> with zero structured
@@ -8692,20 +8647,20 @@ def _firm_faq_schema() -> dict:
                 "name": q,
                 "acceptedAnswer": {"@type": "Answer", "text": re.sub(r"<[^>]+>", "", a)},
             }
-            for q, a in _FIRM_FAQ
+            for q, a in _firm_faq(lang)
         ],
     }
 
 
-def _firm_faq_html() -> str:
+def _firm_faq_html(lang: str = "en") -> str:
     items = "\n".join(
         f"""<details class="faq-item">
   <summary>{esc(q)}</summary>
   <p>{a}</p>
 </details>"""
-        for q, a in _FIRM_FAQ
+        for q, a in _firm_faq(lang)
     )
-    return f"""<h2>Questions firms ask before signing up</h2>
+    return f"""<h2>{_t("pricing.faq_heading", lang)}</h2>
 <div class="faq-list">
 {items}
 </div>"""
@@ -12268,12 +12223,21 @@ function drRenderReferralPanel(link, usesRemaining, rewardCount) {
     body.innerHTML = '<p class="dr-panel-empty">No active referral code yet &mdash; one arrives with your next invoice.</p>';
     return;
   }
+  // P4 (ValueLab pricing/billing report, ruled 2026-08-20): "10 uses"
+  // alone reads as "10 shots at 100% off" -- each USE is one sign-up that
+  // consumed a code slot, not one successful reward, and a sign-up that
+  // never subscribes still uses one.
   var usesText = usesRemaining > 0
-    ? usesRemaining + ' of 10 uses left on this code.'
+    ? usesRemaining + ' of 10 uses left on this code. Each sign-up uses one, whether or not they end up subscribing.'
     : 'This code has reached its 10-use limit; a new one arrives with your next invoice.';
+  // P3 (ValueLab pricing/billing report, ruled 2026-08-20): rewardCount
+  // counts only REWARDED referrals (see the comment above and
+  // countRewardedReferrals()'s own docstring in store.ts) -- "N firms
+  // have joined" described raw signups, which is a different, larger
+  // number. Relabeled to describe what rewardCount actually is.
   var countText = rewardCount > 0
-    ? rewardCount + (rewardCount === 1 ? ' firm has' : ' firms have') + ' joined using your link.'
-    : 'No referrals yet.';
+    ? rewardCount + (rewardCount === 1 ? ' referral has' : ' referrals have') + ' earned you a reward.'
+    : 'No referral rewards yet.';
   body.innerHTML =
     '<input type="text" id="dr-referral-link-input" readonly value="' + drEscapeHtml(link) + '">' +
     '<button type="button" class="dr-btn-secondary" id="dr-referral-copy-btn">Copy link</button>' +
@@ -21109,10 +21073,8 @@ def build_sitemap(states: list[dict], as_of: date, es_ready: dict[str, bool] | N
   </url>""", f"""  <url>
     <loc>{SITE_BASE_URL}/for-firms/</loc>
     <lastmod>{as_of.isoformat()}</lastmod>
-  </url>""", f"""  <url>
-    <loc>{SITE_BASE_URL}/pricing/</loc>
-    <lastmod>{as_of.isoformat()}</lastmod>
   </url>""",
+        _translated_page_sitemap_urls("pricing", as_of, es_ready.get("pricing", False)),
         _translated_page_sitemap_urls("practice-privilege-check", as_of, es_ready.get("practice-privilege-check", False)),
         _translated_page_sitemap_urls("multi-state-firms", as_of, es_ready.get("multi-state-firms", False)),
         _translated_page_sitemap_urls("deadline-calculator", as_of, es_ready.get("deadline-calculator", False)),
@@ -21421,10 +21383,30 @@ def main() -> None:
     (status_dir / "index.html").write_text(build_status_page(), encoding="utf-8")
     print(f"wrote {SITE_DIR.name}/status/index.html")
 
+    # P5 (ValueLab pricing/billing report, ruled 2026-08-20): pricing never
+    # got migrated to ES-2's publish_es gate -- see build_pricing_page()'s
+    # own comment. Same pattern as contact/methodology/practice-privilege-
+    # check/etc. below: render both languages first, publish the ES file
+    # (and advertise it via hreflang) only if it's genuinely different from
+    # English, and remove any stale /es/pricing/ output otherwise.
+    _pricing_es_check = build_pricing_page(by_slug, as_of, lang="es")
+    es_ready["pricing"] = _es_page_has_real_translation(build_pricing_page(by_slug, as_of), _pricing_es_check)
+
     pricing_dir = SITE_DIR / "pricing"
     pricing_dir.mkdir(parents=True, exist_ok=True)
-    (pricing_dir / "index.html").write_text(build_pricing_page(by_slug, as_of), encoding="utf-8")
+    (pricing_dir / "index.html").write_text(
+        build_pricing_page(by_slug, as_of, publish_es=es_ready["pricing"]), encoding="utf-8"
+    )
     print(f"wrote {SITE_DIR.name}/pricing/index.html")
+
+    es_pricing_dir = SITE_DIR / "es" / "pricing"
+    if es_ready["pricing"]:
+        es_pricing_dir.mkdir(parents=True, exist_ok=True)
+        (es_pricing_dir / "index.html").write_text(_pricing_es_check, encoding="utf-8")
+        print(f"wrote {SITE_DIR.name}/es/pricing/index.html")
+    elif es_pricing_dir.exists():
+        shutil.rmtree(es_pricing_dir)
+        print(f"removed {SITE_DIR.name}/es/pricing/ (ES-2: no real translation yet)")
 
     # ES-2 (AuditLab, 2026-08-19): only publish the /es/ page (file,
     # sitemap entry, reciprocal hreflang) if it would show real Spanish

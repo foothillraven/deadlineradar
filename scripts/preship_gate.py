@@ -1611,8 +1611,16 @@ def check_pricing_matches_tiers(repo_root: Path) -> list[str]:
                 f"a different price/cap than what the seat-cap gate actually enforces."
             )
 
+    # P5/i18n Phase A (2026-08-20): the "Up to N staff." detail line moved
+    # behind _t("pricing.staff_up_to", lang, n=N) so it can render in
+    # Spanish too -- the literal English text no longer appears in
+    # generate.py's SOURCE (this check reads the .py file directly, not
+    # rendered HTML), so the old regex silently stopped matching anything.
+    # Matches the templated call instead and still extracts n= as the seat
+    # cap, same semantic check as before.
     card_rows = re.findall(
-        r'<div class="pricing-card" id="[a-z]+">\s*<h2>[^<]*</h2>\s*<p class="price">\$(\d+)<span>/year</span></p>\s*<p class="detail">Up to (\d+) staff\.</p>.*?data-tier="([a-z_]+)"',
+        r'<div class="pricing-card" id="[a-z]+">\s*<h2>[^<]*</h2>\s*<p class="price">\$(\d+)<span>/year</span></p>\s*'
+        r'<p class="detail">\{_t\("pricing\.staff_up_to", lang, n=(\d+)\)\}</p>.*?data-tier="([a-z_]+)"',
         py_text,
         re.DOTALL,
     )

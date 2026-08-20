@@ -3408,33 +3408,48 @@ describe("deadlines.ts", () => {
     expect(computeSubscriberDeadline("washington", { anchor_year: "not-a-year" }, asOf)).toBeNull();
   });
 
-  it("2026-08-19: computeSubscriberDeadline resolves Florida individual (certificate date -> third-following-June-30 initial period, then 2yr rollover)", () => {
+  it("2026-08-19: computeSubscriberDeadline resolves Florida individual (certificate date -> third-following-June-30 locates the cycle year, renewal is Dec 31 of that year, then 2yr rollover)", () => {
+    // 2026-08-19 (AuditLab DATA-11, fixed same day): the original version of
+    // this test asserted June 30 as the returned deadline -- that was the
+    // bug. June 30 only locates which YEAR the CPE reestablishment period
+    // ends in; the license renewal deadline actually due is December 31 of
+    // that same year (61H1-33.003(1)(a) + DBPR's own renewal-cycle page).
+    // The year-anchoring math below (third-following-June-30, 2yr rollover)
+    // is unchanged and still correct -- only the emitted month/day moved
+    // from (6, 30) to (12, 31) in the same year.
     const asOf = new Date("2026-07-03T00:00:00Z");
     // Cert date BEFORE June 30 in its own year -> first following June 30 is
-    // the SAME year. 2020-03-15 -> first-following 2020, initial end
-    // 2020+2=2022-06-30, rolls (2yr) to 2028-06-30 by asOf.
+    // the SAME year. 2020-03-15 -> first-following 2020, initial period-end
+    // year 2020+2=2022, rolls (2yr, Dec 31) to 2026-12-31 by asOf.
     expect(
       computeSubscriberDeadline("florida", { license_type_id: "fl-individual", anchor_date: "2020-03-15" }, asOf)?.toISOString().slice(0, 10)
-    ).toBe("2028-06-30");
+    ).toBe("2026-12-31");
     // Cert date ON June 30 itself -> not "following" its own date, so
     // first-following is the NEXT year. 2020-06-30 -> first-following 2021,
-    // initial end 2021+2=2023-06-30, rolls to 2027-06-30 by asOf.
+    // initial period-end year 2021+2=2023, rolls to 2027-12-31 by asOf.
     expect(
       computeSubscriberDeadline("florida", { license_type_id: "fl-individual", anchor_date: "2020-06-30" }, asOf)?.toISOString().slice(0, 10)
-    ).toBe("2027-06-30");
+    ).toBe("2027-12-31");
     // Cert date AFTER June 30 in its own year -> first-following is next
-    // year too. 2020-08-10 -> first-following 2021, initial end
-    // 2021+2=2023-06-30, rolls to 2027-06-30 by asOf (same as the exact-
-    // June-30 case above, confirming both branches converge correctly).
+    // year too. 2020-08-10 -> first-following 2021, initial period-end year
+    // 2021+2=2023, rolls to 2027-12-31 by asOf (same as the exact-June-30
+    // case above, confirming both branches converge correctly).
     expect(
       computeSubscriberDeadline("florida", { license_type_id: "fl-individual", anchor_date: "2020-08-10" }, asOf)?.toISOString().slice(0, 10)
-    ).toBe("2027-06-30");
+    ).toBe("2027-12-31");
     // Recent certificate, still within its own initial period -- no
-    // rollover needed. 2024-01-10 -> first-following 2024, initial end
-    // 2024+2=2026-06-30, which is >= a 2026-01-01 asOf.
+    // rollover needed. 2024-01-10 -> first-following 2024, initial
+    // period-end year 2024+2=2026, so the renewal due is 2026-12-31, which
+    // is >= a 2026-01-01 asOf.
     expect(
       computeSubscriberDeadline("florida", { license_type_id: "fl-individual", anchor_date: "2024-01-10" }, new Date("2026-01-01T00:00:00Z"))?.toISOString().slice(0, 10)
-    ).toBe("2026-06-30");
+    ).toBe("2026-12-31");
+    // Same anchor, asOf moved to just past that year's Dec 31 -> rolls a
+    // full 2yr cycle forward. Proves the fix didn't just shift the bug --
+    // the boundary is now genuinely Dec 31, not June 30.
+    expect(
+      computeSubscriberDeadline("florida", { license_type_id: "fl-individual", anchor_date: "2024-01-10" }, new Date("2027-01-01T00:00:00Z"))?.toISOString().slice(0, 10)
+    ).toBe("2028-12-31");
     expect(computeSubscriberDeadline("florida", { license_type_id: "fl-individual" }, asOf)).toBeNull();
     expect(computeSubscriberDeadline("florida", {}, asOf)).toBeNull();
   });

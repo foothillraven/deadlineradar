@@ -155,7 +155,9 @@ def compute_subscriber_deadline(subscriber: dict, as_of: date) -> tuple[date, st
                 cert_date = date.fromisoformat(cert_date_str)
             except ValueError:
                 return None
-            return next_certificate_date_initial_term(cert_date, 3, 2, 6, 30, as_of), state_name
+            return next_certificate_date_initial_term(
+                cert_date, 3, 2, 6, 30, as_of, renewal_month=12, renewal_day=31
+            ), state_name
         return None
 
     if state_slug == "guam":

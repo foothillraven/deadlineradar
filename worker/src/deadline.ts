@@ -148,28 +148,38 @@ export function nextAnchorYearTerm(anchorYear: number, month: number, day: numbe
 }
 
 /** generate.py's `next_certificate_date_initial_term()` -- Florida
- * individual (Fla. Admin. Code R. 61H1-33.003(1)(a)), added 2026-08-19.
- * The INITIAL period ends on the Nth fixed month/day (June 30) STRICTLY
- * AFTER the licensee's own certificate date (N=3, "the third June 30
- * following"); every period after that is a standard fixed-term rollover
- * from that computed initial-end year -- exactly nextAnchorYearTerm()'s
- * own math, reused rather than re-derived. Different from
- * nextAnchorDatePlusTerm() (NH/CNMI): there the anchor's own month/day
- * carries forward forever; here the anchor DATE only determines the
- * INITIAL year, then the fixed month/day (June 30) takes over. */
+ * individual (Fla. Admin. Code R. 61H1-33.003(1)(a)), added 2026-08-19,
+ * corrected same day (AuditLab DATA-11). The INITIAL CPE reestablishment
+ * period ends on the Nth fixed month/day (June 30) STRICTLY AFTER the
+ * licensee's own certificate date (N=3, "the third June 30 following"),
+ * which locates the YEAR the cycle belongs to; every period after that is
+ * a standard fixed-term rollover from that computed period-end year --
+ * exactly nextAnchorYearTerm()'s own math, reused rather than re-derived.
+ * June 30 is the CPE cutoff, not the renewal deadline: the license itself
+ * renews December 31 of that SAME year (DBPR's renewal cycle runs Oct 1 -
+ * Dec 31 of the year the license expires), so `periodEndMonth`/`Day`
+ * (June 30) and `renewalMonth`/`Day` (December 31, defaults to the
+ * period-end date if omitted) are two different dates -- the original
+ * single month/day signature shipped June 30 as the renewal date, which
+ * hid an imminent December deadline for half of every renewal year.
+ * Different from nextAnchorDatePlusTerm() (NH/CNMI): there the anchor's
+ * own month/day carries forward forever; here the anchor DATE only
+ * determines the INITIAL year, then a fixed month/day takes over. */
 export function nextCertificateDateInitialTerm(
   certDate: Date,
   initialPeriods: number,
   termYears: number,
-  month: number,
-  day: number,
-  asOf: Date
+  periodEndMonth: number,
+  periodEndDay: number,
+  asOf: Date,
+  renewalMonth: number = periodEndMonth,
+  renewalDay: number = periodEndDay
 ): Date {
   const y0 = certDate.getUTCFullYear();
-  const fixedDateY0 = utcDate(y0, month, day);
-  const firstFollowingYear = certDate.getTime() < fixedDateY0.getTime() ? y0 : y0 + 1;
+  const periodEndDateY0 = utcDate(y0, periodEndMonth, periodEndDay);
+  const firstFollowingYear = certDate.getTime() < periodEndDateY0.getTime() ? y0 : y0 + 1;
   const initialEndYear = firstFollowingYear + (initialPeriods - 1);
-  return nextAnchorYearTerm(initialEndYear, month, day, termYears, asOf);
+  return nextAnchorYearTerm(initialEndYear, renewalMonth, renewalDay, termYears, asOf);
 }
 
 export class StaleDataError extends Error {}
@@ -364,7 +374,7 @@ export function computeSubscriberDeadline(
       if (!anchorDateStr || !/^\d{4}-\d{2}-\d{2}$/.test(anchorDateStr)) return null;
       const anchor = new Date(`${anchorDateStr}T00:00:00Z`);
       if (Number.isNaN(anchor.getTime())) return null;
-      return nextCertificateDateInitialTerm(anchor, 3, 2, 6, 30, asOf);
+      return nextCertificateDateInitialTerm(anchor, 3, 2, 6, 30, asOf, 12, 31);
     }
     return null;
   }

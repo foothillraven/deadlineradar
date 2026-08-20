@@ -361,23 +361,43 @@ def next_anchor_year_term(anchor_year: int, month: int, day: int, term_years: in
 
 
 def next_certificate_date_initial_term(
-    cert_date: date, initial_periods: int, term_years: int, month: int, day: int, as_of: date
+    cert_date: date,
+    initial_periods: int,
+    term_years: int,
+    period_end_month: int,
+    period_end_day: int,
+    as_of: date,
+    renewal_month: int | None = None,
+    renewal_day: int | None = None,
 ) -> date:
-    """2026-08-19 (AuditLab DNC sweep): Florida individual (Fla. Admin. Code
-    R. 61H1-33.003(1)(a)) fixes the INITIAL reestablishment period to end on
-    the Nth fixed month/day (June 30, N=3 -- "the third June 30 following")
-    STRICTLY AFTER the licensee's own original certificate date; every
-    period after that is a standard fixed-term rollover from that computed
-    initial-end year -- exactly next_anchor_year_term()'s own math, reused
-    rather than re-derived. Different from next_anchor_date_plus_term()
-    (NH/CNMI): there the anchor's own month/day carries forward forever;
-    here the anchor DATE only determines the INITIAL year, then the fixed
-    month/day takes over for every period after."""
+    """2026-08-19 (AuditLab DNC sweep, DATA-11 corrected same day): Florida
+    individual (Fla. Admin. Code R. 61H1-33.003(1)(a)) fixes the INITIAL
+    CPE reestablishment period to end on the Nth fixed month/day (June 30,
+    N=3 -- "the third June 30 following") STRICTLY AFTER the licensee's own
+    original certificate date; every period after that is a standard
+    fixed-term rollover from that computed period-end year. That period-end
+    year is a real anchor -- but June 30 is the CPE reestablishment
+    deadline, not the license RENEWAL deadline. DBPR states the renewal
+    deadline is December 31 of that SAME year (61H1-33.003(1)(a) itself:
+    the reestablishment period ends "...in the year the license expires").
+    So `period_end_month`/`day` (June 30) locate which year the cycle
+    belongs to; `renewal_month`/`day` (December 31, defaults to the
+    period-end date if not given) is the date actually returned -- two
+    different month/day pairs the original signature collapsed into one,
+    which shipped June 30 as the renewal deadline (DATA-11). Different from
+    next_anchor_date_plus_term() (NH/CNMI): there the anchor's own
+    month/day carries forward forever; here the anchor DATE only
+    determines the INITIAL year, then a fixed month/day takes over for
+    every period after."""
+    if renewal_month is None:
+        renewal_month = period_end_month
+    if renewal_day is None:
+        renewal_day = period_end_day
     y0 = cert_date.year
-    fixed_date_y0 = date(y0, month, day)
+    fixed_date_y0 = date(y0, period_end_month, period_end_day)
     first_following_year = y0 if cert_date < fixed_date_y0 else y0 + 1
     initial_end_year = first_following_year + (initial_periods - 1)
-    return next_anchor_year_term(initial_end_year, month, day, term_years, as_of)
+    return next_anchor_year_term(initial_end_year, renewal_month, renewal_day, term_years, as_of)
 
 
 def build_california_table(as_of: date) -> list[dict]:
@@ -5198,14 +5218,21 @@ def render_anchor_year_chosen_term_records(records: list[dict], as_of: date) -> 
     return "\n".join(blocks)
 
 
-# 2026-08-19 (AuditLab DNC sweep): Florida individual (Fla. Admin. Code R.
-# 61H1-33.003(1)(a)) -- the INITIAL reestablishment period ends on the 3rd
-# fixed month/day (June 30) strictly after the licensee's own original
-# certificate date; every period after that is a standard fixed-term
-# rollover. Keyed by record id, same shape as the two patterns above, in
-# case another state needs this "initial period, then fixed term" shape.
+# 2026-08-19 (AuditLab DNC sweep, DATA-11 corrected same day): Florida
+# individual (Fla. Admin. Code R. 61H1-33.003(1)(a)) -- the INITIAL CPE
+# reestablishment period ends on the 3rd fixed month/day (June 30) strictly
+# after the licensee's own original certificate date, locating which year
+# the cycle belongs to; the license RENEWAL deadline actually returned is
+# December 31 of that same year (DBPR: the renewal cycle runs Oct 1 - Dec
+# 31 of the year the license expires; June 30 is only the CPE cutoff).
+# Keyed by record id, same shape as the two patterns above, in case another
+# state needs this "initial period, then fixed term" shape.
 CERTIFICATE_DATE_INITIAL_TERM_STATES: dict[str, dict] = {
-    "fl-individual": {"month": 6, "day": 30, "initial_periods": 3, "term_years": 2},
+    "fl-individual": {
+        "month": 6, "day": 30,
+        "renewal_month": 12, "renewal_day": 31,
+        "initial_periods": 3, "term_years": 2,
+    },
 }
 
 
@@ -5224,12 +5251,20 @@ def _certificate_date_term_html(record_id: str) -> str:
 
 def _certificate_date_term_js(record_id: str, as_of: date) -> str:
     cfg = CERTIFICATE_DATE_INITIAL_TERM_STATES[record_id]
+    renewal_month = cfg.get("renewal_month", cfg["month"])
+    renewal_day = cfg.get("renewal_day", cfg["day"])
     return f"""<script>
 (function() {{
   var input = document.getElementById('dr-cdit-{record_id}-date');
   var goBtn = document.getElementById('dr-cdit-{record_id}-go');
   var result = document.getElementById('dr-cdit-{record_id}-result');
-  var month = {cfg['month']}, day = {cfg['day']}, initialPeriods = {cfg['initial_periods']}, termYears = {cfg['term_years']};
+  // periodEndMonth/Day (e.g. June 30) locate which YEAR the reestablishment
+  // period ends in -- renewalMonth/Day (e.g. Dec 31) is the actual renewal
+  // deadline returned, same year. See next_certificate_date_initial_term()
+  // in generate.py (DATA-11, 2026-08-19) for why these are two dates, not one.
+  var periodEndMonth = {cfg['month']}, periodEndDay = {cfg['day']};
+  var renewalMonth = {renewal_month}, renewalDay = {renewal_day};
+  var initialPeriods = {cfg['initial_periods']}, termYears = {cfg['term_years']};
   var asOf = new Date(Date.UTC({as_of.year}, {as_of.month - 1}, {as_of.day}));
   var MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   function fmt(d) {{ return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear(); }}
@@ -5238,13 +5273,16 @@ def _certificate_date_term_js(record_id: str, as_of: date) -> str:
     var parts = input.value.split('-');
     var certDate = new Date(Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)));
     var y0 = certDate.getUTCFullYear();
-    var fixedDateY0 = new Date(Date.UTC(y0, month - 1, day));
-    var firstFollowingYear = certDate.getTime() < fixedDateY0.getTime() ? y0 : y0 + 1;
+    var periodEndY0 = new Date(Date.UTC(y0, periodEndMonth - 1, periodEndDay));
+    var firstFollowingYear = certDate.getTime() < periodEndY0.getTime() ? y0 : y0 + 1;
     var y = firstFollowingYear + (initialPeriods - 1);
-    var d = new Date(Date.UTC(y, month - 1, day));
-    while (d.getTime() < asOf.getTime()) {{ y += termYears; d = new Date(Date.UTC(y, month - 1, day)); }}
+    var d = new Date(Date.UTC(y, renewalMonth - 1, renewalDay));
+    while (d.getTime() < asOf.getTime()) {{ y += termYears; d = new Date(Date.UTC(y, renewalMonth - 1, renewalDay)); }}
     result.hidden = false;
-    result.textContent = 'Your next renewal: ' + fmt(d);
+    result.textContent = 'Your next license renewal: ' + fmt(d);
+    if (renewalMonth !== periodEndMonth || renewalDay !== periodEndDay) {{
+      result.textContent += ' (your CPE for that cycle is due ' + fmt(new Date(Date.UTC(d.getUTCFullYear(), periodEndMonth - 1, periodEndDay))) + ')';
+    }}
   }}
   goBtn.addEventListener('click', show);
   input.addEventListener('change', show);

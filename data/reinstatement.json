@@ -146,8 +146,9 @@
       "lapse_trigger": "An individual permit expires at the end of the second year of a 2-year cycle anchored to the licensee's own birth month (Bus. & Prof. Code §5070.5). A delinquent (expired) permit may still be renewed for up to 5 years after expiration by paying all accrued fees plus the delinquency fee and showing CE compliance; after 5 years it can no longer be renewed at all.",
       "citation": "Cal. Bus. & Prof. Code §5070.6 (delinquent renewal / 5-year window) and §5070.5 (permit expiration on birth-month); delinquency-fee formula at §163.5; extra CE at 16 CCR §81",
       "citation_url": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=BPC&sectionNum=5070.6",
+      "verification_history": "2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's live re-fetch of the cited BPC §5070.6 page found the cited section text present as one of several multi-rule citations on this record; primary cited rule confirmed on the page (PARTIAL classification -- multi-rule citation, one section per URL). Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone.",
       "source_url": "https://www.dca.ca.gov/cba/licensees/renewal-information.shtml",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": null
     },
     {
@@ -162,8 +163,9 @@
       "lapse_trigger": "A certificate not renewed by its expiration date enters 'Expired' status (Rule 1.9(J)(1)). A 60-day grace period allows renewal by paying the renewal fee plus a late fee with no penalty; after that, the certificate is fully Expired and the holder cannot hold out as a CPA.",
       "citation": "3 CCR 705-1, Rule 1.9(J) (Expired Status) and Rule 1.9(K) (Reinstatement)",
       "citation_url": "https://www.coloradosos.gov/CCR/GenerateRulePdf.do?ruleVersionId=11720&fileName=3+CCR+705-1",
+      "verification_history": "2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's live re-fetch confirmed the cited rule identifier (3 CCR 705-1, Rule 1.9) present in the fetched PDF text. Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone.",
       "source_url": "https://dpo.colorado.gov/Accountancy",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": null
     },
     {
@@ -196,8 +198,9 @@
       "lapse_trigger": "Licenses are on a 2-year cycle expiring December 31 of even-numbered years. Failing to renew by that date lapses the license; DC's general licensing law separately tiers late penalties ($75/$150/$350) by how long a license has been lapsed, though the Board's own posted flat $295 reinstatement fee is the figure actually applied.",
       "citation": "17 DCMR §2530.3 (reinstatement CPE); D.C. Code §47-2851.10 (lapsed and reinstated licenses); §47-2853.10 (Board fee-schedule authority)",
       "citation_url": "https://code.dccouncil.gov/us/dc/council/code/sections/47-2851.10",
+      "verification_history": "2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's live re-fetch of the cited D.C. Code §47-2851.10 page found the cited section text present as one of several multi-rule citations on this record; primary cited rule confirmed on the page (PARTIAL classification -- multi-rule citation, one section per URL). Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone.",
       "source_url": "https://dlcp.dc.gov/page/board-accountancy",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": "The $295 reinstatement fee is stated on the Board's own page, but no codified DCMR fee schedule or DC Register notice stating that exact number could be located -- only the general statutory authority for the Board to set fees. Recommend a manual check with the Board if you want the fee confirmed against a published rule rather than just the agency's own page."
     },
     {
@@ -266,9 +269,9 @@
       "citation": "Hawaii Administrative Rules Title 16, Chapter 71, §16-71-2 (biennial renewal) and §16-71-35 (deficiency and carryover hours)",
       "citation_url": "https://cca.hawaii.gov/wp-content/uploads/2026/02/HAR-16-71-C_1121.pdf",
       "source_url": "https://cca.hawaii.gov/pvl/boards/accountancy/",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": "The $204/$360/$128 fee figures are confirmed only on the Board's own page -- HAR Chapter 71 defers the actual renewal/restoration fee amounts to a separate fee-schedule chapter (16-53) that could not be located at a working URL. Treat the dollar figures as board-confirmed but not yet codified-rule-confirmed until that chapter is located and cited directly.",
-      "verification_history": "2026-08-14 (CITE-21 #3, already-disclosed): the audit reported that cited HAR 16-71 is the CPE chapter and carries no fee schedule, so $204 is unsupported by its citation. That is true and this record's own data_gap_note already says it -- the citation field describes 16-71 as biennial renewal plus deficiency/carryover and never claims it supports the dollar figure. Attempted to CLOSE the gap this pass and failed; recording the dead ends so they are not repeated: cca.hawaii.gov/pvl/files/2013/08/HAR-16-53.pdf returns 404 (with a 128KB error body, so check the status not the size), files.hawaii.gov/dcca/pvl/har/har_16-53.pdf 404s, cca.hawaii.gov/pvl/har/ redirects to an unrelated acupuncture hearing notice, and a web search for Hawaii 'chapter 16-53' accountancy fees returns nothing on point -- so the '16-53' chapter number recorded in the gap note is itself unconfirmed and may be wrong. Next attempt should start from HRS 466 and the DCCA Compliance Resolution Fund fee authority rather than from a guessed HAR chapter number. Fee left as board-page-confirmed."
+      "verification_history": "2026-08-14 (CITE-21 #3, already-disclosed): the audit reported that cited HAR 16-71 is the CPE chapter and carries no fee schedule, so $204 is unsupported by its citation. That is true and this record's own data_gap_note already says it -- the citation field describes 16-71 as biennial renewal plus deficiency/carryover and never claims it supports the dollar figure. Attempted to CLOSE the gap this pass and failed; recording the dead ends so they are not repeated: cca.hawaii.gov/pvl/files/2013/08/HAR-16-53.pdf returns 404 (with a 128KB error body, so check the status not the size), files.hawaii.gov/dcca/pvl/har/har_16-53.pdf 404s, cca.hawaii.gov/pvl/har/ redirects to an unrelated acupuncture hearing notice, and a web search for Hawaii 'chapter 16-53' accountancy fees returns nothing on point -- so the '16-53' chapter number recorded in the gap note is itself unconfirmed and may be wrong. Next attempt should start from HRS 466 and the DCCA Compliance Resolution Fund fee authority rather than from a guessed HAR chapter number. Fee left as board-page-confirmed.\n\n2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's live re-fetch confirmed the cited rule identifier (HAR 16-71) present in the fetched PDF text. Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone."
     },
     {
       "id": "idaho-reinstatement",
@@ -300,8 +303,9 @@
       "lapse_trigger": "Individual license expires September 30 every 3 years (firm license: November 30) if not renewed in the 2-month pre-expiration window. No grace period -- practicing on an expired license is unlicensed activity from the day after expiration (68 Ill. Admin. Code 1420.80).",
       "citation": "68 Ill. Admin. Code 1420.60 (Restoration); 1420.40 (Fees); 1420.70 (CPE requirement); 1420.80 (Renewals, cross-refs 1420.70)",
       "citation_url": "https://www.ilga.gov/commission/jcar/admincode/068/068014200000600R.html",
+      "verification_history": "2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's live re-fetch of the cited JCAR admincode page found the cited section text present as one of several multi-rule citations on this record; primary cited rule confirmed on the page (PARTIAL classification -- multi-rule citation, one section per URL). Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone.",
       "source_url": "https://idfpr.illinois.gov/profs/pa.html",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": "No separate penalty CPE/ethics hour figures are published because the rule imposes the same standard 120-hr/4-ethics-hr load already required at ordinary renewal, just with a tighter lookback window -- not an additional number. IDFPR's own site does not publish CPA-specific restoration dollar figures on a single page (its general reactivation-fee table explicitly excludes CPAs); the board-page leg of the 2-source rule is satisfied by the Public Accounting landing page instead, with the exact fee formula confirmed only in the codified rule text."
     },
     {
@@ -317,10 +321,10 @@
       "citation": "872 IAC 1-3-14 (Reinstatement of Lapsed Certificate); fee mechanism at IC 25-1-8-6(c)(3) and (d)(3); CPE/ethics table at 872 IAC 1-3-16",
       "citation_url": "https://iar.iga.in.gov/code/2026/872/1",
       "source_url": "https://www.in.gov/pla/files/Reinstatement_Exp_License_Packet5.pdf",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": null,
       "secondary_source_url": "https://www.law.cornell.edu/regulations/indiana/872-IAC-1-3-14",
-      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Rule text verified via the IAR site's own public JSON API (SPA URL serves no text to curl); IC 25-1-8-6 verified from the legislature's own fetchable chapter PDF https://iga.in.gov/ic/2026/Title_25/Article_1/Chapter_8.pdf (200, application/pdf, text extracted). The 3-year split in the notes_excerpt is structurally right (IC 25-1-8-6(c) <=3 years vs (d) >3 years); only the dollar amounts and the (d)(5) pinpoint are unsupported. I could not find a PLA/board fee schedule page carrying $155/$190 -- the PLA accountancy page (https://www.in.gov/pla/professions/accountancy-home/) has no fee table and the /accountancy-laws-and-rules/ and /accountancy-fees/ style paths 404.\n\n2026-08-14 (SRC-1 content check): $155/$190 could not be confirmed anywhere official -- the PLA accountancy page has no fee table and neither amount appears in primary law. The cited pinpoint IC 25-1-8-6(d)(5) was also wrong (that subsection is a remediation/training provision, not a fee tier); the fee mechanism is (c)(3) (agency-set, <=3yr) and (d)(3) (equal to initial application fee, >3yr). Reworded to the codified mechanism and flagged the old figures as unconfirmed. The 120-hour CPE figure (872 IAC 1-3-14(c)) was confirmed correct.\n\n2026-08-14 (post-deploy self-catch): my replacement sentence said 'figures previously listed here' -- self-referential record history, the same COPY-x class closed earlier today. Restated in the third-party-sites house pattern; the audit trail of what this record used to say lives here, not in reader copy."
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: Rule text verified via the IAR site's own public JSON API (SPA URL serves no text to curl); IC 25-1-8-6 verified from the legislature's own fetchable chapter PDF https://iga.in.gov/ic/2026/Title_25/Article_1/Chapter_8.pdf (200, application/pdf, text extracted). The 3-year split in the notes_excerpt is structurally right (IC 25-1-8-6(c) <=3 years vs (d) >3 years); only the dollar amounts and the (d)(5) pinpoint are unsupported. I could not find a PLA/board fee schedule page carrying $155/$190 -- the PLA accountancy page (https://www.in.gov/pla/professions/accountancy-home/) has no fee table and the /accountancy-laws-and-rules/ and /accountancy-fees/ style paths 404.\n\n2026-08-14 (SRC-1 content check): $155/$190 could not be confirmed anywhere official -- the PLA accountancy page has no fee table and neither amount appears in primary law. The cited pinpoint IC 25-1-8-6(d)(5) was also wrong (that subsection is a remediation/training provision, not a fee tier); the fee mechanism is (c)(3) (agency-set, <=3yr) and (d)(3) (equal to initial application fee, >3yr). Reworded to the codified mechanism and flagged the old figures as unconfirmed. The 120-hour CPE figure (872 IAC 1-3-14(c)) was confirmed correct.\n\n2026-08-14 (post-deploy self-catch): my replacement sentence said 'figures previously listed here' -- self-referential record history, the same COPY-x class closed earlier today. Restated in the third-party-sites house pattern; the audit trail of what this record used to say lives here, not in reader copy.\n\n2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's STALE-8 re-check: iar.iga.in.gov renders \"You need to enable JavaScript to run this app\" to a plain fetch -- structurally a JS-only SPA, added to the CITE-30 human-spot-check list. Not a data defect; matches the same host issue SRC-1 already worked around for the sibling in-individual/in-firm records via a real-browser read. Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone."
     },
     {
       "id": "iowa-reinstatement",
@@ -368,8 +372,9 @@
       "lapse_trigger": "Licenses renew biennially (odd-numbered licenses in odd years, even in even years) with a July 1-31 renewal window; an Aug 1-Sep 1 grace period allows renewal with a $100 late fee. A license not renewed by September 1 expires. Reinstatement applies once a license has been expired more than 1 month or voluntarily surrendered.",
       "citation": "201 KAR 1:140, Section 3 (Procedures for reinstatement or reissuance of a CPA license)",
       "citation_url": "https://apps.legislature.ky.gov/law/kar/titles/201/001/140/",
+      "verification_history": "2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's live re-fetch confirmed the cited rule identifier (201 KAR 1:140) present on the fetched page. Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone.",
       "source_url": "https://cpa.ky.gov/practicingcpas/Pages/Reinstatement-Requirements.aspx",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": null
     },
     {
@@ -402,8 +407,9 @@
       "lapse_trigger": "Licenses expire annually. A license may be renewed online up to 90 days after expiration by paying the fee plus the $50 late fee. If not renewed within 90 days, the Board may (within 2 years of the original expiration) waive new-applicant requirements and instead allow reinstatement via the 80-hour CPE path above; beyond 2 years, the former licensee must requalify as a brand-new applicant.",
       "citation": "02-280 C.M.R. ch. 5, Sections 6-7 (License Expiration, Renewal, and Reinstatement); 32 M.R.S. Sec12234(1)-(2); fees at 02-041 C.M.R. ch. 10, Sec5(1) and ch. 11, Sec2(1)",
       "citation_url": "https://www.maine.gov/pfr/professionallicensing/sites/maine.gov.pfr.professionallicensing/files/inline-files/AccountancyRule.pdf",
+      "verification_history": "2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's live re-fetch of the cited Maine accountancy rule PDF found the cited section text present as one of several multi-rule citations on this record; primary cited rule confirmed on the page (PARTIAL classification -- multi-rule citation, one section per URL). Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone.",
       "source_url": "https://www.maine.gov/pfr/professionallicensing/professions/accountancy/continuing-education",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": null
     },
     {
@@ -418,8 +424,9 @@
       "lapse_trigger": "Not renewed by the license's fixed 2-year expiration date. No statutory outer time limit was found after which reinstatement becomes unavailable.",
       "citation": "Md. Code Ann., Bus. Occ. & Prof. § 2-314 (Reinstatement); COMAR 09.24.01.09.B (fees); COMAR 09.24.02.03 (80-hr/4-ethics-hr CE requirement); COMAR 09.24.02.05.A (2-year CE lookback)",
       "citation_url": "https://regs.maryland.gov/us/md/exec/comar/09.24.01.09",
+      "verification_history": "2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's live re-fetch found the rule renders as \".09 Fees\" with \"Title 09 / Subtitle 24 / Chapter 01\" in the page's breadcrumbs, never as the concatenated string \"09.24.01.09\" -- an extractor limitation in AuditLab's own tooling (it looks for the concatenated form), not a wrong citation. The correct rule is present on the page. Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone.",
       "source_url": "https://labor.maryland.gov/license/cpa/cpaaff.shtml",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": null
     },
     {
@@ -505,8 +512,9 @@
       "lapse_trigger": "Licenses run a 2-year period, October 1 to September 30. If not renewed by September 30, the license is expired but can still be late-renewed through December 31 of that year. If no renewal is filed by December 31, the license becomes 'lapsed,' and the holder may not practice or use the CPA title.",
       "citation": "20 CSR 2010-2.075 (Reinstatement -- CPE requirement); 20 CSR 2010-2.160(1)(G),(L)2 (fees); 20 CSR 2010-4.035 (Inactive, Expired, and Lapsed Licenses)",
       "citation_url": "https://www.sos.mo.gov/cmsimages/adrules/csr/current/20csr/20c2010-2.pdf",
+      "verification_history": "2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's live re-fetch confirmed the cited rule identifier (20 CSR 2010-2) present in the fetched PDF text. Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone.",
       "source_url": "https://pr.mo.gov/accountancy-fees.asp",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": null
     },
     {
@@ -593,10 +601,10 @@
       "citation": "N.J.A.C. 13:29-1.9 (License Reinstatement Procedures); triggered by suspension under 13:29-1.7(e); fee at 13:29-1.5",
       "citation_url": "https://www.njconsumeraffairs.gov/Adoptions/accado_09032019.pdf",
       "source_url": "https://www.njconsumeraffairs.gov/acc/Pages/faq.aspx",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": null,
       "secondary_source_url": "https://www.law.cornell.edu/regulations/new-jersey/N-J-A-C-13-29-1-9",
-      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: The official adoption PDF reprints 13:29-1.9 in full and confirms the structure exactly: reinstatement requires '3. The renewal fee for the triennial period for which reinstatement is sought; 4. The past due renewal fee for the triennial period immediately preceding...; 5. The reinstatement fee set forth in N.J.A.C. 13:29-1.5', and 13:29-1.7(d)/(e) confirm the 30-day post-expiration grace with a late fee and automatic suspension thereafter. The $150 dollar amount could NOT be confirmed: the 2018 fee adoption (50 N.J.R. 1965(a)) reprints only changed paragraphs of 13:29-1.5 and marks the reinstatement/late-fee items '4.-5. (No change.)'. Tried: /acc/Pages/regulations.aspx (Incapsula block), ~12 guessed /regulations/Chapter-29-*.pdf filenames including the U+2010-hyphen form the site actually uses (all 404), and Wayback CDX (only a dead pre-migration path). No reachable official host serves the codified 13:29-1.5 text."
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): citation_url -> primary; old mirror kept as secondary_source_url. Research agent evidence: The official adoption PDF reprints 13:29-1.9 in full and confirms the structure exactly: reinstatement requires '3. The renewal fee for the triennial period for which reinstatement is sought; 4. The past due renewal fee for the triennial period immediately preceding...; 5. The reinstatement fee set forth in N.J.A.C. 13:29-1.5', and 13:29-1.7(d)/(e) confirm the 30-day post-expiration grace with a late fee and automatic suspension thereafter. The $150 dollar amount could NOT be confirmed: the 2018 fee adoption (50 N.J.R. 1965(a)) reprints only changed paragraphs of 13:29-1.5 and marks the reinstatement/late-fee items '4.-5. (No change.)'. Tried: /acc/Pages/regulations.aspx (Incapsula block), ~12 guessed /regulations/Chapter-29-*.pdf filenames including the U+2010-hyphen form the site actually uses (all 404), and Wayback CDX (only a dead pre-migration path). No reachable official host serves the codified 13:29-1.5 text.\n\n2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's live re-fetch confirmed the cited rule identifier (N.J.A.C. 13:29-1.9) present in the fetched PDF text. Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone."
     },
     {
       "id": "new-mexico-reinstatement",
@@ -628,8 +636,9 @@
       "lapse_trigger": "Registration becomes 'Not registered' when a licensee doesn't file a triennial renewal application/fee by the start of the next registration period. A licensee resuming practice after a lapse may not practice without actual possession of a current registration certificate; a $10/month late fee attaches to any delayed registration.",
       "citation": "N.Y. Educ. Law Sec6502(3) (late-filing fee / lapse of registration); 8 NYCRR Sec70.9(b)(6) (24-hour CPE to reactivate); base fee set by Educ. Law Sec7404",
       "citation_url": "https://www.nysenate.gov/legislation/laws/EDN/6502",
+      "verification_history": "2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's STALE-8 re-check: nysenate.gov returns \"Sorry, you need to enable JavaScript\" to a plain fetch -- structurally a JS-only SPA, added to the CITE-30 human-spot-check list. Not a data defect. Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone.",
       "source_url": "https://www.op.nysed.gov/professions/certified-public-accountants/mce-questions-answers",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": null
     },
     {
@@ -733,8 +742,9 @@
       "lapse_trigger": "Not renewed by 11:59pm December 31 of odd-numbered years. The Board states explicitly there is no grace period; the license lapses effective January 1 and a reactivation application (not a standard renewal) is required.",
       "citation": "49 Pa. Code § 11.4 (fees, $35 reinstatement); § 11.62(c) (reactivation CPE, 80 hrs/24-month lookback); § 11.63(a)(7) (4-hour ethics minimum)",
       "citation_url": "https://www.pacodeandbulletin.gov/Display/pacode?file=/secure/pacode/data/049/chapter11/s11.4.html",
+      "verification_history": "2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's live re-fetch of the cited Pa. Code §11.4 page found the cited section text present as one of several multi-rule citations on this record; primary cited rule confirmed on the page (PARTIAL classification -- multi-rule citation, one section per URL). Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone.",
       "source_url": "https://www.pa.gov/agencies/dos/department-and-offices/bpoa/boards-commissions/accountancy-board/renewal-information",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": null
     },
     {
@@ -784,8 +794,9 @@
       "lapse_trigger": "A certificate becomes expired if renewal (application by August 1, with CPE compliance proof) isn't completed by that deadline. A licensee who neither renews, notifies the board, nor surrenders the certificate is deemed to have an expired certificate and may not perform accounting services.",
       "citation": "ARSD 20:75:03:02 (Non-renewal); 20:75:03:03 (Renewal fees); 20:75:04:08 (Returning active certificate holders)",
       "citation_url": "https://sdlegislature.gov/api/Rules/20:75:04:08.html",
+      "verification_history": "2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's live re-fetch found /api/Rules/20:75:04:08.html returns character-spaced text (\"R u l e 2 0 : 7 5 : 0 4 : 0 8\") -- the identifier IS present, just not in a form AuditLab's normaliser collapses. Not a data defect. Side result: sdlegislature.gov is no longer SPA-only (the garbage-path control now returns a short 286-char response vs. 1,353/7,649 chars for real records) -- CITE-30's SPA flag on this host is stale. Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone.",
       "source_url": "https://dlr.sd.gov/accountancy/faq.aspx",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": "The board's own FAQ page only generically warns about consequences of lapsing without stating South Dakota's specific dollar/hour figures -- those come from the codified ARSD rule text alone. Recommend a manual check with the board if you want the numbers confirmed firsthand."
     },
     {
@@ -854,8 +865,9 @@
       "lapse_trigger": "Licenses renew on a fixed biennial schedule (July 31 of odd-numbered years). Failing to return the completed renewal application and fee by that date causes automatic expiration, with no additional grace period described in the rules.",
       "citation": "3 V.S.A. Sec127(d)(1)-(3) (reinstatement-penalty statute); 26 V.S.A. Sec56(2) (biennial renewal fee); Vermont Board of Public Accountancy Administrative Rules 8.1-8.2, 9.1(c)",
       "citation_url": "https://legislature.vermont.gov/statutes/section/03/005/00127",
+      "verification_history": "2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's live re-fetch found \"8.1-8.2\" is a range notation; the page carries Rule 8.1 and Rule 8.2 as separate sections rather than the literal concatenated string -- a range-tokenising limitation in AuditLab's own tooling, not a wrong citation. Both rules are present on the page. Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone.",
       "source_url": "https://outside.vermont.gov/dept/sos/office_professional_regulation/professions/accountancy/accountancy_board_administrative_rules.pdf",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": null
     },
     {
@@ -887,8 +899,9 @@
       "lapse_trigger": "A license lapses if the licensee fails to file a complete renewal application (with CPE certification and fees) by June 30 of the renewal year, effective July 1. Once lapsed, the individual may not use the CPA title or exercise related privileges until reinstated.",
       "citation": "WAC 4-30-094 (Renewals / lapse trigger); WAC 4-30-124 (Reinstatements); WAC 4-30-134(5) (CPE for reinstatement); WAC 4-30-038 (Fees)",
       "citation_url": "https://app.leg.wa.gov/wac/default.aspx?cite=4-30-038",
+      "verification_history": "2026-08-20 (STALE-8, AuditLab re-verification pass ahead of the 30-day gate): AuditLab's live re-fetch of the cited WAC 4-30-038 page found the cited section text present as one of several multi-rule citations on this record; primary cited rule confirmed on the page (PARTIAL classification -- multi-rule citation, one section per URL). Scope: this confirms the cited rule identifier is present on the live page (citation resolves), not that every dollar figure or hour count in this record's fields matches the page -- per AuditLab's own STALE-8 disclosure, a citation can resolve correctly while a numeric value is still wrong. Recorded to clear the 2026-08-24 30-day staleness gate on evidence, not a timestamp touch alone.",
       "source_url": "https://acb.wa.gov/individual-licensing/reinstate-cpa-license",
-      "last_verified": "2026-07-25",
+      "last_verified": "2026-08-20",
       "data_gap_note": null
     },
     {

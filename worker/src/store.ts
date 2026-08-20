@@ -158,24 +158,13 @@ export interface SubscriberRow {
   // migration 0051. NULL until the first digest actually sends, then a
   // rolling +7-day window -- see advanceDigestWindow()'s own docstring.
   digest_next_send_at: string | null;
-  // migration 0054 (roadmap #22). AES-GCM ciphertext as of migration 0068
-  // (AuditLab SMS-2) -- same column-name-reuse convention SLACK-1 already
-  // used for slack_webhook_url, decrypted on read via
-  // totp.ts's decryptSecretAesGcm(phone_number, phone_number_iv,
-  // subscriber_email_normalized, env.TOTP_ENCRYPTION_KEY). Null until
-  // verified via the phone-verification flow. sms_opted_in is the actual
-  // gate runSmsAlertPass() reads -- a phone_number can exist (mid-
-  // verification or after an opt-out) without sms_opted_in being true.
-  // sms_opted_in_at is the TCPA consent timestamp, kept even after an
-  // opt-out -- see clearSubscriberSmsOptIn()'s own docstring for why.
+  // migration 0054 (roadmap #22). E.164 format, null until verified via
+  // the phone-verification flow. sms_opted_in is the actual gate
+  // runSmsAlertPass() reads -- a phone_number can exist (mid-verification
+  // or after an opt-out) without sms_opted_in being true. sms_opted_in_at
+  // is the TCPA consent timestamp, kept even after an opt-out -- see
+  // clearSubscriberSmsOptIn()'s own docstring for why.
   phone_number: string | null;
-  phone_number_iv: string | null;
-  // Deterministic HMAC-SHA256 blind index (totp.ts's hmacBlindIndex()) --
-  // lets the Twilio inbound STOP webhook find a subscriber by phone
-  // number without decrypting every row to compare, since AES-GCM's
-  // random IV makes ciphertext unusable for an equality WHERE clause.
-  // Never itself the plaintext or reversible to it.
-  phone_number_hash: string | null;
   sms_opted_in: number;
   sms_opted_in_at: string | null;
   // AuditLab SMS-3 (2026-08-09): the actual TCPA consent record --
@@ -512,8 +501,6 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
     // consented to SMS -- matches the columns' own DB defaults, not part
     // of the INSERT column list either, same as notification_mode above.
     phone_number: null,
-    phone_number_iv: null,
-    phone_number_hash: null,
     sms_opted_in: 0,
     sms_opted_in_at: null,
     sms_consent_version: null,
@@ -5273,16 +5260,10 @@ export const PHONE_VERIFICATION_TTL_MINUTES = 10;
  * requirement puts the burden of proof on the sender; "our JavaScript
  * required a checkbox" is materially weaker than a stored timestamp + IP
  * + disclosure-version record. */
-/** AuditLab SMS-2 (2026-08-20, migration 0068): phoneNumberEncrypted/
- * phoneNumberIv are the caller's ALREADY-encrypted values (see totp.ts's
- * encryptSecretAesGcm(), AAD-bound to emailNormalized) -- store.ts never
- * receives TOTP_ENCRYPTION_KEY, same separation setFirmMemberTotpSecret()
- * already establishes for the 2FA secret. */
 export async function createPhoneVerification(
   db: D1Database,
   emailNormalized: string,
-  phoneNumberEncrypted: string,
-  phoneNumberIv: string,
+  phoneNumber: string,
   codeHash: string,
   consentVersion: string,
   consentIp: string
@@ -5292,27 +5273,23 @@ export async function createPhoneVerification(
   await db
     .prepare(
       `INSERT INTO subscriber_phone_verifications
-         (id, subscriber_email_normalized, phone_number, phone_number_iv, code_hash, created_at, expires_at, used_at, consent_version, consent_ip)
-       VALUES (?1,?2,?3,?4,?5,?6,?7,NULL,?8,?9)`
+         (id, subscriber_email_normalized, phone_number, code_hash, created_at, expires_at, used_at, consent_version, consent_ip)
+       VALUES (?1,?2,?3,?4,?5,?6,NULL,?7,?8)`
     )
-    .bind(newToken(), emailNormalized, phoneNumberEncrypted, phoneNumberIv, codeHash, now.toISOString(), expiresAt, consentVersion, consentIp)
+    .bind(newToken(), emailNormalized, phoneNumber, codeHash, now.toISOString(), expiresAt, consentVersion, consentIp)
     .run();
 }
 
 export interface ConsumedPhoneVerification {
-  /** Still AES-GCM ciphertext -- the caller decrypts (AAD = the SAME
-   * emailNormalized passed to consumePhoneVerification()), same
-   * store-never-touches-the-key separation as createPhoneVerification(). */
-  phoneNumberEncrypted: string;
-  phoneNumberIv: string;
+  phoneNumber: string;
   consentVersion: string | null;
   consentIp: string | null;
 }
 
 /**
  * Validates and CONSUMES the most recent still-open verification for this
- * email. Returns the verified phone_number ciphertext (plus the consent
- * record captured at createPhoneVerification() time) on success, null for
+ * email. Returns the verified phone_number (plus the consent record
+ * captured at createPhoneVerification() time) on success, null for
  * unknown/expired/already-used/wrong-code -- all indistinguishable to the
  * caller, same no-oracle posture as verifyAndConsumeLoginToken()/
  * consumeOauthState(). Marking used_at atomically (conditional UPDATE) is
@@ -5321,7 +5298,7 @@ export interface ConsumedPhoneVerification {
 export async function consumePhoneVerification(db: D1Database, emailNormalized: string, rawCode: string): Promise<ConsumedPhoneVerification | null> {
   const row = await db
     .prepare(
-      `SELECT id, phone_number, phone_number_iv, code_hash, expires_at, used_at, consent_version, consent_ip
+      `SELECT id, phone_number, code_hash, expires_at, used_at, consent_version, consent_ip
          FROM subscriber_phone_verifications
         WHERE subscriber_email_normalized = ?1
         ORDER BY created_at DESC
@@ -5331,7 +5308,6 @@ export async function consumePhoneVerification(db: D1Database, emailNormalized: 
     .first<{
       id: string;
       phone_number: string;
-      phone_number_iv: string | null;
       code_hash: string;
       expires_at: string;
       used_at: string | null;
@@ -5342,7 +5318,6 @@ export async function consumePhoneVerification(db: D1Database, emailNormalized: 
   if (row.used_at) return null;
   if (Date.parse(row.expires_at) <= Date.now()) return null;
   if ((await hashToken(rawCode)) !== row.code_hash) return null;
-  if (!row.phone_number_iv) return null; // pre-migration-0068 row -- honestly refuse rather than treat ciphertext as plaintext
 
   const result = await db
     .prepare(`UPDATE subscriber_phone_verifications SET used_at = ?1 WHERE id = ?2 AND used_at IS NULL`)
@@ -5350,12 +5325,7 @@ export async function consumePhoneVerification(db: D1Database, emailNormalized: 
     .run();
   if ((result.meta.changes ?? 0) === 0) return null;
 
-  return {
-    phoneNumberEncrypted: row.phone_number,
-    phoneNumberIv: row.phone_number_iv,
-    consentVersion: row.consent_version,
-    consentIp: row.consent_ip,
-  };
+  return { phoneNumber: row.phone_number, consentVersion: row.consent_version, consentIp: row.consent_ip };
 }
 
 /** Cross-row write, same reach as setSubscriberNotificationMode() -- a
@@ -5363,32 +5333,20 @@ export async function consumePhoneVerification(db: D1Database, emailNormalized: 
  * Called only after consumePhoneVerification() succeeds, passing THAT
  * call's own consent record through (AuditLab SMS-3) -- never re-derived,
  * never defaulted, so a row with sms_opted_in=1 always has the consent
- * record that justified it.
- *
- * AuditLab SMS-2 (2026-08-20, migration 0068): phoneNumberEncrypted/
- * phoneNumberIv are the caller's already-encrypted values -- the AAD
- * context for BOTH the verification row and this persistent row is the
- * subscriber's own emailNormalized, so the caller can pass
- * consumePhoneVerification()'s ciphertext straight through with no
- * decrypt/re-encrypt round-trip, decrypting once only where the plaintext
- * is actually needed (e.g. the confirm-verification response's
- * phone_last4). phoneNumberHash is the deterministic HMAC blind index
- * (totp.ts's hmacBlindIndex()) the Twilio STOP webhook looks rows up by. */
+ * record that justified it. */
 export async function setSubscriberSmsOptedIn(
   db: D1Database,
   emailNormalized: string,
-  phoneNumberEncrypted: string,
-  phoneNumberIv: string,
-  phoneNumberHash: string,
+  phoneNumber: string,
   consentVersion: string | null,
   consentIp: string | null
 ): Promise<void> {
   await db
     .prepare(
-      `UPDATE subscribers SET phone_number = ?1, phone_number_iv = ?2, phone_number_hash = ?3, sms_opted_in = 1, sms_opted_in_at = ?4, sms_consent_version = ?5, sms_consent_ip = ?6
-        WHERE LOWER(TRIM(email)) = ?7`
+      `UPDATE subscribers SET phone_number = ?1, sms_opted_in = 1, sms_opted_in_at = ?2, sms_consent_version = ?3, sms_consent_ip = ?4
+        WHERE LOWER(TRIM(email)) = ?5`
     )
-    .bind(phoneNumberEncrypted, phoneNumberIv, phoneNumberHash, nowIso(), consentVersion, consentIp, emailNormalized)
+    .bind(phoneNumber, nowIso(), consentVersion, consentIp, emailNormalized)
     .run();
 }
 
@@ -5407,17 +5365,9 @@ export async function clearSubscriberSmsOptIn(db: D1Database, emailNormalized: s
 /** Same clear-by-phone-number path for the Twilio inbound STOP webhook,
  * which identifies the sender by phone number, not an authenticated
  * email session. Every row sharing this phone number is cleared -- same
- * cross-row reach as the email-keyed setter above.
- *
- * AuditLab SMS-2 (2026-08-20, migration 0068): takes the caller-computed
- * HMAC blind index (totp.ts's hmacBlindIndex()), not the raw phone
- * number -- phone_number itself is now AES-GCM ciphertext, and AES-GCM's
- * random per-call IV means the same plaintext never produces the same
- * ciphertext twice, so an equality WHERE on the encrypted column could
- * never match. phone_number_hash is deterministic (same plaintext ->
- * same digest, always), which is exactly what an equality lookup needs. */
-export async function clearSubscriberSmsOptInByPhoneNumber(db: D1Database, phoneNumberHash: string): Promise<void> {
-  await db.prepare(`UPDATE subscribers SET sms_opted_in = 0 WHERE phone_number_hash = ?1`).bind(phoneNumberHash).run();
+ * cross-row reach as the email-keyed setter above. */
+export async function clearSubscriberSmsOptInByPhoneNumber(db: D1Database, phoneNumber: string): Promise<void> {
+  await db.prepare(`UPDATE subscribers SET sms_opted_in = 0 WHERE phone_number = ?1`).bind(phoneNumber).run();
 }
 
 /** Same INSERT-with-UNIQUE-conflict dedup shape as claimSlackThresholdNotification()/

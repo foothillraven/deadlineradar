@@ -247,55 +247,6 @@ export async function decryptSecretAesGcm(
   }
 }
 
-/**
- * SMS-2 (AuditLab, restated 2026-08-20): a deterministic HMAC-SHA256 blind
- * index over a value that must also stay AES-GCM encrypted for recovery
- * (see phone_number in store.ts). AES-GCM's random-per-call IV means the
- * same plaintext produces different ciphertext every time it's encrypted
- * -- correct for confidentiality, but it makes `WHERE phone_number = ?`
- * impossible once the column holds ciphertext. The Twilio inbound STOP
- * webhook (handleSmsInbound) identifies the sender ONLY by the phone
- * number in the request body -- it has no firm_id/subscriber_id to look
- * up by -- so honoring an opt-out still needs an equality lookup. A
- * deterministic HMAC of the plaintext, stored alongside the ciphertext,
- * lets that lookup happen without ever decrypting a row to compare it:
- * the same plaintext always hashes to the same digest, so `WHERE
- * phone_number_hash = ?` finds the row, and the digest alone can't be
- * reversed to recover the number (HMAC is one-way; this is a blind index,
- * not an alternate encryption).
- *
- * Reuses TOTP_ENCRYPTION_KEY's raw key material rather than provisioning
- * a third wrangler secret -- same "no new secret per field" posture
- * encryptSecretAesGcm's own docstring establishes. Safe to reuse: HMAC and
- * AES-GCM are different constructions with algorithm-bound key usage
- * (`importKey`'s `{name: "HMAC"}` vs `{name: "AES-GCM"}`), which is a
- * different situation from reusing an AES-GCM key as another AES-GCM key
- * (the actual danger the "fresh random IV" comment above warns about).
- */
-/** AAD context for subscriber phone_number encryption -- a FIXED constant,
- * not the subscriber's own id/email the way TOTP secrets bind to memberId
- * and Slack tokens bind to firmId. Deliberate: AAD only strengthens
- * anything when bound to a value that CANNOT legitimately change without
- * the ciphertext becoming meaningless to re-derive -- and a subscriber's
- * email genuinely can change (setSubscriberEmail() in store.ts), so
- * binding to it would silently break decryption (decryptSecretAesGcm()
- * returns null on any AAD mismatch, never throws) the next time someone
- * changed their email, with no error surfaced anywhere until their SMS
- * reminders quietly stopped. A subscriber's own row `id` IS stable and
- * would be the "correct" choice by the TOTP/Slack precedent, but isn't
- * cheaply available at every call site (the /subscriber/phone/* handlers
- * only have the session's emailNormalized, not the row id, without an
- * extra lookup) -- this constant still gets domain separation (a
- * phone_number ciphertext can never be misread as some other field's
- * ciphertext even if swapped), just not per-row tamper binding. */
-export const SMS_PHONE_NUMBER_AAD = "subscriber_phone_number";
-
-export async function hmacBlindIndex(value: string, keyBase64: string): Promise<string> {
-  const key = await crypto.subtle.importKey("raw", fromBase64(keyBase64) as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value) as BufferSource);
-  return toBase64(new Uint8Array(sig));
-}
-
 /** Thin wrapper over encryptSecretAesGcm() -- memberId is the AAD context.
  * Kept as its own named function so every existing 2FA call site stays
  * unchanged. */

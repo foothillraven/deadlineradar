@@ -5,70 +5,15 @@
  * (runSmsAlertPass iterates every SMS-opted-in subscriber in the table).
  * Twilio credentials are FAKE throughout -- sendSms()/the real Twilio API
  * are never exercised live; every test injects its own `send`.
- *
- * AuditLab SMS-2 (2026-08-20, migration 0068): phone_number is now
- * AES-GCM encrypted at rest, same as TOTP_ENCRYPTION_KEY-gated tests
- * elsewhere (firm-2fa.spec.ts) -- SELF.fetch() can't inject that secret
- * (this test env's wrangler.toml deliberately doesn't set it, same
- * billing.spec.ts/firm-2fa.spec.ts reasoning), so every call that reaches
- * phone-number encrypt/decrypt code uses workerFetch()/a direct
- * runSmsAlertPass(envWithKey, ...) call instead. Store-level test seeding
- * (createPhoneVerification/setSubscriberSmsOptedIn) now takes ciphertext,
- * not plaintext -- seedEncryptedPhone()/seedPhoneHash() below produce it
- * with the SAME fixed AAD (totp.ts's SMS_PHONE_NUMBER_AAD) production
- * code uses, so decryption in the handler under test actually succeeds.
  */
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 import * as store from "../src/store";
 import { isWithinSmsQuietHours, isValidTwilioSignature, SMS_UNAVAILABLE_STATE_SLUGS, CRON_HOUR_UTC, STATE_TIMEZONE_UTC_OFFSET } from "../src/sms";
-import { encryptSecretAesGcm, decryptSecretAesGcm, hmacBlindIndex, SMS_PHONE_NUMBER_AAD } from "../src/totp";
 
 const BASE = "https://deadline-radar.com";
 const MS_PER_DAY = 86_400_000;
 const FAKE_AUTH_TOKEN = "fake-twilio-auth-token-for-tests";
-const KEY = randomKeyBase64();
-
-function randomKeyBase64(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  let bin = "";
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin);
-}
-
-/** Encrypts a test phone number the SAME way production code does
- * (SMS_PHONE_NUMBER_AAD, the KEY this suite's envOverrides pass as
- * TOTP_ENCRYPTION_KEY) -- so seeding a row this way and then decrypting
- * it through a real handler under test actually round-trips. */
-async function seedEncryptedPhone(raw: string): Promise<{ ciphertextBase64: string; ivBase64: string }> {
-  return encryptSecretAesGcm(raw, SMS_PHONE_NUMBER_AAD, KEY);
-}
-
-/** Same deterministic blind index production code computes -- for seeding
- * a row so a STOP-webhook lookup-by-hash test can find it. */
-async function seedPhoneHash(raw: string): Promise<string> {
-  return hmacBlindIndex(raw, KEY);
-}
-
-function testExecutionContext(): ExecutionContext {
-  return { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext;
-}
-
-async function workerFetch(request: Request, envOverrides: Record<string, unknown> = {}): Promise<Response> {
-  const worker = (await import("../src/index")).default;
-  return worker.fetch(request, { ...env, ...envOverrides } as never, testExecutionContext());
-}
-
-/** Test-only shortcut for store.setSubscriberSmsOptedIn() -- encrypts and
- * hashes rawPhone the same way the real confirm-verification handler
- * does, so this suite's runSmsAlertPass()/STOP-webhook tests can seed an
- * opted-in row directly without going through the full HTTP verification
- * flow every time. */
-async function seedOptedInPhone(email: string, rawPhone: string): Promise<void> {
-  const enc = await seedEncryptedPhone(rawPhone);
-  const hash = await seedPhoneHash(rawPhone);
-  await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), enc.ciphertextBase64, enc.ivBase64, hash, "sms-consent-2026-08-09", "203.0.113.99");
-}
 
 async function seedConfirmedSubscriber(stateSlug: string, userDeadline: string, email?: string) {
   const addr = email ?? `smstest-${Date.now()}-${Math.floor(performance.now())}@example.com`;
@@ -240,7 +185,7 @@ describe("phone verification flow", () => {
         headers: { "content-type": "application/json", Cookie: await subscriberCookie(email) },
         body: JSON.stringify({ phone_number: "not-a-phone" }),
       }),
-      { ...env, TWILIO_ACCOUNT_SID: "AC_fake", TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TWILIO_FROM_NUMBER: "+15559999999", TOTP_ENCRYPTION_KEY: KEY } as never,
+      { ...env, TWILIO_ACCOUNT_SID: "AC_fake", TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TWILIO_FROM_NUMBER: "+15559999999" } as never,
       { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
     );
     expect(resp.status).toBe(400);
@@ -256,7 +201,7 @@ describe("phone verification flow", () => {
         headers: { "content-type": "application/json", Cookie: await subscriberCookie(email) },
         body: JSON.stringify({ phone_number: "+15551234567", consent: true, consent_version: "sms-consent-2026-08-09" }),
       }),
-      { ...env, TWILIO_ACCOUNT_SID: "AC_fake", TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TWILIO_FROM_NUMBER: "+15559999999", TOTP_ENCRYPTION_KEY: KEY } as never,
+      { ...env, TWILIO_ACCOUNT_SID: "AC_fake", TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TWILIO_FROM_NUMBER: "+15559999999" } as never,
       { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
     );
     expect(resp.status).toBe(400);
@@ -282,7 +227,7 @@ describe("phone verification flow", () => {
           headers: { "content-type": "application/json", Cookie: await subscriberCookie(email) },
           body: JSON.stringify({ phone_number: "+15551234567", consent: true, consent_version: "sms-consent-2026-08-09" }),
         }),
-        { ...env, TWILIO_ACCOUNT_SID: "AC_fake", TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TWILIO_FROM_NUMBER: "+15559999999", TOTP_ENCRYPTION_KEY: KEY } as never,
+        { ...env, TWILIO_ACCOUNT_SID: "AC_fake", TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TWILIO_FROM_NUMBER: "+15559999999" } as never,
         { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
       );
       // Not blocked by the timezone check -- reaches the real send path
@@ -296,7 +241,7 @@ describe("phone verification flow", () => {
 
   it("AuditLab SMS-3: refuses start-verification without consent, server-side -- even if the client's own JS check were bypassed", async () => {
     const worker = (await import("../src/index")).default;
-    const envOverride = { ...env, TWILIO_ACCOUNT_SID: "AC_fake", TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TWILIO_FROM_NUMBER: "+15559999999", TOTP_ENCRYPTION_KEY: KEY } as never;
+    const envOverride = { ...env, TWILIO_ACCOUNT_SID: "AC_fake", TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TWILIO_FROM_NUMBER: "+15559999999" } as never;
     const ctx = { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext;
 
     async function attempt(email: string, extra: Record<string, unknown>): Promise<Response> {
@@ -345,25 +290,13 @@ describe("phone verification flow", () => {
     // as store-level testing elsewhere in this codebase) to get a known
     // code, since sendSms() itself is never exercised live in tests.
     const code = "123456";
-    const phoneEnc = await seedEncryptedPhone("+15551234567");
-    await store.createPhoneVerification(
-      env.DB,
-      store.normalizeEmail(email),
-      phoneEnc.ciphertextBase64,
-      phoneEnc.ivBase64,
-      await store.hashToken(code),
-      "sms-consent-2026-08-09",
-      "203.0.113.99"
-    );
+    await store.createPhoneVerification(env.DB, store.normalizeEmail(email), "+15551234567", await store.hashToken(code), "sms-consent-2026-08-09", "203.0.113.99");
 
-    const confirmResp = await workerFetch(
-      new Request(`${BASE}/subscriber/phone/confirm-verification`, {
-        method: "POST",
-        headers: { "content-type": "application/json", Cookie: cookie },
-        body: JSON.stringify({ code }),
-      }),
-      { TOTP_ENCRYPTION_KEY: KEY }
-    );
+    const confirmResp = await SELF.fetch(`${BASE}/subscriber/phone/confirm-verification`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Cookie: cookie },
+      body: JSON.stringify({ code }),
+    });
     expect(confirmResp.status).toBe(200);
     const confirmBody = (await confirmResp.json()) as { sms_opted_in: boolean; phone_last4: string };
     expect(confirmBody.sms_opted_in).toBe(true);
@@ -371,10 +304,7 @@ describe("phone verification flow", () => {
 
     const row = await store.listSubscriberLicenses(env.DB, email);
     expect(row[0]?.sms_opted_in).toBe(1);
-    expect(row[0]?.phone_number).not.toBeNull();
-    expect(row[0]?.phone_number).not.toBe("+15551234567"); // ciphertext, never the plaintext
-    expect(await decryptSecretAesGcm(row[0]!.phone_number!, row[0]!.phone_number_iv!, SMS_PHONE_NUMBER_AAD, KEY)).toBe("+15551234567");
-    expect(row[0]?.phone_number_hash).toBe(await seedPhoneHash("+15551234567"));
+    expect(row[0]?.phone_number).toBe("+15551234567");
     // AuditLab SMS-3: the actual TCPA consent record -- captured at
     // start-verification time, carried through confirm.
     expect(row[0]?.sms_consent_version).toBe("sms-consent-2026-08-09");
@@ -390,8 +320,7 @@ describe("phone verification flow", () => {
     // Phone number and consent timestamp are KEPT -- compliance audit
     // trail, not erased on opt-out (store.clearSubscriberSmsOptIn()'s own
     // docstring).
-    expect(rowAfter[0]?.phone_number).not.toBeNull();
-    expect(await decryptSecretAesGcm(rowAfter[0]!.phone_number!, rowAfter[0]!.phone_number_iv!, SMS_PHONE_NUMBER_AAD, KEY)).toBe("+15551234567");
+    expect(rowAfter[0]?.phone_number).toBe("+15551234567");
     expect(rowAfter[0]?.sms_opted_in_at).not.toBeNull();
     // Consent record survives opt-out too -- same audit-trail reasoning.
     expect(rowAfter[0]?.sms_consent_version).toBe("sms-consent-2026-08-09");
@@ -401,42 +330,28 @@ describe("phone verification flow", () => {
     const email = `smsverif-wrongcode-${Date.now()}@example.com`;
     await seedConfirmedSubscriber("ohio", "2027-01-01", email);
     const cookie = await subscriberCookie(email);
-    const phoneEnc = await seedEncryptedPhone("+15551234567");
-    await store.createPhoneVerification(
-      env.DB,
-      store.normalizeEmail(email),
-      phoneEnc.ciphertextBase64,
-      phoneEnc.ivBase64,
-      await store.hashToken("111111"),
-      "sms-consent-2026-08-09",
-      "203.0.113.99"
-    );
+    await store.createPhoneVerification(env.DB, store.normalizeEmail(email), "+15551234567", await store.hashToken("111111"), "sms-consent-2026-08-09", "203.0.113.99");
 
-    const wrongResp = await workerFetch(
-      new Request(`${BASE}/subscriber/phone/confirm-verification`, {
-        method: "POST",
-        headers: { "content-type": "application/json", Cookie: cookie },
-        body: JSON.stringify({ code: "999999" }),
-      }),
-      { TOTP_ENCRYPTION_KEY: KEY }
-    );
+    const wrongResp = await SELF.fetch(`${BASE}/subscriber/phone/confirm-verification`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Cookie: cookie },
+      body: JSON.stringify({ code: "999999" }),
+    });
     expect(wrongResp.status).toBe(400);
 
     // Directly exercise the expiry path at the store level (no clock
     // injection on the HTTP route) -- same store-level testing convention
     // used elsewhere for time-boundary cases in this codebase.
     const expiredEmail = `smsverif-expired-${Date.now()}@example.com`;
-    const expiredPhoneEnc = await seedEncryptedPhone("+15551234567");
     await env.DB
       .prepare(
-        `INSERT INTO subscriber_phone_verifications (id, subscriber_email_normalized, phone_number, phone_number_iv, code_hash, created_at, expires_at, used_at)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,NULL)`
+        `INSERT INTO subscriber_phone_verifications (id, subscriber_email_normalized, phone_number, code_hash, created_at, expires_at, used_at)
+         VALUES (?1,?2,?3,?4,?5,?6,NULL)`
       )
       .bind(
         store.newToken(),
         store.normalizeEmail(expiredEmail),
-        expiredPhoneEnc.ciphertextBase64,
-        expiredPhoneEnc.ivBase64,
+        "+15551234567",
         await store.hashToken("222222"),
         new Date(Date.now() - 20 * 60_000).toISOString(),
         new Date(Date.now() - 10 * 60_000).toISOString() // expired 10 minutes ago
@@ -460,7 +375,7 @@ describe("POST /sms/inbound", () => {
   it("STOP with a valid signature clears sms_opted_in for every row sharing that phone number", async () => {
     const email = `smsinbound-stop-${Date.now()}@example.com`;
     await seedConfirmedSubscriber("ohio", "2027-01-01", email);
-    await seedOptedInPhone(email, "+15557654321");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15557654321", "sms-consent-2026-08-09", "203.0.113.99");
 
     const url = `${BASE}/api/sms/inbound`;
     const params = { From: "+15557654321", Body: "STOP" };
@@ -473,7 +388,7 @@ describe("POST /sms/inbound", () => {
         headers: { "content-type": "application/x-www-form-urlencoded", "X-Twilio-Signature": sig },
         body: new URLSearchParams(params).toString(),
       }),
-      { ...env, TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TOTP_ENCRYPTION_KEY: KEY } as never,
+      { ...env, TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN } as never,
       { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
     );
     expect(resp.status).toBe(200);
@@ -484,7 +399,7 @@ describe("POST /sms/inbound", () => {
   it("an invalid signature does NOT clear opt-in", async () => {
     const email = `smsinbound-badsig-${Date.now()}@example.com`;
     await seedConfirmedSubscriber("ohio", "2027-01-01", email);
-    await seedOptedInPhone(email, "+15557654322");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15557654322", "sms-consent-2026-08-09", "203.0.113.99");
 
     const url = `${BASE}/api/sms/inbound`;
     const params = { From: "+15557654322", Body: "STOP" };
@@ -496,7 +411,7 @@ describe("POST /sms/inbound", () => {
         headers: { "content-type": "application/x-www-form-urlencoded", "X-Twilio-Signature": "forged-signature" },
         body: new URLSearchParams(params).toString(),
       }),
-      { ...env, TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TOTP_ENCRYPTION_KEY: KEY } as never,
+      { ...env, TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN } as never,
       { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
     );
     expect(resp.status).toBe(200); // always 200 TwiML, but the mutation must not have happened
@@ -507,7 +422,7 @@ describe("POST /sms/inbound", () => {
   it("a non-STOP keyword (e.g. an ordinary reply) does not clear opt-in", async () => {
     const email = `smsinbound-noop-${Date.now()}@example.com`;
     await seedConfirmedSubscriber("ohio", "2027-01-01", email);
-    await seedOptedInPhone(email, "+15557654323");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15557654323", "sms-consent-2026-08-09", "203.0.113.99");
 
     const url = `${BASE}/api/sms/inbound`;
     const params = { From: "+15557654323", Body: "thanks!" };
@@ -520,7 +435,7 @@ describe("POST /sms/inbound", () => {
         headers: { "content-type": "application/x-www-form-urlencoded", "X-Twilio-Signature": sig },
         body: new URLSearchParams(params).toString(),
       }),
-      { ...env, TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN, TOTP_ENCRYPTION_KEY: KEY } as never,
+      { ...env, TWILIO_AUTH_TOKEN: FAKE_AUTH_TOKEN } as never,
       { waitUntil() {}, passThroughOnException() {}, props: {} } as unknown as ExecutionContext
     );
     const row = await store.listSubscriberLicenses(env.DB, email);
@@ -537,10 +452,10 @@ describe("runSmsAlertPass", () => {
     const safeAsOf = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate(), 18, 0, 0));
     const email = `smse2e-basic-${Date.now()}@example.com`;
     const sub = await seedConfirmedSubscriber("ohio", isoDaysFromUtcMidnight(safeAsOf, 30), email);
-    await seedOptedInPhone(email, "+15551110001");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110001", "sms-consent-2026-08-09", "203.0.113.99");
 
     const sent: { to: string; body: string }[] = [];
-    const summary = await runSmsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, {
+    const summary = await runSmsAlertPass(env, {
       asOf: safeAsOf,
       send: async (to, body) => {
         sent.push({ to, body });
@@ -562,10 +477,10 @@ describe("runSmsAlertPass", () => {
     const unsafeAsOf = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate(), 12, 0, 0)); // 4am PT
     const email = `smse2e-quiethours-${Date.now()}@example.com`;
     await seedConfirmedSubscriber("california", isoDaysFromUtcMidnight(unsafeAsOf, 30), email);
-    await seedOptedInPhone(email, "+15551110002");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110002", "sms-consent-2026-08-09", "203.0.113.99");
 
     let sends = 0;
-    const summary = await runSmsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf: unsafeAsOf, send: async () => { sends += 1; return true; } });
+    const summary = await runSmsAlertPass(env, { asOf: unsafeAsOf, send: async () => { sends += 1; return true; } });
     expect(sends).toBe(0);
     expect(summary.skippedQuietHours).toBeGreaterThan(0);
   });
@@ -576,13 +491,13 @@ describe("runSmsAlertPass", () => {
     const safeAsOf = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate(), 18, 0, 0));
     const email = `smse2e-independent-${Date.now()}@example.com`;
     const sub = await seedConfirmedSubscriber("ohio", isoDaysFromUtcMidnight(safeAsOf, 30), email);
-    await seedOptedInPhone(email, "+15551110003");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110003", "sms-consent-2026-08-09", "203.0.113.99");
     await store.claimReminderThreshold(env.DB, sub.id, "[]", 30);
     await store.claimSlackThresholdNotification(env.DB, sub.id, 30);
     await store.claimTeamsThresholdNotification(env.DB, sub.id, 30);
 
     let sends = 0;
-    await runSmsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
+    await runSmsAlertPass(env, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
     expect(sends).toBe(1);
   });
 
@@ -592,11 +507,11 @@ describe("runSmsAlertPass", () => {
     const safeAsOf = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate(), 18, 0, 0));
     const email = `smse2e-race-${Date.now()}@example.com`;
     const sub = await seedConfirmedSubscriber("ohio", isoDaysFromUtcMidnight(safeAsOf, 30), email);
-    await seedOptedInPhone(email, "+15551110004");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110004", "sms-consent-2026-08-09", "203.0.113.99");
     await store.claimSmsThresholdNotification(env.DB, sub.id, 30);
 
     let sends = 0;
-    const summary = await runSmsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
+    const summary = await runSmsAlertPass(env, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
     expect(sends).toBe(0);
     expect(summary.itemsClaimed).toBe(0);
   });
@@ -618,10 +533,10 @@ describe("runSmsAlertPass", () => {
       firmId,
       skipConfirmation: true,
     });
-    await seedOptedInPhone(email, "+15551110005");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110005", "sms-consent-2026-08-09", "203.0.113.99");
 
     let sends = 0;
-    const summary = await runSmsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
+    const summary = await runSmsAlertPass(env, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
     expect(sends).toBe(0);
     expect(summary.sent).toBe(0);
     const claimedAfter = await store.claimSmsThresholdNotification(env.DB, sub.id, 30);
@@ -637,11 +552,11 @@ describe("runSmsAlertPass", () => {
 
     const email = `smse2e-cap-${Date.now()}@example.com`;
     const sub = await seedConfirmedSubscriber("ohio", isoDaysFromUtcMidnight(safeAsOf, 30), email);
-    await seedOptedInPhone(email, "+15551110006");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110006", "sms-consent-2026-08-09", "203.0.113.99");
 
     let sends = 0;
     const summary = await runSmsAlertPass(
-      { ...env, SMS_DAILY_SEND_CAP: "1", TOTP_ENCRYPTION_KEY: KEY },
+      { ...env, SMS_DAILY_SEND_CAP: "1" },
       { asOf: safeAsOf, send: async () => { sends += 1; return true; } }
     );
     expect(sends).toBe(0);
@@ -659,7 +574,7 @@ describe("runSmsAlertPass", () => {
     // No setSubscriberSmsOptedIn() call.
 
     let sends = 0;
-    await runSmsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
+    await runSmsAlertPass(env, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
     expect(sends).toBe(0);
   });
 });
@@ -679,10 +594,10 @@ describe("runSmsAlertPass -- roadmap #151 value-line gate", () => {
     const safeAsOf = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate(), 18, 0, 0));
     const email = `smsgate-firmless-${Date.now()}@example.com`;
     await seedConfirmedSubscriber("ohio", isoDaysFromUtcMidnight(safeAsOf, 30), email);
-    await seedOptedInPhone(email, "+15551110010");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110010", "sms-consent-2026-08-09", "203.0.113.99");
 
     let sends = 0;
-    const summary = await runSmsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
+    const summary = await runSmsAlertPass(env, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
     expect(sends).toBe(1);
     expect(summary.sent).toBe(1);
   });
@@ -703,10 +618,10 @@ describe("runSmsAlertPass -- roadmap #151 value-line gate", () => {
       firmId,
       skipConfirmation: true,
     });
-    await seedOptedInPhone(email, "+15551110011");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110011", "sms-consent-2026-08-09", "203.0.113.99");
 
     let sends = 0;
-    const summary = await runSmsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
+    const summary = await runSmsAlertPass(env, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
     expect(sends).toBe(0);
     expect(summary.errors.some((e) => e.error.includes("value-line access"))).toBe(true);
   });
@@ -728,10 +643,10 @@ describe("runSmsAlertPass -- roadmap #151 value-line gate", () => {
       firmId,
       skipConfirmation: true,
     });
-    await seedOptedInPhone(email, "+15551110012");
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+15551110012", "sms-consent-2026-08-09", "203.0.113.99");
 
     let sends = 0;
-    const summary = await runSmsAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
+    const summary = await runSmsAlertPass(env, { asOf: safeAsOf, send: async () => { sends += 1; return true; } });
     expect(sends).toBe(1);
     expect(summary.sent).toBe(1);
   });

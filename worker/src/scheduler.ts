@@ -77,7 +77,7 @@ import {
 import { sendToSlack } from "./slack";
 import { sendToTeams } from "./teams";
 import { sendSms, isWithinSmsQuietHours } from "./sms";
-import { decryptSecretAesGcm, SMS_PHONE_NUMBER_AAD } from "./totp";
+import { decryptSecretAesGcm } from "./totp";
 import { hasValueLineAccess } from "./entitlements";
 import cpaDataForDripCourse from "./cpa_deadlines.json";
 import regChangeEventsData from "./reg_change_events.json";
@@ -1715,23 +1715,12 @@ export async function runSmsAlertPass(env: Env, opts: RunSmsAlertOptions = {}): 
       }
 
       const body = smsBodyFor(stateName, fmtDate(deadline), daysRemaining);
-      // AuditLab SMS-2 (2026-08-20): decrypt right before use, same
-      // "never held in a wider-scoped variable" posture SLACK-1 already
-      // established just above for slack_webhook_url. A decrypt failure
-      // (missing TOTP_ENCRYPTION_KEY, tampered ciphertext, or a
-      // pre-migration-0068 plaintext value that no longer parses as
-      // ciphertext) fails closed exactly like a failed send -- the claim
-      // is released, retried next pass once/if the key is restored.
-      const phoneNumber =
-        sub.phone_number_iv && env.TOTP_ENCRYPTION_KEY
-          ? await decryptSecretAesGcm(sub.phone_number, sub.phone_number_iv, SMS_PHONE_NUMBER_AAD, env.TOTP_ENCRYPTION_KEY)
-          : null;
-      const ok = phoneNumber ? await send(phoneNumber, body) : false;
+      const ok = await send(sub.phone_number, body);
       if (ok) {
         summary.sent += 1;
       } else {
         await store.unclaimSmsThresholdNotification(env.DB, sub.id, threshold);
-        summary.errors.push({ subscriber_id: sub.id, error: phoneNumber ? "send returned false" : "failed to decrypt phone number" });
+        summary.errors.push({ subscriber_id: sub.id, error: "send returned false" });
       }
     } catch (err) {
       if (claimedThreshold) {

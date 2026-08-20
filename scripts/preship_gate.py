@@ -946,11 +946,21 @@ def check_block_claims_corroborated(repo_root: Path) -> list[str]:
                 except Exception as e:  # network hiccup at gate time: warn, don't false-fail
                     verdicts[u] = "CHECK_ERROR(%s)" % type(e).__name__
             # The claim is corroborated if at least one of the record's own URLs
-            # is genuinely BLOCKED (a real status code). If every URL fetches
-            # with text, the prose asserts a block that does not exist. Anything
-            # inconclusive suppresses the verdict entirely rather than deciding
-            # it in either direction.
-            if not any(v == "BLOCKED" for v in verdicts.values()) and \
+            # is genuinely BLOCKED, or EXTRACTION_FAILED -- STALE-9's residual
+            # (AuditLab, 2026-08-20): EXTRACTION_FAILED means real bytes came
+            # back but nothing readable did (an SPA shell, a PDF our ladder
+            # can't parse) -- source_check.py's own docstring calls this "OUR
+            # failure," never a host block, but from THIS gate's perspective a
+            # record honestly saying "renders only in a browser" or "requires a
+            # browser" about a URL that source_check independently confirms is
+            # unreadable is telling the truth, not asserting a block that
+            # doesn't exist. Excluding it here was the same harm SRC-9 fixed
+            # one classification over: a true caveat pressured into deletion
+            # because the corroboration path was too narrow. If every URL
+            # fetches with genuinely readable text, the prose asserts a
+            # problem that does not exist. Anything inconclusive suppresses
+            # the verdict entirely rather than deciding it in either direction.
+            if not any(v in ("BLOCKED", "EXTRACTION_FAILED") for v in verdicts.values()) and \
                not any(v.startswith("CHECK_ERROR") for v in verdicts.values()) and \
                not any(v.startswith("INCONCLUSIVE") for v in verdicts.values()):
                 errors.append(

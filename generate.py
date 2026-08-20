@@ -11086,11 +11086,30 @@ function drRenderTable() {
 // browser, not firm data another admin or device needs to see, so no new
 // backend endpoint. A malformed/cleared localStorage value degrades to "no
 // saved views" rather than breaking the roster itself.
-var DR_SAVED_VIEWS_KEY = 'dr_saved_roster_views';
+//
+// AuditLab VIEW-1 (2026-08-08, fixed 2026-08-20): the key above was a bare
+// constant -- unnamespaced by firm or member -- despite this comment's own
+// stated intent ("not firm data another admin ... needs to see"). Saved
+// views carry office-tag labels and roster search terms (a search term can
+// be a colleague's name), and rendered for whoever signed into THIS
+// browser next: across the role boundary within one firm, a different
+// firm entirely on a shared machine, or demo -> real account. No server-
+// side form submit does JS teardown on logout, so a namespace is the fix,
+// not a logout hook -- drMemberId (roadmap #37/#151, set from the
+// dashboard's own session-data fetch, well before any saved-view UI can be
+// reached) is a real per-person-per-firm-membership id, so scoping the key
+// to it makes one member's views structurally invisible to the next
+// session that loads this browser, regardless of who logs out or how.
+// Old unnamespaced entries are simply orphaned, not migrated -- there is
+// no way to know which past member wrote them, and silently attributing
+// them to whoever loads the page next is the exact bug being fixed.
+function drSavedViewsKey() {
+  return 'dr_saved_roster_views:' + (drMemberId || 'anon');
+}
 
 function drGetSavedViews() {
   try {
-    var raw = window.localStorage.getItem(DR_SAVED_VIEWS_KEY);
+    var raw = window.localStorage.getItem(drSavedViewsKey());
     var parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
@@ -11100,7 +11119,7 @@ function drGetSavedViews() {
 
 function drSetSavedViews(views) {
   try {
-    window.localStorage.setItem(DR_SAVED_VIEWS_KEY, JSON.stringify(views));
+    window.localStorage.setItem(drSavedViewsKey(), JSON.stringify(views));
   } catch (e) {
     // Private-browsing/storage-full -- the view still applied for this
     // session, it just won't persist. Not worth surfacing as an error for
@@ -14993,6 +15012,13 @@ function drLoadLicenses() {
       };
       drRole = data.role || 'partner';
       drMemberId = data.member_id || null;
+      // VIEW-1: whatever the saved-views UI rendered before this fetch
+      // resolved (page init runs before this async response lands) was
+      // scoped to the 'anon' bucket, not this member's real one -- re-render
+      // now that the real drMemberId is known, so the list a user actually
+      // sees is never briefly (or, if they never touch the panel, silently)
+      // the wrong member's key.
+      drRenderSavedViewsList();
       drRenderFirmName(data.firm_name);
       drRenderCurrentEmail(data.admin_email);
       drRenderStalenessBanner(data.data_as_of, data.data_stale);

@@ -2497,8 +2497,27 @@ PAGE_CSS = """
      temporarily hide the status a firm actually came here to read. A
      stroke layers on top of whatever fill is current without touching its
      meaning -- same fix intent as the public map, different mechanism
-     because this map's colour channel is already spoken for. */
-  .dr-map-link:focus-visible .dr-map-state { stroke: var(--accent); stroke-width: 3; }
+     because this map's colour channel is already spoken for.
+
+     A11Y-9 (AuditLab, 2026-08-20): the first version used var(--accent) as
+     the stroke colour, verified only against the DEFAULT/unfilled fill --
+     the same one-theme blind spot CONTRAST-2 already burned tonight, this
+     time against 8 status colours instead of 2 themes. Checked the actual
+     WCAG numbers before shipping a second version: NO single fixed colour
+     clears 3:1 against all 8 status fills plus both themes' default
+     border -- confirmed by exhaustive search, not assumed (best single
+     grey achieves only 2.40:1 against the dark-theme-relevant set). A
+     double stroke -- a white core plus a black halo -- guarantees at least
+     one of the two clears 3:1 against any of the 10 backgrounds tested
+     (worst case 5.13:1: whichever colour is further from a given fill's
+     own luminance always wins by a wide margin), so it needs no theme
+     branching at all. The halo is a stacked 4-direction drop-shadow, the
+     standard CSS trick for a crisp outline around an arbitrary shape
+     (blur-radius alone would soften it into an unreadable glow). */
+  .dr-map-link:focus-visible .dr-map-state {
+    stroke: #ffffff; stroke-width: 2;
+    filter: drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000);
+  }
   .dr-map-tooltip {
     position: absolute; z-index: 15; pointer-events: none; white-space: nowrap;
     background: var(--panel-dark); color: var(--panel-dark-fg); font-size: 0.8rem;

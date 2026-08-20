@@ -532,6 +532,47 @@ def check_cpe_hours_currency(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_rule_change_monitoring_currency(repo_root: Path) -> list[str]:
+    """MON-3 (AuditLab, 2026-08-20, orchestrator's refined ruling): 17 days
+    of real staleness on /rule-changes/'s "watching ... daily" claim turned
+    out to be a missing sync step, not a dead monitor -- DiffLab's own
+    capture cadence never stopped (20/20 cycles). The original ruling
+    against hard-gating this ("depends on another team's cron, would block
+    unrelated fixes hostage to their uptime") no longer applies to the
+    ACTUAL failure mode: the sync step (scripts/sync_rule_change_coverage_stats.py)
+    silently not running is fixable from inside this repo in minutes -- the
+    same bar every other hard gate here already uses (BADGE-1's own
+    promotion of cpe_hours_staleness_check.py is the direct precedent).
+    DiffLab's real uptime still isn't checkable from here and stays outside
+    this gate's scope entirely -- this only ever asks "is the LOCAL file
+    stale," the same question the advisory always asked; only the severity
+    changed."""
+    sys.path.insert(0, str(repo_root / "scripts"))
+    try:
+        import rule_change_monitoring_staleness_check as rcmsc
+    except ImportError:
+        return []
+    result = rcmsc.collect_staleness(repo_root)
+    status = result["status"]
+    if status == "ok":
+        return []
+    if status == "no_data_file":
+        return []  # dataset genuinely absent in this checkout -- not this gate's concern
+    if status == "missing":
+        return ["[MON3] data/rule_change_coverage_stats.json has no last_checked_at at all -- "
+                "run scripts/sync_rule_change_coverage_stats.py"]
+    if status == "unparseable":
+        return [f"[MON3] data/rule_change_coverage_stats.json's last_checked_at ({result['raw']!r}) "
+                f"is unparseable -- re-run scripts/sync_rule_change_coverage_stats.py"]
+    # status == "stale"
+    return [
+        f"[MON3] rule_change_coverage_stats.json is {result['age_hours']:.1f}h old, past the "
+        f"{rcmsc.STALENESS_THRESHOLD_HOURS}h bar -- /rule-changes/ and the homepage hero strip are "
+        f"asserting \"{result['cadence']}\" against a stale capture. Run "
+        f"scripts/sync_rule_change_coverage_stats.py to pull DiffLab's current output before shipping."
+    ]
+
+
 def check_fee_basis_supported(repo_root: Path) -> list[str]:
     """fee_basis='codified' must carry a citation_url; 'board_schedule' must
     carry a citation_url or source_url. 'unverifiable' is unrestricted -- that
@@ -2238,6 +2279,7 @@ def main():
     all_errors += check_data_manifest_consistency(data_path, docs_dir)
     all_errors += check_deadline_currency(data_path)
     all_errors += check_cpe_hours_currency(repo_root)
+    all_errors += check_rule_change_monitoring_currency(repo_root)
     all_errors += check_reinstatement_currency(repo_root)
     all_errors += check_stale_thresholds_unified(html_files)
     all_errors += check_derived_fee_consistency(repo_root)

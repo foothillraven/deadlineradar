@@ -6245,10 +6245,19 @@ _HERO_REGION_JS = """
   }
   if (!defaultCard && cards.length) defaultCard = cards[0];
 
+  // AuditLab A11Y-11 (MEDIUM, 2026-08-20): opacity:0 hides a card visually
+  // but leaves it fully keyboard-focusable -- unlike display:none or
+  // visibility:hidden, it never leaves the tab order. pointer-events:none
+  // (in the CSS) already blocks mouse/touch on inactive cards; `inert`
+  // closes the same gap for keyboard/AT users in one attribute, removing
+  // every inactive card's citation link from both the tab order and the
+  // accessibility tree. Toggled here, the single place every card switch
+  // in this file goes through, rather than at each call site.
   function activateCard(card) {
-    if (!card || card.classList.contains('is-active')) return;
-    for (var m = 0; m < cards.length; m++) cards[m].classList.remove('is-active');
+    if (!card) return;
+    for (var m = 0; m < cards.length; m++) { cards[m].classList.remove('is-active'); cards[m].inert = true; }
     card.classList.add('is-active');
+    card.inert = false;
   }
 
   // Roadmap (2026-08-13, Devin direct ask): the search box should feel live,
@@ -6317,8 +6326,12 @@ _HERO_REGION_JS = """
   }) : [];
   var chosenFrom = matches.length ? matches : pool;
   var chosen = chosenFrom[Math.floor(Math.random() * chosenFrom.length)];
-  pool.forEach(function(c) { c.classList.remove('is-active'); });
-  chosen.classList.add('is-active');
+  // A11Y-11: routed through activateCard() (not a second direct class-list
+  // toggle) so this site can't independently drift out of sync with the
+  // inert-toggling the other switch site already does -- same "one place
+  // to change, not two to keep matched" reasoning as everywhere else this
+  // function is called from.
+  activateCard(chosen);
   defaultCard = chosen; // the typing-preview's revert target follows the real pick, not the pre-tz placeholder
 })();
 """
@@ -6775,10 +6788,19 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
         for i, r in enumerate(rotation_pool):
             d = date.fromisoformat(r["next_deadline_computed"])
             active_class = " is-active" if i == 0 else ""
+            # A11Y-11 (AuditLab, 2026-08-20): opacity:0 (the CSS state every
+            # non-active card starts in) hides a card visually but never
+            # removes it from the tab order -- unlike display:none or
+            # visibility:hidden. Nine invisible citation links were reachable
+            # by keyboard before a visible one. `inert` removes an inactive
+            # card from both the tab order and the accessibility tree from
+            # first paint; _HERO_REGION_JS's activateCard() keeps it in sync
+            # whenever the visible card changes afterward.
+            inert_attr = "" if i == 0 else " inert"
             hfc_verified_text = "Confirmed via official records" if _is_operational_record(r) else "Confirmed at source"
             abbr = _STATE_ABBR.get(r["state"], "")
             mono = f'<span class="hfc-monogram" aria-hidden="true">{esc(abbr)}</span>' if abbr else ""
-            hfc_cards.append(f"""<div class="hfc-card{active_class}" data-hfc-state="{esc(r['state'])}">
+            hfc_cards.append(f"""<div class="hfc-card{active_class}"{inert_attr} data-hfc-state="{esc(r['state'])}">
   <div class="hfc-top">
     <div class="hfc-state-group">
       {mono}

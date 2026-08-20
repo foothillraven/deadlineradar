@@ -2,7 +2,8 @@
  * Static .ics export for a firm's roster (2026-08-06, Devin's request off
  * the new Calendar feature -- "can I get these into my own calendar app?").
  * Deliberately a one-time download, not a live webcal:// subscription feed:
- * PRO_TIER_SPEC.md already scoped that as a bigger, deliberately-deferred
+ * PRO_TIER_SPEC.md (now in the private deadlineradar-strategy repo) already scoped that as a
+ * bigger, deliberately-deferred
  * integration surface (calendar apps can't send a session cookie, so a live
  * feed needs its own unauthenticated-but-token-scoped endpoint). Hand-rolled,
  * zero runtime dependency -- matches this codebase's own convention

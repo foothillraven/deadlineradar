@@ -176,7 +176,8 @@ export interface Env {
    * values, never committed. During Gate 1 these are TEST-mode values
    * (`sk_test_...` / a `whsec_...` from a test-mode webhook endpoint);
    * swapping to live values at Gate 2 is a pure secret rotation, zero code
-   * diff, by design (PRO_TIER_SPEC / the paid-tiers plan).
+   * diff, by design (PRO_TIER_SPEC.md, now in the private deadlineradar-strategy repo, has the
+   * paid-tiers plan).
    *
    * The STRIPE_PRICE_* values are Stripe Price ids, not secrets (Stripe
    * price ids are safe to expose client-side), but are still env-sourced

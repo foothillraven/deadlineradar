@@ -224,6 +224,8 @@ import {
   decryptTotpSecret,
   encryptSecretAesGcm,
   decryptSecretAesGcm,
+  hmacBlindIndex,
+  SMS_PHONE_NUMBER_AAD,
   generateBackupCodes,
   hashBackupCode,
 } from "./totp";
@@ -4427,6 +4429,12 @@ async function handleSubscriberPhoneStartVerification(request: Request, env: Env
   if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN || !env.TWILIO_FROM_NUMBER) {
     return jsonResponse(503, { error: "Text reminders aren't available yet. Please check back soon." });
   }
+  // AuditLab SMS-2 (2026-08-20): phone_number is now AES-GCM encrypted
+  // at rest (migration 0068), same key as 2FA/Slack -- if it's unset,
+  // refuse the whole flow rather than fall back to storing plaintext.
+  if (!env.TOTP_ENCRYPTION_KEY) {
+    return jsonResponse(503, { error: "Text reminders aren't available yet. Please check back soon." });
+  }
 
   if (!originAllowed(request, env)) {
     return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
@@ -4487,7 +4495,22 @@ async function handleSubscriberPhoneStartVerification(request: Request, env: Env
   }
 
   const code = generateVerificationCode();
-  await store.createPhoneVerification(env.DB, session.emailNormalized, phoneNumberRaw, await store.hashToken(code), consentVersion, clientIp(request));
+  // SMS_PHONE_NUMBER_AAD, not session.emailNormalized -- see that
+  // constant's own docstring in totp.ts for why email (mutable) can't be
+  // the AAD here. Same context is reused for the persistent subscribers
+  // row below, so this ciphertext can be passed straight through by
+  // handleSubscriberPhoneConfirmVerification() without a decrypt/
+  // re-encrypt round-trip.
+  const phoneEnc = await encryptSecretAesGcm(phoneNumberRaw, SMS_PHONE_NUMBER_AAD, env.TOTP_ENCRYPTION_KEY);
+  await store.createPhoneVerification(
+    env.DB,
+    session.emailNormalized,
+    phoneEnc.ciphertextBase64,
+    phoneEnc.ivBase64,
+    await store.hashToken(code),
+    consentVersion,
+    clientIp(request)
+  );
 
   const sent = await sendSms(
     env.TWILIO_ACCOUNT_SID,
@@ -4512,6 +4535,12 @@ async function handleSubscriberPhoneStartVerification(request: Request, env: Env
 async function handleSubscriberPhoneConfirmVerification(request: Request, env: Env): Promise<Response> {
   const session = await requireSubscriberSession(request, env);
   if (session instanceof Response) return session;
+
+  // AuditLab SMS-2 (2026-08-20): same as start-verification -- refuse
+  // rather than store/handle a number this Worker can't encrypt/decrypt.
+  if (!env.TOTP_ENCRYPTION_KEY) {
+    return jsonResponse(503, { error: "Text reminders aren't available yet. Please check back soon." });
+  }
 
   if (!originAllowed(request, env)) {
     return jsonResponse(400, { error: "That request couldn't be completed. Please try again from the Deadline-Radar site." });
@@ -4546,10 +4575,34 @@ async function handleSubscriberPhoneConfirmVerification(request: Request, env: E
     return jsonResponse(400, { error: "That code is incorrect or has expired. Please request a new one." });
   }
 
+  // Decrypt once: needed for phone_last4 in the response below and for
+  // the deterministic blind-index hash the Twilio STOP webhook looks
+  // this row up by (AuditLab SMS-2). The ciphertext itself is passed
+  // straight through to setSubscriberSmsOptedIn() unchanged -- both use
+  // SMS_PHONE_NUMBER_AAD, so no re-encryption is needed.
+  const phoneNumberPlain = await decryptSecretAesGcm(consumed.phoneNumberEncrypted, consumed.phoneNumberIv, SMS_PHONE_NUMBER_AAD, env.TOTP_ENCRYPTION_KEY);
+  if (!phoneNumberPlain) {
+    // Ciphertext/IV/AAD mismatch -- this is OUR tooling failing to read
+    // back what we just wrote moments ago, never a real "wrong code"
+    // case (consumePhoneVerification() already validated the code).
+    // Fail closed rather than opt someone in with a number we can't
+    // confirm, same "never guess" posture as maskPhoneLast4().
+    return jsonResponse(500, { error: "Something went wrong confirming your number. Please try again." });
+  }
+  const phoneNumberHash = await hmacBlindIndex(phoneNumberPlain, env.TOTP_ENCRYPTION_KEY);
+
   // AuditLab SMS-3: the consent record captured at start-verification time
   // rides through here unchanged -- never re-derived, never defaulted.
-  await store.setSubscriberSmsOptedIn(env.DB, session.emailNormalized, consumed.phoneNumber, consumed.consentVersion, consumed.consentIp);
-  return jsonResponse(200, { sms_opted_in: true, phone_last4: consumed.phoneNumber.slice(-4) });
+  await store.setSubscriberSmsOptedIn(
+    env.DB,
+    session.emailNormalized,
+    consumed.phoneNumberEncrypted,
+    consumed.phoneNumberIv,
+    phoneNumberHash,
+    consumed.consentVersion,
+    consumed.consentIp
+  );
+  return jsonResponse(200, { sms_opted_in: true, phone_last4: phoneNumberPlain.slice(-4) });
 }
 
 /** POST /subscriber/phone/opt-out -- self-service STOP-equivalent, same
@@ -4612,8 +4665,17 @@ async function handleSmsInbound(request: Request, env: Env): Promise<Response> {
   const from = params.From;
   const bodyText = (params.Body || "").trim().toUpperCase();
   const STOP_KEYWORDS = new Set(["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"]);
-  if (from && STOP_KEYWORDS.has(bodyText)) {
-    await store.clearSubscriberSmsOptInByPhoneNumber(env.DB, from);
+  // AuditLab SMS-2 (2026-08-20): phone_number is now stored encrypted, so
+  // this webhook -- which identifies the sender ONLY by phone number, no
+  // other key -- looks the row up by the deterministic HMAC blind index
+  // (phone_number_hash) instead of an equality match on the (now
+  // ciphertext) phone_number column itself. Same TOTP_ENCRYPTION_KEY as
+  // everywhere else; if it's unset, this specific honor-the-STOP path
+  // can't run -- same graceful no-op posture as the TWILIO_AUTH_TOKEN
+  // check above, not a 500, since Twilio still needs a valid TwiML reply.
+  if (from && STOP_KEYWORDS.has(bodyText) && env.TOTP_ENCRYPTION_KEY) {
+    const phoneNumberHash = await hmacBlindIndex(from, env.TOTP_ENCRYPTION_KEY);
+    await store.clearSubscriberSmsOptInByPhoneNumber(env.DB, phoneNumberHash);
   }
 
   return emptyTwiml();
@@ -4852,7 +4914,16 @@ async function handleSubscriberLicensesList(request: Request, env: Env): Promise
     // Roadmap #22: same person-level posture. phone_number is MASKED --
     // last 4 digits only -- never the full number, same "never serialize
     // the sensitive value" posture as Slack/Teams' own webhook URLs.
-    phone_last4: maskPhoneLast4(rows[0]?.phone_number ?? null),
+    // AuditLab SMS-2 (2026-08-20): phone_number is now AES-GCM ciphertext,
+    // so masking requires decrypting first -- maskPhoneLast4() itself is
+    // unchanged (still never guesses), it's just fed the decrypted value.
+    phone_last4: env.TOTP_ENCRYPTION_KEY
+      ? maskPhoneLast4(
+          rows[0]?.phone_number && rows[0]?.phone_number_iv
+            ? await decryptSecretAesGcm(rows[0].phone_number, rows[0].phone_number_iv, SMS_PHONE_NUMBER_AAD, env.TOTP_ENCRYPTION_KEY)
+            : null
+        )
+      : null,
     sms_opted_in: (rows[0]?.sms_opted_in ?? 0) !== 0,
     licenses: items,
   });

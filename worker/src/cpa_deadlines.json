@@ -105,12 +105,12 @@
       "cycle_description": "Individual CPA license expires December 31 of odd-numbered years. Current cycle ends 2027-12-31.",
       "next_deadline_computed": "2027-12-31",
       "source_url": "https://gsba.georgia.gov/licensure",
-      "last_verified": "2026-08-14",
+      "last_verified": "2026-08-20",
       "wave": 1,
       "secondary_source_url": "https://rules.sos.ga.gov/GAC/20-10",
       "citation": "Ga. Comp. R. & Regs. R. 20-10-.02",
-      "citation_url": "https://rules.sos.ga.gov/gac/20-10-.02",
-      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): secondary_source_url mirror -> primary. Research agent evidence: Georgia SOS official rules site serves the full Chapter 20-10 text (curl needed a browser UA plus full browser headers; bare curl 403s, and the per-section URLs /GAC/20-10-.02 return a JS shell with no rule text, so the chapter URL is the fetchable primary). Rule 20-10-.02(1): 'All licenses to practice public accountancy in this state issued to individuals will expire on December 31 of each odd numbered year and shall be biennially renewable' -- consistent with a cycle ending 2027-12-31. Checked the board's own site (gsba.georgia.gov) for a newer publication: its Rules/Laws page links out to rules.sos.ga.gov for Chapter 20, and its 2025-08-21 notice of intent to amend Chapter 20 covers 20-3 only, not 20-10, so no board-vs-aggregator divergence here."
+      "citation_url": "https://rules.sos.ga.gov/gac/20-10",
+      "verification_history": "2026-08-14 (SRC-1 primary-source repoint): secondary_source_url mirror -> primary. Research agent evidence: Georgia SOS official rules site serves the full Chapter 20-10 text (curl needed a browser UA plus full browser headers; bare curl 403s, and the per-section URLs /GAC/20-10-.02 return a JS shell with no rule text, so the chapter URL is the fetchable primary). Rule 20-10-.02(1): 'All licenses to practice public accountancy in this state issued to individuals will expire on December 31 of each odd numbered year and shall be biennially renewable' -- consistent with a cycle ending 2027-12-31. Checked the board's own site (gsba.georgia.gov) for a newer publication: its Rules/Laws page links out to rules.sos.ga.gov for Chapter 20, and its 2025-08-21 notice of intent to amend Chapter 20 covers 20-3 only, not 20-10, so no board-vs-aggregator divergence here.\n\n2026-08-20 (SRC-3 primary-source re-check, self-directed toward Devin's \"CPA 100%\" mandate): re-verified against the Georgia Secretary of State's own compiled Department 20 rules PDF (rules.sos.ga.gov, \"current through Rules and Regulations filed through August 7, 2026\" -- fetched fresh, extracted with pypdf). Rule 20-10-.02(1) reads verbatim: 'All licenses to practice public accountancy in this state issued to individuals will expire on December 31 of each odd numbered year and shall be biennially renewable.' Matches this record exactly -- no divergence found (SRC-3's actual worry, by analogy to Chapter 20-11's known SOS-vs-Board split, does not apply here). Separately: citation_url was the per-section path (/gac/20-10-.02), which serves an empty JS shell with no rule text -- confirmed live, not assumed. The chapter-level path (/gac/20-10) is what actually renders the text and is what this and every prior verification of this record has read; repointed citation_url to it so a reader who clicks the citation sees the rule instead of a blank page."
     },
     {
       "id": "ga-firm",
@@ -122,11 +122,12 @@
       "cycle_description": "Firm licenses expire June 30 of even-numbered years. Next: 2028-06-30. Firms WITH a physical office in Georgia are governed by R. 20-7-.01(2), which sets this same June 30 expiration and requires renewal before September 30 or the license lapses. Firms WITHOUT a Georgia office (out-of-state firms practicing under Ga. Code § 43-3-16(b)(1)(C)) are governed separately by R. 20-8-.01, which sets the identical June 30 date but a different consequence for lateness (a $250 fee after June 30, unlawful to practice without renewal). Most Georgia firm licensees have an in-state office and fall under R. 20-7-.01(2); the citation below leads with that rule.",
       "next_deadline_computed": "2028-06-30",
       "source_url": "https://gsba.georgia.gov/licensure",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-20",
       "wave": 1,
       "secondary_source_url": "https://rules.sos.ga.gov/gac/20-8-.01",
       "citation": "Ga. Comp. R. & Regs. R. 20-7-.01(2) (in-state firms); R. 20-8-.01 (out-of-state firms with no Georgia office)",
-      "citation_url": "https://rules.sos.ga.gov/gac/20-7-.01"
+      "citation_url": "https://rules.sos.ga.gov/gac/20-7",
+      "verification_history": "2026-08-20 (SRC-3 primary-source re-check, self-directed toward Devin's \"CPA 100%\" mandate): re-verified against the Georgia Secretary of State's own compiled Department 20 rules PDF (rules.sos.ga.gov, \"current through Rules and Regulations filed through August 7, 2026\" -- fetched fresh, extracted with pypdf). Rule 20-7-.01 confirms firm licenses 'expire on June 30 of each even numbered year' -- matches this record's cycle_description exactly. Same citation_url defect as ga-individual: the per-section path (/gac/20-7-.01) serves an empty JS shell with no rule text; the chapter-level path (/gac/20-7) is what actually renders the text. Repointed citation_url to the working chapter URL. (20-8-.01's own per-section URL, carried as secondary_source_url, was not independently re-checked this pass -- same known SOS per-section-JS-shell pattern likely applies; flagging for a future pass rather than guessing at its fix.)"
     },
     {
       "id": "nc-all",

@@ -10971,14 +10971,32 @@ var DR_ROSTER_SORT_KEYS = {
   // Unresolved (null) deadlines sort last regardless of direction -- "no
   // known date" isn't meaningfully "earliest" or "latest," and burying it
   // at the bottom either way keeps real dates from being interrupted by it.
-  next_deadline: function(item) { return item.next_deadline || '9999-99-99'; }
+  // (Enforced explicitly in drApplyRosterSort() below -- see SORT-1.)
+  next_deadline: function(item) { return item.next_deadline || DR_ROSTER_SORT_NULL_DEADLINE; }
 };
+
+// Sentinel next_deadline() returns for an unresolved item -- kept as its own
+// constant so drApplyRosterSort() below can name it explicitly instead of
+// re-deriving "the max-value string" from the sort-key function's own body.
+var DR_ROSTER_SORT_NULL_DEADLINE = '9999-99-99';
 
 function drApplyRosterSort(items) {
   var keyFn = drRosterSortColumn && DR_ROSTER_SORT_KEYS[drRosterSortColumn];
   if (!keyFn) return items;
   return items.slice().sort(function(a, b) {
     var ka = keyFn(a), kb = keyFn(b);
+    // AuditLab SORT-1 (2026-08-08, closed 2026-08-20): DR_ROSTER_SORT_KEYS'
+    // own comment promises unresolved deadlines "sort last regardless of
+    // direction," but nothing enforced it -- the sentinel is a max-value
+    // string, so plain </> comparison put it last in ASC and FIRST in DESC
+    // (a plain direction flip reverses everything, sentinel included).
+    // Special-cased here, ahead of the generic comparison, so the promise
+    // in that comment is actually what runs.
+    if (drRosterSortColumn === 'next_deadline') {
+      var aNull = ka === DR_ROSTER_SORT_NULL_DEADLINE, bNull = kb === DR_ROSTER_SORT_NULL_DEADLINE;
+      if (aNull && !bNull) return 1;
+      if (bNull && !aNull) return -1;
+    }
     if (ka < kb) return drRosterSortDir === 'asc' ? -1 : 1;
     if (ka > kb) return drRosterSortDir === 'asc' ? 1 : -1;
     return 0;

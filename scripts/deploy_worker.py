@@ -29,16 +29,32 @@ So: deploy through this, and the marker cannot drift.
     emergencies, and deliberately skips the marker update rather than
     writing something untrue.
   * The marker is only written if wrangler actually succeeded.
+  * PRODUCTION deploys also REFUSE if any repo migration hasn't been applied
+    to the remote D1 database yet -- AuditLab DEPLOY-2 (2026-08-20): the
+    dirty-tree guard only answers "is this code committed", never "is the
+    database ready for it". A committed-but-not-yet-migrated schema change
+    (SMS-2, same day) shipped straight through that gap: the code referenced
+    columns migration 0068 was supposed to add first, but nothing checked
+    whether it actually had. Two of the three failure modes were loud (SQL
+    errors on live writes), but the reminder-send read path degraded
+    SILENTLY -- `SELECT *` doesn't error on a missing column, so it just
+    read the new field as undefined and "failed closed" for the wrong
+    reason, meaning real subscribers quietly stopped getting texted with no
+    crash to notice by. `--allow-dirty` and `--skip-migration-check` both
+    skip this (same "genuine emergency, and the marker doesn't get written"
+    posture as the dirty-tree override).
 
 Usage:
-    python3 scripts/deploy_worker.py                 # production
-    python3 scripts/deploy_worker.py --preview       # preview (no marker write)
-    python3 scripts/deploy_worker.py --allow-dirty   # emergency, no marker write
+    python3 scripts/deploy_worker.py                     # production
+    python3 scripts/deploy_worker.py --preview           # preview (no marker write)
+    python3 scripts/deploy_worker.py --allow-dirty       # emergency, no marker write
+    python3 scripts/deploy_worker.py --skip-migration-check   # emergency override only
 """
 
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
@@ -79,6 +95,33 @@ def worker_tree_dirty() -> bool:
     return bool(r.stdout.strip())
 
 
+def unapplied_migrations() -> list[str] | None:
+    """Returns the names of repo migrations not yet applied to the remote D1
+    database, or None if the check itself could not run (e.g. no network,
+    no D1 permission) -- distinct from an empty list (checked, genuinely
+    none pending). AuditLab DEPLOY-2: `wrangler d1 migrations list --remote`
+    exits 0 whether or not migrations are pending, so this parses the
+    printed table rather than the exit code -- confirmed live against both
+    states (a real pending migration, and a clean tree) before relying on
+    it. `--json` is not supported by this wrangler subcommand, so it's a
+    plain substring/regex read of the human-readable table, same
+    "best-effort, honest about it" posture as this repo's other CLI-output
+    parsers."""
+    r = run(["npx", "wrangler", "d1", "migrations", "list", "deadlineradar", "--remote"], WORKER_DIR)
+    combined = r.stdout + r.stderr
+    if "No migrations to apply" in combined:
+        return []
+    if "Migrations to be applied" not in combined:
+        # Neither expected phrase appeared -- an auth/network failure or an
+        # unrecognised wrangler output format. Fail OPEN on the check
+        # itself (can't prove anything either way) but say so loudly,
+        # same as this file's own deploy-failure guidance below: never
+        # silently assume success on an inconclusive signal.
+        return None
+    names = re.findall(r"\b(\d{4}_\S+?\.sql)\b", combined)
+    return names
+
+
 def head_commit() -> str:
     return run(["git", "rev-parse", "HEAD"], ROOT).stdout.strip()
 
@@ -87,6 +130,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Deploy the Worker and keep .last_deploy_commit honest.")
     ap.add_argument("--preview", action="store_true", help="deploy to preview (marker NOT updated)")
     ap.add_argument("--allow-dirty", action="store_true", help="deploy with uncommitted worker changes (marker NOT updated)")
+    ap.add_argument("--skip-migration-check", action="store_true", help="emergency override for the pending-migration guard")
     args = ap.parse_args()
 
     dirty = worker_tree_dirty()
@@ -96,6 +140,41 @@ def main() -> int:
         print("Deploying uncommitted code would make that claim false. Commit first,", file=sys.stderr)
         print("or use --allow-dirty (which will NOT update the marker).", file=sys.stderr)
         return 1
+
+    # AuditLab DEPLOY-2 (2026-08-20): production only -- a preview deploy
+    # doesn't touch the real database, and the emergency override exists
+    # for exactly the case where this check itself can't be trusted (no
+    # network, no D1 permission on the current token, wrangler output
+    # format changed).
+    if not args.preview and not args.skip_migration_check:
+        pending = unapplied_migrations()
+        if pending is None:
+            print(
+                "WARNING: could not determine whether all migrations are applied to the remote "
+                "database (wrangler d1 migrations list --remote gave an unrecognised result -- "
+                "no network, no D1 permission on this token, or its output format changed).",
+                file=sys.stderr,
+            )
+            print(
+                "Proceeding is your call, not a verified-safe one. Re-run with --skip-migration-check "
+                "to acknowledge and continue, or check manually first.",
+                file=sys.stderr,
+            )
+            return 1
+        if pending:
+            print("REFUSING: the remote database is missing migration(s) this deploy's code may depend on:", file=sys.stderr)
+            for name in pending:
+                print(f"  - {name}", file=sys.stderr)
+            print(
+                "\nAuditLab DEPLOY-2 (2026-08-20): shipping code before its migration is applied can fail "
+                "LOUDLY (a SQL error on a live write) or SILENTLY (a SELECT * read path that degrades "
+                "without crashing) -- the silent case is the dangerous one, since nothing signals it until "
+                "a person notices the feature quietly stopped working. Apply the migration first "
+                "(wrangler d1 migrations apply deadlineradar --remote), or if this deploy genuinely does "
+                "not depend on the pending migration, re-run with --skip-migration-check.",
+                file=sys.stderr,
+            )
+            return 1
 
     cmd = ["npx", "wrangler", "deploy"]
     if args.preview:

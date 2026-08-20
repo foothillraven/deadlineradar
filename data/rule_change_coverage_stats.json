@@ -1,14 +1,14 @@
 {
-  "sources_monitored": 500,
+  "sources_monitored": 502,
   "jurisdictions_monitored": 55,
   "monitoring_started": "2026-08-02",
   "capture_cadence": "daily, 6:00 AM local",
-  "last_checked_at": "2026-08-03T12:14:08.667881+00:00",
-  "last_checked_capture_id": "regchange_20260803_0600",
-  "current_source_live_rate_pct": 89.0,
-  "clean_monitoring_streak_days": 2,
-  "full_capture_count": 3,
-  "diffs_reviewed_total": 39,
-  "real_events_found": 0,
-  "computed_at": "2026-08-03T22:57:45.723462+00:00"
+  "last_checked_at": "2026-08-20T12:14:02.419037+00:00",
+  "last_checked_capture_id": "regchange_20260820_0600",
+  "current_source_live_rate_pct": 91.4,
+  "clean_monitoring_streak_days": 18,
+  "full_capture_count": 20,
+  "diffs_reviewed_total": 674,
+  "real_events_found": 4,
+  "computed_at": "2026-08-20T12:30:18.048716+00:00"
 }

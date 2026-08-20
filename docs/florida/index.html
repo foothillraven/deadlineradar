@@ -1434,6 +1434,8 @@
   .dr-map-state--not-verified { fill: #7a8699; }
   .dr-map-link { cursor: default; outline: none; }
   .dr-map-link[data-has-staff="true"] { cursor: pointer; }
+  
+  .dr-map-link:focus-visible .dr-map-state { stroke: var(--accent); stroke-width: 3; }
   .dr-map-tooltip {
     position: absolute; z-index: 15; pointer-events: none; white-space: nowrap;
     background: var(--panel-dark); color: var(--panel-dark-fg); font-size: 0.8rem;

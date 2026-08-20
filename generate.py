@@ -11270,6 +11270,14 @@ function drStateNameToSlugMap() {
 }
 
 var drCsvRows = [];
+// AuditLab CSV-4 (2026-08-06 filing, closed 2026-08-20): the 200-row cap
+// below is a deliberate, reasonable limit (see its own comment), but
+// truncating past it was completely silent -- the status line only ever
+// counted drCsvRows.length, which is already the POST-cap array, so a firm
+// uploading a 500-row file saw "23 of 200 ready to import" with no signal
+// that 300 rows were dropped before that count was even computed. Tracks
+// the file's real row count here so drRenderCsvPreview() can say so.
+var drCsvTotalRowsInFile = 0;
 
 function drPreviewCsvImport() {
   var fileInput = document.getElementById('dr-csv-import-file');
@@ -11293,6 +11301,7 @@ function drPreviewCsvImport() {
     // Roadmap #17: capped -- a CSV this large is almost certainly a mistake
     // (25-staff seat cap on the self-serve plan), and an unbounded preview
     // table would be its own UX problem.
+    drCsvTotalRowsInFile = parsed.length - 1;
     var dataRows = parsed.slice(1, 201);
     drCsvRows = dataRows.map(function(cells) {
       var fields = {};
@@ -11363,8 +11372,12 @@ function drRenderCsvPreview() {
   // drImportCsvRows() is the sole writer of statusEl.
   var importStarted = drCsvRows.some(function(r) { return r.result !== null; });
   if (statusEl && !importStarted) {
+    var truncatedNote = drCsvTotalRowsInFile > drCsvRows.length
+      ? ' Your file has ' + drCsvTotalRowsInFile + ' rows -- only the first ' + drCsvRows.length +
+        ' are shown here; split the rest into a second file and import it separately.'
+      : '';
     statusEl.textContent = validCount + ' of ' + drCsvRows.length + ' row' +
-      (drCsvRows.length === 1 ? '' : 's') + ' ready to import.';
+      (drCsvRows.length === 1 ? '' : 's') + ' ready to import.' + truncatedNote;
   }
 }
 

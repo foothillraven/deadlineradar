@@ -216,8 +216,8 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "Hawaii CPAs/permit holders must complete at least 80 hours of CPE within the 24-month period preceding a biennial permit renewal (renewal due Dec 31 of odd-numbered years), with a minimum of 20 hours earned within each calendar year, and at least 4 of the 80 hours must be in ethics or professional conduct (these 4 hours also simultaneously satisfy the separate license-renewal ethics attestation under §16-71-2). These figures are stated in HAR §§16-71-2 and 16-71-33. Maximum carryover of excess hours to the next biennium is 40 hours; new CPAs get 80 hours of automatic CPE credit for passing the AICPA exam (or 40 hours if claimed in year 3).",
-      "verified_date": "2026-07-20",
-      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (complete HAR Chapter 71 text read as hosted on the state's own cca.hawaii.gov site) moved here."
+      "verified_date": "2026-08-20",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (complete HAR Chapter 71 text read as hosted on the state's own cca.hawaii.gov site) moved here.\n\n2026-08-20 (routine 30-day freshness re-check, AuditLab BADGE staleness flag): re-fetched HAR Chapter 71 directly from cca.hawaii.gov (the current December 2020 compilation, the state's own official current-rules copy). Sections 16-71-33 (80 hrs/24mo, 20hr annual minimum), 16-71-33(b) (4 ethics hours within the 80), 16-71-35(b) (40hr max carryover), and 16-71-34(11) (80hr exam-pass credit, or 40hr if claimed in year 3) all confirmed word-for-word against the current record. No changes needed; verified_date bumped."
     },
     {
       "id": "id-cpe",
@@ -316,7 +316,8 @@
       "ethics_hours": 2,
       "ethics_period_years": 2,
       "notes": "Kentucky runs a dual-track CPE requirement over a 2-year reporting period (the two calendar years immediately prior to the renewal year): a CPA who worked 3,000+ hours in a board-licensed public accounting firm during that period must complete 80 CPE hours; all other licensees (fewer public-accounting hours, industry, government, academia) complete only 60 hours. Both tracks require 2 hours of professional ethics, counted within the total -- the ethics course does not need to be Kentucky-specific; general ethics content qualifies. Since January 1, 2021, 50% of the required hours (40 of 80, or 30 of 60) must be 'technical standards' courses. CPAs performing attest or SSARS compilation engagements must separately complete 8 hours/year (16 over the 2-year cycle) of accounting or auditing CPE regardless of track.",
-      "verified_date": "2026-07-20"
+      "verified_date": "2026-08-20",
+      "verification_history": "2026-08-20 (routine 30-day freshness re-check, AuditLab BADGE staleness flag): re-fetched 201 KAR 1:100 Section 2 directly from apps.legislature.ky.gov. The 80hr/60hr dual track by 3,000+ public-accounting hours, the 2-hour ethics requirement within the total, the 50% technical-standards rule (effective Jan 1, 2021), and the separate 8hr/yr (16hr/cycle) attest/SSARS add-on all confirmed word-for-word against the current record. No changes needed; verified_date bumped."
     },
     {
       "id": "la-cpe",
@@ -349,8 +350,8 @@
       "ethics_hours": 4,
       "ethics_period_years": 3,
       "notes": "Unlike most states, Maine's basic CPE cycle is ANNUAL, not biennial: all licensees must obtain 40 hours of CPE every year (the 12-month licensure period prior to the Sept 30/renewal reporting deadline), due at time of renewal; up to 20 excess hours may carry forward one year. Separately, all licensees must obtain at least 4 hours of CPE in professional ethics every THREE years (not annually, not per-2-year-cycle). These figures come from 02-280 C.M.R. Chapter 5, Section 8 -- the rule the Board's own CE webpage points to as its authority. Interpretation trap: Maine's rule also has an unrelated 'reinstatement' provision requiring 80 hours of CPE (incl. 4 ethics hours) within the prior 24 months for lapsed-license reinstatement -- some vendor summaries wrongly present this 80-hour/24-month figure as if it were the standard annual renewal requirement; it is not. Communication arts/computer software/economics/business-law/etc. courses capped at 50% of hours.",
-      "verified_date": "2026-07-20",
-      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (full rule text read at maine.gov) moved here."
+      "verified_date": "2026-08-20",
+      "verification_history": "2026-08-14 (COPY-6 full-class sweep, tier B): the dual-source signal here is real reader value and was KEPT, reworded toward the reader; only the process detail (full rule text read at maine.gov) moved here.\n\n2026-08-20 (routine 30-day freshness re-check, AuditLab BADGE staleness flag): re-fetched 02-280 C.M.R. Chapter 5 directly from maine.gov. Section 8.A (40hrs annually, prior 12-month licensure period), 8.A's 20hr max carryover, 8.B (4 ethics hours every 3 years), and Section 7's separate 80hr/24mo reinstatement figure (the interpretation trap the notes field already flags) all confirmed word-for-word against the current record. No changes needed; verified_date bumped."
     },
     {
       "id": "md-cpe",
@@ -779,7 +780,8 @@
       "ethics_hours": 4,
       "ethics_period_years": 2,
       "notes": "Vermont runs a biennial (2-year) CPE cycle, August 1 - July 31 of odd-numbered renewal years: a licensee renewing for a full cycle needs 80 hours of CPE, including at least 4 hours of ethics and at least 8 hours of accounting and auditing. Up to 10 hours may carry over into the next biennium, but carryover hours cannot be used to satisfy the ethics or accounting/auditing minimums. Trap: a licensee renewing after only part of a cycle (not by endorsement) instead owes 40 hours for each full year the license was held, per Rule 9.1(b) -- the flat 80-hour figure only applies to a full 2-year cycle. Confirmed independently by the full text of Rule 9.1 in the Board's own Administrative Rules PDF (sos.vermont.gov/Office of Professional Regulation) and the Vermont Society of CPAs' summary of the same rule (vtcpa.org).",
-      "verified_date": "2026-07-20"
+      "verified_date": "2026-08-20",
+      "verification_history": "2026-08-20 (routine 30-day freshness re-check, AuditLab BADGE staleness flag): re-fetched the Board's Administrative Rules PDF directly from outside.vermont.gov. Rule 9.1(a) (80hrs/2yr biennial renewal), 9.1(d) (10hr carryover cap, excludes the ethics/A&A minimums), 9.1(e)/(f) (4 ethics hrs, 8 A&A hrs), and 9.1(b) (the 40hrs/full-year-held partial-cycle trap) all confirmed word-for-word against the current record. No changes needed; verified_date bumped."
     },
     {
       "id": "va-cpe",

@@ -1,0 +1,461 @@
+{
+  "_meta": {
+    "generated_by": "scripts/gap_list_check.py",
+    "purpose": "SRC-4 (AuditLab, 2026-08-14): mechanically-derived inventory of every record carrying a sourcing gap/verification note, regenerated on every preship_gate.py run so it can never go stale or be a remembered subset."
+  },
+  "total_records": 246,
+  "gap_record_count": 50,
+  "block_claim_count": 0,
+  "entries": [
+    {
+      "dataset": "cpa_deadlines.json",
+      "id": "nc-all",
+      "state": "North Carolina",
+      "state_slug": "north-carolina",
+      "field": "verification_note",
+      "note": "Corrected during sprint-task-5 adversarial verify: initial spike data used 'before July 1' loosely and computed a July 1 deadline; re-checked directly against the NC Board's own 2025-2026 renewal page, which states the cutoff is June 30 (July 1 is when the Letter-of-Demand process starts). Fixed to June 30 with the primary source URL updated accordingly. Downgraded to a data gap during the 2026-07-05 correctness audit after the source page went briefly dead. RE-OPENED 2026-07-06 (P2 gap-closure pass): re-confirmed 21 NCAC 08J .0101's current text and initially treated 'by the first day of July' and the Board's 'June 30' as the same instant described two ways -- WRONG. CORRECTED 2026-07-06 per the orchestrator's independent adversarial verification: these are two different calendar dates (July 1 vs. June 30), and the codified rule is the legally controlling text, not the Board's operational webpage. Publishing 2027-07-01 (the codified date), not 2027-06-30.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpa_deadlines.json",
+      "id": "mi-individual",
+      "state": "Michigan",
+      "state_slug": "michigan",
+      "field": "data_gap_note",
+      "note": "The renewal rule itself is double-sourced (Michigan LARA's current licensing page plus a separately-hosted official LARA licensing-guide PDF both confirm: biennial, expires July 31), but neither document states which year of the 2-year cycle applies to a given license holder, so we cannot safely publish one 'next July 31' date for every visitor. Confirm your exact renewal date with the Michigan Board of Accountancy (LARA) or on your license.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpa_deadlines.json",
+      "id": "tx-individual",
+      "state": "Texas",
+      "state_slug": "texas",
+      "field": "data_gap_note",
+      "note": "22 TAC 515.3(a)(1), reached via the Appian portal's real browse navigation (Title 22 -> Part 22 -> Chapter 515 Licenses -> 515.3), confirmed verbatim: 'Licenses for individuals have staggered expiration dates based on the last day of the individual's birth month.' Matches this record's cycle_description exactly. 22 TAC 521.1 (Fee Schedule) separately confirms the annual fee is 'established by the board on an annual basis' plus a codified $10.00 Scholarship Trust Fund fee -- corroborating renewal_fees/texas-renewal-fee's board-resolution framing. Neither URL is fetchable by our own tooling (Appian's client-only rendering); both were read in a real browser, matching DiffLab's own independent finding that this host has no script-addressable rule pages.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpa_deadlines.json",
+      "id": "nj-individual",
+      "state": "New Jersey",
+      "state_slug": "new-jersey",
+      "field": "data_gap_note",
+      "note": "NJ's codified rule (N.J.A.C. 13:29-1.7(b)) states each license renews for three years from that licensee's own last expiration date -- a rolling, individualized cycle, not one shared calendar date for every licensee. (An earlier version of this note incorrectly asserted a fixed December 31 cycle; that figure traced only to two secondary sources -- njcpa.org and NASBA -- that this record's own prior research had already flagged as insufficient to publish as fact. Corrected 2026-08-18.) We have not yet found the rule governing where a licensee's very first renewal period starts, so we can't compute your exact date from this alone. Confirm your exact expiration on your license certificate or with the New Jersey State Board of Accountancy.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpa_deadlines.json",
+      "id": "nj-firm",
+      "state": "New Jersey",
+      "state_slug": "new-jersey",
+      "field": "data_gap_note",
+      "note": "Three official New Jersey Division of Consumer Affairs Accountancy Board pages were checked -- the application-form page, the Board's FAQ page, and the Board's main landing page -- and none states whether firm registration is synced to the same Jan 1-Dec 31 triennial calendar as individual licenses. Confirm your firm's exact renewal date with the New Jersey State Board of Accountancy or on your registration.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpa_deadlines.json",
+      "id": "ma-individual",
+      "state": "Massachusetts",
+      "state_slug": "massachusetts",
+      "field": "data_gap_note",
+      "note": "UPGRADED 2026-08-19 (was previously treated as genuinely unresolvable -- that framing was too pessimistic, see below): this is NOT a board-assigned-opaque split like Michigan/Ohio. The Board's own reinstatement-guidance page confirms a license stays on its assigned parity (odd or even) permanently once set, renewing every 2 years on that same parity -- a fixed structure, not arbitrary. What is NOT yet independently confirmed by an explicit statutory/regulatory sentence is the exact rule for which parity a brand-new license starts on. The Board's own FAQ publishes a first-renewal CPE-proration table (80/70/60/50 hours depending on issuance quarter: Jul-Sep/Oct-Dec/Jan-Mar/Apr-Jun) that reconciles almost exactly (each quarter's implied month-count rounds to the nearest 10 CPE hours at the stated 80hrs/24mo rate) with a 'first renewal = the second June 30 strictly after issuance' rule -- the same shape as Florida's confirmed 'third June 30' mechanism, just N=2 instead of N=3. This is a strong numerical fit across all 4 independent data points from an official Board table, but it is an INFERENCE from a CPE-hours proration table, not a statute/regulation explicitly stating the expiration-date rule itself (unlike Florida, where the 'third June 30' language is directly in the codified rule text) -- so we are not shipping a computed date on this basis alone. Confirm your own renewal year on your license, with the board (617-701-8635, accountingboard@mass.gov), or via the eLIPSE portal rather than relying on a computed date here.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpa_deadlines.json",
+      "id": "ma-firm",
+      "state": "Massachusetts",
+      "state_slug": "massachusetts",
+      "field": "data_gap_note",
+      "note": "UPGRADED 2026-08-19 (was previously treated as genuinely unresolvable): same correction as the individual record -- this is NOT board-assigned-opaque, it is a fixed-June-30/persistent-parity structure (see the individual license record's own sourcing note for the full reasoning, including the CPE-proration-table evidence). No firm-specific CPE-proration table was found to independently test the 'second June 30 following issuance' hypothesis for firms the way the individual record's table did -- confidence here is inherited from the individual record's near-identical statute text, not independently tested. Not shipping a computed date on this basis. Confirm your own renewal year with the board (617-701-8635, accountingboard@mass.gov) or via eLIPSE.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpa_deadlines.json",
+      "id": "md-individual",
+      "state": "Maryland",
+      "state_slug": "maryland",
+      "field": "data_gap_note",
+      "note": "This record previously stated the Board's \"fixed personal anniversary date\" framing as settled fact -- corrected 2026-08-18. That framing traces to a Board renewal-guidance page dated \"Updated May 2, 2016,\" and the CURRENT statute (2-311(a)(2), this record's own cited primary source) instead establishes a single shared December 31 date recurring only in even-numbered years -- a different mechanism than a personal month/day anniversary. We have not yet confirmed which one is actually in effect today: the Board's 2016 page could be simply stale, or the statute's staggering provision (2-311(e)) could still be validly in force and just undocumented on a current page. (Separately, and unrelated to that correction: an earlier drafted detail claiming reminder notices are sent at 60/45/30/15/5 days before expiration was checked directly against the source page, found NOT stated there, and removed rather than shipped unverified.) Confirm your exact expiration date on your license certificate or with the Maryland Board of Public Accountancy.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpa_deadlines.json",
+      "id": "tn-all",
+      "state": "Tennessee",
+      "state_slug": "tennessee",
+      "field": "data_gap_note",
+      "note": "Tennessee assigns each licensee and firm to one of the two biennial years individually, so no single public date applies to everyone. Confirm your exact renewal date with the Tennessee Board of Accountancy or on your license.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpa_deadlines.json",
+      "id": "ia-individual",
+      "state": "Iowa",
+      "state_slug": "iowa",
+      "field": "verification_note",
+      "note": "2026-07-16 follow-up (per orchestrator instruction not to spin further, just keep this honest): tried one more avenue -- the aggregate Iowa Administrative Bulletin for 6/10/2026 (legis.iowa.gov/docs/aco/bulletin/06-10-2026.pdf) does exist and is reachable (corrects the prior note's 'not in the regular IAB bulletin index' -- it is indexed, at that exact date), but the PDF itself is image-based/encrypted (pdftotext: \"Unknown filter 'Crypt'\"; WebFetch independently confirmed the same -- \"a heavily compressed JPEG image embedded within a PDF structure\") and not text-extractable by either method, so ARC 1582Z's entry within it could not be read. Combined with the filing detail page (rules.iowa.gov/Notice/Details/1582Z) itself having no subject/summary/effective-date populated, this remains a genuinely unresolved lead, not a dead one -- three independent access methods now tried. June 30 is very likely still correct (rule text independently confirmed current against ARC 7681C, eff. 4/10/24, which verbatim-supports June 30) but this record should not be treated as fully current until 1582Z's content is confirmed by a human opening the filing directly or contacting Iowa LSA/the Board. 2026-07-13 audit (original): first surfaced this gap. || 2026-08-14 renumbering fix: All Iowa Admin. Code 193A accountancy chapters were editorially transferred to Inspections and Appeals [481] chapters 1021-1040 by IAC Supplement 2026-06-10 (2023 Iowa Acts SF 514); the old 193A chapter PDFs are now transfer-notice stubs. Old citation 193A-5.3(1) is now 481-1025.3(1) -- the full Chapter 1025 PDF was fetched and the operative sentence ('Licenses expire on June 30 of each year', 1025.3(1)) plus the 30-day grace/lapse rule (1025.4(2)) confirmed verbatim, chapter header itself records 'Prior to 6/10/26, see Accountancy Examining Board[193A] Ch 5'.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpa_deadlines.json",
+      "id": "ak-individual",
+      "state": "Alaska",
+      "state_slug": "alaska",
+      "field": "verification_note",
+      "note": "2026-07-16 follow-up (see also 2026-07-13 note below): independently re-confirmed both AS 08.04.105(a) and 12 AAC 04.189 (License Renewal) directly via the Board's own hosted CPARegulations.pdf (pdftotext-extracted) -- neither states the specific December 31 date or the odd-year pattern for individual licenses. akleg.gov itself remains blocked to automated fetches (tried again via curl with a browser user-agent string and via a second fetch method, both blocked). The parallel firm-permit rule (12 AAC 04.280(c)) DOES explicitly state a renewal is 'due not later than December 31' -- strong indirect corroboration that individuals share the same calendar -- but that is not a direct citation for the individual-license date specifically, so the citation/Verified badge was removed from this record rather than left pointing at a rule that doesn't itself establish the displayed date. The date is very likely correct (math, Board materials, and the firm-rule corroboration all agree) but is not verbatim-confirmed against an individual-specific codified provision. 2026-07-13 amendment-currency audit (original): unverified, akleg.gov 403s automated fetches; candidates for the individual-specific cite (12 AAC 04.189, 12 AAC 02.935) remain unconfirmed; a related 2025 regulation package (12 AAC 04, eff. 7/26/2025) also unconfirmed as to scope. Pending a human browser check of akleg.gov/basis/aac.asp directly, or of 12 AAC 02.935 specifically.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpa_deadlines.json",
+      "id": "ak-firm",
+      "state": "Alaska",
+      "state_slug": "alaska",
+      "field": "verification_note",
+      "note": "2026-07-16 follow-up: independently confirmed 12 AAC 04.280(c) directly via the Board's own hosted regulations PDF (pdftotext-extracted, not a summarized fetch) -- it explicitly states a firm-permit renewal application is 'due not later than December 31' for the biennial license period. This resolves the earlier uncertainty about whether the cited rule actually establishes the displayed date: for firms, it does. The specific odd-year pattern (that the current period ends in 2027, not 2026) is not itself spelled out in this section, but is corroborated by the Board's own published materials and the arithmetic of a continuous biennial cycle. akleg.gov itself remains blocked to automated fetches (tried again this pass, still 403); this confirmation relies on the Board's own hosted copy of the regulation text instead. 2026-07-13 amendment-currency audit (original, superseded by the above): flagged this record as unverified pending exactly this check.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpa_deadlines.json",
+      "id": "vt-firm",
+      "state": "Vermont",
+      "state_slug": "vermont",
+      "field": "data_gap_note",
+      "note": "The 2-year renewal cycle for firm registrations is confirmed by statute and rule, but the specific July 31 date is not codified for firms -- only individual licenses get that date in the rule's own text (Rule 8.1(b) uses the narrower word 'Licenses'). Vermont's Office of Professional Regulation does list firm registrations sharing the July 31 date on its own fee/date table, but that's a single, non-codified operational webpage, not codified law. Confirm your exact renewal date with the Vermont Office of Professional Regulation or on your registration. Neither the codified rule text nor Vermont's most recent omnibus professions act extends the July 31 wording beyond individual licenses -- the gap is in the law's own text.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpa_deadlines.json",
+      "id": "ri-all",
+      "state": "Rhode Island",
+      "state_slug": "rhode-island",
+      "field": "data_gap_note",
+      "note": "Your exact renewal date depends on which of Rhode Island's three rotating 3-year cohorts your permit is in -- we cannot determine that from state-level data alone. Confirm your renewal date with the Rhode Island Board of Accountancy or on your permit.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpe_hours.json",
+      "id": "dc-cpe",
+      "state": "District of Columbia",
+      "state_slug": "dc",
+      "field": "data_gap_note",
+      "note": "The requirement itself is solid -- 17 DCMR 2530 is the governing rule and the Board's own CPE reporting form quotes 2530.1 and 2530.8 verbatim. What DC does not offer is a stable web address for the rule: dcregs.dc.gov has no per-section permalink, and its section-list URL resolves to a search page with no rule text on it. The citation link therefore points at the Board's own reporting form, which is the official document that actually reproduces the language.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpe_hours.json",
+      "id": "ga-cpe",
+      "state": "Georgia",
+      "state_slug": "georgia",
+      "field": "data_gap_note",
+      "note": "Georgia has two official versions of this rule in circulation and they do not agree. The Secretary of State's rules site (rules.sos.ga.gov/gac/20-11) still serves the PRE-2024 text -- 80 hours with 16 in accounting and auditing, and no ethics requirement at all. The Board's own published Rule 20-11, effective January 1, 2024, is the current one and is what this record follows. If you look the rule up on the Secretary of State's site and see different numbers, that is why; confirm with the Board.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpe_hours.json",
+      "id": "ne-cpe",
+      "state": "Nebraska",
+      "state_slug": "nebraska",
+      "field": "data_gap_note",
+      "note": "The 80-hour figure is the Board's own current published guidance (nbpa.nebraska.gov); the codified statutory basis (1-136.01) states the requirement in 'days' rather than hours. The 4-ethics-hour figure IS codified: 288 Neb. Admin. Code ch. 8, § 004.01 states it directly.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpe_hours.json",
+      "id": "sd-cpe",
+      "state": "South Dakota",
+      "state_slug": "south-dakota",
+      "field": "data_gap_note",
+      "note": "The 120-hour/3-year total is fully 2-sourced: SDCL 36-20B-27's primary text (fetched directly) states '120 hours of continuing education in each three-year renewal period,' matching the board's FAQ. The 20-hour annual minimum, though, is confirmed only on the board's own FAQ page, not independently in the statute text or in the administrative rule chapter (whose only annual-minimum language governs the initial-certificate phase-in population specifically, not general renewal) -- single-sourced, disclosed rather than silently treated as codified.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "cpe_hours.json",
+      "id": "tx-cpe",
+      "state": "Texas",
+      "state_slug": "texas",
+      "field": "data_gap_note",
+      "note": "Texas currently has no stable official URL for TAC rule text: the legacy texreg.sos.state.tx.us per-section links now return a 'Site Has Moved' stub, and the replacement SOS portal (texas-sos.appianportalsgov.com/rules-and-meetings) is a JavaScript application whose per-rule pages (e.g. interface=VIEW_TAC_SUMMARY&recordId=...) render only in a browser. Until the state provides a linkable text source, the citation link points at a third-party mirror of the rule.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "alabama-reinstatement",
+      "state": "Alabama",
+      "state_slug": "alabama",
+      "field": "data_gap_note",
+      "note": "Heads-up: the underlying statute (Code of Ala. 1975 Sec 34-1-11) was amended by Act 2026-16 effective October 1, 2026 -- if you are reinstating on or after that date, check the revised text or confirm with the board, as these figures reflect the law in force before the amendment.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "dc-reinstatement",
+      "state": "District of Columbia",
+      "state_slug": "dc",
+      "field": "data_gap_note",
+      "note": "The $295 reinstatement fee is stated on the Board's own page, but no codified DCMR fee schedule or DC Register notice stating that exact number could be located -- only the general statutory authority for the Board to set fees. Recommend a manual check with the Board if you want the fee confirmed against a published rule rather than just the agency's own page.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "hawaii-reinstatement",
+      "state": "Hawaii",
+      "state_slug": "hawaii",
+      "field": "data_gap_note",
+      "note": "The $204/$360/$128 fee figures are confirmed only on the Board's own page -- HAR Chapter 71 defers the actual renewal/restoration fee amounts to a separate fee-schedule chapter (16-53) that could not be located at a working URL. Treat the dollar figures as board-confirmed but not yet codified-rule-confirmed until that chapter is located and cited directly.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "illinois-reinstatement",
+      "state": "Illinois",
+      "state_slug": "illinois",
+      "field": "data_gap_note",
+      "note": "No separate penalty CPE/ethics hour figures are published because the rule imposes the same standard 120-hr/4-ethics-hr load already required at ordinary renewal, just with a tighter lookback window -- not an additional number. IDFPR's own site does not publish CPA-specific restoration dollar figures on a single page (its general reactivation-fee table explicitly excludes CPAs); the board-page leg of the 2-source rule is satisfied by the Public Accounting landing page instead, with the exact fee formula confirmed only in the codified rule text.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "louisiana-reinstatement",
+      "state": "Louisiana",
+      "state_slug": "louisiana",
+      "field": "data_gap_note",
+      "note": "The reinstatement fee is genuinely unresolved: three different mechanisms apply depending on how long the certificate has been lapsed -- the renewal fee plus a board-prescribed penalty with no codified amount (LAC 46:XIX Sec1105.B.6), a $500 statutory cap on a formal reinstatement application (La. R.S. 37:74.1), and an escalating monthly delinquent schedule ($200-$700) -- and none reconciles cleanly with the others, so no single dollar figure is published here rather than picking one. The 3-hour ethics figure is currently sourced only from the board's own page, not independently confirmed in the codified rule text (checked Sec1301, Sec1303, Sec1319 -- none states an hour figure). Recommend a manual check with the board before citing a specific reinstatement dollar amount.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "massachusetts-reinstatement",
+      "state": "Massachusetts",
+      "state_slug": "massachusetts",
+      "field": "data_gap_note",
+      "note": "The $57 late fee and $161 renewal fee figures come from the board's own pages rather than codified rule text -- 252 CMR 2.16's fee schedule is not part of the chapter PDF we have read directly. The statutory legs (the 160-hour/24-month CPE requirement and the 80-hour attest split, M.G.L. c. 112 s 87B(c)) are verified against the legislature's own site, and 252 CMR 2.14's CPE text has been read from the codified PDF.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "michigan-reinstatement",
+      "state": "Michigan",
+      "state_slug": "michigan",
+      "field": "data_gap_note",
+      "note": "No single codified line states a flat reinstatement total; the components are spread across R 338.5230 (rule), MCL 339.411 (trigger and what must be paid), and MCL 338.2206/338.2211 (the $20 and $100 amounts). The board's own licensing guide states the assembled result: '2 year CPA Relicensure Application and Fee: $320.00'.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "minnesota-reinstatement",
+      "state": "Minnesota",
+      "state_slug": "minnesota",
+      "field": "data_gap_note",
+      "note": "The $20 fee is confirmed directly in codified statute. The board's own pages -- read in a browser -- do not state the figure in plain language anywhere we could find (the reinstatement section discusses process only), so the statute is the source, not a board page.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "nebraska-reinstatement",
+      "state": "Nebraska",
+      "state_slug": "nebraska",
+      "field": "data_gap_note",
+      "note": "The $200 fee is confirmed on the Board's own reinstatement application form (a real board document), but the codified rule only sets a $300 statutory ceiling and delegates the exact amount to the board's own fee schedule, which doesn't appear separately codified. Recommend a manual check with the board if you want the fee confirmed against a published rule rather than just the agency's own form.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "nevada-reinstatement",
+      "state": "Nevada",
+      "state_slug": "nevada",
+      "field": "data_gap_note",
+      "note": "Nevada does not codify a single flat fee or CPE figure that applies uniformly to every lapsed scenario -- the applicable fee/hours depend on which status track applies (late renewal vs. retired/inactive reinstatement vs. revocation), and whether/when a simple missed deadline converts into a formal revocation is discretionary, not on an automatic timeline. Both the board's own page and the codified NRS/NAC text were checked and are internally consistent, but neither states one unambiguous number for the general case, hence the null fields above rather than picking one branch's figure to represent all cases. The board's current renewal page confirms the $175 annual renewal fee and $150 late fee referenced above.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "new-mexico-reinstatement",
+      "state": "New Mexico",
+      "state_slug": "new-mexico",
+      "field": "data_gap_note",
+      "note": "The $175 fee and the '90 days to cancellation' trigger are confirmed only on the board's own pages, not independently in the codified NMAC text (the rule authorizes fees without stating the dollar amount, and doesn't state the 90-day figure in the sections checked). The 40-hour/year (max 200) penalty CPE figure IS directly confirmed in the codified rule. Recommend a manual check with the board for the fee/90-day figures.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "ohio-reinstatement",
+      "state": "Ohio",
+      "state_slug": "ohio",
+      "field": "data_gap_note",
+      "note": "No flat reinstatement fee is published because Ohio's own law sets a formula/cap, not a flat number, stated in plain terms above instead. The Board's own fees page is live and was read directly, including its \"Late and Back Fees\" tab: \"Late fees for expired licenses accrue at a rate of $50/month (to a maximum amount of $300) for Registrations and Permits, and $100/month (to a maximum amount of $1,200) for Permit - Employed in Public Accounting\" -- which is where the figures above come from.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "oregon-reinstatement",
+      "state": "Oregon",
+      "state_slug": "oregon",
+      "field": "data_gap_note",
+      "note": "The $225/$255 fee figures and the 16-hour CPE penalty are confirmed in the codified rule (OAR 801-010), but the Board's own License-Renewal-Information page describes the lapse/reinstatement mechanics without restating these dollar/hour figures itself. Recommend a manual check of the board's page if you want the numbers confirmed firsthand.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "rhode-island-reinstatement",
+      "state": "Rhode Island",
+      "state_slug": "rhode-island",
+      "field": "data_gap_note",
+      "note": "The board's own renewal/reinstatement page confirms the lockout mechanic and cycle deadline but does not itself restate the $500 fee or CPE-hour figures -- those come from the codified rule alone. Recommend a manual check of the board's page if you want the numbers confirmed firsthand.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "south-dakota-reinstatement",
+      "state": "South Dakota",
+      "state_slug": "south-dakota",
+      "field": "data_gap_note",
+      "note": "The board's own FAQ page only generically warns about consequences of lapsing without stating South Dakota's specific dollar/hour figures -- those come from the codified ARSD rule text alone. Recommend a manual check with the board if you want the numbers confirmed firsthand.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "tennessee-reinstatement",
+      "state": "Tennessee",
+      "state_slug": "tennessee",
+      "field": "data_gap_note",
+      "note": "The $250 reinstatement application fee is stated clearly on the Board's own page, but couldn't be located verbatim in any codified rule (only the separate $100 delinquent/late-renewal fee is codified) -- it may be set by a fee schedule outside the CE/licensing chapters checked. Recommend a manual check with the board if you want the fee confirmed against a published rule.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "utah-reinstatement",
+      "state": "Utah",
+      "state_slug": "utah",
+      "field": "data_gap_note",
+      "note": "Fee figures come from DOPL's own reinstatement application document (rev. hosted at commerce.utah.gov), not codified rule text -- Utah publishes fees administratively. If the application document is revised, the amounts can change without a rule filing; check the current form before paying.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "renewal_fees.json",
+      "id": "colorado-renewal-fee",
+      "state": "Colorado",
+      "state_slug": "colorado",
+      "field": "data_gap_note",
+      "note": "Colorado's CPA fees are set under DORA's statewide fee schedule (Section 12-20-105, C.R.S.), not the Board's own rules (3 CCR 705-1, which contains no dollar amounts). The official dpo.colorado.gov pages and online licensing portal could not be independently confirmed (403/interactive-only); third-party sites cite conflicting figures ($77-$110), none verifiable against a primary source, so no figure is published here.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "renewal_fees.json",
+      "id": "dc-renewal-fee",
+      "state": "District of Columbia",
+      "state_slug": "dc",
+      "field": "data_gap_note",
+      "note": "The District publishes CPA fees administratively rather than codifying them: DCMR Title 17 Chapter 25 (Board of Accountancy) and Chapter 40 (general licensing rules for non-health professions) both contain no fee section, so there is no rule text to cite for the dollar amount. The figures here come from the regulator's own published schedule -- DLCP's Board of Accountancy page, which lists \"Renewal - $110.00\" and \"Late Renewal - Fee $50.00\".",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "renewal_fees.json",
+      "id": "delaware-renewal-fee",
+      "state": "Delaware",
+      "state_slug": "delaware",
+      "field": "data_gap_note",
+      "note": "Delaware's official fee schedule explicitly states the renewal fee amount is communicated to each licensee at the time of renewal, not published as a flat figure -- confirmed against both the Division of Professional Regulation's own fee page and Delaware Admin. Code Title 24, which defers the amount to DPR rather than codifying it. High confidence that no flat fee is published; the amount itself is not independently confirmable from any official source.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "renewal_fees.json",
+      "id": "indiana-renewal-fee",
+      "state": "Indiana",
+      "state_slug": "indiana",
+      "field": "data_gap_note",
+      "note": "Two Indiana government sources disagree by $30 on the same fee. PLA's fee-schedule page (source_url) states 'Renewal $105.00'. The codified administrative rule, 872 IAC 1-1-10(a)(3) (fetched directly, full text read), states 'Triennial certificate of registration for CPAs, PAs, and APs, seventy-five dollars ($75).' -- last substantively amended 2022-10-03, readopted (reaffirmed without change) 2024-01-12, so the $75 figure has been current law for years, not a stale pre-amendment snapshot. Notably the two sources agree EXACTLY on two other line items from the same table (Application/Transfer of Grades $75, Retired renewal $10), which argues against a wholesale mismatch and for either a genuine unrecorded fee increase or a copy/paste error on one page -- not determined which. Publishing $105 (PLA) as the more customer-facing source; flagging rather than silently picking one.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "renewal_fees.json",
+      "id": "maryland-renewal-fee",
+      "state": "Maryland",
+      "state_slug": "maryland",
+      "field": "data_gap_note",
+      "note": "This COMAR fee section (09.24.01.09) states the $63/$151 dollar amounts only and says nothing about cycle length -- that is expected, not a gap. Cycle length (biennial, fixed personal anniversary date) is confirmed separately on the Board's own site, see cpa_deadlines/md-individual.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "renewal_fees.json",
+      "id": "montana-renewal-fee",
+      "state": "Montana",
+      "state_slug": "montana",
+      "field": "data_gap_note",
+      "note": "The $125 base renewal fee is codified verbatim in ARM 24.201.410(1)(e). A separate late-fee figure of 100% of the base fee could not be re-confirmed anywhere in Chapter 24.201 or the board's own site (which currently has no fee content on its license-information page) -- not disproved, just unconfirmed.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "renewal_fees.json",
+      "id": "nevada-renewal-fee",
+      "state": "Nevada",
+      "state_slug": "nevada",
+      "field": "data_gap_note",
+      "note": "No fixed dollar figure is codified -- NRS 628.380 delegates the amount to the Board, and NAC 628.016(3)(g) only caps it at \"not to exceed $200\" annually. The Board's actual current-year fee is not published on an official .gov page that could be confirmed; only third-party aggregators report a figure (~$120-$140), which this site does not use for a final claim.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "renewal_fees.json",
+      "id": "new-hampshire-renewal-fee",
+      "state": "New Hampshire",
+      "state_slug": "new-hampshire",
+      "field": "data_gap_note",
+      "note": "RSA 310-A / RSA 310:8 set only the general renewal framework, not the dollar amount -- the figure itself comes from OPLC's administrative fee page, not the codified statute directly.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "renewal_fees.json",
+      "id": "new-jersey-renewal-fee",
+      "state": "New Jersey",
+      "state_slug": "new-jersey",
+      "field": "data_gap_note",
+      "note": "source_url points directly at the codified rule, which states the figure verbatim: \"3. Triennial registration: $ 135.00\" under (a). The board's own FAQ page was last modified in 2015 and contains no fee figures at all; the codified rule is the stronger primary source.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "renewal_fees.json",
+      "id": "new-york-renewal-fee",
+      "state": "New York",
+      "state_slug": "new-york",
+      "field": "data_gap_note",
+      "note": "The official fee chart PDF is dated as a 2021 revision -- the figure should be spot-checked against a more recent revision if one exists.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "renewal_fees.json",
+      "id": "northern-mariana-islands-renewal-fee",
+      "state": "Northern Mariana Islands",
+      "state_slug": "northern-mariana-islands",
+      "field": "data_gap_note",
+      "note": "Several third-party CPA-exam-prep sites claim a $355 triennial fee instead; that figure could not be corroborated in the official code text (which describes an annual, not triennial, cycle) -- using the codified figure, flagging the discrepancy rather than the unverified third-party number.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "renewal_fees.json",
+      "id": "puerto-rico-renewal-fee",
+      "state": "Puerto Rico",
+      "state_slug": "puerto-rico",
+      "field": "data_gap_note",
+      "note": "Not a .gov page -- the codified 1945 statute (20 L.P.R.A. § 779) separately cites an outdated $50 figure that appears superseded by NASBA's current processing fee; neither source is a current, official Puerto Rico government fee schedule.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "renewal_fees.json",
+      "id": "texas-renewal-fee",
+      "state": "Texas",
+      "state_slug": "texas",
+      "field": "data_gap_note",
+      "note": "$112 is the most recent figure the Board itself has published. We could not confirm whether a further increase took effect on September 1, 2025: TSBPA publishes a news notice for each fee change (2017, 2019 and 2024 all have one) and no 2025 notice exists, but 22 TAC 521.1 -- read directly -- does not fix a dollar figure at all; it says the fee is 'established by the board on an annual basis,' so the rule itself cannot confirm or rule out a later increase. Treat $112 as the last confirmed rate rather than a guaranteed current one.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "renewal_fees.json",
+      "id": "us-virgin-islands-renewal-fee",
+      "state": "U.S. Virgin Islands",
+      "state_slug": "us-virgin-islands",
+      "field": "data_gap_note",
+      "note": "Sourced from the Board's own web page content, not a downloadable fee-schedule PDF or codified rule -- USVI's Title 27 code text was not reachable via automated tooling (source_check BLOCKED against justia's USVI title-27 mirror). Live-reconfirmed 2026-08-15 directly on the board page: 'CPA Permit $135.00' and 'Renewal Window Opens...late fee penalty period' with '$25 per month up to a maximum of $600' -- both match our figures exactly.",
+      "is_block_claim": false
+    }
+  ]
+}

@@ -2043,6 +2043,26 @@ def print_renewal_fee_staleness_advisory(repo_root: Path) -> None:
         pass
 
 
+def print_gap_list_advisory(repo_root: Path) -> None:
+    """Surfaces gap_list_check.py (SRC-4, AuditLab 2026-08-14) as part of the
+    normal pre-ship run -- printed, never affects exit code. Regenerates
+    data/gap_list.json on every run so the mechanically-derived inventory of
+    every sourcing-gap/verification-note record can never be a stale or
+    remembered subset; see that script's own docstring for the finding this
+    closes."""
+    sys.path.insert(0, str(repo_root / "scripts"))
+    try:
+        import gap_list_check as glc
+    except ImportError:
+        print("  (skipping gap-list advisory -- gap_list_check.py not importable)")
+        return
+    print("\n--- gap-list advisory (does not affect gate exit code) ---")
+    try:
+        glc.main()
+    except SystemExit:
+        pass
+
+
 def print_es_translation_review_advisory(repo_root: Path) -> None:
     """Phase A i18n rollout (2026-08-19) status at a glance: how many keys
     exist, how many have a reviewed+current Spanish translation, how many
@@ -2166,6 +2186,7 @@ def main():
         print_rule_change_monitoring_staleness_advisory(repo_root)
         print_guide_review_staleness_advisory(repo_root)
         print_dual_credential_citation_advisory(repo_root)
+        print_gap_list_advisory(repo_root)
         print_es_translation_review_advisory(repo_root)
         print_seo_length_drift_advisory(html_files)
         sys.exit(1)
@@ -2178,6 +2199,7 @@ def main():
     print_rule_change_monitoring_staleness_advisory(repo_root)
     print_guide_review_staleness_advisory(repo_root)
     print_dual_credential_citation_advisory(repo_root)
+    print_gap_list_advisory(repo_root)
     print_es_translation_review_advisory(repo_root)
     print_seo_length_drift_advisory(html_files)
     sys.exit(0)

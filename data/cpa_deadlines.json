@@ -559,15 +559,15 @@
         "type": "fixed_calendar_recurring_no_anchor",
         "fixed_date": "08-31",
         "period_years": 3,
-        "note": "Expires August 31 every 3 years for all firm registrations board-wide; next occurrence would be one of 2026-08-31, 2027-08-31, or 2028-08-31 depending on the (unconfirmed) anchor year of the cycle."
+        "note": "Expires August 31 every 3 years for all firm registrations board-wide. Anchor confirmed 2026-08-20 (CITE-26): the cycle is 2023 -> 2026 -> 2029, established by the register's own last-renewed-date split (firms last renewed 2023-2025 are due 2026-08-31; firms already renewed in the current 2026 cycle roll to 2029-08-31, not a second issue-year cohort). Next published occurrence after 2026-08-31 elapses is 2029-08-31, not 2027-08-31 -- this is a static value, not code-computed (grep for fixed_calendar_recurring_no_anchor returns zero hits outside this file), so it needs a manual update at rollover."
       },
       "source_url": "https://dpo.colorado.gov/Accountancy/Applications",
-      "last_verified": "2026-08-14",
+      "last_verified": "2026-08-20",
       "wave": 4,
-      "citation": "Confirmed via Colorado Information Marketplace open-data register (data.colorado.gov, dataset 7s5z-vewr): a currently-active firm's live record shows expiration 8/31/2026, while newly-registered 2026 firms are placed on the next cohort, 8/31/2029 -- verified 2026-07-30.",
+      "citation": "Confirmed via Colorado Information Marketplace open-data register (data.colorado.gov, dataset 7s5z-vewr), aggregate query against the full active-firm register: what determines the cohort is each firm's own last-renewed date, not its issue/registration year -- firms last renewed 2023-2025 (564 active) are due 2026-08-31; firms that already renewed during the current 2026 cycle (914 active) are set to 2029-08-31. Issue year does not predict the cohort at all (every issue year 1971-2026 has members in both). n=1487 active firm registrations.",
       "citation_url": "https://data.colorado.gov/d/7s5z-vewr",
       "citation_class": "operational_record",
-      "verification_history": "2026-08-14 (raw-JSON citation link, reported live by Devin): citation_url pointed at the Socrata API endpoint (https://data.colorado.gov/resource/7s5z-vewr.json?licensetype=FRM) -- clicking the citation dumped a wall of raw JSON containing other licensees' names, cities and license numbers, with no page chrome. Swapped to the dataset's human-facing view page, verified in a real browser before committing: it renders the \"Professional and Occupational Licenses in Colorado\" dataset page with description, update cadence and provenance metadata, and lands on the About tab rather than the record table -- so the citation now shows a visitor WHAT was sampled and by whom, instead of dumping the sample itself. citation_class stays operational_record and the empirical-sampling prose is unchanged; only the link moved."
+      "verification_history": "2026-08-14 (raw-JSON citation link, reported live by Devin): citation_url pointed at the Socrata API endpoint (https://data.colorado.gov/resource/7s5z-vewr.json?licensetype=FRM) -- clicking the citation dumped a wall of raw JSON containing other licensees' names, cities and license numbers, with no page chrome. Swapped to the dataset's human-facing view page, verified in a real browser before committing: it renders the \"Professional and Occupational Licenses in Colorado\" dataset page with description, update cadence and provenance metadata, and lands on the About tab rather than the record table -- so the citation now shows a visitor WHAT was sampled and by whom, instead of dumping the sample itself. citation_class stays operational_record and the empirical-sampling prose is unchanged; only the link moved.\n\n2026-08-20 (AuditLab CITE-26, fixed same day): the prior citation's mechanism was wrong -- it said \"newly-registered 2026 firms are placed on the next cohort, 8/31/2029\" (issue-year determines cohort), sourced from a single firm's record. AuditLab re-verified against the full aggregate register (n=1487, not n=1) and found issue year does NOT determine the cohort -- every issue year from 1971-2026 has members in both the 2026 and 2029 cohorts. The real determinant is each firm's own last-renewed date: 2023-2025 renewals are due 2026-08-31, firms already renewed in the current 2026 cycle roll to 2029-08-31. This also resolves the record's own prior \"(unconfirmed) anchor year\" -- the anchor is confirmed 2026, cycle 2023->2026->2029. The headline date (2026-08-31) was never wrong; only the explanation was. next_deadline_computed is a static value that will need a manual update to 2029-08-31 when this date elapses (2026-08-31, ~11 days out at filing) -- noted as a follow-up item rather than built here, since this record has no per-firm personalized lookup (every visitor sees one date) and building one correctly needs the same last-renewed-date input the register uses, not an issue/anchor-year field this site doesn't currently collect."
     },
     {
       "id": "az-individual",
@@ -686,7 +686,6 @@
       "renewal_pattern": "fixed_calendar",
       "cycle_description": "Firm permits expire June 30 of every third year (e.g. 2024, 2027, 2030) -- same triennial calendar as individual licenses, no offset.",
       "next_deadline_computed": "2027-06-30",
-      "ce_deadline_note": "Individual CPE (120 hrs/3-yr period, min 20/yr, 12 A&A, 4 ethics) applies to the individual license renewal, not to firm permits separately.",
       "source_url": "https://www.in.gov/pla/professions/accountancy-home/accountancy-licensing-information/",
       "last_verified": "2026-08-13",
       "wave": 5,
@@ -704,7 +703,6 @@
       "renewal_pattern": "fixed_calendar",
       "cycle_description": "Annual renewal. Codified in Regulations of Connecticut State Agencies (RCSA) § 20-280-25(a): a CPA license 'shall be valid for a period of one year from January 1 to December 31,' renewed annually with the fee due by December 31. CT DCP's own renewal page corroborates practically: 'CPA license and/or registration is renewed annually, expiring on December 31st of each year.' Renewal notices emailed Oct-Dec 31.",
       "next_deadline_computed": "2026-12-31",
-      "ce_deadline_note": "CPE earned on a fiscal year (July 1-June 30, distinct from the calendar-year license), reported to the Board by Dec 31 as part of renewal (40 hrs/yr min, up to 60 reportable, 20-hr carryover from the immediately preceding fiscal year only; audit/attest hours not carryover-eligible). Source: CT DCP's separate CPE requirements page (secondary_source_url).",
       "source_url": "https://portal.ct.gov/dcp/license-services-division/license-division/cpa-renewal",
       "secondary_source_url": "https://portal.ct.gov/dcp/continuing-education/cpa---continuing-education",
       "last_verified": "2026-08-14",
@@ -739,7 +737,6 @@
       "renewal_pattern": "fixed_calendar",
       "cycle_description": "Annual renewal, expires December 31 every year -- codified in La. Admin. Code tit. 46, Part XIX, § 1105(B)(1)/(B)(3): certificate holders must renew 'annually ... on or before the last day of December,' and certificates 'expire on the last day of each calendar year' (the Board may set a later date 'for good cause,' per the same section). The Louisiana State Board of CPAs' own page corroborates practically. Renewal window opens November 1; a $200 delinquent fee applies starting February (escalating $50/month through year-end).",
       "next_deadline_computed": "2026-12-31",
-      "ce_deadline_note": "CPE completion due Dec 31; CPE reporting (submitting hours) due by Jan 31 of the following year -- a separate step from the renewal itself.",
       "source_url": "https://cpaboard.state.la.us/cpa-resources/",
       "last_verified": "2026-08-13",
       "wave": 5,
@@ -782,7 +779,6 @@
           "next_deadline": "2027-06-30"
         }
       ],
-      "ce_deadline_note": "80 CPE hrs/2-yr period (min 4 ethics, min 20/yr, no more than 20 hrs carryover applied to the annual minimum), deadline coincides with the June 30 renewal date.",
       "source_url": "https://www.oregon.gov/boa/pages/license-renewal-information.aspx",
       "last_verified": "2026-08-18",
       "wave": 5,
@@ -817,7 +813,6 @@
       "renewal_pattern": "fixed_calendar",
       "cycle_description": "Annual renewal. Per the SC Board of Accountancy (LLR)'s official FAQ: the deadline for CPA license renewal is February 1 at 11:59pm; not renewed by February 15 11:59pm is considered lapsed, requiring reinstatement. Renewal notices mailed mid-November. SCOPED TO CPA ONLY: the FAQ discusses only 'CPA' licenses -- whether the identical dates apply to PA (Public Accountant) or AP (Accounting Practitioner) categories is not stated on this page and is not asserted here.",
       "next_deadline_computed": "2027-02-01",
-      "ce_deadline_note": "40 CPE hrs 'for each annual reporting period' per the Board's FAQ; the page uses general phrases ('each annual reporting period,' 'each calendar year') rather than an explicit Jan 1-Dec 31 date range -- treat the exact boundary as probable but not verbatim-quoted.",
       "source_url": "https://llr.sc.gov/acct/faq.aspx",
       "last_verified": "2026-08-14",
       "wave": 5,
@@ -852,7 +847,6 @@
       "renewal_pattern": "fixed_calendar",
       "cycle_description": "Fixed annual cycle, same for every individual AND firm licensee (not birth-month, not cohort). Per Ala. Admin. Code 30-X-5-.05(1): annual permits to practice 'expire on the last day of September of each year.' Per Ala. Admin. Code 30-X-3-.07(1): the renewal fee ($100 individual / $130 firm) and CPE compliance statement must be submitted 'no later than December 31 following expiration of the permit.' Late penalties (30-X-3-.07(4)): $100 if filed Jan1-Feb, $500 if filed March, discipline possible after.",
       "next_deadline_computed": "2026-12-31",
-      "ce_deadline_note": "CPE (40 hrs, incl. 8 A&A + 2 ethics) must be completed within the fiscal year ending Sept 30 (30-X-5-.02(1)) -- earlier than the Dec 31 deadline for submitting the renewal + signed CPE compliance statement (30-X-3-.07(1)).",
       "source_url": "https://admincode.legislature.state.al.us/api/chapter/30-X-3",
       "secondary_source_url": "https://www.asbpa.alabama.gov/",
       "last_verified": "2026-08-14",
@@ -882,7 +876,6 @@
           "next_deadline": "2027-07-31"
         }
       ],
-      "ce_deadline_note": "CPE reporting period is the two calendar years immediately preceding the renewal year, distinct from the July 31 deadline itself.",
       "source_url": "https://cpa.ky.gov/practicingcpas/Pages/License-Renewal.aspx",
       "last_verified": "2026-08-18",
       "wave": 5,
@@ -920,7 +913,6 @@
         "type": "birth_month_annual",
         "rule": "Expires last day of the licensee's birth month, every year -- same shape as Texas."
       },
-      "ce_deadline_note": "CPE tracked on a calendar-year basis, a separate cycle from the birth-month renewal date; the Board's table pairs each birth-month deadline with a specific CPE Reporting Year that typically lags the renewal date.",
       "source_url": "https://oklahoma.gov/oab/departments/licensing.html",
       "last_verified": "2026-08-18",
       "wave": 3,
@@ -952,7 +944,6 @@
       "renewal_pattern": "fixed_calendar",
       "cycle_description": "Annual renewal -- every CPA certificate and LPA license (Iowa Code 542.6/542.8/542.19) expires June 30 each year, same date for every licensee. Iowa Admin. Code r. 481-1025.3(1): 'Licenses expire on June 30 of each year.' A renewal notice typically goes out in the May preceding expiration; a 30-day grace period follows a missed deadline before the license lapses (481-1025.4). (These rules were renumbered from 193A-5.3/5.4 by an editorial transfer effective June 2026; the text carried forward verbatim.)",
       "next_deadline_computed": "2027-06-30",
-      "ce_deadline_note": "120 CPE hrs (min 4 ethics) over a rolling 3-year period ending Dec 31 or June 30 immediately preceding the July 1 renewal (licensee self-selects which end-date applies).",
       "source_url": "https://www.legis.iowa.gov/docs/iac/chapter/481.1025.pdf",
       "last_verified": "2026-08-14",
       "wave": 5,

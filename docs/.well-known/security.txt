@@ -1,4 +1,4 @@
 Contact: mailto:support@deadline-radar.com
-Expires: 2027-08-19T00:00:00.000Z
+Expires: 2027-08-20T00:00:00.000Z
 Canonical: https://deadline-radar.com/.well-known/security.txt
 Preferred-Languages: en

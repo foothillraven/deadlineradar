@@ -963,10 +963,11 @@
       "cycle_description": "Iowa Code § 542.7 establishes a firm permit to practice, separate from individual certificates/licenses. Firm-permit renewal is governed by Iowa Admin. Code 481 Chapter 1028 ('Licensed Public Accounting Firms'), not Chapter 5 (individual-license renewal only): the permit holder will submit an online renewal with the Board by the June 30 deadline each year (481-1028.2). We have not independently verified the specific grace-period or late-penalty terms for a firm permit renewed after that date -- contact the Board directly if you have missed the deadline.",
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://dial.iowa.gov/about-dial/boards-and-commissions/accountancy-board",
-      "last_verified": "2026-08-08",
+      "last_verified": "2026-08-20",
       "wave": 5,
       "citation": "Iowa Admin. Code r. 481-1028.2",
-      "citation_url": "https://www.legis.iowa.gov/docs/iac/rule/481.1028.2.pdf"
+      "citation_url": "https://www.legis.iowa.gov/docs/iac/rule/481.1028.2.pdf",
+      "verification_history": "2026-08-20 (STALE-9 self-directed re-verification, ahead of the next signup-pause anchor -- this record was the sole oldest last_verified in the corpus, anchoring the Worker's freshness guard to a 2026-09-08 pause): re-fetched the rule PDF directly (Chrome-UA curl, 200) and confirmed verbatim: '481-1028.2(542) Renewal procedures. The permit holder will submit an online renewal with the board by the June 30 deadline each year.' PDF's own footer shows an 'Editorial change: IAC Supplement 6/10/26' notation -- current as of a 2026 supplement, not stale text. No change from the record's existing claim."
     },
     {
       "id": "dc-all",

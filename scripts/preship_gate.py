@@ -921,11 +921,35 @@ _HEDGE_MARKER_RE = re.compile(
 )
 
 
+def _latest_history_entry(history: str) -> str:
+    """verification_history is a sequence of dated entries appended in order,
+    each starting 'YYYY-MM-DD (...)', joined by blank lines (confirmed
+    convention -- checked against real records, no entry itself contains an
+    internal blank line). Split on that separator and return the LAST one --
+    positional append-order, not a max() over the date strings, since same-
+    day entries (a record can get 2+ entries in one session) would tie on
+    date alone."""
+    return history.split("\n\n")[-1]
+
+
 def check_hedge_language_enforced(repo_root: Path) -> list[str]:
     """Fail the build if a record's own verification_history flags its
     sourcing as insufficient/unconfirmed but the record currently ships
     with no data_gap_note -- an internal caveat that never reached the
-    reader. See HEDGE-1 above."""
+    reader. See HEDGE-1 above.
+
+    2026-08-19 (AuditLab GATE-4, found the same day HEDGE-1 shipped): the
+    original version searched the WHOLE history string for the marker
+    phrases. A record whose CURRENT state is genuinely clean -- an earlier
+    entry once used trigger language, a LATER entry resolved it, no
+    data_gap_note today because there's nothing left to caveat -- still
+    tripped this, because the marker search doesn't care which entry it
+    matches in. 0 live records affected (reran against all 4 real datasets),
+    but the next record narrating a past hedge-language problem in a
+    resolution entry would false-positive. Scoped to the LATEST entry only:
+    a record whose most recent history entry still uses hedge language is
+    the actual NJ shape (an unresolved caveat as of right now); one whose
+    hedge language is confined to an OLDER, superseded entry is not."""
     errors = []
     for fname, field in _BLOCK_CLAIM_DATASETS:
         path = repo_root / "data" / fname
@@ -933,13 +957,17 @@ def check_hedge_language_enforced(repo_root: Path) -> list[str]:
             continue
         for r in json.loads(path.read_text(encoding="utf-8"))["records"]:
             history = r.get("verification_history")
-            if not isinstance(history, str) or not _HEDGE_MARKER_RE.search(history):
+            if not isinstance(history, str):
+                continue
+            latest = _latest_history_entry(history)
+            match = _HEDGE_MARKER_RE.search(latest)
+            if not match:
                 continue
             if r.get(field):
                 continue  # data_gap_note present -- caveat already reflected, not this bug
             errors.append(
-                f"[HEDGE1][{r.get('id')}] {fname}: verification_history flags this record's own "
-                f"sourcing as insufficient/unconfirmed ({_HEDGE_MARKER_RE.search(history).group(0)!r}), "
+                f"[HEDGE1][{r.get('id')}] {fname}: verification_history's LATEST entry flags this "
+                f"record's own sourcing as insufficient/unconfirmed ({match.group(0)!r}), "
                 f"but {field} is empty -- the record ships with no reader-facing caveat at all. "
                 f"Either the flagged claim was never actually corrected (add {field} explaining the "
                 f"gap, same as every other unconfirmed record) or the history entry describing a "

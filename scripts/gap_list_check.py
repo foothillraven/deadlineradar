@@ -18,12 +18,14 @@ number quoted in a commit message -- so a future session can `cat` the file
 instead of re-deriving the population from scratch.
 
 Each entry is additionally classified for a block/parse claim (SRC-5's
-class: "blocks automated requests", "could not be reached", etc.) using the
-identical regex preship_gate.py's check_block_claims_are_real() gates on --
-a record in this list making that specific claim is the subset SRC-5 already
-verifies against source_check.py at gate time; this script does not
-duplicate those network calls, only flags which entries fall in that class
-so a reader knows which claims are independently live-checked.
+class: "blocks automated requests", "could not be reached", etc.) using
+source_check.BLOCK_CLAIM_RE -- the SAME regex object preship_gate.py's
+check_block_claims_corroborated() gates on (imported, not copied, after
+SRC-7 found the two had already drifted apart) -- a record in this list
+making that specific claim is the subset SRC-5 already verifies against
+source_check.py at gate time; this script does not duplicate those network
+calls, only flags which entries fall in that class so a reader knows which
+claims are independently live-checked.
 
 Run standalone, this prints a report and never exits non-zero -- it is
 inventory, not a pass/fail gate. Wired into preship_gate.py as an advisory
@@ -34,14 +36,11 @@ Usage:
     python scripts/gap_list_check.py [repo_root]
 """
 import json
-import re
 import sys
 from pathlib import Path
 
-_BLOCK_CLAIM_RE = re.compile(
-    r"(blocks? (?:automated|non-browser)|bot.?wall|resists non-browser|could not be (?:reached|fetched|accessed|parsed))",
-    re.IGNORECASE,
-)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from source_check import BLOCK_CLAIM_RE
 
 # (dataset filename, fields to check for a gap/verification note). Only
 # cpa_deadlines.json carries verification_note as a distinct field from
@@ -76,7 +75,7 @@ def collect_gap_entries(repo_root: Path) -> tuple[list[dict], int]:
                     "state_slug": r.get("state_slug"),
                     "field": field,
                     "note": note,
-                    "is_block_claim": bool(_BLOCK_CLAIM_RE.search(note)),
+                    "is_block_claim": bool(BLOCK_CLAIM_RE.search(note)),
                 })
     return entries, total_records
 

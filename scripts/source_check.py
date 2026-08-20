@@ -91,6 +91,30 @@ BOT_WALL_MARKERS = [
 ]
 
 
+# SRC-7 (AuditLab, 2026-08-20): the phrase list this started as
+# (blocks?/bot.?wall/resists non-browser/could not be reached-fetched-accessed)
+# missed 4 live records verbatim -- "blocked TO automated fetches" (not
+# "blocks"), "not reachable via automated tooling", "render only in a
+# browser", and a note quoting this module's own "BLOCKED" verdict back at
+# the reader. Each miss means check_block_claims_corroborated() in
+# preship_gate.py silently skips that record's own live-check -- a claim the
+# regex doesn't recognize never reaches source_check.check() at all, so the
+# gate can report "all corroborated" while checking nothing. Widened to
+# match by SHAPE (block-language, unreachability, browser-only rendering)
+# rather than an exact phrase list, on the same theory as the SRC-4 gap-list
+# and GATE-1 prose-leak detectors: over-matching here is cheap (source_check
+# just runs on a few more records), under-matching is what silently empties
+# a gate. Single-sourced here and imported by both preship_gate.py and
+# gap_list_check.py so the two can no longer drift out of sync with each
+# other (SRC-7's second, smaller defect: they already had).
+BLOCK_CLAIM_RE = re.compile(
+    r"(block\w*|not reachable|unreachable|could not be (?:reached|fetched|accessed|parsed)|"
+    r"bot.?(?:wall|filter|manager)|captcha|resists? non-browser|"
+    r"renders? only in a browser|requires? (?:a )?browser|javascript application)",
+    re.IGNORECASE,
+)
+
+
 def _fetch(url: str) -> tuple[str, bytes | None, str, int | None]:
     """Returns (status_class, body_bytes, content_type, http_status)."""
     req = urllib.request.Request(url, headers={"User-Agent": BROWSER_UA, "Accept": "*/*"})

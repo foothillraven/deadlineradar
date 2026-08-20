@@ -5,7 +5,7 @@
   },
   "total_records": 246,
   "gap_record_count": 50,
-  "block_claim_count": 0,
+  "block_claim_count": 3,
   "entries": [
     {
       "dataset": "cpa_deadlines.json",
@@ -104,7 +104,7 @@
       "state_slug": "alaska",
       "field": "verification_note",
       "note": "2026-07-16 follow-up (see also 2026-07-13 note below): independently re-confirmed both AS 08.04.105(a) and 12 AAC 04.189 (License Renewal) directly via the Board's own hosted CPARegulations.pdf (pdftotext-extracted) -- neither states the specific December 31 date or the odd-year pattern for individual licenses. akleg.gov itself remains blocked to automated fetches (tried again via curl with a browser user-agent string and via a second fetch method, both blocked). The parallel firm-permit rule (12 AAC 04.280(c)) DOES explicitly state a renewal is 'due not later than December 31' -- strong indirect corroboration that individuals share the same calendar -- but that is not a direct citation for the individual-license date specifically, so the citation/Verified badge was removed from this record rather than left pointing at a rule that doesn't itself establish the displayed date. The date is very likely correct (math, Board materials, and the firm-rule corroboration all agree) but is not verbatim-confirmed against an individual-specific codified provision. 2026-07-13 amendment-currency audit (original): unverified, akleg.gov 403s automated fetches; candidates for the individual-specific cite (12 AAC 04.189, 12 AAC 02.935) remain unconfirmed; a related 2025 regulation package (12 AAC 04, eff. 7/26/2025) also unconfirmed as to scope. Pending a human browser check of akleg.gov/basis/aac.asp directly, or of 12 AAC 02.935 specifically.",
-      "is_block_claim": false
+      "is_block_claim": true
     },
     {
       "dataset": "cpa_deadlines.json",
@@ -113,7 +113,7 @@
       "state_slug": "alaska",
       "field": "verification_note",
       "note": "2026-07-16 follow-up: independently confirmed 12 AAC 04.280(c) directly via the Board's own hosted regulations PDF (pdftotext-extracted, not a summarized fetch) -- it explicitly states a firm-permit renewal application is 'due not later than December 31' for the biennial license period. This resolves the earlier uncertainty about whether the cited rule actually establishes the displayed date: for firms, it does. The specific odd-year pattern (that the current period ends in 2027, not 2026) is not itself spelled out in this section, but is corroborated by the Board's own published materials and the arithmetic of a continuous biennial cycle. akleg.gov itself remains blocked to automated fetches (tried again this pass, still 403); this confirmation relies on the Board's own hosted copy of the regulation text instead. 2026-07-13 amendment-currency audit (original, superseded by the above): flagged this record as unverified pending exactly this check.",
-      "is_block_claim": false
+      "is_block_claim": true
     },
     {
       "dataset": "cpa_deadlines.json",
@@ -176,7 +176,7 @@
       "state_slug": "texas",
       "field": "data_gap_note",
       "note": "Texas currently has no stable official URL for TAC rule text: the legacy texreg.sos.state.tx.us per-section links now return a 'Site Has Moved' stub, and the replacement SOS portal (texas-sos.appianportalsgov.com/rules-and-meetings) is a JavaScript application whose per-rule pages (e.g. interface=VIEW_TAC_SUMMARY&recordId=...) render only in a browser. Until the state provides a linkable text source, the citation link points at a third-party mirror of the rule.",
-      "is_block_claim": false
+      "is_block_claim": true
     },
     {
       "dataset": "reinstatement.json",
@@ -454,7 +454,7 @@
       "state": "U.S. Virgin Islands",
       "state_slug": "us-virgin-islands",
       "field": "data_gap_note",
-      "note": "Sourced from the Board's own web page content, not a downloadable fee-schedule PDF or codified rule -- USVI's Title 27 code text was not reachable via automated tooling (source_check BLOCKED against justia's USVI title-27 mirror). Live-reconfirmed 2026-08-15 directly on the board page: 'CPA Permit $135.00' and 'Renewal Window Opens...late fee penalty period' with '$25 per month up to a maximum of $600' -- both match our figures exactly.",
+      "note": "Sourced from the Board's own web page content, not a downloadable fee-schedule PDF or codified rule -- no reachable host publishes USVI's Title 27 code text (see verification history for the specific hosts tried and ruled out). Live-reconfirmed 2026-08-15 directly on the board page: 'CPA Permit $135.00' and 'Renewal Window Opens...late fee penalty period' with '$25 per month up to a maximum of $600' -- both match our figures exactly.",
       "is_block_claim": false
     }
   ]

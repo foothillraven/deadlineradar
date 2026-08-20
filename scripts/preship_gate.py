@@ -679,11 +679,12 @@ _DERIVED_FEE_CHECKS: list[dict] = [
 # prose can quietly re-enter data_gap_note and nothing catches it until the
 # next manual audit. Network calls at gate time are deliberately capped to
 # ONLY the records whose notes make a block claim (a handful), not all 245.
+#
+# SRC-7 (2026-08-20): the phrase-list regex used to live here as its own
+# copy; moved to source_check.BLOCK_CLAIM_RE (see that module for the full
+# rationale) so this check and gap_list_check.py's inventory can't drift
+# out of sync the way they already had -- see that constant's own comment.
 # ---------------------------------------------------------------------------
-_BLOCK_CLAIM_RE = re.compile(
-    r"(blocks? (?:automated|non-browser)|bot.?wall|resists non-browser|could not be (?:reached|fetched|accessed))",
-    re.IGNORECASE,
-)
 _BLOCK_CLAIM_DATASETS = [
     ("cpa_deadlines.json", "data_gap_note"),
     ("cpe_hours.json", "data_gap_note"),
@@ -872,7 +873,7 @@ def check_block_claims_corroborated(repo_root: Path) -> list[str]:
         data = json.loads(path.read_text(encoding="utf-8"))
         for r in data["records"]:
             note = r.get(field)
-            if not isinstance(note, str) or not _BLOCK_CLAIM_RE.search(note):
+            if not isinstance(note, str) or not source_check.BLOCK_CLAIM_RE.search(note):
                 continue
             urls = [r.get(k) for k in ("citation_url", "source_url") if r.get(k)]
             if not urls:

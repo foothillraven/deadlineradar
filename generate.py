@@ -8051,6 +8051,20 @@ def build_rule_changes_page() -> str:
             f"Our automated monitoring has flagged and promoted {monitoring_count} change"
             f"{'s' if monitoring_count != 1 else ''} so far."
         )
+        # AuditLab MON-3 (2026-08-20): monitoring_count is cumulative, so it
+        # stays truthy and this present-tense sentence keeps rendering even
+        # while the monitor feeding it has been dead for weeks -- the ONE
+        # monitoring claim a visitor sees, directly above a "compliance-news
+        # digest" email signup asking for their address on the strength of
+        # it. Not gated away like the other two branches (a cumulative count
+        # doesn't become false when the monitor stops, unlike "daily since
+        # ..."), but a reader deserves to know it's not current. Appends the
+        # same caveat the elif branch below uses, only when actually stale.
+        if not _rule_change_monitoring_fresh():
+            monitoring_note += (
+                " Day-to-day monitoring has been paused for a while; every item below comes from "
+                "our batch legal research in the meantime."
+            )
     elif not _rule_change_monitoring_fresh():
         # Self-review, 2026-08-20: this branch used to render "watching 500
         # primary sources ... daily ... Last checked <date>" unconditionally

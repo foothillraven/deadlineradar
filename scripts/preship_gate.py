@@ -1762,16 +1762,68 @@ def _blank_strings_and_comments(text: str) -> str:
 
 def _condition_is_constant_false(cond: str) -> bool:
     """True if an `if(...)` condition string is a literal-false short-circuit
-    (`false`, `false && x`, `x && false`) rather than a real comparison
-    (`x === false`, `x !== false`) -- the latter is legitimate code that
-    happens to compare against the boolean literal and must not be treated
-    as dead. Strips `===`/`!==`/`==`/`!=` comparisons against `false` first,
-    then checks whether a bare `false` remains."""
+    (`false`, `false && x`, `x && false`, `!true`, `!1`) rather than a real
+    comparison (`x === false`, `x !== false`) -- the latter is legitimate
+    code that happens to compare against the boolean literal and must not
+    be treated as dead. Strips `===`/`!==`/`==`/`!=` comparisons against
+    `false` first, then checks whether a bare `false`/`!true`/`!1` remains.
+
+    AuditLab GUARD-1 follow-up (2026-08-20, adversarial mutation testing
+    against the shipped fix): `!true` and `!1` are the same constant-false
+    short-circuit as `false`/`0`, one negation away, and weren't
+    recognised -- `if (!true) { if (firm.demo_locked) return; }` and
+    `if (!true) { checkRateLimit(...) }` both still passed. Confirmed
+    real code uses bare negated variables (`!allowed`) legitimately, so
+    only the LITERAL `!true`/`!1` forms are treated as dead, never a
+    negated identifier."""
     stripped = re.sub(r"[=!]==?\s*false\b", "", cond)
     stripped = re.sub(r"\bfalse\s*[=!]==?", "", stripped)
     if re.search(r"\bfalse\b", stripped):
         return True
-    return bool(re.search(r"(?<![\w.])0(?![\w.])\s*(&&|$)", cond.strip()))
+    if re.search(r"(?<![\w.])0(?![\w.])\s*(&&|$)", cond.strip()):
+        return True
+    if re.search(r"(?<![!\w])!\s*true\b", cond):
+        return True
+    if re.search(r"(?<![!\w])!\s*1\b(?!\d)", cond):
+        return True
+    return False
+
+
+def _find_if_conditions(text: str) -> list[tuple[str, int, int]]:
+    """Yields (condition_text, if_keyword_start, index_just_past_the_close_paren)
+    for every `if (...)` in text, using balanced-paren matching -- NOT the
+    naive `if\\s*\\(([^)]*)\\)` regex every caller in this file used to use,
+    which stops at the FIRST `)` and mis-extracts as soon as the condition
+    contains a nested call.
+
+    AuditLab GUARD-1 follow-up (2026-08-20, adversarial mutation testing):
+    demonstrated `if (ok(a, b) && firm.demo_locked)` -- the naive regex
+    captures only `ok(a, b`, so the real `demo_locked` flag falls OUTSIDE
+    the captured condition and correctly-guarded code gets flagged as a
+    violation. Not firing today against the live tree, but it silently
+    constrains how a future guard may legally be written (a function call
+    before the flag in the same condition breaks the gate on working
+    code) -- exactly the kind of false-positive that makes a gate get
+    disabled or ignored, which is its own path back to GUARD-1's original
+    problem."""
+    results = []
+    n = len(text)
+    for m in re.finditer(r"if\s*\(", text):
+        start = m.end() - 1
+        depth = 0
+        i = start
+        while i < n:
+            if text[i] == "(":
+                depth += 1
+            elif text[i] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        if i >= n:
+            continue
+        results.append((text[start + 1 : i], m.start(), i + 1))
+    return results
 
 
 def _strip_dead_if_false_blocks(text: str) -> str:
@@ -1791,15 +1843,38 @@ def _strip_dead_if_false_blocks(text: str) -> str:
     out = []
     i = 0
     n = len(text)
-    pattern = re.compile(r"if\s*\(([^)]*)\)\s*\{")
+    if_re = re.compile(r"if\s*\(")
     while i < n:
-        m = pattern.search(text, i)
+        m = if_re.search(text, i)
         if not m:
             out.append(text[i:])
             break
-        cond = m.group(1)
+        cond_start = m.end() - 1
+        depth = 0
+        k = cond_start
+        while k < n:
+            if text[k] == "(":
+                depth += 1
+            elif text[k] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            k += 1
+        if k >= n:
+            out.append(text[i:])
+            break
+        cond = text[cond_start + 1 : k]
+        after_paren = k + 1
+        brace_m = re.match(r"\s*\{", text[after_paren:])
+        if not brace_m:
+            # Bodyless `if (cond) statement;` -- not this function's shape
+            # (it only blanks braced blocks); leave it for the caller's own
+            # condition-level check via _find_if_conditions() instead.
+            out.append(text[i:after_paren])
+            i = after_paren
+            continue
         is_dead = _condition_is_constant_false(cond)
-        brace_start = m.end() - 1
+        brace_start = after_paren + brace_m.end() - 1
         depth = 0
         j = brace_start
         while j < n:
@@ -1927,10 +2002,12 @@ def check_demo_locked_email_coverage(repo_root: Path) -> list[str]:
             # present in the body -- closes `if (false && firm.demo_locked)`,
             # which has no enclosing braces for _strip_dead_if_false_blocks
             # to catch, and is otherwise indistinguishable from a real guard
-            # to a bare substring search.
+            # to a bare substring search. Balanced-paren extraction (not a
+            # naive `[^)]*` regex, which mis-truncates on a nested call --
+            # see _find_if_conditions()'s docstring, GUARD-1 follow-up).
             guarded = any(
                 "demo_locked" in cond and not _condition_is_constant_false(cond)
-                for cond in re.findall(r"if\s*\(([^)]*)\)", body)
+                for cond, _, _ in _find_if_conditions(body)
             )
             if guarded:
                 continue

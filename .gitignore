@@ -2,6 +2,21 @@ __pycache__/
 *.pyc
 .DS_Store
 
+# AuditLab SEC-4 (2026-08-20): no rule anywhere covered a repo-root secret
+# file, and the repo went public 2026-08-19 -- the real secrets have always
+# lived OUTSIDE this tree (AssetLab/.secrets/, two directories above this
+# repo's root), so nothing was ever actually leaked, but that was true only
+# by placement, not by any enforced rule. The trap: this file's own usage
+# blocks (check_stripe_price_reconciliation.py, worker/DEPLOY.md) document a
+# RELATIVE .secrets/stripe.env path -- run from the repo root, that resolves
+# INSIDE the repo -- so a future `cp` to make the documented command work
+# followed by any `git add -A` would commit a live key to a public repo with
+# nothing objecting. Same shape as REPO-1: safe today only by where a file
+# happens to sit. One line closes the specific documented path; `*.env`
+# closes the wider class the same way reminders/*.env etc. already do below.
+.secrets/
+*.env
+
 # Real subscriber PII (email addresses) and dry-run send logs (which contain
 # the same PII, since dry-run logs exactly what WOULD have been sent). Never
 # commit either -- only subscribers.example.json (fake data) is tracked.

@@ -43,8 +43,13 @@ secret, before flipping from test-mode to live-mode keys at Gate 2), not on
 every build.
 
 Usage:
-    export STRIPE_SECRET_KEY=sk_test_...   (or source .secrets/stripe.env's
-                                             STRIPE_TEST_SECRET_KEY as this)
+    export STRIPE_SECRET_KEY=sk_test_...   (or source AssetLab's OWN
+                                             .secrets/stripe.env, two directories
+                                             above this repo's root -- NEVER copy
+                                             it into the repo tree itself; see
+                                             SEC-4, 2026-08-20, for why that
+                                             specific mistake is one `git add -A`
+                                             away from a public leak)
     export STRIPE_COUPON_REFERRAL=dr-referral-tier-   (optional -- matches
                                              the wrangler secret; omit to skip
                                              the coupon half entirely)

@@ -19165,10 +19165,26 @@ def _cpe_hours_reverse_link_html(state_slug: str, cpe_hours_by_slug: dict[str, d
     slug = f"{state_slug}-cpa-cpe-requirements"
     hours_word = "hour" if cpe_record["total_hours"] == 1 else "hours"
     years_word = "year" if cpe_record["period_years"] == 1 else "years"
-    ethics_word = "hour" if cpe_record["ethics_hours"] == 1 else "hours"
+    # DATA-13 (AuditLab, 2026-08-20): ethics_hours is null for 2 of 51 records
+    # (Louisiana, South Dakota), and this call site interpolated it unguarded
+    # -- Python's None rendering as literal "None" turned "we don't have the
+    # number" into "(None ethics hours)", which a reader parses as zero. The
+    # two nulls don't even mean the same thing (Louisiana: a course IS
+    # required, the rule just doesn't fix an hour count; South Dakota:
+    # genuinely no recurring ethics-CPE requirement) -- a single "(unknown)"
+    # fallback would still leave Louisiana's reader wrongly reassured.
+    # ethics_hours_note carries the curated, state-specific distinction;
+    # falls back to the same "not a guess" framing the meta description
+    # already uses at :18982 for any future null this specific note hasn't
+    # been written for yet.
+    ethics_clause = (
+        f'{cpe_record["ethics_hours"]} ethics {"hour" if cpe_record["ethics_hours"] == 1 else "hours"}'
+        if cpe_record.get("ethics_hours")
+        else cpe_record.get("ethics_hours_note", "ethics-hour count not independently confirmed, not a guess")
+    )
     return (
         f'<p class="backlink-cross"><strong>CPE required:</strong> {cpe_record["total_hours"]} {hours_word} '
-        f'every {cpe_record["period_years"]} {years_word} ({cpe_record["ethics_hours"]} ethics {ethics_word}). '
+        f'every {cpe_record["period_years"]} {years_word} ({ethics_clause}). '
         f'<a href="../{esc(slug)}/">Full CPE requirements &rarr;</a></p>'
     )
 
@@ -19316,12 +19332,24 @@ def _state_faq_html_and_schema(
     if cpe_record:
         hours_word = "hour" if cpe_record["total_hours"] == 1 else "hours"
         years_word = "year" if cpe_record["period_years"] == 1 else "years"
-        ethics_word = "hour" if cpe_record["ethics_hours"] == 1 else "hours"
+        # DATA-13 (AuditLab, 2026-08-20): same unguarded-None leak as the
+        # cross-link card above, in this page's FAQ answer -- see that call
+        # site's comment for the full reasoning and why a single fallback
+        # can't serve both Louisiana and South Dakota honestly. Rendered as
+        # its own trailing sentence (not comma-spliced into the hours count)
+        # since ethics_hours_note is written as a standalone clause, not one
+        # that continues "...every N years, ...".
+        if cpe_record.get("ethics_hours"):
+            ethics_word = "hour" if cpe_record["ethics_hours"] == 1 else "hours"
+            ethics_sentence = f"That includes {cpe_record['ethics_hours']} ethics {ethics_word}."
+        else:
+            note = cpe_record.get("ethics_hours_note", "the ethics-hour count is not independently confirmed")
+            ethics_sentence = f"{note[0].upper()}{note[1:]}."
         qa.append((
             f"Does {state_name} require CPE hours to renew a CPA license?",
             f"Yes -- {state_name} requires {cpe_record['total_hours']} {hours_word} of CPE every "
-            f"{cpe_record['period_years']} {years_word}, including {cpe_record['ethics_hours']} ethics "
-            f"{ethics_word}. See the full {state_name} CPE requirements page for the exact citation.",
+            f"{cpe_record['period_years']} {years_word}. {ethics_sentence} See the full {state_name} "
+            f"CPE requirements page for the exact citation.",
         ))
     if reinstatement_record:
         fee_str = _reinstatement_fee_str(reinstatement_record.get("reinstatement_fee_usd"))

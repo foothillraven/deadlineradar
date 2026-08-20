@@ -931,10 +931,11 @@
       "cycle_description": "Annual, fixed calendar deadline separate from individuals' birth-month cycle -- codified in Okla. Stat. tit. 59, § 15.15: firm registrations 'expire on June 30 of each year' and are 'automatically revoked' if not renewed by that date. The Board's own Firm Registration Renewal Form corroborates practically, stating in bold: 'FORM & FEE MUST BE RECEIVED BY JUNE 30, [year].'",
       "next_deadline_computed": "2027-06-30",
       "source_url": "https://oklahoma.gov/content/dam/ok/en/oab/documents/registration/OAB%20FORM%20R004%20-%202025%20Firm%20Registration%20Renewal.pdf",
-      "last_verified": "2026-08-13",
+      "last_verified": "2026-08-20",
       "wave": 5,
       "citation": "Okla. Stat. tit. 59, § 15.15",
-      "citation_url": "https://www.oscn.net/applications/oscn/DeliverDocument.asp?CiteID=95030"
+      "citation_url": "https://www.oscn.net/applications/oscn/DeliverDocument.asp?CiteID=95030",
+      "verification_history": "2026-08-20 (CITE-31/SRC-9 self-directed spot-check): this record's citation_url (oscn.net) presents a Cloudflare Turnstile challenge to every client, including a real Chrome browser session -- did not attempt to bypass it (bot-detection bypass is out of scope). Independently corroborated via a real-browser read of Justia's 2025 Oklahoma Statutes mirror (law.justia.com/codes/oklahoma/title-59/section-59-15-15/), which carries an explicit \"2025 Oklahoma Statutes\" freshness marker. Sec.15.15(B): 'All such registrations shall expire on June 30 of each year and may be renewed annually for a period of one (1) year by registrants in good standing upon filing the registration and upon payment of the annual fee not later than June 30 of each year.' Sec.15.15(E): 'A registration granted under authority of this section shall automatically be revoked if the firm fails to renew its registration on or before June 30.' Both match this record's cycle_description verbatim -- no drift found. citation_url left pointed at OSCN (the state's own official codification host) rather than swapped to the Justia mirror, consistent with this site's house preference for primary official sources; Justia serves only as independent corroboration here."
     },
     {
       "id": "ia-individual",

@@ -2486,6 +2486,19 @@ PAGE_CSS = """
   .dr-map-state--not-verified { fill: #7a8699; }
   .dr-map-link { cursor: default; outline: none; }
   .dr-map-link[data-has-staff="true"] { cursor: pointer; }
+  /* A11Y-8 (AuditLab, 2026-08-20, WCAG 2.4.7): all 51 states are
+     tabindex="0" and outline:none with nothing replacing it -- a sighted
+     keyboard user tabbing through got no visual indication of position at
+     all. The public homepage map already solves this correctly one file
+     up (.map-link:focus swaps the fill colour), but that pattern doesn't
+     transfer here: this map's fill already carries 8 distinct SEMANTIC
+     status colours (active/risk/clear/action/complete/home/coverage/
+     not-verified), so swapping fill-on-focus would either collide with or
+     temporarily hide the status a firm actually came here to read. A
+     stroke layers on top of whatever fill is current without touching its
+     meaning -- same fix intent as the public map, different mechanism
+     because this map's colour channel is already spoken for. */
+  .dr-map-link:focus-visible .dr-map-state { stroke: var(--accent); stroke-width: 3; }
   .dr-map-tooltip {
     position: absolute; z-index: 15; pointer-events: none; white-space: nowrap;
     background: var(--panel-dark); color: var(--panel-dark-fg); font-size: 0.8rem;

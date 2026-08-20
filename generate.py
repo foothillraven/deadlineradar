@@ -6528,6 +6528,31 @@ def _coverage_counts(by_slug: dict[str, list[dict]]) -> dict[str, int]:
         "personal_fact": len(byod - source_gap),
     }
 
+def _rule_change_monitoring_fresh() -> bool:
+    """True iff rule_change_coverage_stats.json's last_checked_at is within
+    the same 48h bar rule_change_monitoring_staleness_check.py's advisory
+    uses. Extracted 2026-08-20 (self-review, not an AuditLab finding):
+    build_index_page() already used this exact computation as a hard display
+    gate on the homepage's hero-strip monitoring stats, but
+    build_rule_changes_page()'s OWN "watching 500 primary sources ... daily
+    ... Last checked <date>" paragraph -- the page that makes this claim
+    most explicitly and by name -- read the same last_checked_at directly
+    with no freshness check at all. It wasn't live (live_monitoring_count
+    happened to be nonzero, which selects the OTHER, staleness-safe branch
+    of that paragraph), but a future data state where monitoring_count drops
+    back to 0 while the monitor is stalled would have shipped a "daily since
+    ... Last checked August 3" claim on a monitor that hadn't run in weeks,
+    completely ungated. Single-sourced now so both call sites can't drift."""
+    try:
+        cov_stats = json.loads(RULE_CHANGE_COVERAGE_STATS_PATH.read_text(encoding="utf-8"))
+        last_checked = datetime.fromisoformat(cov_stats["last_checked_at"])
+        if last_checked.tzinfo is None:
+            last_checked = last_checked.replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - last_checked).total_seconds() / 3600 <= 48
+    except (FileNotFoundError, KeyError, ValueError):
+        return False
+
+
 def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[dict]]) -> str:
     # Roadmap #326 (2026-08-11, ValueLab design-pattern-mining #1): pulled
     # live at build time from the SAME data /rule-changes/ itself renders
@@ -6554,15 +6579,7 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
     # that same signal here as a hard display gate -- not just an advisory
     # print -- so a stalled monitor makes these two numbers disappear from
     # the hero strip instead of freezing there indefinitely.
-    _monitoring_fresh = False
-    try:
-        _cov_stats = json.loads(RULE_CHANGE_COVERAGE_STATS_PATH.read_text(encoding="utf-8"))
-        _last_checked = datetime.fromisoformat(_cov_stats["last_checked_at"])
-        if _last_checked.tzinfo is None:
-            _last_checked = _last_checked.replace(tzinfo=timezone.utc)
-        _monitoring_fresh = (datetime.now(timezone.utc) - _last_checked).total_seconds() / 3600 <= 48
-    except (FileNotFoundError, KeyError, ValueError):
-        _monitoring_fresh = False
+    _monitoring_fresh = _rule_change_monitoring_fresh()
 
     live_conflict_proof_html = ""
     if _live_conflicts:
@@ -8033,6 +8050,21 @@ def build_rule_changes_page() -> str:
         monitoring_note = (
             f"Our automated monitoring has flagged and promoted {monitoring_count} change"
             f"{'s' if monitoring_count != 1 else ''} so far."
+        )
+    elif not _rule_change_monitoring_fresh():
+        # Self-review, 2026-08-20: this branch used to render "watching 500
+        # primary sources ... daily ... Last checked <date>" unconditionally
+        # off cov['last_checked_at'] -- the SAME explicit ongoing-cadence
+        # claim build_index_page()'s hero strip already hides behind
+        # _rule_change_monitoring_fresh(). It wasn't live today only because
+        # monitoring_count happened to be nonzero; a stalled monitor with
+        # monitoring_count back at 0 would have shipped a false "daily since
+        # ..." claim with no protection at all. Falls back to the same
+        # honest, non-numeric framing as the "no events yet" case below,
+        # rather than assert a cadence the data can't currently back up.
+        monitoring_note = (
+            "Our automated day-to-day monitoring hasn't flagged and promoted a confirmed change "
+            "recently. Every item below instead comes from our batch legal research."
         )
     else:
         # DiffLab's own coverage numbers (2026-08-03), build-time-derived so this

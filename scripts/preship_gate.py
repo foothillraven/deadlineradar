@@ -1679,19 +1679,173 @@ def check_sitemap_completeness(html_files: list[Path], docs_dir: Path) -> list[s
     return errors
 
 
+def _blank_strings_and_comments(text: str) -> str:
+    """AuditLab GUARD-1 (2026-08-20): the original `_strip_ts_comments()`
+    doesn't understand string literals, so a `/*`/`*/`/`//`-shaped sequence
+    INSIDE a string confuses it two ways -- a live comment-shaped iCalendar
+    PRODID ('PRODID:-//Deadline-Radar//...', real code already in
+    worker/src/ics.ts) can truncate a real check off the end of a `//`
+    match (false alarm on correct code), and a string literal containing
+    both `/*` and `*/` (e.g. two separate `const pattern = "/*"` / `const
+    closer = "*/"` string constants) can make the block-comment regex
+    swallow everything between them -- including a real sendViaSendGrid()
+    call -- making the whole function INVISIBLE to a guard, worse than a
+    false pass since nothing hints anything was skipped. Also closes
+    GUARD-1's case E: a bare identifier like `demo_locked` mentioned inside
+    an ordinary string ("demo_locked handled upstream") read as a real code
+    reference to a substring search.
+
+    The first version of this fix ran string-blanking and comment-stripping
+    as two SEPARATE sequential passes (string-blank, then the existing
+    `_strip_ts_comments`) -- and that was itself broken by the identical
+    class of bug it was fixing: a `//` comment containing an apostrophe
+    ("...became demo_locked and confirm it after, same 'don't trust an
+    earlier gate alone' posture...", real prose already in
+    worker/src/index.ts) was misread as OPENING a string literal by the
+    string-blanking pass, which then ran to the NEXT apostrophe anywhere
+    later in the file, silently swallowing the real `if (firm.demo_locked)`
+    check that comment sits directly above. Caught by testing this fix
+    against the live codebase before shipping, not by the fix's own design
+    -- proof that two passes over an ambiguous grammar (comments can
+    contain quote characters, strings can contain comment-opener
+    characters) can't be ordered correctly no matter which runs first.
+
+    This function is the corrected single-pass tokenizer: walks the text
+    once, character by character, and handles whichever construct -- a
+    string/template literal or a `//`/`/* */` comment -- actually opens at
+    the current position, so the other's delimiter characters occurring
+    INSIDE it are never misinterpreted. String/template contents are
+    blanked (space-for-char, newlines kept); comments are removed entirely
+    (newlines kept for block comments so line-based reporting elsewhere
+    stays accurate). Not a real tokenizer -- template literal `${...}`
+    interpolations are blanked along with the rest of the template rather
+    than parsed, which is conservative (a real code reference inside one is
+    missed, never fabricated)."""
+    out = []
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c in ("'", '"', "`"):
+            quote = c
+            out.append(" ")
+            i += 1
+            while i < n:
+                c2 = text[i]
+                if c2 == "\\" and i + 1 < n:
+                    out.append("  ")
+                    i += 2
+                    continue
+                if c2 == quote:
+                    out.append(" ")
+                    i += 1
+                    break
+                out.append(c2 if c2 == "\n" else " ")
+                i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "/":
+            i += 2
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "*":
+            i += 2
+            while i < n and not (text[i] == "*" and i + 1 < n and text[i + 1] == "/"):
+                out.append("\n" if text[i] == "\n" else "")
+                i += 1
+            i += 2
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _condition_is_constant_false(cond: str) -> bool:
+    """True if an `if(...)` condition string is a literal-false short-circuit
+    (`false`, `false && x`, `x && false`) rather than a real comparison
+    (`x === false`, `x !== false`) -- the latter is legitimate code that
+    happens to compare against the boolean literal and must not be treated
+    as dead. Strips `===`/`!==`/`==`/`!=` comparisons against `false` first,
+    then checks whether a bare `false` remains."""
+    stripped = re.sub(r"[=!]==?\s*false\b", "", cond)
+    stripped = re.sub(r"\bfalse\s*[=!]==?", "", stripped)
+    if re.search(r"\bfalse\b", stripped):
+        return True
+    return bool(re.search(r"(?<![\w.])0(?![\w.])\s*(&&|$)", cond.strip()))
+
+
+def _strip_dead_if_false_blocks(text: str) -> str:
+    """AuditLab GUARD-1 (2026-08-20): a guard's own invariant check can be
+    neutralised by wrapping it in dead code -- `if (false) { if
+    (firm.demo_locked) return; }` -- and a bare substring search still
+    finds the token, passing clean with the real call left fully live.
+    Balanced-brace-walks every `if (<condition>) { ... }` block whose
+    condition contains a literal `false` (or a bare `0` ANDed in / alone),
+    and blanks that block's contents (newlines kept, so line-based error
+    reporting elsewhere stays accurate) before any caller searches the body
+    for a token -- so a check buried inside dead code no longer counts as
+    real coverage. Deliberately narrow (constant-false conditions only, not
+    general dead-code elimination): this is the exact shape demonstrated
+    live, and a full control-flow solver is the "full TS parsing is
+    overkill" AuditLab itself ruled out."""
+    out = []
+    i = 0
+    n = len(text)
+    pattern = re.compile(r"if\s*\(([^)]*)\)\s*\{")
+    while i < n:
+        m = pattern.search(text, i)
+        if not m:
+            out.append(text[i:])
+            break
+        cond = m.group(1)
+        is_dead = _condition_is_constant_false(cond)
+        brace_start = m.end() - 1
+        depth = 0
+        j = brace_start
+        while j < n:
+            if text[j] == "{":
+                depth += 1
+            elif text[j] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+        block_end = j + 1 if j < n else n
+        if is_dead:
+            out.append(text[i : m.start()])
+            dead_slice = text[m.start() : block_end]
+            out.append(re.sub(r"[^\n]", " ", dead_slice))
+        else:
+            out.append(text[i:block_end])
+        i = block_end
+    return "".join(out)
+
+
 def _strip_ts_comments(text: str) -> str:
     """Best-effort TS/JS comment stripper for the source-scanning guards in
-    this file -- NOT a real parser (doesn't understand `//`/`/* */` inside
-    a string literal), but catches the real failure mode a positive-control
-    mutation test on check_write_endpoint_rate_limits() surfaced 2026-08-07:
-    a naive `"checkRateLimit(" in body` substring search is fooled by a
-    COMMENT that mentions the function by name in prose (e.g. "...see
-    RATE_LIMIT_X's own comment for why checkRateLimit()'s `ip` parameter is
-    deliberately reused..." reads as a real call to a substring search) --
-    the guard passed clean with the actual call deleted, exactly the
-    "guard exists vs guard fires" gap this whole file exists to prevent.
-    Block comments stripped first, then `//` line comments -- `(?<!:)`
-    avoids treating a `://` inside a URL string as a comment opener."""
+    this file -- NOT a real parser, but catches the real failure mode a
+    positive-control mutation test on check_write_endpoint_rate_limits()
+    surfaced 2026-08-07: a naive `"checkRateLimit(" in body` substring
+    search is fooled by a COMMENT that mentions the function by name in
+    prose (e.g. "...see RATE_LIMIT_X's own comment for why
+    checkRateLimit()'s `ip` parameter is deliberately reused..." reads as
+    a real call to a substring search) -- the guard passed clean with the
+    actual call deleted, exactly the "guard exists vs guard fires" gap
+    this whole file exists to prevent. Block comments stripped first, then
+    `//` line comments -- `(?<!:)` avoids treating a `://` inside a URL
+    string as a comment opener.
+
+    AuditLab GUARD-1 (2026-08-20): this function doesn't understand string
+    literals, and -- proven the hard way -- can't be safely composed with a
+    separate string-blanking pass in either order (each mis-tokenizes the
+    other's delimiter characters when they appear inside its own construct:
+    a `//` comment containing an apostrophe, a string containing `//`/`/*`).
+    Superseded by `_blank_strings_and_comments()`, a single-pass tokenizer
+    that handles both correctly together. Left standalone (not deleted) only
+    because some future caller might genuinely want comment-stripped-but-
+    string-intact text; every guard in this file that gates a real security
+    or billing invariant should use `_blank_strings_and_comments()`, not
+    this function alone."""
     text = re.sub(r"/\*[\s\S]*?\*/", "", text)
     text = re.sub(r"(?<!:)//.*", "", text)
     return text
@@ -1757,12 +1911,28 @@ def check_demo_locked_email_coverage(repo_root: Path) -> list[str]:
     found_names = set()
     for ts_file in sorted(worker_src.glob("*.ts")):
         text = ts_file.read_text(encoding="utf-8")
-        for name, body in _balanced_brace_function_bodies(text, r"\w+"):
+        for name, raw_body in _balanced_brace_function_bodies(text, r"\w+"):
             found_names.add(name)
-            body = _strip_ts_comments(body)
+            # GUARD-1 (AuditLab, 2026-08-20): single-pass string/comment
+            # tokenizer first (a separate string-blank-then-comment-strip
+            # pipeline mis-tokenizes each other's delimiters -- see that
+            # function's docstring), then strip dead `if (false...)` blocks
+            # so a demo_locked check nested inside unreachable code doesn't
+            # count as coverage.
+            body = _blank_strings_and_comments(raw_body)
+            body = _strip_dead_if_false_blocks(body)
             if "sendViaSendGrid(" not in body:
                 continue
-            if "demo_locked" in body:
+            # Require demo_locked in a LIVE if() condition, not merely
+            # present in the body -- closes `if (false && firm.demo_locked)`,
+            # which has no enclosing braces for _strip_dead_if_false_blocks
+            # to catch, and is otherwise indistinguishable from a real guard
+            # to a bare substring search.
+            guarded = any(
+                "demo_locked" in cond and not _condition_is_constant_false(cond)
+                for cond in re.findall(r"if\s*\(([^)]*)\)", body)
+            )
+            if guarded:
                 continue
             if name in allowlisted:
                 continue
@@ -1907,7 +2077,11 @@ def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
     store_src = store_ts.read_text(encoding="utf-8")
     mutating_fns = set()
     for name, body in _balanced_brace_function_bodies(store_src, r"\w+"):
-        body = _strip_ts_comments(body)
+        # GUARD-1 (AuditLab, 2026-08-20): same hardening as
+        # check_demo_locked_email_coverage -- single-pass tokenizer, then
+        # strip dead if(false) blocks, before the substring search.
+        body = _blank_strings_and_comments(body)
+        body = _strip_dead_if_false_blocks(body)
         if re.search(r"\.prepare\(\s*[`\"'][^`\"']*?\b(?:INSERT|UPDATE|DELETE)\b", body, re.IGNORECASE):
             mutating_fns.add(name)
 
@@ -1951,7 +2125,18 @@ def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
     found_names = set()
     for name, body in _balanced_brace_function_bodies(index_src, r"handle\w+"):
         found_names.add(name)
-        body = _strip_ts_comments(body)
+        # GUARD-1 (AuditLab, 2026-08-20): same hardening as the mutating_fns
+        # scan above -- single-pass tokenizer, then strip dead if(false)
+        # blocks, before the checkRateLimit( substring search, so a bypass
+        # shaped like `if (false) { checkRateLimit(...) }` or a string
+        # literal mentioning "checkRateLimit(" can't fool it. Deliberately
+        # NOT requiring checkRateLimit( inside a live if()-condition the way
+        # check_demo_locked_email_coverage does -- real usage here is
+        # typically `const limited = await checkRateLimit(...); if
+        # (limited) return 429;`, a statement followed by a separate
+        # condition, not the call itself inside the if().
+        body = _blank_strings_and_comments(body)
+        body = _strip_dead_if_false_blocks(body)
         if not any(f"store.{fn}(" in body for fn in mutating_fns):
             continue
         if "checkRateLimit(" in body:

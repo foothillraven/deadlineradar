@@ -269,10 +269,28 @@ def check(url: str) -> dict:
 
     is_pdf = "pdf" in ctype or (body is not None and body[:5] == b"%PDF-")
     is_docx = "officedocument" in ctype or (body is not None and body[:4] == b"PK\x03\x04")
+    # SRC-11 (AuditLab, 2026-08-20): legacy .doc is an OLE compound file (a
+    # DIFFERENT container from .docx's ZIP), and fell through to
+    # _extract_html() the same way .docx did before SRC-10 -- decoding the
+    # binary as UTF-8 "succeeds" and reports CONFIRMED_TEXT on noise. Live
+    # case: 4 Florida records (flrules.org serves .doc, passed as a query
+    # param -- fl-individual, fl-cpe, florida-reinstatement,
+    # florida-renewal-fee). Unlike .docx there's no cheap stdlib parse for
+    # the legacy OLE format, and AuditLab's own follow-up confirmed no
+    # readable HTML/PDF alternative exists on flrules.org either (its
+    # apparent HTML alternative is a rulemaking-HISTORY index that quotes
+    # rule numbers from variance notices and proposed amendments, not the
+    # operative text -- a worse citation than an honestly-unreadable one).
+    # So: classify EXTRACTION_FAILED rather than attempt a parse, matching
+    # this module's own "OUR failure, not a host block, queue for a
+    # browser-session read" contract for every other unparseable format.
+    is_legacy_doc = "msword" in ctype or (body is not None and body[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")
     if is_pdf:
         text = _extract_pdf(body)
     elif is_docx:
         text = _extract_docx(body)
+    elif is_legacy_doc:
+        text = None
     else:
         text = _extract_html(body)
 

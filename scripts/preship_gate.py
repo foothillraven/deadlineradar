@@ -1111,31 +1111,49 @@ _PARTIAL_CITATION_ADMISSION_RE = re.compile(
 
 
 def check_partial_citation_flag_set(repo_root: Path) -> list[str]:
-    """A cpa_deadlines.json record whose cycle_description admits its own
-    citation doesn't establish the full claim must set
-    citation_covers_full_claim=False -- otherwise trust_line() (which reads
-    ONLY that flag, never the prose) asserts full codified-law confirmation
-    right beside a caveat saying otherwise. See CITE-29."""
-    data_path = repo_root / "data" / "cpa_deadlines.json"
-    if not data_path.exists():
-        return []
-    data = json.loads(data_path.read_text(encoding="utf-8"))
+    """A record whose prose admits its own citation doesn't establish the full
+    claim must set citation_covers_full_claim=False -- otherwise trust_line()
+    (which reads ONLY that flag, never the prose) asserts full codified-law
+    confirmation right beside a caveat saying otherwise. See CITE-29.
+
+    CITE-32 (AuditLab, 2026-08-20): this only ever read cpa_deadlines.json.
+    trust_line() and _record_fully_cited() are already dataset-agnostic
+    (generate.py's guide-page call sites at :19010/:19602 pass records from
+    all four files) -- only the GATE was scoped to one file, so
+    reinstatement.json/cpe_hours.json/renewal_fees.json records could carry
+    the same admission with no gate ever checking them. Live proof:
+    louisiana-reinstatement's data_gap_note says its ethics-hours figure is
+    'not independently confirmed in the codified rule text' while
+    citation_covers_full_claim was unset -- the page rendered the confident
+    sentence directly above its own contradiction. Widened to loop all four
+    datasets and both admission-bearing fields (cycle_description is
+    cpa_deadlines-only; the other three datasets carry the same kind of
+    prose in data_gap_note), same loop shape as
+    check_retired_claims_absent_from_guides's sibling fix for the identical
+    one-dataset-only gap."""
     errors = []
-    for r in data["records"]:
-        cd = r.get("cycle_description")
-        if not isinstance(cd, str):
+    for name in ("cpa_deadlines", "cpe_hours", "reinstatement", "renewal_fees"):
+        data_path = repo_root / "data" / f"{name}.json"
+        if not data_path.exists():
             continue
-        match = _PARTIAL_CITATION_ADMISSION_RE.search(cd)
-        if not match:
-            continue
-        if r.get("citation_covers_full_claim", True) is False:
-            continue  # already flagged -- the contradiction is already suppressed
-        errors.append(
-            f"[CITE29][{r.get('id')}] cycle_description admits its citation doesn't establish the "
-            f"full claim ({match.group(0)!r}), but citation_covers_full_claim is unset (defaults "
-            f"True) -- trust_line() will render the confident 'not just a board webpage' sentence "
-            f"directly beside this admission. Set citation_covers_full_claim: false."
-        )
+        data = json.loads(data_path.read_text(encoding="utf-8"))
+        for r in data["records"]:
+            if r.get("citation_class") == "operational_record":
+                continue  # trust_line() never renders the codified-law sentence for these -- no contradiction possible
+            prose = r.get("cycle_description") or r.get("data_gap_note")
+            if not isinstance(prose, str):
+                continue
+            match = _PARTIAL_CITATION_ADMISSION_RE.search(prose)
+            if not match:
+                continue
+            if r.get("citation_covers_full_claim", True) is False:
+                continue  # already flagged -- the contradiction is already suppressed
+            errors.append(
+                f"[CITE29][{name}.json:{r.get('id')}] admits its citation doesn't establish the "
+                f"full claim ({match.group(0)!r}), but citation_covers_full_claim is unset (defaults "
+                f"True) -- trust_line() will render the confident 'not just a board webpage' sentence "
+                f"directly beside this admission. Set citation_covers_full_claim: false."
+            )
     return errors
 
 

@@ -4269,8 +4269,46 @@ def _record_fully_cited(record: dict) -> bool:
     return bool(record.get("citation")) and record.get("citation_covers_full_claim", True)
 
 
+def _record_citation_status(record: dict) -> str:
+    """One of 'operational' | 'codified' | 'boardpage' -- the same three-way
+    split trust_line()'s single-record sentence already makes, factored out
+    so the mixed-record case below can name each record's own status
+    precisely instead of collapsing them into one page-level claim."""
+    if _is_operational_record(record):
+        return "operational"
+    if _record_fully_cited(record):
+        return "codified"
+    return "boardpage"
+
+
+# CITE-28 (AuditLab, 2026-08-20; Devin: "we need to be 100% correct," not
+# just honestly vague): short claim fragments, one per _record_citation_status()
+# value, reused both by trust_line()'s existing single-status sentence (via
+# _TRUST_CLAIM_BY_STATUS below) and by the new mixed-record sentence. A
+# mixed state (one record codified, the other operational/board-page --
+# Alaska, Connecticut, Florida, Idaho, Illinois as of 2026-08-20) used to
+# collapse to whichever single sourcing_claim `all()`-reduced booleans
+# picked, which was honest (never overclaimed) but imprecise: it couldn't
+# say WHICH record was which, only "at least one of these isn't fully
+# codified." A reader deserves to know that Connecticut's individual
+# license IS checked against codified law even though its firm permit
+# isn't, not a single blended sentence that undersells the record that
+# actually has the stronger citation.
+_TRUST_CLAIM_BY_STATUS = {
+    "operational": (
+        "checked against the regulator's own official records rather than codified statute or "
+        "administrative rule text"
+    ),
+    "codified": "checked against the state's codified statute or administrative rule",
+    "boardpage": (
+        "sourced from the state board's own page, not independently confirmed against codified "
+        "statute or administrative rule text"
+    ),
+}
+
+
 def trust_line(last_verified: str, source_url: str, has_citation: bool,
-                is_operational_record: bool = False) -> str:
+                is_operational_record: bool = False, records: list[dict] | None = None) -> str:
     """AuditLab DATA-1 (HIGH, 2026-08-04): this unconditionally asserted "checked
     against the state's codified statute or administrative rule, not just a board
     webpage" on every page, including 11 records across 9 states that have ONLY a
@@ -4300,7 +4338,39 @@ def trust_line(last_verified: str, source_url: str, has_citation: bool,
     Maine are instead sourced from a STRONGER open-data license register;
     Idaho's board guidance is simply more current than an unamended rule; a
     first draft of this sentence named Montana's specific reason and would have
-    been flatly wrong on the other eight records)."""
+    been flatly wrong on the other eight records).
+
+    CITE-28 (AuditLab, 2026-08-20; Devin: "we need to be 100% correct," not
+    just honestly vague): `has_citation`/`is_operational_record` are each a
+    single bool, `all()`-reduced across every record on a mixed-citation
+    state page (Alaska, Connecticut, Florida, Idaho, Illinois -- one record
+    codified, the other operational/board-page). That reduction was never
+    FALSE -- it always picked the more conservative of the two claims -- but
+    it was imprecise: "at least one of these records isn't fully codified"
+    is not the same statement as "the individual license is, the firm
+    permit isn't," and a reader has no way to tell from the blended
+    sentence which record is which. `records`, when passed, lets this
+    function say the true thing instead of the safe-but-vague thing: each
+    record's own license_type_label paired with its own
+    _record_citation_status(), only when they actually differ (a
+    single-status multi-record page -- e.g. every record on the page fully
+    codified -- still gets the single sourcing_claim below unchanged, since
+    naming each record separately would just repeat the same claim twice
+    for no honesty gain)."""
+    if records:
+        statuses = {_record_citation_status(r) for r in records}
+        if len(statuses) > 1:
+            per_record = "; ".join(
+                f'{esc(r.get("license_type_label") or "this license type")}: '
+                f'{_TRUST_CLAIM_BY_STATUS[_record_citation_status(r)]}'
+                for r in records
+            )
+            return f"""<div class="trust-line">
+  <strong data-verified="{esc(last_verified)}">Last verified: {esc(last_verified)}</strong> &middot; {per_record} &mdash;
+  <a href="/methodology/">see how we verify every deadline</a>. Always confirm with the
+  <a href="{http_href(source_url)}">official state board</a> before relying on this date. License
+  requirements and deadlines can change.
+</div>"""
     if is_operational_record:
         sourcing_claim = (
             "checked against the regulator's own official records rather than codified statute or "
@@ -5964,7 +6034,7 @@ def build_state_page(
     body = f"""{_seal_html(last_verified)}<h1>{esc(title)}</h1>
 <p class="subhead">{esc(state_name)} CPA license renewal</p>
 {deadline_html}
-{trust_line(last_verified, source_url, all(_record_fully_cited(r) for r in records), all(_is_operational_record(r) for r in records))}
+{trust_line(last_verified, source_url, all(_record_fully_cited(r) for r in records), all(_is_operational_record(r) for r in records), records=records)}
 {_flag_wrong_html(state_name, state_slug)}
 {signup_form_for_state(state_slug, state_name, records, as_of)}
 {_cpe_affiliate_html()}

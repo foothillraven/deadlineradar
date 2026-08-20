@@ -519,6 +519,20 @@ describe("POST /firm/2fa/verify", () => {
     expect(await store.claimFirmMemberTotpTimestep(env.DB, memberId, floor + 2)).toBe(true);
   });
 
+  it("PREVENT-1 (2026-08-20): setFirmMemberPassword/clearFirmMemberTotpSecret report whether a row actually changed", async () => {
+    // Neither function has a "first writer wins" invariant to guard (unlike
+    // claimFirmMemberTotpTimestep above) -- the real gap was a caller having
+    // no way to detect the row it targeted no longer existed. Direct
+    // store-level check of that contract: a real memberId changes a row and
+    // reports true, a nonexistent one changes nothing and reports false.
+    const { memberId } = await newEnrolledFirm("prevent1-contract");
+    const record = await hashPassword("irrelevant-1", "pepper");
+    expect(await store.setFirmMemberPassword(env.DB, memberId, record)).toBe(true);
+    expect(await store.setFirmMemberPassword(env.DB, "does-not-exist", record)).toBe(false);
+    expect(await store.clearFirmMemberTotpSecret(env.DB, memberId)).toBe(true);
+    expect(await store.clearFirmMemberTotpSecret(env.DB, "does-not-exist")).toBe(false);
+  });
+
   it("missing pending or code is a plain 400, not a crash", async () => {
     const resp = await workerFetch(
       new Request(`${BASE}/firm/2fa/verify`, {

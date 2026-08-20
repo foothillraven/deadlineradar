@@ -9316,7 +9316,18 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
     }
   }
 
-  await store.setFirmMemberPassword(env.DB, member.id, await hashPassword(newPassword, env.PASSWORD_PEPPER));
+  // PREVENT-1 (AuditLab, 2026-08-20): setFirmMemberPassword() now reports
+  // whether a row actually changed. This is the one real-money call site
+  // (unlike the two opportunistic-upgrade sites elsewhere, which must
+  // never fail the request they're piggybacking on) -- if the member row
+  // vanished between the read above and this write, every step after it
+  // (ending other sessions, sending the "your password changed" security
+  // email) would otherwise proceed on a false premise. Fail loudly instead
+  // of silently claiming success for a write that didn't happen.
+  const passwordChanged = await store.setFirmMemberPassword(env.DB, member.id, await hashPassword(newPassword, env.PASSWORD_PEPPER));
+  if (!passwordChanged) {
+    return jsonResponse(404, { error: "Not found." });
+  }
 
   // Changing a password must end every OTHER session. If the reason for
   // the change is that a session was stolen, leaving that session alive
@@ -9720,7 +9731,14 @@ async function handleFirm2faDisable(request: Request, env: Env): Promise<Respons
     return jsonResponse(400, { error: "That code wasn't right." });
   }
 
-  await store.clearFirmMemberTotpSecret(env.DB, member.id);
+  // PREVENT-1 (AuditLab, 2026-08-20): same "don't proceed on a false
+  // premise" reasoning as the password-change handler above -- if the
+  // member row vanished between the code check just above and this write,
+  // don't send a "2FA disabled" email for a disable that didn't happen.
+  const totpCleared = await store.clearFirmMemberTotpSecret(env.DB, member.id);
+  if (!totpCleared) {
+    return jsonResponse(404, { error: "Not found." });
+  }
   await store.deleteFirmMemberBackupCodes(env.DB, member.id);
 
   if (env.SENDGRID_API_KEY) {

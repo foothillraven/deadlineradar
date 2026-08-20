@@ -1522,12 +1522,22 @@ export async function setFirmMemberEmail(db: D1Database, memberId: string, newEm
   }
 }
 
+/** PREVENT-1 (AuditLab, 2026-08-20): returns whether a row was actually
+ * written, same meta.changes-as-authority discipline as
+ * setFirmMemberTotpSecret()/claimFirmMemberTotpTimestep() above -- not
+ * because a password SET has a "first writer wins" invariant to guard (it
+ * doesn't; overwriting is the intended behavior on every call), but
+ * because the previous `Promise<void>` signature gave a caller no way to
+ * detect the one real failure mode: memberId no longer exists (removed
+ * concurrently between the caller's own read and this write). Silently
+ * "succeeding" at nothing is exactly the silent-no-op shape this
+ * codebase's own incident history keeps finding real bugs in. */
 export async function setFirmMemberPassword(
   db: D1Database,
   memberId: string,
   record: { algo: string; salt: string; iterations: number; rounds: number; hash: string }
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const result = await db
     .prepare(
       `UPDATE firm_members
           SET password_hash = ?1, password_salt = ?2, password_algo = ?3,
@@ -1536,6 +1546,7 @@ export async function setFirmMemberPassword(
     )
     .bind(record.hash, record.salt, record.algo, record.iterations, record.rounds, nowIso(), memberId)
     .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 /** Marks a joined_at on first-ever successful login -- mirrors
@@ -1597,13 +1608,17 @@ export async function setFirmMemberTotpSecret(
  * "removal is the caller's explicit sequence, not one hidden cascade"
  * posture elsewhere (e.g. hardDeleteExpiredFirms()'s own table-by-table
  * loop). */
-export async function clearFirmMemberTotpSecret(db: D1Database, memberId: string): Promise<void> {
-  await db
+/** PREVENT-1 (AuditLab, 2026-08-20): returns whether a row was actually
+ * cleared -- see setFirmMemberPassword()'s docstring for why (the same
+ * "caller has no way to detect the row vanished" gap, applied here). */
+export async function clearFirmMemberTotpSecret(db: D1Database, memberId: string): Promise<boolean> {
+  const result = await db
     .prepare(
       `UPDATE firm_members SET totp_secret_encrypted = NULL, totp_secret_iv = NULL, totp_enrolled_at = NULL, totp_last_used_timestep = NULL WHERE id = ?1`
     )
     .bind(memberId)
     .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 /**
@@ -3813,8 +3828,8 @@ export async function setFirmPassword(
   db: D1Database,
   firmId: string,
   record: { algo: string; salt: string; iterations: number; rounds: number; hash: string }
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const result = await db
     .prepare(
       `UPDATE firms
           SET password_hash = ?1, password_salt = ?2, password_algo = ?3,
@@ -3823,12 +3838,14 @@ export async function setFirmPassword(
     )
     .bind(record.hash, record.salt, record.algo, record.iterations, record.rounds, nowIso(), firmId)
     .run();
+  const changed = (result.meta.changes ?? 0) > 0;
   const firm = await db.prepare(`SELECT primary_member_id FROM firms WHERE id = ?1`).bind(firmId).first<{
     primary_member_id: string | null;
   }>();
   if (firm?.primary_member_id) {
     await setFirmMemberPassword(db, firm.primary_member_id, record);
   }
+  return changed;
 }
 
 export interface FirmOauthIdentityRow {

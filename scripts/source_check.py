@@ -81,14 +81,39 @@ SOFT_404_MARKERS = [
 # which the first version of this tool mislabelled CONFIRMED_TEXT. A bot
 # wall is a BLOCK (fingerprint-specific, browser-queue it), never a
 # confirmation.
-BOT_WALL_MARKERS = [
-    "captcha",
-    "bot manager",
-    "are you a robot",
-    "verify you are human",
-    "checking your browser",
-    "attention required",
-]
+#
+# SRC-9 (AuditLab, 2026-08-20): the original fixed phrase list missed
+# www.oscn.net's Cloudflare Turnstile page -- it says "verify they are
+# human" (pronoun "they", not "you"), so it fell through every marker and
+# was classified CONFIRMED_TEXT for a 386-char CAPTCHA body. Same shape as
+# SRC-7's BLOCK_CLAIM_RE fix: widened from an exact phrase list to a shape
+# regex (phrasing variants) plus vendor/challenge-script signatures, since
+# a bot-wall vendor rotates its exact copy far more than its script names.
+BOT_WALL_RE = re.compile(
+    r"(captcha|bot manager|are you a robot|checking your browser|attention required|"
+    r"verify (?:you|they)(?:'re| are)? human|automated traffic|prove you are|"
+    r"turnstile|cf-turnstile|challenges\.cloudflare\.com|bobcmn|/tspd/|"
+    r"_incapsula_resource|distil|perimeterx|px-captcha|_abck)",
+    re.IGNORECASE,
+)
+
+# Found live while re-testing SRC-9's fix (2026-08-20): sd-all's citation_url
+# (sdlegislature.gov/Rules/...) returns a 286-char "please enable JavaScript"
+# shell -- the same failure shape as Montana's 11-char and Indiana's 63-char
+# shells that _MIN_SOURCE_CHARS=200 exists to catch, just verbose enough
+# (browser-download links, "Chrome Firefox Edge") to clear that threshold and
+# sail through as CONFIRMED_TEXT. A length floor alone can't catch every
+# host's shell size, so this checks for the shell's own wording directly,
+# same shape as BOT_WALL_RE. Length-gated at 2000 chars for the same reason
+# BOT_WALL_RE is gated at 3000 -- a long, real page that happens to mention
+# "enable JavaScript" once in a footer should not be swept up.
+SPA_SHELL_RE = re.compile(
+    r"(doesn'?t work properly without javascript|"
+    r"enable javascript to (?:run this app|continue)|"
+    r"your browser is not supported|"
+    r"please enable (?:it|javascript) to continue)",
+    re.IGNORECASE,
+)
 
 
 # SRC-7 (AuditLab, 2026-08-20): the phrase list this started as
@@ -231,10 +256,10 @@ def check(url: str) -> dict:
         return result
 
     low = text[:4000].lower()
-    bot = next((m for m in BOT_WALL_MARKERS if m in low), None)
-    if bot and len(text) < 3000:
+    bot_match = BOT_WALL_RE.search(low)
+    if bot_match and len(text) < 3000:
         result["classification"] = "BLOCKED"
-        result["detail"] = "2xx but the body is a bot-wall interstitial (marker: %r) -- fingerprint block, queue for a browser-session read" % bot
+        result["detail"] = "2xx but the body is a bot-wall interstitial (marker: %r) -- fingerprint block, queue for a browser-session read" % bot_match.group(0)
         result["text_chars"] = len(text)
         return result
     marker = next((m for m in SOFT_404_MARKERS if m in low), None)
@@ -244,6 +269,17 @@ def check(url: str) -> dict:
         result["classification"] = "SOFT_404"
         result["detail"] = "2xx but the served page is an error/moved placeholder (marker: %r)" % marker
         result["text_chars"] = len(text)
+        return result
+    spa_match = SPA_SHELL_RE.search(low)
+    if spa_match and len(text) < 2000:
+        result["classification"] = "EXTRACTION_FAILED"
+        result["detail"] = (
+            "2xx and parsed (%d chars), but the body is a \"please enable JavaScript\" shell "
+            "(marker: %r) -- not readable as a source no matter the length; this is our tooling's "
+            "failure, not a host block. Queue for a browser-session read." % (len(text), spa_match.group(0))
+        )
+        result["text_chars"] = len(text)
+        result["text_head"] = text[:240]
         return result
 
     # A handful of characters is not a source. rules.mt.gov and in.gov/legislative

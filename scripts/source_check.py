@@ -114,6 +114,23 @@ BLOCK_CLAIM_RE = re.compile(
     re.IGNORECASE,
 )
 
+# SRC-8 (AuditLab, 2026-08-20): gap_list_check.py's field list (which fields
+# per dataset can carry a gap/verification note) and preship_gate.py's
+# `_BLOCK_CLAIM_DATASETS` had ALSO drifted apart, one level under SRC-7's
+# regex fix -- `check_block_claims_corroborated()` only ever scanned
+# `data_gap_note`, never `verification_note`, so ak-individual/ak-firm's
+# block claim (which lives in verification_note, the only two records that
+# do) was never live-checked at all, before or after SRC-7's widening. Only
+# `cpa_deadlines.json` carries `verification_note` as a field distinct from
+# `data_gap_note`; the other three datasets only ever use `data_gap_note`.
+# Single-sourced here for the same reason as BLOCK_CLAIM_RE above.
+GAP_NOTE_FIELDS = [
+    ("cpa_deadlines.json", ["data_gap_note", "verification_note"]),
+    ("cpe_hours.json", ["data_gap_note"]),
+    ("reinstatement.json", ["data_gap_note"]),
+    ("renewal_fees.json", ["data_gap_note"]),
+]
+
 
 def _fetch(url: str) -> tuple[str, bytes | None, str, int | None]:
     """Returns (status_class, body_bytes, content_type, http_status)."""

@@ -40,17 +40,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from source_check import BLOCK_CLAIM_RE
-
-# (dataset filename, fields to check for a gap/verification note). Only
-# cpa_deadlines.json carries verification_note as a distinct field from
-# data_gap_note; the other three only ever use data_gap_note.
-_DATASETS = [
-    ("cpa_deadlines.json", ["data_gap_note", "verification_note"]),
-    ("cpe_hours.json", ["data_gap_note"]),
-    ("reinstatement.json", ["data_gap_note"]),
-    ("renewal_fees.json", ["data_gap_note"]),
-]
+from source_check import BLOCK_CLAIM_RE, GAP_NOTE_FIELDS as _DATASETS
 
 
 def collect_gap_entries(repo_root: Path) -> tuple[list[dict], int]:

@@ -684,13 +684,16 @@ _DERIVED_FEE_CHECKS: list[dict] = [
 # copy; moved to source_check.BLOCK_CLAIM_RE (see that module for the full
 # rationale) so this check and gap_list_check.py's inventory can't drift
 # out of sync the way they already had -- see that constant's own comment.
+#
+# SRC-8 (2026-08-20): this list ALSO used to live here as its own copy, one
+# field per dataset -- missing that cpa_deadlines.json carries a SECOND
+# gap-note-shaped field (verification_note), which is where ak-individual/
+# ak-firm's block claim actually lived. That meant those two records were
+# never scanned by this check at all, before or after SRC-7's regex fix --
+# a structurally different miss than a phrase-list gap. Moved to
+# source_check.GAP_NOTE_FIELDS (imported, not copied) for the same reason
+# as BLOCK_CLAIM_RE.
 # ---------------------------------------------------------------------------
-_BLOCK_CLAIM_DATASETS = [
-    ("cpa_deadlines.json", "data_gap_note"),
-    ("cpe_hours.json", "data_gap_note"),
-    ("reinstatement.json", "data_gap_note"),
-    ("renewal_fees.json", "data_gap_note"),
-]
 
 
 # ---------------------------------------------------------------------------
@@ -866,15 +869,17 @@ def check_block_claims_corroborated(repo_root: Path) -> list[str]:
     except ImportError:
         return []
     errors = []
-    for fname, field in _BLOCK_CLAIM_DATASETS:
+    for fname, fields in source_check.GAP_NOTE_FIELDS:
         path = repo_root / "data" / fname
         if not path.exists():
             continue
         data = json.loads(path.read_text(encoding="utf-8"))
         for r in data["records"]:
-            note = r.get(field)
-            if not isinstance(note, str) or not source_check.BLOCK_CLAIM_RE.search(note):
+            matched_field = next((f for f in fields
+                                   if isinstance(r.get(f), str) and source_check.BLOCK_CLAIM_RE.search(r.get(f))), None)
+            if matched_field is None:
                 continue
+            field = matched_field
             urls = [r.get(k) for k in ("citation_url", "source_url") if r.get(k)]
             if not urls:
                 continue
@@ -983,9 +988,17 @@ def check_hedge_language_enforced(repo_root: Path) -> list[str]:
     resolution entry would false-positive. Scoped to the LATEST entry only:
     a record whose most recent history entry still uses hedge language is
     the actual NJ shape (an unresolved caveat as of right now); one whose
-    hedge language is confined to an OLDER, superseded entry is not."""
+    hedge language is confined to an OLDER, superseded entry is not.
+
+    Deliberately checks ONLY the reader-facing data_gap_note field, not
+    cpa_deadlines.json's internal-only verification_note (SRC-8, 2026-08-20,
+    split GAP_NOTE_FIELDS off into source_check.py with both fields for the
+    block-claim check's purposes -- this check's purpose is different: "did
+    the caveat reach the reader," which verification_note structurally
+    cannot answer since it never renders anywhere)."""
     errors = []
-    for fname, field in _BLOCK_CLAIM_DATASETS:
+    field = "data_gap_note"
+    for fname in ("cpa_deadlines.json", "cpe_hours.json", "reinstatement.json", "renewal_fees.json"):
         path = repo_root / "data" / fname
         if not path.exists():
             continue

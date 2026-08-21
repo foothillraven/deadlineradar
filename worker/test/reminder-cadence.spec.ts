@@ -85,14 +85,33 @@ describe("nextDueThreshold() with a custom subset", () => {
 // identical one-clause additions verified by typecheck + direct code
 // reading, not separately integration-tested here.
 describe("runReminderPass -- corrupted reminder_thresholds falls back to the default set", () => {
-  it("does not adopt a corrupted reminder_thresholds value, and still sends using the default set's catch-up tier", async () => {
+  // SEND-2 residual (AuditLab, 2026-08-21): my first version of this test
+  // only covered the NaN-producing shape (["not-a-number"]). AuditLab
+  // measured that Math.min COERCES its arguments while Number.isFinite
+  // does not -- [null], [[]], [true], ["5"] all coerce to a FINITE min
+  // (0, 0, 1, 5 respectively), which would have slipped past a guard
+  // written against the computed threshold instead of the array elements.
+  // [null] is the one that matters most: threshold 0 gets claimed and
+  // written into reminders_sent, and nextDueThreshold's own "never go
+  // less urgent than already sent" guard (mostUrgentSent) then treats 0 as
+  // the most urgent tier ever sent -- every real tier (1/3/7/14/30/60) is
+  // >= 0, so the subscriber gets exactly one send and then PERMANENT
+  // silence, not a duplicate. The adoption-site fix (parsed.every(Number.
+  // isFinite)) closes this by construction -- it checks each element's
+  // actual type, never coerces -- but it's worth a dedicated regression
+  // test for the specific shape that would have caused silent, permanent
+  // harm rather than just a crash.
+  it.each([
+    ["a non-numeric string element", '["not-a-number"]'],
+    ["a null element (the coercs-to-0 danger case)", "[null]"],
+  ])("does not adopt reminder_thresholds containing %s, and still sends using the default set's catch-up tier", async (_label, corruptValue) => {
     // "Bring your own date" (deadlineSource: "user") -- the birth-month-
     // annual engine path always self-rolls FORWARD to the next occurrence,
     // so it can never legitimately produce a past daysRemaining and can't
     // exercise the catch-up branch at all. A user-supplied date can
     // genuinely be in the past (matches how DATE-2 static dates go stale
     // too), which is what actually reaches this branch in production.
-    const email = `catchup-corrupt-${Date.now()}@example.com`;
+    const email = `catchup-corrupt-${Date.now()}-${Math.random()}@example.com`;
     await store.addPending(env.DB, {
       email,
       stateSlug: "georgia",
@@ -106,7 +125,7 @@ describe("runReminderPass -- corrupted reminder_thresholds falls back to the def
     // same technique as SEND-1's own positive control, simulating the only
     // way this is reachable (DB corruption / a manual edit).
     await env.DB.prepare(`UPDATE subscribers SET reminder_thresholds = ?1 WHERE LOWER(TRIM(email)) = ?2`)
-      .bind('["not-a-number"]', email.toLowerCase())
+      .bind(corruptValue, email.toLowerCase())
       .run();
 
     let sent = false;
@@ -115,7 +134,8 @@ describe("runReminderPass -- corrupted reminder_thresholds falls back to the def
     // subscriber has never been notified (fresh signup, reminders_sent is
     // empty). With the corrupted value correctly rejected, thresholds
     // falls back to ESCALATION_THRESHOLDS_DAYS ([60,30,14,7,3,1]) -- the
-    // catch-up branch's Math.min(...) is 1, a real, finite threshold.
+    // catch-up branch's Math.min(...) is 1, a real, finite threshold, not
+    // the 0 the corrupted value would have coerced to.
     const summary = await runReminderPass(env, {
       asOf: new Date(Date.UTC(2026, 6, 11)),
       send: async () => {
@@ -127,6 +147,13 @@ describe("runReminderPass -- corrupted reminder_thresholds falls back to the def
     expect(sent).toBe(true);
     expect(summary.sent).toBe(1);
     expect(summary.errors).toEqual([]);
+    const row = await env.DB.prepare("SELECT reminders_sent FROM subscribers WHERE LOWER(TRIM(email)) = ?1")
+      .bind(email.toLowerCase())
+      .first<{ reminders_sent: string }>();
+    // The claimed threshold must be the real value (1), never 0 -- a 0
+    // here is exactly the permanent-silence shape this test exists to
+    // catch (see the block comment above).
+    expect(JSON.parse(row?.reminders_sent ?? "[]")).toEqual([1]);
   });
 });
 

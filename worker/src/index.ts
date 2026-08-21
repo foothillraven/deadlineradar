@@ -7200,7 +7200,7 @@ async function handleFirmLicenseRenew(request: Request, env: Env, id: string): P
   if (!updated) {
     if (existing.stop_reason === store.STOP_REASON_REMOVED_BY_ADMIN) {
       return jsonResponse(400, {
-        error: "This person was removed from the roster. Re-add them (POST /firm/licenses) to track a new cycle.",
+        error: "This person was removed from the roster. Add them again to start tracking a new cycle.",
       });
     }
     if (!existing.confirmed_at) {

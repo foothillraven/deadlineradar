@@ -14139,6 +14139,18 @@ function drSubmitCpeEntry(form) {
   var certificateInput = document.getElementById('dr-cpe-certificate');
   var certificateFile = certificateInput && certificateInput.files ? certificateInput.files[0] : null;
 
+  // AuditLab UX-10 (LOW, 2026-08-21, orchestrator-approved): accept=
+  // already guards the wrong-format mistake client-side; this catches the
+  // equally common oversized-scan mistake the same way, instead of letting
+  // a 6-10MB PDF upload in full before the server rejects it on a limit
+  // already disclosed in the copy right below this input. 2MB must track
+  // worker/src/store.ts's DOCUMENT_MAX_FILE_BYTES, the actual enforcement.
+  if (certificateFile && certificateFile.size > 2 * 1024 * 1024) {
+    if (errEl) { errEl.textContent = 'That certificate file is too large -- PDF, JPG, or PNG, up to 2MB.'; errEl.hidden = false; }
+    if (submitBtn) submitBtn.disabled = false;
+    return;
+  }
+
   // Roadmap #1/#2 (2026-08-07): if a certificate was attached, upload it
   // FIRST (as a 'cpe' document for the same staff member) and link the
   // resulting document_id into the CPE entry -- if the upload itself fails,
@@ -15832,6 +15844,16 @@ function drSubmitDocumentUpload(ev) {
   var file = fileInput && fileInput.files ? fileInput.files[0] : null;
   if (!file) {
     if (errEl) { errEl.textContent = 'Choose a file first.'; errEl.hidden = false; }
+    return;
+  }
+  // AuditLab UX-10 (LOW, 2026-08-21, orchestrator-approved): accept=
+  // already guards the wrong-format mistake client-side; this catches the
+  // equally common oversized-scan mistake the same way, instead of letting
+  // a 6-10MB PDF upload in full before the server rejects it on a limit
+  // already disclosed in the copy right above this input. 2MB must track
+  // worker/src/store.ts's DOCUMENT_MAX_FILE_BYTES, the actual enforcement.
+  if (file.size > 2 * 1024 * 1024) {
+    if (errEl) { errEl.textContent = 'That file is too large -- PDF, JPG, or PNG, up to 2MB.'; errEl.hidden = false; }
     return;
   }
   var formData = new FormData();

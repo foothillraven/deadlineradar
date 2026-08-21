@@ -33,6 +33,10 @@ interface CpaRecord {
   state: string;
   state_slug: string;
   next_deadline_computed: string | null;
+  // AuditLab DATE-3 (2026-08-21): present only on records generate.py's
+  // DATE-2 fix knows how to roll forward once next_deadline_computed
+  // elapses (today: co-firm only). See rollForwardRecurringDeadline() below.
+  computation?: { type?: string; period_years?: number } | null;
   cohort_groups?: { group: string; years: number[]; next_deadline: string }[];
   last_verified: string;
 }
@@ -317,6 +321,57 @@ export function isStateComputable(stateSlug: string): boolean {
 export type DeadlineFields = Record<string, string>;
 
 /**
+ * generate.py:323 `_roll_forward_recurring_deadline()` -- AuditLab DATE-3
+ * (2026-08-21, orchestrator-approved). generate.py's DATE-2 fix rolls an
+ * elapsed next_deadline_computed forward IN MEMORY at build time, but
+ * neither JSON on disk is rewritten and this Worker had no equivalent --
+ * so from the moment a record's published date elapses, the static page
+ * (rolled forward) and this Worker (raw, stale value) would silently
+ * disagree, feeding signup validation, a dashboard date, and the reminder
+ * pass itself a past-due deadline. Ported so both surfaces derive
+ * identically from the same source data (the CPE-4 single-derivation
+ * shape). Only ever advances a date that has ALREADY elapsed, using the
+ * currently-published, human-verified date as its own anchor -- never
+ * invents an anchor for a record with no computation.type, same
+ * restriction as the Python original.
+ */
+function rollForwardRecurringDeadline(
+  computed: string,
+  computation: CpaRecord["computation"],
+  asOf: Date
+): string {
+  if (!computation || computation.type !== "fixed_calendar_recurring_no_anchor") return computed;
+  const periodYears = computation.period_years;
+  if (!periodYears) return computed;
+  // Day-granularity comparison, matching Python's `date < date` -- asOf may
+  // carry a real time-of-day (callers default to `new Date()`), and a
+  // computed date equal to today's calendar date must NOT be rolled
+  // forward one cycle early.
+  const asOfDay = Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate());
+  let d = new Date(`${computed}T00:00:00Z`);
+  while (d.getTime() < asOfDay) {
+    const nextYear = d.getUTCFullYear() + periodYears;
+    const candidate = new Date(Date.UTC(nextYear, d.getUTCMonth(), d.getUTCDate()));
+    // Feb 29 anchor rolling into a non-leap target year overflows into
+    // March instead of raising (JS Date has no equivalent of Python's
+    // ValueError here) -- detected via the month shifting, then clamped to
+    // Feb 28, mirroring generate.py's own try/except.
+    d = candidate.getUTCMonth() !== d.getUTCMonth() ? new Date(Date.UTC(nextYear, 1, 28)) : candidate;
+  }
+  return d.toISOString().slice(0, 10);
+}
+
+/** Applies rollForwardRecurringDeadline() to a record's own
+ * next_deadline_computed, or null if the record has none. The one place
+ * every raw read of that field in computeSubscriberDeadline() below
+ * should go through, so a future new read site can't reintroduce DATE-3
+ * by reading the field directly again. */
+function resolvedNextDeadlineComputed(r: CpaRecord, asOf: Date): string | null {
+  if (!r.next_deadline_computed) return null;
+  return rollForwardRecurringDeadline(r.next_deadline_computed, r.computation, asOf);
+}
+
+/**
  * scheduler.py:83 `compute_subscriber_deadline()`, narrowed to Phase 1's
  * one actual use: a computability PROBE (returns a Date or null), never
  * raises on bad input -- a malformed record should fail the probe, not
@@ -367,7 +422,9 @@ export function computeSubscriberDeadline(
     const licenseTypeId = deadlineFields.license_type_id;
     if (licenseTypeId === "fl-firm") {
       const r = stateRecords.find((rec) => rec.id === "fl-firm" && rec.next_deadline_computed);
-      return r?.next_deadline_computed ? new Date(`${r.next_deadline_computed}T00:00:00Z`) : null;
+      if (!r) return null;
+      const resolved = resolvedNextDeadlineComputed(r, asOf);
+      return resolved ? new Date(`${resolved}T00:00:00Z`) : null;
     }
     if (licenseTypeId === "fl-individual") {
       const anchorDateStr = deadlineFields.anchor_date;
@@ -456,13 +513,16 @@ export function computeSubscriberDeadline(
   const licenseTypeId = deadlineFields.license_type_id;
   if (licenseTypeId) {
     const r = stateRecords.find((rec) => rec.id === licenseTypeId && rec.next_deadline_computed);
-    return r?.next_deadline_computed ? new Date(`${r.next_deadline_computed}T00:00:00Z`) : null;
+    if (!r) return null;
+    const resolved = resolvedNextDeadlineComputed(r, asOf);
+    return resolved ? new Date(`${resolved}T00:00:00Z`) : null;
   }
 
   // Single-record states (no license_type_id needed).
   const computed = stateRecords.filter((r) => r.next_deadline_computed);
-  if (computed.length === 1 && computed[0]?.next_deadline_computed) {
-    return new Date(`${computed[0].next_deadline_computed}T00:00:00Z`);
+  if (computed.length === 1 && computed[0]) {
+    const resolved = resolvedNextDeadlineComputed(computed[0], asOf);
+    return resolved ? new Date(`${resolved}T00:00:00Z`) : null;
   }
   return null;
 }

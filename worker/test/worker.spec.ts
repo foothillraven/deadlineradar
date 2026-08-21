@@ -3480,6 +3480,51 @@ describe("deadlines.ts", () => {
     expect(computeSubscriberDeadline("ohio", { cohort_group: "Group 9" }, asOf)).toBeNull();
   });
 
+  // AuditLab DATE-3 (MEDIUM, 2026-08-21): generate.py's DATE-2 fix rolled
+  // co-firm's elapsed next_deadline_computed forward at BUILD time only --
+  // this Worker had no equivalent, so from the moment the published date
+  // elapses (2026-08-31), the static page and this Worker would silently
+  // disagree, feeding a past-due deadline into signup validation, the
+  // dashboard, and the reminder pass. Colorado firm registrations run a
+  // triennial cycle (period_years: 3), fixed August 31.
+  it("AuditLab DATE-3: computeSubscriberDeadline rolls co-firm's elapsed deadline forward, matching generate.py's build-time fix", () => {
+    // Before the published date elapses -- unchanged, still the raw
+    // human-verified value.
+    const beforeElapse = new Date("2026-08-30T00:00:00Z");
+    expect(
+      computeSubscriberDeadline("colorado", { license_type_id: "co-firm" }, beforeElapse)?.toISOString().slice(0, 10)
+    ).toBe("2026-08-31");
+
+    // Due today (2026-08-31 itself) must not roll forward one cycle early --
+    // same "due today is not yet past" principle as DEADLINE-1 above.
+    const dueToday = new Date("2026-08-31T00:00:00Z");
+    expect(
+      computeSubscriberDeadline("colorado", { license_type_id: "co-firm" }, dueToday)?.toISOString().slice(0, 10)
+    ).toBe("2026-08-31");
+
+    // After it elapses -- rolled forward by period_years (3), matching the
+    // record's own computation block and generate.py's static-page fix.
+    const afterElapse = new Date("2026-09-01T00:00:00Z");
+    expect(
+      computeSubscriberDeadline("colorado", { license_type_id: "co-firm" }, afterElapse)?.toISOString().slice(0, 10)
+    ).toBe("2029-08-31");
+
+    // Far enough out that a single 3-year roll isn't enough -- must loop,
+    // not just apply the period once.
+    const farFuture = new Date("2031-01-01T00:00:00Z");
+    expect(
+      computeSubscriberDeadline("colorado", { license_type_id: "co-firm" }, farFuture)?.toISOString().slice(0, 10)
+    ).toBe("2032-08-31");
+
+    // co-individual has no computation block -- must NOT be affected by
+    // this fix (returns its own raw, unrelated date unchanged).
+    expect(
+      computeSubscriberDeadline("colorado", { license_type_id: "co-individual" }, afterElapse)
+        ?.toISOString()
+        .slice(0, 10)
+    ).toBe("2027-11-30");
+  });
+
   it("nextFixedDateParity returns the next matching-parity FIXED date (not month-end) after asOf", () => {
     // Kansas: July 1 of odd years. 2026-07-03 is already past July 1, 2026
     // (an even year, wrong parity anyway) -- next odd-year July 1 is 2027.

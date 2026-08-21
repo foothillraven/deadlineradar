@@ -1253,7 +1253,7 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
     checkDataFreshness(new Date());
   } catch (err) {
     if (err instanceof StaleDataError) {
-      return errorPage(503, `Signups are temporarily paused: ${err.message}`);
+      return errorPage(503, STALE_DATA_CUSTOMER_MESSAGE);
     }
     throw err;
   }
@@ -1681,6 +1681,16 @@ function oauthSuccessResponse(env: Env, rawSessionToken: string): Response {
 const INVALID_CREDENTIALS_MESSAGE = "That email and password combination isn't right.";
 
 const SSO_FAILED_MESSAGE = "We couldn't complete that sign-in. Please try again.";
+
+// ERR-4 (AuditLab, 2026-08-21): the three StaleDataError catch sites below
+// used to render err.message verbatim to the customer -- internal operator
+// diagnostic tone ("REFUSING:", "as_of_date", "last_verified", "pass") built
+// for the console.log/notifyOperatorOfStaleData() paths, not for a CPA
+// mid-signup. Same class as ERR-1, one shared plain-language string instead
+// of three independently-drifting ones. err.message stays exactly as-is on
+// the operator paths -- only the customer-facing response changes.
+const STALE_DATA_CUSTOMER_MESSAGE =
+  "Signups and account changes are temporarily paused while we re-verify our reference data, to make sure the date we give you is right. Please check back in a few hours.";
 
 const SSO_UNVERIFIED_EMAIL_MESSAGE =
   "Your provider didn't confirm that email address is verified, so we can't connect it to a Deadline-Radar account. Please verify the address with your provider and try again.";
@@ -6744,7 +6754,7 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
     checkDataFreshness(new Date());
   } catch (err) {
     if (err instanceof StaleDataError) {
-      return jsonResponse(503, { error: `Signups are temporarily paused: ${err.message}` });
+      return jsonResponse(503, { error: STALE_DATA_CUSTOMER_MESSAGE });
     }
     throw err;
   }
@@ -7057,7 +7067,7 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
       checkDataFreshness(new Date());
     } catch (err) {
       if (err instanceof StaleDataError) {
-        return jsonResponse(503, { error: `Temporarily paused: ${err.message}` });
+        return jsonResponse(503, { error: STALE_DATA_CUSTOMER_MESSAGE });
       }
       throw err;
     }

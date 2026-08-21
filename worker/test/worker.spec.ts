@@ -4043,6 +4043,18 @@ describe("Staleness guard -- real HTTP + cron code paths, not just checkDataFres
     new Date(Date.parse(`${cpaDeadlinesData.as_of_date}T00:00:00Z`) + (STALENESS_THRESHOLD_DAYS + 1) * 86_400_000)
   );
 
+  // ERR-4 (AuditLab, 2026-08-21): this response used to render err.message
+  // verbatim -- internal operator diagnostic tone ("REFUSING:", "as_of_date",
+  // "last_verified", "pass") built for the console.log()/operator-alert-email
+  // paths, not for a CPA mid-signup. Checked on all three customer-facing
+  // sites below.
+  function assertNoLeakedStalenessJargon(body: string): void {
+    expect(body).not.toContain("REFUSING");
+    expect(body).not.toContain("as_of_date");
+    expect(body).not.toContain("last_verified");
+    expect(body).not.toMatch(/\bpass\b/);
+  }
+
   it("POST /subscribe returns 503 'temporarily paused' once as_of_date is more than 30 days old", async () => {
     vi.useFakeTimers();
     try {
@@ -4054,6 +4066,44 @@ describe("Staleness guard -- real HTTP + cron code paths, not just checkDataFres
       expect(resp.status).toBe(503);
       const body = await resp.text();
       expect(body).toContain("temporarily paused");
+      assertNoLeakedStalenessJargon(body);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ERR-4: POST /firm/licenses (create) also returns the same plain-language 503, no operator jargon", async () => {
+    const { cookie } = await createFirmWithSession("Stale Guard Create Firm", `staleguardcreate-${Date.now()}@example.com`);
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(STALE_MOCK_DATE);
+      const resp = await postFirmLicense(cookie, { email: `stale-create-${Date.now()}@example.com`, state_slug: "texas", birth_month: "7" });
+      expect(resp.status).toBe(503);
+      const body = (await resp.json()) as { error: string };
+      expect(body.error).toContain("temporarily paused");
+      assertNoLeakedStalenessJargon(body.error);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ERR-4: PATCH /firm/licenses/:id also returns the same plain-language 503, no operator jargon, when the edit touches deadline fields", async () => {
+    const { cookie } = await createFirmWithSession("Stale Guard Patch Firm", `staleguardpatch-${Date.now()}@example.com`);
+    const created = await postFirmLicense(cookie, { email: `stale-patch-${Date.now()}@example.com`, state_slug: "texas", birth_month: "7" });
+    const { id } = (await created.json()) as { id: string };
+
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(STALE_MOCK_DATE);
+      // Only a deadline-affecting field (state_slug/birth_month/etc.) reaches
+      // the guard -- see handleFirmLicensePatch's own stateSlugProvided ||
+      // deadlineFieldsProvided condition. Same state (texas), new birth
+      // month -- deadlineFieldsProvided alone is enough to trip it.
+      const resp = await patchFirmLicense(cookie, id, { birth_month: "3" });
+      expect(resp.status).toBe(503);
+      const body = (await resp.json()) as { error: string };
+      expect(body.error).toContain("temporarily paused");
+      assertNoLeakedStalenessJargon(body.error);
     } finally {
       vi.useRealTimers();
     }

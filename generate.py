@@ -6701,48 +6701,81 @@ def _select_hero_rotation_pool(by_slug: dict[str, list[dict]]) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def verify_coverage_counts(cov: dict[str, int], by_slug: dict[str, list[dict]]) -> None:
-    """Fail the BUILD rather than publish a coverage number that has drifted.
+def _engine_computed_slugs() -> set[str]:
+    """GATE-6 (AuditLab, 2026-08-20, orchestrator-approved): the old
+    ENGINE_COMPUTED_SLUGS was a hand-kept set ("california", "texas",
+    "ohio") that verify_coverage_counts() only checked for REMOVAL from
+    deadline.ts, never for ADDITION -- so when Arizona and New Mexico
+    branches were added 2026-08-18, the homepage's "42 where we determine
+    your exact date" claim never moved, understating real coverage by 7
+    jurisdictions (the true figure is 49). Same lesson as DERIV-2's
+    hand-maintained-registry problem the same night: derive the set from
+    the engine directly instead of widening a check that a human still has
+    to remember to update. Extracts every `stateSlug === "..."` literal
+    from computeSubscriberDeadline()'s own body -- the exact test the old
+    hand-kept set was trying to approximate -- so there is no second place
+    that can drift out of sync with the engine ever again.
 
-    The one hand-kept fact in _coverage_counts() is which states the engine
-    special-cases. If someone adds a branch to computeSubscriberDeadline()
-    without updating that set -- or removes one -- the site would keep
-    publishing the old figure, and an understated or overstated coverage
-    claim on the front page is precisely the failure this metric was rewritten
-    to fix. These assertions are cheap and catch it at build time.
+    Deliberately does NOT also walk PARITY_STATE_MONTH_DAY (kansas,
+    kentucky, oregon, nebraska, idaho) -- verified those 5 states already
+    have a real next_deadline_computed on their own -firm record, so they
+    are already counted via `published` in _coverage_counts() below
+    regardless of this set; adding them here would double-count nothing
+    (set union), but they were checked and confirmed correctly excluded
+    from AuditLab's own count for exactly this reason.
     """
+    ts = (ROOT / "worker" / "src" / "deadline.ts").read_text(encoding="utf-8")
+    start = ts.index("export function computeSubscriberDeadline")
+    next_fn = ts.find("\nexport function ", start + 1)
+    if next_fn == -1:
+        next_fn = ts.find("\nfunction ", start + 1)
+    body = ts[start: next_fn if next_fn != -1 else len(ts)]
+    slugs = set(re.findall(r'stateSlug === "([a-z-]+)"', body))
+    if not slugs:
+        raise SystemExit(
+            "coverage: found zero stateSlug === \"...\" branches in computeSubscriberDeadline() -- "
+            "either the function was rewritten in a way this regex no longer matches, or the engine "
+            "genuinely computes nothing, either of which needs a human to look before publishing a "
+            "coverage number derived from an empty set."
+        )
+    return slugs
+
+
+def verify_coverage_counts(cov: dict[str, int], by_slug: dict[str, list[dict]]) -> None:
+    """Fail the BUILD rather than publish a coverage number that has drifted."""
     if cov["total"] != len(by_slug):
         raise SystemExit(f"coverage: total {cov['total']} != {len(by_slug)} jurisdictions")
     if cov["determined"] + cov["byod"] != cov["total"]:
         raise SystemExit("coverage: determined + byod must equal total")
     if cov["source_gap"] + cov["personal_fact"] != cov["byod"]:
         raise SystemExit("coverage: source_gap + personal_fact must equal byod")
-    ts = (ROOT / "worker" / "src" / "deadline.ts").read_text(encoding="utf-8")
-    for slug in ("california", "texas", "ohio"):
-        if f'stateSlug === "{slug}"' not in ts:
-            raise SystemExit(
-                f"coverage: '{slug}' is counted as engine-computed but has no branch in "
-                "deadline.ts -- update _coverage_counts() or the engine, do not ship a stale number."
-            )
 
 
 def _coverage_counts(by_slug: dict[str, list[dict]]) -> dict[str, int]:
     """Coverage, computed from the dataset and the engine's real capability.
 
-    `ENGINE_COMPUTED_SLUGS` mirrors the explicit branches in
-    worker/src/deadline.ts's computeSubscriberDeadline(). It is a small
-    hand-kept list, which is a drift risk -- so `verify_coverage_counts()`
-    below asserts it against the data, and generate.py fails loudly rather
-    than quietly publishing a stale number.
+    ENGINE_COMPUTED_SLUGS is now derived directly from worker/src/deadline.ts
+    (see _engine_computed_slugs()) rather than hand-kept, closing the
+    add-a-branch-and-the-number-never-moves gap GATE-6 found.
     """
-    ENGINE_COMPUTED_SLUGS = {"california", "texas", "ohio"}
+    ENGINE_COMPUTED_SLUGS = _engine_computed_slugs()
     total = len(by_slug)
     published = {
         slug for slug, recs in by_slug.items()
         if any(r.get("next_deadline_computed") for r in recs)
     }
     computed_from_input = ENGINE_COMPUTED_SLUGS - published
-    source_gap = {"guam", "northern-mariana-islands", "puerto-rico", "new-jersey"}
+    # GATE-6: guam/northern-mariana-islands/puerto-rico were flagged as
+    # "no verifiable source publishes a date" (source_gap), but the engine
+    # computes all three from user-supplied input the same way Guam's
+    # ANCHOR_YEAR_CHOSEN_TERM or Puerto Rico's ANCHOR_YEAR_TERM branch
+    # already does for the OTHER states in ENGINE_COMPUTED_SLUGS -- the
+    # "no source" framing was stale, not the computability. Re-derived:
+    # source_gap is now only states BOTH lacking a published date AND not
+    # engine-computable from input, so it can't silently keep including a
+    # state the engine gained a branch for later.
+    source_gap_candidates = {"guam", "northern-mariana-islands", "puerto-rico", "new-jersey"}
+    source_gap = source_gap_candidates - ENGINE_COMPUTED_SLUGS
     determined = published | computed_from_input
     byod = set(by_slug) - determined
     return {

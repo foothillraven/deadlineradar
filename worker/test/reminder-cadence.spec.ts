@@ -57,6 +57,18 @@ describe("nextDueThreshold() with a custom subset", () => {
   it("still behaves exactly like before when no subset is given (default param)", () => {
     expect(nextDueThreshold(25, [])).toBe(nextDueThreshold(25, [], ESCALATION_THRESHOLDS_DAYS));
   });
+
+  // Noted alongside SEND-1 (AuditLab, 2026-08-20): reminders_sent/steps_sent
+  // is only guarded for JSON parse failure, not for parsing to something
+  // that isn't an array of numbers. A stray non-numeric entry makes
+  // Math.min(...alreadySent) NaN, and `threshold >= NaN` is always false --
+  // the "never go less urgent than what's already sent" guard would be
+  // silently defeated rather than holding. Positive control: without the
+  // fix this returns a threshold (the bug); with it, null (holds).
+  it("holds rather than defeat the already-sent guard when alreadySent contains a non-numeric value", () => {
+    const corrupt = [7, "not-a-number"] as unknown as number[];
+    expect(nextDueThreshold(5, corrupt)).toBe(null);
+  });
 });
 
 describe("PATCH /firm/reminder-cadence", () => {

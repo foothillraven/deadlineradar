@@ -161,6 +161,17 @@ export function nextDueThreshold(
   thresholds: number[] = ESCALATION_THRESHOLDS_DAYS
 ): number | null {
   const mostUrgentSent = alreadySent.length > 0 ? Math.min(...alreadySent) : null;
+  // Noted alongside SEND-1 (AuditLab, 2026-08-20): reminders_sent/steps_sent
+  // is only guarded for JSON parse failure at the call sites, not for
+  // parsing to something that isn't an array of numbers -- e.g. a stray
+  // non-numeric entry makes Math.min(...alreadySent) NaN. `threshold >=
+  // NaN` is always false, so the "never go less urgent than what's already
+  // sent" guard below would be silently defeated rather than holding.
+  // Same non-finite family and same reachability profile as SEND-1/BILL-13
+  // (the column is only ever written by our own code); the consequence
+  // here is a duplicate reminder, not a missed one, but holding is still
+  // the safer, consistent-with-the-rest-of-the-file answer.
+  if (mostUrgentSent !== null && !Number.isFinite(mostUrgentSent)) return null;
   for (const threshold of [...thresholds].sort((a, b) => a - b)) {
     if (alreadySent.includes(threshold)) continue;
     if (mostUrgentSent !== null && threshold >= mostUrgentSent) continue;

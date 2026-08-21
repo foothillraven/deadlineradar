@@ -113,11 +113,17 @@ live in both environments, rather than extending the manual-flag pattern.
 
 ## 4. How the code behaves before these exist
 
-Each provider is independently gated on its own two secrets being present:
+Each provider is independently gated on its own two secrets being present -- but only on the
+**route** side, not the button. Keep the two straight (AuditLab SSO-E, 2026-08-21, corrected an
+earlier version of this section that conflated them):
 
-- **Both secrets missing → that provider's button is not rendered and its routes 404.** An unconfigured
-  provider is invisible rather than a broken button, mirroring how `TURNSTILE_SECRET_KEY` and
-  `SENDGRID_API_KEY` already degrade in this codebase.
+- **Both secrets missing → that provider's ROUTES 404**, mirroring how `TURNSTILE_SECRET_KEY` and
+  `SENDGRID_API_KEY` already degrade in this codebase. This is `getConfiguredProvider()` in
+  `oauth.ts`, checked at request time against the Worker's real runtime environment.
+- **The button's visibility is a SEPARATE, build-time decision** -- generate.py's own
+  `SSO_PROVIDERS`/`DR_SSO_PROVIDERS` default (section 3, above), manually flipped when a
+  provider's secrets go live or are ever rotated out. Nothing connects the two checks; a stale
+  default and a missing secret can disagree, in which case the button renders but 404s on click.
 - Google and Microsoft are gated **separately**, so one can go live before the other.
 - Password and magic-link login are entirely unaffected either way.
 

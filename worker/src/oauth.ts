@@ -83,10 +83,25 @@ export interface ConfiguredProvider extends OauthProvider {
 /**
  * Resolves a provider ONLY if both of its secrets are present.
  *
- * An unconfigured provider is invisible rather than broken: its routes 404
- * and its button is not rendered, matching how TURNSTILE_SECRET_KEY and
- * SENDGRID_API_KEY already degrade in this codebase. This is what lets the
- * SSO code ship and be reviewed before any app registration exists.
+ * An unconfigured provider's ROUTES 404, matching how TURNSTILE_SECRET_KEY
+ * and SENDGRID_API_KEY already degrade in this codebase. This is what lets
+ * the SSO code ship and be reviewed before any app registration exists.
+ *
+ * AuditLab SSO-E (LOW, 2026-08-21): this docstring used to also claim "and
+ * its button is not rendered" -- that half was never true. The login
+ * page's SSO button is static markup, gated at BUILD time by generate.py's
+ * own `SSO_PROVIDERS`/`DR_SSO_PROVIDERS` (see that file's 2026-07-30
+ * comment): a provider's default there is meant to be flipped once its
+ * credentials are confirmed live, and flipped back if they're ever
+ * rotated out. That is a manual, documented convention, not something
+ * this function drives -- there is no live connection between the two.
+ * A previously-planned `configuredProviderIds()` helper that WOULD have
+ * connected them was deleted here: it had zero callers, its own docstring
+ * claimed it "drives which buttons the login page renders," and it never
+ * did. If dynamic button-hiding is ever wanted, it needs a real
+ * client-side check against a runtime endpoint -- this function alone
+ * can't do it, since generate.py's static output has no access to Worker
+ * secrets at build time.
  */
 export function getConfiguredProvider(env: Env, providerId: string): ConfiguredProvider | null {
   const provider = PROVIDERS[providerId];
@@ -95,12 +110,6 @@ export function getConfiguredProvider(env: Env, providerId: string): ConfiguredP
   const clientSecret = env[provider.clientSecretVar] as string | undefined;
   if (!clientId || !clientSecret) return null;
   return { ...provider, clientId, clientSecret };
-}
-
-/** Provider ids usable right now -- drives which buttons the login page
- * renders. */
-export function configuredProviderIds(env: Env): string[] {
-  return Object.keys(PROVIDERS).filter((id) => getConfiguredProvider(env, id) !== null);
 }
 
 /**

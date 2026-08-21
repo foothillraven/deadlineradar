@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   PROVIDERS,
   getConfiguredProvider,
-  configuredProviderIds,
   buildRedirectUri,
   pkceChallengeS256,
   buildAuthorizeUrl,
@@ -81,13 +80,6 @@ describe("provider configuration gating", () => {
   it("returns null for an unknown provider id (no route can be conjured by URL)", () => {
     expect(getConfiguredProvider({ GOOGLE_OAUTH_CLIENT_ID: "x" } as Env, "evilprovider")).toBeNull();
     expect(getConfiguredProvider({} as Env, "microsoft")).toBeNull();
-  });
-
-  it("configuredProviderIds lists only fully-configured providers", () => {
-    expect(configuredProviderIds({} as Env)).toEqual([]);
-    expect(
-      configuredProviderIds({ GOOGLE_OAUTH_CLIENT_ID: "x", GOOGLE_OAUTH_CLIENT_SECRET: "y" } as Env)
-    ).toEqual(["google"]);
   });
 
   it("requests identity-only scopes (broader scopes would trigger Google's verification review)", () => {

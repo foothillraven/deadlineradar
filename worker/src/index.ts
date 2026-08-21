@@ -11418,17 +11418,26 @@ export default {
     // of buildAdminDigestEmail()'s copy" -- but nothing in the code actually
     // enforced that. The deploy that shipped this comment also updated
     // worker/.last_deploy_commit to include it, and this call ran on every
-    // cron tick from then on. Confirmed via firm_admin_digest_notified_thresholds:
-    // 6 real sends to real firm admin inboxes, 2026-08-10 through 2026-08-18,
-    // with copy Devin never signed off on -- a live violation of this
-    // project's own "code shipped, deploy held" pattern (and of CLAUDE.md's
-    // "a live newsletter send is plan-first" rule), not just a stale
-    // comment. The content itself is accurate and sober (checked before
-    // gating this off) -- this is a process gap, not a content defect.
-    // Actually short-circuited below now, not just documented, so the same
-    // mistake can't recur by relying on a comment alone. Re-enable only
-    // after Devin reviews buildAdminDigestEmail()'s copy and gives an
-    // explicit go -- then delete this block and restore the real call.
+    // cron tick from then on. AuditLab DEAD-3 (MEDIUM, 2026-08-21) corrected
+    // this note's own evidence: firm_admin_digest_notified_thresholds counts
+    // staff-threshold inclusions, not emails, so the original "6 real sends"
+    // was an upper bound presented as a count. Devin independently confirmed
+    // the true figure via SendGrid's own Email Logs (ground truth, not
+    // inferred from D1): exactly 4 emails sent, 1+1+1+3 = 6 threshold items
+    // across those 4 sends, ALL to foothillraven@gmail.com via "Moose &
+    // Raven LLC" -- Devin's own dogfood/test firm. Zero real customers or
+    // external firm admins were affected. This does not make the underlying
+    // gap less real -- copy Devin never signed off on still went out
+    // unsupervised, a live violation of this project's own "code shipped,
+    // deploy held" pattern (and of CLAUDE.md's "a live newsletter send is
+    // plan-first" rule), not just a stale comment -- but the blast radius
+    // was zero, not six real firm admins. The content itself is accurate
+    // and sober (checked before gating this off) -- this is a process gap,
+    // not a content defect. Actually short-circuited below now, not just
+    // documented, so the same mistake can't recur by relying on a comment
+    // alone. Re-enable only after Devin reviews buildAdminDigestEmail()'s
+    // copy and gives an explicit go -- then delete this block and restore
+    // the real call.
     console.log("[admin-digest-cron] PAUSED pending Devin's copy review (see index.ts incident note, 2026-08-18) -- no send attempted.");
 
     // AuditLab NEWS-1 (MEDIUM, 2026-08-13, fixed same day): roadmap #124's

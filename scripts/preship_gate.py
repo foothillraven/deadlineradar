@@ -2490,6 +2490,42 @@ def check_retention_coverage(repo_root: Path) -> list[str]:
     return errors
 
 
+_CYCLE_BUMP_SQL_RE = re.compile(r"`([^`]*?cycle\s*=\s*cycle\s*\+\s*1[^`]*?)`", re.DOTALL)
+
+
+def check_snoozed_until_cleared_on_cycle_bump(repo_root: Path) -> list[str]:
+    """AuditLab SNOOZE-1 (MEDIUM, 2026-08-21, orchestrator-approved defense-
+    in-depth, self-directed as a static gate rather than a runtime schema
+    change): migration 0040's own invariant is that a snooze from the PRIOR
+    cycle must never suppress the NEW cycle's reminders, so every UPDATE
+    that bumps `cycle` must also clear `snoozed_until` in the same
+    statement -- exactly the one line rearm() omitted while its twin
+    applyRenewAndRearm() had it. subscribers has no column recording which
+    cycle a snooze was set during, so a genuinely cycle-aware RUNTIME check
+    in scheduler.ts would need a migration; this instead closes the same
+    gap at the source that actually decays -- a future cycle-bumping
+    UPDATE that forgets the one line -- the same shape check_retention_coverage()
+    above uses for a different invariant. Source-scanned (every backtick-
+    delimited SQL literal containing `cycle = cycle + 1`), not imported,
+    same pattern every sibling guard in this file uses."""
+    store_ts = repo_root / "worker" / "src" / "store.ts"
+    if not store_ts.exists():
+        print("  (skipping snoozed-until-on-cycle-bump check -- worker/ tree not present in this checkout)")
+        return []
+    text = store_ts.read_text(encoding="utf-8")
+    errors = []
+    for i, sql in enumerate(_CYCLE_BUMP_SQL_RE.findall(text), start=1):
+        if "snoozed_until" not in sql:
+            snippet = " ".join(sql.split())[:100]
+            errors.append(
+                f"[SNOOZE] a cycle-bumping UPDATE in store.ts (occurrence {i}: \"{snippet}...\") does not "
+                "also clear snoozed_until in the same statement -- a snooze from the prior cycle would "
+                "silently suppress reminders in the new one, contradicting migration 0040's own stated "
+                "invariant. Add `snoozed_until = NULL` to this UPDATE's SET clause."
+            )
+    return errors
+
+
 def _balanced_brace_function_bodies(text: str, name_pattern: str) -> list[tuple[str, str]]:
     """Balanced-brace parse: for every `(export )?(async )?function <name>(...)`
     whose name matches `name_pattern`, returns (name, full body text
@@ -2990,6 +3026,7 @@ def main():
     all_errors += check_json_copies_identical(repo_root)
     all_errors += check_terms_version_sync(repo_root)
     all_errors += check_retention_coverage(repo_root)
+    all_errors += check_snoozed_until_cleared_on_cycle_bump(repo_root)
     all_errors += check_sitemap_completeness(html_files, docs_dir)
     all_errors += check_demo_locked_email_coverage(repo_root)
     all_errors += check_write_endpoint_rate_limits(repo_root)

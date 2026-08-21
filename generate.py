@@ -682,6 +682,21 @@ PAGE_CSS = """
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     margin: 0; padding: 0 0 3rem;
     line-height: 1.55; color: var(--fg); background: var(--page-bg);
+    /* UX-5 (AuditLab, 2026-08-20, orchestrator-approved): .band-section--alt's
+       full-bleed technique below (margin-left/right: calc(50% - 50vw)) is
+       correct where scrollbars overlay content (phones, macOS) but wrong on
+       classic-scrollbar Windows/Linux desktops -- 50vw includes the
+       scrollbar gutter, 50% of this element does not, so each band renders
+       ~scrollbar-width too wide and the homepage gets a persistent 8px
+       horizontal scrollbar. Confined to the homepage (the only page with any
+       .band-section--alt elements actually rendered in the DOM) and to
+       desktop classic scrollbars specifically -- AuditLab measured 0
+       overflow on 8 sampled pages at 8 widths from 360 to 1920 otherwise.
+       overflow-x:hidden here is the standard mitigation for exactly this
+       scrollbar-gutter mismatch class of bug; doesn't affect the site's one
+       legitimate horizontal scroller (.table-wrap.dr-scrollable), which is
+       its own independent nested scroll container. */
+    overflow-x: hidden;
   }
   /* Chrome (nav, topbar, footer border) spans the FULL browser width; only the reading
      content itself is centered in a max-width column -- .wrap is that single column,

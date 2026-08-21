@@ -2052,6 +2052,46 @@ export const FIRM_SCOPED_TABLES = [
   "firm_members",
 ] as const;
 
+/**
+ * RETAIN-2 (AuditLab, 2026-08-21, orchestrator-approved, HIGH): four tables
+ * that dedup a per-subscriber notification threshold declare
+ * `subscriber_id TEXT NOT NULL REFERENCES subscribers(id)` with no `firm_id`
+ * of their own and no `ON DELETE CASCADE` -- same shape as
+ * firm_member_backup_codes above (member-scoped, not firm-scoped, so they
+ * can't ride FIRM_SCOPED_TABLES's flat `WHERE firm_id = ?1` loop), just one
+ * hop further from `firms` (subscriber -> firm, not member -> firm). Left
+ * unhandled, the outcome depended on FK enforcement this codebase had no
+ * direct way to observe (no PRAGMA foreign_keys anywhere in the repo) --
+ * AuditLab's report gave both branches (silent orphan vs. mid-purge abort)
+ * rather than asserting one. Confirmed empirically while proving this fix
+ * (positive control against the pre-fix code, in this test environment's
+ * D1 emulation): it throws `FOREIGN KEY constraint failed` right at the
+ * `subscribers` DELETE below and aborts the whole per-firm purge -- the
+ * worse of the two branches. Either way it contradicts the "permanently
+ * erased 30 days later" promise. Deleted here, before the `subscribers`
+ * DELETE below, same circular-FK reasoning as firm_member_backup_codes.
+ */
+export const SUBSCRIBER_SCOPED_NO_FIRM_ID_TABLES = [
+  "firm_slack_notified_thresholds",
+  "firm_teams_notified_thresholds",
+  "sms_notified_thresholds",
+  "firm_admin_digest_notified_thresholds",
+] as const;
+
+/**
+ * migration 0047 (roadmap #53): firm_member_backup_codes has no firm_id
+ * column of its own (only member_id -> firm_members(id)), same shape as
+ * SUBSCRIBER_SCOPED_NO_FIRM_ID_TABLES above, just one hop via firm_members
+ * instead of subscribers. Named as its own registry (RETAIN-2, 2026-08-21,
+ * self-directed refactor) rather than the single inline DELETE this used
+ * to be, so preship_gate.py's retention-coverage check can verify EVERY
+ * no-firm_id table transitively descending from firms is covered by SOME
+ * registry, not just eyeball one hardcoded statement -- a check that can
+ * only see a named list is a check that can only ever cover what someone
+ * remembered to name.
+ */
+export const FIRM_MEMBER_SCOPED_NO_FIRM_ID_TABLES = ["firm_member_backup_codes"] as const;
+
 export async function hardDeleteExpiredFirms(db: D1Database, bucket: R2Bucket, asOf: Date, graceDays = 30): Promise<string[]> {
   const cutoff = new Date(asOf.getTime() - graceDays * 86_400_000).toISOString();
   const { results } = await db
@@ -2091,19 +2131,27 @@ export async function hardDeleteExpiredFirms(db: D1Database, bucket: R2Bucket, a
     // below fails its FK constraint while firms.primary_member_id still
     // points at the row being removed.
     await db.prepare(`UPDATE firms SET primary_member_id = NULL WHERE id = ?1`).bind(firmId).run();
-    // migration 0047 (roadmap #53): firm_member_backup_codes has no firm_id
-    // column of its own (only member_id -> firm_members(id)), so it can't go
-    // in FIRM_SCOPED_TABLES's flat WHERE firm_id = ?1 loop below -- it's also
-    // invisible to preship_gate.py's RETAIN-1 scan for that same reason, so
-    // this cleanup is on us to remember, not a gate we can lean on. Deleted
+    // See FIRM_MEMBER_SCOPED_NO_FIRM_ID_TABLES's own comment -- deleted
     // here, before the loop's own firm_members DELETE, for the same
     // circular-FK reasoning as primary_member_id above.
-    await db
-      .prepare(`DELETE FROM firm_member_backup_codes WHERE member_id IN (SELECT id FROM firm_members WHERE firm_id = ?1)`)
-      .bind(firmId)
-      .run();
+    for (const table of FIRM_MEMBER_SCOPED_NO_FIRM_ID_TABLES) {
+      await db
+        .prepare(`DELETE FROM ${table} WHERE member_id IN (SELECT id FROM firm_members WHERE firm_id = ?1)`)
+        .bind(firmId)
+        .run();
+    }
     for (const table of FIRM_SCOPED_TABLES) {
       await db.prepare(`DELETE FROM ${table} WHERE firm_id = ?1`).bind(firmId).run();
+    }
+    // RETAIN-2: see SUBSCRIBER_SCOPED_NO_FIRM_ID_TABLES's own comment --
+    // subscriber-scoped, not firm-scoped, so reached via a subquery rather
+    // than FIRM_SCOPED_TABLES's flat WHERE firm_id = ?1, and must run
+    // before the subscribers DELETE below or the subquery finds nothing.
+    for (const table of SUBSCRIBER_SCOPED_NO_FIRM_ID_TABLES) {
+      await db
+        .prepare(`DELETE FROM ${table} WHERE subscriber_id IN (SELECT id FROM subscribers WHERE firm_id = ?1)`)
+        .bind(firmId)
+        .run();
     }
     await db.prepare(`DELETE FROM subscribers WHERE firm_id = ?1`).bind(firmId).run();
     await db.prepare(`DELETE FROM firms WHERE id = ?1`).bind(firmId).run();

@@ -403,6 +403,73 @@ describe("store.hardDeleteExpiredFirms", () => {
     }
   });
 
+  // RETAIN-2 (AuditLab, 2026-08-21, orchestrator-approved, HIGH): 4 tables
+  // that dedup a per-subscriber notification threshold (Slack/Teams/SMS/
+  // admin-digest) reference subscribers(id) with no firm_id of their own,
+  // no ON DELETE CASCADE, and were never purged -- so the subscribers
+  // DELETE below ran with live child rows still pointing at those parents.
+  // Also proves firm_member_backup_codes still works after being refactored
+  // from a single inline DELETE into the same named-registry pattern
+  // (FIRM_MEMBER_SCOPED_NO_FIRM_ID_TABLES) as the 4 new tables.
+  it("RETAIN-2: hard-deletes the 4 subscriber-scoped no-firm_id notification-dedup tables, and firm_member_backup_codes still works", async () => {
+    const firmId = await deletedFirm(31);
+    const { id: staffId } = await store.addPending(env.DB, {
+      email: `retain2-staff-${Date.now()}@example.com`,
+      stateSlug: "georgia",
+      deadlineFields: {},
+      firstName: null,
+      deadlineSource: store.DEADLINE_SOURCE_USER,
+      userDeadline: "2027-01-01",
+      firmId,
+      staffLabel: "Retain2 Staffer",
+      skipConfirmation: true,
+    });
+    await store.claimSlackThresholdNotification(env.DB, staffId, 30);
+    await store.claimTeamsThresholdNotification(env.DB, staffId, 30);
+    await store.claimSmsThresholdNotification(env.DB, staffId, 30);
+    await store.claimAdminDigestThresholdNotification(env.DB, staffId, 30);
+
+    // A live firm_members row (not the doomed one) to seed backup codes on,
+    // proving the refactored FIRM_MEMBER_SCOPED_NO_FIRM_ID_TABLES loop
+    // still reaches it via the same member_id -> firm_members(firm_id)
+    // subquery the old inline DELETE used.
+    const memberRow = await env.DB.prepare("SELECT id FROM firm_members WHERE firm_id = ?1 LIMIT 1")
+      .bind(firmId)
+      .first<{ id: string }>();
+    await store.createFirmMemberBackupCodes(env.DB, memberRow!.id, ["hash1", "hash2"]);
+
+    // Sanity: everything actually landed before deletion runs.
+    for (const table of [
+      "firm_slack_notified_thresholds",
+      "firm_teams_notified_thresholds",
+      "sms_notified_thresholds",
+      "firm_admin_digest_notified_thresholds",
+    ] as const) {
+      const row = await env.DB.prepare(`SELECT 1 FROM ${table} WHERE subscriber_id = ?1`).bind(staffId).first();
+      expect(row, `expected a ${table} row to exist before deletion`).not.toBeNull();
+    }
+    const backupCodesBefore = await env.DB.prepare("SELECT 1 FROM firm_member_backup_codes WHERE member_id = ?1")
+      .bind(memberRow!.id)
+      .first();
+    expect(backupCodesBefore).not.toBeNull();
+
+    await store.hardDeleteExpiredFirms(env.DB, env.DOCUMENTS, new Date());
+
+    for (const table of [
+      "firm_slack_notified_thresholds",
+      "firm_teams_notified_thresholds",
+      "sms_notified_thresholds",
+      "firm_admin_digest_notified_thresholds",
+    ] as const) {
+      const row = await env.DB.prepare(`SELECT 1 FROM ${table} WHERE subscriber_id = ?1`).bind(staffId).first();
+      expect(row, `expected ${table} to be empty after deletion`).toBeNull();
+    }
+    const backupCodesAfter = await env.DB.prepare("SELECT 1 FROM firm_member_backup_codes WHERE member_id = ?1")
+      .bind(memberRow!.id)
+      .first();
+    expect(backupCodesAfter).toBeNull();
+  });
+
   it("never touches a firm that hasn't been deleted at all", async () => {
     const { id: firmId } = await store.createFirm(env.DB, { name: "Untouched LLC", adminEmail: `untouched-${Date.now()}@example.com` });
     const deleted = await store.hardDeleteExpiredFirms(env.DB, env.DOCUMENTS, new Date());

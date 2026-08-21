@@ -1797,6 +1797,76 @@ def check_sms_consent_version_sync(repo_root: Path) -> list[str]:
     return []
 
 
+def check_cpe_cycle_window_sync(repo_root: Path) -> list[str]:
+    """AuditLab CPE-4 decay-gate advisory (2026-08-21, orchestrator-approved):
+    the CPE-4 fix ported (not shared) the cycle-window scoping logic from
+    the firm dashboard's drCpeProgressForSubscriber() into /my/'s own
+    separate drCpeProgressFor() -- the pragmatic call, since the two pages
+    are entirely separate generated scripts with no common module to
+    import from. AuditLab verified the port was byte-identical the day it
+    shipped, but flagged that two verbatim copies of a compliance
+    calculation is exactly the precondition that produced CPE-4 in the
+    first place: one number, two implementations, nothing making them
+    agree if either is edited without the other. Same hand-maintained-copy
+    decay shape as check_sms_consent_version_sync() above, narrowed here to
+    just drCpeCycleWindow() -- the smallest unit whose divergence would
+    silently reintroduce CPE-4's own overstatement defect -- rather than
+    the whole progress function, most of which (carryover application,
+    ethics-window handling, the pace-aware verdict /my/ deliberately omits)
+    is expected to differ or already documented as a deliberate scope
+    difference."""
+    generate_py = repo_root / "generate.py"
+    if not generate_py.exists():
+        return ["[CPE-CYCLE-WINDOW] generate.py not found -- can't verify drCpeCycleWindow sync"]
+    src = generate_py.read_text(encoding="utf-8")
+
+    matches = list(re.finditer(r"function drCpeCycleWindow\([^)]*\)\s*\{", src))
+    if len(matches) != 2:
+        return [
+            f"[CPE-CYCLE-WINDOW] expected exactly 2 copies of drCpeCycleWindow() in generate.py "
+            f"(/my/'s own script and the firm dashboard's), found {len(matches)} -- either a copy "
+            "was removed (fold the callers back onto a single shared definition, one is enough) or "
+            "a third was added (this gate needs updating to cover it too)."
+        ]
+
+    bodies = []
+    for m in matches:
+        # Inline bracket match, not shared with the consent-gate check's
+        # _bracket_match() below -- this one only ever runs twice per gate
+        # invocation and keeping it self-contained avoids a forward
+        # reference to a helper defined 1000+ lines later in this file.
+        depth = 0
+        end = None
+        for i in range(m.end() - 1, len(src)):
+            if src[i] == "{":
+                depth += 1
+            elif src[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i
+                    break
+        if end is None:
+            return ["[CPE-CYCLE-WINDOW] a drCpeCycleWindow() definition has unbalanced braces -- can't verify sync"]
+        # Normalize whitespace: the two copies live at different nesting
+        # depths (one inside /my/'s own IIFE, one at module level for the
+        # firm dashboard), so leading indentation legitimately differs even
+        # when the two are otherwise identical. Collapsing every run of
+        # whitespace to a single space verifies LOGIC parity, not
+        # incidental formatting.
+        body = src[m.end() - 1 : end + 1]
+        bodies.append(re.sub(r"\s+", " ", body).strip())
+
+    if bodies[0] != bodies[1]:
+        return [
+            "[CPE-CYCLE-WINDOW] the two drCpeCycleWindow() copies in generate.py (/my/'s "
+            "drCpeProgressFor() and the firm dashboard's drCpeProgressForSubscriber()) have "
+            "diverged -- this is the exact precondition that produced CPE-4 (one cycle-window "
+            "calculation, two implementations, nothing keeping them in sync). Keep them "
+            "byte-identical (modulo indentation), or fold them into one shared definition."
+        ]
+    return []
+
+
 def check_field_computed_states_sync(repo_root: Path) -> list[str]:
     """AuditLab SYNC-1 (MEDIUM, 2026-08-09): worker/src/deadline.ts's
     FIELD_COMPUTED_STATES and generate.py's _WORKER_FIELD_COMPUTED_STATES
@@ -3244,6 +3314,7 @@ def main():
     all_errors += check_json_copies_identical(repo_root)
     all_errors += check_terms_version_sync(repo_root)
     all_errors += check_sms_consent_version_sync(repo_root)
+    all_errors += check_cpe_cycle_window_sync(repo_root)
     all_errors += check_retention_coverage(repo_root)
     all_errors += check_snoozed_until_cleared_on_cycle_bump(repo_root)
     all_errors += check_sitemap_completeness(html_files, docs_dir)

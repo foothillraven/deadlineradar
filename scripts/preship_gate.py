@@ -606,6 +606,102 @@ def check_birth_month_table_currency(html_files: list[Path]) -> list[str]:
     return errors
 
 
+_HIDDEN_TAG_RE = re.compile(r"<[a-zA-Z][a-zA-Z0-9]*\b[^>]*>")
+_HIDDEN_ATTR_RE = re.compile(r"(?<![\w-])hidden(?![\w-])")
+_HIDDEN_CLASS_ATTR_RE = re.compile(r'\bclass="([^"]*)"')
+_STYLE_BLOCK_RE = re.compile(r"<style[^>]*>(.*?)</style>", re.DOTALL)
+_CSS_RULE_RE = re.compile(r"([^{}]+)\{([^{}]*)\}")
+_CSS_DISPLAY_RE = re.compile(r"display\s*:\s*([a-zA-Z-]+)")
+
+# HIDDEN-1's allowlist (per AuditLab's own caution: every entry must name why
+# the class is safe, not just "already reviewed") -- a class here carries a
+# bare `hidden` attribute AND an unconditional non-`none` display rule AND no
+# `.cls[hidden]` override, but is confirmed safe for a stated reason (e.g. the
+# display rule only ever applies inside a state that's mutually exclusive
+# with `hidden` being set, verified by reading the JS that toggles it).
+_HIDDEN_DISPLAY_OVERRIDE_ALLOWLIST: set[str] = set()
+
+
+def check_hidden_display_override(html_files: list[Path]) -> list[str]:
+    """AuditLab HIDDEN-1 (LOW/preventive, 2026-08-07, recommended for
+    wiring in): a class-based `display` rule with equal CSS specificity to
+    the browser's built-in `[hidden] { display: none }` UA rule wins the
+    cascade tie by source order (author styles load after the UA
+    stylesheet) -- so an element that ships with a bare `hidden` attribute
+    can still render visible if its class has an unconditional `display`
+    rule and nothing re-asserts `display: none` at `.cls[hidden]` (higher
+    specificity, wins regardless of order). This exact bug reached
+    production 3 for 3 times (cookie notice, roadmap notify form, dashboard
+    view switcher), caught only by Devin using the product on his phone --
+    invisible by construction, since the DOM state (`hidden` really is set)
+    is correct and only the pixels are wrong; no error, no console warning.
+
+    AuditLab's own design note: scan the built HTML/CSS, not the JS --
+    `errEl`/`okEl`/`panel`-style local variable names are reused across
+    scopes and defeat a source-level scan, but the shipped DOM already
+    names the real classes on the real elements and the shipped <style>
+    block already has every rule, so no variable-name inference or scope
+    analysis is needed. Validated 2/2 against the pre-fix versions of two
+    of the three historical bugs before being recommended for wiring in.
+
+    Known, stated incompleteness (AuditLab's own words, not silently
+    dropped): this only catches elements that SHIP hidden. An element that
+    starts visible and is only ever hidden at runtime (`el.hidden = true`
+    from JS) is the same underlying bug but outside this check's reach --
+    flagged as a follow-on if it ever bites, not treated as covered here."""
+    errors = []
+    for f in html_files:
+        html_text = f.read_text(encoding="utf-8")
+        style_text = " ".join(m.group(1) for m in _STYLE_BLOCK_RE.finditer(html_text))
+        if not style_text.strip():
+            continue
+        css_rules = [(sel, decl) for sel, decl in _CSS_RULE_RE.findall(style_text)]
+
+        def _class_has_unconditional_visible_display(cls: str) -> bool:
+            escaped = re.escape(cls)
+            simple_selector_re = re.compile(r"^\." + escaped + r"$")
+            for sel, decl in css_rules:
+                branches = [b.strip() for b in sel.split(",")]
+                if not any(simple_selector_re.match(b) for b in branches):
+                    continue
+                m = _CSS_DISPLAY_RE.search(decl)
+                if m and m.group(1).strip().lower() != "none":
+                    return True
+            return False
+
+        def _class_has_hidden_override(cls: str) -> bool:
+            escaped = re.escape(cls)
+            override_marker = f".{cls}[hidden]"
+            for sel, decl in css_rules:
+                if override_marker in sel:
+                    m = _CSS_DISPLAY_RE.search(decl)
+                    if m and m.group(1).strip().lower() == "none":
+                        return True
+            return False
+
+        for tag_match in _HIDDEN_TAG_RE.finditer(html_text):
+            tag_text = tag_match.group(0)
+            if not _HIDDEN_ATTR_RE.search(tag_text):
+                continue
+            class_match = _HIDDEN_CLASS_ATTR_RE.search(tag_text)
+            if not class_match:
+                continue
+            for cls in class_match.group(1).split():
+                if cls in _HIDDEN_DISPLAY_OVERRIDE_ALLOWLIST:
+                    continue
+                if _class_has_unconditional_visible_display(cls) and not _class_has_hidden_override(cls):
+                    errors.append(
+                        f"[HIDDEN-1][{f}] element ships with `hidden` and class '.{cls}' has an "
+                        f"unconditional non-none `display` rule with no `.{cls}[hidden]` override -- "
+                        f"the class rule and the browser's built-in [hidden] rule tie on specificity "
+                        f"and author styles win by source order, so this element can render visible "
+                        f"despite `hidden` being set. Add `.{cls}[hidden] {{ display: none; }}`, or if "
+                        f"this is confirmed safe, allowlist '{cls}' in "
+                        f"_HIDDEN_DISPLAY_OVERRIDE_ALLOWLIST with a stated reason."
+                    )
+    return errors
+
+
 def check_cpe_hours_currency(repo_root: Path) -> list[str]:
     """AuditLab BADGE-1 (MEDIUM, 2026-08-09): roadmap #47 upgraded the public
     CPE badge from a bare "Verified" to a dated "Verified 2026-07-15" on 50
@@ -2800,6 +2896,7 @@ def main():
     all_errors += check_data_manifest_consistency(data_path, docs_dir)
     all_errors += check_deadline_currency(data_path)
     all_errors += check_birth_month_table_currency(html_files)
+    all_errors += check_hidden_display_override(html_files)
     all_errors += check_cpe_hours_currency(repo_root)
     all_errors += check_annual_minimum_not_alternative_track(repo_root)
     all_errors += check_rule_change_monitoring_currency(repo_root)

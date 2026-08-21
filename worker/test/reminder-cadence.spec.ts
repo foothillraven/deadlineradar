@@ -7,7 +7,7 @@ import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import * as store from "../src/store";
 import { parseReminderThresholds } from "../src/validation";
-import { nextDueThreshold, ESCALATION_THRESHOLDS_DAYS } from "../src/scheduler";
+import { nextDueThreshold, ESCALATION_THRESHOLDS_DAYS, runReminderPass } from "../src/scheduler";
 
 const BASE = "https://deadline-radar.com";
 
@@ -68,6 +68,56 @@ describe("nextDueThreshold() with a custom subset", () => {
   it("holds rather than defeat the already-sent guard when alreadySent contains a non-numeric value", () => {
     const corrupt = [7, "not-a-number"] as unknown as number[];
     expect(nextDueThreshold(5, corrupt)).toBe(null);
+  });
+});
+
+// SEND-1 addendum (AuditLab, 2026-08-20): the SAME unguarded Math.min(...)
+// shape as the test above, but in the never-notified CATCH-UP branch --
+// scheduler.ts's own byte-identical code across all 6 threshold-based
+// passes (reminder/digest/slack/teams/sms/admin-digest). Full end-to-end
+// integration test on the primary pass (runReminderPass); the other 5 are
+// mechanically identical 3-line guards verified by typecheck + direct
+// code reading, not separately integration-tested here.
+describe("runReminderPass -- never-notified catch-up branch", () => {
+  it("holds (does not crash, does not send) when a subscriber's reminder_thresholds is corrupted", async () => {
+    // "Bring your own date" (deadlineSource: "user") -- the birth-month-
+    // annual engine path always self-rolls FORWARD to the next occurrence,
+    // so it can never legitimately produce a past daysRemaining and can't
+    // exercise the catch-up branch at all. A user-supplied date can
+    // genuinely be in the past (matches how DATE-2 static dates go stale
+    // too), which is what actually reaches this branch in production.
+    const email = `catchup-corrupt-${Date.now()}@example.com`;
+    await store.addPending(env.DB, {
+      email,
+      stateSlug: "georgia",
+      deadlineFields: {},
+      firstName: "Tester",
+      deadlineSource: "user",
+      userDeadline: "2026-07-01",
+    });
+    await store.confirm(env.DB, (await store.findActiveOrPending(env.DB, email, "georgia"))!.confirm_token);
+    // Bypasses parseReminderThresholds' write-time validation on purpose --
+    // same technique as SEND-1's own positive control, simulating the only
+    // way this is reachable (DB corruption / a manual edit).
+    await env.DB.prepare(`UPDATE subscribers SET reminder_thresholds = ?1 WHERE LOWER(TRIM(email)) = ?2`)
+      .bind('["not-a-number"]', email.toLowerCase())
+      .run();
+
+    let sent = false;
+    // 10 days after the July 1 user-supplied deadline -- inside the
+    // [-14,-4] catch-up window, past the -3 grace period, and this
+    // subscriber has never been notified (fresh signup, reminders_sent is
+    // empty).
+    const summary = await runReminderPass(env, {
+      asOf: new Date(Date.UTC(2026, 6, 11)),
+      send: async () => {
+        sent = true;
+        return true;
+      },
+    });
+
+    expect(sent).toBe(false);
+    expect(summary.errors.some((e) => e.error.includes("non-numeric value"))).toBe(true);
   });
 });
 

@@ -381,6 +381,21 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
         // the most urgent tier this firm actually uses, rather than silent-
         // forever OR a tier they've deliberately turned off.
         threshold = Math.min(...thresholds);
+        // SEND-1 addendum (AuditLab, 2026-08-20): `thresholds` above is
+        // JSON.parse()'d and only shape-checked (Array.isArray + non-empty),
+        // never element-type-checked -- a parsed ["x"] makes Math.min(...)
+        // NaN, which would otherwise be claimed and "sent" as a real
+        // threshold. Same non-finite family as SEND-1/BILL-13/nextDueThreshold's
+        // own guard; same reachability (write-time validation via
+        // parseReminderThresholds only admits ALLOWED_REMINDER_THRESHOLDS
+        // values today, so this needs DB corruption to trigger).
+        if (!Number.isFinite(threshold)) {
+          summary.errors.push({
+            subscriber_id: sub.id,
+            error: "SKIPPED: reminder_thresholds contains a non-numeric value -- refusing to guess a catch-up tier.",
+          });
+          continue;
+        }
       } else {
         summary.skipped_grace_period += 1;
         continue;
@@ -1027,6 +1042,14 @@ export async function runDigestPass(env: Env, opts: RunReminderOptions = {}): Pr
         if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
           if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
             threshold = Math.min(...thresholds);
+            // SEND-1 addendum (AuditLab, 2026-08-20) -- same fix as
+            // runReminderPass()'s identical branch: thresholds is shape-
+            // checked but not element-type-checked, so a corrupted value
+            // could make this NaN and get claimed/sent as a real threshold.
+            if (!Number.isFinite(threshold)) {
+              summary.errors.push({ email: emailNormalized, error: `subscriber ${sub.id}: reminder_thresholds contains a non-numeric value -- refusing to guess a catch-up tier.` });
+              continue;
+            }
           } else {
             continue;
           }
@@ -1300,6 +1323,12 @@ export async function runSlackAlertPass(env: Env, opts: RunSlackAlertOptions = {
         if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
           if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
             threshold = Math.min(...effectiveThresholds);
+            // SEND-1 addendum (AuditLab, 2026-08-20), same fix as
+            // runReminderPass()/runDigestPass()'s identical branches.
+            if (!Number.isFinite(threshold)) {
+              summary.errors.push({ firm_id: firm.id, error: `subscriber ${sub.id}: reminder_thresholds contains a non-numeric value -- refusing to guess a catch-up tier.` });
+              continue;
+            }
           } else {
             continue;
           }
@@ -1501,6 +1530,13 @@ export async function runTeamsAlertPass(env: Env, opts: RunTeamsAlertOptions = {
         if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
           if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
             threshold = Math.min(...effectiveThresholds);
+            // SEND-1 addendum (AuditLab, 2026-08-20), same fix as
+            // runReminderPass()/runDigestPass()/runSlackAlertPass()'s
+            // identical branches.
+            if (!Number.isFinite(threshold)) {
+              summary.errors.push({ firm_id: firm.id, error: `subscriber ${sub.id}: reminder_thresholds contains a non-numeric value -- refusing to guess a catch-up tier.` });
+              continue;
+            }
           } else {
             continue;
           }
@@ -1682,6 +1718,12 @@ export async function runSmsAlertPass(env: Env, opts: RunSmsAlertOptions = {}): 
     if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
       if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
         threshold = Math.min(...thresholds);
+        // SEND-1 addendum (AuditLab, 2026-08-20), same fix as every other
+        // pass's identical catch-up branch.
+        if (!Number.isFinite(threshold)) {
+          summary.errors.push({ subscriber_id: sub.id, error: "SKIPPED: reminder_thresholds contains a non-numeric value -- refusing to guess a catch-up tier." });
+          continue;
+        }
       } else {
         continue;
       }
@@ -1885,6 +1927,12 @@ export async function runAdminDigestAlertPass(env: Env, opts: RunAdminDigestAler
         if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
           if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
             threshold = Math.min(...effectiveThresholds);
+            // SEND-1 addendum (AuditLab, 2026-08-20), same fix as every
+            // other pass's identical catch-up branch.
+            if (!Number.isFinite(threshold)) {
+              summary.errors.push({ firm_id: firm.id, error: `subscriber ${sub.id}: reminder_thresholds contains a non-numeric value -- refusing to guess a catch-up tier.` });
+              continue;
+            }
           } else {
             continue;
           }

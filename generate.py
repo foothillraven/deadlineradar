@@ -17379,18 +17379,30 @@ def _dashboard_sidebar_html(active: str, tabs_live_here: bool) -> str:
     # and not covered by their finding's own scope (docs/firm-dashboard/
     # only). role="tablist"/aria-label is therefore only emitted where the
     # children genuinely are role="tab" elements.
-    _tablist_attrs = ' role="tablist" aria-label="Dashboard views"' if tabs_live_here else ""
+    #
+    # TAB-3 residual (AuditLab, 2026-08-21): both tablist halves shared the
+    # identical aria-label ("Dashboard views"), so a screen-reader user met
+    # two distinct tablist regions with the same name -- one announcing 5
+    # tabs, one a single "tab 1 of 1" -- for what is conceptually one set of
+    # 6 tabs. Milder than the original defect (a naming/grouping smell, not
+    # a spec violation) but worth the one-line fix AuditLab suggested:
+    # distinct names so the two regions are at least distinguishable.
+    # "(continued)" rather than hardcoding the after-list's content (e.g.
+    # "Account") so this stays correct if _NAV_ORDER's after-mobility
+    # portion ever grows past a single item.
+    _before_tablist_attrs = ' role="tablist" aria-label="Dashboard views"' if tabs_live_here else ""
+    _after_tablist_attrs = ' role="tablist" aria-label="Dashboard views (continued)"' if tabs_live_here else ""
     return f"""<aside class="dr-sidebar">
     {firm_name_html}
     {notification_bell_html}
-    <ul class="dr-nav"{_tablist_attrs}>
+    <ul class="dr-nav"{_before_tablist_attrs}>
       {_before_nav_items}
     </ul>
     <ul class="dr-nav">
       {_mobility_nav_item}
       {sidebar_nav_soon_items}
     </ul>
-    <ul class="dr-nav"{_tablist_attrs}>
+    <ul class="dr-nav"{_after_tablist_attrs}>
       {_after_nav_items}
     </ul>
     <div class="dr-sidebar-foot">

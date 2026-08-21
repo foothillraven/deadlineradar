@@ -4836,7 +4836,7 @@ async function handleSubscriberLicensesList(request: Request, env: Env): Promise
   if (rows[0]?.reminder_thresholds) {
     try {
       const parsed = JSON.parse(rows[0].reminder_thresholds);
-      if (Array.isArray(parsed) && parsed.length > 0) reminderThresholds = parsed;
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((v) => Number.isFinite(v))) reminderThresholds = parsed;
     } catch {
       // Malformed value somehow reached storage -- same fall-through
       // posture as scheduler.ts's own parse.

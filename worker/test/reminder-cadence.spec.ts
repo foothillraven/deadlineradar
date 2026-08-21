@@ -71,15 +71,21 @@ describe("nextDueThreshold() with a custom subset", () => {
   });
 });
 
-// SEND-1 addendum (AuditLab, 2026-08-20): the SAME unguarded Math.min(...)
-// shape as the test above, but in the never-notified CATCH-UP branch --
-// scheduler.ts's own byte-identical code across all 6 threshold-based
-// passes (reminder/digest/slack/teams/sms/admin-digest). Full end-to-end
-// integration test on the primary pass (runReminderPass); the other 5 are
-// mechanically identical 3-line guards verified by typecheck + direct
-// code reading, not separately integration-tested here.
-describe("runReminderPass -- never-notified catch-up branch", () => {
-  it("holds (does not crash, does not send) when a subscriber's reminder_thresholds is corrupted", async () => {
+// SEND-2 (AuditLab, 2026-08-21, orchestrator-approved): superseded an
+// earlier per-consumption-site guard (hold-on-NaN) with the correct fix at
+// the 13 adoption sites instead -- reject a reminder_thresholds value with
+// any non-finite element BEFORE it's ever assigned to `thresholds`/
+// `effectiveThresholds`, so it falls back to the default set rather than
+// being adopted corrupted. This matches the file's own pre-existing
+// convention for a JSON.parse failure ("fall back to the full default set
+// rather than silently sending nothing") and extends it to cover "parsed
+// fine, but an element isn't a number" -- the case that convention didn't
+// originally reach. Full end-to-end integration test on the primary pass
+// (runReminderPass); the other 12 adoption sites are mechanically
+// identical one-clause additions verified by typecheck + direct code
+// reading, not separately integration-tested here.
+describe("runReminderPass -- corrupted reminder_thresholds falls back to the default set", () => {
+  it("does not adopt a corrupted reminder_thresholds value, and still sends using the default set's catch-up tier", async () => {
     // "Bring your own date" (deadlineSource: "user") -- the birth-month-
     // annual engine path always self-rolls FORWARD to the next occurrence,
     // so it can never legitimately produce a past daysRemaining and can't
@@ -107,7 +113,9 @@ describe("runReminderPass -- never-notified catch-up branch", () => {
     // 10 days after the July 1 user-supplied deadline -- inside the
     // [-14,-4] catch-up window, past the -3 grace period, and this
     // subscriber has never been notified (fresh signup, reminders_sent is
-    // empty).
+    // empty). With the corrupted value correctly rejected, thresholds
+    // falls back to ESCALATION_THRESHOLDS_DAYS ([60,30,14,7,3,1]) -- the
+    // catch-up branch's Math.min(...) is 1, a real, finite threshold.
     const summary = await runReminderPass(env, {
       asOf: new Date(Date.UTC(2026, 6, 11)),
       send: async () => {
@@ -116,8 +124,9 @@ describe("runReminderPass -- never-notified catch-up branch", () => {
       },
     });
 
-    expect(sent).toBe(false);
-    expect(summary.errors.some((e) => e.error.includes("non-numeric value"))).toBe(true);
+    expect(sent).toBe(true);
+    expect(summary.sent).toBe(1);
+    expect(summary.errors).toEqual([]);
   });
 });
 

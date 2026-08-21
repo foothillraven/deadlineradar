@@ -355,7 +355,7 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
     if (firmInfo?.reminder_thresholds) {
       try {
         const parsed = JSON.parse(firmInfo.reminder_thresholds);
-        if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((v) => Number.isFinite(v))) thresholds = parsed;
       } catch {
         // Malformed value somehow reached storage -- fall back to the full
         // default set rather than silently sending nothing.
@@ -368,7 +368,7 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
     if (sub.reminder_thresholds) {
       try {
         const parsed = JSON.parse(sub.reminder_thresholds);
-        if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((v) => Number.isFinite(v))) thresholds = parsed;
       } catch {
         // Same fall-through posture as the firm-level parse above.
       }
@@ -380,22 +380,16 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
         // First-ever evaluation landed past-deadline -- one bounded catch-up at
         // the most urgent tier this firm actually uses, rather than silent-
         // forever OR a tier they've deliberately turned off.
+        // SEND-2 (AuditLab, 2026-08-21, orchestrator-approved): thresholds
+        // is guaranteed all-finite by the time it reaches here -- every
+        // adoption site below validates parsed.every(Number.isFinite)
+        // before assigning, so Math.min(...thresholds) can no longer
+        // produce NaN. Superseded the SEND-1-addendum guard that used to
+        // live here (hold-on-NaN); the adoption-site fix is the correct
+        // one, matching this file's own established "malformed value ->
+        // fall back to the default set" convention (see the parse catch
+        // blocks below) rather than silently sending nothing.
         threshold = Math.min(...thresholds);
-        // SEND-1 addendum (AuditLab, 2026-08-20): `thresholds` above is
-        // JSON.parse()'d and only shape-checked (Array.isArray + non-empty),
-        // never element-type-checked -- a parsed ["x"] makes Math.min(...)
-        // NaN, which would otherwise be claimed and "sent" as a real
-        // threshold. Same non-finite family as SEND-1/BILL-13/nextDueThreshold's
-        // own guard; same reachability (write-time validation via
-        // parseReminderThresholds only admits ALLOWED_REMINDER_THRESHOLDS
-        // values today, so this needs DB corruption to trigger).
-        if (!Number.isFinite(threshold)) {
-          summary.errors.push({
-            subscriber_id: sub.id,
-            error: "SKIPPED: reminder_thresholds contains a non-numeric value -- refusing to guess a catch-up tier.",
-          });
-          continue;
-        }
       } else {
         summary.skipped_grace_period += 1;
         continue;
@@ -1024,7 +1018,7 @@ export async function runDigestPass(env: Env, opts: RunReminderOptions = {}): Pr
         if (firmInfo?.reminder_thresholds) {
           try {
             const parsed = JSON.parse(firmInfo.reminder_thresholds);
-            if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+            if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((v) => Number.isFinite(v))) thresholds = parsed;
           } catch {
             // Same fall-through posture as runReminderPass() above.
           }
@@ -1032,7 +1026,7 @@ export async function runDigestPass(env: Env, opts: RunReminderOptions = {}): Pr
         if (sub.reminder_thresholds) {
           try {
             const parsed = JSON.parse(sub.reminder_thresholds);
-            if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+            if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((v) => Number.isFinite(v))) thresholds = parsed;
           } catch {
             // Same fall-through posture as runReminderPass() above.
           }
@@ -1041,15 +1035,9 @@ export async function runDigestPass(env: Env, opts: RunReminderOptions = {}): Pr
         let threshold: number | null;
         if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
           if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
+            // SEND-2: thresholds is guaranteed all-finite by adoption time
+            // now -- see runReminderPass()'s identical comment.
             threshold = Math.min(...thresholds);
-            // SEND-1 addendum (AuditLab, 2026-08-20) -- same fix as
-            // runReminderPass()'s identical branch: thresholds is shape-
-            // checked but not element-type-checked, so a corrupted value
-            // could make this NaN and get claimed/sent as a real threshold.
-            if (!Number.isFinite(threshold)) {
-              summary.errors.push({ email: emailNormalized, error: `subscriber ${sub.id}: reminder_thresholds contains a non-numeric value -- refusing to guess a catch-up tier.` });
-              continue;
-            }
           } else {
             continue;
           }
@@ -1265,7 +1253,7 @@ export async function runSlackAlertPass(env: Env, opts: RunSlackAlertOptions = {
     if (firm.reminder_thresholds) {
       try {
         const parsed = JSON.parse(firm.reminder_thresholds);
-        if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((v) => Number.isFinite(v))) thresholds = parsed;
       } catch {
         // Same fall-through posture as runReminderPass() above.
       }
@@ -1313,7 +1301,7 @@ export async function runSlackAlertPass(env: Env, opts: RunSlackAlertOptions = {
         if (sub.reminder_thresholds) {
           try {
             const parsed = JSON.parse(sub.reminder_thresholds);
-            if (Array.isArray(parsed) && parsed.length > 0) effectiveThresholds = parsed;
+            if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((v) => Number.isFinite(v))) effectiveThresholds = parsed;
           } catch {
             // Same fall-through posture as above.
           }
@@ -1322,13 +1310,9 @@ export async function runSlackAlertPass(env: Env, opts: RunSlackAlertOptions = {
         let threshold: number | null;
         if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
           if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
+            // SEND-2: thresholds is guaranteed all-finite by adoption time
+            // now -- see runReminderPass()'s identical comment.
             threshold = Math.min(...effectiveThresholds);
-            // SEND-1 addendum (AuditLab, 2026-08-20), same fix as
-            // runReminderPass()/runDigestPass()'s identical branches.
-            if (!Number.isFinite(threshold)) {
-              summary.errors.push({ firm_id: firm.id, error: `subscriber ${sub.id}: reminder_thresholds contains a non-numeric value -- refusing to guess a catch-up tier.` });
-              continue;
-            }
           } else {
             continue;
           }
@@ -1478,7 +1462,7 @@ export async function runTeamsAlertPass(env: Env, opts: RunTeamsAlertOptions = {
     if (firm.reminder_thresholds) {
       try {
         const parsed = JSON.parse(firm.reminder_thresholds);
-        if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((v) => Number.isFinite(v))) thresholds = parsed;
       } catch {
         // Same fall-through posture as runReminderPass() above.
       }
@@ -1520,7 +1504,7 @@ export async function runTeamsAlertPass(env: Env, opts: RunTeamsAlertOptions = {
         if (sub.reminder_thresholds) {
           try {
             const parsed = JSON.parse(sub.reminder_thresholds);
-            if (Array.isArray(parsed) && parsed.length > 0) effectiveThresholds = parsed;
+            if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((v) => Number.isFinite(v))) effectiveThresholds = parsed;
           } catch {
             // Same fall-through posture as above.
           }
@@ -1529,14 +1513,9 @@ export async function runTeamsAlertPass(env: Env, opts: RunTeamsAlertOptions = {
         let threshold: number | null;
         if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
           if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
+            // SEND-2: thresholds is guaranteed all-finite by adoption time
+            // now -- see runReminderPass()'s identical comment.
             threshold = Math.min(...effectiveThresholds);
-            // SEND-1 addendum (AuditLab, 2026-08-20), same fix as
-            // runReminderPass()/runDigestPass()/runSlackAlertPass()'s
-            // identical branches.
-            if (!Number.isFinite(threshold)) {
-              summary.errors.push({ firm_id: firm.id, error: `subscriber ${sub.id}: reminder_thresholds contains a non-numeric value -- refusing to guess a catch-up tier.` });
-              continue;
-            }
           } else {
             continue;
           }
@@ -1700,7 +1679,7 @@ export async function runSmsAlertPass(env: Env, opts: RunSmsAlertOptions = {}): 
     if (firmInfo?.reminder_thresholds) {
       try {
         const parsed = JSON.parse(firmInfo.reminder_thresholds);
-        if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((v) => Number.isFinite(v))) thresholds = parsed;
       } catch {
         // Same fall-through posture as runReminderPass() above.
       }
@@ -1708,7 +1687,7 @@ export async function runSmsAlertPass(env: Env, opts: RunSmsAlertOptions = {}): 
     if (sub.reminder_thresholds) {
       try {
         const parsed = JSON.parse(sub.reminder_thresholds);
-        if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((v) => Number.isFinite(v))) thresholds = parsed;
       } catch {
         // Same fall-through posture as above.
       }
@@ -1717,13 +1696,9 @@ export async function runSmsAlertPass(env: Env, opts: RunSmsAlertOptions = {}): 
     let threshold: number | null;
     if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
       if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
+        // SEND-2: thresholds is guaranteed all-finite by adoption time now
+        // -- see runReminderPass()'s identical comment.
         threshold = Math.min(...thresholds);
-        // SEND-1 addendum (AuditLab, 2026-08-20), same fix as every other
-        // pass's identical catch-up branch.
-        if (!Number.isFinite(threshold)) {
-          summary.errors.push({ subscriber_id: sub.id, error: "SKIPPED: reminder_thresholds contains a non-numeric value -- refusing to guess a catch-up tier." });
-          continue;
-        }
       } else {
         continue;
       }
@@ -1876,7 +1851,7 @@ export async function runAdminDigestAlertPass(env: Env, opts: RunAdminDigestAler
     if (firm.reminder_thresholds) {
       try {
         const parsed = JSON.parse(firm.reminder_thresholds);
-        if (Array.isArray(parsed) && parsed.length > 0) thresholds = parsed;
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((v) => Number.isFinite(v))) thresholds = parsed;
       } catch {
         // Same fall-through posture as runReminderPass() above.
       }
@@ -1917,7 +1892,7 @@ export async function runAdminDigestAlertPass(env: Env, opts: RunAdminDigestAler
         if (sub.reminder_thresholds) {
           try {
             const parsed = JSON.parse(sub.reminder_thresholds);
-            if (Array.isArray(parsed) && parsed.length > 0) effectiveThresholds = parsed;
+            if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((v) => Number.isFinite(v))) effectiveThresholds = parsed;
           } catch {
             // Same fall-through posture as above.
           }
@@ -1926,13 +1901,9 @@ export async function runAdminDigestAlertPass(env: Env, opts: RunAdminDigestAler
         let threshold: number | null;
         if (daysRemaining < -GRACE_PERIOD_PAST_DEADLINE_DAYS) {
           if (neverNotified && daysRemaining >= -NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS) {
+            // SEND-2: thresholds is guaranteed all-finite by adoption time
+            // now -- see runReminderPass()'s identical comment.
             threshold = Math.min(...effectiveThresholds);
-            // SEND-1 addendum (AuditLab, 2026-08-20), same fix as every
-            // other pass's identical catch-up branch.
-            if (!Number.isFinite(threshold)) {
-              summary.errors.push({ firm_id: firm.id, error: `subscriber ${sub.id}: reminder_thresholds contains a non-numeric value -- refusing to guess a catch-up tier.` });
-              continue;
-            }
           } else {
             continue;
           }

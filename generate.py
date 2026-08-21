@@ -7173,6 +7173,23 @@ def _pricing_feature_table_rows_html(lang: str = "en") -> str:
       own gate: requireFirmSessionWithFirm(), NOT
       requireFirmSessionAndPaidTier()/hasValueLineAccess() -- free on every
       tier, same as CPE-hour tracking above it.
+    - Coverage overview (P6, ValueLab pricing addendum, ruled 2026-08-20 --
+      the worst finding across both ValueLab reports: revenue AND trust at
+      once) checked against drRenderStats()/drRenderAtRisk()'s own
+      drDashboardSynthesisIncluded gate (roadmap #151 Phase 4) -- the
+      /for-firms/ showcase's Roster tab screenshot shows this real data,
+      but it was paid-gated and absent from this table, so a free signup
+      hit two upsell placeholders where the screenshot had numbers, with
+      nothing here explaining why upgrading matters.
+    - Email renewal reminders is per-STAFF (the reminder pass iterates
+      individual license rows) -- distinct from the admin digest below,
+      which is one firm-wide summary. The row label says so explicitly
+      now (it didn't before P7) so this row can't be read as "email is
+      fully covered free."
+    - Daily firm-wide digest to the admin (P7, same addendum) checked
+      against runAdminDigestAlertPass()'s own hasValueLineAccess() gate
+      (worker/src/scheduler.ts) -- same paid-tier gate as Slack/Teams/SMS,
+      previously invisible on this table.
     - SMS is deliberately NOT a row here: it's a capability of the separate
       free public individual-subscriber product (worker/src/sms.ts,
       scheduler.ts's runSmsAlertPass() pulls from the `subscribers` table),
@@ -7217,10 +7234,12 @@ def _pricing_feature_table_rows_html(lang: str = "en") -> str:
     no = _t("pricing.cell_no", lang)
     rows = [
         (_t("pricing.row_roster", lang), _t("pricing.row_roster_free", lang), _t("pricing.row_roster_paid", lang)),
+        (_t("pricing.row_coverage_overview", lang), no, yes),
         (_t("pricing.row_calendar", lang), yes, yes),
         (_t("pricing.row_cpe", lang), yes, yes),
         (_t("pricing.row_compliance", lang), yes, yes),
         (_t("pricing.row_email_reminders", lang), yes, yes),
+        (_t("pricing.row_admin_digest", lang), no, yes),
         (_t("pricing.row_ppc", lang), yes, yes),
         (_t("pricing.row_slack_teams", lang), no, yes),
         (_t("pricing.row_documents", lang), no, yes),
@@ -8475,7 +8494,14 @@ license. {len(FIRM_LANDING_PAGES)} states where we've published the firm-specifi
 # screenshots show exactly what a fresh visitor sees clicking "Live Demo",
 # nothing staged beyond picking which of the 6 nav views to capture.
 _PRODUCT_SHOWCASE_TABS = [
-    ("roster", "Roster", "showcase/roster.jpg", "Coverage overview: who's current, who's at risk, at a glance."),
+    # P6 (ValueLab pricing addendum, ruled 2026-08-20): this caption used
+    # to read as free-tier content -- the coverage %, status breakdown,
+    # and at-risk ranking it shows are the SAME paid-gated synthesis
+    # drRenderStats()/drRenderAtRisk() upsell-wall on a free account (see
+    # _pricing_feature_table_rows_html()'s own comment). A visitor who
+    # signs up free and hits that wall, having just been shown this exact
+    # view working, deserves the caption to say so up front.
+    ("roster", "Roster", "showcase/roster.jpg", "Coverage overview: who's current, who's at risk, at a glance — the coverage %, status breakdown, and at-risk ranking shown here are part of a paid firm plan."),
     ("calendar", "Calendar", "showcase/calendar.jpg", "Every upcoming renewal, by date, with an .ics feed to export."),
     ("map", "Map", "showcase/map.jpg", "Which states your firm has staff licensed in, and who's at risk."),
     ("cpe", "CPE Hours", "showcase/cpe-hours.jpg", "Completed continuing-education hours, tracked per staff member against each state's own requirement."),

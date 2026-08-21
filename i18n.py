@@ -423,7 +423,23 @@ EN: dict[str, str] = {
     "pricing.row_calendar": "Calendar view",
     "pricing.row_cpe": "CPE-hour tracking",
     "pricing.row_compliance": "Compliance Summary &amp; audit trail export",
-    "pricing.row_email_reminders": "Email renewal reminders",
+    "pricing.row_email_reminders": "Email renewal reminders (per staff)",
+    # P6 (ValueLab pricing addendum, ruled 2026-08-20): the /for-firms/
+    # showcase's Roster tab screenshot leads with coverage %, roster-status
+    # breakdown, due-soon count, and at-risk ranking -- all four genuinely
+    # paid-gated (drRenderStats()/drRenderAtRisk()'s own
+    # drDashboardSynthesisIncluded check, roadmap #151 Phase 4) -- but none
+    # of them appeared on this table, which itself calls itself "the real,
+    # code-verified breakdown." A prospect sees real data in the showcase,
+    # signs up free, hits two upsell placeholders where the screenshot had
+    # numbers, then checks pricing and doesn't find what they were shown.
+    "pricing.row_coverage_overview": "Coverage overview: coverage %, status breakdown, due-soon count, at-risk ranking",
+    # P7 (ValueLab pricing addendum, ruled 2026-08-20): runAdminDigestAlertPass()
+    # is a real paid feature (same hasValueLineAccess() gate as Slack/Teams/
+    # SMS, worker/src/scheduler.ts), invisible on this table -- the
+    # per-staff reminders row above reads as if email is fully covered
+    # free, hiding that the firm-wide summary to the admin is paid-only.
+    "pricing.row_admin_digest": "Daily firm-wide digest to the admin",
     "pricing.row_ppc": "Individual Practice Privilege Check",
     "pricing.row_slack_teams": "Slack &amp; Teams deadline alerts",
     "pricing.row_documents": "Document storage (2MB/file, 50MB/firm)",

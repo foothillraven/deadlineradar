@@ -18737,7 +18737,10 @@ def build_firm_dashboard_page(
       <h1>Account</h1>
       <div class="callout" id="dr-account-demo-lockdown-banner" style="border-left-color:#b8860b;" hidden>
       This is a shared demo account &mdash; email, password, billing, and delete-account changes are
-      disabled here so one visitor can't break the demo for the next one.</div>
+      disabled here so one visitor can't break the demo for the next one. The roster itself is still
+      editable to show how it works, and anything you add &mdash; including any email address you type
+      &mdash; stays visible to later visitors, so please don't enter a real address you wouldn't want
+      public.</div>
 
       <div class="dr-account-panel">
         <h2>Help</h2>

@@ -13788,10 +13788,25 @@ function drTriggerCsvDownload(filename, lines) {
   URL.revokeObjectURL(url);
 }
 
+// AuditLab CSV-5 (LOW, 2026-08-21, orchestrator-approved): "CPE total
+// logged"/"CPE ethics logged" are cycle-scoped -- entries outside the
+// current renewal window are excluded (drCpeProgressForSubscriber()'s
+// own p.excludedCount) -- and the on-screen dashboard says so in words
+// right next to the number, but this export carried none of that. A
+// CPA hands this file to a partner, a peer reviewer, or a board; the
+// on-screen caveat doesn't travel with it, so "CPE total logged: 12"
+// reads as "12 hours ever logged" when it actually means "12 hours
+// counted toward THIS cycle, N more exist outside it." Fixed both ways
+// per the ruling: renamed the two headers to say "this cycle" outright,
+// and added the cycle window + excluded-entry count as their own
+// columns using data drCpeProgressForSubscriber() already computes, so
+// every number in the file is self-describing without needing the
+// screen it came from.
 function drDownloadRosterCsv() {
   var headers = ['Staff', 'Email', 'State', 'License type', 'Status', 'Next deadline',
-    'Renewal fee', 'Office/department', 'License issue date', 'CPE carryover hours', 'CPE total logged',
-    'CPE total required', 'CPE ethics logged', 'CPE ethics required'];
+    'Renewal fee', 'Office/department', 'License issue date', 'CPE carryover hours',
+    'CPE hours logged this cycle', 'CPE total required', 'CPE ethics hours logged this cycle',
+    'CPE ethics required', 'CPE cycle start', 'CPE cycle end', 'CPE entries outside cycle'];
   var lines = [headers.map(drCsvField).join(',')];
   drLicenses.forEach(function(item) {
     var licenseTypeIdForDisplay = item.license_type_id || DR_DEFAULT_LICENSE_TYPE_ID[item.state_slug];
@@ -13803,7 +13818,10 @@ function drDownloadRosterCsv() {
       item.next_deadline || '', fee, item.office_tag || '', item.license_issue_date || '',
       (typeof item.carryover_hours === 'number') ? item.carryover_hours : '',
       p.hasRequirement ? p.totalLogged : '', p.hasRequirement && p.totalRequired !== null ? p.totalRequired : '',
-      p.hasRequirement ? p.ethicsLogged : '', p.hasRequirement && p.ethicsRequired !== null ? p.ethicsRequired : ''
+      p.hasRequirement ? p.ethicsLogged : '', p.hasRequirement && p.ethicsRequired !== null ? p.ethicsRequired : '',
+      p.hasRequirement && p.cycleWindow ? p.cycleWindow.start : '',
+      p.hasRequirement && p.cycleWindow ? p.cycleWindow.end : '',
+      p.hasRequirement ? p.excludedCount : ''
     ];
     lines.push(row.map(drCsvField).join(','));
   });

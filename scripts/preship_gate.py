@@ -2796,6 +2796,104 @@ def check_email_link_helper_usage(repo_root: Path) -> list[str]:
     return errors
 
 
+# Orchestrator consent-gate directive (Devin, 2026-08-21, filed during the
+# DEAD-2 investigation): "NOTHING is sent without my consent." Any NEW send
+# pass wired into scheduled() going forward must call
+# requireSendApproval(env, "<name>") (scheduler.ts) at its own entry point.
+# These 8 are the passes dispatched BEFORE that directive existed and are
+# explicitly NOT required to retrofit it -- the directive's own scope was
+# going-forward only, not a sweep of every existing send. Do NOT add a name
+# here to make a new pass pass this gate; grandfathering is for history,
+# not for skipping the actual requirement on new work.
+GRANDFATHERED_PRE_CONSENT_GATE_PASSES = {
+    "runReminderPass",
+    "runDripCoursePass",
+    "runRuleChangeAlertPass",
+    "runDigestPass",
+    "runSlackAlertPass",
+    "runTeamsAlertPass",
+    "runSmsAlertPass",
+    "runComplianceNewsletterPass",
+}
+
+
+def _bracket_match(src: str, open_brace_index: int) -> int | None:
+    """Returns the index of the `{` at open_brace_index's own matching `}`,
+    or None if unbalanced. Shared by check_send_pass_consent_gate_coverage()
+    below for both scheduled()'s body and each dispatched pass's body --
+    same "no TypeScript toolchain" source-scan posture as every other
+    gate in this file."""
+    depth = 0
+    for i in range(open_brace_index, len(src)):
+        if src[i] == "{":
+            depth += 1
+        elif src[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+    return None
+
+
+def check_send_pass_consent_gate_coverage(repo_root: Path) -> list[str]:
+    """AuditLab advisory (2026-08-21, orchestrator-approved): the consent
+    gate's fail-closed default (requireSendApproval()) is solid, but
+    ADOPTION of it by a future pass #9 still depended on the author reading
+    a comment and choosing to call it -- structurally the same "trust the
+    prose" shape the whole directive exists to close, just moved up one
+    level. Same in-house precedent as check_retention_coverage()'s
+    FIRM_SCOPED_TABLES check: extract every run*Pass awaited inside
+    scheduled() (worker/src/index.ts) and require each one to either call
+    requireSendApproval() in its own body (scheduler.ts), or appear in the
+    explicit GRANDFATHERED_PRE_CONSENT_GATE_PASSES list above. Converts
+    "the next author will remember" into "the next author cannot forget."
+    """
+    index_ts = repo_root / "worker" / "src" / "index.ts"
+    scheduler_ts = repo_root / "worker" / "src" / "scheduler.ts"
+    if not index_ts.exists() or not scheduler_ts.exists():
+        return []
+
+    index_src = index_ts.read_text(encoding="utf-8")
+    sig_m = re.search(r"async scheduled\([^)]*\)[^{]*\{", index_src)
+    if not sig_m:
+        return ["[CONSENT-GATE] worker/src/index.ts's scheduled() handler not found -- "
+                "consent-gate coverage can't be verified and must be repaired."]
+    body_end = _bracket_match(index_src, sig_m.end() - 1)
+    if body_end is None:
+        return ["[CONSENT-GATE] scheduled()'s closing brace not found (unbalanced braces?) -- "
+                "consent-gate coverage can't be verified and must be repaired."]
+    scheduled_body = index_src[sig_m.end() - 1 : body_end]
+
+    passes = sorted(set(re.findall(r"await\s+(run\w+Pass)\(env\b", scheduled_body)))
+    if not passes:
+        return ["[CONSENT-GATE] found NO run*Pass dispatches inside scheduled(). Either the cron "
+                "dispatch changed shape or nothing is wired -- this check is measuring nothing and "
+                "must be repaired."]
+
+    scheduler_src = scheduler_ts.read_text(encoding="utf-8")
+    errors = []
+    for pass_name in passes:
+        if pass_name in GRANDFATHERED_PRE_CONSENT_GATE_PASSES:
+            continue
+        fn_m = re.search(rf"export async function {re.escape(pass_name)}\([^)]*\)[^{{]*\{{", scheduler_src)
+        if not fn_m:
+            errors.append(
+                f"[CONSENT-GATE] {pass_name} is dispatched in scheduled() but its definition was not "
+                f"found in scheduler.ts as `export async function {pass_name}(...)` -- consent-gate "
+                f"coverage can't be verified for it."
+            )
+            continue
+        fn_end = _bracket_match(scheduler_src, fn_m.end() - 1)
+        fn_body = scheduler_src[fn_m.end() - 1 : fn_end] if fn_end is not None else ""
+        if "requireSendApproval(" not in fn_body:
+            errors.append(
+                f"[CONSENT-GATE] {pass_name} is dispatched in scheduled() but is neither in "
+                f"GRANDFATHERED_PRE_CONSENT_GATE_PASSES nor calls requireSendApproval() in its own "
+                f"body -- a new send pass must not go live without Devin's explicit consent-gate "
+                f"sign-off (orchestrator directive, 2026-08-21)."
+            )
+    return errors
+
+
 TITLE_RE = re.compile(r"<title>(.*?)</title>", re.DOTALL)
 META_DESCRIPTION_RE = re.compile(r'<meta name="description" content="(.*?)">', re.DOTALL)
 SEO_TITLE_MAX = 60
@@ -3147,6 +3245,7 @@ def main():
     all_errors += check_write_endpoint_rate_limits(repo_root)
     all_errors += check_email_link_helper_usage(repo_root)
     all_errors += check_i18n_reviewed_entries_not_stale(repo_root)
+    all_errors += check_send_pass_consent_gate_coverage(repo_root)
 
     print(f"Pre-ship gate: scanned {len(html_files)} rendered pages, {len(state_dirs)} state dirs.")
     if all_errors:

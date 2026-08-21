@@ -22,6 +22,13 @@
  */
 
 import { escapeHtml } from "./validation";
+// AuditLab UX-9 (LOW, 2026-08-21): "expires in 15 minutes" was hand-restated
+// in 12 places here (plus 2 in index.ts, 1 in generate.py) with nothing
+// tying the prose to either of the two real TTL constants -- a change to
+// just one would silently make half the identical-looking sentences false.
+// Derived from source now, the same house standard index.ts:4629's SMS
+// verification message already uses for PHONE_VERIFICATION_TTL_MINUTES.
+import { LOGIN_TOKEN_TTL_MINUTES, SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES } from "./store";
 
 export const SITE_URL = "https://deadline-radar.com";
 export const SITE_NAME = "Deadline-Radar";
@@ -680,7 +687,7 @@ export function buildFirmLoginEmail(loginUrl: string, isPasswordReset = false, a
     `${textGreeting(adminName)}\n\n` +
     `Here's your ${SITE_NAME} sign-in link:\n\n` +
     `${loginUrl}\n\n` +
-    `This link expires in 15 minutes and can only be used once. If it's expired by the time you ` +
+    `This link expires in ${LOGIN_TOKEN_TTL_MINUTES} minutes and can only be used once. If it's expired by the time you ` +
     `click it, just request a new one from the sign-in page.\n\n` +
     `If you didn't request this, you can safely ignore this email -- nobody can sign in to your ` +
     `account without clicking the link above.\n\n` +
@@ -694,7 +701,7 @@ export function buildFirmLoginEmail(loginUrl: string, isPasswordReset = false, a
       p(lead) +
       `<p style="margin:0 0 20px;">${button(loginUrl, cta)}</p>` +
       p(
-        "This link expires in 15 minutes and can only be used once. If it's expired by the time " +
+        `This link expires in ${LOGIN_TOKEN_TTL_MINUTES} minutes and can only be used once. If it's expired by the time ` +
           "you click it, just request a new one from the sign-in page.",
         13,
         LIGHT.muted
@@ -740,7 +747,7 @@ export function buildFirmMemberInviteEmail(
     `${inviter} invited you to join ${cleanFirmName} on ${SITE_NAME} as ${roleLabel}. Click below to ` +
     `accept and sign in:\n\n` +
     `${loginUrl}\n\n` +
-    `This link expires in 15 minutes and can only be used once. If it's expired by the time you ` +
+    `This link expires in ${LOGIN_TOKEN_TTL_MINUTES} minutes and can only be used once. If it's expired by the time you ` +
     `click it, ask ${cleanFirmName} to send you a fresh invite.\n\n` +
     `If you weren't expecting this, you can safely ignore this email -- nobody can sign in to this ` +
     `account without clicking the link above.\n\n` +
@@ -754,7 +761,7 @@ export function buildFirmMemberInviteEmail(
       p("Click below to accept and sign in.") +
       `<p style="margin:0 0 20px;">${button(loginUrl, "Accept invite")}</p>` +
       p(
-        "This link expires in 15 minutes and can only be used once. If it's expired by the time " +
+        `This link expires in ${LOGIN_TOKEN_TTL_MINUTES} minutes and can only be used once. If it's expired by the time ` +
           "you click it, ask them to send you a fresh invite.",
         13,
         LIGHT.muted
@@ -789,7 +796,7 @@ export function buildFirmEmailChangeConfirmEmail(confirmUrl: string, adminName: 
     `Someone requested to change the sign-in email on a ${SITE_NAME} firm account to this address. ` +
     `Click below to confirm and finish the change:\n\n` +
     `${confirmUrl}\n\n` +
-    `This link expires in 15 minutes and can only be used once. Clicking it will also sign you in.\n\n` +
+    `This link expires in ${LOGIN_TOKEN_TTL_MINUTES} minutes and can only be used once. Clicking it will also sign you in.\n\n` +
     `If you didn't request this -- or don't recognize the account -- you can safely ignore this ` +
     `email. Nothing changes unless you click the link above.\n\n` +
     `---\n${SENDER_LINE}\n${addr}`;
@@ -805,7 +812,7 @@ export function buildFirmEmailChangeConfirmEmail(confirmUrl: string, adminName: 
       ) +
       `<p style="margin:0 0 20px;">${button(confirmUrl, "Confirm this email address")}</p>` +
       p(
-        "This link expires in 15 minutes and can only be used once. Clicking it will also sign you in.",
+        `This link expires in ${LOGIN_TOKEN_TTL_MINUTES} minutes and can only be used once. Clicking it will also sign you in.`,
         13,
         LIGHT.muted
       ) +
@@ -906,7 +913,7 @@ export function buildSubscriberLoginEmail(loginUrl: string): BuiltEmail {
     `Signing in shows you every renewal deadline we're tracking for this email address, all in ` +
     `one place. It's the same free reminders you're already getting -- just somewhere you can ` +
     `see them.\n\n` +
-    `This link expires in 15 minutes and can only be used once. If it's expired by the time you ` +
+    `This link expires in ${SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES} minutes and can only be used once. If it's expired by the time you ` +
     `click it, just request a new one.\n\n` +
     `If you didn't request this, you can safely ignore this email -- nobody can sign in without ` +
     `clicking the link above.\n\n` +
@@ -923,7 +930,7 @@ export function buildSubscriberLoginEmail(loginUrl: string): BuiltEmail {
       ) +
       `<p style="margin:0 0 20px;">${button(loginUrl, "Sign in")}</p>` +
       p(
-        "This link expires in 15 minutes and can only be used once. If it's expired by the time " +
+        `This link expires in ${SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES} minutes and can only be used once. If it's expired by the time ` +
           "you click it, just request a new one.",
         13,
         LIGHT.muted
@@ -954,7 +961,7 @@ export function buildSubscriberEmailChangeConfirmEmail(confirmUrl: string): Buil
     `Someone requested to change the email address on a ${SITE_NAME} account to this address. ` +
     `Click below to confirm and finish the change:\n\n` +
     `${confirmUrl}\n\n` +
-    `This link expires in 15 minutes and can only be used once. Clicking it will also sign you in.\n\n` +
+    `This link expires in ${SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES} minutes and can only be used once. Clicking it will also sign you in.\n\n` +
     `If you didn't request this -- or don't recognize the account -- you can safely ignore this ` +
     `email. Nothing changes unless you click the link above.\n\n` +
     `---\n${SENDER_LINE}\n${addr}`;
@@ -969,7 +976,7 @@ export function buildSubscriberEmailChangeConfirmEmail(confirmUrl: string): Buil
       ) +
       `<p style="margin:0 0 20px;">${button(confirmUrl, "Confirm this email address")}</p>` +
       p(
-        "This link expires in 15 minutes and can only be used once. Clicking it will also sign you in.",
+        `This link expires in ${SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES} minutes and can only be used once. Clicking it will also sign you in.`,
         13,
         LIGHT.muted
       ) +
@@ -1050,7 +1057,7 @@ export function buildStaffCpeReminderEmail(loginUrl: string, firmName: string, s
     `${stateName} CPA license.\n\n` +
     `Click below to sign in and enter them -- it takes a minute:\n\n` +
     `${loginUrl}\n\n` +
-    `This link expires in 15 minutes and can only be used once. If it's expired by the time you ` +
+    `This link expires in ${SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES} minutes and can only be used once. If it's expired by the time you ` +
     `click it, ask ${safeFirmName} to send another.\n\n` +
     `Signing in also shows you every renewal deadline we're tracking for this email address, not ` +
     `just this one.\n\n` +
@@ -1067,7 +1074,7 @@ export function buildStaffCpeReminderEmail(loginUrl: string, firmName: string, s
       ) +
       `<p style="margin:0 0 20px;">${button(loginUrl, "Sign in and log hours")}</p>` +
       p(
-        `This link expires in 15 minutes and can only be used once. If it's expired by the time ` +
+        `This link expires in ${SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES} minutes and can only be used once. If it's expired by the time ` +
           `you click it, ask ${esc(safeFirmName)} to send another.`,
         13,
         LIGHT.muted

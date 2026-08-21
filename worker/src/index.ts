@@ -1780,7 +1780,7 @@ function firmLoginSentPage(env: Env): string {
   return htmlPage(
     "Check your email",
     "<h1>Check your email</h1><p>If that email has (or can have) a Deadline-Radar firm account, we've " +
-      "just sent a sign-in link. It expires in 15 minutes and works once &mdash; if it's expired by " +
+      `just sent a sign-in link. It expires in ${store.LOGIN_TOKEN_TTL_MINUTES} minutes and works once &mdash; if it's expired by ` +
       "the time you click it, just request a new one.</p>" +
       `<p>New here? If you haven't created a firm account yet, nothing will arrive for that address &mdash; ` +
       `<a href="${homeUrl}/firm-login/">create your account</a> instead.</p>` +
@@ -1803,7 +1803,7 @@ function subscriberLoginSentPage(env: Env): string {
   return htmlPage(
     "Check your email",
     "<h1>Check your email</h1><p>If we're tracking any renewal deadlines for that address, we've " +
-      "just sent a sign-in link. It expires in 15 minutes and works once &mdash; if it's expired by " +
+      `just sent a sign-in link. It expires in ${store.SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES} minutes and works once &mdash; if it's expired by ` +
       "the time you click it, just request a new one.</p>" +
       `<p>Not signed up yet? Nothing will arrive for an address we don't have &mdash; ` +
       `<a href="${homeUrl}/">pick your state</a> to start getting free renewal reminders.</p>`

@@ -1250,6 +1250,42 @@ describe("POST /firm/login -- login-link resend for an existing firm", () => {
     expect(after?.c).toBe((before?.c ?? 0) + 1);
   });
 
+  // AuditLab DROP-2 (MEDIUM, 2026-08-21): a failed send here used to be
+  // completely invisible -- discarded boolean, swallowed throw, no log.
+  // The RESPONSE must stay the generic "check your email" copy regardless
+  // (that property is the anti-enumeration fix above and must not regress),
+  // but the failure itself must now reach a log line.
+  it("DROP-2: a failed send still returns the generic response, but logs the failure", async () => {
+    const worker = (await import("../src/index")).default;
+    const email = `firmlogin-drop2-fail-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "DROP-2 Firm", admin_email: email }, "203.0.113.163");
+    const firm = await firmByAdminEmail(email);
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 500 }));
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const envWithKey = { ...env, SENDGRID_API_KEY: "test-key-not-real" };
+      const request = new Request("https://deadline-radar.com/firm/login", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.164" },
+        body: form({ admin_email: email }),
+      });
+      const waited: Promise<unknown>[] = [];
+      const ctx = { waitUntil: (p: Promise<unknown>) => waited.push(p) } as unknown as ExecutionContext;
+      const resp = await worker.fetch(request, envWithKey, ctx);
+      await Promise.all(waited);
+
+      expect(resp.status).toBe(200);
+      expect((await resp.text()).toLowerCase()).toContain("check your email");
+
+      const logs = logSpy.mock.calls.map((c) => String(c[0]));
+      expect(logs.some((l) => l.includes("[firm-login-link] send returned false") && l.includes(String(firm?.id)))).toBe(true);
+    } finally {
+      fetchSpy.mockRestore();
+      logSpy.mockRestore();
+    }
+  });
+
   // Adversarial-review M2 (2026-08-05): store.normalizeLoginTokenPurpose()
   // was widened to accept "email_change" for POST /firm/change-email's own
   // use -- but this route is UNAUTHENTICATED and pre-session. Before the
@@ -4270,6 +4306,13 @@ describe("Staleness guard -- real HTTP + cron code paths, not just checkDataFres
 
   it("AuditLab STALE-3: scheduled() sends exactly ONE operator alert per UTC day, no matter how many of the ~7 passes trip the guard or how many times scheduled() itself is called that day", async () => {
     vi.useFakeTimers();
+    // AuditLab DROP-3 (LOW, 2026-08-21): the claim is now released when the
+    // send itself fails (see the test below), so this test -- which is
+    // about the CLAIM-level dedup guarantee, not send failure handling --
+    // must mock a SUCCESSFUL SendGrid response. Before DROP-3, the fake key
+    // below always failed and the row survived anyway (burned regardless of
+    // outcome), which is exactly the behavior DROP-3 removed.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 202 }));
     try {
       vi.setSystemTime(STALE_MOCK_DATE);
       const day = STALE_MOCK_DATE.toISOString().slice(0, 10);
@@ -4307,6 +4350,51 @@ describe("Staleness guard -- real HTTP + cron code paths, not just checkDataFres
       expect(afterSecond?.n).toBe(1);
     } finally {
       vi.useRealTimers();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("AuditLab DROP-3: a FAILED send releases the claim, so a later pass gets a real retry instead of losing the alert until tomorrow", async () => {
+    vi.useFakeTimers();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 500 }));
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      vi.setSystemTime(STALE_MOCK_DATE);
+      const day = STALE_MOCK_DATE.toISOString().slice(0, 10);
+      await env.DB.prepare(`DELETE FROM stale_data_alert_log WHERE day = ?1`).bind(day).run();
+
+      const worker = (await import("../src/index")).default;
+      const waited1: Promise<unknown>[] = [];
+      const ctx1 = { waitUntil: (p: Promise<unknown>) => waited1.push(p) } as unknown as ExecutionContext;
+      const envWithKey = { ...env, SENDGRID_API_KEY: "test-key-not-real" };
+
+      await worker.scheduled({} as ScheduledController, envWithKey, ctx1);
+      await Promise.all(waited1);
+      // The 500 means sendViaSendGrid() returned false -- the row must NOT
+      // survive (this is the actual DROP-3 fix; pre-fix, this assertion
+      // would have found the row still present).
+      const afterFirst = await env.DB.prepare(`SELECT COUNT(*) AS n FROM stale_data_alert_log WHERE day = ?1`)
+        .bind(day)
+        .first<{ n: number }>();
+      expect(afterFirst?.n).toBe(0);
+      const logs = logSpy.mock.calls.map((c) => String(c[0]));
+      expect(logs.some((l) => l.includes("[stale-data-alert] send returned false"))).toBe(true);
+
+      // A second scheduled() call the SAME day can now claim and attempt
+      // again -- the exact retry DROP-3's finding said was missing.
+      fetchSpy.mockResolvedValue(new Response("{}", { status: 202 }));
+      const waited2: Promise<unknown>[] = [];
+      const ctx2 = { waitUntil: (p: Promise<unknown>) => waited2.push(p) } as unknown as ExecutionContext;
+      await worker.scheduled({} as ScheduledController, envWithKey, ctx2);
+      await Promise.all(waited2);
+      const afterSecond = await env.DB.prepare(`SELECT COUNT(*) AS n FROM stale_data_alert_log WHERE day = ?1`)
+        .bind(day)
+        .first<{ n: number }>();
+      expect(afterSecond?.n).toBe(1);
+    } finally {
+      vi.useRealTimers();
+      fetchSpy.mockRestore();
+      logSpy.mockRestore();
     }
   });
 

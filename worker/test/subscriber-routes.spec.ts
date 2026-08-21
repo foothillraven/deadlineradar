@@ -1,5 +1,5 @@
 import { env, SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as store from "../src/store";
 import { RATE_LIMIT_SUBSCRIBER_LOGIN_ACCOUNT } from "../src/validation";
 
@@ -129,6 +129,41 @@ describe("POST /subscriber/login -- must not be an enumeration oracle", () => {
     await seedLicense(known, "ohio");
     await postLogin({ email: known }, "203.0.113.93");
     expect(await eventually(() => loginTokenCount(known), (c) => c === 1)).toBe(1);
+  });
+
+  // AuditLab DROP-2 (MEDIUM, 2026-08-21): a failed send here used to be
+  // completely invisible -- discarded boolean, swallowed throw, no log. The
+  // RESPONSE must stay the generic "check your email" copy regardless (the
+  // anti-enumeration property above must not regress), but the failure
+  // itself must now reach a log line.
+  it("DROP-2: a failed send still returns the generic response, but logs the failure", async () => {
+    const worker = (await import("../src/index")).default;
+    const known = `route-drop2-fail-${Date.now()}@examplefirm.com`;
+    await seedLicense(known, "ohio");
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 500 }));
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const envWithKey = { ...env, SENDGRID_API_KEY: "test-key-not-real" };
+      const request = new Request(`${BASE}/subscriber/login`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.94" },
+        body: form({ hp_website: "", email: known }),
+      });
+      const waited: Promise<unknown>[] = [];
+      const ctx = { waitUntil: (p: Promise<unknown>) => waited.push(p) } as unknown as ExecutionContext;
+      const resp = await worker.fetch(request, envWithKey, ctx);
+      await Promise.all(waited);
+
+      expect(resp.status).toBe(200);
+      expect((await resp.text()).toLowerCase()).toContain("check your email");
+
+      const logs = logSpy.mock.calls.map((c) => String(c[0]));
+      expect(logs.some((l) => l.includes("[subscriber-login-link] send returned false") && l.includes(known))).toBe(true);
+    } finally {
+      fetchSpy.mockRestore();
+      logSpy.mockRestore();
+    }
   });
 
   it("does NOT mail an address whose only row is still unconfirmed", async () => {

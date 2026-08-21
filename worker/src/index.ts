@@ -796,19 +796,32 @@ async function sendSignupNotification(
  */
 async function notifyOperatorOfStaleData(env: Env, guardMessage: string): Promise<void> {
   if (!env.SENDGRID_API_KEY) return;
+  const day = new Date().toISOString().slice(0, 10);
+  const claimed = await store.claimStaleDataAlertForToday(env.DB, day);
+  if (!claimed) return;
   try {
-    const day = new Date().toISOString().slice(0, 10);
-    const claimed = await store.claimStaleDataAlertForToday(env.DB, day);
-    if (!claimed) return;
     const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
-    if (!underCap) return;
+    if (!underCap) {
+      await store.unclaimStaleDataAlertForToday(env.DB, day);
+      console.log(`[stale-data-alert] daily send cap reached, not sent for ${day}`);
+      return;
+    }
     const freshness = dataFreshnessInfo(new Date());
     const ageDays = freshness.age_days === -1 ? null : freshness.age_days;
     const built = buildStaleDataAlertEmail(ageDays, guardMessage);
-    await sendViaSendGrid(env.SENDGRID_API_KEY, INTERNAL_NOTIFY_EMAIL, built, env.EMAIL_ALLOWLIST);
-  } catch {
-    // Best-effort -- see docstring. A failed alert must not surface as a
-    // cron failure; the console.log in each catch site is the fallback.
+    const ok = await sendViaSendGrid(env.SENDGRID_API_KEY, INTERNAL_NOTIFY_EMAIL, built, env.EMAIL_ALLOWLIST);
+    if (!ok) {
+      await store.unclaimStaleDataAlertForToday(env.DB, day);
+      console.log(`[stale-data-alert] send returned false for ${day}`);
+    }
+  } catch (err) {
+    // AuditLab DROP-3: this used to be an empty catch with a comment
+    // claiming a console.log fallback that didn't exist on this path --
+    // this IS that log now. The day is unclaimed too, same as the two
+    // failure branches above, so a later pass gets a real retry instead
+    // of losing the alert until tomorrow regardless of the cause.
+    await store.unclaimStaleDataAlertForToday(env.DB, day).catch(() => {});
+    console.log(`[stale-data-alert] error: ${String(err)}`);
   }
 }
 
@@ -1817,11 +1830,19 @@ async function issueAndSendFirmLoginLink(
     // and then landing on a password screen is the same class of mismatch as
     // the bug this fixes, just pointed the other way.
     const built = buildFirmLoginEmail(loginUrl, purpose === "password_reset", adminName);
-    await sendViaSendGrid(env.SENDGRID_API_KEY, adminEmail, built, env.EMAIL_ALLOWLIST);
-  } catch {
+    const ok = await sendViaSendGrid(env.SENDGRID_API_KEY, adminEmail, built, env.EMAIL_ALLOWLIST);
+    // AuditLab DROP-2 (MEDIUM, 2026-08-21): the return value used to be
+    // discarded here -- a clean `false` (SendGrid refused the send) was
+    // indistinguishable from success, on the ONE path where a failure locks
+    // someone out entirely. The RESPONSE must still never depend on this
+    // (see the reasoning below), but a log line is the difference between
+    // "wrangler tail shows nothing" and "wrangler tail shows why".
+    if (!ok) console.log(`[firm-login-link] send returned false for firm ${firmId}`);
+  } catch (err) {
     // Swallow -- same reasoning as every other best-effort send in this
     // file: the caller's response must never depend on whether this
-    // succeeded.
+    // succeeded. Logged rather than truly silent, same DROP-2 fix.
+    console.log(`[firm-login-link] error for firm ${firmId}: ${String(err)}`);
   }
 }
 
@@ -1898,8 +1919,10 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
     // even more here, not less (a firm's whole staff signing up together
     // from one office is the expected arrival pattern for this route, the
     // paid product's front door), but this site was skipped. Matches the
-    // sibling wording exactly rather than inventing new copy.
-    return errorPage(429, "Too many requests from this address. Please try again in about 10 minutes.");
+    // sibling wording exactly, including the noun (orchestrator DROP-2
+    // ruling, 2026-08-21: an earlier version of this comment claimed an
+    // exact match while the noun still said "requests" -- fixed here).
+    return errorPage(429, "Too many signups from this address. Please try again in about 10 minutes.");
   }
 
   let raw: string;
@@ -4022,6 +4045,18 @@ async function handleStripeWebhook(request: Request, env: Env): Promise<Response
  * issueAndSendFirmLoginLink() exactly, including its "no SENDGRID_API_KEY =>
  * token created, nothing sent, don't crash" convention: the caller's
  * response must never depend on whether delivery worked.
+ *
+ * AuditLab DROP-2 (MEDIUM, 2026-08-21): a failed send here used to be
+ * invisible to BOTH sides -- swallowed exception, discarded boolean, no log,
+ * no silent_drop_log row -- on the one path where the customer's ONLY way in
+ * is a link that silently never arrives. Logged now, same as
+ * issueAndSendFirmLoginLink(). Deliberately NOT silent_drop_log: that table
+ * is a per-subscriber-license CURRENT-STATE registry (subscriber_id PRIMARY
+ * KEY, state_slug NOT NULL, resolved_at cleared once a later run succeeds)
+ * for "this specific license's deadline can't be computed" -- a one-off
+ * login-link send has no license or state to key on, and one email address
+ * can span several subscriber rows across states/firms, so forcing it into
+ * that schema would either pick an arbitrary row or misuse the column.
  */
 async function issueAndSendSubscriberLoginLink(env: Env, email: string): Promise<void> {
   // Suppression is checked HERE, not at the caller, so no future caller can
@@ -4037,9 +4072,12 @@ async function issueAndSendSubscriberLoginLink(env: Env, email: string): Promise
     if (!underCap) return;
     const loginUrl = `${actionBaseUrl(env)}/subscriber/login/verify?token=${encodeURIComponent(rawToken)}`;
     const built = buildSubscriberLoginEmail(loginUrl);
-    await sendViaSendGrid(env.SENDGRID_API_KEY, email, built, env.EMAIL_ALLOWLIST);
-  } catch {
+    const ok = await sendViaSendGrid(env.SENDGRID_API_KEY, email, built, env.EMAIL_ALLOWLIST);
+    if (!ok) console.log(`[subscriber-login-link] send returned false for ${email}`);
+  } catch (err) {
     // Swallow -- same best-effort posture as every other send in this file.
+    // Logged rather than truly silent, same DROP-2 fix.
+    console.log(`[subscriber-login-link] error for ${email}: ${String(err)}`);
   }
 }
 

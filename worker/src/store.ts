@@ -2969,11 +2969,19 @@ export async function incrementMobilityTrialUse(db: D1Database, firmId: string, 
  * checkout.session.completed events for the same referred firm could
  * otherwise hit (both reading null before either write lands). Returns
  * false if this call lost the race (or the reward was already applied) --
- * the caller must not proceed to call Stripe in that case. See
- * handleStripeWebhook()'s own applyReferralRewardIfEligible() for the
- * claim -> Stripe call -> unclaim-on-failure sequence, mirroring the
- * "claim before send, unclaim on failure" pattern every other send pass
- * in scheduler.ts already uses.
+ * the caller must not proceed to call Stripe in that case.
+ *
+ * AuditLab DOC-2 (LOW, 2026-08-21): this used to describe a
+ * claim -> Stripe call -> UNCLAIM-ON-FAILURE sequence here, which is wrong
+ * and dangerous to act on -- there is no unclaimReferralReward, and there
+ * must not be. See applyReferralRewardIfEligible()'s own comment at its
+ * claim site: the claim is UNCONDITIONAL and deliberately never reverted,
+ * because the referred firm's own discount was already spent on a real,
+ * paid checkout session regardless of what happens after -- reverting it
+ * on a later failure would let that same discount be spent a second time.
+ * A referrer-side failure (the coupon application on the OTHER firm's
+ * account) is handled separately and does log, but leaves this claim
+ * alone.
  */
 export async function claimReferralReward(db: D1Database, referredFirmId: string): Promise<boolean> {
   const result = await db
@@ -4897,6 +4905,18 @@ export async function claimStaleDataAlertForToday(db: D1Database, dayUtc: string
     .bind(dayUtc, nowIso())
     .run();
   return (result.meta.changes ?? 0) > 0;
+}
+
+/** AuditLab DROP-3 (LOW, 2026-08-21): the claim above used to be permanent
+ * even when the alert it was claimed for never actually sent (cap refusal,
+ * a `false` return, a throw) -- same "burn the day, lose the alert"
+ * shape as DROP-2, just for the operator's own stale-data notice instead
+ * of a customer login link. Called on every failure branch in
+ * notifyOperatorOfStaleData() so a later pass (same day or the next) gets
+ * a real retry, same claim->send->unclaim-on-failure pattern
+ * runDripCoursePass() already uses. */
+export async function unclaimStaleDataAlertForToday(db: D1Database, dayUtc: string): Promise<void> {
+  await db.prepare(`DELETE FROM stale_data_alert_log WHERE day = ?1`).bind(dayUtc).run();
 }
 
 /** AuditLab SILENT-1 (HIGH, 2026-08-19), migration 0067: called from

@@ -19697,12 +19697,29 @@ def _reinstatement_fee_line_html(record: dict) -> str:
 
 
 def _reinstatement_cpe_line_html(record: dict) -> str:
+    # CITE-48 (AuditLab, 2026-08-20, orchestrator-approved): "Catch-Up CPE
+    # Required: N hours" rendered under one implicit "total" meaning, but 3
+    # of the 28 records that carry penalty_cpe_hours don't mean that --
+    # Oregon's 16 is an INCREMENT on top of normal CPE (real total 96-176,
+    # not 16), and DC/South Carolina's 40 is a PER-YEAR rate (a firm lapsed
+    # 4 years owes 160, not 40). Same fix shape as DATE-2: one optional flag
+    # (default 'total', unchanged rendering for the other 25 records) so the
+    # headline states what the number actually is instead of a reader
+    # having to find the caveat in the prose below it. The exact totals stay
+    # in penalty_cpe_notes (already accurate) rather than duplicated here,
+    # so there is one place, not two, that can drift out of sync.
+    basis = record.get("penalty_cpe_basis") or "total"
     hours = record.get("penalty_cpe_hours")
     notes = record.get("penalty_cpe_notes") or ""
     ethics = record.get("penalty_ethics_hours")
     parts = []
     if hours is not None:
-        parts.append(f"<li><strong>{hours} CPE hours</strong> {esc(notes)}</li>")
+        if basis == "increment":
+            parts.append(f"<li><strong>{hours} CPE hours on top of normal CPE</strong> {esc(notes)}</li>")
+        elif basis == "per_year":
+            parts.append(f"<li><strong>{hours} CPE hours per year lapsed</strong> {esc(notes)}</li>")
+        else:
+            parts.append(f"<li><strong>{hours} CPE hours</strong> {esc(notes)}</li>")
     elif notes:
         parts.append(f"<li>{esc(notes)}</li>")
     if ethics is not None:

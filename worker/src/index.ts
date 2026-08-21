@@ -1984,14 +1984,18 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
     }
   }
 
-  // AuditLab TS-1 (2026-08-05, revised after correction): this is the ONE
-  // relaxed route that also writes a real, persistent row (a new `firms`
-  // row with an attacker-chosen name) -- unlike the other 4 relaxed routes,
-  // where a token-less submission can only cause an email to be sent.
-  // AuditLab's explicit revised recommendation was to re-require the token
-  // HERE specifically while leaving the email-only routes relaxed, so this
-  // does NOT pass allowMissingToken. An ad-blocked visitor hitting this one
-  // still gets a real, actionable error instead of the original silent dead
+  // AuditLab TS-1 (2026-08-05, revised after correction; count/framing
+  // corrected by TS-3, 2026-08-21): this is the ONE relaxed route that
+  // creates a real TENANT (a new `firms` row with an attacker-chosen
+  // name) -- the distinction that actually justifies making it strict, not
+  // "the others only send an email" (4 of the other 6 relaxed routes also
+  // persist a row -- addPending/recordResend, addNewsletterSubscriber,
+  // addFirmLead, createFeatureIdeaNotifySignup -- just never a firm/tenant
+  // record). AuditLab's explicit revised recommendation was to re-require
+  // the token HERE specifically while leaving the tenant-free routes
+  // relaxed, so this does NOT pass allowMissingToken. An ad-blocked
+  // visitor hitting this one still gets a real, actionable error instead
+  // of the original silent dead
   // end: the informational notice near the widget (visible after ~4s if it
   // never resolves) plus this message's own explicit "allow
   // challenges.cloudflare.com" instruction -- the fallback for THIS one
@@ -5381,7 +5385,18 @@ async function handleRoadmapVote(request: Request, env: Env, ip: string): Promis
   // legitimate voters nothing.
   const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
   if (!turnstileOk) {
-    return jsonResponse(400, { error: "Verification failed -- please try again." });
+    // TS-4 (AuditLab, 2026-08-21): VOTE-1's own strict-mode switch just
+    // above made an absent token the COMMON failure shape here (an
+    // ad-blocked visitor), reintroducing the exact retry-loop dead end
+    // TS-2 fixed on /firm-login/ -- "please try again" cannot succeed on
+    // retry if the same blocker is still active. Like handleFirmSignup
+    // (the other strict route with no alternate action to offer), the
+    // fallback here is a clear explanation, not a bypass.
+    return jsonResponse(400, {
+      error:
+        "Verification failed. If you use an ad blocker or privacy extension, allow " +
+        "challenges.cloudflare.com for this page and try again.",
+    });
   }
 
   if (!(await store.ideaExists(env.DB, ideaId))) {

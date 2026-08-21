@@ -130,6 +130,14 @@ describe("POST /roadmap/vote", () => {
       { TURNSTILE_SECRET_KEY: "test-secret-not-real" }
     );
     expect(resp.status).toBe(400);
+    // TS-4 (AuditLab, 2026-08-21): VOTE-1's own strict-mode switch made an
+    // absent token (the common ad-blocked-visitor shape) the thing that
+    // trips this branch -- the bare "please try again" string is a
+    // retry-loop dead end for that visitor (same class TS-2 fixed on
+    // /firm-login/), since retrying without changing anything fails again.
+    const body = (await resp.json()) as { error: string };
+    expect(body.error).toContain("ad blocker");
+    expect(body.error).not.toBe("Verification failed -- please try again.");
   });
 
   it("VOTE-1: still records a vote normally with no Turnstile configured at all (the real default env)", async () => {

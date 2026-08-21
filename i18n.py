@@ -518,7 +518,14 @@ EN: dict[str, str] = {
         "no card required and no time limit. If you upgrade for the map and firm-level "
         "registration check, you can cancel that subscription at any point — there's no "
         "contract to get out of, and your account just drops back to the free tier at the end of "
-        "the period you already paid for."
+        # ValueLab pricing-ruling smaller item (approved, batched 2026-08-21):
+        # Terms §5 and the dashboard's own cancel-confirm dialog both state
+        # no-refund-on-cancel; this public FAQ answer didn't, reading as if
+        # cancelling mid-period might return money. Matches the same
+        # "no refund ... but you keep full access through the end of the
+        # period" phrasing already used in Terms/the confirm dialog.
+        "the period you already paid for, with no refund for the time already paid — you keep "
+        "full access through the end of that period either way."
     ),
     "faq.firm.4_q": "Which plan should my firm pick?",
     "faq.firm.4_a": (

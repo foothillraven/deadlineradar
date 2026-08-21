@@ -81,11 +81,17 @@ import urllib.request
 # was folded into free (see tiers.ts/entitlements.ts's own comments); it
 # never had a real checkout path, so there's no live Stripe price left to
 # reconcile against.
+## ValueLab pricing-ruling smaller item (approved, batched 2026-08-21): the
+# four labels below were the OLD tier names (Starter/Growth/Standard/Scale)
+# from before the 2026-08-09 re-tier -- harmless today since nothing here
+# compares the label itself against Stripe, only price_usd, but the day this
+# check ever prints a mismatch, it would name the wrong tier in the error.
+# Real current labels per tiers.ts's own FIRM_TIERS (source of truth).
 EXPECTED_TIERS = {
-    "STRIPE_PRICE_FIRM_STARTER": {"label": "Starter", "price_usd": 199},
+    "STRIPE_PRICE_FIRM_STARTER": {"label": "Essentials", "price_usd": 199},
     "STRIPE_PRICE_FIRM_GROWTH": {"label": "Growth", "price_usd": 299},
-    "STRIPE_PRICE_FIRM_STANDARD": {"label": "Standard", "price_usd": 399},
-    "STRIPE_PRICE_FIRM_SCALE": {"label": "Scale", "price_usd": 549},
+    "STRIPE_PRICE_FIRM_STANDARD": {"label": "Professional", "price_usd": 399},
+    "STRIPE_PRICE_FIRM_SCALE": {"label": "Enterprise", "price_usd": 549},
 }
 
 # referralTierCouponId() (worker/src/index.ts) -- MAX_REFERRAL_TIER, kept as

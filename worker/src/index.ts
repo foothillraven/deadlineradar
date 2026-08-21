@@ -2601,11 +2601,41 @@ async function handleDemoLogin(env: Env, ip: string): Promise<Response> {
 //
 // DO NOT flip this to true without Devin's explicit go-ahead landing in
 // the orchestrator inbox/outbox first, same as any other plan-first item.
-// When that go arrives: flip this one constant, positive-control the send
-// fires (the call site below is already written, tested with the flag
-// forced true in tests, and ready), and remove this comment block's HELD
+//
+// AuditLab 2FA-6 (LOW, 2026-08-21, orchestrator-approved): an earlier draft
+// of this comment claimed the call site was "tested with the flag forced
+// true" -- it wasn't; only the builder and the flag's own off-by-default
+// behavior were. sendBackupCodeRedeemedNotice() below is the actual fix:
+// everything AFTER this flag check (the cap check, the remaining-count
+// query, the build, the send) is a separate, directly-testable function
+// that a test can call with no flag involved at all -- see its own tests
+// in firm-2fa.spec.ts for real coverage of the guarded path, not just this
+// gate. When Devin's go arrives: flip this one constant, positive-control
+// the live send fires end to end, and remove this comment block's HELD
 // framing in the same commit.
 const BACKUP_CODE_REDEEMED_EMAIL_ENABLED = false;
+
+// AuditLab 2FA-4/2FA-6: everything the flag above gates, pulled into its
+// own function so the actual send mechanics (cap check, remaining-count
+// query, build, send, best-effort catch) are unit-testable in isolation
+// from BACKUP_CODE_REDEEMED_EMAIL_ENABLED -- the flag's job is only "should
+// this be called at all," never re-verified inside here. Exported ONLY for
+// this direct testability -- it is not itself a route handler and is not
+// reachable over HTTP except through handleFirm2faVerify()'s own gate
+// above, which this export does not bypass or change.
+export async function sendBackupCodeRedeemedNotice(env: Env, firm: store.FirmRow, member: store.FirmMemberRow): Promise<void> {
+  if (!env.SENDGRID_API_KEY) return;
+  try {
+    const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
+    if (underCap) {
+      const remaining = await store.countUnusedFirmMemberBackupCodes(env.DB, member.id);
+      const built = buildFirmBackupCodeRedeemedEmail(firm.name, new Date().toISOString(), remaining, member.name);
+      await sendViaSendGrid(env.SENDGRID_API_KEY, member.email, built, env.EMAIL_ALLOWLIST);
+    }
+  } catch {
+    // Intentionally swallowed -- best-effort, must never fail the sign-in.
+  }
+}
 
 /**
  * POST /firm/2fa/verify -- roadmap #53. Body: pending (the token minted by
@@ -2736,17 +2766,8 @@ async function handleFirm2faVerify(request: Request, env: Env, ip: string): Prom
   // AFTER the pending token is consumed (the sign-in itself is already
   // committed by this point) but BEFORE the response is built, matching
   // where those siblings sit in their own handlers.
-  if (BACKUP_CODE_REDEEMED_EMAIL_ENABLED && usedBackupCode && env.SENDGRID_API_KEY) {
-    try {
-      const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
-      if (underCap) {
-        const remaining = await store.countUnusedFirmMemberBackupCodes(env.DB, member.id);
-        const built = buildFirmBackupCodeRedeemedEmail(firm.name, new Date().toISOString(), remaining, member.name);
-        await sendViaSendGrid(env.SENDGRID_API_KEY, member.email, built, env.EMAIL_ALLOWLIST);
-      }
-    } catch {
-      // Intentionally swallowed -- see above.
-    }
+  if (BACKUP_CODE_REDEEMED_EMAIL_ENABLED && usedBackupCode) {
+    await sendBackupCodeRedeemedNotice(env, firm, member);
   }
 
   return finishFirmLoginVerify(env, firm, member, store.normalizeLoginTokenPurpose(pending.purpose), pending.pending_new_email, null);
@@ -10523,15 +10544,28 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
       return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.", ssoContactLink(env));
     }
     const primaryMemberForIdentity = await store.getFirmMemberById(env.DB, linkedFirm.id, linkedFirm.primary_member_id);
+    // AuditLab 2FA-5 (LOW, 2026-08-21, orchestrator-approved): the SAME fix
+    // was contradicting itself eight lines apart -- the missing-id case just
+    // above fails closed with an explicit 403, but a missing ROW here (the
+    // primary member was removed via a race between two admin actions --
+    // pre-existing, not introduced by this fix, see the finding for the
+    // exact interleaving) used to fall through via `?.`, letting
+    // createSession()'s own resolve-or-throw catch it silently instead. On
+    // an auth gate the default must be the same in both branches. Mirrors
+    // exits B/C, which already have this property (they reuse
+    // memberForEmail, non-null by an earlier check).
+    if (!primaryMemberForIdentity) {
+      return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.", ssoContactLink(env));
+    }
     await store.touchOauthIdentityLogin(env.DB, existingIdentity.id, existingIdentity.firm_id, claims.email);
-    if (primaryMemberForIdentity?.totp_enrolled_at) {
+    if (primaryMemberForIdentity.totp_enrolled_at) {
       const { rawToken } = await store.createFirm2faPendingToken(env.DB, primaryMemberForIdentity.id, linkedFirm.id, "login", null);
       return new Response(null, {
         status: 302,
         headers: { Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-login/2fa/?pending=${encodeURIComponent(rawToken)}` },
       });
     }
-    const { rawSessionToken } = await store.createSession(env.DB, existingIdentity.firm_id, primaryMemberForIdentity?.id);
+    const { rawSessionToken } = await store.createSession(env.DB, existingIdentity.firm_id, primaryMemberForIdentity.id);
     return oauthSuccessResponse(env, rawSessionToken);
   }
 

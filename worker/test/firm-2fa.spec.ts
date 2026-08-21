@@ -694,6 +694,106 @@ describe("backup-code redemption notice -- AuditLab 2FA-4 (build approved, live 
     expect(zero.textBody).toContain("none left");
     expect(zero.textBody).not.toContain("getting low");
   });
+
+  it("AuditLab 2FA-6: sendBackupCodeRedeemedNotice() itself sends a correct, complete email through the real guarded path", async () => {
+    // 2FA-6: an earlier comment overclaimed this path was "tested with the
+    // flag forced true" -- it wasn't. Rather than force the module-private
+    // BACKUP_CODE_REDEEMED_EMAIL_ENABLED true from a test (not cleanly
+    // possible without weakening its "requires a reviewed source edit, not
+    // a runtime toggle" security property -- the whole point of choosing a
+    // hardcoded const over an env-var flag in 2FA-4), the send mechanics
+    // (cap check -> remaining-count query -> build -> send -> best-effort
+    // catch) were extracted into their own exported function,
+    // sendBackupCodeRedeemedNotice(), callable directly with no flag
+    // involved. The flag's OWN behavior (does it prevent the call at all)
+    // is proven separately by the "HELD BY DEFAULT" test above. Together
+    // these cover the full guarded path the finding named, just via
+    // decomposition rather than one test that flips the const.
+    const { sendBackupCodeRedeemedNotice } = await import("../src/index");
+    const { firmId, memberId } = await newEnrolledFirm("2fa6-real-send");
+    const codes = generateBackupCodes();
+    await store.createFirmMemberBackupCodes(env.DB, memberId, await Promise.all(codes.map(hashBackupCode)));
+    // Consume one so "remaining" is exercised for real, not just the
+    // as-generated count -- 8 generated, 1 consumed -> 7 remaining.
+    await store.consumeFirmMemberBackupCode(env.DB, memberId, await hashBackupCode(codes[0] as string));
+
+    const firm = await store.getFirmById(env.DB, firmId);
+    const member = await store.getFirmMemberById(env.DB, firmId, memberId);
+    expect(firm).toBeTruthy();
+    expect(member).toBeTruthy();
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 202 }));
+    try {
+      await sendBackupCodeRedeemedNotice({ ...env, SENDGRID_API_KEY: "test-key-not-real" } as never, firm!, member!);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(String(url)).toContain("sendgrid");
+      const sentBody = JSON.parse(String(init.body));
+      expect(sentBody.personalizations[0].to[0].email).toBe(member!.email);
+      expect(sentBody.subject).toContain("backup code was used");
+      const textContent = (sentBody.content as { type: string; value: string }[]).find((c) => c.type === "text/plain")?.value;
+      expect(textContent).toContain("7 backup codes remaining");
+      expect(textContent).toContain(firm!.name);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("AuditLab 2FA-6: sendBackupCodeRedeemedNotice() sends nothing when SENDGRID_API_KEY is absent", async () => {
+    const { sendBackupCodeRedeemedNotice } = await import("../src/index");
+    const { firmId, memberId } = await newEnrolledFirm("2fa6-no-key");
+    const firm = await store.getFirmById(env.DB, firmId);
+    const member = await store.getFirmMemberById(env.DB, firmId, memberId);
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      throw new Error(`unexpected fetch in 2FA-6 no-key test: ${typeof input === "string" ? input : (input as Request).url}`);
+    });
+    try {
+      // No SENDGRID_API_KEY override -- the ambient test env has none set.
+      await sendBackupCodeRedeemedNotice(env as never, firm!, member!);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("AuditLab 2FA-6: sendBackupCodeRedeemedNotice() respects the daily send cap, same circuit breaker as every other channel", async () => {
+    const { sendBackupCodeRedeemedNotice } = await import("../src/index");
+    const { firmId, memberId } = await newEnrolledFirm("2fa6-capped");
+    const firm = await store.getFirmById(env.DB, firmId);
+    const member = await store.getFirmMemberById(env.DB, firmId, memberId);
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      throw new Error(`unexpected fetch in 2FA-6 capped test: ${typeof input === "string" ? input : (input as Request).url}`);
+    });
+    try {
+      await sendBackupCodeRedeemedNotice(
+        { ...env, SENDGRID_API_KEY: "test-key-not-real", ACTION_DAILY_SEND_CAP: "0" } as never,
+        firm!,
+        member!
+      );
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("AuditLab 2FA-6: sendBackupCodeRedeemedNotice() never throws even when the outbound send fails -- best-effort, matches every sibling notice", async () => {
+    const { sendBackupCodeRedeemedNotice } = await import("../src/index");
+    const { firmId, memberId } = await newEnrolledFirm("2fa6-send-fails");
+    const firm = await store.getFirmById(env.DB, firmId);
+    const member = await store.getFirmMemberById(env.DB, firmId, memberId);
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("server error", { status: 500 }));
+    try {
+      await expect(
+        sendBackupCodeRedeemedNotice({ ...env, SENDGRID_API_KEY: "test-key-not-real" } as never, firm!, member!)
+      ).resolves.toBeUndefined();
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });
 
 describe("rate limiting on /firm/2fa/verify -- both buckets", () => {
@@ -951,6 +1051,61 @@ describe("Google SSO is gated by TOTP the same way as password/magic-link -- Aud
 
     const member = await store.getFirmMemberById(env.DB, firmId, memberId);
     expect(member?.totp_enrolled_at).toBeTruthy();
+  });
+
+  it("AuditLab 2FA-5: EXIT A fails CLOSED (403, no session) when the linked identity's primary member row is gone, not just when primary_member_id itself is null", async () => {
+    // Pre-existing race, not introduced by 2FA-3/2FA-5: setPrimaryMember()
+    // reads-then-writes firms.primary_member_id, and removeFirmMember() is
+    // an unconditional UPDATE with no atomic guard against that read --
+    // interleaving the two admin actions can leave primary_member_id
+    // pointing at a removed member. Simulated directly here (same
+    // "reproduce the resulting state, not the race itself" approach as the
+    // EXIT B test above) rather than attempting real concurrency.
+    const email = `sso-2fa5-removed-${Date.now()}@examplefirm.com`;
+    const { id: firmId, memberId } = await store.createFirm(env.DB, { name: "SSO 2FA-5 Removed-Primary LLP", adminEmail: email });
+    const sub = `google-subject-${memberId}`;
+
+    // Link the identity while the member is still a normal, active primary.
+    const linkState = await store.createOauthState(env.DB, "google");
+    const fetchSpy1 = stubTokenEndpoint(email, sub, linkState.nonce);
+    try {
+      const linkResp = await workerFetch(
+        new Request(`${BASE}/firm/auth/google/callback?code=fake-code&state=${encodeURIComponent(linkState.rawState)}`, {
+          headers: { "cf-connecting-ip": "203.0.113.256", Cookie: `dr_oauth_handshake=${linkState.rawBrowserBinding}` },
+          redirect: "manual",
+        }),
+        { GOOGLE_OAUTH_CLIENT_ID: SSO_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET: "test-client-secret" }
+      );
+      expect(linkResp.status).toBe(302);
+      expect(linkResp.headers.get("Location")).toBe("/firm-dashboard/");
+    } finally {
+      fetchSpy1.mockRestore();
+    }
+
+    // Simulate the race's resulting state: firms.primary_member_id still
+    // points at memberId, but the member row itself is now removed --
+    // getFirmMemberById()'s own removed_at IS NULL filter means exit A's
+    // lookup now returns null, same as the finding's evidence.
+    await env.DB.prepare("UPDATE firm_members SET removed_at = ?1 WHERE id = ?2").bind(new Date().toISOString(), memberId).run();
+
+    // A second sign-in with the SAME already-linked identity -- exit A --
+    // must now fail closed, not mint a session for a member who no longer
+    // exists on this roster.
+    const second = await store.createOauthState(env.DB, "google");
+    const fetchSpy2 = stubTokenEndpoint(email, sub, second.nonce);
+    try {
+      const resp = await workerFetch(
+        new Request(`${BASE}/firm/auth/google/callback?code=fake-code&state=${encodeURIComponent(second.rawState)}`, {
+          headers: { "cf-connecting-ip": "203.0.113.257", Cookie: `dr_oauth_handshake=${second.rawBrowserBinding}` },
+          redirect: "manual",
+        }),
+        { GOOGLE_OAUTH_CLIENT_ID: SSO_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET: "test-client-secret" }
+      );
+      expect(resp.status).toBe(403);
+      expect(resp.headers.get("Set-Cookie")).toBeNull();
+    } finally {
+      fetchSpy2.mockRestore();
+    }
   });
 
   it("EXIT B (concurrent-link race): an enrolled member is STILL gated on the race-fallback branch, not signed straight in", async () => {

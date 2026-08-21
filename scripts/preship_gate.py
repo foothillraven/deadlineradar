@@ -3084,6 +3084,24 @@ def main():
         print(f"FATAL: no HTML files found under {docs_dir} -- did you run generate.py first?")
         sys.exit(2)
 
+    # GATE-10 (MEDIUM, 2026-08-21): cpa_deadlines.json is protected --
+    # check_data_manifest_consistency() reads it with no .exists() guard, so
+    # a missing file throws and nothing ships. The other three sibling
+    # datasets were not: both generate.py (returns {} on a missing file) and
+    # the six sourcing gates below (each .continue()s or return []s past a
+    # dataset that isn't there) fail OPEN -- a renamed/moved dataset makes
+    # every one of those gates report clean having audited 3 of 4 datasets,
+    # while the guide pages built from the fourth ship with whatever {}
+    # renders as. Same fail-closed shape as the HTML-corpus check above,
+    # covering all four dataset paths at one entry point rather than
+    # thirteen individual call sites -- every per-gate .exists() becomes
+    # harmless defense-in-depth instead of the only control.
+    for sibling_name in ("cpe_hours.json", "reinstatement.json", "renewal_fees.json"):
+        sibling_path = repo_root / "data" / sibling_name
+        if not sibling_path.exists():
+            print(f"FATAL: expected dataset missing: {sibling_path}")
+            sys.exit(2)
+
     state_dirs = {p.parent for p in html_files if p.parent.name not in ("privacy", "contact", "terms")} - {docs_dir}
     state_page_files = [d / "index.html" for d in state_dirs if (d / "index.html").exists()]
 

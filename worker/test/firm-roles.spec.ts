@@ -236,3 +236,54 @@ describe("Billing status fields on GET /firm/licenses (ROLE-4): partner only", (
     expect("current_period_end" in partnerBody).toBe(true);
   });
 });
+
+// ROLE-2 (AuditLab, 2026-08-07, orchestrator-approved 2026-08-21): 6 firm-
+// write handlers (NPS response/dismiss, questionnaire submit/dismiss,
+// onboarding-checklist dismiss, product-tour dismiss) were session-only,
+// no role check -- a Staff account could burn the firm's NPS cooldown,
+// answer/dismiss the onboarding questionnaire, or permanently suppress the
+// Partner's own onboarding checklist/product tour (all firm-wide flags,
+// not per-member), none of which the UI offers Staff. Same partner/
+// office_manager split as every other firm-write endpoint. Proves the
+// real API boundary, not just that a UI button is hidden -- this file's
+// own stated purpose.
+describe("Onboarding/engagement writes (ROLE-2): partner/office_manager only, Staff refused", () => {
+  it("Staff gets 403 on all 6 writes; Office Manager and Partner get through", async () => {
+    const staffSession = await seedFirmWithMember("staff");
+    const officeManager = await seedFirmWithMember("office_manager");
+    const partner = await seedFirmWithMember("partner");
+
+    const routes: { path: string; method: string; body?: Record<string, unknown> }[] = [
+      { path: "/firm/nps", method: "POST", body: { score: 8 } },
+      { path: "/firm/nps/dismiss", method: "POST" },
+      { path: "/firm/questionnaire", method: "POST", body: { selected_features: [] } },
+      { path: "/firm/questionnaire/dismiss", method: "POST" },
+      { path: "/firm/onboarding-checklist/dismiss", method: "POST" },
+      { path: "/firm/product-tour/dismiss", method: "POST" },
+    ];
+
+    for (const route of routes) {
+      const staffResp = await SELF.fetch(`${BASE}${route.path}`, {
+        method: route.method,
+        headers: { "content-type": "application/json", Cookie: staffSession.cookie },
+        body: route.body ? JSON.stringify(route.body) : undefined,
+      });
+      expect(staffResp.status, `${route.path} should 403 a Staff session`).toBe(403);
+    }
+
+    // Office Manager and Partner both get PAST the role gate -- asserting
+    // "not 403" rather than a specific 2xx, since several of these are
+    // idempotent/cooldown-gated and a second identical call from a shared
+    // test firm can legitimately no-op without being a role failure.
+    for (const session of [officeManager, partner]) {
+      for (const route of routes) {
+        const resp = await SELF.fetch(`${BASE}${route.path}`, {
+          method: route.method,
+          headers: { "content-type": "application/json", Cookie: session.cookie },
+          body: route.body ? JSON.stringify(route.body) : undefined,
+        });
+        expect(resp.status, `${route.path} should not 403 an Office Manager/Partner session`).not.toBe(403);
+      }
+    }
+  });
+});

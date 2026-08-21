@@ -5753,7 +5753,9 @@ const MAX_QUESTIONNAIRE_OTHER_LEN = 1000;
  * cap is the right amount of validation, not an exact-match gate that
  * would just break the moment the checkbox list changes. */
 async function handleFirmQuestionnaireSubmit(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // ROLE-2 -- same fix/reasoning as handleNpsResponse() above: this write
+  // is firm-wide (not per-member) and the UI doesn't offer it to Staff.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
@@ -5801,7 +5803,8 @@ async function handleFirmQuestionnaireSubmit(request: Request, env: Env): Promis
  * a firm that already dismissed (submitted or previously skipped) just
  * gets ok:true again, never an error. */
 async function handleFirmQuestionnaireDismiss(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // ROLE-2 -- same fix/reasoning as handleFirmQuestionnaireSubmit() above.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
@@ -5826,7 +5829,10 @@ async function handleFirmQuestionnaireDismiss(request: Request, env: Env): Promi
 /** POST /firm/onboarding-checklist/dismiss -- roadmap #28. Same shape as
  * handleFirmQuestionnaireDismiss just above (idempotent, session-gated). */
 async function handleOnboardingChecklistDismiss(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // ROLE-2 -- was session-only: a Staff account's dismissal permanently
+  // suppressed the Partner's own onboarding checklist (a firm-wide flag,
+  // not per-member). Same fix as the sibling dismiss handlers above.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
@@ -5851,7 +5857,8 @@ async function handleOnboardingChecklistDismiss(request: Request, env: Env): Pro
 /** POST /firm/product-tour/dismiss -- roadmap #30. Same shape as
  * handleOnboardingChecklistDismiss just above (idempotent, session-gated). */
 async function handleProductTourDismiss(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // ROLE-2 -- same fix/reasoning as handleOnboardingChecklistDismiss() above.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
@@ -6406,7 +6413,13 @@ async function handleFirmTeamsWebhookSet(request: Request, env: Env): Promise<Re
  * clean data.
  */
 async function handleNpsResponse(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // ROLE-2 (AuditLab, 2026-08-07, orchestrator-approved 2026-08-21): this
+  // was session-only, no role check -- a Staff account could burn the
+  // firm's 90-day NPS cooldown (firm-wide, not per-member), a write the UI
+  // doesn't offer them. Same "partner"/"office_manager" split every other
+  // firm-write endpoint uses; Staff keeps read access to everything, this
+  // one write moves to admin roles only.
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {
@@ -6447,7 +6460,9 @@ async function handleNpsResponse(request: Request, env: Env): Promise<Response> 
 /** POST /firm/nps/dismiss -- resets the same cooldown as a real response,
  * without recording a score. See store.shouldPromptNps()'s own docstring. */
 async function handleNpsDismiss(request: Request, env: Env): Promise<Response> {
-  const session = await requireFirmSessionWithFirm(request, env);
+  // ROLE-2 -- same fix and reasoning as handleNpsResponse() above (this
+  // resets the identical firm-wide cooldown).
+  const session = await requireFirmRole(request, env, "partner", "office_manager");
   if (session instanceof Response) return session;
 
   if (!originAllowed(request, env)) {

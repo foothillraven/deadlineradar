@@ -1992,8 +1992,19 @@ export async function runComplianceNewsletterPass(
   const state = await store.getNewsletterDigestState(env.DB);
   if (state.last_sent_at) {
     const daysSinceLastSend = (asOf.getTime() - new Date(state.last_sent_at).getTime()) / 86_400_000;
-    if (daysSinceLastSend < NEWSLETTER_DIGEST_MIN_INTERVAL_DAYS) {
-      summary.skippedReason = `not due -- last sent ${daysSinceLastSend.toFixed(1)}d ago, interval is ${NEWSLETTER_DIGEST_MIN_INTERVAL_DAYS}d`;
+    // SEND-1 (AuditLab, 2026-08-20, orchestrator-approved): this is the one
+    // date-derived ordering guard in the codebase that failed OPEN on an
+    // unparseable timestamp -- `NaN < 27` is false, so the throttle would
+    // silently disengage and re-send the compliance newsletter to every
+    // subscriber. Every sibling guard (checkDataFreshness, worstRecordAgeDays)
+    // fails CLOSED on purpose; matching that posture here, same as BILL-13's
+    // fix to computeProratedRefundCents the same night. Not reachable today
+    // (the column is only ever written via nowIso()), same latent status as
+    // BILL-13.
+    if (!Number.isFinite(daysSinceLastSend) || daysSinceLastSend < NEWSLETTER_DIGEST_MIN_INTERVAL_DAYS) {
+      summary.skippedReason = Number.isFinite(daysSinceLastSend)
+        ? `not due -- last sent ${daysSinceLastSend.toFixed(1)}d ago, interval is ${NEWSLETTER_DIGEST_MIN_INTERVAL_DAYS}d`
+        : `held -- last_sent_at ("${state.last_sent_at}") is unparseable; refusing to send rather than risk a repeat`;
       return summary;
     }
   }

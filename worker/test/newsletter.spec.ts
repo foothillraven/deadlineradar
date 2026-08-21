@@ -194,6 +194,26 @@ describe("runComplianceNewsletterPass() -- cadence + content-safety gating", () 
     expect(summary.sent).toBe(0);
   });
 
+  // SEND-1 (AuditLab, 2026-08-20): the throttle's ordering guard used to
+  // fail OPEN on an unparseable last_sent_at (`NaN < 27` is false, so the
+  // skip is never taken) -- the opposite of every sibling date guard in
+  // this codebase, and the failure mode is outbound mail to every
+  // subscriber. Positive control: seed a genuinely unparseable value
+  // directly (bypassing seedDigestState()'s always-valid ISO computation)
+  // and assert the pass HOLDS rather than sends.
+  it("holds (does not send) rather than fail open when last_sent_at is unparseable", async () => {
+    await env.DB.prepare(
+      `INSERT INTO newsletter_digest_state (id, last_sent_at, last_included_event_ids) VALUES (1, ?1, ?2)
+       ON CONFLICT(id) DO UPDATE SET last_sent_at = ?1, last_included_event_ids = ?2`
+    )
+      .bind("not-a-real-timestamp", JSON.stringify([]))
+      .run();
+    const summary = await runComplianceNewsletterPass(env, { send: async () => true });
+    expect(summary.dueForSend).toBe(false);
+    expect(summary.sent).toBe(0);
+    expect(summary.skippedReason).toMatch(/unparseable/);
+  });
+
   it("is due but sends nothing when there are no new emailable events (never manufactures filler)", async () => {
     // Every real event already "included" forces the candidate pool to
     // empty without needing to fabricate a scenario with zero real events.

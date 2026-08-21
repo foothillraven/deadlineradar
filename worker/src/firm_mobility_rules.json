@@ -153,13 +153,13 @@
     "attest_exemption": {
       "exists": true,
       "citation": "AS 08.04.420 (firm permit); AS 08.04.421 (out-of-state permits/exemptions)",
-      "citation_url": "https://law.justia.com/codes/alaska/2010/title08/chapter08-04/sec-08-04-421/",
+      "citation_url": "https://law.justia.com/codes/alaska/title-8/chapter-04/article-3/section-08-04-421/",
       "notes": "No-office firms exempt from the ordinary firm-permit requirement. Attest work for an AK-headquartered client requires a lighter 'out-of-state permit' (notice+fee+verification) rather than a full firm permit; non-attest work needs only quality-review participation, no filing. Split exists but with an intermediate step for attest."
     },
     "physical_office_trigger": {
       "exists": true,
       "citation": "AS 08.04.420; AS 08.04.421",
-      "citation_url": "https://law.justia.com/codes/alaska/2010/title08/chapter08-04/sec-08-04-421/",
+      "citation_url": "https://law.justia.com/codes/alaska/title-8/chapter-04/article-3/section-08-04-421/",
       "notes": "Opening an AK office requires a full firm permit; the no-office exemptions only apply to firms with no AK office."
     },
     "peer_review_conditions_permit": {

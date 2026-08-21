@@ -89,11 +89,20 @@ SOFT_404_MARKERS = [
 # SRC-7's BLOCK_CLAIM_RE fix: widened from an exact phrase list to a shape
 # regex (phrasing variants) plus vendor/challenge-script signatures, since
 # a bot-wall vendor rotates its exact copy far more than its script names.
+#
+# SRC-12 (AuditLab, 2026-08-20): eregulations.ct.gov serves an Akamai Bot
+# Manager challenge that reads CONFIRMED_TEXT -- the existing `_abck` marker
+# is an Akamai COOKIE name, but this challenge body never emits it; instead
+# it opens with a literal `<APM_DO_NOT_TOUCH>` tag and obfuscated bootstrap
+# JS (`window.Btaz=...`), and clears `_MIN_SOURCE_CHARS` at 774 chars -- the
+# same "vendor nominally covered, this signature isn't" gap SRC-9 closed for
+# Turnstile. Three Connecticut citation_urls were affected.
 BOT_WALL_RE = re.compile(
     r"(captcha|bot manager|are you a robot|checking your browser|attention required|"
     r"verify (?:you|they)(?:'re| are)? human|automated traffic|prove you are|"
     r"turnstile|cf-turnstile|challenges\.cloudflare\.com|bobcmn|/tspd/|"
-    r"_incapsula_resource|distil|perimeterx|px-captcha|_abck)",
+    r"_incapsula_resource|distil|perimeterx|px-captcha|_abck|"
+    r"apm_do_not_touch|bm-verify|akam(?:ai)?[-_]?(?:bm|sensor))",
     re.IGNORECASE,
 )
 

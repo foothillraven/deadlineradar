@@ -11677,8 +11677,28 @@ function drRenderCsvPreview() {
       ? ' Your file has ' + drCsvTotalRowsInFile + ' rows -- only the first ' + drCsvRows.length +
         ' are shown here; split the rest into a second file and import it separately.'
       : '';
+    // AuditLab CSV-6 (LOW, 2026-08-21, orchestrator-approved): validCount is
+    // only per-row FORMAT validity -- it never consulted the seat cap, even
+    // though drSeatCap and the current roster size (drLicenses.length) are
+    // both already in hand and already rendered together elsewhere on this
+    // same page. Without this, a firm on a lower tier could see "20 of 20
+    // rows ready to import," click, and get most of them refused by the
+    // real seat-cap check at import time -- the exact failure-after-commit
+    // shape the 200-row truncation note above already avoids for its own
+    // limit, just not applied to this one. Same fix shape: name the real
+    // number that will fit, before the click, using data already on hand
+    // rather than a new fetch.
+    var seatCapNote = '';
+    if (drSeatCap !== null) {
+      var seatsAvailable = Math.max(0, drSeatCap - drLicenses.length);
+      var willFit = Math.min(validCount, seatsAvailable);
+      if (willFit < validCount) {
+        seatCapNote = ' Only ' + willFit + ' of those ' + validCount + ' will fit on your current plan --' +
+          ' the rest need a higher tier.';
+      }
+    }
     statusEl.textContent = validCount + ' of ' + drCsvRows.length + ' row' +
-      (drCsvRows.length === 1 ? '' : 's') + ' ready to import.' + truncatedNote;
+      (drCsvRows.length === 1 ? '' : 's') + ' ready to import.' + seatCapNote + truncatedNote;
   }
 }
 

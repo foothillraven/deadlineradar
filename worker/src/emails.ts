@@ -2022,6 +2022,52 @@ export function buildStaleDataAlertEmail(ageDays: number | null, guardMessage: s
 }
 
 /**
+ * AuditLab STALE-10 (LOW, 2026-08-21, orchestrator-approved): the mobility
+ * feature's own staleness guard (mobility.ts's isRuleStale()/
+ * isFirmRuleStale(), 180-day TTL) is correct -- refusing to answer on
+ * stale data is the right behavior -- but all 110 rows in
+ * mobility_rules.json/firm_mobility_rules.json were verified inside one
+ * ~17-day burst, so every row would otherwise expire inside one ~17-day
+ * window with no warning. This is the pre-expiry half: an internal-only
+ * operator notice (same INTERNAL_NOTIFY_EMAIL/no-unsubscribe-apparatus
+ * convention as buildStaleDataAlertEmail() above and
+ * buildSignupNotificationEmail()) naming which rows are about to expire
+ * and when, so re-verification can happen BEFORE the cliff instead of
+ * being discovered by a customer hitting `not_verified` on a state that
+ * used to work.
+ */
+export function buildMobilityStalenessAlertEmail(
+  rows: { state: string; type: "individual" | "firm"; daysUntilExpiry: number; expiresOn: string }[]
+): BuiltEmail {
+  const soonest = rows[0];
+  const subject = soonest
+    ? `Deadline-Radar: ${rows.length} mobility rule${rows.length === 1 ? "" : "s"} expiring soon, first on ${soonest.expiresOn}`
+    : "Deadline-Radar: mobility rules expiring soon";
+  const lines = rows.map(
+    (r) => `  ${r.state} (${r.type}) -- expires ${r.expiresOn}, ${r.daysUntilExpiry} day${r.daysUntilExpiry === 1 ? "" : "s"} left`
+  );
+  const textBody =
+    `The following mobility rule(s) will pass their 180-day verification TTL and downgrade to ` +
+    `not_verified soon. Re-verify against the primary source and bump verified_date in ` +
+    `mobility_rules.json (individual) or firm_mobility_rules.json (firm) before the date listed:\n\n` +
+    `${lines.join("\n")}\n\n` +
+    `This is a warning, not an outage -- nothing has degraded yet. The feature's own guard already ` +
+    `refuses a favorable verdict on genuinely stale data; this email exists so re-verification happens ` +
+    `before that guard fires, not after a customer notices. Fires at most once per UTC calendar month.`;
+  const htmlBody =
+    `<p>The following mobility rule(s) will pass their 180-day verification TTL and downgrade to ` +
+    `<code>not_verified</code> soon. Re-verify against the primary source and bump ` +
+    `<code>verified_date</code> in <code>mobility_rules.json</code> (individual) or ` +
+    `<code>firm_mobility_rules.json</code> (firm) before the date listed:</p>` +
+    `<ul>${rows.map((r) => `<li>${esc(r.state)} (${esc(r.type)}) &mdash; expires ${esc(r.expiresOn)}, ${r.daysUntilExpiry} day${r.daysUntilExpiry === 1 ? "" : "s"} left</li>`).join("")}</ul>` +
+    `<p>This is a warning, not an outage &mdash; nothing has degraded yet. The feature's own guard ` +
+    `already refuses a favorable verdict on genuinely stale data; this email exists so re-verification ` +
+    `happens before that guard fires, not after a customer notices. Fires at most once per UTC ` +
+    `calendar month.</p>`;
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
  * Task #3 (2026-08-06): internal notification on a firm self-deleting its
  * account -- same "so Devin can actually see the feedback" reasoning as
  * sendSignupNotification() above, reused for the opposite event. The

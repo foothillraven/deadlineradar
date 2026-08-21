@@ -51,6 +51,7 @@ import {
   type AdminDigestItem,
   buildNewsletterDigestEmail,
   type NewsletterDigestItem,
+  buildMobilityStalenessAlertEmail,
 } from "./emails";
 import {
   DEFAULT_DAILY_SEND_CAP,
@@ -81,6 +82,10 @@ import { decryptSecretAesGcm } from "./totp";
 import { hasValueLineAccess } from "./entitlements";
 import cpaDataForDripCourse from "./cpa_deadlines.json";
 import regChangeEventsData from "./reg_change_events.json";
+import mobilityRulesDataForStaleness from "./mobility_rules.json";
+import firmMobilityRulesDataForStaleness from "./firm_mobility_rules.json";
+import { MOBILITY_VERIFICATION_TTL_DAYS, normalizeRuleRow as normalizeMobilityRuleRow } from "./mobility";
+import { normalizeFirmRuleRow as normalizeFirmMobilityRuleRow } from "./firm_mobility";
 
 // scheduler.py: store.ESCALATION_THRESHOLDS_DAYS.
 export const ESCALATION_THRESHOLDS_DAYS = [1, 3, 7, 14, 30, 60];
@@ -2203,6 +2208,105 @@ export async function runComplianceNewsletterPass(
   }
 
   return summary;
+}
+
+// ---------------------------------------------------------------------------
+// AuditLab STALE-10 (LOW, 2026-08-21, orchestrator-approved). mobility.ts's
+// own staleness guard (isRuleStale()/isFirmRuleStale(), 180-day TTL) is
+// correct -- refusing a favorable verdict on genuinely stale data is the
+// right behavior -- but all 110 rows in mobility_rules.json/
+// firm_mobility_rules.json were verified inside one ~17-day burst, so
+// every row would otherwise expire inside one ~17-day window with no
+// warning beforehand. This is the pre-expiry half: an internal-only
+// operator notice, same INTERNAL_NOTIFY_EMAIL/no-unsubscribe-apparatus
+// convention as index.ts's notifyOperatorOfStaleData(), naming which rows
+// are about to expire and when.
+// ---------------------------------------------------------------------------
+
+// Duplicated rather than imported from index.ts -- same "avoids a
+// circular import" precedent STATIC_SITE_ORIGIN above already documents
+// (index.ts already imports value exports from this module).
+const INTERNAL_NOTIFY_EMAIL = "support@deadline-radar.com";
+
+// How many days a warning fires before a row would otherwise silently
+// downgrade to not_verified. Independent of MOBILITY_VERIFICATION_TTL_DAYS
+// (the actual TTL, owned by mobility.ts) -- this is the alert's own lead
+// time, not a second copy of the guard's own cutoff.
+const MOBILITY_STALENESS_WARNING_DAYS = 30;
+
+export interface MobilityRowNearingExpiry {
+  state: string;
+  type: "individual" | "firm";
+  daysUntilExpiry: number;
+  expiresOn: string;
+}
+
+/** Rows whose 180-day verification TTL will lapse within the next
+ * MOBILITY_STALENESS_WARNING_DAYS, sorted soonest-first -- the data half
+ * of STALE-10. Already-stale rows (daysUntilExpiry <= 0) are deliberately
+ * excluded: those are the guard's own job (isRuleStale()/isFirmRuleStale()
+ * already refuse a favorable verdict on them), not this warning's. Reads
+ * the bundled JSON directly (same "duplicate the import, don't reach into
+ * index.ts's already-built lookup maps" reasoning as everything else in
+ * this file) rather than index.ts's MOBILITY_RULES_BY_SLUG/
+ * FIRM_MOBILITY_RULES_BY_SLUG. */
+export function mobilityRowsNearingExpiry(now: Date): MobilityRowNearingExpiry[] {
+  const results: MobilityRowNearingExpiry[] = [];
+  const ttlMs = MOBILITY_VERIFICATION_TTL_DAYS * 86_400_000;
+  const consider = (state: string, type: "individual" | "firm", verifiedDateStr: string | null) => {
+    if (!verifiedDateStr) return;
+    const verified = Date.parse(verifiedDateStr);
+    if (Number.isNaN(verified)) return;
+    const daysUntilExpiry = Math.ceil((verified + ttlMs - now.getTime()) / 86_400_000);
+    if (daysUntilExpiry <= 0 || daysUntilExpiry > MOBILITY_STALENESS_WARNING_DAYS) return;
+    results.push({
+      state,
+      type,
+      daysUntilExpiry,
+      expiresOn: new Date(verified + ttlMs).toISOString().slice(0, 10),
+    });
+  };
+  for (const raw of (mobilityRulesDataForStaleness.records ?? []) as unknown[]) {
+    const row = normalizeMobilityRuleRow(raw);
+    if (row) consider(row.state, "individual", row.verified_date);
+  }
+  for (const raw of Object.values(firmMobilityRulesDataForStaleness as Record<string, unknown>)) {
+    const row = normalizeFirmMobilityRuleRow(raw);
+    if (row) consider(row.state, "firm", row.verifiedDate);
+  }
+  results.sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
+  return results;
+}
+
+/** The send half. Standing consent-gate directive (Devin, 2026-08-21) --
+ * gated behind requireSendApproval() since this is a NEW send pass wired
+ * into scheduled(), same mechanism every pass added after that directive
+ * must use. No dedicated daily-cap circuit breaker (unlike this file's
+ * other 9 passes): this send is already bounded to at most ONE per UTC
+ * calendar month by the claim below, far under any daily cap those passes
+ * actually need for their much higher per-day volume -- a tenth circuit
+ * breaker table would add nothing a monthly dedup doesn't already give.
+ * Claim/unclaim-on-failure mirrors notifyOperatorOfStaleData()'s own
+ * DROP-3-shaped retry posture, month-keyed instead of day-keyed (see
+ * mobility_staleness_alert_log's own migration comment for why). */
+export async function runMobilityStalenessAlertPass(env: Env): Promise<void> {
+  if (!requireSendApproval(env, "mobilityStalenessAlert")) return;
+  const nearing = mobilityRowsNearingExpiry(new Date());
+  if (nearing.length === 0) return;
+  if (!env.SENDGRID_API_KEY) return;
+  const monthUtc = new Date().toISOString().slice(0, 7);
+  const claimed = await store.claimMobilityStalenessAlertForMonth(env.DB, monthUtc);
+  if (!claimed) return;
+  try {
+    const built = buildMobilityStalenessAlertEmail(nearing);
+    const ok = await sendViaSendGrid(env.SENDGRID_API_KEY, INTERNAL_NOTIFY_EMAIL, built, env.EMAIL_ALLOWLIST);
+    if (!ok) {
+      await store.unclaimMobilityStalenessAlertForMonth(env.DB, monthUtc);
+    }
+  } catch (err) {
+    await store.unclaimMobilityStalenessAlertForMonth(env.DB, monthUtc);
+    console.log(`[mobility-staleness-alert-cron] error: ${String(err)}`);
+  }
 }
 
 export { StaleDataError };

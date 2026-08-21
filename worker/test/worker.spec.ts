@@ -4734,6 +4734,148 @@ describe("store.claimStaleDataAlertForToday (AuditLab STALE-3)", () => {
   });
 });
 
+describe("store.claimMobilityStalenessAlertForMonth (AuditLab STALE-10)", () => {
+  it("first claim for a given month wins (true), second claim same month loses (false)", async () => {
+    const month = `2027-${(Date.now() % 12 + 1).toString().padStart(2, "0")}`; // unique-ish month per test run
+    const first = await store.claimMobilityStalenessAlertForMonth(env.DB, month);
+    const second = await store.claimMobilityStalenessAlertForMonth(env.DB, month);
+    expect(first).toBe(true);
+    expect(second).toBe(false);
+  });
+
+  it("a different month gets its own independent claim", async () => {
+    const monthA = "2027-05";
+    const monthB = "2027-06";
+    await store.claimMobilityStalenessAlertForMonth(env.DB, monthA);
+    const claimB = await store.claimMobilityStalenessAlertForMonth(env.DB, monthB);
+    expect(claimB).toBe(true);
+  });
+
+  it("unclaim frees the month up for a real retry, same DROP-3-shaped posture as stale_data_alert_log", async () => {
+    const month = "2027-07";
+    await store.claimMobilityStalenessAlertForMonth(env.DB, month);
+    await store.unclaimMobilityStalenessAlertForMonth(env.DB, month);
+    const reclaimed = await store.claimMobilityStalenessAlertForMonth(env.DB, month);
+    expect(reclaimed).toBe(true);
+  });
+});
+
+describe("mobilityRowsNearingExpiry / runMobilityStalenessAlertPass (AuditLab STALE-10)", () => {
+  // Real bundled data: individual rows verified 2026-07-31..2026-08-17,
+  // firm rows verified 2026-08-07..2026-08-17, both at the real 180-day
+  // TTL -- earliest expiry 2027-01-27, latest 2027-02-13 (matches
+  // AuditLab's own finding evidence exactly). Rather than mock the JSON
+  // files, these tests move the clock to real dates around that real
+  // window and check against the REAL shipped data -- a stronger check
+  // than a synthetic fixture, and it would catch a future re-verification
+  // pass that widens or narrows the spread.
+
+  it("nothing is nearing expiry today (2026) -- the real window is 5 months out", async () => {
+    const { mobilityRowsNearingExpiry } = await import("../src/scheduler");
+    const nearing = mobilityRowsNearingExpiry(new Date("2026-09-01T00:00:00Z"));
+    expect(nearing).toEqual([]);
+  });
+
+  it("rows ARE nearing expiry once inside the real 30-day warning window", async () => {
+    const { mobilityRowsNearingExpiry } = await import("../src/scheduler");
+    // 2027-01-20: earliest expiry (2027-01-27) is 7 days out, latest
+    // (2027-02-13) is 24 days out -- both inside the 30-day window, so
+    // every one of the 110 real rows should appear.
+    const nearing = mobilityRowsNearingExpiry(new Date("2027-01-20T00:00:00Z"));
+    expect(nearing.length).toBe(110);
+    // Sorted soonest-first.
+    for (let i = 1; i < nearing.length; i++) {
+      expect(nearing[i]!.daysUntilExpiry).toBeGreaterThanOrEqual(nearing[i - 1]!.daysUntilExpiry);
+    }
+    expect(nearing[0]!.daysUntilExpiry).toBe(7);
+    expect(nearing[0]!.expiresOn).toBe("2027-01-27");
+    expect(nearing.every((r) => r.daysUntilExpiry > 0 && r.daysUntilExpiry <= 30)).toBe(true);
+    expect(nearing.some((r) => r.type === "individual")).toBe(true);
+    expect(nearing.some((r) => r.type === "firm")).toBe(true);
+  });
+
+  it("already-expired rows are EXCLUDED, not included -- that's the guard's own job, not this warning's", async () => {
+    const { mobilityRowsNearingExpiry } = await import("../src/scheduler");
+    const nearing = mobilityRowsNearingExpiry(new Date("2027-06-01T00:00:00Z"));
+    expect(nearing).toEqual([]);
+  });
+
+  it("runMobilityStalenessAlertPass sends nothing when the pass isn't in SEND_APPROVED_PASSES, even inside the warning window with a key configured", async () => {
+    const { runMobilityStalenessAlertPass } = await import("../src/scheduler");
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2027-01-20T00:00:00Z"));
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        throw new Error(`unexpected fetch in STALE-10 unapproved-pass test: ${typeof input === "string" ? input : (input as Request).url}`);
+      });
+      try {
+        await runMobilityStalenessAlertPass({ ...env, SENDGRID_API_KEY: "test-key-not-real" } as never);
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("runMobilityStalenessAlertPass sends a correct, complete alert once approved, in the window, with a key -- and dedupes within the same UTC month", async () => {
+    const { runMobilityStalenessAlertPass } = await import("../src/scheduler");
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2027-01-20T00:00:00Z"));
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 202 }));
+      try {
+        const envWithConsent = {
+          ...env,
+          SENDGRID_API_KEY: "test-key-not-real",
+          SEND_APPROVED_PASSES: "mobilityStalenessAlert",
+        } as never;
+        await runMobilityStalenessAlertPass(envWithConsent);
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+        expect(String(url)).toContain("sendgrid");
+        const sentBody = JSON.parse(String(init.body));
+        expect(sentBody.personalizations[0].to[0].email).toBe("support@deadline-radar.com");
+        expect(sentBody.subject).toContain("expiring soon");
+        expect(sentBody.subject).toContain("2027-01-27");
+        const textContent = (sentBody.content as { type: string; value: string }[]).find((c) => c.type === "text/plain")?.value;
+        expect(textContent).toContain("2027-01-27");
+        expect(textContent).toContain("mobility_rules.json");
+
+        // Same month, second tick -- must NOT send again.
+        await runMobilityStalenessAlertPass(envWithConsent);
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("buildMobilityStalenessAlertEmail() itself: subject and body name every row with its expiry date", async () => {
+    const { buildMobilityStalenessAlertEmail } = await import("../src/emails");
+    const built = buildMobilityStalenessAlertEmail([
+      { state: "Texas", type: "individual", daysUntilExpiry: 3, expiresOn: "2027-01-23" },
+      { state: "Ohio", type: "firm", daysUntilExpiry: 10, expiresOn: "2027-01-30" },
+    ]);
+    expect(built.subject).toContain("2 mobility rules");
+    expect(built.subject).toContain("2027-01-23");
+    expect(built.textBody).toContain("Texas (individual)");
+    expect(built.textBody).toContain("2027-01-23");
+    expect(built.textBody).toContain("3 days left");
+    expect(built.textBody).toContain("Ohio (firm)");
+    expect(built.textBody).toContain("2027-01-30");
+    expect(built.textBody).toContain("10 days left");
+    expect(built.textBody.toLowerCase()).toContain("warning, not an outage");
+
+    const single = buildMobilityStalenessAlertEmail([{ state: "Maine", type: "individual", daysUntilExpiry: 1, expiresOn: "2027-02-01" }]);
+    expect(single.subject).toContain("1 mobility rule "); // singular, not "1 mobility rules"
+    expect(single.textBody).toContain("1 day left"); // singular, not "1 days left"
+  });
+});
+
 describe("store.logSilentDrop / resolveSilentDrop (AuditLab SILENT-1)", () => {
   it("logs a fresh drop, keeps first_detected_at across repeated drops, then resolves", async () => {
     const id = `silent-drop-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;

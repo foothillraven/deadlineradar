@@ -4932,6 +4932,30 @@ export async function unclaimStaleDataAlertForToday(db: D1Database, dayUtc: stri
   await db.prepare(`DELETE FROM stale_data_alert_log WHERE day = ?1`).bind(dayUtc).run();
 }
 
+/** AuditLab STALE-10 (LOW, 2026-08-21, orchestrator-approved), migration
+ * 0069. Same INSERT-and-report-whether-it-landed shape as
+ * claimStaleDataAlertForToday() above, month-keyed instead of day-keyed --
+ * a 30-day pre-expiry warning window only needs a periodic reminder, not a
+ * daily one, so this limits the mobility-data staleness alert to at most
+ * one email per UTC calendar month regardless of how many cron ticks find
+ * a row still inside its warning window. Returns true = "you own this
+ * month's alert, send it." false = "already sent this month, don't." */
+export async function claimMobilityStalenessAlertForMonth(db: D1Database, monthUtc: string): Promise<boolean> {
+  const result = await db
+    .prepare(`INSERT INTO mobility_staleness_alert_log (month, sent_at) VALUES (?1, ?2) ON CONFLICT(month) DO NOTHING`)
+    .bind(monthUtc, nowIso())
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+/** Same DROP-3-shaped "claim burned even when the alert never actually
+ * sent" fix as unclaimStaleDataAlertForToday() above, for this month-keyed
+ * claim instead of a day-keyed one -- called on every failure branch so a
+ * later tick this same month gets a real retry. */
+export async function unclaimMobilityStalenessAlertForMonth(db: D1Database, monthUtc: string): Promise<void> {
+  await db.prepare(`DELETE FROM mobility_staleness_alert_log WHERE month = ?1`).bind(monthUtc).run();
+}
+
 /** AuditLab SILENT-1 (HIGH, 2026-08-19), migration 0067: called from
  * runReminderPass() every time a confirmed subscriber's deadline fails to
  * compute -- the exact "believes they're covered, told nothing" gap.

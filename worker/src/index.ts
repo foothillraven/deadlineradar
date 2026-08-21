@@ -207,6 +207,7 @@ import {
   runTeamsAlertPass,
   runSmsAlertPass,
   runComplianceNewsletterPass,
+  runMobilityStalenessAlertPass,
 } from "./scheduler";
 import { isUsFederalHoliday } from "./holidays";
 import {
@@ -9516,6 +9517,14 @@ for (const raw of Object.values(firmMobilityRulesData as Record<string, unknown>
   if (row) FIRM_MOBILITY_RULES_BY_SLUG[row.stateSlug] = row;
 }
 
+// AuditLab STALE-10 (LOW, 2026-08-21, orchestrator-approved): the actual
+// check+send pass lives in scheduler.ts as runMobilityStalenessAlertPass()
+// -- check_send_pass_consent_gate_coverage() (preship_gate.py) requires
+// every run*Pass dispatched from scheduled() to be DEFINED in scheduler.ts
+// with its own requireSendApproval() call inside, same structural
+// enforcement every other cron pass already has. See that function's own
+// docstring in scheduler.ts for the full mechanism.
+
 /**
  * GET /firm/mobility/firm-coverage -- which states we hold verified
  * FIRM-level (not individual) registration rules for. Same "be honest
@@ -11656,6 +11665,22 @@ export default {
           console.log(`[compliance-newsletter-cron] ${JSON.stringify(summary)}`);
         } catch (err) {
           console.log(`[compliance-newsletter-cron] error: ${String(err)}`);
+        }
+      })()
+    );
+
+    // AuditLab STALE-10 (LOW, 2026-08-21, orchestrator-approved): mobility
+    // rule-data's own pre-expiry warning -- see runMobilityStalenessAlertPass()'s
+    // own docstring. Independent pass, no checkDataFreshness() dependency
+    // (mobility rules are their own dataset with their own guard), gated
+    // behind requireSendApproval() per the standing consent-gate directive
+    // since this is a NEW pass added after that directive existed.
+    ctx.waitUntil(
+      (async () => {
+        try {
+          await runMobilityStalenessAlertPass(env);
+        } catch (err) {
+          console.log(`[mobility-staleness-alert-cron] error: ${String(err)}`);
         }
       })()
     );

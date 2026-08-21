@@ -7609,7 +7609,26 @@ async function handleDocumentUpload(request: Request, env: Env, subscriberId: st
 
   const currentTotal = await store.sumFirmDocumentBytes(env.DB, session.firmId);
   if (currentTotal + file.size > store.DOCUMENT_MAX_FIRM_TOTAL_BYTES) {
-    return jsonResponse(400, { error: "Your firm has reached its document storage limit. Remove an old document before adding a new one." });
+    // AuditLab LC-6 residual (LOW, 2026-08-21, orchestrator-approved,
+    // option 1 of 3): sumFirmDocumentBytes() sums every non-deleted
+    // document firm-wide, including ones belonging to a permanently-
+    // removed staff member -- unreachable from any screen (the roster
+    // excludes removed rows), so the old copy's "remove an old document"
+    // instruction could point at nothing the customer could actually act
+    // on. Not fixed by excluding removed-staff bytes from the sum either
+    // -- that would silently re-charge the firm the moment they rehire
+    // someone via reattachOrphanedSubscriberRecords (LC-5/LC-6), turning
+    // a data-accuracy gap into a silent-refusal-on-rehire gap, a worse
+    // trade. Honest-copy fix instead: name the real possible cause
+    // without promising an action ("removed staff" documents aren't
+    // reachable yet -- that's LC-6's deferred option 2) the customer
+    // can't currently take.
+    return jsonResponse(400, {
+      error:
+        "Your firm has reached its document storage limit. Some of that space may be held by " +
+        "documents belonging to staff no longer on your roster. Remove a document from an active " +
+        "staff member to free up space.",
+    });
   }
 
   const filename = sanitizeDocumentFilename(file.name || "document");

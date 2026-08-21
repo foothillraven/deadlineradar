@@ -747,7 +747,7 @@ export async function rearm(db: D1Database, unsubscribeToken: string): Promise<S
     .prepare(
       `UPDATE subscribers
        SET status = ?1, stopped_at = NULL, stop_reason = NULL, reminders_sent = '[]',
-           cycle = cycle + 1, unsubscribe_token = ?2, renewed_token = ?3
+           cycle = cycle + 1, unsubscribe_token = ?2, renewed_token = ?3, snoozed_until = NULL
        WHERE id = ?4`
     )
     .bind(STATUS_CONFIRMED, newUnsubscribeToken, newRenewedToken, row.id)
@@ -759,6 +759,20 @@ export async function rearm(db: D1Database, unsubscribeToken: string): Promise<S
   row.cycle = (row.cycle ?? 1) + 1;
   row.unsubscribe_token = newUnsubscribeToken;
   row.renewed_token = newRenewedToken;
+  // SNOOZE-1 (AuditLab, 2026-08-21, orchestrator-approved, MEDIUM -- note:
+  // reuses an ID a 2026-08-07 finding about the final-reminder snooze
+  // exception already used; unrelated concerns, flagging the collision,
+  // not renaming either since both are already shipped/referenced
+  // elsewhere): rearm() bumped cycle/reset reminders_sent/rotated tokens
+  // but never cleared snoozed_until, unlike its twin applyRenewAndRearm
+  // (which does, per migration 0040's own "a snooze from the PRIOR cycle
+  // must never suppress the NEW cycle's reminders" invariant) -- so a
+  // snooze -> "I've renewed" -> regret -> re-arm sequence (all first-party
+  // UI) silently suppressed the new cycle's reminders for up to
+  // SNOOZE_DAYS while handleRearm()'s own confirmation copy told the
+  // subscriber the opposite ("We'll remind you again as your next
+  // deadline approaches").
+  row.snoozed_until = null;
   return row;
 }
 

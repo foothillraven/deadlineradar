@@ -151,6 +151,40 @@ describe("applyRenewAndRearm clears a stale snooze", () => {
   });
 });
 
+// SNOOZE-1 (AuditLab, 2026-08-21, orchestrator-approved, MEDIUM): the
+// sibling path -- rearm() had the same cycle-bumping shape as
+// applyRenewAndRearm above (status/stopped_at/stop_reason/reminders_sent/
+// cycle/token-rotation) but omitted the one line clearing snoozed_until,
+// so the exact first-party-UI sequence a real subscriber can trigger
+// (snooze a reminder, click "I've renewed" -- which does not touch
+// snoozed_until -- then realize it was premature and click re-arm)
+// silently suppressed the new cycle's reminders for up to SNOOZE_DAYS
+// while handleRearm()'s own copy told them the opposite ("We'll remind
+// you again as your next deadline approaches").
+describe("rearm clears a stale snooze (SNOOZE-1)", () => {
+  it("snooze -> stop('renewed') -> rearm resets snoozed_until to null, not just the fields rearm already touched", async () => {
+    const email = `snoozestoprearm-${Date.now()}@example.com`;
+    const rec = await store.addPending(env.DB, { email, stateSlug: "texas", deadlineFields: { birth_month: "7" }, firstName: null });
+    await store.confirm(env.DB, rec.confirm_token);
+    const confirmed = (await store.findActiveOrPending(env.DB, email, "texas"))!;
+
+    await store.snoozeByToken(env.DB, confirmed.renewed_token, 14);
+    const snoozed = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(rec.id).first<SubscriberRow>();
+    expect(snoozed?.snoozed_until).not.toBeNull(); // sanity: the snooze actually landed
+
+    const stopped = await store.stop(env.DB, confirmed.unsubscribe_token, "renewed");
+    expect(stopped?.status).toBe(store.STATUS_STOPPED);
+    const afterStop = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(rec.id).first<SubscriberRow>();
+    expect(afterStop?.snoozed_until).not.toBeNull(); // stop() correctly doesn't touch it -- this is the pre-existing state the bug depends on
+
+    const rearmed = await store.rearm(env.DB, stopped!.unsubscribe_token);
+    expect(rearmed?.status).toBe(store.STATUS_CONFIRMED);
+    expect(rearmed?.snoozed_until).toBeNull();
+    const row = await env.DB.prepare("SELECT * FROM subscribers WHERE id = ?1").bind(rec.id).first<SubscriberRow>();
+    expect(row?.snoozed_until).toBeNull();
+  });
+});
+
 describe("GET/POST /snooze -- end-to-end via the real cron pass", () => {
   it("the actual scheduler-built reminder email contains the snooze link, and clicking it stops sends until it expires", async () => {
     const { runReminderPass } = await import("../src/scheduler");

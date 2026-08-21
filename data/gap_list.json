@@ -472,7 +472,7 @@
       "state": "Texas",
       "state_slug": "texas",
       "field": "data_gap_note",
-      "note": "$112 is the most recent figure the Board itself has published. We could not confirm whether a further increase took effect on September 1, 2025: TSBPA publishes a news notice for each fee change (2017, 2019 and 2024 all have one) and no 2025 notice exists, but 22 TAC 521.1 -- read directly -- does not fix a dollar figure at all; it says the fee is 'established by the board on an annual basis,' so the rule itself cannot confirm or rule out a later increase. Treat $112 as the last confirmed rate rather than a guaranteed current one.",
+      "note": "$112 is the most recent figure the Board itself has published. We could not confirm whether a further increase took effect on September 1, 2025: TSBPA publishes a news notice for each fee change (2017, 2019 and 2024 all have one) and no 2025 notice exists, but 22 TAC 521.1 -- read directly -- does not fix a dollar figure at all; it says the fee is 'established by the board on an annual basis,' so the rule itself cannot confirm or rule out a later increase. Treat $112 as the last confirmed rate rather than a guaranteed current one. Separately: citation_url is confirmed to point at the correct rule (22 TAC 521.1) via the Appian portal's own browse navigation, but the rule text itself sits behind an iframe our tooling can't read -- this is Texas retiring its machine-readable TAC host in favor of a JS-only portal, not a wrong or unverified citation; a human opening the portal can read it directly.",
       "is_block_claim": false
     },
     {

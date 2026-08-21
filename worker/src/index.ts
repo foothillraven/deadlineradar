@@ -3000,6 +3000,20 @@ async function handleFirmMemberRemove(request: Request, env: Env, memberId: stri
     return jsonResponse(403, { error: "You don't have permission to do that." });
   }
 
+  // AuditLab (2026-08-21, orchestrator-approved, doc-only): this guard is
+  // the one thing keeping firms.admin_email and firm_members.email from
+  // ever diverging. idx_firms_admin_email_unique is unconditional but
+  // idx_firm_members_email_unique is partial (WHERE removed_at IS NULL) --
+  // without an ALWAYS-present active primary member, an address freed in
+  // the partial member index while still taken in the firms index could
+  // let setFirmMemberEmail() apply a change that skips its admin_email
+  // mirror (index.ts:2360's independent-failure design), silently
+  // diverging the two and locking the firm out of SSO permanently with a
+  // misleading "email reassigned" error. Relaxing this guard (e.g. a
+  // "remove any member, reassign primary after" refactor) reopens that gap
+  // with no test or gate covering it -- keep an active primary member
+  // guaranteed at all times, don't allow a gap between removal and
+  // reassignment.
   if (target.id === session.firm.primary_member_id) {
     return jsonResponse(400, { error: "Transfer primary contact to another Partner before removing this member." });
   }

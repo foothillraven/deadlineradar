@@ -2789,6 +2789,38 @@ def print_worker_deploy_staleness_advisory(repo_root: Path) -> None:
         pass
 
 
+def print_silent_drop_advisory(repo_root: Path) -> None:
+    """AuditLab DROP-1 (MEDIUM, 2026-08-21): silent_dropped_subscribers_check.py
+    is the last mile of AuditLab's own SILENT-1 (2026-08-19) -- it detects
+    subscribers receiving NO reminders at all, the exact failure mode
+    neither the customer nor we can otherwise tell is happening -- but had
+    no automated caller. Twelve sibling monitoring scripts are wired into
+    this gate; this one wasn't, so an open silent_drop_log row was only
+    ever found if a human remembered to run it manually with
+    CLOUDFLARE_API_TOKEN set. Same wiring shape as
+    print_worker_deploy_staleness_advisory() above (also network-dependent,
+    also degrades gracefully) -- advisory only, never affects exit code.
+
+    silent_dropped_subscribers_check.main() raises SystemExit(int) on its
+    normal path (1 if anything is dropped/open, 0 if clean -- its own
+    prints already ran before that) and SystemExit(str) if the live D1
+    query itself failed (missing credentials, network). Only the second
+    shape gets a skip line here; the first shape's informative output
+    already printed."""
+    sys.path.insert(0, str(repo_root / "scripts"))
+    try:
+        import silent_dropped_subscribers_check as sdsc
+    except ImportError:
+        print("  (skipping silent-drop advisory -- silent_dropped_subscribers_check.py not importable)")
+        return
+    print("\n--- silent-drop advisory (does not affect gate exit code) ---")
+    try:
+        sdsc.main()
+    except SystemExit as exc:
+        if isinstance(exc.code, str):
+            print(f"  (skipping silent-drop advisory -- {exc.code})")
+
+
 def print_dual_credential_citation_advisory(repo_root: Path) -> None:
     """AuditLab DATA-3 (MEDIUM, 2026-08-04): dc-all's citation covered the firm-permit
     half of an "individual CPA license and firm permit" claim, not the individual half
@@ -3039,6 +3071,7 @@ def main():
         for e in all_errors:
             print(" ", e)
         print_worker_deploy_staleness_advisory(repo_root)
+        print_silent_drop_advisory(repo_root)
         print_cpa_deadlines_staleness_advisory(repo_root)
         print_cpe_hours_staleness_advisory(repo_root)
         print_reinstatement_staleness_advisory(repo_root)
@@ -3052,6 +3085,7 @@ def main():
         sys.exit(1)
     print("\nPASS -- no violations found.")
     print_worker_deploy_staleness_advisory(repo_root)
+    print_silent_drop_advisory(repo_root)
     print_cpa_deadlines_staleness_advisory(repo_root)
     print_cpe_hours_staleness_advisory(repo_root)
     print_reinstatement_staleness_advisory(repo_root)

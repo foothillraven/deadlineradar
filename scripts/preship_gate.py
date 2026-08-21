@@ -1797,72 +1797,163 @@ def check_sms_consent_version_sync(repo_root: Path) -> list[str]:
     return []
 
 
+# AuditLab CPE-5 (LOW, 2026-08-21, orchestrator-approved): six dr* helpers
+# are authored twice in generate.py, one copy per bundle (the pages have no
+# shared module system to import from) -- but "authored twice" splits into
+# two different classes, and only one belongs in a text-equality gate:
+#   - SAME-CODE duplicates (this dict): the two copies are meant to be the
+#     same logic, byte-identical modulo indentation/comments/Python
+#     f-string brace-escaping. A divergence here is the CPE-4 precondition
+#     (one calculation, two implementations, nothing keeping them in sync)
+#     and a text-equality gate is the right, cheap guard.
+#   - INDEPENDENT implementations (drCpeBarHtml, drTriggerCsvDownload) are
+#     NOT in this dict -- their two copies are legitimately different
+#     (different signatures, or a BOM literal vs its ﻿ escape) and a
+#     text-equality gate would false-fail on correct code. Those get a
+#     same-tick comment naming the sibling instead, not a gate -- see the
+#     comments at each of their own definitions.
+# Do not add a name here without first reading BOTH bodies and confirming
+# they're meant to be identical -- same-name does not mean same-code
+# (drCpeBarHtml has 3 params in one copy, 4 in the other).
+CPE_CYCLE_WINDOW_SYNC_FUNCTIONS = {
+    "drCpeCycleWindow": "/my/'s drCpeProgressFor() and the firm dashboard's drCpeProgressForSubscriber() (CPE-4)",
+    "drUpdateFields": "the homepage signup form and the firm dashboard's own copy",
+    "drCsvField": "the firm dashboard's CSV export and /firm-mobility/'s own roster export",
+}
+
+
 def check_cpe_cycle_window_sync(repo_root: Path) -> list[str]:
-    """AuditLab CPE-4 decay-gate advisory (2026-08-21, orchestrator-approved):
-    the CPE-4 fix ported (not shared) the cycle-window scoping logic from
-    the firm dashboard's drCpeProgressForSubscriber() into /my/'s own
-    separate drCpeProgressFor() -- the pragmatic call, since the two pages
-    are entirely separate generated scripts with no common module to
-    import from. AuditLab verified the port was byte-identical the day it
-    shipped, but flagged that two verbatim copies of a compliance
-    calculation is exactly the precondition that produced CPE-4 in the
-    first place: one number, two implementations, nothing making them
-    agree if either is edited without the other. Same hand-maintained-copy
-    decay shape as check_sms_consent_version_sync() above, narrowed here to
-    just drCpeCycleWindow() -- the smallest unit whose divergence would
-    silently reintroduce CPE-4's own overstatement defect -- rather than
-    the whole progress function, most of which (carryover application,
-    ethics-window handling, the pace-aware verdict /my/ deliberately omits)
-    is expected to differ or already documented as a deliberate scope
-    difference."""
+    """AuditLab CPE-4 decay-gate advisory (2026-08-21, orchestrator-approved),
+    widened for CPE-5 (2026-08-21, orchestrator-approved) to cover every
+    function in CPE_CYCLE_WINDOW_SYNC_FUNCTIONS above, not just
+    drCpeCycleWindow(). The CPE-4 fix ported (not shared) the cycle-window
+    scoping logic from the firm dashboard's drCpeProgressForSubscriber()
+    into /my/'s own separate drCpeProgressFor() -- the pragmatic call,
+    since the two pages are entirely separate generated scripts with no
+    common module to import from. AuditLab verified the port was
+    byte-identical the day it shipped, but flagged that two verbatim
+    copies of a compliance calculation is exactly the precondition that
+    produced CPE-4 in the first place: one number, two implementations,
+    nothing making them agree if either is edited without the other. Same
+    hand-maintained-copy decay shape as check_sms_consent_version_sync()
+    above. CPE-5 found five more same-name duplicate pairs elsewhere in
+    generate.py and asked that each be individually classified before
+    touching this gate -- drUpdateFields and drCsvField are genuinely the
+    same code (comments differ, logic doesn't) and belong here;
+    drCpeBarHtml and drTriggerCsvDownload are genuinely different
+    implementations and do NOT (a text-equality gate would false-fail on
+    correct code) -- see CPE_CYCLE_WINDOW_SYNC_FUNCTIONS's own comment."""
     generate_py = repo_root / "generate.py"
     if not generate_py.exists():
-        return ["[CPE-CYCLE-WINDOW] generate.py not found -- can't verify drCpeCycleWindow sync"]
+        return ["[CPE-CYCLE-WINDOW] generate.py not found -- can't verify sync"]
     src = generate_py.read_text(encoding="utf-8")
 
-    matches = list(re.finditer(r"function drCpeCycleWindow\([^)]*\)\s*\{", src))
-    if len(matches) != 2:
-        return [
-            f"[CPE-CYCLE-WINDOW] expected exactly 2 copies of drCpeCycleWindow() in generate.py "
-            f"(/my/'s own script and the firm dashboard's), found {len(matches)} -- either a copy "
-            "was removed (fold the callers back onto a single shared definition, one is enough) or "
-            "a third was added (this gate needs updating to cover it too)."
-        ]
+    errors = []
+    for name, sync_description in CPE_CYCLE_WINDOW_SYNC_FUNCTIONS.items():
+        matches = list(re.finditer(rf"function {re.escape(name)}\([^)]*\)\s*\{{\{{?", src))
+        if len(matches) != 2:
+            errors.append(
+                f"[CPE-CYCLE-WINDOW] expected exactly 2 copies of {name}() in generate.py "
+                f"({sync_description}), found {len(matches)} -- either a copy was removed (fold the "
+                "callers back onto a single shared definition, one is enough) or a third was added "
+                "(this gate needs updating to cover it too)."
+            )
+            continue
 
-    bodies = []
-    for m in matches:
-        # Inline bracket match, not shared with the consent-gate check's
-        # _bracket_match() below -- this one only ever runs twice per gate
-        # invocation and keeping it self-contained avoids a forward
-        # reference to a helper defined 1000+ lines later in this file.
-        depth = 0
-        end = None
-        for i in range(m.end() - 1, len(src)):
-            if src[i] == "{":
-                depth += 1
-            elif src[i] == "}":
-                depth -= 1
-                if depth == 0:
-                    end = i
-                    break
-        if end is None:
-            return ["[CPE-CYCLE-WINDOW] a drCpeCycleWindow() definition has unbalanced braces -- can't verify sync"]
-        # Normalize whitespace: the two copies live at different nesting
-        # depths (one inside /my/'s own IIFE, one at module level for the
-        # firm dashboard), so leading indentation legitimately differs even
-        # when the two are otherwise identical. Collapsing every run of
-        # whitespace to a single space verifies LOGIC parity, not
-        # incidental formatting.
-        body = src[m.end() - 1 : end + 1]
-        bodies.append(re.sub(r"\s+", " ", body).strip())
+        bodies = []
+        ok = True
+        for m in matches:
+            # Inline bracket match, not shared with the consent-gate check's
+            # _bracket_match() below -- this one only ever runs a handful of
+            # times per gate invocation and keeping it self-contained avoids
+            # a forward reference to a helper defined 1000+ lines later.
+            depth = 0
+            end = None
+            for i in range(m.end() - 1, len(src)):
+                if src[i] == "{":
+                    depth += 1
+                elif src[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end = i
+                        break
+            if end is None:
+                errors.append(f"[CPE-CYCLE-WINDOW] a {name}() definition has unbalanced braces -- can't verify sync")
+                ok = False
+                break
+            body = src[m.end() - 1 : end + 1]
+            # Undo Python f-string double-brace escaping first (harmless
+            # no-op on a plain, non-f-string copy) -- generate.py's homepage
+            # bundle is an f-string, so its `{`/`}` are doubled in the
+            # SOURCE without changing what JS actually ships; comparing the
+            # raw doubled form against a plain copy would always mismatch
+            # on formatting that isn't a real divergence.
+            body = body.replace("{{", "{").replace("}}", "}")
+            # Strip comments (CSRF-3's own lesson: a substring/equality test
+            # over raw source is defeated by prose that differs even when
+            # the code doesn't -- one copy here typically carries the fuller
+            # explanatory comment, the other doesn't) before normalizing
+            # whitespace, which absorbs the different nesting depths each
+            # bundle's own IIFE/module scope puts these functions at.
+            body = re.sub(r"/\*.*?\*/", " ", body, flags=re.S)
+            body = re.sub(r"//[^\n]*", " ", body)
+            bodies.append(re.sub(r"\s+", " ", body).strip())
+        if not ok:
+            continue
 
-    if bodies[0] != bodies[1]:
+        if bodies[0] != bodies[1]:
+            errors.append(
+                f"[CPE-CYCLE-WINDOW] the two {name}() copies in generate.py ({sync_description}) have "
+                "diverged -- this is the exact precondition that produced CPE-4 (one calculation, two "
+                "implementations, nothing keeping them in sync). Keep them logically identical (comments "
+                "and indentation may differ), or fold them into one shared definition."
+            )
+    return errors
+
+
+def check_signin_ttl_copy_sync(repo_root: Path) -> list[str]:
+    """AuditLab UX-9 (LOW, 2026-08-21, orchestrator-approved): "expires in 15
+    minutes" was hand-restated in 12 places in emails.ts, 2 in index.ts, and
+    1 in generate.py's /signin/ pre-submit copy, with none of them tied to
+    either of the two real TTL constants (SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES
+    firm-vs-subscriber pair) -- a change to just one constant would produce
+    PARTIAL drift, since the identical-looking sentences would silently
+    split into some-true/some-false rather than all going stale together.
+    The 14 worker-side copies now derive directly (same house standard as
+    index.ts's SMS verification message). generate.py's copy can't easily
+    cross the Python/TypeScript boundary to derive directly, so this is the
+    CPE-4 shape instead: assert the number in that one sentence still
+    matches SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES (the /signin/ page is
+    subscriber-facing, not the firm-side LOGIN_TOKEN_TTL_MINUTES)."""
+    store_ts = repo_root / "worker" / "src" / "store.ts"
+    generate_py = repo_root / "generate.py"
+    if not store_ts.exists() or not generate_py.exists():
+        return ["[SIGNIN-TTL] worker/src/store.ts or generate.py not found -- can't verify the "
+                "/signin/ TTL copy stays in sync."]
+
+    ts_text = store_ts.read_text(encoding="utf-8")
+    ts_match = re.search(r"SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES\s*=\s*(\d+)", ts_text)
+    if not ts_match:
+        return ["[SIGNIN-TTL] worker/src/store.ts's SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES constant not "
+                "found -- can't verify sync with generate.py's /signin/ copy."]
+    ts_minutes = ts_match.group(1)
+
+    py_text = generate_py.read_text(encoding="utf-8")
+    # The sentence line-wraps in the Python source (a plain "15 minutes"
+    # grep misses it) -- \s+ between the number and "minutes" tolerates
+    # that same wrap surviving a future re-wording, without also matching
+    # some unrelated "expires in 15" elsewhere in the file.
+    py_match = re.search(r"expires in\s+(\d+)\s+minutes", py_text)
+    if not py_match:
+        return ["[SIGNIN-TTL] generate.py's /signin/ TTL sentence ('expires in N minutes') not "
+                "found -- can't verify sync with worker/src/store.ts."]
+    py_minutes = py_match.group(1)
+
+    if py_minutes != ts_minutes:
         return [
-            "[CPE-CYCLE-WINDOW] the two drCpeCycleWindow() copies in generate.py (/my/'s "
-            "drCpeProgressFor() and the firm dashboard's drCpeProgressForSubscriber()) have "
-            "diverged -- this is the exact precondition that produced CPE-4 (one cycle-window "
-            "calculation, two implementations, nothing keeping them in sync). Keep them "
-            "byte-identical (modulo indentation), or fold them into one shared definition."
+            f"[SIGNIN-TTL] worker/src/store.ts's SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES ({ts_minutes}) "
+            f"and generate.py's /signin/ page copy ({py_minutes} minutes) have drifted -- bump both "
+            "together, at the same time the actual token TTL changes."
         ]
     return []
 
@@ -3586,6 +3677,7 @@ def main():
     all_errors += check_terms_version_sync(repo_root)
     all_errors += check_sms_consent_version_sync(repo_root)
     all_errors += check_cpe_cycle_window_sync(repo_root)
+    all_errors += check_signin_ttl_copy_sync(repo_root)
     all_errors += check_retention_coverage(repo_root)
     all_errors += check_snoozed_until_cleared_on_cycle_bump(repo_root)
     all_errors += check_sitemap_completeness(html_files, docs_dir)

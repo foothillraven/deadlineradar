@@ -10041,6 +10041,14 @@ _MY_DASHBOARD_JS_HTML = """<script>
   // colour -- this is the staff member's OWN view of their OWN progress,
   // not an admin's at-risk triage list, so a plain still-short-of-done
   // signal is the right scope here.
+  //
+  // AuditLab CPE-5 (LOW, 2026-08-21, orchestrator-approved): a same-name
+  // sibling exists in the firm dashboard's own script, currently around
+  // _FIRM_DASHBOARD_JS_HTML's drCpeBarHtml(label, logged, required,
+  // riskBehind) -- deliberately NOT the same function (3 params here vs 4
+  // there), so this pair is not preship_gate.py-gated the way
+  // drCpeCycleWindow() is; this comment is the pointer instead, so an
+  // editor touching one knows the other exists and is meant to differ.
   function drCpeBarHtml(label, logged, required) {
     if (required === null) return '';
     var incomplete = logged < required;
@@ -13590,6 +13598,13 @@ function drCpeProgressForSubscriber(item) {
 // claim. Keeping the two questions (how much is done vs. how worried
 // should you be) visually distinct is the whole point of the pace-aware
 // change; this just stops the color from re-asking the old question.
+//
+// AuditLab CPE-5 (LOW, 2026-08-21, orchestrator-approved): a same-name
+// sibling exists in /my/'s own script (_MY_DASHBOARD_JS_HTML's
+// drCpeBarHtml(label, logged, required) -- no riskBehind param, see its
+// own comment for why). Deliberately not the same function, so this pair
+// is not preship_gate.py-gated the way drCpeCycleWindow() is; this
+// comment is the pointer instead.
 function drCpeBarHtml(label, logged, required, riskBehind) {
   var incomplete = required !== null && logged < required;
   // AuditLab BAR-1 (LOW, 2026-08-04): rounding independently of `incomplete`
@@ -13843,6 +13858,18 @@ function drCsvField(value) {
 // leading BOM (matches drParseCsv()'s own strip-on-read) so Excel opens the
 // file as UTF-8 instead of guessing the system codepage and mangling any
 // non-ASCII staff name.
+//
+// AuditLab CPE-5 (LOW, 2026-08-21, orchestrator-approved): a same-name
+// sibling exists in /firm-mobility/'s own script (below, near
+// drCsvField()'s own duplication comment), behaviourally identical but
+// textually different -- this copy writes the leading BOM as a literal
+// character; the sibling writes the same byte as a JS unicode escape
+// sequence instead (backslash, u, then the codepoint's four hex digits).
+// Both produce the identical byte on the wire, but that source-level
+// difference means a text-equality gate would false-fail on correct code,
+// so this pair is NOT preship_gate.py-gated the way
+// drCpeCycleWindow()/drCsvField()/drUpdateFields() are. This comment is
+// the pointer instead.
 function drTriggerCsvDownload(filename, lines) {
   var blob = new Blob(['﻿' + lines.join('\\r\\n') + '\\r\\n'], {type: 'text/csv;charset=utf-8;'});
   var url = URL.createObjectURL(blob);
@@ -17021,6 +17048,18 @@ _MOBILITY_JS_HTML = """<script>
     if (/[",\\n\\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
     return s;
   }
+
+  // AuditLab CPE-5 (LOW, 2026-08-21, orchestrator-approved): sibling of the
+  // firm dashboard's own drTriggerCsvDownload() (generate.py's
+  // drDownloadRosterCsv() family) -- behaviourally identical but textually
+  // different, this copy writes the leading BOM as a JS unicode escape
+  // sequence (backslash, u, then the codepoint's four hex digits); the
+  // dashboard copy writes the same byte as a literal character instead.
+  // Both produce the identical byte on the wire, but that source-level
+  // difference means a text-equality gate would false-fail on correct code,
+  // so this pair is NOT preship_gate.py-gated the way
+  // drCpeCycleWindow()/drCsvField()/drUpdateFields() are. This comment is
+  // the pointer instead.
   function drTriggerCsvDownload(filename, lines) {
     var blob = new Blob(['\\uFEFF' + lines.join('\\r\\n') + '\\r\\n'], {type: 'text/csv;charset=utf-8;'});
     var url = URL.createObjectURL(blob);

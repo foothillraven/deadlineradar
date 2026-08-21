@@ -3072,7 +3072,7 @@ def check_origin_check_coverage(repo_root: Path) -> list[str]:
             write_handlers.add(val)
 
     if not write_handlers:
-        return ["[CSRF-2] found NO write-dispatched (POST/PATCH/DELETE) handlers in index.ts. "
+        return ["[CSRF-2] found NO write-dispatched (POST/PATCH/DELETE/PUT) handlers in index.ts. "
                 "Either the dispatch shape changed or nothing is wired -- this check is measuring "
                 "nothing and must be repaired."]
 

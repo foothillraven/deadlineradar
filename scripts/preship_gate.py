@@ -2490,7 +2490,16 @@ def check_retention_coverage(repo_root: Path) -> list[str]:
     return errors
 
 
-_CYCLE_BUMP_SQL_RE = re.compile(r"`([^`]*?cycle\s*=\s*cycle\s*\+\s*1[^`]*?)`", re.DOTALL)
+# GATE-8 (AuditLab, 2026-08-21, LOW, self-directed): the original pattern
+# only matched backtick-delimited SQL literals. This codebase also writes
+# SQL as `.prepare("...")` with double quotes (stop(), confirmIfPending(),
+# updateFirmMemberRole() among others) -- zero exposure today (both real
+# cycle-bump statements happen to use backticks), but the same blind spot
+# GATE-7 closed for the retention-coverage gate's own CREATE TABLE parser.
+# Widened to match either delimiter.
+_CYCLE_BUMP_SQL_RE = re.compile(
+    r"`([^`]*?cycle\s*=\s*cycle\s*\+\s*1[^`]*?)`" r'|"([^"]*?cycle\s*=\s*cycle\s*\+\s*1[^"]*?)"', re.DOTALL
+)
 
 
 def check_snoozed_until_cleared_on_cycle_bump(repo_root: Path) -> list[str]:
@@ -2506,15 +2515,20 @@ def check_snoozed_until_cleared_on_cycle_bump(repo_root: Path) -> list[str]:
     gap at the source that actually decays -- a future cycle-bumping
     UPDATE that forgets the one line -- the same shape check_retention_coverage()
     above uses for a different invariant. Source-scanned (every backtick-
-    delimited SQL literal containing `cycle = cycle + 1`), not imported,
-    same pattern every sibling guard in this file uses."""
+    OR double-quote-delimited SQL literal containing `cycle = cycle + 1`
+    -- GATE-8, AuditLab, 2026-08-21: the original backtick-only pattern
+    missed this codebase's double-quoted `.prepare("...")` calls, zero
+    exposure today since both real cycle-bump statements use backticks,
+    but the same blind spot GATE-7 closed for the retention gate), not
+    imported, same pattern every sibling guard in this file uses."""
     store_ts = repo_root / "worker" / "src" / "store.ts"
     if not store_ts.exists():
         print("  (skipping snoozed-until-on-cycle-bump check -- worker/ tree not present in this checkout)")
         return []
     text = store_ts.read_text(encoding="utf-8")
     errors = []
-    for i, sql in enumerate(_CYCLE_BUMP_SQL_RE.findall(text), start=1):
+    for i, (backtick_sql, dquote_sql) in enumerate(_CYCLE_BUMP_SQL_RE.findall(text), start=1):
+        sql = backtick_sql or dquote_sql
         if "snoozed_until" not in sql:
             snippet = " ".join(sql.split())[:100]
             errors.append(

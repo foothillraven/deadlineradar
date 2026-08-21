@@ -2404,14 +2404,29 @@ def check_retention_coverage(repo_root: Path) -> list[str]:
     # ever needs it.
     table_block_re = re.compile(r"CREATE TABLE(?:\s+IF NOT EXISTS)?\s+(\w+)\s*\(([\s\S]*?)\)\s*;")
     alter_firm_id_re = re.compile(r"ALTER TABLE\s+(\w+)\s+ADD\s+(?:COLUMN\s+)?firm_id\b")
+    # RETAIN-2 (AuditLab, 2026-08-21, orchestrator-approved, HIGH): a THIRD
+    # blind-spot class, on top of GATE-7's ALTER/one-line ones -- a table
+    # with no firm_id of its own but a FK column into a table that IS
+    # (transitively) firm-scoped is exactly as unpurged-forever as one with
+    # a bare, unlisted firm_id. Found via 4 real tables (Slack/Teams/SMS/
+    # admin-digest notification dedup) that reference subscribers(id), one
+    # hop from firms. Any `<col> ... REFERENCES <parent>(` anywhere in a
+    # table body or an ALTER ADD COLUMN is an edge in the same graph.
+    references_re = re.compile(r"\w+\s+[^,\n]*?REFERENCES\s+(\w+)\s*\(")
+    alter_references_re = re.compile(r"ALTER TABLE\s+(\w+)\s+ADD\s+(?:COLUMN\s+)?\w+[^;]*?REFERENCES\s+(\w+)\s*\(")
     in_migrations: set[str] = set()
+    ref_edges: dict[str, set[str]] = {}
     for sql_file in sorted(migrations_dir.glob("*.sql")):
         text = sql_file.read_text(encoding="utf-8")
         for name, body in table_block_re.findall(text):
             if re.search(r"\bfirm_id\b", body):
                 in_migrations.add(name)
+            for parent in references_re.findall(body):
+                ref_edges.setdefault(name, set()).add(parent)
         for name in alter_firm_id_re.findall(text):
             in_migrations.add(name)
+        for table, parent in alter_references_re.findall(text):
+            ref_edges.setdefault(table, set()).add(parent)
 
     store_src = store_ts.read_text(encoding="utf-8")
     m = re.search(r"FIRM_SCOPED_TABLES\s*=\s*\[([\s\S]*?)\]", store_src)
@@ -2419,8 +2434,42 @@ def check_retention_coverage(repo_root: Path) -> list[str]:
         return ["[RETAIN] store.ts's FIRM_SCOPED_TABLES array not found -- hardDeleteExpiredFirms()'s table list can't be verified"]
     covered = set(re.findall(r'"(\w+)"', m.group(1)))
 
+    def _no_firm_id_registry(const_name: str) -> set[str]:
+        rm = re.search(rf"{const_name}\s*=\s*\[([\s\S]*?)\]", store_src)
+        return set(re.findall(r'"(\w+)"', rm.group(1))) if rm else set()
+
+    subscriber_scoped_covered = _no_firm_id_registry("SUBSCRIBER_SCOPED_NO_FIRM_ID_TABLES")
+    member_scoped_covered = _no_firm_id_registry("FIRM_MEMBER_SCOPED_NO_FIRM_ID_TABLES")
+    no_firm_id_covered = subscriber_scoped_covered | member_scoped_covered
+
     missing = sorted(in_migrations - covered - deliberately_excluded)
     stale = sorted(covered - in_migrations)
+
+    # Anchors: tables whose rows are known to be purged (or, for
+    # `subscribers` itself, deliberately handled by a dedicated DELETE)
+    # when a firm is hard-deleted. NOT the full deliberately_excluded set --
+    # stripe_webhook_events is deliberately KEPT, so something referencing
+    # it is not thereby "covered" the way referencing subscribers is.
+    anchors = {"firms", "subscribers"} | covered | no_firm_id_covered
+
+    def _descends_from_firms(table: str, seen: set[str]) -> bool:
+        if table in seen:
+            return False  # cycle guard
+        seen.add(table)
+        for parent in ref_edges.get(table, ()):
+            if parent in anchors:
+                return True
+            if _descends_from_firms(parent, seen):
+                return True
+        return False
+
+    transitive_gap = sorted(
+        table
+        for table in ref_edges
+        if table not in anchors
+        and table not in in_migrations  # already has its own firm_id -- covered by missing/stale above
+        and _descends_from_firms(table, set())
+    )
 
     errors = []
     if missing:
@@ -2431,6 +2480,12 @@ def check_retention_coverage(repo_root: Path) -> list[str]:
     if stale:
         errors.append(
             f"[RETAIN] store.ts's FIRM_SCOPED_TABLES lists table(s) no migration creates: {', '.join(stale)}"
+        )
+    if transitive_gap:
+        errors.append(
+            "[RETAIN] table(s) with no firm_id of their own, but transitively reachable from firms via "
+            "a foreign key, and not covered by SUBSCRIBER_SCOPED_NO_FIRM_ID_TABLES or "
+            f"FIRM_MEMBER_SCOPED_NO_FIRM_ID_TABLES -- a deleted firm's rows here survive forever: {', '.join(transitive_gap)}"
         )
     return errors
 

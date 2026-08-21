@@ -1512,6 +1512,88 @@ ${addr}`;
 }
 
 /**
+ * AuditLab 2FA-4 (MEDIUM, 2026-08-21, orchestrator-approved): redeeming a
+ * backup code was the ONE credential-state change in this codebase that
+ * notified nobody -- password changes, 2FA on/off, and SSO linking all
+ * email the owner (see buildFirmPasswordChangedEmail/
+ * buildFirmTwoFactorChangedEmail/buildFirmOauthLinkedEmail), but a
+ * consumed backup code (an irreversible N-1 drop in recovery capacity, and
+ * the strongest available signal that either the owner lost their
+ * authenticator or someone else has their codes) stayed silent. Same
+ * plain-transactional shape as buildFirmTwoFactorChangedEmail() above,
+ * including the remaining-count so the owner knows immediately whether
+ * they need to regenerate rather than having to log in and check.
+ *
+ * HELD PENDING DEVIN'S SIGN-OFF (2FA-4's ruling, 2026-08-21): the
+ * orchestrator approved building this now but explicitly held the LIVE
+ * SEND for Devin's go-ahead, per the standing "nothing sent without
+ * Devin's consent" policy set after the DEAD-2 incident (an unrelated
+ * pass had been silently re-enabled without that consent once already).
+ * The call site in index.ts's handleFirm2faVerify() is gated behind
+ * BACKUP_CODE_REDEEMED_EMAIL_ENABLED, defaulted false -- this builder
+ * itself is inert until that flag flips and a caller actually invokes it.
+ */
+export function buildFirmBackupCodeRedeemedEmail(firmName: string, whenIso: string, remaining: number, adminName: string | null = null): BuiltEmail {
+  const addr = mailingAddress();
+  const subject = `A backup code was used to sign in to your ${SITE_NAME} account`;
+  const remainingPhrase = remaining === 1 ? "1 backup code" : `${remaining} backup codes`;
+  const lowPhrase =
+    remaining === 0
+      ? " You have none left -- generate a fresh set from your account's security settings before you need one."
+      : remaining <= 2
+        ? " That's getting low -- consider generating a fresh set from your account's security settings."
+        : "";
+
+  const textBody =
+    `${textGreeting(adminName)}\n\n` +
+    `A backup code was just used to sign in to ${firmName} on ${SITE_NAME} (${whenIso}), instead of ` +
+    `your authenticator app.
+
+` +
+    `If this was you (lost or reset your device), nothing further is needed. You have ${remainingPhrase} remaining.${lowPhrase}
+
+` +
+    `IF THIS WAS NOT YOU, someone else has one of your backup codes. Request a sign-in link from the ` +
+    `sign-in page to get back in, then regenerate your backup codes and review your account's security ` +
+    `settings immediately. The sign-in link goes only to this address, so whoever used this code cannot ` +
+    `intercept it.
+
+` +
+    `---
+${SENDER_LINE}
+${addr}`;
+
+  const htmlBody = htmlShell(
+    `A backup code was used to sign in to your ${SITE_NAME} account`,
+    `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
+      `A backup code was used to sign in</h1>` +
+      p(htmlGreeting(adminName)) +
+      p(
+        `A backup code was just used to sign in to ${esc(firmName)} on ${esc(SITE_NAME)} (${esc(whenIso)}), ` +
+          `instead of your authenticator app.`
+      ) +
+      p(
+        `If this was you (lost or reset your device), nothing further is needed. You have ${esc(remainingPhrase)} ` +
+          `remaining.${esc(lowPhrase)}`,
+        13,
+        LIGHT.muted
+      ) +
+      p(
+        "<strong>If this was not you</strong>, someone else has one of your backup codes. Request a " +
+          "sign-in link from the sign-in page to get back in, then regenerate your backup codes and " +
+          "review your account's security settings immediately. That link goes only to this address, " +
+          "so whoever used this code cannot intercept it.",
+        13,
+        LIGHT.muted
+      ),
+    `<p class="dr-muted" style="font-size:11px;color:${LIGHT.muted};line-height:1.5;margin:0;">` +
+      `${esc(SENDER_LINE)}<br>${esc(addr)}</p>`
+  );
+
+  return { subject, textBody, htmlBody, headers: {} };
+}
+
+/**
  * Sent to the FIRM'S OWN admin_email whenever a roster staffer unsubscribes
  * (2026-08-06, Task #10). Not the same recipient as
  * buildSignupNotificationEmail() (that one goes to INTERNAL_NOTIFY_EMAIL,

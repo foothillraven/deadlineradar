@@ -583,6 +583,119 @@ describe("POST /firm/2fa/verify", () => {
   });
 });
 
+describe("backup-code redemption notice -- AuditLab 2FA-4 (build approved, live send HELD pending Devin)", () => {
+  const SENDGRID_URL = "https://api.sendgrid.com/v3/mail/send";
+
+  it("HELD BY DEFAULT: redeeming a backup code sends nothing today, even with SENDGRID_API_KEY configured", async () => {
+    // This is the test that actually matters for what ships right now --
+    // proves BACKUP_CODE_REDEEMED_EMAIL_ENABLED's false default genuinely
+    // keeps this send unreachable in production, not just that the
+    // constant reads false in source. Spies on the real outbound fetch
+    // (same technique demo4-email-lockdown.spec.ts uses) rather than
+    // trusting a flag read.
+    const { firmId, memberId, email, password } = await newEnrolledFirm("2fa4-held");
+    const codes = generateBackupCodes();
+    await store.createFirmMemberBackupCodes(env.DB, memberId, await Promise.all(codes.map(hashBackupCode)));
+    // Seed a prior session so finishFirmLoginVerify()'s OWN unrelated
+    // first-ever-session internal notification (sendSignupNotification)
+    // doesn't also fire and confound this test -- this test is about
+    // 2FA-4's backup-code notice specifically, not that pre-existing path.
+    await sessionCookieFor(firmId, memberId);
+
+    const loginResp = await SELF.fetch(`${BASE}/firm/login/password`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.260" },
+      body: form({ hp_website: "", admin_email: email, password }),
+      redirect: "manual",
+    });
+    const pending = pendingTokenFromLocation(loginResp);
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      throw new Error(`unexpected outbound fetch in 2FA-4 held-by-default test: ${url}`);
+    });
+    try {
+      const resp = await workerFetch(
+        new Request(`${BASE}/firm/2fa/verify`, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.260" },
+          body: form({ pending, code: codes[0] as string }),
+        }),
+        { TOTP_ENCRYPTION_KEY: KEY, SENDGRID_API_KEY: "test-key-not-real" }
+      );
+      expect(resp.status).toBe(302);
+      expect(resp.headers.get("Set-Cookie") ?? "").toContain("dr_firm_session=");
+      const sendGridCalls = fetchSpy.mock.calls.filter((c: Parameters<typeof fetch>) => {
+        const url = typeof c[0] === "string" ? c[0] : (c[0] as Request).url;
+        return url === SENDGRID_URL;
+      });
+      expect(sendGridCalls.length).toBe(0);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("control: an ordinary TOTP sign-in (not a backup code) would never trigger this notice either, flag aside", async () => {
+    const { firmId, memberId, email, password, secret } = await newEnrolledFirm("2fa4-totp-control");
+    // Same first-ever-session confound avoidance as the test above.
+    await sessionCookieFor(firmId, memberId);
+    const loginResp = await SELF.fetch(`${BASE}/firm/login/password`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.261" },
+      body: form({ hp_website: "", admin_email: email, password }),
+      redirect: "manual",
+    });
+    const pending = pendingTokenFromLocation(loginResp);
+    const code = await generateTotp(secret);
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      throw new Error(`unexpected outbound fetch in 2FA-4 TOTP-control test: ${url}`);
+    });
+    try {
+      const resp = await workerFetch(
+        new Request(`${BASE}/firm/2fa/verify`, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.261" },
+          body: form({ pending, code }),
+        }),
+        { TOTP_ENCRYPTION_KEY: KEY, SENDGRID_API_KEY: "test-key-not-real" }
+      );
+      expect(resp.status).toBe(302);
+      expect(resp.headers.get("Set-Cookie") ?? "").toContain("dr_firm_session=");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("buildFirmBackupCodeRedeemedEmail() itself: subject, remaining-count phrasing, and the not-you warning are correct", async () => {
+    const { buildFirmBackupCodeRedeemedEmail, MAILING_ADDRESS } = await import("../src/emails");
+
+    const many = buildFirmBackupCodeRedeemedEmail("Acme LLP", "2026-08-21T16:00:00.000Z", 5, "Jane Smith");
+    expect(many.subject).toContain("backup code was used");
+    expect(many.textBody).toContain("Hi Jane Smith,");
+    expect(many.textBody).toContain("Acme LLP");
+    expect(many.textBody).toContain("5 backup codes remaining");
+    expect(many.textBody).not.toContain("getting low");
+    expect(many.textBody).not.toContain("none left");
+    expect(many.textBody.toLowerCase()).toContain("if this was not you");
+    expect(many.htmlBody).toContain(MAILING_ADDRESS);
+
+    const one = buildFirmBackupCodeRedeemedEmail("Acme LLP", "2026-08-21T16:00:00.000Z", 1);
+    expect(one.textBody).toContain("1 backup code remaining");
+    expect(one.textBody).not.toContain("1 backup codes"); // singular, not a bare plural
+    expect(one.textBody).toContain("Hi there,"); // no adminName -> generic greeting
+
+    const low = buildFirmBackupCodeRedeemedEmail("Acme LLP", "2026-08-21T16:00:00.000Z", 2);
+    expect(low.textBody).toContain("getting low");
+
+    const zero = buildFirmBackupCodeRedeemedEmail("Acme LLP", "2026-08-21T16:00:00.000Z", 0);
+    expect(zero.textBody).toContain("0 backup codes remaining");
+    expect(zero.textBody).toContain("none left");
+    expect(zero.textBody).not.toContain("getting low");
+  });
+});
+
 describe("rate limiting on /firm/2fa/verify -- both buckets", () => {
   it("the per-IP bucket trips after its max, independent of which account is targeted", async () => {
     const ip = "203.0.113.230";

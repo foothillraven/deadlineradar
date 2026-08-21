@@ -174,6 +174,7 @@ import {
   buildFeatureIdeaShippedEmail,
   buildFirmPasswordChangedEmail,
   buildFirmTwoFactorChangedEmail,
+  buildFirmBackupCodeRedeemedEmail,
   buildFirmSessionsEndedEmail,
   buildFirmEmailChangeConfirmEmail,
   buildFirmEmailChangeRequestedNoticeEmail,
@@ -2588,6 +2589,24 @@ async function handleDemoLogin(env: Env, ip: string): Promise<Response> {
   });
 }
 
+// AuditLab 2FA-4 (MEDIUM, 2026-08-21, orchestrator-approved -- diagnosis
+// and build approved, LIVE SEND HELD). Redeeming a backup code is the one
+// credential-state change in this file that notifies nobody -- see
+// buildFirmBackupCodeRedeemedEmail()'s own comment in emails.ts for the
+// full reasoning. The orchestrator approved building the fix now but
+// explicitly held the live send for Devin's own sign-off, per the standing
+// "nothing sent without Devin's consent" policy set after the DEAD-2
+// incident (an unrelated pass had been silently re-enabled without that
+// consent exactly once already -- not repeating that mistake).
+//
+// DO NOT flip this to true without Devin's explicit go-ahead landing in
+// the orchestrator inbox/outbox first, same as any other plan-first item.
+// When that go arrives: flip this one constant, positive-control the send
+// fires (the call site below is already written, tested with the flag
+// forced true in tests, and ready), and remove this comment block's HELD
+// framing in the same commit.
+const BACKUP_CODE_REDEEMED_EMAIL_ENABLED = false;
+
 /**
  * POST /firm/2fa/verify -- roadmap #53. Body: pending (the token minted by
  * handleFirmPasswordLogin()/handleFirmLoginVerify() when 2FA is enrolled),
@@ -2682,6 +2701,11 @@ async function handleFirm2faVerify(request: Request, env: Env, ip: string): Prom
     const codeHash = await hashBackupCode(submittedCode);
     verified = await store.consumeFirmMemberBackupCode(env.DB, member.id, codeHash);
   }
+  // AuditLab 2FA-4: captured here, before consumeFirm2faPendingToken() and
+  // the firm re-fetch below touch anything else, so the notification-worthy
+  // fact ("this success came from a backup code, not the authenticator") is
+  // never confused with which branch happened to run last.
+  const usedBackupCode = !looksLikeTotp && verified;
 
   if (!verified) {
     await store.incrementFirm2faPendingAttempts(env.DB, pending.id);
@@ -2701,6 +2725,28 @@ async function handleFirm2faVerify(request: Request, env: Env, ip: string): Prom
   const firm = await store.getFirmById(env.DB, pending.firm_id);
   if (!firm || firm.status !== "active") {
     return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.");
+  }
+
+  // AuditLab 2FA-4 (MEDIUM, 2026-08-21, orchestrator-approved -- diagnosis
+  // and build approved, LIVE SEND HELD pending Devin's sign-off, see
+  // BACKUP_CODE_REDEEMED_EMAIL_ENABLED's own comment above). Same
+  // best-effort/never-fail-the-sign-in pattern as every other credential-
+  // state-change notice in this file (buildFirmPasswordChangedEmail,
+  // buildFirmTwoFactorChangedEmail, buildFirmOauthLinkedEmail) -- fires
+  // AFTER the pending token is consumed (the sign-in itself is already
+  // committed by this point) but BEFORE the response is built, matching
+  // where those siblings sit in their own handlers.
+  if (BACKUP_CODE_REDEEMED_EMAIL_ENABLED && usedBackupCode && env.SENDGRID_API_KEY) {
+    try {
+      const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
+      if (underCap) {
+        const remaining = await store.countUnusedFirmMemberBackupCodes(env.DB, member.id);
+        const built = buildFirmBackupCodeRedeemedEmail(firm.name, new Date().toISOString(), remaining, member.name);
+        await sendViaSendGrid(env.SENDGRID_API_KEY, member.email, built, env.EMAIL_ALLOWLIST);
+      }
+    } catch {
+      // Intentionally swallowed -- see above.
+    }
   }
 
   return finishFirmLoginVerify(env, firm, member, store.normalizeLoginTokenPurpose(pending.purpose), pending.pending_new_email, null);

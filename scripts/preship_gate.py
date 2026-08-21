@@ -1747,6 +1747,46 @@ def check_terms_version_sync(repo_root: Path) -> list[str]:
     return []
 
 
+def check_sms_consent_version_sync(repo_root: Path) -> list[str]:
+    """AuditLab DOC-1 report, SMS_CONSENT_VERSION advisory (2026-08-21,
+    orchestrator-approved): sms.ts's SMS_CONSENT_VERSION is exported and
+    read by nothing at runtime -- SMS-3's design deliberately records
+    whatever version string the client sends rather than validating it
+    server-side -- but its own docstring instructs a future maintainer to
+    "bump this AND the matching string literal generate.py's /my/ SMS
+    panel sends," two hand-kept copies with nothing enforcing they match.
+    A drift here is a TCPA consent-artifact defect: the version recorded
+    against a real consent would silently stop matching what the current
+    UI actually presented at the moment of consent. Same
+    hand-maintained-copy-decay shape check_terms_version_sync() already
+    guards for TERMS_LAST_CHANGED/TERMS_VERSION, applied to this pair."""
+    sms_ts = repo_root / "worker" / "src" / "sms.ts"
+    generate_py = repo_root / "generate.py"
+    if not sms_ts.exists():
+        print("  (skipping sms-consent-version-sync check -- worker/ tree not present in this checkout)")
+        return []
+    ts_text = sms_ts.read_text(encoding="utf-8")
+    py_text = generate_py.read_text(encoding="utf-8")
+
+    ts_match = re.search(r'SMS_CONSENT_VERSION\s*=\s*"([^"]+)"', ts_text)
+    if not ts_match:
+        return ["[SMS-CONSENT] worker/src/sms.ts's SMS_CONSENT_VERSION constant not found -- can't verify sync with generate.py"]
+    ts_version = ts_match.group(1)
+
+    py_match = re.search(r"consent_version:\s*'([^']+)'", py_text)
+    if not py_match:
+        return ["[SMS-CONSENT] generate.py's consent_version literal (the /my/ SMS panel's consent send) not found -- can't verify sync with worker/src/sms.ts"]
+    py_version = py_match.group(1)
+
+    if ts_version != py_version:
+        return [
+            f"[SMS-CONSENT] worker/src/sms.ts's SMS_CONSENT_VERSION ({ts_version}) and generate.py's "
+            f"consent_version literal ({py_version}) have drifted -- bump both together, at the same "
+            "time the /my/ SMS consent panel's wording actually changes"
+        ]
+    return []
+
+
 def check_field_computed_states_sync(repo_root: Path) -> list[str]:
     """AuditLab SYNC-1 (MEDIUM, 2026-08-09): worker/src/deadline.ts's
     FIELD_COMPUTED_STATES and generate.py's _WORKER_FIELD_COMPUTED_STATES
@@ -3071,6 +3111,7 @@ def main():
     all_errors += check_pricing_matches_tiers(repo_root)
     all_errors += check_json_copies_identical(repo_root)
     all_errors += check_terms_version_sync(repo_root)
+    all_errors += check_sms_consent_version_sync(repo_root)
     all_errors += check_retention_coverage(repo_root)
     all_errors += check_snoozed_until_cleared_on_cycle_bump(repo_root)
     all_errors += check_sitemap_completeness(html_files, docs_dir)

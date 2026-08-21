@@ -1944,7 +1944,17 @@
         headers: {'content-type': 'application/json'},
         body: JSON.stringify({tier: tier})
       }).then(function(res) {
-        if (res.status === 401) { window.location.href = '/firm-login/#dr-view-signup'; return null; }
+        if (res.status === 401) {
+          // ShopLab cold-read (2026-08-20, orchestrator-approved): carry the
+          // tier through the redirect so it isn't lost. localStorage (not
+          // just the URL) so it survives the signup form's own navigation
+          // and the magic-link email round trip, as long as that link is
+          // opened in this same browser -- read back on /firm-dashboard/'s
+          // load, see drCheckPendingCheckoutTier().
+          try { window.localStorage.setItem('dr_pending_checkout_tier', tier); } catch (e) {}
+          window.location.href = '/firm-login/?tier=' + encodeURIComponent(tier) + '#dr-view-signup';
+          return null;
+        }
         return res.json().catch(function() { return null; }).then(function(data) {
           if (!res.ok) {
             if (errEl) {

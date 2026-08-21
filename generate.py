@@ -2987,7 +2987,17 @@ _PRICING_CHECKOUT_JS_HTML = f"""<script>
         headers: {{'content-type': 'application/json'}},
         body: JSON.stringify({{tier: tier}})
       }}).then(function(res) {{
-        if (res.status === 401) {{ window.location.href = '/firm-login/#dr-view-signup'; return null; }}
+        if (res.status === 401) {{
+          // ShopLab cold-read (2026-08-20, orchestrator-approved): carry the
+          // tier through the redirect so it isn't lost. localStorage (not
+          // just the URL) so it survives the signup form's own navigation
+          // and the magic-link email round trip, as long as that link is
+          // opened in this same browser -- read back on /firm-dashboard/'s
+          // load, see drCheckPendingCheckoutTier().
+          try {{ window.localStorage.setItem('dr_pending_checkout_tier', tier); }} catch (e) {{}}
+          window.location.href = '/firm-login/?tier=' + encodeURIComponent(tier) + '#dr-view-signup';
+          return null;
+        }}
         return res.json().catch(function() {{ return null; }}).then(function(data) {{
           if (!res.ok) {{
             if (errEl) {{
@@ -9282,6 +9292,18 @@ _FIRM_LOGIN_VIEW_JS_HTML = """<script>
     if (referralCodeEl) referralCodeEl.value = referralCodeParam;
   }
 
+  // ShopLab cold-read (2026-08-20, orchestrator-approved): reinforces the
+  // ?tier= param _PRICING_CHECKOUT_JS_HTML's 401 redirect carries here (same
+  // pattern as ?ref= just above) into localStorage, so a direct/shared link
+  // to this exact URL also works, not just the redirect that set it
+  // originally. Validated against the known tier slugs rather than stored
+  // blind -- cheap, and keeps a mistyped/stale URL from planting garbage
+  // that /firm-dashboard/ would otherwise have to re-validate itself.
+  var tierParam = new URLSearchParams(window.location.search).get("tier");
+  if (tierParam && ["firm_starter", "firm_growth", "firm_standard", "firm_scale"].indexOf(tierParam) !== -1) {
+    try { window.localStorage.setItem("dr_pending_checkout_tier", tierParam); } catch (e) {}
+  }
+
   // Task #33 (2026-08-06): public demo link (/firm-login/?demo=1) pre-fills
   // the sign-in form with the shared demo account's credentials -- still a
   // real form submit, one real click, not an auto-login teleport, so it
@@ -12400,6 +12422,39 @@ function drToggleCancellation(cancel, btn) {
   });
 }
 
+// ShopLab cold-read (2026-08-20, orchestrator-approved "if only three
+// things" #2): resumes the checkout _PRICING_CHECKOUT_JS_HTML's 401 redirect
+// parked in localStorage (see that function's own comment for why
+// localStorage, not a server column). Runs once, on the first dashboard
+// data load after a signup/login that carried a pending tier -- reads it,
+// shows a one-click "continue to checkout" banner, and clears the stored
+// value immediately regardless of outcome, so a signup for an unrelated
+// reason weeks later never resurfaces a stale purchase intent. Deliberately
+// a confirm-click, not an auto-redirect straight to Stripe -- landing on an
+// external payment page with no visible action on THIS page would be a
+// worse surprise than one extra click.
+function drCheckPendingCheckoutTier() {
+  var tier;
+  try { tier = window.localStorage.getItem('dr_pending_checkout_tier'); } catch (e) { return; }
+  if (!tier) return;
+  try { window.localStorage.removeItem('dr_pending_checkout_tier'); } catch (e) {}
+  var label = DR_PLAN_TIER_LABELS[tier];
+  if (!label) return;
+  var el = document.getElementById('dr-resume-checkout-banner');
+  if (!el) return;
+  el.innerHTML = '';
+  var span = document.createElement('span');
+  span.textContent = 'Continue where you left off: upgrade to ' + label + '. ';
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'dr-paywall-tier-btn';
+  btn.textContent = 'Continue to checkout →';
+  btn.addEventListener('click', function() { drStartCheckout(tier, btn, null); });
+  el.appendChild(span);
+  el.appendChild(btn);
+  el.hidden = false;
+}
+
 // AuditLab ST-1: the API refuses new signups/staff-adds once its reference
 // data is past the freshness threshold, but the dashboard used to show every
 // date on this page -- including the one "Mark renewed" just computed -- with
@@ -15209,6 +15264,7 @@ function drLoadLicenses() {
       drRenderFirmName(data.firm_name);
       drRenderCurrentEmail(data.admin_email);
       drRenderStalenessBanner(data.data_as_of, data.data_stale);
+      drCheckPendingCheckoutTier();
       // Engraved seal on the Reports tab (2026-08-14): stamp the seal with
       // the dataset's as-of date, fill both faces' date text, unhide, and
       // let the shared view-time evaluator pick the face. Server emits it
@@ -18189,6 +18245,16 @@ def build_firm_dashboard_page(
     <div id="dr-dash-error" class="callout" style="border-left-color:#c33737;" role="alert" hidden></div>
     <div id="dr-dash-success" class="callout" style="border-left-color:var(--verified-green);" role="status" hidden></div>
     <div id="dr-dash-warning" class="callout" style="border-left-color:var(--gold);" role="status" hidden></div>
+    <!-- ShopLab cold-read (2026-08-20, orchestrator-approved "if only three
+    things" #2): a logged-out click on a /pricing/ tier button 401s, and the
+    redirect to /firm-login/ dropped which tier they wanted -- "buyer has to
+    re-find their tier after the magic-link round-trip". Carried client-side
+    via localStorage (no server/schema change -- the magic-link email round
+    trip usually reopens in the SAME browser, which is what localStorage
+    survives) from _PRICING_CHECKOUT_JS_HTML through /firm-login/ to here.
+    One click resumes the exact checkout they started; dismissible so a
+    signup for an unrelated reason doesn't get nagged forever. -->
+    <div id="dr-resume-checkout-banner" class="callout" style="border-left-color:var(--accent);" role="status" hidden></div>
     <div id="dr-staleness-banner" class="callout" style="border-left-color:#b8860b;" hidden></div>
     <div id="dr-demo-banner" class="callout" style="border-left-color:var(--accent);" role="status" hidden>
       You&rsquo;re signed in to the <strong>shared live demo</strong> firm &mdash; this is real data

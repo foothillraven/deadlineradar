@@ -10450,8 +10450,42 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
     ) {
       return errorPage(403, SSO_EMAIL_REASSIGNED_MESSAGE, ssoSigninLink(env));
     }
+    // AuditLab 2FA-3 (MEDIUM, 2026-08-21, orchestrator-approved). Adversarial
+    // review of the first version of this fix caught two things, both
+    // applied: (1) touchOauthIdentityLogin() is not merely bookkeeping --
+    // GET /firm/oauth-identities surfaces last_login_at to the customer as
+    // "when was this Google account last used," so silently dropping it for
+    // every 2FA-enrolled firm would go permanently stale for exactly the
+    // security-conscious accounts most likely to check it. Same SSO-B
+    // reasoning as the fresh-link exit below: a detection-relevant signal
+    // fires on credential proof, not deferred behind a challenge the caller
+    // might never pass. Moved before the gate. (2) createSession() below
+    // now gets primaryMemberForIdentity.id EXPLICITLY rather than letting
+    // it re-resolve firm.primary_member_id itself a second time -- the
+    // review flagged a narrow window where a concurrent primary-member
+    // reassignment between this read and that one could seat a session on
+    // a DIFFERENT (and possibly non-enrolled) member than the one just
+    // checked for totp_enrolled_at. Passing the id makes "member checked"
+    // and "member signed in" the same identity by construction.
+    //
+    // firm_oauth_identities has no member_id column (see the KNOWN SCOPE
+    // LIMIT comment below), so this always resolves to the firm's CURRENT
+    // primary member -- explicit failure (not a silent fall-through) if
+    // the firm somehow has none, rather than trusting createSession()'s own
+    // resolve-or-throw to catch it.
+    if (!linkedFirm.primary_member_id) {
+      return errorPage(403, "This account isn't active. Get in touch and we'll sort it out.", ssoContactLink(env));
+    }
+    const primaryMemberForIdentity = await store.getFirmMemberById(env.DB, linkedFirm.id, linkedFirm.primary_member_id);
     await store.touchOauthIdentityLogin(env.DB, existingIdentity.id, existingIdentity.firm_id, claims.email);
-    const { rawSessionToken } = await store.createSession(env.DB, existingIdentity.firm_id);
+    if (primaryMemberForIdentity?.totp_enrolled_at) {
+      const { rawToken } = await store.createFirm2faPendingToken(env.DB, primaryMemberForIdentity.id, linkedFirm.id, "login", null);
+      return new Response(null, {
+        status: 302,
+        headers: { Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-login/2fa/?pending=${encodeURIComponent(rawToken)}` },
+      });
+    }
+    const { rawSessionToken } = await store.createSession(env.DB, existingIdentity.firm_id, primaryMemberForIdentity?.id);
     return oauthSuccessResponse(env, rawSessionToken);
   }
 
@@ -10530,7 +10564,22 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
     // session on an unvalidated firm is not a thing to reason about at
     // 3am. Review finding 4f.
     if (raced.firm_id !== firm.id) return errorPage(400, SSO_FAILED_MESSAGE, ssoSigninLink(env));
-    const { rawSessionToken } = await store.createSession(env.DB, raced.firm_id);
+    // AuditLab 2FA-3 (MEDIUM, 2026-08-21, orchestrator-approved): same gate
+    // as the fresh-link exit below -- memberForEmail is already confirmed to
+    // be this firm's primary member (the ROLE-1 gate above ran before this
+    // whole linkOauthIdentity block), and raced.firm_id === firm.id was just
+    // confirmed on the line above, so reusing memberForEmail here (no extra
+    // fetch) is exactly right.
+    if (memberForEmail.totp_enrolled_at) {
+      const { rawToken } = await store.createFirm2faPendingToken(env.DB, memberForEmail.id, firm.id, "login", null);
+      return new Response(null, {
+        status: 302,
+        headers: { Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-login/2fa/?pending=${encodeURIComponent(rawToken)}` },
+      });
+    }
+    // Explicit memberId, not left to createSession()'s own re-resolve --
+    // same review-flagged reasoning as exit A above.
+    const { rawSessionToken } = await store.createSession(env.DB, raced.firm_id, memberForEmail.id);
     return oauthSuccessResponse(env, rawSessionToken);
   }
 
@@ -10551,7 +10600,28 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
     }
   }
 
-  const { rawSessionToken } = await store.createSession(env.DB, firm.id);
+  // AuditLab 2FA-3 (MEDIUM, 2026-08-21, orchestrator-approved): gate here,
+  // AFTER the link + SSO-B notification above (those already happened --
+  // "a new Google account was just linked" is itself the security-relevant
+  // signal SSO-B exists to surface, and deferring it behind a TOTP
+  // challenge the caller might never pass would mean the ONE detection
+  // control on a durable credential grant fires later, or not at all, for
+  // exactly the attacker who can't clear 2FA), but BEFORE minting a
+  // session -- memberForEmail IS the primary member here (confirmed by the
+  // ROLE-1 gate above), same "credential proven, TOTP not yet entered"
+  // boundary Roadmap #53 already established on the password/magic-link
+  // paths.
+  if (memberForEmail.totp_enrolled_at) {
+    const { rawToken } = await store.createFirm2faPendingToken(env.DB, memberForEmail.id, firm.id, "login", null);
+    return new Response(null, {
+      status: 302,
+      headers: { Location: `${env.STATIC_SITE_BASE_URL || ""}/firm-login/2fa/?pending=${encodeURIComponent(rawToken)}` },
+    });
+  }
+
+  // Explicit memberId, not left to createSession()'s own re-resolve -- same
+  // review-flagged reasoning as exit A above.
+  const { rawSessionToken } = await store.createSession(env.DB, firm.id, memberForEmail.id);
   return oauthSuccessResponse(env, rawSessionToken);
 }
 

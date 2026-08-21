@@ -627,7 +627,18 @@ describe("rate limiting on /firm/2fa/verify -- both buckets", () => {
   });
 });
 
-describe("Google SSO is NOT gated by TOTP -- a documented scope decision, not an oversight", () => {
+describe("Google SSO is gated by TOTP the same way as password/magic-link -- AuditLab 2FA-3", () => {
+  // AuditLab 2FA-3 (MEDIUM, 2026-08-21, orchestrator-approved): this
+  // describe block used to document the OPPOSITE as a deliberate scope
+  // decision ("Google SSO is NOT gated by TOTP"). 2FA-3 found that was
+  // actually a real gap, not a documented choice: a firm that deliberately
+  // enrolled TOTP got that protection on 2 of 3 sign-in paths and not the
+  // third, with no way to close it. Fixed by gating all three
+  // session-minting exits in handleOauthCallback (already-linked identity,
+  // the concurrent-link race fallback, and the fresh-link/first-time case)
+  // behind the exact same createFirm2faPendingToken() + /firm-login/2fa/
+  // mechanism the password and magic-link paths already used. This block
+  // now proves the opposite of its old claim.
   const SSO_CLIENT_ID = "test-client-id.apps.googleusercontent.com";
 
   /** Same unsigned-JWT construction oauth.spec.ts's own makeIdToken() uses --
@@ -645,22 +656,14 @@ describe("Google SSO is NOT gated by TOTP -- a documented scope decision, not an
     return `${b64url({ alg: "RS256", typ: "JWT" })}.${b64url(payload)}.fake-signature`;
   }
 
-  it("an enrolled primary member's Google sign-in mints a session directly, with no /firm-login/2fa/ redirect", async () => {
-    const email = `sso-2fa-bypass-${Date.now()}@examplefirm.com`;
-    const { id: firmId, memberId } = await store.createFirm(env.DB, { name: "SSO 2FA Test LLP", adminEmail: email });
-    const secret = generateTotpSecretBase32();
-    const { ciphertextBase64, ivBase64 } = await encryptTotpSecret(secret, memberId, KEY);
-    await store.setFirmMemberTotpSecret(env.DB, memberId, ciphertextBase64, ivBase64, 0);
-
-    const { rawState, nonce, rawBrowserBinding } = await store.createOauthState(env.DB, "google");
-
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+  function stubTokenEndpoint(email: string, sub: string, nonce: string) {
+    return vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
       const idToken = makeIdToken({
         iss: "https://accounts.google.com",
         aud: SSO_CLIENT_ID,
         exp: Math.floor(Date.now() / 1000) + 3600,
         nonce,
-        sub: `google-subject-${memberId}`,
+        sub,
         email,
         email_verified: true,
       });
@@ -669,14 +672,112 @@ describe("Google SSO is NOT gated by TOTP -- a documented scope decision, not an
         headers: { "content-type": "application/json" },
       });
     });
+  }
 
+  it("EXIT C (fresh link, first-time): an enrolled primary member is redirected to the 2FA entry page, no session cookie set", async () => {
+    const email = `sso-2fa-fresh-${Date.now()}@examplefirm.com`;
+    const { id: firmId, memberId } = await store.createFirm(env.DB, { name: "SSO 2FA Test LLP", adminEmail: email });
+    const secret = generateTotpSecretBase32();
+    const { ciphertextBase64, ivBase64 } = await encryptTotpSecret(secret, memberId, KEY);
+    await store.setFirmMemberTotpSecret(env.DB, memberId, ciphertextBase64, ivBase64, 0);
+
+    const { rawState, nonce, rawBrowserBinding } = await store.createOauthState(env.DB, "google");
+    const fetchSpy = stubTokenEndpoint(email, `google-subject-${memberId}`, nonce);
     try {
       const resp = await workerFetch(
         new Request(`${BASE}/firm/auth/google/callback?code=fake-code&state=${encodeURIComponent(rawState)}`, {
-          headers: {
-            "cf-connecting-ip": "203.0.113.250",
-            Cookie: `dr_oauth_handshake=${rawBrowserBinding}`,
-          },
+          headers: { "cf-connecting-ip": "203.0.113.250", Cookie: `dr_oauth_handshake=${rawBrowserBinding}` },
+          redirect: "manual",
+        }),
+        { GOOGLE_OAUTH_CLIENT_ID: SSO_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET: "test-client-secret" }
+      );
+      expect(resp.status).toBe(302);
+      expect(resp.headers.get("Location")).toMatch(/^\/firm-login\/2fa\/\?pending=/);
+      expect(resp.headers.get("Set-Cookie")).toBeNull();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+
+    // Confirms this member really is the totp-enrolled one this test set
+    // up, not a false pass from the callback silently no-op'ing, and that
+    // the identity was NOT linked as a side effect of a request that never
+    // completed sign-in (linking already happened before this gate per the
+    // fix's own comment -- SSO-B's detection notification must still fire
+    // even when 2FA blocks the session).
+    const member = await store.getFirmMemberById(env.DB, firmId, memberId);
+    expect(member?.totp_enrolled_at).toBeTruthy();
+    const identities = await store.listOauthIdentitiesForFirm(env.DB, firmId);
+    expect(identities.length).toBe(1);
+  });
+
+  it("END TO END: an OAuth-originated pending token actually completes sign-in through POST /firm/2fa/verify, bound to the right member", async () => {
+    // Adversarial review of this fix's first draft: all three new tests
+    // only asserted the REDIRECT shape, never that the pending token the
+    // gate mints is actually redeemable -- a broken token would lock every
+    // 2FA-enrolled firm out of SSO entirely while every existing assertion
+    // still passed. This drives the real second half: OAuth callback ->
+    // pending token -> POST /firm/2fa/verify with a genuine TOTP code ->
+    // session, and confirms the session is bound to the SAME member the
+    // gate checked (not just A session for the right firm).
+    const email = `sso-2fa-e2e-${Date.now()}@examplefirm.com`;
+    const { id: firmId, memberId } = await store.createFirm(env.DB, { name: "SSO 2FA E2E LLP", adminEmail: email });
+    const secret = generateTotpSecretBase32();
+    const { ciphertextBase64, ivBase64 } = await encryptTotpSecret(secret, memberId, KEY);
+    await store.setFirmMemberTotpSecret(env.DB, memberId, ciphertextBase64, ivBase64, 0);
+
+    const { rawState, nonce, rawBrowserBinding } = await store.createOauthState(env.DB, "google");
+    const fetchSpy = stubTokenEndpoint(email, `google-subject-${memberId}`, nonce);
+    let pending: string;
+    try {
+      const oauthResp = await workerFetch(
+        new Request(`${BASE}/firm/auth/google/callback?code=fake-code&state=${encodeURIComponent(rawState)}`, {
+          headers: { "cf-connecting-ip": "203.0.113.255", Cookie: `dr_oauth_handshake=${rawBrowserBinding}` },
+          redirect: "manual",
+        }),
+        { GOOGLE_OAUTH_CLIENT_ID: SSO_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET: "test-client-secret" }
+      );
+      expect(oauthResp.status).toBe(302);
+      pending = pendingTokenFromLocation(oauthResp);
+      expect(pending).not.toBe("");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+
+    const code = await generateTotp(secret);
+    const verifyResp = await workerFetch(
+      new Request(`${BASE}/firm/2fa/verify`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.255" },
+        body: form({ pending, code }),
+      }),
+      { TOTP_ENCRYPTION_KEY: KEY }
+    );
+    expect(verifyResp.status).toBe(302);
+    expect(verifyResp.headers.get("Location")).toBe("/firm-dashboard/");
+    const setCookie = verifyResp.headers.get("Set-Cookie") ?? "";
+    expect(setCookie).toContain("dr_firm_session=");
+
+    // The session actually binds to the SAME member the gate checked
+    // totp_enrolled_at on -- not merely a session for the right firm.
+    const rawToken = /dr_firm_session=([^;]+)/.exec(setCookie)?.[1] ?? "";
+    expect(rawToken).not.toBe("");
+    const tokenHash = await store.hashToken(rawToken);
+    const sessionRow = await env.DB.prepare("SELECT firm_id, member_id FROM firm_sessions WHERE session_token_hash = ?1")
+      .bind(tokenHash)
+      .first<{ firm_id: string; member_id: string }>();
+    expect(sessionRow?.firm_id).toBe(firmId);
+    expect(sessionRow?.member_id).toBe(memberId);
+  });
+
+  it("control: a member with no 2FA enrolled still signs straight in via the fresh-link path, exactly as before", async () => {
+    const email = `sso-2fa-fresh-control-${Date.now()}@examplefirm.com`;
+    const { memberId } = await store.createFirm(env.DB, { name: "SSO 2FA Control LLP", adminEmail: email });
+    const { rawState, nonce, rawBrowserBinding } = await store.createOauthState(env.DB, "google");
+    const fetchSpy = stubTokenEndpoint(email, `google-subject-${memberId}`, nonce);
+    try {
+      const resp = await workerFetch(
+        new Request(`${BASE}/firm/auth/google/callback?code=fake-code&state=${encodeURIComponent(rawState)}`, {
+          headers: { "cf-connecting-ip": "203.0.113.251", Cookie: `dr_oauth_handshake=${rawBrowserBinding}` },
           redirect: "manual",
         }),
         { GOOGLE_OAUTH_CLIENT_ID: SSO_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET: "test-client-secret" }
@@ -687,11 +788,109 @@ describe("Google SSO is NOT gated by TOTP -- a documented scope decision, not an
     } finally {
       fetchSpy.mockRestore();
     }
+  });
 
-    // Confirms this member really is the totp-enrolled one this test set up,
-    // not a false pass from the callback silently no-op'ing.
+  it("EXIT A (already-linked identity): an enrolled member's SECOND Google sign-in is also gated, not just the first link", async () => {
+    const email = `sso-2fa-relink-${Date.now()}@examplefirm.com`;
+    const { id: firmId, memberId } = await store.createFirm(env.DB, { name: "SSO 2FA Relogin LLP", adminEmail: email });
+    const sub = `google-subject-${memberId}`;
+
+    // First login: not yet enrolled, links the identity normally.
+    const first = await store.createOauthState(env.DB, "google");
+    const fetchSpy1 = stubTokenEndpoint(email, sub, first.nonce);
+    try {
+      const linkResp = await workerFetch(
+        new Request(`${BASE}/firm/auth/google/callback?code=fake-code&state=${encodeURIComponent(first.rawState)}`, {
+          headers: { "cf-connecting-ip": "203.0.113.252", Cookie: `dr_oauth_handshake=${first.rawBrowserBinding}` },
+          redirect: "manual",
+        }),
+        { GOOGLE_OAUTH_CLIENT_ID: SSO_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET: "test-client-secret" }
+      );
+      expect(linkResp.status).toBe(302);
+      expect(linkResp.headers.get("Location")).toBe("/firm-dashboard/");
+    } finally {
+      fetchSpy1.mockRestore();
+    }
+
+    // NOW enroll TOTP, matching the real-world order this finding is about:
+    // a firm that already had SSO linked, then separately turned on 2FA.
+    const secret = generateTotpSecretBase32();
+    const { ciphertextBase64, ivBase64 } = await encryptTotpSecret(secret, memberId, KEY);
+    await store.setFirmMemberTotpSecret(env.DB, memberId, ciphertextBase64, ivBase64, 0);
+
+    // Second login: same already-linked identity -- this is EXIT A.
+    const second = await store.createOauthState(env.DB, "google");
+    const fetchSpy2 = stubTokenEndpoint(email, sub, second.nonce);
+    try {
+      const resp = await workerFetch(
+        new Request(`${BASE}/firm/auth/google/callback?code=fake-code&state=${encodeURIComponent(second.rawState)}`, {
+          headers: { "cf-connecting-ip": "203.0.113.253", Cookie: `dr_oauth_handshake=${second.rawBrowserBinding}` },
+          redirect: "manual",
+        }),
+        { GOOGLE_OAUTH_CLIENT_ID: SSO_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET: "test-client-secret" }
+      );
+      expect(resp.status).toBe(302);
+      expect(resp.headers.get("Location")).toMatch(/^\/firm-login\/2fa\/\?pending=/);
+      expect(resp.headers.get("Set-Cookie")).toBeNull();
+    } finally {
+      fetchSpy2.mockRestore();
+    }
+
     const member = await store.getFirmMemberById(env.DB, firmId, memberId);
     expect(member?.totp_enrolled_at).toBeTruthy();
+  });
+
+  it("EXIT B (concurrent-link race): an enrolled member is STILL gated on the race-fallback branch, not signed straight in", async () => {
+    const email = `sso-2fa-race-${Date.now()}@examplefirm.com`;
+    const { id: firmId, memberId } = await store.createFirm(env.DB, { name: "SSO 2FA Race LLP", adminEmail: email });
+    const secret = generateTotpSecretBase32();
+    const { ciphertextBase64, ivBase64 } = await encryptTotpSecret(secret, memberId, KEY);
+    await store.setFirmMemberTotpSecret(env.DB, memberId, ciphertextBase64, ivBase64, 0);
+    const sub = `google-subject-${memberId}`;
+
+    // Simulate "a concurrent callback won the link race first": the row
+    // genuinely exists (a real linkOauthIdentity call, so the UNIQUE
+    // constraint the real race relies on is the real one), but the
+    // in-request `existingIdentity` lookup is forced to miss it ONCE --
+    // exactly what a true race would produce (the read that ran before the
+    // concurrent winner's write committed). The second lookup (the
+    // `raced` re-read after the INSERT fails) is NOT mocked, so it finds
+    // the real row -- proving this exercises the actual race-fallback
+    // code path, not a stand-in for it.
+    await store.linkOauthIdentity(env.DB, { firmId, provider: "google", providerSubject: sub, providerEmail: email });
+    const findSpy = vi.spyOn(store, "findOauthIdentity").mockResolvedValueOnce(null);
+
+    const state = await store.createOauthState(env.DB, "google");
+    const fetchSpy = stubTokenEndpoint(email, sub, state.nonce);
+    try {
+      const resp = await workerFetch(
+        new Request(`${BASE}/firm/auth/google/callback?code=fake-code&state=${encodeURIComponent(state.rawState)}`, {
+          headers: { "cf-connecting-ip": "203.0.113.254", Cookie: `dr_oauth_handshake=${state.rawBrowserBinding}` },
+          redirect: "manual",
+        }),
+        { GOOGLE_OAUTH_CLIENT_ID: SSO_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET: "test-client-secret" }
+      );
+      expect(resp.status).toBe(302);
+      expect(resp.headers.get("Location")).toMatch(/^\/firm-login\/2fa\/\?pending=/);
+      expect(resp.headers.get("Set-Cookie")).toBeNull();
+      // Proves this actually exercised EXIT B, not a same-shaped pass via
+      // exit A: `findOauthIdentity` must have been called twice -- the
+      // initial `existingIdentity` lookup (mocked to null, forcing the
+      // linkOauthIdentity attempt and its real UNIQUE-constraint failure)
+      // and the `raced` re-read afterward (real, unmocked, finding the row
+      // this test pre-inserted). If the mock never took effect, only the
+      // real call would fire (existingIdentity would find the row directly
+      // and exit A -- not B -- would run), and this count would be 1.
+      expect(findSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      fetchSpy.mockRestore();
+      findSpy.mockRestore();
+    }
+
+    // Exactly one identity row exists -- the race-handling code did not
+    // insert a duplicate or an orphan.
+    const identities = await store.listOauthIdentitiesForFirm(env.DB, firmId);
+    expect(identities.length).toBe(1);
   });
 });
 

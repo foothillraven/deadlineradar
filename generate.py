@@ -294,6 +294,51 @@ def fmt_date_iso(d: date) -> str:
 
 
 # ---------------------------------------------------------------------------
+# DATE-2 (AuditLab, 2026-08-20, orchestrator-approved 2026-08-20 20:19 MDT):
+# 58 records carry a hand-set next_deadline_computed with nothing to roll it
+# forward once it elapses -- a build the day after simply serves a past date
+# as "Next renewal date" until a human notices and edits it by hand. co-firm
+# was the trigger case (elapses 2026-08-31, 11-day clock at time of filing).
+#
+# SCOPE CORRECTION found while implementing this (self-directed, not yet
+# reported back to AuditLab/orchestrator as of this commit): the finding's
+# premise -- "the records already carry the machinery... in every affected
+# record" -- does not hold. Only co-firm actually has a `computation` block
+# with `type`/`fixed_date`/`period_years`; the other 57 records with
+# next_deadline_computed have `computation: null` and no structured period
+# data at all. Building a dispatch that DERIVES a date from fixed_date alone
+# would need an anchor year this data doesn't carry; deriving one wrong is
+# exactly the class of silent error this whole reliability push exists to
+# prevent, so this does NOT do that for the other 57.
+#
+# What this DOES do, safely: roll the EXISTING verified next_deadline_computed
+# value forward by period_years once it elapses, for any record whose
+# computation.type is fixed_calendar_recurring_no_anchor. This needs no new
+# anchor -- the currently-published, human-verified date IS the anchor -- and
+# it only ever advances a date that has already passed, never invents one.
+# Closes co-firm's actual stale-in-place risk permanently. The other 57
+# records still need a computation block added (a real per-record research
+# task: confirming each one's period_years) before they get the same
+# protection -- tracked as follow-up, not done here.
+def _roll_forward_recurring_deadline(computed: str, computation: dict | None, real_today: date) -> str:
+    if not computation or computation.get("type") != "fixed_calendar_recurring_no_anchor":
+        return computed
+    period_years = computation.get("period_years")
+    if not period_years:
+        return computed
+    d = date.fromisoformat(computed)
+    while d < real_today:
+        next_year = d.year + period_years
+        try:
+            d = d.replace(year=next_year)
+        except ValueError:
+            # Feb 29 anchor rolling into a non-leap year -- clamp to Feb 28
+            # rather than crash the build over a once-in-4-years edge case.
+            d = d.replace(year=next_year, day=28)
+    return d.isoformat()
+
+
+# ---------------------------------------------------------------------------
 # Wave-3 (birth-month) table computation -- UNCHANGED this pass
 # ---------------------------------------------------------------------------
 
@@ -21227,6 +21272,19 @@ def main() -> None:
             f"the future relative to real today ({real_today.isoformat()}) -- this indicates a "
             f"data-entry error, not a valid state."
         )
+
+    # DATE-2: roll forward any record whose computation.type declares itself
+    # a recurring fixed-calendar date, BEFORE the staleness gate below runs,
+    # so a record like co-firm advances automatically instead of tripping
+    # "REFUSING TO BUILD" the day after it elapses. See
+    # _roll_forward_recurring_deadline()'s own docstring for what this does
+    # and does NOT cover (only computation.type-tagged records; 57 of the 58
+    # affected records have no computation block yet and are unaffected).
+    for r in records:
+        if r.get("next_deadline_computed"):
+            r["next_deadline_computed"] = _roll_forward_recurring_deadline(
+                r["next_deadline_computed"], r.get("computation"), real_today
+            )
 
     # Sanity check: no record's computed deadline should be in the past,
     # checked against BOTH the data's own as_of_date AND real wall-clock time.

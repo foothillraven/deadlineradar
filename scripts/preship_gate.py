@@ -536,7 +536,15 @@ def check_deadline_currency(data_path: Path) -> list[str]:
     today = date.today().isoformat()
     for r in data["records"]:
         ndc = r.get("next_deadline_computed")
-        if ndc and ndc < today:
+        # DATE-2 (2026-08-20): generate.py's _roll_forward_recurring_deadline()
+        # now advances any computation.type == fixed_calendar_recurring_no_anchor
+        # record past an elapsed raw JSON value at BUILD time, in memory --
+        # it deliberately never writes the rolled-forward date back to this
+        # file, so the raw value here can legitimately look "elapsed" while
+        # the generated site is correct. Skip those; every other record is
+        # still genuinely hand-maintained and this check still protects it.
+        self_rolling = (r.get("computation") or {}).get("type") == "fixed_calendar_recurring_no_anchor"
+        if ndc and ndc < today and not self_rolling:
             errors.append(
                 f"[C][{r['state_slug']}/{r['id']}] next_deadline_computed={ndc} has already elapsed "
                 f"(today={today}) -- this is a hand-maintained value nothing re-derives; update it or "

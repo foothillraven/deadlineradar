@@ -9977,26 +9977,57 @@ _MY_DASHBOARD_JS_HTML = """<script>
     return (window.DR_CPE_REQUIREMENTS || {})[stateSlug] || null;
   }
 
-  // Deliberately simpler than the firm dashboard's drCpeProgressForSubscriber:
-  // no pace-aware "behind" risk verdict here -- this is one person's own
-  // view of their own hours, not a roster-wide risk stat an admin scans for
-  // who to chase. Just an honest "here's what's logged against what's
-  // required."
+  // Same cycle-window approximation as the firm dashboard's
+  // drCpeCycleWindow() (own renewal date minus the state's period_years --
+  // see the Python-side comment on cpe_requirements_json for why this is a
+  // deliberate simplification, not an authoritative legal cycle boundary).
+  // Ported rather than shared because this page and the firm dashboard are
+  // two entirely separate generated scripts with no common module to import
+  // from -- keep the two definitions byte-identical if either ever changes.
+  function drCpeCycleWindow(nextDeadlineIso, periodYears) {
+    if (!nextDeadlineIso || !periodYears) return null;
+    var end = new Date(nextDeadlineIso + 'T00:00:00Z');
+    if (isNaN(end.getTime())) return null;
+    var start = new Date(Date.UTC(end.getUTCFullYear() - periodYears, end.getUTCMonth(), end.getUTCDate()));
+    return {start: start.toISOString().slice(0, 10), end: nextDeadlineIso};
+  }
+
+  // AuditLab CPE-4 (HIGH, 2026-08-21): this used to sum EVERY entry the
+  // subscriber ever logged for this license, with no date filter, then
+  // render that lifetime total against the state's PER-CYCLE requirement --
+  // a numerator and denominator on different clocks. Now cycle-scoped the
+  // same way the firm dashboard's drCpeProgressForSubscriber() already is
+  // (same excludedCount / cycleWindow / carryover posture, including the
+  // ethics-has-its-own-shorter-period-in-some-states handling from CPE-1).
+  // Still deliberately simpler than the dashboard in the one place that was
+  // always a real scope decision, not a side effect: no pace-aware "behind"
+  // risk verdict here -- this is one person's own view of their own hours,
+  // not a roster-wide risk stat an admin scans for who to chase.
   function drCpeProgressFor(lic) {
     var req = drCpeReq(lic.state_slug);
     if (!req || (req.total_hours === null && req.ethics_hours === null)) {
       return {hasRequirement: false, dataGapNote: req ? req.data_gap_note : null};
     }
-    var totalLoggedTenths = 0, ethicsLoggedTenths = 0;
+    var win = drCpeCycleWindow(lic.next_deadline, req.period_years);
+    var winEthics = drCpeCycleWindow(lic.next_deadline, req.ethics_period_years || req.period_years);
+    var totalLoggedTenths = 0, ethicsLoggedTenths = 0, excludedCount = 0;
     drCpeEntries.forEach(function (e) {
       if (e.subscriber_id !== lic.id) return;
-      totalLoggedTenths += Math.round(e.hours * 10);
-      if (e.category === 'ethics') ethicsLoggedTenths += Math.round(e.hours * 10);
+      if (!win) { excludedCount++; return; }
+      var inTotalWindow = e.entry_date >= win.start && e.entry_date <= win.end;
+      var inEthicsWindow = winEthics && e.entry_date >= winEthics.start && e.entry_date <= winEthics.end;
+      if (!inTotalWindow && !(e.category === 'ethics' && inEthicsWindow)) { excludedCount++; return; }
+      if (inTotalWindow) totalLoggedTenths += Math.round(e.hours * 10);
+      if (e.category === 'ethics' && inEthicsWindow) ethicsLoggedTenths += Math.round(e.hours * 10);
     });
+    var carryoverHours = (typeof lic.carryover_hours === 'number') ? lic.carryover_hours : 0;
+    if (win && carryoverHours > 0) totalLoggedTenths += Math.round(carryoverHours * 10);
     return {
       hasRequirement: true,
       totalRequired: req.total_hours, totalLogged: totalLoggedTenths / 10,
       ethicsRequired: req.ethics_hours, ethicsLogged: ethicsLoggedTenths / 10,
+      noCycleDate: !win, excludedCount: excludedCount, cycleWindow: win,
+      carryoverHoursApplied: (win && carryoverHours > 0) ? carryoverHours : 0,
     };
   }
 
@@ -10041,7 +10072,23 @@ _MY_DASHBOARD_JS_HTML = """<script>
     }
     var totalBar = p.totalRequired !== null ? drCpeBarHtml('Total', p.totalLogged, p.totalRequired) : '';
     var ethicsBar = p.ethicsRequired !== null ? drCpeBarHtml('Ethics', p.ethicsLogged, p.ethicsRequired) : '';
-    return '<div class="dr-my-cpe"><h4>CPE hours</h4>' + totalBar + ethicsBar +
+    // Same notes as the firm dashboard's own cycleNote/carryoverNote (CPE-4)
+    // -- the two surfaces show different people different numbers about the
+    // same hours often enough (carryover, out-of-cycle entries) that both
+    // need to say which window they mean, not just this one now that it has
+    // one to disclose.
+    var carryoverNote = p.carryoverHoursApplied > 0
+      ? '<p class="dr-my-cpe-empty">Includes ' + p.carryoverHoursApplied + ' carried-over hour' + (p.carryoverHoursApplied === 1 ? '' : 's') + ' toward the total above.</p>'
+      : '';
+    var cycleNote = p.noCycleDate
+      ? '<p class="dr-my-cpe-empty">No renewal date on file &mdash; add one to track progress for this cycle.</p>'
+      : (p.excludedCount > 0
+        ? '<p class="dr-my-cpe-empty">' + p.excludedCount + ' logged ' + (p.excludedCount === 1 ? 'entry falls' : 'entries fall') +
+          ' outside the current cycle (' + drEsc(drFormatDate(p.cycleWindow.start)) + '&ndash;' +
+          drEsc(drFormatDate(p.cycleWindow.end)) + ') and ' + (p.excludedCount === 1 ? "isn't" : "aren't") +
+          ' counted above &mdash; not a bug, just outside this renewal period.</p>'
+        : '');
+    return '<div class="dr-my-cpe"><h4>CPE hours</h4>' + totalBar + ethicsBar + carryoverNote + cycleNote +
       drCpeEntriesHtml(lic) +
       '<form class="dr-my-cpe-form" data-subscriber-id="' + drEsc(lic.id) + '">' +
         '<input type="date" name="entry_date" required aria-label="Date completed">' +

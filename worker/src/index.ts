@@ -4893,6 +4893,11 @@ async function handleSubscriberLicensesList(request: Request, env: Env): Promise
     stopped_at: r.stopped_at,
     stop_reason: r.stop_reason,
     managed_by_firm: r.firm_id !== null,
+    // CPE-4: needed so /my/'s own CPE progress bar can apply the same
+    // cycle-window carryover the firm dashboard's drCpeProgressForSubscriber()
+    // does. Firm-entered, but it's a fact about this subscriber's own hours,
+    // not internal firm data -- no reason to withhold it from their own page.
+    carryover_hours: r.carryover_hours,
     // Intentionally ABSENT: unsubscribe_token, confirm_token,
     // renewed_token, cooldown_key, firm_id, staff_label. The tokens are
     // live bearer credentials and must never reach a page; firm_id and

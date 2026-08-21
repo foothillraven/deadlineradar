@@ -311,6 +311,37 @@ describe("GET /subscriber/licenses -- scoping", () => {
     expect(nevada?.managed_by_firm).toBe(false);
   });
 
+  // CPE-4 (HIGH, 2026-08-21): /my/'s own CPE progress bar was comparing a
+  // LIFETIME hours sum against a PER-CYCLE requirement -- the fix reuses the
+  // firm dashboard's carryover-aware cycle logic client-side, which needs
+  // carryover_hours actually reaching this endpoint's response. This is the
+  // one new field the fix depends on; a regression here would silently
+  // revert /my/ back to an unbounded lifetime figure with no error anywhere.
+  it("carries carryover_hours through for firm-managed rows (CPE-4)", async () => {
+    const email = `route-carryover-${Date.now()}@examplefirm.com`;
+    const { id: firmId } = await store.createFirm(env.DB, {
+      name: "Carryover Route LLP",
+      adminEmail: `carryoverroute-${Date.now()}@examplefirm.com`,
+    });
+    const row = await seedLicense(email, "georgia", firmId);
+    const { rawSessionToken } = await store.createSession(env.DB, firmId);
+    const firmCookie = `dr_firm_session=${rawSessionToken}`;
+    const patchResp = await SELF.fetch(`${BASE}/firm/licenses/${row.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", Cookie: firmCookie },
+      body: JSON.stringify({ carryover_hours: "8.5" }),
+    });
+    expect(patchResp.status).toBe(200);
+
+    const cookie = await signIn(email, "203.0.113.107");
+    const body = (await (await getLicenses(cookie, "203.0.113.107")).json()) as {
+      licenses: Array<{ state_slug: string; carryover_hours: number | null }>;
+    };
+
+    const georgia = body.licenses.find((l) => l.state_slug === "georgia");
+    expect(georgia?.carryover_hours).toBe(8.5);
+  });
+
   it("sorts soonest deadline first, undated last", async () => {
     const email = `route-sort-${Date.now()}@examplefirm.com`;
     await seedLicense(email, "texas");

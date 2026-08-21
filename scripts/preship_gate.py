@@ -3177,6 +3177,70 @@ def check_action_pages_post_switch_parity(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_migration_numbering_uniqueness(repo_root: Path) -> list[str]:
+    """AuditLab DEPLOY-3 (MEDIUM, 2026-08-21, orchestrator-approved). The
+    reverted SMS-2/phone-encryption branch (c199c641a, reverted by
+    c5fe62915 after causing a live silent SMS-send failure -- SMS-4) still
+    carries its own migration numbered 0068_encrypt_phone_numbers.sql,
+    "ready to re-apply" per the revert commit's own message. The
+    just-shipped admin-digest audit trail also claims 0068
+    (0068_admin_digest_send_log.sql). No conflict exists today -- both are
+    unapplied to production -- but re-applying the SMS-2 branch would put
+    two files sharing a numeric prefix in the repo at once, and
+    `worker_deploy_staleness_check.py`'s pending-migration report reads by
+    FILENAME, so a reader reconciling "is 0068 applied?" would get an
+    ambiguous answer on the one guard standing between a schema change and
+    the exact silent-failure class that already hit production once on
+    this pair of changes (DEPLOY-2). Same glob as check_retention_coverage()
+    above (worker/migrations/*.sql is the source of truth both checks
+    read), narrowed here to the numbering property alone: no two files
+    share a numeric prefix, and the sequence has no gaps. Fails closed on
+    a missing/empty migrations directory or a filename that doesn't match
+    the numbering convention at all, rather than silently skipping it."""
+    migrations_dir = repo_root / "worker" / "migrations"
+    if not migrations_dir.exists():
+        return ["[DEPLOY-3] worker/migrations/ not found -- migration numbering can't be verified "
+                "and must be repaired."]
+    files = sorted(migrations_dir.glob("*.sql"))
+    if not files:
+        return ["[DEPLOY-3] found NO .sql files under worker/migrations/. Either the directory moved "
+                "or nothing is there -- this check is measuring nothing and must be repaired."]
+
+    numbered: dict[int, list[str]] = {}
+    unnumbered = []
+    for f in files:
+        m = re.match(r"^(\d{4})_", f.name)
+        if not m:
+            unnumbered.append(f.name)
+            continue
+        numbered.setdefault(int(m.group(1)), []).append(f.name)
+
+    errors = []
+    if unnumbered:
+        errors.append(
+            "[DEPLOY-3] migration file(s) don't match the NNNN_name.sql numbering convention -- "
+            f"can't verify their place in the sequence: {', '.join(sorted(unnumbered))}"
+        )
+    duplicates = {n: names for n, names in numbered.items() if len(names) > 1}
+    if duplicates:
+        for n in sorted(duplicates):
+            errors.append(
+                f"[DEPLOY-3] migration number {n:04d} is claimed by more than one file -- "
+                f"{', '.join(sorted(duplicates[n]))}. Renumber one to the next free number before "
+                "either can be applied; the pending-migration report reads by filename and can't "
+                "disambiguate two files sharing a prefix."
+            )
+    if numbered:
+        gaps = sorted(set(range(min(numbered), max(numbered) + 1)) - set(numbered))
+        if gaps:
+            errors.append(
+                f"[DEPLOY-3] gap(s) in the migration number sequence: "
+                f"{', '.join(f'{n:04d}' for n in gaps)} -- confirm this is a deliberate skip, not a "
+                "file that was deleted without renumbering the ones after it."
+            )
+    return errors
+
+
 TITLE_RE = re.compile(r"<title>(.*?)</title>", re.DOTALL)
 META_DESCRIPTION_RE = re.compile(r'<meta name="description" content="(.*?)">', re.DOTALL)
 SEO_TITLE_MAX = 60
@@ -3532,6 +3596,7 @@ def main():
     all_errors += check_send_pass_consent_gate_coverage(repo_root)
     all_errors += check_origin_check_coverage(repo_root)
     all_errors += check_action_pages_post_switch_parity(repo_root)
+    all_errors += check_migration_numbering_uniqueness(repo_root)
 
     print(f"Pre-ship gate: scanned {len(html_files)} rendered pages, {len(state_dirs)} state dirs.")
     if all_errors:

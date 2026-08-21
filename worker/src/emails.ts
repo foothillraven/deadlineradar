@@ -334,14 +334,24 @@ const DEFAULT_REMINDER_THRESHOLDS_DESC = [60, 30, 14, 7, 3, 1];
  * then a per-subscriber override) would send a narrowed subset, making the
  * "that's the whole schedule" sentence false for that recipient. Falls back
  * to the full default when `thresholds` is null/empty -- same posture as
- * scheduler.ts's own thresholds resolution. */
-function formatThresholdList(thresholds: number[] | null): string {
+ * scheduler.ts's own thresholds resolution.
+ *
+ * AuditLab COPY-10a (LOW, 2026-08-21, orchestrator-approved): also returns
+ * `dayWord` ("day" vs "days") for the caller's own trailing "day out"/"day
+ * before" -- COPY-8's fix hardcoded a bare singular "day" regardless of the
+ * ACTUAL smallest (last, since this sorts descending) tier in the list,
+ * producing "60 and 14 day out" for any narrowed cadence that drops the
+ * 1-day tier. Reachable for 5 of the 10 non-empty subsets of the 6 tiers --
+ * only the ones that keep 1 stay grammatical without this. */
+function formatThresholdList(thresholds: number[] | null): { list: string; dayWord: string } {
   const days = (thresholds && thresholds.length > 0 ? thresholds : DEFAULT_REMINDER_THRESHOLDS_DESC)
     .slice()
     .sort((a, b) => b - a);
-  if (days.length === 1) return String(days[0]);
-  if (days.length === 2) return `${days[0]} and ${days[1]}`;
-  return `${days.slice(0, -1).join(", ")}, and ${days[days.length - 1]}`;
+  const smallest = days[days.length - 1];
+  const dayWord = smallest === 1 ? "day" : "days";
+  if (days.length === 1) return { list: String(days[0]), dayWord };
+  if (days.length === 2) return { list: `${days[0]} and ${days[1]}`, dayWord };
+  return { list: `${days.slice(0, -1).join(", ")}, and ${days[days.length - 1]}`, dayWord };
 }
 
 /** Port of emails.py `_reminder_subject()` -- built from the TRUE remaining
@@ -1711,7 +1721,7 @@ export function buildConfirmationEmail(
   const subject = `Confirm your ${stateName} CPA renewal reminder`;
   const dateSentenceText = deadlineDateStr ? ` We'll remind you before ${deadlineDateStr}.` : "";
   const dateSentenceHtml = deadlineDateStr ? ` We'll remind you before ${esc(deadlineDateStr)}.` : "";
-  const thresholdList = formatThresholdList(reminderThresholds);
+  const { list: thresholdList, dayWord: thresholdDayWord } = formatThresholdList(reminderThresholds);
 
   const textBody =
     `${textGreeting(firstName)}\n\n` +
@@ -1720,7 +1730,7 @@ export function buildConfirmationEmail(
     `${confirmUrl}\n\n` +
     `If you don't click that link, we will never email you again -- nothing else happens ` +
     `automatically.\n\n` +
-    `Once confirmed, we'll email you as the renewal date approaches: ${thresholdList} day ` +
+    `Once confirmed, we'll email you as the renewal date approaches: ${thresholdList} ${thresholdDayWord} ` +
     `before. That's the whole schedule -- no marketing, no third-party offers, ever.${dateSentenceText}` +
     `${textFooter(unsubscribeUrl, addr)}`;
 
@@ -1742,7 +1752,7 @@ export function buildConfirmationEmail(
         LIGHT.muted
       ) +
       p(
-        `Once confirmed, we'll email you as the renewal date approaches: ${thresholdList} day ` +
+        `Once confirmed, we'll email you as the renewal date approaches: ${thresholdList} ${thresholdDayWord} ` +
           `before. That's the whole schedule &mdash; no marketing, no third-party offers, ever.${dateSentenceHtml}`,
         13,
         LIGHT.muted
@@ -1780,7 +1790,7 @@ export function buildFirmStaffAddedEmail(
   reminderThresholds: number[] | null = null
 ): BuiltEmail {
   const addr = mailingAddress();
-  const thresholdList = formatThresholdList(reminderThresholds);
+  const { list: thresholdList, dayWord: thresholdDayWord } = formatThresholdList(reminderThresholds);
   // AuditLab EMAIL-1 (LOW, 2026-08-04): the only subject line built from
   // attacker-influenceable text (firmName) with no control-char stripping
   // of its own -- CRLF survives into it if it ever got there. Not
@@ -1796,7 +1806,7 @@ export function buildFirmStaffAddedEmail(
   const textBody =
     `Hi there,\n\n` +
     `${firmName} added you to Deadline-Radar to track your ${stateName} CPA license renewal. ` +
-    `You'll get advance email reminders before it's due -- ${thresholdList} day out. ` +
+    `You'll get advance email reminders before it's due -- ${thresholdList} ${thresholdDayWord} out. ` +
     `That's the whole schedule -- nothing else, ever: no marketing, no third-party offers.\n\n` +
     `Not you, or would you rather not be tracked this way? One click removes you, no questions ` +
     `asked:\n\n` +
@@ -1811,7 +1821,7 @@ export function buildFirmStaffAddedEmail(
       p(
         `${esc(firmName)} added you to Deadline-Radar to track your ${esc(stateName)} CPA license ` +
           `renewal. You'll get advance email reminders before it's due &mdash; ${thresholdList} ` +
-          `day out. That's the whole schedule &mdash; nothing else, ever: no marketing, no ` +
+          `${thresholdDayWord} out. That's the whole schedule &mdash; nothing else, ever: no marketing, no ` +
           `third-party offers.`
       ) +
       p(

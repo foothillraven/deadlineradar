@@ -3074,9 +3074,11 @@ describe("emails.ts reminder-schedule copy -- AuditLab COPY-8", () => {
       null,
       [60, 14]
     );
-    // Two-item list: "and", no Oxford comma.
-    expect(built.textBody).toContain("60 and 14 day");
-    expect(built.htmlBody).toContain("60 and 14 day");
+    // Two-item list: "and", no Oxford comma. Smallest kept tier is 14, not
+    // 1, so this is plural -- "60 and 14 days", not "60 and 14 day"
+    // (AuditLab COPY-10a).
+    expect(built.textBody).toContain("60 and 14 days");
+    expect(built.htmlBody).toContain("60 and 14 days");
     expect(built.textBody).not.toContain("60, 30, 14, 7, 3, and 1");
   });
 
@@ -3085,7 +3087,8 @@ describe("emails.ts reminder-schedule copy -- AuditLab COPY-8", () => {
     const built = buildFirmStaffAddedEmail("Acme LLC", "Texas", "https://deadline-radar.com/api/unsubscribe?token=abc", [
       7,
     ]);
-    expect(built.textBody).toContain("-- 7 day out");
+    // Smallest (only) kept tier is 7, not 1 -- plural (COPY-10a).
+    expect(built.textBody).toContain("-- 7 days out");
   });
 
   it("sorts an out-of-order/unsorted thresholds array into the same descending presentation order as the default", async () => {
@@ -3094,6 +3097,86 @@ describe("emails.ts reminder-schedule copy -- AuditLab COPY-8", () => {
       1, 30, 7,
     ]);
     expect(built.textBody).toContain("30, 7, and 1 day out");
+  });
+
+  it("AuditLab COPY-10a: pluralizes 'day' based on the smallest KEPT tier, singular only when 1 is kept", async () => {
+    const { buildFirmStaffAddedEmail } = await import("../src/emails");
+    const singularCases = [
+      [60, 30, 14, 7, 3, 1], // full default -- ends in 1
+      [30, 7, 1], // narrowed but keeps 1
+      [1], // single tier, is 1
+    ];
+    for (const thresholds of singularCases) {
+      const built = buildFirmStaffAddedEmail("Acme LLC", "Texas", "https://deadline-radar.com/api/unsubscribe?token=abc", thresholds);
+      expect(built.textBody).toContain("day out");
+      expect(built.textBody).not.toContain("days out");
+    }
+
+    const pluralCases = [
+      [60, 14], // drops the 1-day tier
+      [60, 30, 7], // drops the 1-day tier, 3 items
+      [60, 14, 3], // unsorted input, still drops 1
+      [30], // single tier, not 1
+    ];
+    for (const thresholds of pluralCases) {
+      const built = buildFirmStaffAddedEmail("Acme LLC", "Texas", "https://deadline-radar.com/api/unsubscribe?token=abc", thresholds);
+      expect(built.textBody).toContain("days out");
+      expect(built.textBody).not.toContain(" day out"); // no bare-singular substring either
+    }
+  });
+});
+
+describe("PATCH /firm/licenses/:id re-confirm email -- AuditLab COPY-10b", () => {
+  it("the subscriber's OWN reminder_thresholds override wins over the firm's when re-confirming after an email change", async () => {
+    const adminEmail = `copy10b-admin-${Date.now()}@example.com`;
+    const { firmId, cookie } = await createFirmWithSession("COPY-10b Firm", adminEmail);
+    // Firm narrows its own cadence to [60, 30] -- if COPY-10b's bug were
+    // still present, the re-confirm email would wrongly promise this.
+    await store.setReminderThresholds(env.DB, firmId, JSON.stringify([60, 30]));
+
+    const originalEmail = `copy10b-staff-${Date.now()}@example.com`;
+    const created = await postFirmLicense(cookie, { email: originalEmail, state_slug: "texas", birth_month: "7" });
+    expect(created.status).toBe(201);
+    const { id } = (await created.json()) as { id: string };
+
+    // This specific subscriber personally narrowed their OWN cadence to
+    // [7, 1] via /my/ -- scheduler.ts's own precedence (default -> firm ->
+    // subscriber) has this win over the firm's [60, 30] above.
+    await store.setSubscriberReminderThresholds(env.DB, store.normalizeEmail(originalEmail), JSON.stringify([7, 1]));
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 202 }));
+    try {
+      const worker = (await import("../src/index")).default;
+      const envWithKey = { ...env, SENDGRID_API_KEY: "test-key-not-real" };
+      const newEmail = `copy10b-staff-new-${Date.now()}@example.com`;
+      const request = new Request(`https://deadline-radar.com/firm/licenses/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.200", Cookie: cookie },
+        body: JSON.stringify({ email: newEmail }),
+      });
+      const waited: Promise<unknown>[] = [];
+      const ctx = { waitUntil: (p: Promise<unknown>) => waited.push(p) } as unknown as ExecutionContext;
+      const resp = await worker.fetch(request, envWithKey as never, ctx);
+      await Promise.all(waited);
+      expect(resp.status).toBe(200);
+
+      const sendCall = fetchSpy.mock.calls.find((c: Parameters<typeof fetch>) => {
+        const url = typeof c[0] === "string" ? c[0] : (c[0] as Request).url;
+        return url === "https://api.sendgrid.com/v3/mail/send";
+      });
+      expect(sendCall).toBeDefined();
+      const sentBody = JSON.parse(String((sendCall![1] as RequestInit).body));
+      const textContent = (
+        sentBody.content as { type: string; value: string }[]
+      ).find((c) => c.type === "text/plain")?.value;
+
+      // The subscriber's OWN [7, 1] must win, not the firm's [60, 30].
+      expect(textContent).toContain("7 and 1 day");
+      expect(textContent).not.toContain("60 and 30");
+      expect(textContent).not.toContain("60, 30, 14, 7, 3, and 1");
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });
 

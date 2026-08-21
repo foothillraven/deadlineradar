@@ -7289,9 +7289,20 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
         // call site that CAN fire with a firm cadence already narrowed --
         // see buildFirmStaffAddedEmail's own call site above for the same
         // parse shape.
-        const reminderThresholds = session.firm.reminder_thresholds
-          ? parseReminderThresholds(JSON.parse(session.firm.reminder_thresholds))
-          : null;
+        //
+        // AuditLab COPY-10b (LOW, 2026-08-21, orchestrator-approved): COPY-8
+        // resolved only the FIRM's threshold subset, but scheduler.ts's own
+        // precedence (default -> firm -> subscriber) has the subscriber's
+        // own reminder_thresholds win over the firm's when both are set.
+        // `updated` (from store.updateFirmLicense()'s `SELECT * FROM
+        // subscribers`) already carries the subscriber's own value here --
+        // mirror the scheduler's precedence rather than resolving a
+        // narrower one.
+        const reminderThresholds = updated.reminder_thresholds
+          ? parseReminderThresholds(JSON.parse(updated.reminder_thresholds))
+          : session.firm.reminder_thresholds
+            ? parseReminderThresholds(JSON.parse(session.firm.reminder_thresholds))
+            : null;
         const built = buildConfirmationEmail(
           stateNameFromSlug(updated.state_slug),
           confirmUrl,

@@ -3063,7 +3063,12 @@ def check_origin_check_coverage(repo_root: Path) -> list[str]:
     for _, kind, val in events:
         if kind == "method":
             current_method = val
-        elif current_method in ("POST", "PATCH", "DELETE"):
+        # AuditLab CSRF-3 (LOW, 2026-08-21, orchestrator-approved): PUT was
+        # missing from this tuple. Latent only -- zero PUT-dispatched routes
+        # exist in index.ts today -- but a synthetic test confirmed a PUT
+        # handler was invisible to this gate before this fix. Added while
+        # the file is open, before the first real PUT route makes it live.
+        elif current_method in ("POST", "PATCH", "DELETE", "PUT"):
             write_handlers.add(val)
 
     if not write_handlers:
@@ -3090,7 +3095,17 @@ def check_origin_check_coverage(repo_root: Path) -> list[str]:
             continue
         fn_end = _bracket_match(src, fn_m.end() - 1)
         fn_body = src[fn_m.end() - 1 : fn_end] if fn_end is not None else ""
-        if "originAllowed(" not in fn_body:
+        # AuditLab CSRF-3 (LOW, 2026-08-21, orchestrator-approved): the bare
+        # substring check below is defeated by a comment that merely NAMES
+        # originAllowed() -- confirmed on the exact handler this gate exists
+        # to catch a regression of (handleFirmLogout, whose comment reads
+        # "originAllowed() call, where every sibling firm route has one").
+        # Stripped before the membership test; verified to flip that
+        # handler from pass to fail with the real call removed, while
+        # leaving all handlers with a genuine call passing.
+        fn_body_no_comments = re.sub(r"/\*.*?\*/", " ", fn_body, flags=re.S)
+        fn_body_no_comments = re.sub(r"//[^\n]*", " ", fn_body_no_comments)
+        if "originAllowed(" not in fn_body_no_comments:
             errors.append(
                 f"[CSRF-2] {name} is write-dispatched in index.ts but is neither in "
                 f"CSRF_EXEMPT_WRITE_HANDLERS nor calls originAllowed() in its own body -- a "

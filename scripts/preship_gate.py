@@ -158,7 +158,25 @@ def check_rendering_integrity(html_files: list[Path]) -> list[str]:
 # legitimately full of snake_case), then tags (attribute values go with
 # them), then entity-unescape, then URLs (path segments legitimately contain
 # underscores). What remains is what a human actually reads.
+#
+# GATE-5 hardening (AuditLab, 2026-08-20, orchestrator-approved 19:12 MDT):
+# "attribute values go with them" was wrong for the handful of attributes a
+# browser actually RENDERS to the user -- title (hover tooltip), alt (image
+# fallback/screen reader), aria-label (screen reader), placeholder (empty
+# input text). A `data_gap_note` written for a future maintainer landed
+# verbatim in a `title=` tooltip on 4 live pages (citation_url, source_url,
+# cpa_deadlines, fee_notes -- schema field names, customer-visible) and no
+# detector saw it, because the old recipe discarded ALL attribute values
+# before scanning. `class`/`id`/`data-*` correctly stay discarded -- they are
+# legitimately snake_case and a browser never shows them to a user. So this
+# extracts only the 4 user-visible attributes' values and folds them into the
+# scanned prose before the wholesale tag-strip removes them from the tag.
 # ---------------------------------------------------------------------------
+
+_PROSE_VISIBLE_ATTR_RE = re.compile(
+    r'\b(?:title|alt|aria-label|placeholder)\s*=\s*(?:"([^"]*)"|\'([^\']*)\')',
+    re.IGNORECASE,
+)
 
 _PROSE_SNAKE_CASE_RE = re.compile(r"\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b")
 # GATE-1 (AuditLab, 2026-08-14): the original `\(20\d\d-\d\d-\d\d:` required a
@@ -236,7 +254,11 @@ def _extract_rendered_prose(page_html: str) -> str:
     # them is intentional notation, not leaked prose -- stripped wholesale.
     # A raw identifier OUTSIDE <code> stays caught, which is the leak class.
     text = re.sub(r"<code\b.*?</code\s*>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+    visible_attr_text = " ".join(
+        g1 or g2 for g1, g2 in _PROSE_VISIBLE_ATTR_RE.findall(text)
+    )
     text = re.sub(r"<[^>]+>", " ", text)
+    text = text + " " + visible_attr_text
     text = html.unescape(text)
     text = _PROSE_URL_RE.sub(" ", text)
     return text
@@ -285,6 +307,40 @@ def check_prose_leak_shapes(html_files: list[Path]) -> list[str]:
                 f"[SHAPE][{f}] internal finding-ID shape '{token}' in rendered prose -- "
                 f"...{snippet}... (looks like an AuditLab/AssetLab tracker ID pasted into copy; "
                 f"reword in plain English or, if it's a genuine citation, allowlist WITH a reason)"
+            )
+    return errors
+
+
+# ERR-1 (AuditLab, 2026-08-20, orchestrator-approved 19:25 MDT): the "Mark
+# renewed" 400 error told a CPA to "Re-add them (POST /firm/licenses)" --
+# same leak family as GATE-5 (internal vocabulary reaching a customer), but a
+# different surface: Worker error strings, not generated HTML, so the
+# title/alt/aria-label fix above doesn't reach it and no prior gate scanned
+# it. This is a lightweight sibling check over `error: "..."` literals in
+# index.ts for a raw HTTP verb or an internal API path -- the same shape that
+# instance had.
+_WORKER_ERROR_STRING_RE = re.compile(r'error:\s*"((?:[^"\\]|\\.)*)"')
+_WORKER_ERROR_API_LEAK_RE = re.compile(r"\b(?:GET|POST|PUT|PATCH|DELETE)\s+/\S*|/[a-zA-Z][a-zA-Z0-9_-]*/[a-zA-Z][a-zA-Z0-9_/-]*")
+
+
+def check_worker_error_strings_no_api_internals(repo_root: Path) -> list[str]:
+    path = repo_root / "worker" / "src" / "index.ts"
+    if not path.exists():
+        return []
+    source = path.read_text(encoding="utf-8")
+    errors = []
+    for m in _WORKER_ERROR_STRING_RE.finditer(source):
+        message = m.group(1)
+        if "http://" in message or "https://" in message:
+            continue  # a linked/quoted URL is a legitimate citation, not a route leak
+        leak = _WORKER_ERROR_API_LEAK_RE.search(message)
+        if leak:
+            line_no = source.count("\n", 0, m.start()) + 1
+            errors.append(
+                f"[ERR][{path}:{line_no}] user-facing error string contains an API path/verb "
+                f"{leak.group(0)!r} -- {message!r}. A customer has no concept of our routes; "
+                f"reword to describe the remedy in plain English (match the register of the "
+                f"neighbouring error strings in the same handler)."
             )
     return errors
 
@@ -2570,6 +2626,7 @@ def main():
     all_errors += check_copy_hygiene(html_files)
     all_errors += check_rendering_integrity(html_files)
     all_errors += check_prose_leak_shapes(html_files)
+    all_errors += check_worker_error_strings_no_api_internals(repo_root)
     all_errors += check_stylesheet_integrity(html_files)
     all_errors += check_legal_safety(html_files, state_page_files)
     all_errors += check_affiliate_disclosure(html_files)

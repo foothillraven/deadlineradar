@@ -391,7 +391,7 @@
       "state": "Indiana",
       "state_slug": "indiana",
       "field": "data_gap_note",
-      "note": "Two Indiana government sources disagree by $30 on the same fee. PLA's fee-schedule page (source_url) states 'Renewal $105.00'. The codified administrative rule, 872 IAC 1-1-10(a)(3) (fetched directly, full text read), states 'Triennial certificate of registration for CPAs, PAs, and APs, seventy-five dollars ($75).' -- last substantively amended 2022-10-03, readopted (reaffirmed without change) 2024-01-12, so the $75 figure has been current law for years, not a stale pre-amendment snapshot. Notably the two sources agree EXACTLY on two other line items from the same table (Application/Transfer of Grades $75, Retired renewal $10), which argues against a wholesale mismatch and for either a genuine unrecorded fee increase or a copy/paste error on one page -- not determined which. Publishing $105 (PLA) as the more customer-facing source; flagging rather than silently picking one.",
+      "note": "Two Indiana government sources disagree by $30 on the same fee. PLA's fee-schedule page (the source we link above) states 'Renewal $105.00'. The codified administrative rule, 872 IAC 1-1-10(a)(3) (fetched directly, full text read), states 'Triennial certificate of registration for CPAs, PAs, and APs, seventy-five dollars ($75).' -- last substantively amended 2022-10-03, readopted (reaffirmed without change) 2024-01-12, so the $75 figure has been current law for years, not a stale pre-amendment snapshot. Notably the two sources agree EXACTLY on two other line items from the same table (Application/Transfer of Grades $75, Retired renewal $10), which argues against a wholesale mismatch and for either a genuine unrecorded fee increase or a copy/paste error on one page -- not determined which. Publishing $105 (PLA) as the more customer-facing source; flagging rather than silently picking one.",
       "is_block_claim": false
     },
     {
@@ -400,7 +400,7 @@
       "state": "Maryland",
       "state_slug": "maryland",
       "field": "data_gap_note",
-      "note": "This COMAR fee section (09.24.01.09) states the $63/$151 dollar amounts only and says nothing about cycle length -- that is expected, not a gap. Cycle length (biennial, fixed personal anniversary date) is confirmed separately on the Board's own site, see cpa_deadlines/md-individual.",
+      "note": "This COMAR fee section (09.24.01.09) states the $63/$151 dollar amounts only and says nothing about cycle length -- that is expected, not a gap. Cycle length (biennial, fixed personal anniversary date) is confirmed separately on the Board's own site -- see this site's Maryland individual-license renewal page.",
       "is_block_claim": false
     },
     {
@@ -472,7 +472,7 @@
       "state": "Texas",
       "state_slug": "texas",
       "field": "data_gap_note",
-      "note": "$112 is the most recent figure the Board itself has published. We could not confirm whether a further increase took effect on September 1, 2025: TSBPA publishes a news notice for each fee change (2017, 2019 and 2024 all have one) and no 2025 notice exists, but 22 TAC 521.1 -- read directly -- does not fix a dollar figure at all; it says the fee is 'established by the board on an annual basis,' so the rule itself cannot confirm or rule out a later increase. Treat $112 as the last confirmed rate rather than a guaranteed current one. Separately: citation_url is confirmed to point at the correct rule (22 TAC 521.1) via the Appian portal's own browse navigation, but the rule text itself sits behind an iframe our tooling can't read -- this is Texas retiring its machine-readable TAC host in favor of a JS-only portal, not a wrong or unverified citation; a human opening the portal can read it directly.",
+      "note": "$112 is the most recent figure the Board itself has published. We could not confirm whether a further increase took effect on September 1, 2025: TSBPA publishes a news notice for each fee change (2017, 2019 and 2024 all have one) and no 2025 notice exists, but 22 TAC 521.1 -- read directly -- does not fix a dollar figure at all; it says the fee is 'established by the board on an annual basis,' so the rule itself cannot confirm or rule out a later increase. Treat $112 as the last confirmed rate rather than a guaranteed current one. Separately: this citation points at the correct rule (22 TAC 521.1), confirmed by navigating the state's own rule browser. Texas now publishes the Administrative Code through a portal that only renders in a web browser, so the rule text can't be checked automatically -- open the link to read it directly.",
       "is_block_claim": false
     },
     {

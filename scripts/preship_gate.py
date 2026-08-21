@@ -2389,13 +2389,29 @@ def check_retention_coverage(repo_root: Path) -> list[str]:
     #   webhook for this firm_id be reprocessed as new.
     deliberately_excluded = {"firms", "subscribers", "stripe_webhook_events"}
 
-    table_block_re = re.compile(r"CREATE TABLE(?:\s+IF NOT EXISTS)?\s+(\w+)\s*\(([\s\S]*?)\n\);")
+    # GATE-7 (AuditLab, 2026-08-21, LOW, self-directed): the original
+    # `\n\);` closer only matched a CREATE TABLE whose closing paren is the
+    # first thing on its own line -- a one-line or indented-`);` table
+    # definition parsed as zero firm_id tables, silently. Relaxed to
+    # `\)\s*;` (still safe against a CHECK(...)'s own inner closing paren,
+    # since that is followed by more of the table body, not immediately by
+    # `;`). Also now scans `ALTER TABLE <t> ADD [COLUMN] firm_id` -- not
+    # hypothetical here: subscribers gains firm_id exactly this way in
+    # 0008_firm_accounts.sql, and the original regex could not see it at
+    # all. Zero effect on today's result (subscribers is already in
+    # deliberately_excluded below) -- this closes the blind spot in the
+    # exact decay path the gate exists to catch, before a future table
+    # ever needs it.
+    table_block_re = re.compile(r"CREATE TABLE(?:\s+IF NOT EXISTS)?\s+(\w+)\s*\(([\s\S]*?)\)\s*;")
+    alter_firm_id_re = re.compile(r"ALTER TABLE\s+(\w+)\s+ADD\s+(?:COLUMN\s+)?firm_id\b")
     in_migrations: set[str] = set()
     for sql_file in sorted(migrations_dir.glob("*.sql")):
         text = sql_file.read_text(encoding="utf-8")
         for name, body in table_block_re.findall(text):
             if re.search(r"\bfirm_id\b", body):
                 in_migrations.add(name)
+        for name in alter_firm_id_re.findall(text):
+            in_migrations.add(name)
 
     store_src = store_ts.read_text(encoding="utf-8")
     m = re.search(r"FIRM_SCOPED_TABLES\s*=\s*\[([\s\S]*?)\]", store_src)

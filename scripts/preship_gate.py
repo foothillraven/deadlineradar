@@ -1773,16 +1773,26 @@ def check_sms_consent_version_sync(repo_root: Path) -> list[str]:
         return ["[SMS-CONSENT] worker/src/sms.ts's SMS_CONSENT_VERSION constant not found -- can't verify sync with generate.py"]
     ts_version = ts_match.group(1)
 
-    py_match = re.search(r"consent_version:\s*'([^']+)'", py_text)
-    if not py_match:
+    # GATE-9 (AuditLab, 2026-08-21, self-directed): consent_version is a
+    # JSON PAYLOAD KEY, not a declaration -- unlike every other sync check
+    # in this file (a language-enforced-unique constant declaration), a
+    # second `consent_version: '...'` literal is a normal, expected shape
+    # (a second consent panel, a variant signup flow, a re-send path each
+    # naturally carrying their own), not a duplicate-definition error. The
+    # original re.search() silently validated only the FIRST occurrence and
+    # would let any later one drift unseen -- exactly the hand-maintained-
+    # copy decay this gate exists to prevent, just one hop further in. Uses
+    # findall() and requires EVERY occurrence to match, not just the first.
+    py_versions = re.findall(r"consent_version:\s*'([^']+)'", py_text)
+    if not py_versions:
         return ["[SMS-CONSENT] generate.py's consent_version literal (the /my/ SMS panel's consent send) not found -- can't verify sync with worker/src/sms.ts"]
-    py_version = py_match.group(1)
 
-    if ts_version != py_version:
+    drifted = sorted({v for v in py_versions if v != ts_version})
+    if drifted:
         return [
             f"[SMS-CONSENT] worker/src/sms.ts's SMS_CONSENT_VERSION ({ts_version}) and generate.py's "
-            f"consent_version literal ({py_version}) have drifted -- bump both together, at the same "
-            "time the /my/ SMS consent panel's wording actually changes"
+            f"consent_version literal(s) ({', '.join(drifted)}) have drifted -- bump every copy "
+            "together, at the same time the actual SMS consent wording changes"
         ]
     return []
 

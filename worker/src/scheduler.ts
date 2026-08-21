@@ -1430,7 +1430,22 @@ function dailyTeamsAlertSendCap(env: Env): number {
 
 /** Same digest-text shape as buildSlackDigestText() above -- Teams'
  * confirmed-minimal payload ({"text": "..."}) accepts the identical plain
- * message, no Adaptive Card envelope required (teams.ts's own docstring). */
+ * message, no Adaptive Card envelope required (teams.ts's own docstring).
+ *
+ * SLACK-2 (AuditLab, 2026-08-21): firmName is deliberately left unescaped
+ * here, WON'T-FIX, recorded rather than left ambiguous. AuditLab's own
+ * SLACK-2 report found Teams' simple-webhook `text` field treats `<>` far
+ * less specially than Slack's mrkdwn does -- no channel-ping syntax, no
+ * markup that turns a bracketed string into a live link -- so there is no
+ * equivalent exposure to close here. Applying escapeSlackText()'s HTML-
+ * entity escaping to this field regardless would risk a REAL regression
+ * instead: if Teams' client does not decode `&amp;`/`&lt;`/`&gt;` back out
+ * of a plain `text` field, a firm name as ordinary as "Smith & Co" would
+ * render with a literal, visible "&amp;" -- worse than the risk being
+ * avoided, since that firm's own name is guaranteed traffic, and neither
+ * AuditLab nor this fix has a Teams tenant to verify the decode behavior
+ * against. Escaping here is a real, separate unit of work if it's ever
+ * decided the risk analysis is wrong, not a same-fix rename. */
 function buildTeamsDigestText(firmName: string, items: SlackDigestItem[]): string {
   const count = items.length;
   const header =

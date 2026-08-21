@@ -393,6 +393,38 @@ describe("POST /subscriber/logout", () => {
     });
     expect(resp.status).toBe(302);
   });
+
+  // AuditLab cookie/CSRF posture re-verify (2026-08-21): same consistency
+  // fix as the firm-side logout route -- originAllowed() now guards this
+  // route too, matching every other authenticated state-changing handler.
+  it("SEC (logout CSRF consistency): rejected when the Origin header doesn't match any allowed origin, and the session survives", async () => {
+    const email = `sublogoutcsrf-${Date.now()}@examplefirm.com`;
+    const { rawSessionToken } = await store.createSubscriberSession(env.DB, email.toLowerCase());
+
+    const resp = await SELF.fetch(`${BASE}/subscriber/logout`, {
+      method: "POST",
+      headers: { Cookie: `dr_sub_session=${rawSessionToken}`, "cf-connecting-ip": "203.0.113.112", Origin: "https://attacker.example" },
+      redirect: "manual",
+    });
+    expect(resp.status).toBe(400);
+
+    const after = await store.verifySubscriberSession(env.DB, rawSessionToken);
+    expect(after).not.toBeNull(); // NOT logged out -- the forged request was refused, not honored
+  });
+
+  it("SEC (logout CSRF consistency): still succeeds with a real, matching Origin header", async () => {
+    const email = `sublogoutorigin-${Date.now()}@examplefirm.com`;
+    const { rawSessionToken } = await store.createSubscriberSession(env.DB, email.toLowerCase());
+
+    const resp = await SELF.fetch(`${BASE}/subscriber/logout`, {
+      method: "POST",
+      headers: { Cookie: `dr_sub_session=${rawSessionToken}`, "cf-connecting-ip": "203.0.113.113", Origin: "https://deadline-radar.com" },
+      redirect: "manual",
+    });
+    expect(resp.status).toBe(302);
+    const after = await store.verifySubscriberSession(env.DB, rawSessionToken);
+    expect(after).toBeNull();
+  });
 });
 
 describe("login CSRF / session fixation -- the attack the review demonstrated", () => {

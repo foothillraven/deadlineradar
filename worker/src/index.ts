@@ -2644,6 +2644,18 @@ async function handleFirmLogout(request: Request, env: Env, ip: string): Promise
   // no enumeration/brute-force angle a rate limit would meaningfully guard
   // against, so there is nothing worth trading away this response's
   // documented "always succeeds" contract for.
+  //
+  // AuditLab cookie/CSRF posture re-verify (2026-08-21): the only
+  // authenticated state-changing handler in this file without an
+  // originAllowed() call, where every sibling firm route has one -- not
+  // filed as a finding (impact is forced logout, a nuisance, and
+  // SameSite=Lax likely makes it unreachable in the deployed same-origin
+  // configuration) but flagged as worth a deliberate decision. Added for
+  // consistency with every other route, at the same "before the rate
+  // limit" position handleFirmPasswordLogin uses.
+  if (!originAllowed(request, env)) {
+    return errorPage(400, "That request couldn't be completed. Please try again from the Deadline-Radar site.");
+  }
   await checkRateLimit(env.DB, ip, "firm_logout", RATE_LIMIT_LOGOUT);
   const raw = getCookie(request, FIRM_SESSION_COOKIE_NAME);
   if (raw) {
@@ -4731,6 +4743,12 @@ async function handleSubscriberLogout(request: Request, env: Env, ip: string): P
   // AuditLab LOGOUT-1 (2026-08-17): same fix as handleFirmLogout() above --
   // the rate-limit counter is still recorded, but no longer gates the
   // deletion. See that function's comment for the full reasoning.
+  //
+  // AuditLab cookie/CSRF posture re-verify (2026-08-21): same consistency
+  // fix as handleFirmLogout() above -- see that function's comment.
+  if (!originAllowed(request, env)) {
+    return errorPage(400, "That request couldn't be completed. Please try again from the Deadline-Radar site.");
+  }
   await checkRateLimit(env.DB, ip, "subscriber_logout", RATE_LIMIT_LOGOUT);
   const raw = getCookie(request, SUBSCRIBER_SESSION_COOKIE_NAME);
   if (raw) {

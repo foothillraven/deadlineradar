@@ -1660,6 +1660,45 @@ describe("POST /firm/logout -- deletes the session and clears the cookie", () =>
     const resp = await postFirmLogout(null, "203.0.113.182");
     expect(resp.status).toBe(302);
   });
+
+  // AuditLab cookie/CSRF posture re-verify (2026-08-21): logout used to be
+  // the only authenticated state-changing route in this file with no
+  // originAllowed() call. Same three-case shape as the /firm/licenses CSRF
+  // suite above: mismatched Origin rejected, absent Origin still succeeds
+  // (real browsers don't always send Origin on a same-site request),
+  // matching Origin still succeeds.
+  it("SEC (logout CSRF consistency): rejected when the Origin header doesn't match any allowed origin, and the session survives", async () => {
+    const email = `firmlogoutcsrf-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Logout CSRF Firm", admin_email: email }, "203.0.113.184");
+    const firm = await firmByAdminEmail(email);
+    const { rawSessionToken } = await store.createSession(env.DB, firm!.id);
+
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/logout", {
+      method: "POST",
+      headers: { "cf-connecting-ip": "203.0.113.185", Cookie: `dr_firm_session=${rawSessionToken}`, Origin: "https://attacker.example" },
+      redirect: "manual",
+    });
+    expect(resp.status).toBe(400);
+
+    const after = await store.verifySession(env.DB, rawSessionToken);
+    expect(after?.firmId).toBe(firm!.id); // NOT logged out -- the forged request was refused, not honored
+  });
+
+  it("SEC (logout CSRF consistency): still succeeds with a real, matching Origin header", async () => {
+    const email = `firmlogoutorigin-${Date.now()}@example.com`;
+    await postFirmSignup({ name: "Logout Origin Firm", admin_email: email }, "203.0.113.186");
+    const firm = await firmByAdminEmail(email);
+    const { rawSessionToken } = await store.createSession(env.DB, firm!.id);
+
+    const resp = await SELF.fetch("https://deadline-radar.com/firm/logout", {
+      method: "POST",
+      headers: { "cf-connecting-ip": "203.0.113.187", Cookie: `dr_firm_session=${rawSessionToken}`, Origin: "https://deadline-radar.com" },
+      redirect: "manual",
+    });
+    expect(resp.status).toBe(302);
+    const after = await store.verifySession(env.DB, rawSessionToken);
+    expect(after).toBeNull();
+  });
 });
 
 describe("requireFirmSession -- the single auth gate every future firm-scoped route must call first", () => {

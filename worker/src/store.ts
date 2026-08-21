@@ -556,17 +556,38 @@ export async function addPending(db: D1Database, input: AddPendingInput): Promis
  * attached to the now-inert removed row, attributed to "Removed staff
  * member" and counting toward nobody's requirement.
  *
- * Deliberately reattaches cpe_entries rather than resurrecting the OLD
+ * Deliberately reattaches records rather than resurrecting the OLD
  * subscriber row itself (the alternative AuditLab also named) -- reusing
  * the old row would mean silently reusing its tokens/consent timestamps/
  * reminder-send history for what the admin experiences as a brand new add,
  * a much larger and more consent-sensitive change for a LOW-severity, safe-
  * direction (understates compliance, never overclaims) finding. Only
- * migrates entries from a PRIOR row for the exact same (firm, email, state)
- * -- CPE entries are state-scoped through their subscriber_id, so hours
- * logged against a different state's removed row must not follow here.
+ * migrates rows from a PRIOR row for the exact same (firm, email, state)
+ * -- CPE entries/mobility completions/documents are all state-scoped
+ * through their subscriber_id, so records logged against a different
+ * state's removed row must not follow here.
+ *
+ * AuditLab LC-5/LC-6 (LOW, 2026-08-21, orchestrator-approved): the original
+ * version of this function (named reattachOrphanedCpeEntries) migrated only
+ * cpe_entries, leaving mobility_completions and documents stranded the same
+ * way -- a rehired staffer's practice-privilege verifications silently
+ * reverted to "action required" on the Map, and their uploaded license/CPE
+ * certificates orphaned while still counting against the firm's 50MB
+ * quota with no screen able to reach or free them. Renamed and extended to
+ * reuse the same resolved removedRows set for both tables, same shape as
+ * the cpe_entries migration.
+ *
+ * Deliberately NOT extended to the four *_notified_thresholds tables
+ * (firm_slack_/firm_teams_/sms_/firm_admin_digest_notified_thresholds) or
+ * silent_drop_log -- AuditLab verified this as the correct behavior, not an
+ * omission: those tables gate SENDS, keyed UNIQUE(subscriber_id, threshold)
+ * (or subscriber_id as the PRIMARY KEY for silent_drop_log), and a new
+ * subscriber row re-earning its own send gates from a clean slate is
+ * exactly right -- reattaching a "this threshold was already notified"
+ * marker would risk silently suppressing a real reminder the rehired
+ * person is now due to receive again.
  */
-export async function reattachOrphanedCpeEntries(
+export async function reattachOrphanedSubscriberRecords(
   db: D1Database,
   firmId: string,
   email: string,
@@ -586,11 +607,13 @@ export async function reattachOrphanedCpeEntries(
 
   let migrated = 0;
   for (const row of removedRows) {
-    const result = await db
-      .prepare(`UPDATE cpe_entries SET subscriber_id = ?1 WHERE subscriber_id = ?2 AND firm_id = ?3`)
-      .bind(newSubscriberId, row.id, firmId)
-      .run();
-    migrated += result.meta.changes ?? 0;
+    for (const table of ["cpe_entries", "mobility_completions", "documents"]) {
+      const result = await db
+        .prepare(`UPDATE ${table} SET subscriber_id = ?1 WHERE subscriber_id = ?2 AND firm_id = ?3`)
+        .bind(newSubscriberId, row.id, firmId)
+        .run();
+      migrated += result.meta.changes ?? 0;
+    }
   }
   return migrated;
 }

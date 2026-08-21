@@ -6868,14 +6868,15 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
     licenseIssueDate,
   });
 
-  // AuditLab LC-1 (LOW, 2026-08-04): if this same person was previously
-  // removed from this exact state on this firm's roster, their real
-  // CPE history is stranded on that now-inert row -- move it here so it
-  // counts toward the requirement again, same person and same state.
-  // Best-effort: a failure here must not roll back the staff-add itself,
-  // same posture as the transparency email below.
+  // AuditLab LC-1 (LOW, 2026-08-04; extended by LC-5/LC-6, 2026-08-21): if
+  // this same person was previously removed from this exact state on this
+  // firm's roster, their real CPE history, mobility-completion
+  // verifications, and uploaded documents are stranded on that now-inert
+  // row -- move them here so they count/render/reclaim quota again, same
+  // person and same state. Best-effort: a failure here must not roll back
+  // the staff-add itself, same posture as the transparency email below.
   try {
-    await store.reattachOrphanedCpeEntries(env.DB, session.firmId, email, stateSlug, record.id);
+    await store.reattachOrphanedSubscriberRecords(env.DB, session.firmId, email, stateSlug, record.id);
   } catch {
     // Non-fatal -- worst case, history stays where it was, exactly the
     // pre-existing (LOW-severity, safe-direction) behavior this improves on.

@@ -2736,6 +2736,118 @@ describe("DELETE /firm/licenses/:id -- removes from roster and stops further rem
     expect(entries.results.length).toBe(1);
     expect(entries.results[0]!.subscriber_id).toBe(originalId); // unchanged, NOT migrated to newId
   });
+
+  // AuditLab LC-5 (LOW, 2026-08-21, orchestrator-approved): same LC-1 gap,
+  // one table over -- a rehired staffer's mobility-completion verifications
+  // used to stay stranded on the removed row, so the Map silently reverted
+  // to "action required" for every state the firm had already cleared them
+  // in, since drMobilityCompletionKey requires an exact subscriber-id match.
+  it("re-adding a removed staffer reattaches their orphaned mobility completions to the new roster row", async () => {
+    const { cookie, firmId } = await createFirmWithSession("Rehire Mobility Firm", `rehiremobility-${Date.now()}@example.com`);
+    const email = `rehiremobility-staff-${Date.now()}@example.com`;
+
+    const created = await postFirmLicense(cookie, { email, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: originalId } = (await created.json()) as { id: string };
+
+    const completionResp = await postMobilityCompletion(cookie, { subscriber_id: originalId, target_state_slug: "texas", service_type: "tax" });
+    expect(completionResp.status).toBe(201);
+
+    expect((await deleteFirmLicense(cookie, originalId)).status).toBe(200);
+
+    const readded = await postFirmLicense(cookie, { email, state_slug: "georgia", license_type_id: "ga-individual" });
+    expect(readded.status).toBe(201);
+    const { id: newId } = (await readded.json()) as { id: string };
+    expect(newId).not.toBe(originalId);
+
+    const completions = await env.DB
+      .prepare("SELECT id, subscriber_id FROM mobility_completions WHERE firm_id = ?1 AND deleted_at IS NULL")
+      .bind(firmId)
+      .all<{ id: string; subscriber_id: string }>();
+    expect(completions.results.length).toBe(1);
+    expect(completions.results[0]!.subscriber_id).toBe(newId);
+
+    // Confirms via the real read path the Map actually uses, not just a raw SQL check.
+    const list = await getMobilityCompletions(cookie);
+    const listBody = (await list.json()) as { completions: Array<{ subscriber_id: string; target_state_slug: string }> };
+    expect(listBody.completions.length).toBe(1);
+    expect(listBody.completions[0]!.subscriber_id).toBe(newId);
+    expect(listBody.completions[0]!.target_state_slug).toBe("texas");
+  });
+
+  // AuditLab LC-6 (LOW, 2026-08-21, orchestrator-approved): same gap again --
+  // uploaded documents used to orphan on the removed row, while the bytes
+  // kept counting against the firm's 50MB quota with no screen able to
+  // reach or free them.
+  it("re-adding a removed staffer reattaches their orphaned documents to the new roster row", async () => {
+    const { cookie, firmId } = await createFirmWithSession("Rehire Documents Firm", `rehiredocs-${Date.now()}@example.com`);
+    const email = `rehiredocs-staff-${Date.now()}@example.com`;
+
+    const created = await postFirmLicense(cookie, { email, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: originalId } = (await created.json()) as { id: string };
+
+    const doc = await store.createDocument(env.DB, {
+      firmId,
+      subscriberId: originalId,
+      kind: "license",
+      r2Key: `lc6-test/${firmId}/${Date.now()}.pdf`,
+      filename: "license.pdf",
+      contentType: "application/pdf",
+      sizeBytes: 1024,
+    });
+    expect(doc).not.toBeNull();
+
+    expect((await deleteFirmLicense(cookie, originalId)).status).toBe(200);
+
+    const readded = await postFirmLicense(cookie, { email, state_slug: "georgia", license_type_id: "ga-individual" });
+    expect(readded.status).toBe(201);
+    const { id: newId } = (await readded.json()) as { id: string };
+    expect(newId).not.toBe(originalId);
+
+    const docs = await env.DB
+      .prepare("SELECT id, subscriber_id FROM documents WHERE firm_id = ?1 AND deleted_at IS NULL")
+      .bind(firmId)
+      .all<{ id: string; subscriber_id: string }>();
+    expect(docs.results.length).toBe(1);
+    expect(docs.results[0]!.subscriber_id).toBe(newId);
+
+    // Confirms via the real read path a firm admin actually uses.
+    const viaStore = await store.listDocumentsForSubscriber(env.DB, firmId, newId);
+    expect(viaStore.length).toBe(1);
+    expect(viaStore[0]!.filename).toBe("license.pdf");
+  });
+
+  // AuditLab (2026-08-21): verifies the orchestrator's explicit "record the
+  // deliberate decision" ask -- the four *_notified_thresholds tables must
+  // NOT be reattached, since a new subscriber row re-earning its own send
+  // gates from a clean slate is the correct behavior (reattaching a
+  // "this threshold was already notified" marker would risk silently
+  // suppressing a real reminder the rehired person is now due to receive).
+  it("does NOT reattach a stale notification-threshold marker on re-add -- the new row starts clean and can be re-notified", async () => {
+    const { cookie, firmId } = await createFirmWithSession("Rehire Threshold Firm", `rehirethreshold-${Date.now()}@example.com`);
+    const email = `rehirethreshold-staff-${Date.now()}@example.com`;
+
+    const created = await postFirmLicense(cookie, { email, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: originalId } = (await created.json()) as { id: string };
+    await store.claimSlackThresholdNotification(env.DB, originalId, 30);
+
+    expect((await deleteFirmLicense(cookie, originalId)).status).toBe(200);
+
+    const readded = await postFirmLicense(cookie, { email, state_slug: "georgia", license_type_id: "ga-individual" });
+    const { id: newId } = (await readded.json()) as { id: string };
+
+    // The old marker stays exactly where it was (on the dead row) --
+    const oldMarker = await env.DB
+      .prepare("SELECT 1 FROM firm_slack_notified_thresholds WHERE subscriber_id = ?1")
+      .bind(originalId)
+      .first();
+    expect(oldMarker).not.toBeNull();
+    // -- and the NEW row has no marker at all, so it can be notified again.
+    const newMarker = await env.DB
+      .prepare("SELECT 1 FROM firm_slack_notified_thresholds WHERE subscriber_id = ?1")
+      .bind(newId)
+      .first();
+    expect(newMarker).toBeNull();
+  });
 });
 
 describe("CSRF defense-in-depth (2026-08-05, orchestrator abuse-test finding): originAllowed() on mutating firm-session routes", () => {

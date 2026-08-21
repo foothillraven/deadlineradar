@@ -1639,6 +1639,13 @@ PAGE_CSS = """
   }
   .dr-notif-dismiss-btn:hover { color: var(--fg); background: var(--row-alt); }
   .dr-nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+  /* TAB-3 (AuditLab, 2026-08-09): the sidebar is now split across adjacent
+     .dr-nav lists (a role="tablist" one for real tabs, a plain one for the
+     Practice Privilege Check link) instead of one list, so a non-tab item
+     is never a child of the tablist. This keeps the same visual gap between
+     the last item of one list and the first item of the next as .dr-nav's
+     own internal gap above -- purely a spacing fix, no layout change. */
+  .dr-nav + .dr-nav { margin-top: 0.15rem; }
   .dr-nav a, .dr-nav-soon {
     display: flex; align-items: center; gap: 0.55rem; padding: 0.55rem 0.6rem; border-radius: 7px;
     color: #b9cad9; text-decoration: none; font-size: 0.87rem; font-weight: 500;
@@ -17305,18 +17312,29 @@ def _dashboard_sidebar_html(active: str, tabs_live_here: bool) -> str:
             return f'<li><a href="#"{cls} data-view="{view}" role="tab" id="dr-tab-{view}" aria-selected="{aria}" aria-controls="dr-view-{view}">{icon}{esc(label)}</a></li>'
         return f'<li><a href="/firm-dashboard/#{view}"{cls}>{icon}{esc(label)}</a></li>'
 
-    nav_items = "\n      ".join(
-        item(view, label)
-        for view, label in (
-            ("roster", "Roster"),
-            ("calendar", "Calendar"),
-            ("map", "Map"),
-            ("cpe", "CPE Hours"),
-            ("reports", "Reports"),
-            ("mobility", "Practice Privilege Check"),
-            ("account", "Account"),
-        )
+    _NAV_ORDER = (
+        ("roster", "Roster"),
+        ("calendar", "Calendar"),
+        ("map", "Map"),
+        ("cpe", "CPE Hours"),
+        ("reports", "Reports"),
+        ("mobility", "Practice Privilege Check"),
+        ("account", "Account"),
     )
+    # TAB-3 (AuditLab, 2026-08-09): "mobility" is a plain navigation link
+    # (see this function's own docstring above -- deliberately not a tab),
+    # but used to sit inside the same <ul role="tablist"> as the six real
+    # tabs, making an invalid tablist child and an announced tab count that
+    # disagreed with what's visible. Fixed without reordering or restyling
+    # anything: the items before mobility (roster..reports) get their own
+    # role="tablist" region, mobility gets a plain (non-tablist) <ul> of its
+    # own -- same .dr-nav class, so identically styled -- and the item after
+    # mobility (account) gets a third role="tablist" region. Same DOM order,
+    # same CSS, only the ARIA grouping changes.
+    _mobility_idx = next(i for i, (v, _l) in enumerate(_NAV_ORDER) if v == "mobility")
+    _before_nav_items = "\n      ".join(item(v, l) for v, l in _NAV_ORDER[:_mobility_idx])
+    _mobility_nav_item = item(*_NAV_ORDER[_mobility_idx])
+    _after_nav_items = "\n      ".join(item(v, l) for v, l in _NAV_ORDER[_mobility_idx + 1 :])
     # Roadmap #3 (2026-08-07) then #1/#2 (2026-08-07): Reports and Documents
     # are both real now -- Documents is reached per-staff-member (a
     # "Documents" button on each roster row opens that person's upload/list
@@ -17351,12 +17369,29 @@ def _dashboard_sidebar_html(active: str, tabs_live_here: bool) -> str:
         if tabs_live_here
         else ""
     )
+    # TAB-3 residual: on /firm-mobility/ (tabs_live_here=False) every item()
+    # except mobility ALSO falls through to a plain <a href="/firm-dashboard/
+    # #{view}"> link (the same "not a real tab on this page" shape as
+    # mobility itself, just for a different reason: no in-page tab-switch JS
+    # exists here at all). role="tablist" was applied unconditionally, so
+    # that page had SIX non-tab children inside a tablist, not just
+    # mobility's one -- the identical defect AuditLab flagged, just wider
+    # and not covered by their finding's own scope (docs/firm-dashboard/
+    # only). role="tablist"/aria-label is therefore only emitted where the
+    # children genuinely are role="tab" elements.
+    _tablist_attrs = ' role="tablist" aria-label="Dashboard views"' if tabs_live_here else ""
     return f"""<aside class="dr-sidebar">
     {firm_name_html}
     {notification_bell_html}
-    <ul class="dr-nav" role="tablist" aria-label="Dashboard views">
-      {nav_items}
+    <ul class="dr-nav"{_tablist_attrs}>
+      {_before_nav_items}
+    </ul>
+    <ul class="dr-nav">
+      {_mobility_nav_item}
       {sidebar_nav_soon_items}
+    </ul>
+    <ul class="dr-nav"{_tablist_attrs}>
+      {_after_nav_items}
     </ul>
     <div class="dr-sidebar-foot">
       <form method="post" action="{REMINDER_BACKEND_BASE_URL}/firm/logout">

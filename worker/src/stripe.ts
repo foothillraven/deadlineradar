@@ -363,7 +363,21 @@ export function computeProratedRefundCents(amountPaidCents: number, periodStartI
   const periodStartMs = new Date(periodStartIso).getTime();
   const periodEndMs = new Date(periodEndIso).getTime();
   const totalMs = periodEndMs - periodStartMs;
-  if (totalMs <= 0) return 0;
+  // BILL-13 (AuditLab, 2026-08-20, self-directed hardening -- latent, not
+  // currently reachable, checked before filing): `NaN <= 0` is false, so an
+  // unparseable period date would have passed this guard and returned NaN.
+  // At the only call site (firm deletion, index.ts), `NaN > 0` is also
+  // false, so a refund genuinely owed would be silently skipped -- no
+  // exception, no reconciliation flag, recorded as the benign "nothing
+  // owed" case. Not reachable today (the caller's own getLatestInvoice-
+  // ForSubscription() type-checks both period fields before this function
+  // ever sees them, and an out-of-range epoch throws RangeError first,
+  // which the caller's try/catch correctly flags as "failed") -- but this
+  // function is exported and money-carrying, and its safety depending
+  // entirely on a guarantee made in a DIFFERENT module is exactly the
+  // shape that breaks the next time a second caller (a downgrade proration,
+  // a partial-period credit) doesn't inherit it.
+  if (!Number.isFinite(totalMs) || totalMs <= 0) return 0;
   const remainingMs = Math.max(0, Math.min(periodEndMs - asOf.getTime(), totalMs));
   return Math.round((amountPaidCents * remainingMs) / totalMs);
 }

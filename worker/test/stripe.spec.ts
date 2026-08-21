@@ -32,6 +32,20 @@ describe("computeProratedRefundCents", () => {
     const t = "2026-01-01T00:00:00.000Z";
     expect(computeProratedRefundCents(19900, t, t, new Date(t))).toBe(0);
   });
+
+  // BILL-13 (AuditLab, 2026-08-20): `NaN <= 0` is false, so the OLD guard
+  // (`if (totalMs <= 0) return 0`) let an unparseable period date fall
+  // through and return NaN. The call site's `if (proratedCents > 0)` is
+  // also false for NaN, so a genuinely-owed refund would have been silently
+  // skipped with no error and no reconciliation flag. Not reachable via the
+  // real call path today (getLatestInvoiceForSubscription() type-checks
+  // both period fields first) -- this guards the exported function itself,
+  // since a future second caller wouldn't inherit that upstream guarantee.
+  it("returns 0, not NaN, for an unparseable period date", () => {
+    expect(computeProratedRefundCents(19900, "not-a-date", "2026-02-01T00:00:00.000Z", new Date())).toBe(0);
+    expect(computeProratedRefundCents(19900, "2026-01-01T00:00:00.000Z", "also-not-a-date", new Date())).toBe(0);
+    expect(computeProratedRefundCents(19900, "not-a-date", "also-not-a-date", new Date())).toBe(0);
+  });
 });
 
 const SECRET = "whsec_test_secret_value";

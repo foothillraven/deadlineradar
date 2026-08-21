@@ -2849,8 +2849,14 @@ def check_send_pass_consent_gate_coverage(repo_root: Path) -> list[str]:
     """
     index_ts = repo_root / "worker" / "src" / "index.ts"
     scheduler_ts = repo_root / "worker" / "src" / "scheduler.ts"
+    # AuditLab observation (2026-08-21, orchestrator-approved, same class as
+    # GATE-10): a missing worker/src/ file used to return [] here -- a
+    # silent clean pass, unlike every OTHER guard clause in this function
+    # (below), which fails closed with a real error. Matched to this
+    # function's own posture rather than left as its one fail-open exit.
     if not index_ts.exists() or not scheduler_ts.exists():
-        return []
+        return ["[CONSENT-GATE] worker/src/index.ts or worker/src/scheduler.ts not found -- "
+                "consent-gate coverage can't be verified and must be repaired."]
 
     index_src = index_ts.read_text(encoding="utf-8")
     sig_m = re.search(r"async scheduled\([^)]*\)[^{]*\{", index_src)

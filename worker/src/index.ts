@@ -2866,7 +2866,7 @@ async function handleFirmMemberInvite(request: Request, env: Env): Promise<Respo
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_member_invite", RATE_LIMIT_FIRM_MEMBER_INVITE);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many invites sent today for this firm. Please try again tomorrow." });
+    return jsonResponse(429, { error: "Too many invites sent today for this firm. Please try again in 24 hours." });
   }
 
   let body: Record<string, unknown>;
@@ -2945,7 +2945,7 @@ async function handleFirmMemberRoleChange(request: Request, env: Env, memberId: 
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_member_role_change", RATE_LIMIT_FIRM_MEMBER_ROLE_CHANGE);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   const target = await store.getFirmMemberById(env.DB, session.firmId, memberId);
@@ -2998,7 +2998,7 @@ async function handleFirmMemberRemove(request: Request, env: Env, memberId: stri
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_member_remove", RATE_LIMIT_FIRM_MEMBER_REMOVE);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   const target = await store.getFirmMemberById(env.DB, session.firmId, memberId);
@@ -3059,7 +3059,7 @@ async function handleFirmMemberMakePrimary(request: Request, env: Env, memberId:
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_member_make_primary", RATE_LIMIT_FIRM_MEMBER_MAKE_PRIMARY);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   const target = await store.getFirmMemberById(env.DB, session.firmId, memberId);
@@ -4343,7 +4343,7 @@ async function handleSubscriberProfileUpdate(request: Request, env: Env): Promis
 
   const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_profile_update", RATE_LIMIT_SUBSCRIBER_PROFILE_UPDATE);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   let body: Record<string, unknown>;
@@ -4388,7 +4388,7 @@ async function handleSubscriberReminderCadenceSet(request: Request, env: Env): P
 
   const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_reminder_cadence", RATE_LIMIT_SUBSCRIBER_REMINDER_CADENCE);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   let body: Record<string, unknown>;
@@ -4433,7 +4433,7 @@ async function handleSubscriberNotificationModeSet(request: Request, env: Env): 
 
   const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_notification_mode", RATE_LIMIT_SUBSCRIBER_NOTIFICATION_MODE);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   let body: Record<string, unknown>;
@@ -4616,7 +4616,7 @@ async function handleSubscriberPhoneOptOut(request: Request, env: Env): Promise<
 
   const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_phone_opt_out", RATE_LIMIT_SUBSCRIBER_PHONE_OPT_OUT);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+    return jsonResponse(429, { error: "Too many attempts today. Please try again in 24 hours." });
   }
 
   await store.clearSubscriberSmsOptIn(env.DB, session.emailNormalized);
@@ -4971,7 +4971,7 @@ async function handleSubscriberCpeEntryCreate(request: Request, env: Env): Promi
 
   const allowed = await checkRateLimit(env.DB, session.emailNormalized, "subscriber_cpe_create", RATE_LIMIT_SUBSCRIBER_CPE_CREATE);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many entries logged today. Please try again tomorrow." });
+    return jsonResponse(429, { error: "Too many entries logged today. Please try again in 24 hours." });
   }
 
   const parsed = await readFirmLicenseJsonBody(request); // generic despite the name -- see that function's own signature
@@ -5054,7 +5054,7 @@ async function handleFirmStaffCpeReminder(request: Request, env: Env): Promise<R
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_staff_cpe_reminder", RATE_LIMIT_FIRM_STAFF_CPE_REMINDER);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many reminders sent today. Please try again tomorrow." });
+    return jsonResponse(429, { error: "Too many reminders sent today. Please try again in 24 hours." });
   }
 
   const parsed = await readFirmLicenseJsonBody(request);
@@ -5242,7 +5242,7 @@ async function handleFirmRuleChangeNotify(request: Request, env: Env): Promise<R
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_rule_change_notify", RATE_LIMIT_FIRM_RULE_CHANGE_NOTIFY);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many notifications sent today. Please try again tomorrow." });
+    return jsonResponse(429, { error: "Too many notifications sent today. Please try again in 24 hours." });
   }
 
   const parsed = await readFirmLicenseJsonBody(request);
@@ -5983,7 +5983,7 @@ async function handlePeerReviewSet(request: Request, env: Env): Promise<Response
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_peer_review_set", RATE_LIMIT_FIRM_PEER_REVIEW_SET);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   let body: Record<string, unknown>;
@@ -6041,7 +6041,7 @@ async function handleReplyToSet(request: Request, env: Env): Promise<Response> {
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_reply_to_set", RATE_LIMIT_FIRM_REPLY_TO_SET);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   let body: Record<string, unknown>;
@@ -6091,7 +6091,7 @@ async function handleReminderCadenceSet(request: Request, env: Env): Promise<Res
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_reminder_cadence_set", RATE_LIMIT_FIRM_REMINDER_CADENCE_SET);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   let body: Record<string, unknown>;
@@ -6138,7 +6138,7 @@ async function handleRuleChangeAlertsSet(request: Request, env: Env): Promise<Re
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_rule_change_alerts_set", RATE_LIMIT_FIRM_RULE_CHANGE_ALERTS_SET);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   let body: Record<string, unknown>;
@@ -6181,7 +6181,7 @@ async function handleAdminDigestSet(request: Request, env: Env): Promise<Respons
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_admin_digest_set", RATE_LIMIT_FIRM_ADMIN_DIGEST_SET);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   let body: Record<string, unknown>;
@@ -6272,7 +6272,7 @@ async function handleFirmSlackConnectStart(request: Request, env: Env): Promise<
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_slack_connect", RATE_LIMIT_FIRM_SLACK_CONNECT);
-  if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
+  if (!allowed) return errorPage(429, "Too many requests today. Please try again in 24 hours.");
 
   try {
     await store.deleteExpiredOauthStates(env.DB);
@@ -6325,7 +6325,7 @@ async function handleFirmSlackConnectCallback(request: Request, env: Env): Promi
   }
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_slack_connect", RATE_LIMIT_FIRM_SLACK_CONNECT);
-  if (!allowed) return errorPage(429, "Too many requests. Please try again later.");
+  if (!allowed) return errorPage(429, "Too many requests today. Please try again in 24 hours.");
 
   const url = new URL(request.url);
   if (url.searchParams.get("error")) {
@@ -6403,7 +6403,7 @@ async function handleFirmSlackDisconnect(request: Request, env: Env): Promise<Re
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_slack_disconnect", RATE_LIMIT_FIRM_SLACK_DISCONNECT);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   if (session.firm.slack_access_token_encrypted && session.firm.slack_access_token_iv && env.TOTP_ENCRYPTION_KEY) {
@@ -6447,7 +6447,7 @@ async function handleFirmTeamsWebhookSet(request: Request, env: Env): Promise<Re
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_teams_webhook_set", RATE_LIMIT_FIRM_TEAMS_SET);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   let body: Record<string, unknown>;
@@ -6693,7 +6693,7 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
   // firm id rather than the caller's network address.
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_license_create", RATE_LIMIT_FIRM_LICENSE_CREATE);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many staff added today for this firm. Please try again tomorrow." });
+    return jsonResponse(429, { error: "Too many staff added today for this firm. Please try again in 24 hours." });
   }
 
   // BILL-1 (2026-08-04, Devin's decision): enforce the advertised self-serve
@@ -6963,7 +6963,7 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
   // other work, same placement as the POST handler.
   const patchAllowed = await checkRateLimit(env.DB, session.firmId, "firm_license_patch", RATE_LIMIT_FIRM_LICENSE_PATCH);
   if (!patchAllowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   const existing = await store.getFirmLicense(env.DB, session.firmId, id);
@@ -7235,7 +7235,7 @@ async function handleFirmLicenseDelete(request: Request, env: Env, id: string): 
   // amplification with nothing bounding it before this.
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_license_delete", RATE_LIMIT_FIRM_LICENSE_DELETE);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   const result = await store.removeFirmLicense(env.DB, session.firmId, id);
@@ -7287,7 +7287,7 @@ async function handleFirmLicenseRenew(request: Request, env: Env, id: string): P
   // DELETE handler above: no send path, but unbounded D1 write amplification.
   const renewAllowed = await checkRateLimit(env.DB, session.firmId, "firm_license_renew", RATE_LIMIT_FIRM_LICENSE_RENEW);
   if (!renewAllowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   // Read the row first (ownership-scoped) so a refusal can be given a
@@ -7393,7 +7393,7 @@ async function handleCpeEntryCreate(request: Request, env: Env): Promise<Respons
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "cpe_entry_create", RATE_LIMIT_CPE_ENTRY_CREATE);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many CPE entries logged today for this firm. Please try again tomorrow." });
+    return jsonResponse(429, { error: "Too many CPE entries logged today for this firm. Please try again in 24 hours." });
   }
 
   const parsed = await readFirmLicenseJsonBody(request); // generic despite the name -- see that function's own signature
@@ -7492,7 +7492,7 @@ async function handleCpeEntryDelete(request: Request, env: Env, id: string): Pro
   // RATE_LIMIT_CPE_ENTRY_CREATE's own comment, applied to the delete side.
   const allowed = await checkRateLimit(env.DB, session.firmId, "cpe_entry_delete", RATE_LIMIT_CPE_ENTRY_DELETE);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   const removed = await store.removeCpeEntry(env.DB, session.firmId, id);
@@ -7565,7 +7565,7 @@ async function handleDocumentUpload(request: Request, env: Env, subscriberId: st
 
   const uploadAllowed = await checkRateLimit(env.DB, session.firmId, "firm_document_upload", RATE_LIMIT_FIRM_DOCUMENT_UPLOAD);
   if (!uploadAllowed) {
-    return jsonResponse(429, { error: "Too many uploads. Please try again later." });
+    return jsonResponse(429, { error: "Too many uploads today. Please try again in 24 hours." });
   }
 
   const existing = await store.getFirmLicense(env.DB, session.firmId, subscriberId);
@@ -10468,7 +10468,7 @@ async function handleOauthIdentityDelete(request: Request, env: Env, id: string)
   // compromised/careless session), applied to the unlink side.
   const allowed = await checkRateLimit(env.DB, session.firmId, "oauth_identity_delete", RATE_LIMIT_OAUTH_IDENTITY_DELETE);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many changes. Please try again later." });
+    return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
   // Adversarial review (2026-08-09, model: opus, /firm/demo-login review):
@@ -11025,7 +11025,7 @@ async function handleMobilityCompletionCreate(request: Request, env: Env): Promi
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_completion_create", RATE_LIMIT_MOBILITY_COMPLETION_CREATE);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many requests. Please try again later." });
+    return jsonResponse(429, { error: "Too many requests today. Please try again in 24 hours." });
   }
 
   const parsed = await readFirmLicenseJsonBody(request); // generic despite the name -- see that function's own signature
@@ -11082,7 +11082,7 @@ async function handleMobilityCompletionDelete(request: Request, env: Env, id: st
 
   const allowed = await checkRateLimit(env.DB, session.firmId, "mobility_completion_delete", RATE_LIMIT_MOBILITY_COMPLETION_DELETE);
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many requests. Please try again later." });
+    return jsonResponse(429, { error: "Too many requests today. Please try again in 24 hours." });
   }
 
   const removed = await store.removeMobilityCompletion(env.DB, session.firmId, id);

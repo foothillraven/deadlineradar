@@ -3576,12 +3576,30 @@ def _bot_defense_fields_html(id_suffix: str = "", shared_widget: bool = False) -
             f'    <div class="cf-turnstile" data-sitekey="{esc(TURNSTILE_SITE_KEY)}"'
             f' data-appearance="interaction-only"></div>'
         )
-    else:
+    elif shared_widget:
         # `shared_widget=True` (2026-07-31): this form does NOT render its own
         # widget. It carries only the empty hidden input that
         # _turnstile_shared_widget_html()'s script fills in on submit. Used on
         # /firm-login/, where three forms share ONE widget -- see that
         # function's docstring for why.
+        #
+        # AuditLab DOC-3 (LOW, 2026-08-21, orchestrator-approved): this
+        # branch and the `not TURNSTILE_SITE_KEY` branch below used to share
+        # one comment/HTML ("reserved... not configured yet") -- correct for
+        # the other branch, but wrong here whenever a site key IS set
+        # (/firm-login/'s actual production state): the shipped page then
+        # falsely tells anyone reading source that Turnstile is off. Split so
+        # this branch's own comment states the true reason -- shared, not
+        # absent.
+        widget = (
+            f'    <!-- Turnstile widget is shared across this page\'s forms; see '
+            f'_turnstile_shared_widget_html(). This hidden field is filled by its submit-time script, '
+            f'not rendered here. -->\n'
+            f'    <input type="hidden" name="cf-turnstile-response" value="">'
+        )
+    else:
+        # No TURNSTILE_SITE_KEY configured at all -- reserved for when one
+        # is set, matching verifyTurnstile()'s own degrade-safely contract.
         widget = (
             f'    <!-- Turnstile reserved: set TURNSTILE_SITE_KEY (+ the Worker secret) to activate. '
             f'Empty/absent is treated as "not configured yet," not as a failed check. -->\n'
@@ -3646,13 +3664,18 @@ def _turnstile_shared_widget_html() -> str:
     }}
   }};
   window.drTurnstileExpired = function () {{ drTurnstileToken = ""; }};
-  // Purely informational, never blocks submission (the server accepts a
-  // missing token on the routes this widget serves -- see verifyTurnstile()'s
-  // `allowMissingToken`). 2026-08-05: an ad blocker can prevent
-  // challenges.cloudflare.com from ever loading with no visible sign
-  // anything is wrong, so a visitor who never sees this widget resolve has
-  // no way to know WHY -- this surfaces that explanation without gating
-  // anything on it.
+  // AuditLab DOC-3 (LOW, 2026-08-21, orchestrator-approved): this notice
+  // itself never blocks submission -- it's purely informational, surfacing
+  // an explanation without gating anything on it -- but the widget serves
+  // THREE routes and only ONE of them shares that permissiveness: index.ts's
+  // handleFirmSignup and handleFirmPasswordLogin both call verifyTurnstile()
+  // WITHOUT allowMissingToken (a missing token 400s), and only
+  // handleFirmLogin (the magic-link route) passes allowMissingToken=true.
+  // An ad blocker can prevent challenges.cloudflare.com from ever loading
+  // with no visible sign anything is wrong, so a visitor who never sees this
+  // widget resolve has no way to know WHY -- this surfaces that explanation
+  // on all three forms, even though only the magic-link one can actually
+  // submit without a token.
   setTimeout(function () {{
     if (drTurnstileToken) return;
     var notice = document.getElementById("dr-turnstile-blocked-notice");

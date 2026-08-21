@@ -1750,7 +1750,7 @@
   </div>
   <form method="post" action="/api/firm/login/password" id="dr-firmlogin-signin-form">
     <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website-signin">Leave this field blank</label><input type="text" id="hp_website-signin" name="hp_website" tabindex="-1" autocomplete="off"></div>
-    <!-- Turnstile reserved: set TURNSTILE_SITE_KEY (+ the Worker secret) to activate. Empty/absent is treated as "not configured yet," not as a failed check. -->
+    <!-- Turnstile widget is shared across this page's forms; see _turnstile_shared_widget_html(). This hidden field is filled by its submit-time script, not rendered here. -->
     <input type="hidden" name="cf-turnstile-response" value="">
     <label for="signin-email">Email</label>
     <input type="email" id="signin-email" name="admin_email" required autocomplete="username"
@@ -1778,7 +1778,7 @@
   <p class="subhead">Free, no time limit, no card required.</p>
   <form method="post" action="/api/firm/signup" id="dr-firmlogin-signup-form">
     <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website-alt">Leave this field blank</label><input type="text" id="hp_website-alt" name="hp_website" tabindex="-1" autocomplete="off"></div>
-    <!-- Turnstile reserved: set TURNSTILE_SITE_KEY (+ the Worker secret) to activate. Empty/absent is treated as "not configured yet," not as a failed check. -->
+    <!-- Turnstile widget is shared across this page's forms; see _turnstile_shared_widget_html(). This hidden field is filled by its submit-time script, not rendered here. -->
     <input type="hidden" name="cf-turnstile-response" value="">
     <!-- Roadmap #31 (referral program): populated by this page's own JS
          from a ?ref= query param, never user-typed. An invalid/unresolvable
@@ -1808,7 +1808,7 @@
   <p class="subhead" id="dr-magic-sub">Works whether or not you've set a password.</p>
   <form method="post" action="/api/firm/login" id="dr-magic-form">
     <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;"><label for="hp_website-magic">Leave this field blank</label><input type="text" id="hp_website-magic" name="hp_website" tabindex="-1" autocomplete="off"></div>
-    <!-- Turnstile reserved: set TURNSTILE_SITE_KEY (+ the Worker secret) to activate. Empty/absent is treated as "not configured yet," not as a failed check. -->
+    <!-- Turnstile widget is shared across this page's forms; see _turnstile_shared_widget_html(). This hidden field is filled by its submit-time script, not rendered here. -->
     <input type="hidden" name="cf-turnstile-response" value="">
     <!-- Which affordance the visitor arrived from. The server writes this
          onto the login-token row, so the emailed link knows where to land.

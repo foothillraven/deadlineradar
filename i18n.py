@@ -419,7 +419,11 @@ EN: dict[str, str] = {
     "pricing.table_th_paid": "Paid (any tier)",
     "pricing.row_roster": "Roster &amp; staff license tracking",
     "pricing.row_roster_free": "Up to 3 staff",
-    "pricing.row_roster_paid": "Up to 35 staff (Enterprise)",
+    # ShopLab cold-read (2026-08-20, orchestrator-approved): the column header
+    # says "Paid (any tier)" but this cell named only the top tier's cap --
+    # read literally, it promises an Essentials buyer 35 seats. Show the real
+    # per-tier range instead of one figure that only applies to Enterprise.
+    "pricing.row_roster_paid": "From 5 to 35 staff, depending on tier (see plans above)",
     "pricing.row_calendar": "Calendar view",
     "pricing.row_cpe": "CPE-hour tracking",
     "pricing.row_compliance": "Compliance Summary &amp; audit trail export",

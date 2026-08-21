@@ -3820,10 +3820,19 @@ def signup_form_for_state(state_slug: str, state_name: str, records: list[dict],
     # _extra_fields_html()'s own docstring for how it picks the right field(s)
     # per state. Every state can collect a signup, computed or user-provided.
     # Two-column dark treatment (2026-07-17), matching the approved concept's .remind panel.
+    #
+    # HoneymoonHotels cold-read (2026-08-20, orchestrator-approved addendum):
+    # this h2 said "One email before it matters" directly above a checklist
+    # promising 6 reminders (60/30/14/7/3/1 day) -- a direct on-page
+    # contradiction, both visible in the same screenshot. The orchestrator's
+    # ruling deliberately did not weigh in on which cadence is correct (a
+    # product call, not a copy fix); reworded the HEADLINE to match the real
+    # 6-reminder behavior rather than changing the cadence itself, which
+    # would need touching worker/src's cron logic and isn't approved.
     return f"""{_upcoming_change_callout_html(state_slug)}
 <div class="remind-panel" id="remind">
   <div>
-    <h2>One email before it matters.</h2>
+    <h2>Reminders, right up to your deadline.</h2>
     <p class="remind-copy">We'll remind you ahead of your {esc(state_name)} renewal deadline &mdash;
     and again for your CPE, if your state tracks it separately. Set it once.</p>
     <p class="remind-promise">{esc(TRUST_MICROCOPY)}</p>
@@ -3864,7 +3873,7 @@ def signup_form_homepage(by_slug: dict[str, list[dict]], as_of: date) -> str:
     )
     return f"""<div class="remind-panel" id="remind">
   <div>
-    <h2>One email before it matters.</h2>
+    <h2>Reminders, right up to your deadline.</h2>
     <p class="remind-copy">We'll remind you ahead of your renewal deadline &mdash; and again for your
     CPE, if your state tracks it separately. Set it once.</p>
     <p class="remind-promise">{esc(TRUST_MICROCOPY)}</p>
@@ -5905,6 +5914,24 @@ def _flag_wrong_html(state_name: str, state_slug: str) -> str:
     )
 
 
+# ShopLab cold-read (2026-08-20, orchestrator-approved 2026-08-20, "if only
+# three things" #1, highest leverage): state pages are the actual SEO front
+# door -- an office manager searching "Texas CPA renewal deadline" lands
+# here, not the homepage -- and had ZERO path to the firm product. Verified
+# before writing this: stripping scripts/styles from the live /texas/ page,
+# "roster"/"for-firms"/"firm plan" all appeared exactly 0 times in reader-
+# visible text; every "roster" hit on the raw page was inside <script>
+# (structured data), invisible to a visitor. One line, matching the
+# homepage's firm_preview_html voice, reaches every organic visitor.
+def _firm_product_cta_html() -> str:
+    return (
+        '<p class="how-it-works">Tracking more than one CPA? '
+        '<a href="../for-firms/" style="font-weight:600;">See the firm roster '
+        "&rarr;</a> one view instead of a separate reminder for each person, "
+        "free up to 3 staff.</p>"
+    )
+
+
 def build_state_page(
     state_slug: str, records: list[dict], as_of: date, by_slug: dict[str, list[dict]] | None = None,
     cpe_hours_by_slug: dict[str, dict] | None = None, reinstatement_by_slug: dict[str, dict] | None = None,
@@ -6090,6 +6117,7 @@ def build_state_page(
 {trust_line(last_verified, source_url, all(_record_fully_cited(r) for r in records), all(_is_operational_record(r) for r in records), records=records)}
 {_flag_wrong_html(state_name, state_slug)}
 {signup_form_for_state(state_slug, state_name, records, as_of)}
+{_firm_product_cta_html()}
 {_cpe_affiliate_html()}
 {related_html}
 {nearby_html}
@@ -6974,11 +7002,16 @@ def build_index_page(states: list[dict], as_of: date, by_slug: dict[str, list[di
   You enter the date on your license and we track it. We would rather say that than round up.</p>
 </section>"""
 
+    # ShopLab cold-read (2026-08-20, orchestrator-approved, "same fix batch" as
+    # the pricing table row above): "stricter than most paid services" was an
+    # unsupported comparative claim about unnamed competitors -- exactly the
+    # sentence shape a licensed professional discounts, which then makes them
+    # re-read the surrounding TRUE claims more skeptically too. The
+    # three-standard breakdown right below already proves the point without
+    # asserting it, so the lead-in sentence is cut rather than reworded.
     method_band_html = f"""<section class="band-section band-section--alt dr-reveal">
   <p class="eyebrow">How we verify</p>
   <h2>Two independent sources, or we don't publish a date.</h2>
-  <p style="color:var(--muted); margin:0.7rem 0 0; font-size:1.02rem;">This site's verification
-  standard is stricter than most paid services. It's the whole reason a CPA can rely on this.</p>
   <div class="method-grid">
     <div class="mcard">
       <div class="step">STANDARD 01</div>

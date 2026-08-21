@@ -168,6 +168,22 @@ const MS_PER_DAY = 86_400_000;
  * directive existed are not required to call this (not a retroactive sweep
  * of every existing send -- see the directive's own scope). This is the
  * mechanism the NEXT new pass reuses, not a gate on today's passes.
+ *
+ * SCOPE, confirmed 2026-08-21 during the 2FA-4 mechanism review: this
+ * covers RECURRING scheduled() cron passes specifically -- it answers "is
+ * this batch job allowed to run this period," which is meaningless for a
+ * one-off, per-request send. A per-request/event-triggered send (fired
+ * from inside an HTTP handler, not scheduled()) uses a different,
+ * deliberate pattern instead: an explicit const flag defaulted false,
+ * guarding the send call site directly, requiring a reviewed source edit
+ * and a deploy to flip -- see index.ts's BACKUP_CODE_REDEEMED_EMAIL_ENABLED
+ * (2FA-4) for the worked example. Both patterns give the same real
+ * property (not reachable in production without Devin's explicit,
+ * reviewed go-ahead); which one applies is decided by whether the send is
+ * a recurring batch job or a one-off request-triggered event, not a
+ * preference call -- don't route an event-triggered send through this
+ * function just for consistency, and don't build a const-flag for a new
+ * recurring pass instead of using this one.
  */
 export function requireSendApproval(env: Env, passName: string): boolean {
   const approved = (env.SEND_APPROVED_PASSES ?? "")

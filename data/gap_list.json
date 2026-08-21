@@ -4,7 +4,7 @@
     "purpose": "SRC-4 (AuditLab, 2026-08-14): mechanically-derived inventory of every record carrying a sourcing gap/verification note, regenerated on every preship_gate.py run so it can never go stale or be a remembered subset."
   },
   "total_records": 246,
-  "gap_record_count": 53,
+  "gap_record_count": 54,
   "block_claim_count": 1,
   "entries": [
     {
@@ -302,6 +302,15 @@
       "state_slug": "new-mexico",
       "field": "data_gap_note",
       "note": "The $175 fee and the '90 days to cancellation' trigger are confirmed only on the board's own pages, not independently in the codified NMAC text (the rule authorizes fees without stating the dollar amount, and doesn't state the 90-day figure in the sections checked). The 40-hour/year (max 200) penalty CPE figure IS directly confirmed in the codified rule. Recommend a manual check with the board for the fee/90-day figures.",
+      "is_block_claim": false
+    },
+    {
+      "dataset": "reinstatement.json",
+      "id": "north-carolina-reinstatement",
+      "state": "North Carolina",
+      "state_slug": "north-carolina",
+      "field": "data_gap_note",
+      "note": "The reinstatement rule (21 NCAC 08J .0106(b)(3)) cross-references .0105(c)(2) for the 40-hour/2,000-minute CPE total, of which 21 NCAC 08F .0504 requires 400 minutes (8 hours) on NC accountancy statutes and rules -- a real, separate requirement, but not ethics. Ordinary annual renewal separately requires 50 minutes (1 hour) of ethics under .0401(e), a different section the reinstatement rule (.0106) does not itself cross-reference -- so whether reinstatement also independently requires that 1-hour ethics component isn't confirmed from the text checked. Recommend a manual check with the Board if you need the ethics-specific reinstatement figure confirmed.",
       "is_block_claim": false
     },
     {

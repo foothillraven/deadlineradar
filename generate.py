@@ -19744,8 +19744,30 @@ def _reinstatement_cpe_line_html(record: dict) -> str:
             parts.append(f"<li><strong>{hours} CPE hours</strong> {esc(notes)}</li>")
     elif notes:
         parts.append(f"<li>{esc(notes)}</li>")
+    # CITE-51 (AuditLab, 2026-08-21, orchestrator-approved): the ethics line
+    # had the same "one implicit meaning" problem as penalty_cpe_hours,
+    # unaddressed by CITE-48's fix -- 24 of 26 records are fine as a flat
+    # "N ethics hours, within that total," but two aren't:
+    #   - North Carolina's 8 isn't ethics at all (it's NC accountancy
+    #     statutes-and-rules hours, 21 NCAC 08F .0504) -- penalty_ethics_
+    #     label overrides the category name for the one record where the
+    #     field is holding a genuinely different requirement, rather than
+    #     silently mislabeling it as ethics.
+    #   - Oregon's "within that total" dangles once CITE-48 labeled the
+    #     headline CPE figure an INCREMENT: the 4 ethics hours actually sit
+    #     inside the NORMAL CPE (the 96-176 total), not inside the 16-hour
+    #     add-on. Basis-aware referent text fixes the one combination
+    #     (increment) where "that total" would point at the wrong number --
+    #     New Mexico's per_year case has no such problem (its ethics hours
+    #     genuinely sit within the same per-year rate) and stays unchanged.
     if ethics is not None:
-        parts.append(f"<li><strong>{ethics} ethics hours</strong>, within that total.</li>")
+        label = record.get("penalty_ethics_label")
+        if label:
+            parts.append(f"<li><strong>{ethics} {esc(label)}</strong></li>")
+        elif basis == "increment":
+            parts.append(f"<li><strong>{ethics} ethics hours</strong>, within your normal CPE requirement -- not the added catch-up hours above.</li>")
+        else:
+            parts.append(f"<li><strong>{ethics} ethics hours</strong>, within that total.</li>")
     return "\n    ".join(parts)
 
 

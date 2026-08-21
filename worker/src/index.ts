@@ -4489,7 +4489,7 @@ async function handleSubscriberPhoneStartVerification(request: Request, env: Env
     RATE_LIMIT_SUBSCRIBER_PHONE_VERIFICATION_START
   );
   if (!allowed) {
-    return jsonResponse(429, { error: "Too many attempts. Please try again later." });
+    return jsonResponse(429, { error: "Too many attempts today. Please try again in 24 hours." });
   }
 
   let body: Record<string, unknown>;

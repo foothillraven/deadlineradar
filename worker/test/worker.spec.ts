@@ -3241,6 +3241,59 @@ describe("Confirm / unsubscribe / renewed / rearm lifecycle", () => {
     expect(staleRearm.status).toBe(404);
   });
 
+  // AuditLab UX-8 (LOW, 2026-08-21): the /renewed success page used to
+  // claim "we've emailed you a confirmation" unconditionally, even though
+  // the send is gated (no SENDGRID_API_KEY, the daily cap, a repeat visit)
+  // and its failures are swallowed. Now conditional on the send actually
+  // succeeding, with a distinct repeat-click message.
+  it("AuditLab UX-8: does not claim an email was sent when SENDGRID_API_KEY is unset", async () => {
+    const row = await signUpAndGetRow("203.0.113.160");
+    await postAction(`/confirm?token=${row.confirm_token}`, "203.0.113.161");
+    const resp = await postAction(`/renewed?token=${row.renewed_token}`, "203.0.113.162");
+    expect(resp.status).toBe(200);
+    const body = await resp.text();
+    expect(body).toContain("Congrats on renewing");
+    expect(body).toContain("All reminders for this deadline are stopped");
+    expect(body).not.toContain("we've emailed");
+  });
+
+  it("AuditLab UX-8: claims the email only when the send actually succeeds", async () => {
+    const row = await signUpAndGetRow("203.0.113.163");
+    await postAction(`/confirm?token=${row.confirm_token}`, "203.0.113.164");
+
+    const worker = (await import("../src/index")).default;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 202 }));
+    try {
+      const envWithKey = { ...env, SENDGRID_API_KEY: "test-key-not-real" };
+      const request = new Request(`https://deadline-radar.com/renewed?token=${row.renewed_token}`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.165" },
+        body: new URLSearchParams({ token: row.renewed_token }).toString(),
+      });
+      const resp = await worker.fetch(request, envWithKey as never, testExecutionContext());
+      expect(resp.status).toBe(200);
+      const body = await resp.text();
+      expect(body).toContain("we've emailed you a confirmation");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("AuditLab UX-8: a repeat click gets an honest 'already handled' message, not a repeated false email claim", async () => {
+    const row = await signUpAndGetRow("203.0.113.166");
+    await postAction(`/confirm?token=${row.confirm_token}`, "203.0.113.167");
+    const first = await postAction(`/renewed?token=${row.renewed_token}`, "203.0.113.168");
+    expect(first.status).toBe(200);
+
+    const second = await postAction(`/renewed?token=${row.renewed_token}`, "203.0.113.169");
+    expect(second.status).toBe(200);
+    const body = await second.text();
+    expect(body).toContain("Already handled");
+    expect(body).toContain("already stopped these reminders");
+    expect(body).not.toContain("we've emailed");
+    expect(body).not.toContain("Congrats on renewing");
+  });
+
   it("BYOD: refuses to re-arm a user-provided-date subscriber rather than reactivating a stale date", async () => {
     const email = `byod-rearm-${Date.now()}@example.com`;
     const rec = await store.addPending(env.DB, {

@@ -8015,6 +8015,16 @@ async function handleRenewed(env: Env, token: string | null): Promise<Response> 
   // has the identical repeat-visit shape /unsubscribe does -- the token
   // never expires, so a scanner re-fetch would otherwise re-send this
   // confirmation every time. subscriber.alreadyStopped gates it the same way.
+  // AuditLab UX-8 (LOW, 2026-08-21): the success copy below used to claim
+  // "we've emailed you a confirmation" unconditionally, even though the
+  // send above it is gated (SENDGRID_API_KEY unset, the daily cap, a
+  // repeat visit) and its failures are swallowed -- four separate ways the
+  // claim could be false on the one page that is the customer's only
+  // record after permanently stopping reminders. Tracked explicitly now
+  // instead of asserted; handleUnsubscribe's identical gated-and-swallowed
+  // send already makes no email claim on its own success page, this just
+  // extends the same honesty to the one path that hadn't caught up.
+  let confirmationEmailSent = false;
   if (env.SENDGRID_API_KEY && !subscriber.alreadyStopped) {
     try {
       const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
@@ -8027,22 +8037,25 @@ async function handleRenewed(env: Env, token: string | null): Promise<Response> 
           unsubscribeUrl,
           subscriber.first_name
         );
-        await sendViaSendGrid(env.SENDGRID_API_KEY, subscriber.email, built, env.EMAIL_ALLOWLIST);
+        confirmationEmailSent = await sendViaSendGrid(env.SENDGRID_API_KEY, subscriber.email, built, env.EMAIL_ALLOWLIST);
       }
     } catch {
       // Swallow -- the reminders are already stopped; a follow-up email
       // failure must not turn a successful stop into an error page.
+      // confirmationEmailSent stays false, so the copy below stays honest.
     }
   }
 
-  return htmlResponse(
-    200,
-    htmlPage(
-      "Nice work",
-      "<h1>Congrats on renewing</h1><p>All reminders for this deadline are stopped, and we've emailed " +
+  const bodyHtml = subscriber.alreadyStopped
+    ? "<h1>Already handled</h1><p>You've already stopped these reminders -- there's nothing further " +
+      "to do. Want reminders again someday? You're welcome to sign up fresh any time.</p>"
+    : confirmationEmailSent
+      ? "<h1>Congrats on renewing</h1><p>All reminders for this deadline are stopped, and we've emailed " +
         "you a confirmation. Want reminders again someday? You're welcome to sign up fresh any time.</p>"
-    )
-  );
+      : "<h1>Congrats on renewing</h1><p>All reminders for this deadline are stopped. Want reminders " +
+        "again someday? You're welcome to sign up fresh any time.</p>";
+
+  return htmlResponse(200, htmlPage("Nice work", bodyHtml));
 }
 
 /**

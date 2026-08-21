@@ -51,6 +51,24 @@ describe("escapeIcsText", () => {
   });
 });
 
+// ICS-1 (AuditLab, 2026-08-20): RFC 5545 SS3.1 requires content lines to be
+// <=75 octets (excluding the terminating CRLF), folded onto continuation
+// lines (CRLF + a single leading space) otherwise. Two things a real
+// parser needs to hold, checked directly rather than trusting the function
+// looks right: (1) every physical line respects the limit, (2) unfolding
+// (stripping "\r\n " continuations) reconstructs the original content
+// exactly, byte for byte.
+function assertAllLinesWithinOctetLimit(ics: string): void {
+  for (const physicalLine of ics.split("\r\n")) {
+    if (physicalLine.length === 0) continue; // trailing blank line from the final \r\n
+    expect(new TextEncoder().encode(physicalLine).length).toBeLessThanOrEqual(75);
+  }
+}
+
+function unfoldIcs(ics: string): string {
+  return ics.replace(/\r\n /g, "");
+}
+
 describe("buildIcs", () => {
   it("emits a valid all-day VEVENT with DTEND one day after DTSTART", () => {
     const asOf = new Date("2026-08-06T12:00:00Z");
@@ -74,6 +92,44 @@ describe("buildIcs", () => {
     const ics = buildIcs([], new Date("2026-08-06T00:00:00Z"));
     expect(ics).toContain("BEGIN:VCALENDAR");
     expect(ics).not.toContain("BEGIN:VEVENT");
+  });
+
+  it("does not fold a short SUMMARY (stays on one physical line)", () => {
+    const ics = buildIcs([{ uid: "abc", summary: "j.smith@acme.com — Ohio license renewal", dateIso: "2026-09-30" }], new Date("2026-08-06T00:00:00Z"));
+    assertAllLinesWithinOctetLimit(ics);
+    expect(ics).toContain("SUMMARY:j.smith@acme.com — Ohio license renewal\r\n");
+  });
+
+  it("folds a SUMMARY line that exceeds 75 octets, and unfolding reconstructs it exactly", () => {
+    // AuditLab's own reported breach: an ordinary staff email + California.
+    const summary = "jennifer.rodriguez@bakertillyadvisors.com — California license renewal";
+    expect(new TextEncoder().encode(`SUMMARY:${summary}`).length).toBeGreaterThan(75); // control: confirm this case actually breaches
+    const ics = buildIcs([{ uid: "abc", summary, dateIso: "2026-09-30" }], new Date("2026-08-06T00:00:00Z"));
+    assertAllLinesWithinOctetLimit(ics);
+    // The physical line must actually be split (a continuation exists).
+    expect(ics).toMatch(/SUMMARY:[^\r\n]*\r\n [^\r\n]*/);
+    expect(unfoldIcs(ics)).toContain(`SUMMARY:${summary}`);
+  });
+
+  it("folds without splitting a multi-byte UTF-8 character (em-dash lands near the boundary)", () => {
+    // Deliberately places a 3-octet em-dash right around the 75-octet cut
+    // point -- the exact failure shape a naive character-count fold would
+    // corrupt into a replacement character or a broken string.
+    const summary = "A".repeat(70) + " — Northern Mariana Islands license renewal";
+    const ics = buildIcs([{ uid: "abc", summary, dateIso: "2026-09-30" }], new Date("2026-08-06T00:00:00Z"));
+    assertAllLinesWithinOctetLimit(ics);
+    const unfolded = unfoldIcs(ics);
+    expect(unfolded).toContain(`SUMMARY:${summary}`);
+    expect(unfolded).not.toContain("�"); // the Unicode replacement character -- a split multi-byte sequence would produce this
+  });
+
+  it("folds a summary long enough to need more than two physical lines", () => {
+    const summary = "Accounts Payable Team — " + "x".repeat(120) + " — Pennsylvania license renewal";
+    const ics = buildIcs([{ uid: "abc", summary, dateIso: "2026-09-30" }], new Date("2026-08-06T00:00:00Z"));
+    assertAllLinesWithinOctetLimit(ics);
+    const summaryLines = ics.split("\r\n").filter((l) => l.startsWith("SUMMARY:") || l.startsWith(" "));
+    expect(summaryLines.length).toBeGreaterThan(2);
+    expect(unfoldIcs(ics)).toContain(`SUMMARY:${summary}`);
   });
 });
 

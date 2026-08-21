@@ -110,6 +110,38 @@ describe("POST /roadmap/vote", () => {
     );
     expect(resp.status).toBe(404);
   });
+
+  // VOTE-1 (AuditLab, 2026-08-21, orchestrator-approved): this route used
+  // to pass allowMissingToken=true to verifyTurnstile(), inherited from the
+  // other roadmap route without being re-decided -- unlike those, a public
+  // vote has no secondary "must click a real emailed link" gate to fall
+  // back on, so a token-less request let a scripted client re-mint the
+  // voter cookie and inflate the public count for free. Needs
+  // TURNSTILE_SECRET_KEY set (the default test env has none) so this
+  // actually exercises the strict/permissive branch -- see
+  // action-send-budget.spec.ts's own comment on why that matters.
+  it("VOTE-1: rejects a vote with no Turnstile token when a secret is configured (was previously allowed)", async () => {
+    const resp = await workerFetch(
+      new Request(`${BASE}/roadmap/vote`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.13" },
+        body: JSON.stringify({ idea_id: SEEDED_IDEA_ID }),
+      }),
+      { TURNSTILE_SECRET_KEY: "test-secret-not-real" }
+    );
+    expect(resp.status).toBe(400);
+  });
+
+  it("VOTE-1: still records a vote normally with no Turnstile configured at all (the real default env)", async () => {
+    const resp = await workerFetch(
+      new Request(`${BASE}/roadmap/vote`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "cf-connecting-ip": "203.0.113.14" },
+        body: JSON.stringify({ idea_id: SEEDED_IDEA_ID }),
+      })
+    );
+    expect(resp.status).toBe(200);
+  });
 });
 
 describe("POST /roadmap/notify-signup + GET/POST /roadmap/notify-confirm", () => {

@@ -5351,7 +5351,16 @@ async function handleRoadmapVote(request: Request, env: Env, ip: string): Promis
     return jsonResponse(400, { error: "Missing idea_id." });
   }
 
-  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY, true);
+  // VOTE-1 (AuditLab, 2026-08-21, orchestrator-approved): the permissive
+  // allowMissingToken=true default was inherited from the other roadmap
+  // route (handleRoadmapNotifySignup) without being re-decided for this
+  // one. Those other permissive routes fall back on a real email-click
+  // gate; a public vote has no such secondary control, so an absent token
+  // let a scripted client re-mint the voter cookie and inflate the public
+  // count for free. The widget lives on our own /roadmap/ page, so a real
+  // browser visiting normally already carries a token -- strict costs
+  // legitimate voters nothing.
+  const turnstileOk = await verifyTurnstile(form["cf-turnstile-response"], env.TURNSTILE_SECRET_KEY);
   if (!turnstileOk) {
     return jsonResponse(400, { error: "Verification failed -- please try again." });
   }
@@ -9028,11 +9037,15 @@ async function handleFirmPasswordLogin(request: Request, env: Env, ip: string): 
 
   // 2026-08-05: this route grants direct access on success (a password
   // check, not a magic-link email), so it deliberately does NOT pass
-  // allowMissingToken -- unlike the other 5 verifyTurnstile() call sites,
-  // there is no secondary "must click a real emailed link" gate here to
-  // fall back on. Relaxing it would mean a password-guessing bot no longer
-  // needs to solve Turnstile at all, which is a real regression on the one
-  // route that grants access directly -- so this stays strict.
+  // allowMissingToken -- unlike the other 6 verifyTurnstile() call sites
+  // that stay permissive (VOTE-1, 2026-08-21: was 5, corrected after
+  // handleRoadmapVote's permissive default was found un-re-decided and
+  // switched to strict, leaving 6 permissive call sites, all covered by a
+  // real "must click a real emailed link" or double-opt-in gate), there is
+  // no secondary fallback here. Relaxing it would mean a password-guessing
+  // bot no longer needs to solve Turnstile at all, which is a real
+  // regression on the one route that grants access directly -- so this
+  // stays strict.
   //
   // AuditLab TS-2 (MEDIUM, 2026-08-05): the ORIGINAL copy here said "please
   // try again", which cannot succeed while the blocker stays active and

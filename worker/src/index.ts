@@ -4719,6 +4719,15 @@ async function handleEmailEventsWebhook(request: Request, env: Env): Promise<Res
       if (!email || !eventType || !sgEventId) continue;
 
       const inserted = await store.recordDeliverabilityEvent(env.DB, { sgEventId, email, eventType, reason });
+      // AuditLab (2026-08-21, orchestrator-approved, doc-only): LOAD-BEARING
+      // for replay safety, not just redelivery dedup. verifySendGridEventSignature()
+      // enforces no timestamp freshness window, so a captured signed batch
+      // stays signature-valid indefinitely -- safe today ONLY because this
+      // sg_event_id dedup runs BEFORE suppressByEmail() below, so a replayed
+      // batch suppresses nothing. If a future SendGrid event type is ever
+      // handled ahead of this check, or gains a non-idempotent effect above
+      // it, replay protection is silently lost. Keep this the first thing
+      // that can short-circuit the loop body after parsing.
       if (!inserted) continue; // already processed this exact event -- redelivered webhook, skip
 
       const suppressionReason = suppressionReasonFor(eventType, typeField);

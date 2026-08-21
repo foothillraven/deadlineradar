@@ -9924,6 +9924,17 @@ _MY_DASHBOARD_JS_HTML = """<script>
     return MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
   }
 
+  // AuditLab CPE-5 (LOW, 2026-08-21, orchestrator-approved): a same-name
+  // sibling exists in the firm dashboard's own script (generate.py's
+  // drDaysUntil(iso), near its own drDaysAgo() duplication comment) --
+  // proven behaviorally equivalent but NOT the same code: this copy diffs
+  // two local-time Date objects directly, the sibling anchors the target
+  // to UTC midnight (TZ-1's fix) and diffs against a Date.UTC() "today".
+  // Both resolve to the same whole-day count for every date this product
+  // actually renders, but a text-equality gate would false-fail on this
+  // legitimately different implementation, so this pair is not
+  // preship_gate.py-gated the way drCpeCycleWindow() is; this comment is
+  // the pointer instead.
   function drDaysUntil(s) {
     var d = drParseDate(s);
     var now = new Date();
@@ -11821,6 +11832,13 @@ function drImportCsvRows() {
 // convention drFormatDeadline() already uses) and today, in UTC calendar
 // days -- not a raw ms/86400000 divide, which would drift by a day near a
 // DST boundary if this ever ran against local time instead of UTC.
+//
+// AuditLab CPE-5 (LOW, 2026-08-21, orchestrator-approved): a same-name
+// sibling exists in /my/'s own script (_MY_DASHBOARD_JS_HTML's
+// drDaysUntil(s), near its own drUrgency() duplication). Proven
+// behaviorally equivalent but not the same code -- see that copy's own
+// comment for the diff -- so this pair is not preship_gate.py-gated the
+// way drCpeCycleWindow() is; this comment is the pointer instead.
 function drDaysUntil(iso) {
   if (!iso) return null;
   var target = new Date(iso + 'T00:00:00Z').getTime();

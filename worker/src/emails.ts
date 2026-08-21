@@ -316,6 +316,34 @@ function daysPhrase(actual: number): string {
   return `${-actual} day${actual !== -1 ? "s" : ""} ago`;
 }
 
+// AuditLab COPY-8 (MEDIUM, 2026-08-21, orchestrator-approved): the full
+// 6-tier default, descending -- same values as scheduler.ts's own
+// ESCALATION_THRESHOLDS_DAYS and validation.ts's ALLOWED_REMINDER_THRESHOLDS,
+// duplicated here rather than imported for the same reason validation.ts's
+// own copy gives (small, stable, rarely-changing constant; scheduler.ts
+// already imports value exports from this file, so importing back would be
+// circular). Used as the fallback when a firm hasn't narrowed its cadence
+// (reminder_thresholds is null, same "null means everything" convention as
+// index.ts's own JSON.parse-or-null read of that column).
+const DEFAULT_REMINDER_THRESHOLDS_DESC = [60, 30, 14, 7, 3, 1];
+
+/** Renders a firm's actual reminder cadence as the "60, 30, 14, 7, 3, and 1"
+ * list format buildConfirmationEmail()/buildFirmStaffAddedEmail() promise a
+ * recipient -- COPY-8 found both builders hardcoding the full 6-tier list
+ * even when scheduler.ts's own override chain (firm's reminder_thresholds,
+ * then a per-subscriber override) would send a narrowed subset, making the
+ * "that's the whole schedule" sentence false for that recipient. Falls back
+ * to the full default when `thresholds` is null/empty -- same posture as
+ * scheduler.ts's own thresholds resolution. */
+function formatThresholdList(thresholds: number[] | null): string {
+  const days = (thresholds && thresholds.length > 0 ? thresholds : DEFAULT_REMINDER_THRESHOLDS_DESC)
+    .slice()
+    .sort((a, b) => b - a);
+  if (days.length === 1) return String(days[0]);
+  if (days.length === 2) return `${days[0]} and ${days[1]}`;
+  return `${days.slice(0, -1).join(", ")}, and ${days[days.length - 1]}`;
+}
+
 /** Port of emails.py `_reminder_subject()` -- built from the TRUE remaining
  * count, never the threshold (so a scheduler gap can't produce a subject that
  * contradicts the body). */
@@ -1668,7 +1696,14 @@ export function buildConfirmationEmail(
   // specific date at confirm-request time (computing it requires calling
   // computeSubscriberDeadline(), which the scheduler does fresh on its own
   // schedule, not here), same as before this feature existed.
-  deadlineDateStr: string | null = null
+  deadlineDateStr: string | null = null,
+  // AuditLab COPY-8 (MEDIUM, 2026-08-21, orchestrator-approved): null (the
+  // default) for the two public self-signup call sites, which cannot have a
+  // firm cadence override yet -- see formatThresholdList()'s own comment.
+  // Only the firm-side PATCH call site (a re-confirm after a firm admin
+  // edits an existing staff member's delivery address) can pass a real
+  // narrowed subset here.
+  reminderThresholds: number[] | null = null
 ): BuiltEmail {
   // Hard-fail FIRST, before composing anything -- so a half-built email with
   // a placeholder footer can never exist.
@@ -1676,6 +1711,7 @@ export function buildConfirmationEmail(
   const subject = `Confirm your ${stateName} CPA renewal reminder`;
   const dateSentenceText = deadlineDateStr ? ` We'll remind you before ${deadlineDateStr}.` : "";
   const dateSentenceHtml = deadlineDateStr ? ` We'll remind you before ${esc(deadlineDateStr)}.` : "";
+  const thresholdList = formatThresholdList(reminderThresholds);
 
   const textBody =
     `${textGreeting(firstName)}\n\n` +
@@ -1684,7 +1720,7 @@ export function buildConfirmationEmail(
     `${confirmUrl}\n\n` +
     `If you don't click that link, we will never email you again -- nothing else happens ` +
     `automatically.\n\n` +
-    `Once confirmed, we'll email you as the renewal date approaches: 60, 30, 14, 7, 3, and 1 day ` +
+    `Once confirmed, we'll email you as the renewal date approaches: ${thresholdList} day ` +
     `before. That's the whole schedule -- no marketing, no third-party offers, ever.${dateSentenceText}` +
     `${textFooter(unsubscribeUrl, addr)}`;
 
@@ -1706,8 +1742,8 @@ export function buildConfirmationEmail(
         LIGHT.muted
       ) +
       p(
-        "Once confirmed, we'll email you as the renewal date approaches: 60, 30, 14, 7, 3, and " +
-          `1 day before. That's the whole schedule &mdash; no marketing, no third-party offers, ever.${dateSentenceHtml}`,
+        `Once confirmed, we'll email you as the renewal date approaches: ${thresholdList} day ` +
+          `before. That's the whole schedule &mdash; no marketing, no third-party offers, ever.${dateSentenceHtml}`,
         13,
         LIGHT.muted
       ),
@@ -1730,8 +1766,21 @@ export function buildConfirmationEmail(
  * the SAME unsubscribe_token/htmlFooter/List-Unsubscribe machinery every
  * other email already uses -- no new token type, no new opt-out mechanism.
  */
-export function buildFirmStaffAddedEmail(firmName: string, stateName: string, unsubscribeUrl: string): BuiltEmail {
+export function buildFirmStaffAddedEmail(
+  firmName: string,
+  stateName: string,
+  unsubscribeUrl: string,
+  // AuditLab COPY-8 (MEDIUM, 2026-08-21, orchestrator-approved): the firm's
+  // OWN reminder_thresholds (null when not narrowed) -- see
+  // formatThresholdList()'s own comment. This is the hybrid-consent
+  // transparency email; unlike buildConfirmationEmail()'s two public
+  // self-signup call sites, EVERY caller of this builder is a firm-side add,
+  // so a real narrowed subset is the common case this builder must handle,
+  // not an edge case.
+  reminderThresholds: number[] | null = null
+): BuiltEmail {
   const addr = mailingAddress();
+  const thresholdList = formatThresholdList(reminderThresholds);
   // AuditLab EMAIL-1 (LOW, 2026-08-04): the only subject line built from
   // attacker-influenceable text (firmName) with no control-char stripping
   // of its own -- CRLF survives into it if it ever got there. Not
@@ -1747,7 +1796,7 @@ export function buildFirmStaffAddedEmail(firmName: string, stateName: string, un
   const textBody =
     `Hi there,\n\n` +
     `${firmName} added you to Deadline-Radar to track your ${stateName} CPA license renewal. ` +
-    `You'll get advance email reminders before it's due -- 60, 30, 14, 7, 3, and 1 day out. ` +
+    `You'll get advance email reminders before it's due -- ${thresholdList} day out. ` +
     `That's the whole schedule -- nothing else, ever: no marketing, no third-party offers.\n\n` +
     `Not you, or would you rather not be tracked this way? One click removes you, no questions ` +
     `asked:\n\n` +
@@ -1761,8 +1810,8 @@ export function buildFirmStaffAddedEmail(firmName: string, stateName: string, un
       `${esc(firmName)} added you to Deadline-Radar</h1>` +
       p(
         `${esc(firmName)} added you to Deadline-Radar to track your ${esc(stateName)} CPA license ` +
-          `renewal. You'll get advance email reminders before it's due &mdash; 60, 30, 14, 7, 3, and ` +
-          `1 day out. That's the whole schedule &mdash; nothing else, ever: no marketing, no ` +
+          `renewal. You'll get advance email reminders before it's due &mdash; ${thresholdList} ` +
+          `day out. That's the whole schedule &mdash; nothing else, ever: no marketing, no ` +
           `third-party offers.`
       ) +
       p(

@@ -1968,6 +1968,89 @@ def check_signin_ttl_copy_sync(repo_root: Path) -> list[str]:
     return []
 
 
+def check_reminder_threshold_authorities_sync(repo_root: Path) -> list[str]:
+    """AuditLab COPY-8 (MEDIUM, 2026-08-21, orchestrator-approved) subordinate
+    note: the fixed 6-tier reminder schedule (60/30/14/7/3/1 days) is
+    independently declared in FIVE places -- scheduler.ts's
+    ESCALATION_THRESHOLDS_DAYS (the actual send default), validation.ts's
+    ALLOWED_REMINDER_THRESHOLDS (the only values a firm may pick), emails.ts's
+    URGENCY_LEAD keys (one copy line per tier) and its
+    DEFAULT_REMINDER_THRESHOLDS_DESC (COPY-8's own fix), plus prose in
+    generate.py's marketing copy (56 rendered pages + homepage, all templated
+    from one _REMIND_LIST_HTML string). All five agree today; nothing ties
+    them. Same CPE-4/UX-9 shape as the other decay gates in this file --
+    cheap set-equality check, not a live defect. Filed as an observation
+    attached to COPY-8, orchestrator approved it as lower-priority, land-
+    whenever-convenient. This checks SET equality of values only (order is
+    presentation, not substance -- scheduler.ts declares ascending,
+    validation.ts/emails.ts/generate.py's prose all read descending)."""
+    scheduler_ts = repo_root / "worker" / "src" / "scheduler.ts"
+    validation_ts = repo_root / "worker" / "src" / "validation.ts"
+    emails_ts = repo_root / "worker" / "src" / "emails.ts"
+    generate_py = repo_root / "generate.py"
+    missing = [
+        p for p in (scheduler_ts, validation_ts, emails_ts, generate_py) if not p.exists()
+    ]
+    if missing:
+        return [
+            f"[REMINDER-THRESHOLDS] {', '.join(str(p.relative_to(repo_root)) for p in missing)} "
+            "not found -- can't verify the 6-tier reminder schedule stays in sync across its 5 "
+            "independent declarations."
+        ]
+
+    def parse_int_list(text: str) -> set[int] | None:
+        nums = re.findall(r"\d+", text)
+        return {int(n) for n in nums} if nums else None
+
+    sources: dict[str, set[int] | None] = {}
+
+    scheduler_text = scheduler_ts.read_text(encoding="utf-8")
+    m = re.search(r"ESCALATION_THRESHOLDS_DAYS\s*=\s*\[([^\]]+)\]", scheduler_text)
+    sources["scheduler.ts's ESCALATION_THRESHOLDS_DAYS"] = parse_int_list(m.group(1)) if m else None
+
+    validation_text = validation_ts.read_text(encoding="utf-8")
+    m = re.search(r"ALLOWED_REMINDER_THRESHOLDS\s*=\s*new Set\(\[([^\]]+)\]\)", validation_text)
+    sources["validation.ts's ALLOWED_REMINDER_THRESHOLDS"] = parse_int_list(m.group(1)) if m else None
+
+    emails_text = emails_ts.read_text(encoding="utf-8")
+    m = re.search(r"URGENCY_LEAD:\s*Record<number,\s*string>\s*=\s*\{([\s\S]*?)\n\};", emails_text)
+    if m:
+        # Only the KEYS (the day-count before each colon), not the lead
+        # sentences on the right -- those are prose, not numbers this gate
+        # cares about.
+        keys = re.findall(r"^\s*(\d+):", m.group(1), flags=re.MULTILINE)
+        sources["emails.ts's URGENCY_LEAD keys"] = {int(k) for k in keys} if keys else None
+    else:
+        sources["emails.ts's URGENCY_LEAD keys"] = None
+
+    m = re.search(r"DEFAULT_REMINDER_THRESHOLDS_DESC\s*=\s*\[([^\]]+)\]", emails_text)
+    sources["emails.ts's DEFAULT_REMINDER_THRESHOLDS_DESC"] = parse_int_list(m.group(1)) if m else None
+
+    generate_text = generate_py.read_text(encoding="utf-8")
+    m = re.search(r"Reminders at ([\d, and]+?) day before", generate_text)
+    sources["generate.py's _REMIND_LIST_HTML marketing copy"] = parse_int_list(m.group(1)) if m else None
+
+    missing_sources = [name for name, values in sources.items() if values is None]
+    if missing_sources:
+        return [
+            f"[REMINDER-THRESHOLDS] could not locate {name} -- can't verify sync (moved, renamed, or "
+            "reworded away from the pattern this gate expects)."
+            for name in missing_sources
+        ]
+
+    canonical_name, canonical_values = next(iter(sources.items()))
+    errors = []
+    for name, values in sources.items():
+        if values != canonical_values:
+            errors.append(
+                f"[REMINDER-THRESHOLDS] {name} reads {sorted(values)} but {canonical_name} reads "
+                f"{sorted(canonical_values)} -- the 6-tier reminder schedule has drifted across its "
+                "independent declarations. Update every source to agree, or a customer will be told "
+                "a schedule that doesn't match what actually sends."
+            )
+    return errors
+
+
 def check_field_computed_states_sync(repo_root: Path) -> list[str]:
     """AuditLab SYNC-1 (MEDIUM, 2026-08-09): worker/src/deadline.ts's
     FIELD_COMPUTED_STATES and generate.py's _WORKER_FIELD_COMPUTED_STATES
@@ -3688,6 +3771,7 @@ def main():
     all_errors += check_sms_consent_version_sync(repo_root)
     all_errors += check_cpe_cycle_window_sync(repo_root)
     all_errors += check_signin_ttl_copy_sync(repo_root)
+    all_errors += check_reminder_threshold_authorities_sync(repo_root)
     all_errors += check_retention_coverage(repo_root)
     all_errors += check_snoozed_until_cleared_on_cycle_bump(repo_root)
     all_errors += check_sitemap_completeness(html_files, docs_dir)

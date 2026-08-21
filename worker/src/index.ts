@@ -6997,7 +6997,20 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
       if (underCap) {
         const firm = await store.getFirmById(env.DB, session.firmId);
         const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
-        const built = buildFirmStaffAddedEmail(firm?.name || "Your firm", stateNameFromSlug(stateSlug), unsubscribeUrl);
+        // AuditLab COPY-8 (MEDIUM, 2026-08-21, orchestrator-approved): this
+        // transparency email states the reminder schedule as a promise, so it
+        // has to reflect the firm's OWN narrowed cadence (if any), not the
+        // hardcoded full 6-tier default -- same JSON.parse-then-validate
+        // shape as index.ts:5817's own read of this column.
+        const reminderThresholds = firm?.reminder_thresholds
+          ? parseReminderThresholds(JSON.parse(firm.reminder_thresholds))
+          : null;
+        const built = buildFirmStaffAddedEmail(
+          firm?.name || "Your firm",
+          stateNameFromSlug(stateSlug),
+          unsubscribeUrl,
+          reminderThresholds
+        );
         await sendViaSendGrid(env.SENDGRID_API_KEY, record.email, built, env.EMAIL_ALLOWLIST);
       }
     } catch {
@@ -7271,12 +7284,21 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
       if (underCap) {
         const confirmUrl = `${actionBaseUrl(env)}/confirm?token=${encodeURIComponent(updated.confirm_token)}`;
         const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(updated.unsubscribe_token)}`;
+        // AuditLab COPY-8 (MEDIUM, 2026-08-21, orchestrator-approved): this
+        // is the firm-side PATCH re-confirm, the one buildConfirmationEmail()
+        // call site that CAN fire with a firm cadence already narrowed --
+        // see buildFirmStaffAddedEmail's own call site above for the same
+        // parse shape.
+        const reminderThresholds = session.firm.reminder_thresholds
+          ? parseReminderThresholds(JSON.parse(session.firm.reminder_thresholds))
+          : null;
         const built = buildConfirmationEmail(
           stateNameFromSlug(updated.state_slug),
           confirmUrl,
           unsubscribeUrl,
           updated.first_name,
-          updated.user_deadline ? fmtDate(new Date(`${updated.user_deadline}T00:00:00Z`)) : null
+          updated.user_deadline ? fmtDate(new Date(`${updated.user_deadline}T00:00:00Z`)) : null,
+          reminderThresholds
         );
         await sendViaSendGrid(env.SENDGRID_API_KEY, updated.email, built, env.EMAIL_ALLOWLIST);
       }

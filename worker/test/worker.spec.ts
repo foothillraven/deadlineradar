@@ -3031,6 +3031,72 @@ describe("emails.ts buildFirmStaffAddedEmail -- AuditLab EMAIL-1", () => {
   });
 });
 
+describe("emails.ts reminder-schedule copy -- AuditLab COPY-8", () => {
+  it("buildFirmStaffAddedEmail states the full 6-tier default when the firm hasn't narrowed its cadence", async () => {
+    const { buildFirmStaffAddedEmail } = await import("../src/emails");
+    const built = buildFirmStaffAddedEmail("Acme LLC", "Texas", "https://deadline-radar.com/api/unsubscribe?token=abc");
+    expect(built.textBody).toContain("60, 30, 14, 7, 3, and 1 day out");
+    expect(built.htmlBody).toContain("60, 30, 14, 7, 3, and 1");
+  });
+
+  it("buildFirmStaffAddedEmail states the firm's OWN narrowed cadence, not the full default -- this was the live bug", async () => {
+    const { buildFirmStaffAddedEmail } = await import("../src/emails");
+    const built = buildFirmStaffAddedEmail("Acme LLC", "Texas", "https://deadline-radar.com/api/unsubscribe?token=abc", [
+      30, 7, 1,
+    ]);
+    expect(built.textBody).toContain("30, 7, and 1 day out");
+    expect(built.htmlBody).toContain("30, 7, and 1");
+    // The bug this closes: the promise must NOT still claim the full
+    // 6-tier schedule for a firm that narrowed it.
+    expect(built.textBody).not.toContain("60, 30, 14, 7, 3, and 1");
+    expect(built.htmlBody).not.toContain("60, 30, 14, 7, 3, and 1");
+    expect(built.textBody).toContain("That's the whole schedule");
+  });
+
+  it("buildConfirmationEmail states the full 6-tier default on the public self-signup path (no thresholds passed)", async () => {
+    const { buildConfirmationEmail } = await import("../src/emails");
+    const built = buildConfirmationEmail(
+      "California",
+      "https://deadline-radar.com/api/confirm?token=abc",
+      "https://deadline-radar.com/api/unsubscribe?token=xyz"
+    );
+    expect(built.textBody).toContain("60, 30, 14, 7, 3, and 1 day");
+    expect(built.htmlBody).toContain("60, 30, 14, 7, 3, and 1 day");
+  });
+
+  it("buildConfirmationEmail states the firm's OWN narrowed cadence on the firm-side re-confirm path", async () => {
+    const { buildConfirmationEmail } = await import("../src/emails");
+    const built = buildConfirmationEmail(
+      "California",
+      "https://deadline-radar.com/api/confirm?token=abc",
+      "https://deadline-radar.com/api/unsubscribe?token=xyz",
+      null,
+      null,
+      [60, 14]
+    );
+    // Two-item list: "and", no Oxford comma.
+    expect(built.textBody).toContain("60 and 14 day");
+    expect(built.htmlBody).toContain("60 and 14 day");
+    expect(built.textBody).not.toContain("60, 30, 14, 7, 3, and 1");
+  });
+
+  it("renders a single-tier cadence without a dangling comma or 'and'", async () => {
+    const { buildFirmStaffAddedEmail } = await import("../src/emails");
+    const built = buildFirmStaffAddedEmail("Acme LLC", "Texas", "https://deadline-radar.com/api/unsubscribe?token=abc", [
+      7,
+    ]);
+    expect(built.textBody).toContain("-- 7 day out");
+  });
+
+  it("sorts an out-of-order/unsorted thresholds array into the same descending presentation order as the default", async () => {
+    const { buildFirmStaffAddedEmail } = await import("../src/emails");
+    const built = buildFirmStaffAddedEmail("Acme LLC", "Texas", "https://deadline-radar.com/api/unsubscribe?token=abc", [
+      1, 30, 7,
+    ]);
+    expect(built.textBody).toContain("30, 7, and 1 day out");
+  });
+});
+
 describe("emails.ts buildFirmLoginEmail", () => {
   it("includes the login link, the 15-minute expiry copy, and a real mailing address", async () => {
     const { buildFirmLoginEmail, MAILING_ADDRESS } = await import("../src/emails");

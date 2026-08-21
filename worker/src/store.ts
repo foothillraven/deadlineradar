@@ -2087,6 +2087,11 @@ export const FIRM_SCOPED_TABLES = [
   // gate (check_retention_coverage in preship_gate.py) would have caught
   // this omission at ship time regardless.
   "firm_members",
+  // migration 0068 (orchestrator directive, 2026-08-21): admin_digest_send_log
+  // has its own firm_id column directly (unlike SUBSCRIBER_SCOPED_NO_FIRM_ID_TABLES
+  // below), so it rides this loop's flat `WHERE firm_id = ?1` like every
+  // other durable audit table above rather than needing special handling.
+  "admin_digest_send_log",
 ] as const;
 
 /**
@@ -5365,6 +5370,31 @@ export async function listAdminDigestNotifiedThresholds(db: D1Database, subscrib
     .bind(subscriberId)
     .all<{ threshold: number }>();
   return results.map((r) => r.threshold);
+}
+
+/** Orchestrator directive (2026-08-21) + AuditLab DEAD-3: durable,
+ * append-only record of every admin-digest send ATTEMPT (one row per
+ * `send(firm.admin_email, built)` call in runAdminDigestAlertPass(), not
+ * per staff-threshold item) -- migration 0068's own docstring has the full
+ * reasoning for why firm_admin_digest_notified_thresholds is the wrong
+ * table for "who did we actually email". staff_count/thresholds answer
+ * DEAD-3's "1 to 6 emails" ambiguity for every future send; outcome
+ * records a failed attempt too, not just successes. */
+export async function logAdminDigestSend(
+  db: D1Database,
+  firmId: string,
+  adminEmail: string,
+  thresholds: number[],
+  staffCount: number,
+  outcome: "sent" | "failed"
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO admin_digest_send_log (id, firm_id, admin_email, thresholds, staff_count, outcome, created_at)
+       VALUES (?1,?2,?3,?4,?5,?6,?7)`
+    )
+    .bind(newToken(), firmId, adminEmail, JSON.stringify(thresholds), staffCount, outcome, nowIso())
+    .run();
 }
 
 // ---------------------------------------------------------------------------

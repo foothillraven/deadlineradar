@@ -106,6 +106,22 @@
  * there. Set to the preview Pages site's full origin (e.g.
  * "https://deadlineradar-preview.pages.dev") so the redirect crosses back to
  * where the actual dashboard HTML is served. Unset in production.
+ *
+ * `SEND_APPROVED_PASSES` is an OPTIONAL wrangler var -- a comma-separated
+ * allowlist of send-pass names, e.g. "reminder,dripCourse,slackAlert".
+ * Standing consent-gate directive (Devin, 2026-08-21, filed during the
+ * DEAD-2 investigation): "NOTHING is sent without my consent." The
+ * admin-digest incident (2026-08-18) showed why a comment-only "HELD
+ * pending review" isn't enough -- it ran on every cron tick for 8 days
+ * anyway, because nothing in the code actually checked it. Any NEW send
+ * pass wired into scheduled() going forward must call
+ * requireSendApproval(env, "<name>") at its own entry point (scheduler.ts)
+ * and no-op if it returns false -- see that function's own docstring.
+ * FAILS CLOSED: unset or empty means every pass is held; a pass name must
+ * be explicitly present to run. This is a GOING-FORWARD requirement for
+ * NEW passes -- the 8 passes already wired before this directive existed
+ * are not required to call it (not a retroactive sweep of every existing
+ * send, per the directive's own scope).
  */
 export interface Env {
   DB: D1Database;
@@ -128,15 +144,20 @@ export interface Env {
   NEWSLETTER_DAILY_SEND_CAP?: string;
   SENDGRID_WEBHOOK_PUBLIC_KEY?: string;
   EMAIL_ALLOWLIST?: string;
+  SEND_APPROVED_PASSES?: string;
   ACTION_BASE_URL?: string;
   STATIC_SITE_BASE_URL?: string;
   /**
    * OAuth/SSO client credentials (2026-07-30, auth suite). OPTIONAL and
    * gated PER PROVIDER: `getConfiguredProvider()` in oauth.ts returns null
    * unless BOTH of a provider's values are present, in which case that
-   * provider's routes 404 and its sign-in button is not rendered. Same
-   * degrade-safely convention as TURNSTILE_SECRET_KEY/SENDGRID_API_KEY --
-   * an unconfigured provider is invisible, never a broken button.
+   * provider's ROUTES 404. Same degrade-safely convention as
+   * TURNSTILE_SECRET_KEY/SENDGRID_API_KEY. AuditLab SSO-E (LOW, 2026-08-21):
+   * this used to also claim "and its sign-in button is not rendered" -- that
+   * half was never true here either. The button is a SEPARATE, build-time
+   * decision (generate.py's own SSO_PROVIDERS/DR_SSO_PROVIDERS default),
+   * with no live connection to these secrets -- see getConfiguredProvider()'s
+   * own docstring in oauth.ts for the full explanation.
    *
    * Set via `wrangler secret put` per environment, never in wrangler.toml
    * and never committed. See worker/AUTH_SSO_SETUP.md for the registration

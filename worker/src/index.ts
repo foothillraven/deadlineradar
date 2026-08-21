@@ -11223,6 +11223,17 @@ export default {
    * fail-safe (a wrong-date reminder is worse than none).
    */
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    // STANDING CONSENT-GATE DIRECTIVE (Devin, 2026-08-21): "NOTHING is sent
+    // without my consent." Filed after the 2026-08-18 admin-digest incident
+    // -- a "HELD pending review" COMMENT with zero code enforcement, which
+    // ran on every cron tick for 8 days anyway. Adding cron dispatch #9 (or
+    // any brand-new sendViaSendGrid/similar call site)? Call
+    // requireSendApproval(env, "<passName>") from scheduler.ts at your
+    // pass's own entry point and no-op if it returns false -- see that
+    // function's own docstring for the full mechanism. This is a
+    // GOING-FORWARD requirement for new passes, not a retroactive gate on
+    // the ones dispatched below.
+    //
     // Task #3 (2026-08-06): hard-deletes any firm past its 30-day
     // soft-delete grace period. Deliberately NOT inside the
     // SENDGRID_API_KEY gate below -- account deletion must keep working in

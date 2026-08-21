@@ -152,6 +152,55 @@ describe("runAdminDigestAlertPass", () => {
     expect(summary.itemsClaimed).toBe(2);
   });
 
+  // Orchestrator directive (2026-08-21) + AuditLab DEAD-3: a durable,
+  // append-only audit record of every send ATTEMPT, since
+  // firm_admin_digest_notified_thresholds (per-subscriber-threshold dedup,
+  // no firm_id) can't answer "who did we actually email" -- see
+  // logAdminDigestSend()'s own docstring.
+  it("logs a durable 'sent' row with the firm, the covered thresholds, and the staff count", async () => {
+    const { runAdminDigestAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(10700);
+    const { firmId, adminEmail } = await newFirm("digest-audit-sent");
+    await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
+    await addRosterSubscriber(firmId, "texas", isoDaysFromUtcMidnight(asOf, 10));
+
+    await runAdminDigestAlertPass(env, { asOf, send: async () => true });
+
+    const rows = await env.DB
+      .prepare("SELECT * FROM admin_digest_send_log WHERE firm_id = ?1")
+      .bind(firmId)
+      .all<{ firm_id: string; admin_email: string; thresholds: string; staff_count: number; outcome: string }>();
+    expect(rows.results.length).toBe(1);
+    const row = rows.results[0]!;
+    expect(row.admin_email).toBe(adminEmail);
+    expect(row.outcome).toBe("sent");
+    expect(row.staff_count).toBe(2);
+    expect(JSON.parse(row.thresholds)).toHaveLength(2);
+  });
+
+  it("logs a 'failed' row (not silently dropped) when the send itself returns false, and still releases the claims", async () => {
+    const { runAdminDigestAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(10800);
+    const { firmId } = await newFirm("digest-audit-failed");
+    const { id: subscriberId } = await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
+
+    const summary = await runAdminDigestAlertPass(env, { asOf, send: async () => false });
+
+    expect(summary.digestsSent).toBe(0);
+    const rows = await env.DB
+      .prepare("SELECT outcome, staff_count FROM admin_digest_send_log WHERE firm_id = ?1")
+      .bind(firmId)
+      .all<{ outcome: string; staff_count: number }>();
+    expect(rows.results.length).toBe(1);
+    expect(rows.results[0]!.outcome).toBe("failed");
+    expect(rows.results[0]!.staff_count).toBe(1);
+
+    // The claim was released on failure (pre-existing behavior, unaffected
+    // by the audit log) -- confirms the log doesn't interfere with retry.
+    const notified = await store.listAdminDigestNotifiedThresholds(env.DB, subscriberId);
+    expect(notified).toHaveLength(0);
+  });
+
   it("AuditLab LINK-1 (2026-08-10): the account-settings link is an absolute URL even with STATIC_SITE_BASE_URL unset (real production shape)", async () => {
     const { runAdminDigestAlertPass } = await import("../src/scheduler");
     const asOf = freshAsOf(10500);

@@ -144,6 +144,35 @@ function staticSiteAbsoluteBaseUrl(env: Env): string {
 const MS_PER_DAY = 86_400_000;
 
 /**
+ * Standing consent-gate directive (Devin, 2026-08-21, filed during the
+ * DEAD-2 investigation): "NOTHING is sent without my consent." Any NEW send
+ * pass wired into index.ts's scheduled() going forward must call this at
+ * its own entry point and return its empty summary (or simply do nothing)
+ * if it's false -- an explicit, code-enforced hold instead of the
+ * comment-only "HELD pending review" that let the admin-digest pass run
+ * unsupervised for 8 days after its call site was wired in without anyone
+ * updating the comment describing the hold.
+ *
+ * FAILS CLOSED by construction: env.SEND_APPROVED_PASSES unset, empty, or
+ * simply not naming this pass all resolve to false. A pass becomes
+ * approved by Devin adding its name to that comma-separated wrangler var --
+ * a deploy-time config change, not a code change, so approving a
+ * copy-reviewed pass never requires touching this function again.
+ *
+ * GOING FORWARD ONLY: the 8 passes wired into scheduled() before this
+ * directive existed are not required to call this (not a retroactive sweep
+ * of every existing send -- see the directive's own scope). This is the
+ * mechanism the NEXT new pass reuses, not a gate on today's passes.
+ */
+export function requireSendApproval(env: Env, passName: string): boolean {
+  const approved = (env.SEND_APPROVED_PASSES ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  return approved.includes(passName);
+}
+
+/**
  * scheduler.py `next_due_threshold()` -- the single nearest (most urgent)
  * threshold that's newly due, and NEVER a less-urgent tier than one already
  * sent (so a scheduler gap can't deliver reminders out of order).
@@ -1969,6 +1998,24 @@ export async function runAdminDigestAlertPass(env: Env, opts: RunAdminDigestAler
         adminUnsubscribeUrl(env, firm.admin_unsubscribe_token, "digest")
       );
       const ok = await send(firm.admin_email, built);
+      // Orchestrator directive (2026-08-21) + AuditLab DEAD-3: durable audit
+      // record of this send ATTEMPT, independent of whether the pass is
+      // ever un-paused -- see logAdminDigestSend()'s own docstring for why
+      // firm_admin_digest_notified_thresholds (the dedup table above) can't
+      // answer "who did we actually email". Logged before the unclaim loop
+      // below so a failed send is recorded even though its claims get
+      // released. Best-effort, same posture as logReminderSent(): a logging
+      // failure must never affect whether this send counts as attempted.
+      await store
+        .logAdminDigestSend(
+          env.DB,
+          firm.id,
+          firm.admin_email,
+          claimed.map((c) => c.threshold),
+          claimed.length,
+          ok ? "sent" : "failed"
+        )
+        .catch(() => {});
       if (ok) {
         summary.digestsSent += 1;
       } else {

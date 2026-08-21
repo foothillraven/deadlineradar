@@ -797,7 +797,26 @@ async function sendSignupNotification(
 async function notifyOperatorOfStaleData(env: Env, guardMessage: string): Promise<void> {
   if (!env.SENDGRID_API_KEY) return;
   const day = new Date().toISOString().slice(0, 10);
-  const claimed = await store.claimStaleDataAlertForToday(env.DB, day);
+  // AuditLab DROP-4 (LOW, 2026-08-21): DROP-3 moved this claim above the try
+  // (so `day` stays in scope for the catch's unclaim below), which left it
+  // as the one statement in this function with no handler -- a transient D1
+  // error here would escape this function, escape the caller's own catch
+  // (every call site is itself inside a `catch (err instanceof
+  // SchedulerStaleDataError)` block), and reject the ctx.waitUntil()
+  // promise, exactly what this function's own docstring forbids ("a
+  // notification failure must never turn a handled error into an unhandled
+  // one"). Its own try/catch, NOT folded into the one below: the DELETE in
+  // unclaimStaleDataAlertForToday() is keyed on `day` alone, so if the claim
+  // itself throws (nothing won), the shared catch below would unclaim a day
+  // this call never owned -- releasing a concurrent pass's real claim and
+  // allowing a second alert the same day.
+  let claimed: boolean;
+  try {
+    claimed = await store.claimStaleDataAlertForToday(env.DB, day);
+  } catch (err) {
+    console.log(`[stale-data-alert] claim error: ${String(err)}`);
+    return;
+  }
   if (!claimed) return;
   try {
     const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
@@ -4057,6 +4076,15 @@ async function handleStripeWebhook(request: Request, env: Env): Promise<Response
  * login-link send has no license or state to key on, and one email address
  * can span several subscriber rows across states/firms, so forcing it into
  * that schema would either pick an arbitrary row or misuse the column.
+ *
+ * AuditLab DROP-5 (LOW, 2026-08-21): DROP-2's own log lines used to
+ * interpolate the raw email address -- the only two production log lines in
+ * this Worker that ever emitted a plaintext subscriber address, and an
+ * inconsistency with this same commit's firm-side sibling, which logs the
+ * opaque firmId instead. Logs the token row's own id now: not a secret (it
+ * is not the bearer token itself, does not authenticate anything), but
+ * still lets an operator resolve it back to the email with the one DB
+ * lookup the firm side's firmId already costs them.
  */
 async function issueAndSendSubscriberLoginLink(env: Env, email: string): Promise<void> {
   // Suppression is checked HERE, not at the caller, so no future caller can
@@ -4065,7 +4093,7 @@ async function issueAndSendSubscriberLoginLink(env: Env, email: string): Promise
   // originally did not, which meant a person who had unsubscribed from
   // everything could still be mailed indefinitely at a stranger's request).
   if (await store.isPermanentlySuppressed(env.DB, email)) return;
-  const { rawToken } = await store.createSubscriberLoginToken(env.DB, email);
+  const { rawToken, id: tokenId } = await store.createSubscriberLoginToken(env.DB, email);
   if (!env.SENDGRID_API_KEY) return;
   try {
     const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
@@ -4073,11 +4101,11 @@ async function issueAndSendSubscriberLoginLink(env: Env, email: string): Promise
     const loginUrl = `${actionBaseUrl(env)}/subscriber/login/verify?token=${encodeURIComponent(rawToken)}`;
     const built = buildSubscriberLoginEmail(loginUrl);
     const ok = await sendViaSendGrid(env.SENDGRID_API_KEY, email, built, env.EMAIL_ALLOWLIST);
-    if (!ok) console.log(`[subscriber-login-link] send returned false for ${email}`);
+    if (!ok) console.log(`[subscriber-login-link] send returned false for token ${tokenId}`);
   } catch (err) {
     // Swallow -- same best-effort posture as every other send in this file.
     // Logged rather than truly silent, same DROP-2 fix.
-    console.log(`[subscriber-login-link] error for ${email}: ${String(err)}`);
+    console.log(`[subscriber-login-link] error for token ${tokenId}: ${String(err)}`);
   }
 }
 

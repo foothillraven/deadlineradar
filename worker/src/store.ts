@@ -4380,8 +4380,16 @@ export async function createSubscriberLoginToken(
    * redeeming request's discretion -- same "intent lives on the token"
    * rule migration 0022 already established for firm_login_tokens. */
   pendingNewEmail: string | null = null
-): Promise<{ rawToken: string }> {
+): Promise<{ rawToken: string; id: string }> {
   const rawToken = newToken();
+  // AuditLab DROP-5 (LOW, 2026-08-21): `id` used to be inlined straight into
+  // the INSERT's bind list and never returned, so a caller that needed a
+  // non-secret handle to log (e.g. a failed-send line) had nothing but the
+  // raw email or the live bearer token itself to reach for. Captured here so
+  // issueAndSendSubscriberLoginLink() can log this instead of the address --
+  // an operator can still resolve it back to the email with one lookup,
+  // symmetric with the firm-side send log using firmId.
+  const id = newToken();
   const now = new Date();
   const expiresAt = new Date(now.getTime() + SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES * 60_000).toISOString();
   await db
@@ -4390,7 +4398,7 @@ export async function createSubscriberLoginToken(
        VALUES (?1,?2,?3,?4,?5,NULL,?6,?7)`
     )
     .bind(
-      newToken(),
+      id,
       normalizeEmail(email),
       await hashToken(rawToken),
       now.toISOString(),
@@ -4399,7 +4407,7 @@ export async function createSubscriberLoginToken(
       purpose === "email_change" ? pendingNewEmail : null
     )
     .run();
-  return { rawToken };
+  return { rawToken, id };
 }
 
 /**

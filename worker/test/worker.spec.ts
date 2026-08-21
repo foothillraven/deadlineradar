@@ -4398,6 +4398,53 @@ describe("Staleness guard -- real HTTP + cron code paths, not just checkDataFres
     }
   });
 
+  // AuditLab DROP-4 (LOW, 2026-08-21): DROP-3's fix moved the claim above
+  // its try block (so `day` stays in scope for the catch's unclaim), which
+  // left the claim itself as the one statement in the function with no
+  // handler -- a transient error on THAT insert would escape
+  // notifyOperatorOfStaleData() entirely, escape the caller's own
+  // `catch (err instanceof SchedulerStaleDataError)` block, and reject the
+  // ctx.waitUntil() promise: a handled stale-data pause becoming an
+  // unhandled rejection, exactly what this function's own docstring says
+  // must never happen.
+  it("AuditLab DROP-4: a throwing CLAIM itself does not escape as an unhandled rejection", async () => {
+    vi.useFakeTimers();
+    const claimSpy = vi.spyOn(store, "claimStaleDataAlertForToday").mockRejectedValue(new Error("D1 transient error"));
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      vi.setSystemTime(STALE_MOCK_DATE);
+      const day = STALE_MOCK_DATE.toISOString().slice(0, 10);
+      await env.DB.prepare(`DELETE FROM stale_data_alert_log WHERE day = ?1`).bind(day).run();
+
+      const worker = (await import("../src/index")).default;
+      const waited: Promise<unknown>[] = [];
+      const ctx = { waitUntil: (p: Promise<unknown>) => waited.push(p) } as unknown as ExecutionContext;
+      const envWithKey = { ...env, SENDGRID_API_KEY: "test-key-not-real" };
+
+      // The load-bearing assertion: this must resolve, not reject. Pre-fix,
+      // the claim's rejection would propagate through the async IIFE
+      // straight into this Promise.all(), failing the test with the
+      // "D1 transient error" itself rather than a clean pass.
+      await expect(worker.scheduled({} as ScheduledController, envWithKey, ctx)).resolves.not.toThrow();
+      await expect(Promise.all(waited)).resolves.not.toThrow();
+
+      // Nothing was actually claimed, so no row -- a later pass (this
+      // scheduled() call's own other stale-throwing passes, or a later
+      // tick) can still win the real claim once the transient error clears.
+      const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM stale_data_alert_log WHERE day = ?1`)
+        .bind(day)
+        .first<{ n: number }>();
+      expect(row?.n).toBe(0);
+
+      const logs = logSpy.mock.calls.map((c) => String(c[0]));
+      expect(logs.some((l) => l.includes("[stale-data-alert] claim error") && l.includes("D1 transient error"))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+      claimSpy.mockRestore();
+      logSpy.mockRestore();
+    }
+  });
+
   it("AuditLab STALE-3: no alert (and no claim consumed) when SENDGRID_API_KEY is unset -- matches every other send in this file degrading to a no-op", async () => {
     vi.useFakeTimers();
     try {

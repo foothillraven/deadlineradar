@@ -136,7 +136,13 @@ describe("POST /subscriber/login -- must not be an enumeration oracle", () => {
   // RESPONSE must stay the generic "check your email" copy regardless (the
   // anti-enumeration property above must not regress), but the failure
   // itself must now reach a log line.
-  it("DROP-2: a failed send still returns the generic response, but logs the failure", async () => {
+  //
+  // AuditLab DROP-5 (LOW, 2026-08-21): that log line originally interpolated
+  // the raw email address -- the only production log lines in the Worker
+  // that did. Now logs the token row's own id instead, resolvable back to
+  // the email with one DB lookup but not a plaintext address (or a bearer
+  // secret) sitting in the log stream itself.
+  it("DROP-2/DROP-5: a failed send still returns the generic response, logs the failure by token id, and never logs the raw email", async () => {
     const worker = (await import("../src/index")).default;
     const known = `route-drop2-fail-${Date.now()}@examplefirm.com`;
     await seedLicense(known, "ohio");
@@ -158,8 +164,15 @@ describe("POST /subscriber/login -- must not be an enumeration oracle", () => {
       expect(resp.status).toBe(200);
       expect((await resp.text()).toLowerCase()).toContain("check your email");
 
+      const tokenRow = await env.DB
+        .prepare("SELECT id FROM subscriber_login_tokens WHERE email_normalized = ?1")
+        .bind(known.toLowerCase())
+        .first<{ id: string }>();
+      expect(tokenRow?.id).toBeTruthy();
+
       const logs = logSpy.mock.calls.map((c) => String(c[0]));
-      expect(logs.some((l) => l.includes("[subscriber-login-link] send returned false") && l.includes(known))).toBe(true);
+      expect(logs.some((l) => l.includes("[subscriber-login-link] send returned false") && l.includes(String(tokenRow?.id)))).toBe(true);
+      expect(logs.some((l) => l.includes(known))).toBe(false);
     } finally {
       fetchSpy.mockRestore();
       logSpy.mockRestore();

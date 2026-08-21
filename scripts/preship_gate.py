@@ -831,6 +831,45 @@ _DERIVED_FEE_CHECKS: list[dict] = [
         "why": "total out-of-pocket is the $500 codified reinstatement fee plus the annual renewal fee",
         "terms": [("reinstatement + renewal total", 1.0, 500)],
     },
+    # DERIV-2 (AuditLab, 2026-08-20): registered 6 real couplings an
+    # arithmetic sweep found unguarded -- same exposure DERIV-1 exists to
+    # prevent (Texas's base moved 118 -> 112 while its reinstatement record
+    # kept publishing the old-base-derived totals; nothing caught it until a
+    # build output was grepped by hand). All 6 are correct against current
+    # base fees today; the risk is a future base-fee edit silently
+    # falsifying them, which is exactly what already happened once.
+    {
+        # Structured field, not prose -- see check_derived_fee_consistency()'s
+        # numeric-field branch above.
+        "state": "maryland", "field": "reinstatement_fee_usd",
+        "why": "COMAR 09.24.01.09.B(9)/(4) sets the reinstatement fee at double the standard renewal fee",
+        "terms": [("2x renewal fee", 2.0, 0)],
+    },
+    {
+        "state": "alaska", "field": "reinstatement_fee_usd",
+        "why": "12 AAC 02.340(4)/(13): the biennial renewal fee plus a $100 delayed-renewal penalty",
+        "terms": [("renewal + $100 penalty (under-1-year lapse)", 1.0, 100)],
+    },
+    {
+        "state": "nebraska", "field": "reinstatement_fee_usd",
+        "why": "no separately named reinstatement fee is published; a returning registrant pays the board's current Active Permit to Practice fee",
+        "terms": [("equals the base renewal fee", 1.0, 0)],
+    },
+    {
+        "state": "utah", "field": "reinstatement_fee_notes",
+        "why": "DOPL's reinstatement application: $50 reinstatement fee plus the license renewal fee, for a license expired under 2 years",
+        "terms": [("reinstatement + renewal total, under-2-year lapse", 1.0, 50)],
+    },
+    {
+        "state": "pennsylvania", "field": "reinstatement_fee_notes",
+        "why": "the reinstatement fee is paid IN ADDITION TO the current biennial renewal fee",
+        "terms": [("reinstatement + renewal total", 1.0, 35)],
+    },
+    {
+        "state": "west-virginia", "field": "reinstatement_fee_notes",
+        "why": "W. Va. C.S.R. Sec1-1-18: base renewal fee, plus an $85 reinstatement fee and a $50 late fee (both fixed, not derived from the base)",
+        "terms": [("base + $220 total", 1.0, 135)],
+    },
 ]
 
 
@@ -1419,7 +1458,23 @@ def check_derived_fee_consistency(repo_root: Path) -> list[str]:
                           f"reinstatement.{spec['field']} can no longer be checked -- either restore the base "
                           f"fee or reword that copy to stop quoting a computed amount ({spec['why']})")
             continue
-        prose = dep_row.get(spec["field"]) or ""
+        # DERIV-2 (AuditLab, 2026-08-20): 3 of 6 newly-registered couplings
+        # derive the STRUCTURED reinstatement_fee_usd number itself (the
+        # page's headline figure), not just prose -- the original substring-
+        # in-prose check can't validate a bare int field. Numeric fields are
+        # checked by exact equality instead of substring match.
+        field_value = dep_row.get(spec["field"])
+        if isinstance(field_value, (int, float)):
+            for label, mult, add in spec["terms"]:
+                expected = int(round(base * mult + add))
+                if int(field_value) != expected:
+                    errors.append(
+                        f"[DERIV][{slug}] reinstatement.{spec['field']} is {field_value}, but should be "
+                        f"{expected} for the {label} (base renewal fee ${int(base)} -- {spec['why']}). "
+                        f"A base-fee edit desyncs this derived figure silently; update both together."
+                    )
+            continue
+        prose = field_value or ""
         for label, mult, add in spec["terms"]:
             expected = int(round(base * mult + add))
             if f"${expected}" not in prose:

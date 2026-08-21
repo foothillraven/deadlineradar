@@ -2970,6 +2970,135 @@ def check_send_pass_consent_gate_coverage(repo_root: Path) -> list[str]:
     return errors
 
 
+# AuditLab CSRF-2 (LOW advisory, 2026-08-21, orchestrator-approved): the
+# 55-call/29-exempt origin-check partition over every write-dispatched
+# handler in worker/src/index.ts is correct today only because someone
+# keeps it correct by hand -- nothing catches drift. First raised under
+# SESS-1 (2026-08-20) as an unfiled structural note and genuinely lost;
+# re-found and given an ID specifically so it gets a real disposition.
+# Grouped by REASON, matching AuditLab's own exhaustive item-35 audit --
+# do NOT add a name here without the same reasoning: a handler belongs in
+# exactly one bucket because it is provably read-only, provably
+# pre-authentication, provably signature-verified, or provably reachable
+# only via a single-use emailed token, not because it's inconvenient to
+# add originAllowed().
+CSRF_EXEMPT_WRITE_HANDLERS = {
+    # Emailed single-use token (15) -- dispatched from the ACTION_PATHS
+    # switch, gated by a cryptographically random, single-use token
+    # (newToken()) a store lookup invalidates on first use; guessing is
+    # infeasible and a correct guess is spent immediately.
+    "handleConfirm": "emailed-token",
+    "handleRearm": "emailed-token",
+    "handleRenewed": "emailed-token",
+    "handleRenewedNextCycle": "emailed-token",
+    "handleSnooze": "emailed-token",
+    "handleUnsubscribe": "emailed-token",
+    "handleDigestUnsubscribe": "emailed-token",
+    "handleDripCourseUnsubscribe": "emailed-token",
+    "handleFeatureIdeaSignupUnsubscribe": "emailed-token",
+    "handleFirmAdminUnsubscribe": "emailed-token",
+    "handleNewsletterConfirm": "emailed-token",
+    "handleNewsletterUnsubscribe": "emailed-token",
+    "handleRoadmapNotifyConfirm": "emailed-token",
+    "handleFirmLoginVerify": "emailed-token",
+    "handleSubscriberLoginVerify": "emailed-token",
+    # Webhook signature (3) -- authenticated by a cryptographic signature
+    # over the raw body (Stripe/SendGrid/Twilio each verified separately),
+    # which a same-site cookie could never satisfy regardless of origin.
+    "handleStripeWebhook": "webhook-signature",
+    "handleEmailEventsWebhook": "webhook-signature",
+    "handleSmsInbound": "webhook-signature",
+    # Session-authenticated but READ-ONLY (4) -- POST only because they
+    # take a JSON body; each calls a read-only store function (no INSERT/
+    # UPDATE/DELETE), and the reply is unreadable cross-origin regardless
+    # (corsHeaders() sets an exact-origin Access-Control-Allow-Origin,
+    # never reflected, empty in production).
+    "handleMobilityCheck": "read-only",
+    "handleMobilityCheckBatch": "read-only",
+    "handleMobilityCheckRoster": "read-only",
+    "handleFirmMobilityFirmCheck": "read-only",
+    # Pre-authentication public forms (7) -- no victim session exists yet
+    # for a forged request to ride; six carry Turnstile plus a rate limit,
+    # handleDemoLogin is covered by the central ACTION_PATHS double-submit
+    # nonce instead (see actionCsrfOk()).
+    "handleFirmSignup": "pre-auth",
+    "handleFirmLead": "pre-auth",
+    "handleFirmLogin": "pre-auth",
+    "handleSubscribe": "pre-auth",
+    "handleNewsletterSubscribe": "pre-auth",
+    "handleSubscriberLoginRequest": "pre-auth",
+    "handleDemoLogin": "pre-auth",
+}
+
+
+def check_origin_check_coverage(repo_root: Path) -> list[str]:
+    """AuditLab CSRF-2 advisory (2026-08-21, orchestrator-approved): every
+    write-dispatched handler in worker/src/index.ts must either call
+    originAllowed() in its own body, or be named (with a reason) in
+    CSRF_EXEMPT_WRITE_HANDLERS above. Same anchoring style as
+    check_send_pass_consent_gate_coverage(): tracks the nearest-preceding
+    `request.method === "..."` for every `return await handleXxx(...)`
+    dispatch found anywhere in the file (this naturally covers both the
+    main url.pathname route table AND the ACTION_PATHS token-dispatch
+    switch, since both sit inside the same method-gated block), and
+    treats POST/PATCH/DELETE dispatches as writes. Audited in BOTH
+    directions per the approved spec: a write handler missing both the
+    call and the exemption fails, and an exemption naming a handler that
+    is no longer write-dispatched (renamed, removed, or reclassified)
+    fails too, so the list can't rot into a rubber stamp."""
+    index_ts = repo_root / "worker" / "src" / "index.ts"
+    if not index_ts.exists():
+        return ["[CSRF-2] worker/src/index.ts not found -- origin-check coverage can't be verified "
+                "and must be repaired."]
+    src = index_ts.read_text(encoding="utf-8")
+
+    method_re = re.compile(r'request\.method\s*===\s*"(\w+)"')
+    dispatch_re = re.compile(r"return\s+await\s+(handle\w+)\(")
+    events = [(m.start(), "method", m.group(1)) for m in method_re.finditer(src)]
+    events += [(m.start(), "dispatch", m.group(1)) for m in dispatch_re.finditer(src)]
+    events.sort(key=lambda e: e[0])
+
+    current_method = None
+    write_handlers: set[str] = set()
+    for _, kind, val in events:
+        if kind == "method":
+            current_method = val
+        elif current_method in ("POST", "PATCH", "DELETE"):
+            write_handlers.add(val)
+
+    if not write_handlers:
+        return ["[CSRF-2] found NO write-dispatched (POST/PATCH/DELETE) handlers in index.ts. "
+                "Either the dispatch shape changed or nothing is wired -- this check is measuring "
+                "nothing and must be repaired."]
+
+    errors = []
+    stale_exemptions = sorted(set(CSRF_EXEMPT_WRITE_HANDLERS) - write_handlers)
+    if stale_exemptions:
+        errors.append(
+            "[CSRF-2] CSRF_EXEMPT_WRITE_HANDLERS names handler(s) that are no longer "
+            f"write-dispatched in index.ts (renamed, removed, or reclassified): "
+            f"{', '.join(stale_exemptions)} -- remove the stale entry."
+        )
+
+    for name in sorted(write_handlers - set(CSRF_EXEMPT_WRITE_HANDLERS)):
+        fn_m = re.search(rf"async function {re.escape(name)}\([^)]*\)[^{{]*\{{", src)
+        if not fn_m:
+            errors.append(
+                f"[CSRF-2] {name} is write-dispatched in index.ts but its definition was not found "
+                f"as `async function {name}(...)` -- origin-check coverage can't be verified for it."
+            )
+            continue
+        fn_end = _bracket_match(src, fn_m.end() - 1)
+        fn_body = src[fn_m.end() - 1 : fn_end] if fn_end is not None else ""
+        if "originAllowed(" not in fn_body:
+            errors.append(
+                f"[CSRF-2] {name} is write-dispatched in index.ts but is neither in "
+                f"CSRF_EXEMPT_WRITE_HANDLERS nor calls originAllowed() in its own body -- a "
+                f"state-changing handler reachable by a same-site cookie needs one or the other."
+            )
+    return errors
+
+
 TITLE_RE = re.compile(r"<title>(.*?)</title>", re.DOTALL)
 META_DESCRIPTION_RE = re.compile(r'<meta name="description" content="(.*?)">', re.DOTALL)
 SEO_TITLE_MAX = 60
@@ -3323,6 +3452,7 @@ def main():
     all_errors += check_email_link_helper_usage(repo_root)
     all_errors += check_i18n_reviewed_entries_not_stale(repo_root)
     all_errors += check_send_pass_consent_gate_coverage(repo_root)
+    all_errors += check_origin_check_coverage(repo_root)
 
     print(f"Pre-ship gate: scanned {len(html_files)} rendered pages, {len(state_dirs)} state dirs.")
     if all_errors:

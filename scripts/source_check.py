@@ -97,12 +97,32 @@ SOFT_404_MARKERS = [
 # JS (`window.Btaz=...`), and clears `_MIN_SOURCE_CHARS` at 774 chars -- the
 # same "vendor nominally covered, this signature isn't" gap SRC-9 closed for
 # Turnstile. Three Connecticut citation_urls were affected.
-BOT_WALL_RE = re.compile(
+#
+# SRC-13 (AuditLab, 2026-08-20): the SRC-12 fix landed but never fired --
+# `check()` matches BOT_WALL_RE against `text`, the output of
+# _extract_html()/_extract_pdf()/_extract_docx(), which strips tags and
+# scripts BEFORE this regex ever runs. `apm_do_not_touch` is a literal HTML
+# tag name; `_extract_html()`'s `re.sub(r"<[^>]+>", " ", raw)` removes it
+# before the matcher sees it. AuditLab checked every vendor signature this
+# way and found most of BOT_WALL_RE was unreachable for the same reason:
+# bobcmn, /tspd/, challenges.cloudflare.com, _incapsula_resource, _abck,
+# apm_do_not_touch -- all markup/script-identifier signatures, all stripped
+# by design before the check runs. Only the prose-visible signatures
+# (captcha, turnstile-as-rendered-text, "verify you/they are human") ever
+# actually matched anything. Split by where each signature lives: markup
+# signatures are checked against the RAW decoded body (before extraction),
+# prose signatures stay checked against the extracted text -- each matched
+# at the point in the pipeline where it can actually appear.
+MARKUP_BOT_RE = re.compile(
+    r"(bobcmn|/tspd/|challenges\.cloudflare\.com|_incapsula_resource|"
+    r"_abck|apm_do_not_touch|bm-verify|akam(?:ai)?[-_]?(?:bm|sensor)|"
+    r"distil|perimeterx|px-captcha)",
+    re.IGNORECASE,
+)
+PROSE_BOT_RE = re.compile(
     r"(captcha|bot manager|are you a robot|checking your browser|attention required|"
     r"verify (?:you|they)(?:'re| are)? human|automated traffic|prove you are|"
-    r"turnstile|cf-turnstile|challenges\.cloudflare\.com|bobcmn|/tspd/|"
-    r"_incapsula_resource|distil|perimeterx|px-captcha|_abck|"
-    r"apm_do_not_touch|bm-verify|akam(?:ai)?[-_]?(?:bm|sensor))",
+    r"turnstile|cf-turnstile)",
     re.IGNORECASE,
 )
 
@@ -313,7 +333,17 @@ def check(url: str) -> dict:
         return result
 
     low = text[:4000].lower()
-    bot_match = BOT_WALL_RE.search(low)
+    bot_match = PROSE_BOT_RE.search(low)
+    # SRC-13: markup/script-identifier signatures live in the tags _extract_*()
+    # already stripped -- check those against the RAW decoded body instead.
+    # Only meaningful for the HTML path (PDF/DOCX bodies are binary/zip, not
+    # markup, so there is nothing for these signatures to match there).
+    if not bot_match and not is_pdf and not is_docx and not is_legacy_doc and body is not None:
+        try:
+            raw_low = body.decode("utf-8", errors="replace")[:8000].lower()
+        except Exception:
+            raw_low = ""
+        bot_match = MARKUP_BOT_RE.search(raw_low)
     if bot_match and len(text) < 3000:
         result["classification"] = "BLOCKED"
         result["detail"] = "2xx but the body is a bot-wall interstitial (marker: %r) -- fingerprint block, queue for a browser-session read" % bot_match.group(0)

@@ -378,13 +378,13 @@
     "attest_exemption": {
       "exists": null,
       "citation": "Mass. Gen. Laws c. 112, section 87B1/2",
-      "citation_url": "https://malegislature.gov/Laws/GeneralLaws/PartI/TitleXVI/Chapter112/Section87B1~2",
+      "citation_url": "https://malegislature.gov/Laws/GeneralLaws/PartI/TitleXVI/Chapter112/Section87B%201~2",
       "notes": "Statute (per consistent secondary quoting) requires firms to register each MA office and show attest/compilation services are under the charge of a licensed person; separately, out-of-state firms with no MA physical office/principal place of business may provide services without a MA license if maintaining a valid home-state license. Reads as a broader office-based exemption rather than a clean attest/non-attest split. mass.gov/malegislature.gov blocked automated fetch (403/404) for full verbatim confirmation -- marked unclear rather than asserted."
     },
     "physical_office_trigger": {
       "exists": true,
       "citation": "Mass. Gen. Laws c. 112, section 87B1/2",
-      "citation_url": "https://malegislature.gov/Laws/GeneralLaws/PartI/TitleXVI/Chapter112/Section87B1~2",
+      "citation_url": "https://malegislature.gov/Laws/GeneralLaws/PartI/TitleXVI/Chapter112/Section87B%201~2",
       "notes": "Firms must register each MA office as part of firm permit issuance/renewal -- maintaining an MA office brings the firm into the registration system. Not independently verified against full primary text (fetch blocked), based on consistent secondary quoting."
     },
     "peer_review_conditions_permit": {

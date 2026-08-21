@@ -3114,6 +3114,69 @@ def check_origin_check_coverage(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_action_pages_post_switch_parity(repo_root: Path) -> list[str]:
+    """AuditLab UX-7 (LOW, 2026-08-21, orchestrator-approved): every
+    ACTION_PAGES key in worker/src/index.ts is a page an emailed link points
+    at (Confirm, I renewed, Snooze, Unsubscribe...); the GET side renders
+    generically from that registry (audit scope #5's single-derivation
+    property, already correctly applied there), but the POST switch that
+    actually PERFORMS the action restates the key list by hand, one handler
+    call per case, with nothing checking the two stay in sync. A key added
+    without its POST case still renders a working confirm page (the GET
+    side can't tell), and clicking its button returns "Not found." -- a
+    customer hitting a dead end after doing exactly what the email asked,
+    through the one channel that already had a silent failure land
+    unnoticed once tonight (SMS-4). Parity is exact today (17/17); this
+    locks in a known-good state, same both-direction shape as every other
+    adoption gate tonight."""
+    index_ts = repo_root / "worker" / "src" / "index.ts"
+    if not index_ts.exists():
+        return ["[UX-7] worker/src/index.ts not found -- ACTION_PAGES/POST-switch parity can't be "
+                "verified and must be repaired."]
+    src = index_ts.read_text(encoding="utf-8")
+
+    pages_m = re.search(r"const ACTION_PAGES: Record<string, \{[^}]*\}> = \{", src)
+    if not pages_m:
+        return ["[UX-7] worker/src/index.ts's ACTION_PAGES declaration not found -- parity can't be "
+                "verified and must be repaired."]
+    pages_end = _bracket_match(src, pages_m.end() - 1)
+    if pages_end is None:
+        return ["[UX-7] ACTION_PAGES has unbalanced braces -- parity can't be verified."]
+    pages_body = src[pages_m.end() - 1 : pages_end]
+    keys = set(re.findall(r'^\s*"(/[^"]*)":', pages_body, re.M))
+    if not keys:
+        return ["[UX-7] found NO keys in ACTION_PAGES. Either the declaration shape changed or the "
+                "registry is empty -- this check is measuring nothing and must be repaired."]
+
+    switch_m = re.search(r"switch \(url\.pathname\) \{", src)
+    if not switch_m:
+        return ["[UX-7] the ACTION_PATHS dispatch's `switch (url.pathname)` was not found -- parity "
+                "can't be verified and must be repaired."]
+    switch_end = _bracket_match(src, switch_m.end() - 1)
+    if switch_end is None:
+        return ["[UX-7] the POST switch has unbalanced braces -- parity can't be verified."]
+    switch_body = src[switch_m.end() - 1 : switch_end]
+    cases = set(re.findall(r'case "(/[^"]*)":', switch_body))
+    if not cases:
+        return ["[UX-7] found NO cases in the ACTION_PATHS POST switch. Either the dispatch shape "
+                "changed or nothing is wired -- this check is measuring nothing and must be repaired."]
+
+    errors = []
+    keys_without_case = sorted(keys - cases)
+    if keys_without_case:
+        errors.append(
+            "[UX-7] ACTION_PAGES key(s) with no matching POST switch case -- the emailed confirm "
+            f"page renders (GET is generic) but its button 404s on click: {', '.join(keys_without_case)}"
+        )
+    cases_without_key = sorted(cases - keys)
+    if cases_without_key:
+        errors.append(
+            "[UX-7] POST switch case(s) with no matching ACTION_PAGES key -- dead dispatch code, or "
+            f"the GET confirm page for it is missing: {', '.join(cases_without_key)}"
+        )
+    return errors
+
+
 TITLE_RE = re.compile(r"<title>(.*?)</title>", re.DOTALL)
 META_DESCRIPTION_RE = re.compile(r'<meta name="description" content="(.*?)">', re.DOTALL)
 SEO_TITLE_MAX = 60
@@ -3468,6 +3531,7 @@ def main():
     all_errors += check_i18n_reviewed_entries_not_stale(repo_root)
     all_errors += check_send_pass_consent_gate_coverage(repo_root)
     all_errors += check_origin_check_coverage(repo_root)
+    all_errors += check_action_pages_post_switch_parity(repo_root)
 
     print(f"Pre-ship gate: scanned {len(html_files)} rendered pages, {len(state_dirs)} state dirs.")
     if all_errors:

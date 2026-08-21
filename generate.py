@@ -13877,19 +13877,24 @@ function drCsvField(value) {
 // file as UTF-8 instead of guessing the system codepage and mangling any
 // non-ASCII staff name.
 //
-// AuditLab CPE-5 (LOW, 2026-08-21, orchestrator-approved): a same-name
-// sibling exists in /firm-mobility/'s own script (below, near
-// drCsvField()'s own duplication comment), behaviourally identical but
-// textually different -- this copy writes the leading BOM as a literal
-// character; the sibling writes the same byte as a JS unicode escape
-// sequence instead (backslash, u, then the codepoint's four hex digits).
-// Both produce the identical byte on the wire, but that source-level
-// difference means a text-equality gate would false-fail on correct code,
-// so this pair is NOT preship_gate.py-gated the way
-// drCpeCycleWindow()/drCsvField()/drUpdateFields() are. This comment is
-// the pointer instead.
+// AuditLab CPE-5 (LOW, 2026-08-21, orchestrator-approved) + residual
+// (2026-08-21): a same-name sibling exists in /firm-mobility/'s own
+// script (below, near drCsvField()'s own duplication comment) and is
+// otherwise identical. Originally classified independent because this
+// copy wrote the leading BOM as a literal character while the sibling
+// used a JS unicode escape sequence (backslash, u, then the codepoint's
+// four hex digits) -- but AuditLab's residual note found this was the
+// ONLY one of three U+FEFF sites in generate.py using the literal form
+// (the other two, including /firm-mobility/'s own CSV-import strip, both
+// already use the escape), making the literal here the actual outlier,
+// not a second convention. Normalized to the escape form so this pair is
+// SAME-CODE and now gated by check_cpe_cycle_window_sync
+// (CPE_CYCLE_WINDOW_SYNC_FUNCTIONS) like drCpeCycleWindow()/drCsvField()/
+// drUpdateFields() -- closes the invisible-character hazard AuditLab
+// flagged (a formatter/encoding-conversion/copy-paste silently dropping
+// the literal would have shipped mojibake with no gate to catch it).
 function drTriggerCsvDownload(filename, lines) {
-  var blob = new Blob(['﻿' + lines.join('\\r\\n') + '\\r\\n'], {type: 'text/csv;charset=utf-8;'});
+  var blob = new Blob(['\\uFEFF' + lines.join('\\r\\n') + '\\r\\n'], {type: 'text/csv;charset=utf-8;'});
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
@@ -17067,17 +17072,15 @@ _MOBILITY_JS_HTML = """<script>
     return s;
   }
 
-  // AuditLab CPE-5 (LOW, 2026-08-21, orchestrator-approved): sibling of the
-  // firm dashboard's own drTriggerCsvDownload() (generate.py's
-  // drDownloadRosterCsv() family) -- behaviourally identical but textually
-  // different, this copy writes the leading BOM as a JS unicode escape
-  // sequence (backslash, u, then the codepoint's four hex digits); the
-  // dashboard copy writes the same byte as a literal character instead.
-  // Both produce the identical byte on the wire, but that source-level
-  // difference means a text-equality gate would false-fail on correct code,
-  // so this pair is NOT preship_gate.py-gated the way
-  // drCpeCycleWindow()/drCsvField()/drUpdateFields() are. This comment is
-  // the pointer instead.
+  // AuditLab CPE-5 (LOW, 2026-08-21, orchestrator-approved) + residual
+  // (2026-08-21): sibling of the firm dashboard's own drTriggerCsvDownload()
+  // (generate.py's drDownloadRosterCsv() family), same JS unicode escape
+  // sequence for the leading BOM (backslash, u, then the codepoint's four
+  // hex digits) -- the dashboard copy briefly used a literal character
+  // instead, found to be the actual outlier of generate.py's three U+FEFF
+  // sites (not a second convention) and normalized to match. Now SAME-CODE,
+  // gated by check_cpe_cycle_window_sync (CPE_CYCLE_WINDOW_SYNC_FUNCTIONS)
+  // like drCpeCycleWindow()/drCsvField()/drUpdateFields() are.
   function drTriggerCsvDownload(filename, lines) {
     var blob = new Blob(['\\uFEFF' + lines.join('\\r\\n') + '\\r\\n'], {type: 'text/csv;charset=utf-8;'});
     var url = URL.createObjectURL(blob);

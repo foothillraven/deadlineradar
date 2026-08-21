@@ -1806,12 +1806,17 @@ def check_sms_consent_version_sync(repo_root: Path) -> list[str]:
 #     f-string brace-escaping. A divergence here is the CPE-4 precondition
 #     (one calculation, two implementations, nothing keeping them in sync)
 #     and a text-equality gate is the right, cheap guard.
-#   - INDEPENDENT implementations (drCpeBarHtml, drTriggerCsvDownload) are
-#     NOT in this dict -- their two copies are legitimately different
-#     (different signatures, or a BOM literal vs its ﻿ escape) and a
-#     text-equality gate would false-fail on correct code. Those get a
-#     same-tick comment naming the sibling instead, not a gate -- see the
-#     comments at each of their own definitions.
+#   - INDEPENDENT implementations (drCpeBarHtml, drDaysUntil) are NOT in
+#     this dict -- their two copies are legitimately different (different
+#     signatures, or a different date-diffing strategy with the same
+#     whole-day result) and a text-equality gate would false-fail on
+#     correct code. Those get a same-tick comment naming the sibling
+#     instead, not a gate -- see the comments at each of their own
+#     definitions. drTriggerCsvDownload was originally classified this way
+#     too (BOM literal vs its unicode-escape form) but AuditLab's residual
+#     note (2026-08-21) found the literal was the sole outlier of
+#     generate.py's three BOM sites, not a second convention -- normalized
+#     to the escape form and moved into this dict instead.
 # Do not add a name here without first reading BOTH bodies and confirming
 # they're meant to be identical -- same-name does not mean same-code
 # (drCpeBarHtml has 3 params in one copy, 4 in the other).
@@ -1819,6 +1824,7 @@ CPE_CYCLE_WINDOW_SYNC_FUNCTIONS = {
     "drCpeCycleWindow": "/my/'s drCpeProgressFor() and the firm dashboard's drCpeProgressForSubscriber() (CPE-4)",
     "drUpdateFields": "the homepage signup form and the firm dashboard's own copy",
     "drCsvField": "the firm dashboard's CSV export and /firm-mobility/'s own roster export",
+    "drTriggerCsvDownload": "the firm dashboard's CSV export and /firm-mobility/'s own roster export",
 }
 
 
@@ -1840,9 +1846,13 @@ def check_cpe_cycle_window_sync(repo_root: Path) -> list[str]:
     generate.py and asked that each be individually classified before
     touching this gate -- drUpdateFields and drCsvField are genuinely the
     same code (comments differ, logic doesn't) and belong here;
-    drCpeBarHtml and drTriggerCsvDownload are genuinely different
-    implementations and do NOT (a text-equality gate would false-fail on
-    correct code) -- see CPE_CYCLE_WINDOW_SYNC_FUNCTIONS's own comment."""
+    drCpeBarHtml and drDaysUntil are genuinely different implementations
+    and do NOT (a text-equality gate would false-fail on correct code).
+    drTriggerCsvDownload was provisionally classified independent too
+    (BOM literal vs escape) but AuditLab's residual note found the literal
+    was the sole outlier of generate.py's three BOM sites, not a second
+    convention -- normalized to the escape form and added here instead --
+    see CPE_CYCLE_WINDOW_SYNC_FUNCTIONS's own comment."""
     generate_py = repo_root / "generate.py"
     if not generate_py.exists():
         return ["[CPE-CYCLE-WINDOW] generate.py not found -- can't verify sync"]

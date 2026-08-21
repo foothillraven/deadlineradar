@@ -2051,6 +2051,73 @@ def check_reminder_threshold_authorities_sync(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_document_size_limit_sync(repo_root: Path) -> list[str]:
+    """AuditLab COPY-9 (LOW, 2026-08-21, orchestrator-approved): UX-10's new
+    client-side 2MB file-size checks in generate.py inverted their own drift
+    failure mode -- before UX-10, a stale "up to 2MB" sentence just misled a
+    reader; now the SAME hardcoded number rejecting an upload before it
+    starts means a raised DOCUMENT_MAX_FILE_BYTES would leave the client
+    hard-blocking files the server would accept, telling the customer a
+    limit that is simply false. One authority (store.ts's
+    DOCUMENT_MAX_FILE_BYTES), six restatements in generate.py: two numeric
+    `.size > N * 1024 * 1024` checks (drSubmitDocumentUpload,
+    drSubmitCpeEntry's certificate step) and four "up to NMB" prose
+    sentences beside the three file inputs. Same CPE-4/UX-9 shape as this
+    file's other decay gates -- assert every restatement still equals the
+    real constant, converted to MB."""
+    store_ts = repo_root / "worker" / "src" / "store.ts"
+    generate_py = repo_root / "generate.py"
+    if not store_ts.exists() or not generate_py.exists():
+        return ["[DOC-SIZE-LIMIT] worker/src/store.ts or generate.py not found -- can't verify the "
+                "2MB file-size checks stay in sync."]
+
+    ts_text = store_ts.read_text(encoding="utf-8")
+    ts_match = re.search(r"DOCUMENT_MAX_FILE_BYTES\s*=\s*(\d+)\s*\*\s*1024\s*\*\s*1024", ts_text)
+    if not ts_match:
+        return ["[DOC-SIZE-LIMIT] worker/src/store.ts's DOCUMENT_MAX_FILE_BYTES constant not found "
+                "in its expected `N * 1024 * 1024` form -- can't verify sync with generate.py."]
+    ts_mb = int(ts_match.group(1))
+
+    py_text = generate_py.read_text(encoding="utf-8")
+    errors = []
+
+    numeric_matches = re.findall(r"\.size\s*>\s*(\d+)\s*\*\s*1024\s*\*\s*1024", py_text)
+    if len(numeric_matches) != 2:
+        errors.append(
+            f"[DOC-SIZE-LIMIT] expected exactly 2 client-side `.size > N * 1024 * 1024` checks in "
+            f"generate.py (drSubmitDocumentUpload's and drSubmitCpeEntry's certificate step), found "
+            f"{len(numeric_matches)} -- either one was removed (this gate needs narrowing) or a new "
+            "file input gained its own size check (this gate needs widening to cover it)."
+        )
+    else:
+        for mb in numeric_matches:
+            if int(mb) != ts_mb:
+                errors.append(
+                    f"[DOC-SIZE-LIMIT] a client-side check in generate.py compares against {mb}MB but "
+                    f"store.ts's DOCUMENT_MAX_FILE_BYTES is {ts_mb}MB -- the client would reject (or "
+                    "accept) a file the server disagrees with. Update both together."
+                )
+
+    prose_matches = re.findall(r"up to (\d+)MB", py_text)
+    if len(prose_matches) != 4:
+        errors.append(
+            f"[DOC-SIZE-LIMIT] expected exactly 4 'up to NMB' prose sentences in generate.py (beside "
+            f"#dr-documents-file, #dr-cpe-certificate, and their two modal hints), found "
+            f"{len(prose_matches)} -- either one was reworded away from this pattern (this gate needs "
+            "updating) or a new disclosure was added (this gate needs widening)."
+        )
+    else:
+        for mb in prose_matches:
+            if int(mb) != ts_mb:
+                errors.append(
+                    f"[DOC-SIZE-LIMIT] a disclosed 'up to {mb}MB' sentence in generate.py doesn't match "
+                    f"store.ts's DOCUMENT_MAX_FILE_BYTES ({ts_mb}MB) -- bump both together, at the same "
+                    "time the actual limit changes."
+                )
+
+    return errors
+
+
 def check_field_computed_states_sync(repo_root: Path) -> list[str]:
     """AuditLab SYNC-1 (MEDIUM, 2026-08-09): worker/src/deadline.ts's
     FIELD_COMPUTED_STATES and generate.py's _WORKER_FIELD_COMPUTED_STATES
@@ -3772,6 +3839,7 @@ def main():
     all_errors += check_cpe_cycle_window_sync(repo_root)
     all_errors += check_signin_ttl_copy_sync(repo_root)
     all_errors += check_reminder_threshold_authorities_sync(repo_root)
+    all_errors += check_document_size_limit_sync(repo_root)
     all_errors += check_retention_coverage(repo_root)
     all_errors += check_snoozed_until_cleared_on_cycle_bump(repo_root)
     all_errors += check_sitemap_completeness(html_files, docs_dir)

@@ -4198,8 +4198,23 @@ export async function deleteOtherSessionsForFirm(
  * per-PERSON credential rotation. Ending every OTHER member's sessions
  * too (the firm-wide version above) would sign out people who did
  * nothing wrong and whose own credential was never touched. Used by
- * handleFirmPasswordSet(); deleteOtherSessionsForFirm() stays in use for
- * genuinely firm-wide actions (account deletion, suspension). */
+ * handleFirmPasswordSet().
+ *
+ * AuditLab DOC-1 (LOW, 2026-08-21, orchestrator-approved): the sentence
+ * that used to be here ("deleteOtherSessionsForFirm() stays in use for
+ * genuinely firm-wide actions (account deletion, suspension)") was false
+ * -- that function has no caller anywhere in worker/src or the test
+ * corpus, and account deletion calls a DIFFERENT function that ends
+ * EVERY session, including the caller's own (see that function's own
+ * comment). Suspension/removal are protected by a stronger mechanism
+ * that doesn't need any session-deletion call at all: verifySession()
+ * INNER JOINs and re-reads firm.status/member.removed_at on every single
+ * request, so a suspended firm's or a removed member's sessions stop
+ * resolving immediately, without waiting for something to delete the row.
+ * deleteOtherSessionsForFirm() itself is fine to keep (superseded by this
+ * per-member version, not dangerous) -- the defect was only the stale
+ * claim about what protects suspension, which pointed a future "does
+ * suspension kill sessions?" audit at the wrong function. */
 export async function deleteOtherSessionsForMember(
   db: D1Database,
   memberId: string,

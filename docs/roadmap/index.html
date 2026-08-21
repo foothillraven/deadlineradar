@@ -1735,8 +1735,7 @@ change your mind later. Want an email when something ships? Say so after you vot
        data-appearance="interaction-only" data-callback="drTurnstileDone"
        data-expired-callback="drTurnstileExpired" data-error-callback="drTurnstileExpired"></div>
   <p id="dr-turnstile-blocked-notice" role="status" hidden style="font-size:0.85rem; color:var(--muted); margin-top:0.5rem;">
-    Having trouble? If you use an ad blocker or privacy extension, try allowing
-    <code>challenges.cloudflare.com</code> for this page &mdash; you can still submit either way.
+    Having trouble? If you use an ad blocker or privacy extension, try allowing <code>challenges.cloudflare.com</code> for this page.
   </p>
 </div>
 <script>(function(){var drTurnstileToken="";var drTurnstileWaiters=[];window.drTurnstileDone=function(token){drTurnstileToken=token||"";if(drTurnstileToken){var waiters=drTurnstileWaiters;drTurnstileWaiters=[];waiters.forEach(function(fn){fn()})}};window.drTurnstileExpired=function(){drTurnstileToken=""};setTimeout(function(){if(drTurnstileToken)return;var notice=document.getElementById("dr-turnstile-blocked-notice");if(notice)notice.hidden=false},4e3);window.drTurnstileRecover=function(cb){drTurnstileToken="";if(window.turnstile&&typeof window.turnstile.reset==="function"){try{window.turnstile.reset()}catch(err){}}var done=false;function finish(){if(done)return;done=true;cb()}drTurnstileWaiters.push(finish);setTimeout(finish,8e3)};document.addEventListener("submit",function(e){var f=e.target;if(!f||f.tagName!=="FORM")return;var field=f.querySelector('input[name="cf-turnstile-response"]');if(field)field.value=drTurnstileToken},true)})();</script>

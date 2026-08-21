@@ -3608,7 +3608,7 @@ def _bot_defense_fields_html(id_suffix: str = "", shared_widget: bool = False) -
     return honeypot + "\n" + widget
 
 
-def _turnstile_shared_widget_html() -> str:
+def _turnstile_shared_widget_html(context: str) -> str:
     """ONE Turnstile widget serving every form on the page.
 
     Two problems this solves, both raised by Devin off a screenshot of the
@@ -3639,16 +3639,43 @@ def _turnstile_shared_widget_html() -> str:
       * token not yet issued when a very fast user submits -> same path.
         Turnstile resolves in well under a second and these forms require
         typing an email and a password first, so this is a narrow window.
+
+    AuditLab COPY-11 (LOW, 2026-08-21, orchestrator-approved): the blocked-
+    notice paragraph below used to say "you can still submit either way" on
+    every page this widget serves, but that was only ever true for 1 of the
+    4 forms across the two pages that actually ship it (index.ts's
+    handleFirmLogin magic-link route passes allowMissingToken=true;
+    handleFirmSignup, handleFirmPasswordLogin, and handleRoadmapVote all
+    reject a missing token). `context` picks the per-page truth instead of
+    one shared, mostly-false sentence -- "firm-login" points a blocked
+    visitor at the one form that genuinely still works without a token
+    (Email me a sign-in link); "roadmap" drops the false clause entirely,
+    since none of that page's paths are permissive.
     """
     if not TURNSTILE_SITE_KEY:
         return ""
+    base_notice = (
+        'Having trouble? If you use an ad blocker or privacy extension, try allowing '
+        '<code>challenges.cloudflare.com</code> for this page.'
+    )
+    if context == "firm-login":
+        # The one permissive route (the magic-link form) is the honest thing
+        # to point a blocked visitor at -- the other two forms on this page
+        # still need the token.
+        notice = base_notice + " You can still use <b>Email me a sign-in link</b> below without it."
+    elif context == "roadmap":
+        # No permissive route on this page -- the old shared sentence's
+        # "you can still submit either way" clause is simply dropped, not
+        # replaced with another claim.
+        notice = base_notice
+    else:
+        raise ValueError(f"_turnstile_shared_widget_html: unknown context {context!r}")
     return f"""<div class="dr-turnstile-slot">
   <div class="cf-turnstile" data-sitekey="{esc(TURNSTILE_SITE_KEY)}"
        data-appearance="interaction-only" data-callback="drTurnstileDone"
        data-expired-callback="drTurnstileExpired" data-error-callback="drTurnstileExpired"></div>
   <p id="dr-turnstile-blocked-notice" role="status" hidden style="font-size:0.85rem; color:var(--muted); margin-top:0.5rem;">
-    Having trouble? If you use an ad blocker or privacy extension, try allowing
-    <code>challenges.cloudflare.com</code> for this page &mdash; you can still submit either way.
+    {notice}
   </p>
 </div>
 <script>
@@ -7607,7 +7634,7 @@ def build_roadmap_page() -> str:
 <p class="intro">Vote on what we build next. No account needed &mdash; one click per idea, and you can
 change your mind later. Want an email when something ships? Say so after you vote.</p>
 
-{_turnstile_shared_widget_html()}
+{_turnstile_shared_widget_html("roadmap")}
 
 <div id="dr-roadmap-error" role="alert" class="field-hint" style="color:#c33737;" hidden></div>
 <div id="dr-roadmap-list" class="dr-roadmap-list"><p class="dr-panel-empty">Loading&hellip;</p></div>
@@ -9254,7 +9281,7 @@ def build_firm_login_page() -> str:
   </p>
 </div>
 
-{_turnstile_shared_widget_html()}
+{_turnstile_shared_widget_html("firm-login")}
 </div>
 
 <p class="how-it-works">Want pricing and details first? <a href="/for-firms/">See the firm overview</a>.</p>

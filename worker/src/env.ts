@@ -17,6 +17,20 @@
  * number) -- the circuit-breaker daily cap; defaults to DEFAULT_DAILY_SEND_CAP
  * in sender.ts when unset.
  *
+ * `ACTION_DAILY_SEND_CAP` is an OPTIONAL wrangler var (a plain string
+ * number) -- AuditLab CAP-2 (MEDIUM, 2026-08-21): the action-email circuit
+ * breaker (sender.ts's checkAndCountActionSend(), which gates every login
+ * link, signup/email-change confirmation, and the operator stale-data
+ * alert -- 24 call sites in index.ts) used to read REMINDERS_DAILY_SEND_CAP,
+ * the SAME knob as the reminder channel. CAP-1 established `0` as this
+ * codebase's one deliberate kill switch for stopping a channel
+ * mid-incident; sharing the var meant using it to stop reminders during
+ * an incident also silently stopped every authentication email, at
+ * exactly the moment losing it hurts most. Now its own independent
+ * knob, defaulting to DEFAULT_DAILY_ACTION_SEND_CAP in sender.ts when
+ * unset (a constant that existed but was never wired to anything before
+ * this).
+ *
  * `DRIP_COURSE_DAILY_SEND_CAP` is an OPTIONAL wrangler var (a plain string
  * number) -- same shape as REMINDERS_DAILY_SEND_CAP above, but for the drip
  * course's own independent circuit breaker (sender.ts's
@@ -98,6 +112,7 @@ export interface Env {
   TURNSTILE_SECRET_KEY?: string;
   SENDGRID_API_KEY?: string;
   REMINDERS_DAILY_SEND_CAP?: string;
+  ACTION_DAILY_SEND_CAP?: string;
   DRIP_COURSE_DAILY_SEND_CAP?: string;
   RULE_CHANGE_ALERT_DAILY_SEND_CAP?: string;
   DIGEST_DAILY_SEND_CAP?: string;

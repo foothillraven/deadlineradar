@@ -188,7 +188,7 @@ import {
   SNOOZE_DAYS,
 } from "./emails";
 import {
-  DEFAULT_DAILY_SEND_CAP,
+  DEFAULT_DAILY_ACTION_SEND_CAP,
   resolveDailySendCap,
   checkAndCountActionSend,
   isEmailAllowlisted,
@@ -772,7 +772,7 @@ async function sendSignupNotification(
 ): Promise<void> {
   if (!env.SENDGRID_API_KEY) return;
   try {
-    const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+    const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
     if (!underCap) return;
     const built = buildSignupNotificationEmail(kind, details);
     await sendViaSendGrid(env.SENDGRID_API_KEY, INTERNAL_NOTIFY_EMAIL, built, env.EMAIL_ALLOWLIST);
@@ -800,7 +800,7 @@ async function notifyOperatorOfStaleData(env: Env, guardMessage: string): Promis
     const day = new Date().toISOString().slice(0, 10);
     const claimed = await store.claimStaleDataAlertForToday(env.DB, day);
     if (!claimed) return;
-    const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+    const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
     if (!underCap) return;
     const freshness = dataFreshnessInfo(new Date());
     const ageDays = freshness.age_days === -1 ? null : freshness.age_days;
@@ -910,8 +910,18 @@ function stateNameFromSlug(slug: string): string {
     .join(" ");
 }
 
-function dailySendCap(env: Env): number {
-  return resolveDailySendCap(env.REMINDERS_DAILY_SEND_CAP, DEFAULT_DAILY_SEND_CAP);
+// CAP-2 (AuditLab, 2026-08-21, orchestrator-approved, MEDIUM): this used to
+// be actionDailySendCap(env), reading REMINDERS_DAILY_SEND_CAP -- the SAME knob
+// as the reminder channel, even though every call site here is an action
+// email (login link, signup/email-change confirmation, the operator
+// stale-data alert), never a reminder. CAP-1's own documented kill switch
+// (setting a cap to 0 mid-incident) therefore also silently killed
+// authentication email. Now its own independent resolver, mirroring every
+// other channel's own *_DAILY_SEND_CAP (digest, drip course, rule-change
+// alert, Slack/Teams/SMS alerts, admin digest) -- see env.ts's own
+// ACTION_DAILY_SEND_CAP docstring.
+function actionDailySendCap(env: Env): number {
+  return resolveDailySendCap(env.ACTION_DAILY_SEND_CAP, DEFAULT_DAILY_ACTION_SEND_CAP);
 }
 
 function clientIp(request: Request): string {
@@ -1285,7 +1295,7 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
     if (existing.status === store.STATUS_PENDING && env.SENDGRID_API_KEY) {
       try {
         if (store.resendEligible(existing, new Date())) {
-          const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+          const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
           if (underCap) {
             const confirmUrl = `${actionBaseUrl(env)}/confirm?token=${encodeURIComponent(existing.confirm_token)}`;
             const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(existing.unsubscribe_token)}`;
@@ -1347,7 +1357,7 @@ async function handleSubscribe(request: Request, env: Env, ip: string): Promise<
   //     which also preserves the no-enumeration-oracle property.
   if (env.SENDGRID_API_KEY) {
     try {
-      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
       if (underCap) {
         const confirmUrl = `${actionBaseUrl(env)}/confirm?token=${encodeURIComponent(record.confirm_token)}`;
         const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
@@ -1799,7 +1809,7 @@ async function issueAndSendFirmLoginLink(
   const { rawToken } = await store.createLoginToken(env.DB, firmId, purpose, undefined, memberId);
   if (!env.SENDGRID_API_KEY) return;
   try {
-    const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+    const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
     if (!underCap) return;
     const loginUrl = `${actionBaseUrl(env)}/firm/login/verify?token=${encodeURIComponent(rawToken)}`;
     // COPY HONESTY (2026-07-31): a link issued from "Forgot password" must
@@ -1851,7 +1861,7 @@ async function issueAndSendFirmMemberInviteEmail(
   const { rawToken } = await store.createLoginToken(env.DB, firmId, "login", undefined, memberId);
   if (!env.SENDGRID_API_KEY) return;
   try {
-    const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+    const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
     if (!underCap) return;
     const loginUrl = `${actionBaseUrl(env)}/firm/login/verify?token=${encodeURIComponent(rawToken)}`;
     const built = buildFirmMemberInviteEmail(loginUrl, firmName, roleLabel, inviterName);
@@ -3630,7 +3640,7 @@ async function handleFirmAccountDelete(request: Request, env: Env): Promise<Resp
 
   if (env.SENDGRID_API_KEY) {
     try {
-      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
       if (underCap) {
         const built = buildAccountDeletionNotificationEmail({
           firmName: firm.name,
@@ -4007,7 +4017,7 @@ async function issueAndSendSubscriberLoginLink(env: Env, email: string): Promise
   const { rawToken } = await store.createSubscriberLoginToken(env.DB, email);
   if (!env.SENDGRID_API_KEY) return;
   try {
-    const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+    const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
     if (!underCap) return;
     const loginUrl = `${actionBaseUrl(env)}/subscriber/login/verify?token=${encodeURIComponent(rawToken)}`;
     const built = buildSubscriberLoginEmail(loginUrl);
@@ -4280,7 +4290,7 @@ async function handleSubscriberChangeEmailRequest(request: Request, env: Env): P
       // reasoning) as handleFirmChangeEmailRequest()'s own comment: a
       // starved daily-send budget should drop the (harmless, reversible)
       // confirm email, never the time-sensitive warning.
-      const noticeUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      const noticeUnderCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
       let noticeSent = false;
       if (noticeUnderCap) {
         const noticeEmail = buildSubscriberEmailChangeRequestedNoticeEmail(newEmailRaw, new Date().toISOString());
@@ -4298,7 +4308,7 @@ async function handleSubscriberChangeEmailRequest(request: Request, env: Env): P
       // attempted. Fail-safe: the token is unusable without this confirm
       // link, so skipping it just means the user retries.
       if (noticeSent) {
-        const confirmUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+        const confirmUnderCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
         if (confirmUnderCap) {
           const confirmUrl = `${actionBaseUrl(env)}/subscriber/login/verify?token=${encodeURIComponent(rawToken)}`;
           const confirmEmail = buildSubscriberEmailChangeConfirmEmail(confirmUrl);
@@ -5074,7 +5084,7 @@ async function handleFirmStaffCpeReminder(request: Request, env: Env): Promise<R
     reason = "This person has unsubscribed from all emails, so we can't reach them.";
   } else {
     try {
-      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
       if (!underCap) {
         reason = "Today's email limit has been reached. Please try again tomorrow.";
       } else {
@@ -5285,7 +5295,7 @@ async function handleFirmRuleChangeNotify(request: Request, env: Env): Promise<R
         skipped++;
         continue;
       }
-      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
       if (!underCap) {
         skipped += targets.length - sent - skipped;
         break;
@@ -5474,7 +5484,7 @@ async function handleRoadmapNotifySignup(request: Request, env: Env, ip: string)
   if (env.SENDGRID_API_KEY) {
     const signup = await store.createFeatureIdeaNotifySignup(env.DB, ideaId, email);
     if (signup) {
-      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
       if (underCap) {
         const confirmUrl = `${actionBaseUrl(env)}/roadmap/notify-confirm?token=${encodeURIComponent(signup.rawToken)}`;
         const built = buildFeatureIdeaNotifyConfirmEmail(idea.title, confirmUrl);
@@ -6895,7 +6905,7 @@ async function handleFirmLicenseCreate(request: Request, env: Env): Promise<Resp
   // "gate the send, not the edit" reasoning.
   if (env.SENDGRID_API_KEY && !session.firm.demo_locked) {
     try {
-      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
       if (underCap) {
         const firm = await store.getFirmById(env.DB, session.firmId);
         const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(record.unsubscribe_token)}`;
@@ -7169,7 +7179,7 @@ async function handleFirmLicensePatch(request: Request, env: Env, id: string): P
   // visitor, only the outbound email to the new address is skipped.
   if (emailChanged && env.SENDGRID_API_KEY && !session.firm.demo_locked) {
     try {
-      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
       if (underCap) {
         const confirmUrl = `${actionBaseUrl(env)}/confirm?token=${encodeURIComponent(updated.confirm_token)}`;
         const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(updated.unsubscribe_token)}`;
@@ -7764,7 +7774,7 @@ async function handleUnsubscribe(env: Env, token: string | null): Promise<Respon
       if (env.SENDGRID_API_KEY) {
         const firm = await store.getFirmById(env.DB, subscriber.firm_id);
         if (firm && firm.admin_email) {
-          const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+          const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
           if (underCap) {
             const built = buildStaffUnsubscribedNotificationEmail(
               firm.name ?? "your firm",
@@ -7900,7 +7910,7 @@ async function handleRenewed(env: Env, token: string | null): Promise<Response> 
   // confirmation every time. subscriber.alreadyStopped gates it the same way.
   if (env.SENDGRID_API_KEY && !subscriber.alreadyStopped) {
     try {
-      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
       if (underCap) {
         const unsubscribeUrl = `${actionBaseUrl(env)}/unsubscribe?token=${encodeURIComponent(subscriber.unsubscribe_token)}`;
         const built = buildStopConfirmationEmail(
@@ -9488,7 +9498,7 @@ async function handleFirmPasswordSet(request: Request, env: Env, ip: string): Pr
   // quota, so consistency wins over always-notify here.
   if (env.SENDGRID_API_KEY) {
     try {
-      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
       if (underCap) {
         // migration 0045: notifies the MEMBER whose password actually
         // changed, not the firm's primary contact -- a teammate's password
@@ -9728,7 +9738,7 @@ async function handleFirm2faEnrollConfirm(request: Request, env: Env): Promise<R
   // pattern as handleFirmPasswordSet's own send above.
   if (env.SENDGRID_API_KEY) {
     try {
-      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
       if (underCap) {
         const built = buildFirmTwoFactorChangedEmail(firm.name, true, new Date().toISOString(), member.name);
         await sendViaSendGrid(env.SENDGRID_API_KEY, member.email, built, env.EMAIL_ALLOWLIST);
@@ -9860,7 +9870,7 @@ async function handleFirm2faDisable(request: Request, env: Env): Promise<Respons
 
   if (env.SENDGRID_API_KEY) {
     try {
-      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
       if (underCap) {
         const built = buildFirmTwoFactorChangedEmail(firm.name, false, new Date().toISOString(), member.name);
         await sendViaSendGrid(env.SENDGRID_API_KEY, member.email, built, env.EMAIL_ALLOWLIST);
@@ -9947,7 +9957,7 @@ async function handleFirmSignOutOtherDevices(request: Request, env: Env): Promis
     // ended, not the firm's primary contact.
     if (signoutFirm && member && env.SENDGRID_API_KEY) {
       try {
-        const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+        const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
         if (underCap) {
           const built = buildFirmSessionsEndedEmail(signoutFirm.name, new Date().toISOString(), endedSessions, member.name);
           await sendViaSendGrid(env.SENDGRID_API_KEY, member.email, built, env.EMAIL_ALLOWLIST);
@@ -10118,7 +10128,7 @@ async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise
       // the notice first means a starved budget instead drops the confirm
       // email, which just delays the (harmless, reversible) change rather
       // than suppressing the (time-sensitive) warning.
-      const noticeUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      const noticeUnderCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
       let noticeSent = false;
       if (noticeUnderCap) {
         // migration 0045: notice goes to the MEMBER's own current (OLD)
@@ -10146,7 +10156,7 @@ async function handleFirmChangeEmailRequest(request: Request, env: Env): Promise
         // Independent send, independent cap check -- this is a SECOND real
         // email (to a different address, for a different purpose), not a
         // retry of the first.
-        const confirmUnderCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+        const confirmUnderCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
         if (confirmUnderCap) {
           const confirmUrl = `${actionBaseUrl(env)}/firm/login/verify?token=${encodeURIComponent(rawToken)}`;
           const confirmEmail = buildFirmEmailChangeConfirmEmail(confirmUrl, member.name);
@@ -10378,7 +10388,7 @@ async function handleOauthCallback(request: Request, env: Env, ip: string, provi
   // must not block a legitimate sign-in.
   if (env.SENDGRID_API_KEY) {
     try {
-      const underCap = await checkAndCountActionSend(env.DB, dailySendCap(env));
+      const underCap = await checkAndCountActionSend(env.DB, actionDailySendCap(env));
       if (underCap) {
         const built = buildFirmOauthLinkedEmail(firm.name, provider.displayName, claims.email, new Date().toISOString(), firm.admin_name);
         await sendViaSendGrid(env.SENDGRID_API_KEY, firm.admin_email, built, env.EMAIL_ALLOWLIST);

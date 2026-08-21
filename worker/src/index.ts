@@ -1892,7 +1892,14 @@ const REFERRAL_CODE_PATTERN = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/;
 async function handleFirmSignup(request: Request, env: Env, ip: string): Promise<Response> {
   const allowed = await checkRateLimit(env.DB, ip, "firm_signup", RATE_LIMIT_FIRM_SIGNUP);
   if (!allowed) {
-    return errorPage(429, "Too many requests from this address. Please try again later.");
+    // AuditLab ERR-6 (LOW, 2026-08-21, orchestrator-approved): RL-2's own
+    // fix/wording (2026-08-04) already reached the individual subscribe
+    // and newsletter forms -- the same shared-office-IP scenario applies
+    // even more here, not less (a firm's whole staff signing up together
+    // from one office is the expected arrival pattern for this route, the
+    // paid product's front door), but this site was skipped. Matches the
+    // sibling wording exactly rather than inventing new copy.
+    return errorPage(429, "Too many requests from this address. Please try again in about 10 minutes.");
   }
 
   let raw: string;
@@ -2133,6 +2140,15 @@ async function handleFirmSignup(request: Request, env: Env, ip: string): Promise
  * reveal whether a given email has an account.
  */
 async function handleFirmLogin(request: Request, env: Env, ip: string, ctx: ExecutionContext): Promise<Response> {
+  // AuditLab ERR-6 durability note (2026-08-21, orchestrator-approved,
+  // optional): unlike the signup-shaped 429s (RL-2, ERR-5, ERR-6 above),
+  // this vague "later" is DELIBERATE, not unfinished -- this is an
+  // authentication throttle (same posture at every other login/2FA/
+  // password/OAuth rate limit in this file), and telling an attacker
+  // hammering it exactly when the door reopens is a real cost with no
+  // matching benefit the way it has for a shared-office-IP signup burst.
+  // Recorded once here so a future consistency pass doesn't "fix" this
+  // cluster into naming a concrete wait.
   const allowed = await checkRateLimit(env.DB, ip, "firm_login", RATE_LIMIT_FIRM_LOGIN);
   if (!allowed) {
     return errorPage(429, "Too many requests from this address. Please try again later.");

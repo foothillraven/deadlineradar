@@ -3662,7 +3662,15 @@ def _turnstile_shared_widget_html(context: str) -> str:
         # The one permissive route (the magic-link form) is the honest thing
         # to point a blocked visitor at -- the other two forms on this page
         # still need the token.
-        notice = base_notice + " You can still use <b>Email me a sign-in link</b> below without it."
+        #
+        # AuditLab COPY-12 (LOW, 2026-08-21, orchestrator-approved):
+        # "below" was wrong -- the notice slot renders AFTER all three view
+        # containers, so every occurrence of the control it names is always
+        # ABOVE it, not below, on a blocked visitor's one card. Direction-
+        # free wording instead of just flipping the word, so this also
+        # survives any future reordering of the card, which is what
+        # produced the wrong direction here in the first place.
+        notice = base_notice + " You can still use the <b>Email me a sign-in link</b> option on this page without it."
     elif context == "roadmap":
         # No permissive route on this page -- the old shared sentence's
         # "you can still submit either way" clause is simply dropped, not

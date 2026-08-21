@@ -596,6 +596,64 @@ def check_cpe_hours_currency(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_annual_minimum_not_alternative_track(repo_root: Path) -> list[str]:
+    """CITE-52 (AuditLab, 2026-08-20, orchestrator-approved): Arkansas's
+    cpe_hours.json record had annual_minimum_hours=40 rendered as a per-year
+    FLOOR under its 120-hour/3-year total, but 17 CAR 236-1203(a) actually
+    grants a CHOICE between two equivalent tracks (120hrs/36mo OR 40hrs/12mo)
+    -- not a floor layered on top of either. The rendered page told a CPA
+    who correctly used the 40-hour track they'd failed a requirement that
+    doesn't exist.
+
+    AuditLab's tell, generalised into a permanent check: a genuine per-year
+    floor is always strictly LESS than the period total spread evenly over
+    the period (every real floor clears this -- 20x2=40 of 80, Oregon
+    24x2=48 of 80). Arkansas was the only record where annual_minimum x
+    period_years == total_hours exactly (40x3=120) -- the arithmetic
+    signature of "this is actually an alternative total, not a floor."
+    A record legitimately shaped this way must say so explicitly via
+    annual_minimum_basis='alternative_track' (which also switches the
+    template's rendering, see build_cpe_hours_page()); anything else that
+    matches this arithmetic without the flag is the exact silent-regression
+    shape CITE-52 fixed once already."""
+    data_path = repo_root / "data" / "cpe_hours.json"
+    if not data_path.exists():
+        return []
+    data = json.loads(data_path.read_text(encoding="utf-8"))
+    errors = []
+    for r in data["records"]:
+        annual_minimum = r.get("annual_minimum_hours")
+        period_years = r.get("period_years")
+        total_hours = r.get("total_hours")
+        if not annual_minimum or not period_years or not total_hours:
+            continue
+        # AuditLab's tell is specifically about MULTI-year records -- a
+        # 1-year-period record where annual_minimum == total_hours is the
+        # separate, already-handled "same fact stated twice" case
+        # build_cpe_hours_page() already suppresses the bullet for (see its
+        # own comment above), not this defect class. Confirmed by running
+        # this check unscoped first: it produced 9 false positives, every
+        # one a period_years==1 record (Alabama, Maine, Michigan,
+        # Mississippi, Missouri, Nevada, New York, North Carolina, South
+        # Carolina) -- caught before shipping, not after.
+        if period_years == 1:
+            continue
+        basis = r.get("annual_minimum_basis") or "floor"
+        if basis == "alternative_track":
+            continue
+        if annual_minimum * period_years == total_hours:
+            errors.append(
+                f"[FLOOR][cpe/{r['id']}] {r.get('state')} -- annual_minimum_hours ({annual_minimum}) x "
+                f"period_years ({period_years}) == total_hours ({total_hours}) exactly. A genuine per-year "
+                f"floor is always strictly LESS than the period total (CITE-52's tell) -- this is very "
+                f"likely a disjunctive alternative track mislabeled as a floor, not a real annual minimum. "
+                f"Read the primary source before shipping: if it's genuinely a floor, this is a coincidence "
+                f"worth a comment explaining why; if it's a choice-of-tracks shape like Arkansas, set "
+                f"annual_minimum_basis='alternative_track'."
+            )
+    return errors
+
+
 def check_rule_change_monitoring_currency(repo_root: Path) -> list[str]:
     """MON-3 (AuditLab, 2026-08-20, orchestrator's refined ruling): 17 days
     of real staleness on /rule-changes/'s "watching ... daily" claim turned
@@ -2642,6 +2700,7 @@ def main():
     all_errors += check_data_manifest_consistency(data_path, docs_dir)
     all_errors += check_deadline_currency(data_path)
     all_errors += check_cpe_hours_currency(repo_root)
+    all_errors += check_annual_minimum_not_alternative_track(repo_root)
     all_errors += check_rule_change_monitoring_currency(repo_root)
     all_errors += check_reinstatement_currency(repo_root)
     all_errors += check_stale_thresholds_unified(html_files)

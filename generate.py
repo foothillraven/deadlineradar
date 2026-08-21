@@ -19373,11 +19373,38 @@ def build_cpe_hours_page(
             )
     annual_line = ""
     annual_minimum = cpe_record.get("annual_minimum_hours")
+    # CITE-52 (AuditLab, 2026-08-20, orchestrator-approved): annual_minimum_
+    # hours holds a genuine per-year FLOOR for 33 records, but Arkansas's 40
+    # is one leg of a DISJUNCTION (17 CAR 236-1203(a): 120 hours/36 months OR
+    # 40 hours/12 months, a licensee's choice) -- not a floor layered under
+    # the 120-hour/3-year total. The old hardcoded floor phrasing told an
+    # Arkansas CPA who correctly used the 40-in-12-months track, front-
+    # loading their whole requirement into one year, that they'd failed --
+    # the exact thing the 40-hour track exists to allow. ar-cpe's own note
+    # already described this correctly ("a CHOICE of two equivalent
+    # tracks"); the template just never read that shape.
+    #
+    # AuditLab's general tell, worth keeping if this template area is
+    # touched again: a genuine floor is always strictly LESS than the total
+    # spread evenly over the period (every other record clears this --
+    # 20x2=40 of 80, Oregon 24x2=48 of 80). Arkansas is the only record
+    # where annual_minimum x period_years == total_hours exactly (40x3=120)
+    # -- the arithmetic signature of "this is actually an alternative total,
+    # not a floor." check_annual_minimum_not_alternative_track() in
+    # preship_gate.py enforces this for every future record.
+    basis = cpe_record.get("annual_minimum_basis") or "floor"
+    if basis == "alternative_track":
+        annual_line = (
+            f"<li><strong>OR {annual_minimum} hours within any single 12-month "
+            f"period</strong>, as a full ALTERNATIVE to the {cpe_record['total_hours']}-hour/"
+            f"{cpe_record['period_years']}-year track above -- your choice between the two, "
+            f"not a floor added on top of either.</li>"
+        )
     # Suppress the bullet entirely when it's redundant with the total (a
     # 1-year cycle whose annual minimum equals its own total isn't a second
     # requirement -- it's the same fact stated twice, the exact "40-hour
     # minimum ... 40 hours every year" the go-live review flagged on NC).
-    if annual_minimum and not (annual_minimum == cpe_record["total_hours"] and cpe_record["period_years"] == 1):
+    elif annual_minimum and not (annual_minimum == cpe_record["total_hours"] and cpe_record["period_years"] == 1):
         annual_line = (
             f"<li><strong>{annual_minimum}-hour minimum</strong> in each 1-year "
             f"period (you can't front-load the whole requirement into a single year).</li>"

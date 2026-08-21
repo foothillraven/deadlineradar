@@ -678,6 +678,13 @@ PAGE_CSS = """
      scrollIntoView(). */
   html { scroll-padding-top: 68px; }
   html { background: var(--page-bg); }
+  /* UX-5 follow-up: overflow-x:hidden on body ALONE didn't clip this --
+     confirmed live (post-deploy) that <html> itself, not <body>, was still
+     the actual scrolling box (html.scrollWidth 1913 > html.clientWidth
+     1905, overflow-x:visible), so the body-level rule never propagated to
+     the root scroller here. Setting it on html directly, matching where
+     the real overflow lives. */
+  html { overflow-x: hidden; }
   body {
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     margin: 0; padding: 0 0 3rem;

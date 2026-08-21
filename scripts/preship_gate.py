@@ -561,6 +561,51 @@ def check_deadline_currency(data_path: Path) -> list[str]:
     return errors
 
 
+_TABLE_ROW_RE = re.compile(r'<tr data-month="(\d+)">(.*?)</tr>')
+_TABLE_CELL_RE = re.compile(r"<td>(.*?)</td>")
+_MONTH_NAME_TO_NUM = {name: i + 1 for i, name in enumerate(MONTH_NAMES)}
+_TABLE_DATE_RE = re.compile(r"^(" + "|".join(MONTH_NAMES) + r") (\d{1,2}), (\d{4})$")
+
+
+def check_birth_month_table_currency(html_files: list[Path]) -> list[str]:
+    """AuditLab TABLE-1 (LOW, 2026-08-08): the CA/TX-shaped birth-month tables
+    (render_california/render_texas, plus the generic
+    render_birth_month_year_parity_state/render_birth_month_annual_state pair
+    added for Arizona/Oklahoma/New Mexico) are computed fresh at build time
+    from `as_of` -- so unlike next_deadline_computed in cpa_deadlines.json
+    (covered by check_deadline_currency above), nothing in the JSON goes
+    stale here; the HTML itself does, purely as a function of build age. A
+    build that ships a week after `as_of`, across a month boundary, can
+    serve a table row with a date that has already elapsed -- same shape as
+    DATE-1's Kentucky incident, just on generated HTML instead of hand-
+    maintained JSON, and 729bbe69 raised the stakes by promoting the same
+    per-row value into the page's headline answer. Parses every
+    `data-month` table row directly out of the generated HTML and fails the
+    build the moment any cell's date has already passed."""
+    errors = []
+    today = date.today().isoformat()
+    for f in html_files:
+        html_text = f.read_text(encoding="utf-8")
+        for row_match in _TABLE_ROW_RE.finditer(html_text):
+            month_num = row_match.group(1)
+            row_html = row_match.group(2)
+            for cell in _TABLE_CELL_RE.findall(row_html):
+                cell_text = html.unescape(cell).strip()
+                m = _TABLE_DATE_RE.match(cell_text)
+                if not m:
+                    continue  # month-name cell, or some other non-date cell shape
+                month_name, day, year = m.group(1), int(m.group(2)), int(m.group(3))
+                iso = f"{year:04d}-{_MONTH_NAME_TO_NUM[month_name]:02d}-{day:02d}"
+                if iso < today:
+                    errors.append(
+                        f"[TABLE-1][{f}] data-month={month_num} row shows an elapsed date "
+                        f"'{cell_text}' (today={today}) -- this is a build-time-computed "
+                        f"birth-month table cell, not hand-maintained JSON; the build is "
+                        f"simply too old. Regenerate docs/ (re-run generate.py) before shipping."
+                    )
+    return errors
+
+
 def check_cpe_hours_currency(repo_root: Path) -> list[str]:
     """AuditLab BADGE-1 (MEDIUM, 2026-08-09): roadmap #47 upgraded the public
     CPE badge from a bare "Verified" to a dated "Verified 2026-07-15" on 50
@@ -2754,6 +2799,7 @@ def main():
     all_errors += check_named_vendor_disparagement(html_files)
     all_errors += check_data_manifest_consistency(data_path, docs_dir)
     all_errors += check_deadline_currency(data_path)
+    all_errors += check_birth_month_table_currency(html_files)
     all_errors += check_cpe_hours_currency(repo_root)
     all_errors += check_annual_minimum_not_alternative_track(repo_root)
     all_errors += check_rule_change_monitoring_currency(repo_root)

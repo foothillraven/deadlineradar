@@ -1195,16 +1195,30 @@ function daysPhraseForSlack(actual: number): string {
   return `${-actual} day${actual !== -1 ? "s" : ""} ago`;
 }
 
+// SLACK-2 (AuditLab, 2026-08-21, LOW): Slack's message-text mini-markup
+// requires &/</> to be escaped -- an unescaped firm name lets a firm's own
+// partner/office_manager (the only one who can set firm.name) make our
+// branded alert ping the whole channel (`<!channel>`) or render an
+// arbitrary labelled link, on every send, in that firm's own webhook.
+// Single-tenant, self-inflicted (AuditLab's own framing), but a two-line
+// fix at the one place firmName enters the template. Order matters: & must
+// be escaped first, or a firm name containing "&lt;" would double-escape
+// into "&amp;lt;" instead of passing "&lt;" through as literal text.
+function escapeSlackText(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 /** Plain-text Slack message (Slack's own light "mrkdwn" -- `*bold*`, not
  * full Markdown). No links/citations here unlike the email builders in
  * emails.ts -- this is a heads-up, not the determination itself; staff
  * still go to the dashboard or their email for the full reminder. */
 function buildSlackDigestText(firmName: string, items: SlackDigestItem[]): string {
   const count = items.length;
+  const safeFirmName = escapeSlackText(firmName);
   const header =
     count === 1
-      ? `*Deadline-Radar: 1 renewal newly due for ${firmName}*`
-      : `*Deadline-Radar: ${count} renewals newly due for ${firmName}*`;
+      ? `*Deadline-Radar: 1 renewal newly due for ${safeFirmName}*`
+      : `*Deadline-Radar: ${count} renewals newly due for ${safeFirmName}*`;
   const lines = items.map((it) => `• ${it.stateName}: due ${it.deadlineDateStr} (${daysPhraseForSlack(it.daysRemaining)})`);
   return `${header}\n${lines.join("\n")}`;
 }

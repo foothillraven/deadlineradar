@@ -442,6 +442,50 @@ describe("runSlackAlertPass", () => {
     const claimedAfter = await store.claimSlackThresholdNotification(env.DB, sub.id, 30);
     expect(claimedAfter).toBe(true); // claim was reverted, not left dangling
   });
+
+  // SLACK-2 (AuditLab, 2026-08-21): firm.name is set by that firm's own
+  // partner/office_manager, sanitizeFreeText() doesn't touch &/</>
+  // (confirmed: only strips non-printable chars and formula-injection
+  // prefixes), and the unescaped text used to reach Slack's message API
+  // verbatim inside JSON.stringify({ text }) -- letting a firm name
+  // channel-ping (`<!channel>`) or render an arbitrary labelled link on
+  // every alert. Exercises the real end-to-end path (a firm named this
+  // way, through the real DB write, through the real pass), not just the
+  // escape helper in isolation.
+  it("SLACK-2: a firm name containing Slack control syntax is escaped before it reaches the message text", async () => {
+    const { runSlackAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(9000);
+    const maliciousName = "Acme <!channel> & <https://evil.example|Click> LLP";
+    const { id: firmId } = await store.createFirm(env.DB, {
+      name: maliciousName,
+      adminEmail: `slack2-${Date.now()}@examplefirm.com`,
+    });
+    await env.DB.prepare("UPDATE firms SET created_at = '2020-01-01T00:00:00Z' WHERE id = ?1").bind(firmId).run();
+    await seedSlackIntegration(firmId, "https://hooks.slack.com/services/T000/B000/slack2", {
+      teamName: "Slack2 Co",
+      channelName: "alerts",
+    });
+    await addRosterSubscriber(firmId, "ohio", isoDaysFromUtcMidnight(asOf, 30));
+
+    const posted: { webhookUrl: string; text: string }[] = [];
+    await runSlackAlertPass({ ...env, TOTP_ENCRYPTION_KEY: KEY }, {
+      asOf,
+      send: async (webhookUrl, text) => {
+        posted.push({ webhookUrl, text });
+        return true;
+      },
+    });
+
+    expect(posted.length).toBe(1);
+    // The dangerous raw sequences must never reach the message text...
+    expect(posted[0]!.text).not.toContain("<!channel>");
+    expect(posted[0]!.text).not.toContain("<https://evil.example|Click>");
+    // ...and the escaped form must be present, proving the name itself
+    // (not just the malicious substrings) survived the round trip.
+    expect(posted[0]!.text).toContain("&lt;!channel&gt;");
+    expect(posted[0]!.text).toContain("&amp;");
+    expect(posted[0]!.text).toContain("&lt;https://evil.example|Click&gt;");
+  });
 });
 
 /**

@@ -12397,6 +12397,13 @@ function drMaybeShowNpsPrompt() {
   var modal = document.getElementById('dr-nps-modal');
   if (!modal || !modal.hidden || !drNpsPromptDue) return;
   modal.hidden = false;
+  // A11Y-12 (AuditLab, 2026-08-21): this modal appears WITHOUT user action,
+  // so unlike the 4 user-triggered modals (which each focus-in on open),
+  // nothing put focus inside it -- the existing Tab-trap and screen-reader
+  // dialog announcement both require document.activeElement to already be
+  // inside the modal to engage at all. Focus the first score button.
+  var firstScoreBtn = modal.querySelector('.dr-nps-score-btn');
+  if (firstScoreBtn) firstScoreBtn.focus();
 }
 
 function drCloseNpsModal() {
@@ -12438,7 +12445,15 @@ function drSubmitNpsScore(score, btn) {
 
 function drOpenTestimonialModal() {
   var modal = document.getElementById('dr-testimonial-modal');
-  if (modal) modal.hidden = false;
+  if (!modal) return;
+  modal.hidden = false;
+  // A11Y-12 (AuditLab, 2026-08-21): same fix as drMaybeShowNpsPrompt() --
+  // this modal is also auto-triggered (chained after a promoter-tier NPS
+  // score, not a click), so nothing puts focus inside it otherwise. Focus
+  // the dismiss button rather than the textarea -- the safer default for a
+  // prompt the user didn't ask to see, per the finding's own suggestion.
+  var dismissBtn = document.getElementById('dr-testimonial-skip-btn');
+  if (dismissBtn) dismissBtn.focus();
 }
 
 function drCloseTestimonialModal() {
@@ -14881,6 +14896,12 @@ function drOpenQuestionnaireModal() {
   var modal = document.getElementById('dr-questionnaire-modal');
   if (!modal || !modal.hidden) return; // already open -- a second /firm/licenses
   modal.hidden = false;                // reload mid-decision must not reset the form
+  // A11Y-12 (AuditLab, 2026-08-21): same fix as drMaybeShowNpsPrompt() --
+  // this is the third auto-triggered modal (a one-time post-signup prompt,
+  // not a click), so nothing puts focus inside it otherwise. Focus the
+  // first checkbox, the questionnaire's first field.
+  var firstField = modal.querySelector('input[name="feature"]');
+  if (firstField) firstField.focus();
 }
 
 function drCloseQuestionnaireModal() {

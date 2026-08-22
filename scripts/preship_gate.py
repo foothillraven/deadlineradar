@@ -527,6 +527,86 @@ def check_data_manifest_consistency(data_path: Path, docs_dir: Path) -> list[str
     return errors
 
 
+def check_cpe_hours_manifest_consistency(repo_root: Path) -> list[str]:
+    """AuditLab GATE-14 (MEDIUM, 2026-08-22, proven by control): editing a
+    value in data/cpe_hours.json without regenerating docs/ produced ZERO
+    preship-gate violations while the rendered pages kept serving the old
+    figure -- cpa_deadlines.json has check_data_manifest_consistency() for
+    exactly this, renewal_fees.json/reinstatement.json get incidental
+    protection from check_derived_fee_consistency()'s cross-field math,
+    cpe_hours.json had neither. The drift reaches FAQPage structured data
+    (generate.py's CPE-requirement sentence, confirmed live on
+    deadline-radar.com), not just visible prose. Proven-uncoupled fields,
+    both single-record and a 10-record mass edit: total_hours,
+    ethics_hours, annual_minimum_hours.
+
+    Same shape as check_data_manifest_consistency() above: per record,
+    load its dedicated CPE-requirements page (build_cpe_hours_page()'s own
+    slug convention, `{state_slug}-cpa-cpe-requirements`) and assert each
+    non-null numeric field's exact string appears somewhere on it. Simple
+    substring presence, not a full render-trace -- same rigor level as
+    that sibling check, on the page generate.py itself builds specifically
+    to answer "how many CPE hours does this state require.\""""
+    data_path = repo_root / "data" / "cpe_hours.json"
+    docs_dir = repo_root / "docs"
+    if not data_path.exists() or not docs_dir.exists():
+        return []
+    data = json.loads(data_path.read_text(encoding="utf-8"))
+    records = data["records"] if isinstance(data, dict) else data
+
+    errors = []
+    checked_any_field = False
+    for r in records:
+        state_slug = r.get("state_slug")
+        page = docs_dir / f"{state_slug}-cpa-cpe-requirements" / "index.html"
+        if not page.exists():
+            errors.append(f"[CPE-RENDER][{state_slug}/{r.get('id')}] no rendered CPE-requirements page found at {page}")
+            continue
+        text = page.read_text(encoding="utf-8")
+        # A bare digit like "50" or "40" is a common CSS value (border-
+        # radius: 50%, z-index: 50, ...) -- found live during verification,
+        # every one of Alabama/Connecticut/Maine's real "40"-hour pages
+        # also coincidentally contains a word-boundary-matched "50" inside
+        # the shared stylesheet, which would silently pass a real 40->50
+        # drift. Strip <style> blocks before searching; deliberately does
+        # NOT strip <script> -- the FAQPage JSON-LD this check exists to
+        # protect lives in one of those and must stay visible to the search.
+        content_only = re.sub(r"<style>.*?</style>", "", text, flags=re.S)
+        for field in ("total_hours", "ethics_hours", "annual_minimum_hours"):
+            value = r.get(field)
+            if value is None:
+                continue
+            checked_any_field = True
+            expected = str(value)
+            # A bare word-boundary digit match still false-positives on
+            # unrelated real prose containing the same number for a
+            # different fact -- found live during verification, e.g. North
+            # Carolina's own "50 minutes of regulatory ethics" (a real,
+            # different figure) coincidentally matched a mutated 40->50
+            # total_hours check. generate.py renders all three of these
+            # fields ONLY ever immediately adjacent to the word
+            # "hour"/"hours" (`{n} hours`, `{n}-hour minimum`, `{n} ethics
+            # hours`) -- require that adjacency instead of a bare number.
+            if not re.search(rf"\b{re.escape(expected)}\b(?:</strong>)?[\s-]+(?:ethics\s+)?hours?\b", content_only):
+                errors.append(
+                    f"[CPE-RENDER][{state_slug}/{r.get('id')}] {field}={value} but '{expected}' does not "
+                    f"appear anywhere on {page.relative_to(repo_root)} -- possible stale render or silent "
+                    f"data drift (this reaches FAQPage structured data, not just visible prose)"
+                )
+    # GATE-11-style empty-set guard: if build_cpe_hours_page()'s slug
+    # convention or these field names ever change, every record above
+    # would either hit the missing-page branch (still real errors) or
+    # silently check nothing at all if records themselves also vanished --
+    # this catches the second case specifically.
+    if records and not checked_any_field:
+        errors.append(
+            "[CPE-RENDER] every cpe_hours.json record has total_hours/ethics_hours/annual_minimum_hours "
+            "all null -- either the field names changed or the dataset is empty of real figures, and this "
+            "check is measuring nothing and must be repaired."
+        )
+    return errors
+
+
 def check_deadline_currency(data_path: Path) -> list[str]:
     """AuditLab DATE-1 (MEDIUM, 2026-08-04): deadlines come from two paths --
     computed at build time (next_birth_month_parity_date()/next_annual_month_end(),
@@ -4222,6 +4302,7 @@ def main():
     all_errors += check_affiliate_disclosure(html_files)
     all_errors += check_named_vendor_disparagement(html_files)
     all_errors += check_data_manifest_consistency(data_path, docs_dir)
+    all_errors += check_cpe_hours_manifest_consistency(repo_root)
     all_errors += check_deadline_currency(data_path)
     all_errors += check_birth_month_table_currency(html_files)
     all_errors += check_hidden_display_override(html_files)

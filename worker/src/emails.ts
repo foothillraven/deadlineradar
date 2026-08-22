@@ -546,6 +546,16 @@ export function buildDigestEmail(
     count === 1
       ? `Your weekly summary: 1 renewal needs attention`
       : `Your weekly summary: ${count} renewals need attention`;
+  // UX-11 (2026-08-21): items is sorted soonest-first by the caller
+  // (scheduler.ts's own AuditLab DIGEST-2 fix), so items[0] is genuinely
+  // the most urgent item in the bundle -- naming it here gives the
+  // preheader real information (which state, how soon) instead of just
+  // restating the bare count already in the subject.
+  const soonestItem = items[0];
+  const preheader = soonestItem
+    ? `${soonestItem.stateName} due ${soonestItem.deadlineDateStr} (${daysPhrase(soonestItem.daysRemaining)})` +
+      (count > 1 ? ` -- plus ${count - 1} more` : "")
+    : subject;
 
   const textItems = items
     .map((it) => {
@@ -589,7 +599,7 @@ export function buildDigestEmail(
     .join("");
 
   const htmlBody = htmlShell(
-    `Your weekly Deadline-Radar summary -- ${count} ${count === 1 ? "renewal" : "renewals"} due`,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `Your weekly summary</h1>` +
       p(
@@ -640,6 +650,11 @@ export function buildStopConfirmationEmail(
   let subject: string;
   let textBody: string;
   let htmlInner: string;
+  // UX-11 (2026-08-21): the preheader used to just repeat `subject`
+  // verbatim. Both branches already have a genuinely different fact on
+  // hand -- whether a one-click re-arm is being offered, or that the stop
+  // is immediate and permanent -- so surface that instead.
+  let preheader: string;
 
   if (reason === "renewed") {
     subject = `No more reminders for this ${stateName} renewal`;
@@ -660,9 +675,11 @@ export function buildStopConfirmationEmail(
           13,
           LIGHT.muted
         );
+      preheader = `Confirmed -- one click brings reminders back for your next ${stateName} renewal cycle.`;
     } else {
       textBody += "Want reminders again someday? You're welcome to sign up fresh any time.";
       htmlExtra = p("Want reminders again someday? You're welcome to sign up fresh any time.", 13, LIGHT.muted);
+      preheader = `Confirmed -- you won't hear from us again about this ${stateName} deadline.`;
     }
     htmlInner =
       `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">Nice work</h1>` +
@@ -674,6 +691,7 @@ export function buildStopConfirmationEmail(
       htmlExtra;
   } else {
     subject = `You're unsubscribed from ${stateName} renewal reminders`;
+    preheader = `Stopped immediately and permanently for this one ${stateName} deadline.`;
     textBody =
       `${greetingText}\n\n` +
       `You're unsubscribed. We've stopped every reminder for this ${stateName} CPA renewal ` +
@@ -692,7 +710,7 @@ export function buildStopConfirmationEmail(
   }
 
   textBody += textFooter(unsubscribeUrl, addr);
-  const htmlBody = htmlShell(subject, htmlInner, htmlFooter(unsubscribeUrl, addr));
+  const htmlBody = htmlShell(preheader, htmlInner, htmlFooter(unsubscribeUrl, addr));
   return { subject, textBody, htmlBody, headers: listUnsubHeaders(unsubscribeUrl) };
 }
 
@@ -720,6 +738,10 @@ export function buildFirmLoginEmail(loginUrl: string, isPasswordReset = false, a
     ? "You asked to set a new password. Click below and we'll take you straight to a page where you can choose one."
     : "Here's your sign-in link. Click below to access your firm dashboard.";
   const cta = isPasswordReset ? "Set my password" : `Sign in to ${SITE_NAME}`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- LOGIN_TOKEN_TTL_MINUTES
+  // is already in scope and is the one concrete fact the subject doesn't
+  // carry (a one-time, time-boxed link).
+  const preheader = `One-time link, expires in ${LOGIN_TOKEN_TTL_MINUTES} minutes.`;
 
   const textBody =
     `${textGreeting(adminName)}\n\n` +
@@ -732,7 +754,7 @@ export function buildFirmLoginEmail(loginUrl: string, isPasswordReset = false, a
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `${esc(isPasswordReset ? "Set your password" : `Sign in to ${SITE_NAME}`)}</h1>` +
       p(htmlGreeting(adminName)) +
@@ -779,6 +801,10 @@ export function buildFirmMemberInviteEmail(
   const cleanFirmName = firmName.replace(/[\r\n]+/g, " ");
   const inviter = inviterName && inviterName.trim().length > 0 ? inviterName.trim() : `Someone at ${cleanFirmName}`;
   const subject = `${cleanFirmName} invited you to ${SITE_NAME}`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- inviter, roleLabel, and
+  // LOGIN_TOKEN_TTL_MINUTES are all already in scope and none of them are
+  // in the subject line.
+  const preheader = `${inviter} invited you as ${roleLabel} -- link expires in ${LOGIN_TOKEN_TTL_MINUTES} minutes.`;
 
   const textBody =
     `Hi there,\n\n` +
@@ -792,7 +818,7 @@ export function buildFirmMemberInviteEmail(
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `${esc(`Join ${cleanFirmName} on ${SITE_NAME}`)}</h1>` +
       p(`${esc(inviter)} invited you to join ${esc(cleanFirmName)} on ${SITE_NAME} as ${esc(roleLabel)}.`) +
@@ -828,6 +854,9 @@ export function buildFirmMemberInviteEmail(
 export function buildFirmEmailChangeConfirmEmail(confirmUrl: string, adminName: string | null = null): BuiltEmail {
   const addr = mailingAddress();
   const subject = `Confirm your new ${SITE_NAME} email address`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- LOGIN_TOKEN_TTL_MINUTES is
+  // already in scope and is the one concrete fact the subject doesn't carry.
+  const preheader = `One click confirms the change and signs you in -- link expires in ${LOGIN_TOKEN_TTL_MINUTES} minutes.`;
 
   const textBody =
     `${textGreeting(adminName)}\n\n` +
@@ -840,7 +869,7 @@ export function buildFirmEmailChangeConfirmEmail(confirmUrl: string, adminName: 
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `Confirm your new email address</h1>` +
       p(htmlGreeting(adminName)) +
@@ -888,6 +917,10 @@ export function buildFirmEmailChangeRequestedNoticeEmail(
 ): BuiltEmail {
   const addr = mailingAddress();
   const subject = `An email change was requested on your ${SITE_NAME} account`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- requestedNewEmail is
+  // already in scope and is the concrete fact an admin needs to recognize
+  // (or not recognize) at a glance.
+  const preheader = `Requested new address: ${requestedNewEmail}. Not you? Act now.`;
 
   const textBody =
     `${textGreeting(adminName)}\n\n` +
@@ -900,7 +933,7 @@ export function buildFirmEmailChangeRequestedNoticeEmail(
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `An email change was requested</h1>` +
       p(htmlGreeting(adminName)) +
@@ -944,6 +977,10 @@ export function buildFirmEmailChangeRequestedNoticeEmail(
 export function buildSubscriberLoginEmail(loginUrl: string): BuiltEmail {
   const addr = mailingAddress();
   const subject = `Your ${SITE_NAME} sign-in link`;
+  // UX-11 (2026-08-21): was identical to `subject` -- SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES
+  // and the "see every deadline" value proposition are both already in scope
+  // and neither is in the subject line.
+  const preheader = `See every renewal deadline we're tracking for you -- link expires in ${SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES} minutes.`;
 
   const textBody =
     `Here's your ${SITE_NAME} sign-in link:\n\n` +
@@ -958,7 +995,7 @@ export function buildSubscriberLoginEmail(loginUrl: string): BuiltEmail {
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
-    `Your ${SITE_NAME} sign-in link`,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `Sign in to ${esc(SITE_NAME)}</h1>` +
       p(
@@ -994,6 +1031,9 @@ export function buildSubscriberLoginEmail(loginUrl: string): BuiltEmail {
 export function buildSubscriberEmailChangeConfirmEmail(confirmUrl: string): BuiltEmail {
   const addr = mailingAddress();
   const subject = `Confirm your new ${SITE_NAME} email address`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES
+  // is already in scope and is the one concrete fact the subject doesn't carry.
+  const preheader = `One click confirms the change and signs you in -- link expires in ${SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES} minutes.`;
 
   const textBody =
     `Someone requested to change the email address on a ${SITE_NAME} account to this address. ` +
@@ -1005,7 +1045,7 @@ export function buildSubscriberEmailChangeConfirmEmail(confirmUrl: string): Buil
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `Confirm your new email address</h1>` +
       p(
@@ -1042,6 +1082,9 @@ export function buildSubscriberEmailChangeConfirmEmail(confirmUrl: string): Buil
 export function buildSubscriberEmailChangeRequestedNoticeEmail(requestedNewEmail: string, whenIso: string): BuiltEmail {
   const addr = mailingAddress();
   const subject = `An email change was requested on your ${SITE_NAME} account`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- requestedNewEmail is
+  // already in scope and is the concrete fact worth surfacing at a glance.
+  const preheader = `Requested new address: ${requestedNewEmail}. Not you? No action needed unless confirmed.`;
 
   const textBody =
     `A request was just made to change the email address on your ${SITE_NAME} account to ` +
@@ -1053,7 +1096,7 @@ export function buildSubscriberEmailChangeRequestedNoticeEmail(requestedNewEmail
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `An email change was requested</h1>` +
       p(
@@ -1089,6 +1132,10 @@ export function buildStaffCpeReminderEmail(loginUrl: string, firmName: string, s
   const addr = mailingAddress();
   const safeFirmName = firmName.replace(/[\r\n]+/g, " ");
   const subject = `${safeFirmName} would like you to log your CPE hours`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- stateName and
+  // SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES are both already in scope and
+  // neither is in the subject line.
+  const preheader = `For your ${stateName} CPA license -- link expires in ${SUBSCRIBER_LOGIN_TOKEN_TTL_MINUTES} minutes.`;
 
   const textBody =
     `${safeFirmName} asked us to remind you to log your continuing education hours for your ` +
@@ -1103,7 +1150,7 @@ export function buildStaffCpeReminderEmail(loginUrl: string, firmName: string, s
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `Log your CPE hours</h1>` +
       p(
@@ -1161,6 +1208,10 @@ export function buildRuleChangeNotificationEmail(
   const addr = mailingAddress();
   const safeFirmName = firmName.replace(/[\r\n]+/g, " ");
   const subject = `${jurisdiction} mobility rule change -- ${safeFirmName}`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- effectiveDateLabel and
+  // summary are both already in scope and carry the actual content of the
+  // change, which the subject only gestures at.
+  const preheader = `Effective ${effectiveDateLabel}: ${summary}`;
 
   const citationLine = citationUrl
     ? `Source: ${citationUrl}\n\n`
@@ -1177,7 +1228,7 @@ export function buildRuleChangeNotificationEmail(
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `${esc(jurisdiction)} mobility rule change</h1>` +
       p(
@@ -1246,6 +1297,10 @@ export function buildRuleChangeAdminAlertEmail(
   const addr = mailingAddress();
   const safeFirmName = firmName.replace(/[\r\n]+/g, " ");
   const subject = `New ${jurisdiction} mobility rule change affects your roster`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- effectiveDateLabel,
+  // summary, and confidenceLabel are all already in scope and carry the
+  // actual content, which the subject only gestures at.
+  const preheader = `Effective ${effectiveDateLabel} (confidence: ${confidenceLabel}): ${summary}`;
 
   const citationLine = citationUrl ? `Source: ${citationUrl}\n\n` : "";
   const textBody =
@@ -1263,7 +1318,7 @@ export function buildRuleChangeAdminAlertEmail(
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `New ${esc(jurisdiction)} rule change affects your roster</h1>` +
       p(
@@ -1341,6 +1396,16 @@ export function buildAdminDigestEmail(
     count === 1
       ? `${safeFirmName}: 1 renewal newly due across your roster`
       : `${safeFirmName}: ${count} renewals newly due across your roster`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- items carries staffLabel
+  // and stateName, neither of which the subject (firm name + bare count)
+  // includes. Names the first item as a concrete example rather than
+  // claiming it is the most urgent -- unlike buildDigestEmail() above,
+  // this list is not sorted by urgency.
+  const firstItem = items[0];
+  const preheader = firstItem
+    ? `${firstItem.staffLabel} (${firstItem.stateName}) due ${daysPhrase(firstItem.daysRemaining)}` +
+      (count > 1 ? ` -- plus ${count - 1} more` : "")
+    : subject;
 
   const textItems = items
     .map((it) => `- ${it.staffLabel} (${it.stateName}): due ${daysPhrase(it.daysRemaining)}`)
@@ -1367,7 +1432,7 @@ export function buildAdminDigestEmail(
     .join("");
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `${esc(count === 1 ? "1 renewal" : `${count} renewals`)} newly due across your roster</h1>` +
       p(`${esc(safeFirmName)}, here's who's newly due:`) +
@@ -1408,6 +1473,9 @@ export function buildAdminDigestEmail(
 export function buildFirmPasswordChangedEmail(firmName: string, whenIso: string, adminName: string | null = null): BuiltEmail {
   const addr = mailingAddress();
   const subject = `A password was set on your ${SITE_NAME} account`;
+  // UX-11 (2026-08-21): was the same literal string as `subject` -- firmName
+  // and whenIso are already in scope and neither is in the subject line.
+  const preheader = `Set for ${firmName} at ${whenIso}. Not you? Act immediately.`;
 
   const textBody =
     `${textGreeting(adminName)}\n\n` +
@@ -1430,7 +1498,7 @@ ${SENDER_LINE}
 ${addr}`;
 
   const htmlBody = htmlShell(
-    `A password was set on your ${SITE_NAME} account`,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `A password was set on your account</h1>` +
       p(htmlGreeting(adminName)) +
@@ -1472,6 +1540,10 @@ export function buildFirmTwoFactorChangedEmail(
   const addr = mailingAddress();
   const action = enabled ? "enabled" : "disabled";
   const subject = `Two-factor authentication was ${action} on your ${SITE_NAME} account`;
+  // UX-11 (2026-08-21): was the same literal string as `subject` --
+  // firmName and whenIso are already in scope and neither is in the
+  // subject line.
+  const preheader = `${enabled ? "Enabled" : "Disabled"} for ${firmName} at ${whenIso}. Not you? Act immediately.`;
 
   const textBody =
     `${textGreeting(adminName)}\n\n` +
@@ -1491,7 +1563,7 @@ ${SENDER_LINE}
 ${addr}`;
 
   const htmlBody = htmlShell(
-    `Two-factor authentication was ${action} on your ${SITE_NAME} account`,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `Two-factor authentication was ${action}</h1>` +
       p(htmlGreeting(adminName)) +
@@ -1537,6 +1609,11 @@ export function buildFirmBackupCodeRedeemedEmail(firmName: string, whenIso: stri
   const addr = mailingAddress();
   const subject = `A backup code was used to sign in to your ${SITE_NAME} account`;
   const remainingPhrase = remaining === 1 ? "1 backup code" : `${remaining} backup codes`;
+  // UX-11 (2026-08-21): was the same literal string as `subject` -- firmName
+  // and remainingPhrase are already in scope and neither is in the subject
+  // line. (This builder is currently inert -- see the HELD PENDING note
+  // above -- but its copy should still be correct once it ships.)
+  const preheader = `For ${firmName}. ${remainingPhrase} left. Not you? Act immediately.`;
   const lowPhrase =
     remaining === 0
       ? " You have none left -- generate a fresh set from your account's security settings before you need one."
@@ -1564,7 +1641,7 @@ ${SENDER_LINE}
 ${addr}`;
 
   const htmlBody = htmlShell(
-    `A backup code was used to sign in to your ${SITE_NAME} account`,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `A backup code was used to sign in</h1>` +
       p(htmlGreeting(adminName)) +
@@ -1616,6 +1693,10 @@ export function buildStaffUnsubscribedNotificationEmail(
   const addr = mailingAddress();
   const displayName = (staffLabel || staffEmail).replace(/[\r\n]+/g, " ");
   const subject = `${displayName} unsubscribed from ${firmName}'s Deadline-Radar roster`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- stateName is already in
+  // scope and not in the subject line, and this names what already
+  // happened (reminders stopped) rather than repeating who/what firm.
+  const preheader = `Their ${stateName} renewal reminders have already stopped -- informational only.`;
 
   const textBody =
     `${textGreeting(adminName)}\n\n` +
@@ -1626,7 +1707,7 @@ export function buildStaffUnsubscribedNotificationEmail(
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `A staff member unsubscribed</h1>` +
       p(htmlGreeting(adminName)) +
@@ -1668,6 +1749,10 @@ export function buildFirmSessionsEndedEmail(
   const addr = mailingAddress();
   const subject = `Other devices were signed out of your ${SITE_NAME} account`;
   const deviceWord = endedCount === 1 ? "device" : "devices";
+  // UX-11 (2026-08-21): was the same literal string as `subject` --
+  // firmName, endedCount, and whenIso are already in scope and none of
+  // them are in the subject line.
+  const preheader = `${endedCount} other ${deviceWord} for ${firmName} at ${whenIso}. Not you? Act immediately.`;
 
   const textBody =
     `${textGreeting(adminName)}\n\n` +
@@ -1686,7 +1771,7 @@ ${SENDER_LINE}
 ${addr}`;
 
   const htmlBody = htmlShell(
-    `Other devices were signed out of your ${SITE_NAME} account`,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `Other devices were signed out</h1>` +
       p(htmlGreeting(adminName)) +
@@ -1728,6 +1813,10 @@ export function buildFirmOauthLinkedEmail(
 ): BuiltEmail {
   const addr = mailingAddress();
   const subject = `A ${providerDisplayName} sign-in method was connected to your ${SITE_NAME} account`;
+  // UX-11 (2026-08-21): was the same literal string as `subject` --
+  // firmName and providerEmail are already in scope and neither is in the
+  // subject line.
+  const preheader = `${providerEmail} connected for ${firmName}. Not you? Act immediately.`;
 
   const textBody =
     `${textGreeting(adminName)}\n\n` +
@@ -1752,7 +1841,7 @@ ${SENDER_LINE}
 ${addr}`;
 
   const htmlBody = htmlShell(
-    `A ${providerDisplayName} sign-in method was connected to your ${SITE_NAME} account`,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `A ${esc(providerDisplayName)} sign-in method was connected</h1>` +
       p(htmlGreeting(adminName)) +
@@ -1804,6 +1893,11 @@ export function buildConfirmationEmail(
   const dateSentenceText = deadlineDateStr ? ` We'll remind you before ${deadlineDateStr}.` : "";
   const dateSentenceHtml = deadlineDateStr ? ` We'll remind you before ${esc(deadlineDateStr)}.` : "";
   const { list: thresholdList, dayWord: thresholdDayWord } = formatThresholdList(reminderThresholds);
+  // UX-11 (2026-08-21): was `subject` verbatim -- thresholdList/thresholdDayWord
+  // and the optional deadlineDateStr are already in scope and carry the real
+  // schedule this recipient is confirming into, matching the deadline-forward
+  // voice buildReminderEmail() above already uses.
+  const preheader = `We'll remind you ${thresholdList} ${thresholdDayWord} before it's due.${dateSentenceText}`;
 
   const textBody =
     `${textGreeting(firstName)}\n\n` +
@@ -1817,7 +1911,7 @@ export function buildConfirmationEmail(
     `${textFooter(unsubscribeUrl, addr)}`;
 
   const htmlBody = htmlShell(
-    `Confirm your ${stateName} CPA renewal reminder`,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `Confirm your reminder</h1>` +
       p(
@@ -1884,6 +1978,11 @@ export function buildFirmStaffAddedEmail(
   // a firm-rename route, or a transport swap to raw SMTP. One line of
   // defense-in-depth at the point where the string is actually built.
   const subject = `${firmName.replace(/[\r\n]+/g, " ")} added you to Deadline-Radar`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- stateName, thresholdList,
+  // and thresholdDayWord are all already in scope and carry the real
+  // schedule this recipient was just enrolled into, matching the
+  // deadline-forward voice buildReminderEmail() above already uses.
+  const preheader = `Tracking your ${stateName} renewal -- reminders ${thresholdList} ${thresholdDayWord} before it's due.`;
 
   const textBody =
     `Hi there,\n\n` +
@@ -1897,7 +1996,7 @@ export function buildFirmStaffAddedEmail(
     `${textFooter(unsubscribeUrl, addr)}`;
 
   const htmlBody = htmlShell(
-    `${firmName} added you to Deadline-Radar`,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `${esc(firmName)} added you to Deadline-Radar</h1>` +
       p(
@@ -2153,6 +2252,10 @@ export function buildFeatureIdeaNotifyConfirmEmail(ideaTitle: string, confirmUrl
   const addr = mailingAddress();
   const safeTitle = ideaTitle.replace(/[\r\n]+/g, " ");
   const subject = `Confirm: notify me when "${safeTitle}" ships`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- the "only email you'll
+  // get unless it ships" promise is already in the body copy below but
+  // wasn't surfaced in the preheader, which just re-stated the title.
+  const preheader = `One click confirms it -- you'll hear from us only if it ships.`;
 
   const textBody =
     `You asked to be notified when "${safeTitle}" ships on ${SITE_NAME}'s roadmap.\n\n` +
@@ -2162,7 +2265,7 @@ export function buildFeatureIdeaNotifyConfirmEmail(ideaTitle: string, confirmUrl
     `---\n${SENDER_LINE}\n${addr}`;
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `Confirm your roadmap notification</h1>` +
       p(`You asked to be notified when <strong>${esc(safeTitle)}</strong> ships on ${esc(SITE_NAME)}'s roadmap.`) +
@@ -2230,6 +2333,10 @@ function dripCourseTextFooter(unsubscribeUrl: string, addr: string): string {
 export function buildDripCourseStep1Email(firstName: string | null, stateName: string, cycleFact: string, unsubscribeUrl: string): BuiltEmail {
   const addr = mailingAddress();
   const subject = `The real answer to "when does my CPA license renew?"`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- cycleFact and stateName
+  // are already in scope (the caller-verified excerpt this step's own body
+  // is built around) and neither is in the subject line.
+  const preheader = `In ${stateName}: ${cycleFact}`;
 
   const textBody =
     `${textGreeting(firstName)}\n\n` +
@@ -2245,7 +2352,7 @@ export function buildDripCourseStep1Email(firstName: string | null, stateName: s
     dripCourseTextFooter(unsubscribeUrl, addr);
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `What actually decides your renewal date</h1>` +
       p(htmlGreeting(firstName)) +
@@ -2275,6 +2382,10 @@ export function buildDripCourseStep1Email(firstName: string | null, stateName: s
 export function buildDripCourseStep2Email(firstName: string | null, stateName: string, unsubscribeUrl: string): BuiltEmail {
   const addr = mailingAddress();
   const subject = `The CPE rule most CPAs get wrong`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- stateName is already in
+  // scope and names the actual mistake this step is about, neither of
+  // which the subject carries.
+  const preheader = `${stateName} boards treat ethics-hour minimums as separate from your total CPE count.`;
 
   const textBody =
     `${textGreeting(firstName)}\n\n` +
@@ -2288,7 +2399,7 @@ export function buildDripCourseStep2Email(firstName: string | null, stateName: s
     dripCourseTextFooter(unsubscribeUrl, addr);
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `The CPE mistake that catches people off guard</h1>` +
       p(htmlGreeting(firstName)) +
@@ -2314,6 +2425,9 @@ export function buildDripCourseStep2Email(firstName: string | null, stateName: s
 export function buildDripCourseStep3Email(firstName: string | null, stateName: string, unsubscribeUrl: string): BuiltEmail {
   const addr = mailingAddress();
   const subject = `What actually happens if your license lapses`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- stateName is already in
+  // scope and names what "late" actually costs, which the subject doesn't.
+  const preheader = `In ${stateName}: reinstatement means a formal application, a fee, and proof of current CPE.`;
 
   const textBody =
     `${textGreeting(firstName)}\n\n` +
@@ -2328,7 +2442,7 @@ export function buildDripCourseStep3Email(firstName: string | null, stateName: s
     dripCourseTextFooter(unsubscribeUrl, addr);
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `What happens if you miss it</h1>` +
       p(htmlGreeting(firstName)) +
@@ -2478,6 +2592,11 @@ function newsletterFooter(unsubscribeUrl: string, addr: string, html: boolean): 
 export function buildNewsletterConfirmationEmail(confirmUrl: string, unsubscribeUrl: string): BuiltEmail {
   const addr = mailingAddress();
   const subject = `Confirm your ${SITE_NAME} compliance-news subscription`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- names what the digest
+  // actually is (already stated in the body below) and that it's a
+  // separate list from renewal reminders, neither of which the subject
+  // carries.
+  const preheader = `A periodic roundup of sourced renewal & mobility law changes -- separate from your renewal reminders.`;
 
   const textBody =
     `Hi there,\n\n` +
@@ -2491,7 +2610,7 @@ export function buildNewsletterConfirmationEmail(confirmUrl: string, unsubscribe
     `${newsletterFooter(unsubscribeUrl, addr, false)}`;
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 16px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `Confirm your subscription</h1>` +
       p(
@@ -2546,6 +2665,12 @@ export function buildNewsletterDigestEmail(items: NewsletterDigestItem[], unsubs
     items.length === 1
       ? `CPA compliance news: ${items[0]?.jurisdiction} update`
       : `CPA compliance news: ${items.length} state updates this month`;
+  // UX-11 (2026-08-21): was `subject` verbatim -- items carries jurisdiction
+  // and topic, neither of which the multi-item subject includes. Names the
+  // first item as a concrete example, not a claim about ordering (this list
+  // isn't sorted by significance).
+  const firstItem = items[0];
+  const preheader = firstItem ? `${firstItem.jurisdiction}: ${firstItem.topic}${items.length > 1 ? ` -- plus ${items.length - 1} more` : ""}` : subject;
 
   const textItems = items
     .map((it, i) => {
@@ -2585,7 +2710,7 @@ export function buildNewsletterDigestEmail(items: NewsletterDigestItem[], unsubs
     .join("");
 
   const htmlBody = htmlShell(
-    subject,
+    preheader,
     `<h1 class="dr-fg" style="margin:0 0 6px;font-size:19px;font-weight:700;color:${LIGHT.fg};">` +
       `${esc(monthLabel)} compliance news</h1>` +
       p(

@@ -103,7 +103,7 @@
       "state": "Montana",
       "state_slug": "montana",
       "field": "data_gap_note",
-      "note": "Montana's official ARM host (rules.mt.gov) serves no per-section rule text -- it is now a JavaScript SPA that returns only an empty shell to automated fetches, and the legacy mtrules.org mirror no longer resolves. The renewal date and requirements are confirmed instead on the Board's own license-information page, which states them in plain language matching this record exactly.",
+      "note": "Montana's official ARM host (rules.mt.gov) serves no per-section rule text -- it is now a JavaScript SPA that returns only an empty shell to automated fetches, and the legacy mtrules.org mirror no longer resolves. The renewal date and requirements are confirmed on the Board's own license-information page AND independently on Cornell LII's mirror of ARM 24.101.413 (secondary_source_url), which serves the rule's full operative text and states them in plain language matching this record exactly.",
       "is_block_claim": false
     },
     {

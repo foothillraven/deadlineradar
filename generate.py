@@ -14531,6 +14531,15 @@ function drSubmitTeamInvite(form) {
   var errEl = document.getElementById('dr-team-invite-error');
   if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
   if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  // UX-13 (AuditLab, 2026-08-21): this handler never disabled its submit
+  // button, so a double-click fired two POSTs. The server's own duplicate-
+  // email check (409, backed by migration 0045's unique index) catches it
+  // with no duplicate row -- but the user's second response was an error
+  // describing the invite they just successfully sent, reading as "the
+  // invite failed" when it succeeded. Same disable-on-entry/re-enable-on-
+  // every-exit-path pattern drSubmitCpeEntry() already uses.
+  var submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
 
   var fd = new FormData(form);
   var email = fd.get('email') || '';
@@ -14554,6 +14563,8 @@ function drSubmitTeamInvite(form) {
     });
   }).catch(function() {
     if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  }).finally(function() {
+    if (submitBtn) submitBtn.disabled = false;
   });
 }
 
@@ -14618,6 +14629,12 @@ function drSubmitPassword(form) {
   var errEl = document.getElementById('dr-password-error');
   if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
   if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  // UX-13 (AuditLab, 2026-08-21): same fix as drSubmitTeamInvite() -- this
+  // handler never disabled its submit button either. Setting a password
+  // twice is idempotent so a double-click can't corrupt anything here, but
+  // it's still inconsistent with the other 10 forms that already disable.
+  var submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
 
   var fd = new FormData(form);
   var body = {new_password: fd.get('new_password') || ''};
@@ -14650,6 +14667,8 @@ function drSubmitPassword(form) {
     });
   }).catch(function() {
     if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+  }).finally(function() {
+    if (submitBtn) submitBtn.disabled = false;
   });
 }
 
@@ -16908,6 +16927,16 @@ document.addEventListener('DOMContentLoaded', function() {
       var errEl = document.getElementById('dr-add-error');
       if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
       drClearWarning();
+      // UX-13 (AuditLab, 2026-08-21): never disabled its submit button, so
+      // a double-click fired two POSTs. handleFirmLicenseCreate's own
+      // same-firm-duplicate check catches it server-side ("A subscriber
+      // already exists...") -- but that table has NO unique constraint, so
+      // this application-level check is the only thing standing between a
+      // double-click and a duplicate roster row, and the client shouldn't
+      // lean on it alone. Same disable-on-entry/re-enable-on-every-exit-
+      // path pattern drSubmitCpeEntry() already uses.
+      var addSubmitBtn = addForm.querySelector('button[type="submit"]');
+      if (addSubmitBtn) addSubmitBtn.disabled = true;
       var fd = new FormData(addForm);
       var body = {};
       fd.forEach(function(v, k) { body[k] = v; });
@@ -16935,6 +16964,8 @@ document.addEventListener('DOMContentLoaded', function() {
       }).catch(function() {
         var msg = 'Something went wrong, please try again.';
         if (errEl) { errEl.textContent = msg; errEl.hidden = false; } else { drShowError(msg); }
+      }).finally(function() {
+        if (addSubmitBtn) addSubmitBtn.disabled = false;
       });
     });
   }

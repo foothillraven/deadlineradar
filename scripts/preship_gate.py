@@ -364,9 +364,11 @@ def check_stylesheet_integrity(html_files: list[Path]) -> list[str]:
     on, and that the stylesheet still ends where a complete one should.
     """
     errors = []
+    style_blocks_found = 0
     for f in html_files:
         text = f.read_text(encoding="utf-8")
         for m in re.finditer(r"<style>(.*?)</style>", text, re.S):
+            style_blocks_found += 1
             css = m.group(1)
             base_line = text.count("\n", 0, m.start(1)) + 1
             for i, line in enumerate(css.split("\n")):
@@ -392,6 +394,14 @@ def check_stylesheet_integrity(html_files: list[Path]) -> list[str]:
                     f"(floor: {MIN_SHIPPED_CSS_RULE_BLOCKS}) -- a truncated or emptied "
                     f"stylesheet passes every other assertion in this check vacuously"
                 )
+    # GATE-11 (AuditLab, 2026-08-22): if the `<style>` tag shape itself
+    # changes (a different embedding mechanism, an attribute added), every
+    # assertion above silently passes on zero blocks found -- the exact
+    # "measuring nothing" failure mode CSRF-2 already guards against.
+    if html_files and style_blocks_found == 0:
+        return ["[STYLE] found NO <style>...</style> blocks across any rendered page. Either the "
+                "embedding shape changed or the stylesheet is gone entirely -- this check is "
+                "measuring nothing and must be repaired."]
     return errors
 
 
@@ -2375,6 +2385,17 @@ def check_sitemap_completeness(html_files: list[Path], docs_dir: Path) -> list[s
         rel = f.relative_to(docs_dir).parent.as_posix()
         indexable_paths.add("/" if rel == "." else f"/{rel}/")
 
+    # GATE-11 (AuditLab, 2026-08-22): both sides of this comparison are
+    # derived sets -- a URL-regex or noindex-detection change that empties
+    # either one would make `missing`/`dead` trivially empty too, passing
+    # silently on a check that has stopped comparing anything real.
+    if not sitemap_paths:
+        return ["[SITEMAP] parsed ZERO URLs out of sitemap.xml -- SITE_BASE_URL_RE's shape or the "
+                "sitemap format changed, and this check is measuring nothing and must be repaired."]
+    if not indexable_paths:
+        return ["[SITEMAP] found ZERO indexable built pages (every index.html is noindex, or none "
+                "exist) -- this check is measuring nothing and must be repaired."]
+
     missing = sorted(indexable_paths - sitemap_paths)
     dead = sorted(sitemap_paths - indexable_paths)
 
@@ -2697,6 +2718,7 @@ def check_demo_locked_email_coverage(repo_root: Path) -> list[str]:
 
     errors = []
     found_names = set()
+    senders_found = 0
     for ts_file in sorted(worker_src.glob("*.ts")):
         text = ts_file.read_text(encoding="utf-8")
         for name, raw_body in _balanced_brace_function_bodies(text, r"\w+"):
@@ -2711,6 +2733,7 @@ def check_demo_locked_email_coverage(repo_root: Path) -> list[str]:
             body = _strip_dead_if_false_blocks(body)
             if "sendViaSendGrid(" not in body:
                 continue
+            senders_found += 1
             # Require demo_locked in a LIVE if() condition, not merely
             # present in the body -- closes `if (false && firm.demo_locked)`,
             # which has no enclosing braces for _strip_dead_if_false_blocks
@@ -2741,6 +2764,16 @@ def check_demo_locked_email_coverage(repo_root: Path) -> list[str]:
     if stale_allowlist:
         errors.append(
             f"[DEMO-EMAIL] allowlist entry for function(s) that no longer exist: {', '.join(stale_allowlist)}"
+        )
+    # GATE-11 (AuditLab, 2026-08-22): if `sendViaSendGrid(` itself is ever
+    # renamed, senders_found silently drops to 0 and every check above
+    # trivially passes on nothing -- assert the derivation actually found
+    # something, same pattern CSRF-2 already established.
+    if senders_found == 0:
+        errors.append(
+            "[DEMO-EMAIL] found ZERO functions calling sendViaSendGrid( anywhere in worker/src/*.ts "
+            "-- the function was renamed or removed, and this check is measuring nothing and must "
+            "be repaired."
         )
     return errors
 
@@ -2795,6 +2828,13 @@ def check_demo_locked_mutation_coverage(repo_root: Path) -> list[str]:
     index_src = index_ts.read_text(encoding="utf-8")
     errors = []
     found_names = set()
+    candidates_found = 0
+    if not mutating_fns:
+        errors.append(
+            "[DEMO-MUTATION] _mutating_store_functions() derived ZERO mutating functions from "
+            "store.ts -- the .prepare(/INSERT|UPDATE|DELETE detection broke again, and this check "
+            "is measuring nothing and must be repaired."
+        )
     for name, raw_body in _balanced_brace_function_bodies(index_src, r"handle\w+"):
         found_names.add(name)
         body = _blank_strings_and_comments(raw_body)
@@ -2803,6 +2843,7 @@ def check_demo_locked_mutation_coverage(repo_root: Path) -> list[str]:
             continue
         if not any(f"store.{fn}(" in body for fn in mutating_fns):
             continue
+        candidates_found += 1
         guarded = any(
             "demo_locked" in cond and not _condition_is_constant_false(cond)
             for cond, _, _ in _find_if_conditions(body)
@@ -2822,6 +2863,17 @@ def check_demo_locked_mutation_coverage(repo_root: Path) -> list[str]:
     if stale_allowlist:
         errors.append(
             f"[DEMO-MUTATION] allowlist entry for function(s) that no longer exist: {', '.join(stale_allowlist)}"
+        )
+    # GATE-11 (AuditLab, 2026-08-22): if requireFirmRole(/requireFirmSession(
+    # is ever renamed, candidates_found silently drops to 0 (even with a
+    # healthy, non-empty mutating_fns) and this whole check passes on
+    # nothing -- same "measuring nothing" failure mode as the mutating_fns
+    # check above, for the OTHER half of the derivation.
+    if mutating_fns and candidates_found == 0:
+        errors.append(
+            "[DEMO-MUTATION] found ZERO index.ts handlers matching requireFirmRole(/requireFirmSession( "
+            "AND a mutating store.* call -- the auth-helper name changed or nothing matched, and this "
+            "check is measuring nothing and must be repaired."
         )
     return errors
 
@@ -2994,8 +3046,16 @@ def check_snoozed_until_cleared_on_cycle_bump(repo_root: Path) -> list[str]:
         print("  (skipping snoozed-until-on-cycle-bump check -- worker/ tree not present in this checkout)")
         return []
     text = store_ts.read_text(encoding="utf-8")
+    matches = _CYCLE_BUMP_SQL_RE.findall(text)
     errors = []
-    for i, (backtick_sql, dquote_sql) in enumerate(_CYCLE_BUMP_SQL_RE.findall(text), start=1):
+    # GATE-11 (AuditLab, 2026-08-22): if `cycle = cycle + 1`'s exact
+    # whitespace/quoting shape ever changes, this regex silently matches
+    # nothing and the check passes on zero statements examined.
+    if not matches:
+        return ["[SNOOZE] found ZERO cycle-bumping UPDATE statements in store.ts matching "
+                "_CYCLE_BUMP_SQL_RE -- the SQL's shape changed or the statements are gone, and this "
+                "check is measuring nothing and must be repaired."]
+    for i, (backtick_sql, dquote_sql) in enumerate(matches, start=1):
         sql = backtick_sql or dquote_sql
         if "snoozed_until" not in sql:
             snippet = " ".join(sql.split())[:100]
@@ -3143,6 +3203,16 @@ def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
 
     errors = []
     found_names = set()
+    candidates_found = 0
+    # GATE-11 (AuditLab, 2026-08-22): the exact SEC-2 vacuity this was self-
+    # found while fixing -- assert the SQL-derived set itself is non-empty,
+    # not just that nothing downstream matched it.
+    if not mutating_fns:
+        errors.append(
+            "[RATELIMIT] _mutating_store_functions() derived ZERO mutating functions from store.ts "
+            "-- the .prepare(/INSERT|UPDATE|DELETE detection broke again, and this check is "
+            "measuring nothing and must be repaired."
+        )
     for name, body in _balanced_brace_function_bodies(index_src, r"handle\w+"):
         found_names.add(name)
         # GUARD-1 (AuditLab, 2026-08-20): same hardening as the mutating_fns
@@ -3159,6 +3229,7 @@ def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
         body = _strip_dead_if_false_blocks(body)
         if not any(f"store.{fn}(" in body for fn in mutating_fns):
             continue
+        candidates_found += 1
         if "checkRateLimit(" in body:
             continue
         if name in allowlisted:
@@ -3173,6 +3244,12 @@ def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
     if stale_allowlist:
         errors.append(
             f"[RATELIMIT] allowlist entry for function(s) that no longer exist: {', '.join(stale_allowlist)}"
+        )
+    if mutating_fns and candidates_found == 0:
+        errors.append(
+            "[RATELIMIT] found ZERO index.ts handle* functions calling a mutating store.* function -- "
+            "the call shape (`store.<fn>(`) changed or nothing matched, and this check is measuring "
+            "nothing and must be repaired."
         )
     return errors
 
@@ -3230,7 +3307,9 @@ def check_email_link_helper_usage(repo_root: Path) -> list[str]:
         return []
     src = emails_ts.read_text(encoding="utf-8")
     errors = []
+    anchors_found = 0
     for m in re.finditer(r'<a\s+href="[^"]*"([^>]*)>', src):
+        anchors_found += 1
         attrs = m.group(1)
         if 'style="color:' in attrs and 'class="dr-' not in attrs:
             line_no = src.count("\n", 0, m.start()) + 1
@@ -3239,6 +3318,14 @@ def check_email_link_helper_usage(repo_root: Path) -> list[str]:
                 f"dr- class; dark mode will not recolor it (EMAIL-2 class). Use textLink()/button() "
                 f"instead of a raw anchor tag."
             )
+    # GATE-11 (AuditLab, 2026-08-22): if emails.ts stops building `<a
+    # href="...">` tags in this exact shape (e.g. a template-string
+    # refactor), this regex silently matches nothing and the check passes
+    # on zero anchors examined -- there are dozens of real ones today.
+    if anchors_found == 0:
+        return ["[EMAIL-LINK] found ZERO <a href=\"...\"> tags in emails.ts -- the anchor-tag shape "
+                "changed or they're gone entirely, and this check is measuring nothing and must be "
+                "repaired."]
     return errors
 
 
@@ -3730,6 +3817,51 @@ def print_dual_credential_citation_advisory(repo_root: Path) -> None:
         print(f"  [{r['id']}] {r['state']} -- \"{r['license_type_label']}\" -- {flag}")
 
 
+def print_flux_blocked_pending_reverification_advisory(repo_root: Path) -> None:
+    """AuditLab FLUX-3 (MEDIUM, 2026-08-22): fluxHasSettled()'s fix (FLUX-2)
+    is correctly fail-closed, but that means every pending flux row goes
+    silently `not_verified` the moment its `rule_changes_on` passes, unless
+    someone already re-verified it (post-hoc) or explicitly forward-updated
+    it for that exact date (`forward_updated_for_change_on`) -- and nothing
+    surfaced which rows are in that state or since when. This is SILENT-2's
+    shape again: a permanent state with no observability. Advisory only --
+    the gate can't decide whether a row SHOULD be forward-updated yet
+    (research takes time), it can only say which ones already need it."""
+    data_path = repo_root / "worker" / "src" / "mobility_rules.json"
+    if not data_path.exists():
+        print("  (skipping flux-blocked-pending-reverification advisory -- worker/src/mobility_rules.json not present in this checkout)")
+        return
+    data = json.loads(data_path.read_text(encoding="utf-8"))
+    today = date.today()
+    blocked = []
+    for r in data["records"]:
+        if not r.get("rule_in_flux") or not r.get("rule_changes_on"):
+            continue
+        try:
+            changes_on = date.fromisoformat(r["rule_changes_on"])
+        except ValueError:
+            continue
+        if changes_on > today:
+            continue  # not due yet -- not a gap, just not settled because the date hasn't arrived
+        verified_date = r.get("verified_date")
+        settled_post_hoc = False
+        if verified_date:
+            try:
+                settled_post_hoc = date.fromisoformat(verified_date) >= changes_on
+            except ValueError:
+                pass
+        settled_forward = r.get("forward_updated_for_change_on") == r["rule_changes_on"]
+        if not settled_post_hoc and not settled_forward:
+            blocked.append((r["state"], r["rule_changes_on"], (today - changes_on).days))
+    print("\n--- flux-blocked-pending-reverification advisory (does not affect gate exit code) ---")
+    if not blocked:
+        print("  PASS -- no flux row is past its rule_changes_on without being settled.")
+        return
+    print(f"  {len(blocked)} row(s) past their change date, blocked (honestly) pending re-verification:")
+    for state, changes_on, days in sorted(blocked, key=lambda x: -x[2]):
+        print(f"    {state} -- changed {changes_on}, blocked {days}d")
+
+
 def print_cpe_hours_staleness_advisory(repo_root: Path) -> None:
     """Surfaces cpe_hours_staleness_check.py (AuditLab ST-2, 2026-08-04) as
     part of the normal pre-ship run, same treatment as the worker-deploy
@@ -4035,6 +4167,7 @@ def main():
         print_guide_review_staleness_advisory(repo_root)
         print_changelog_staleness_advisory(repo_root)
         print_dual_credential_citation_advisory(repo_root)
+        print_flux_blocked_pending_reverification_advisory(repo_root)
         print_gap_list_advisory(repo_root)
         print_es_translation_review_advisory(repo_root)
         print_seo_length_drift_advisory(html_files)
@@ -4050,6 +4183,7 @@ def main():
     print_guide_review_staleness_advisory(repo_root)
     print_changelog_staleness_advisory(repo_root)
     print_dual_credential_citation_advisory(repo_root)
+    print_flux_blocked_pending_reverification_advisory(repo_root)
     print_gap_list_advisory(repo_root)
     print_es_translation_review_advisory(repo_root)
     print_seo_length_drift_advisory(html_files)

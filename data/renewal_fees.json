@@ -357,9 +357,9 @@
       "confidence": "high",
       "verified_date": "2026-08-14",
       "citation_url": "https://www.revisor.mn.gov/statutes/cite/326A.04",
-      "citation": "Minn. Stat. 326A.04, subds. 2, 5(2), 5(6)",
+      "citation": "Minn. Stat. § 326A.04, subds. 2(a), 5(b)(2), 5(b)(6)",
       "fee_basis": "codified",
-      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.revisor.mn.gov/statutes/cite/326A.04. The amount is codified in the rule/statute text cited here. Agent evidence: Official Revisor page serves full text: subd. 5 lists '(2) renewal of certificate with an active status, $100 per year' and '(6) annual late processing delinquency fee for permit, certificate, or registration renewal applications not received prior to expiration date, $50'; subd. 2(a) sets certificate expiration on December 31. All three claims verified in statute."
+      "verification_history": "2026-08-14 (SRC-6 primary-citation sweep): citation_url set to https://www.revisor.mn.gov/statutes/cite/326A.04. The amount is codified in the rule/statute text cited here. Agent evidence: Official Revisor page serves full text: subd. 5 lists '(2) renewal of certificate with an active status, $100 per year' and '(6) annual late processing delinquency fee for permit, certificate, or registration renewal applications not received prior to expiration date, $50'; subd. 2(a) sets certificate expiration on December 31. All three claims verified in statute.\n\n2026-08-22 (self-found while researching a blog draft): re-fetched 326A.04 directly -- subd. 5's numbered fee list sits under an intermediate '(b) The board shall charge the following fees:' clause, one nesting level the prior citation skipped ('5(2)'/'5(6)' rather than '5(b)(2)'/'5(b)(6)'). Corrected to the precise pincite; no change to the verified $100/$50 amounts or their meaning."
     },
     {
       "id": "mississippi-renewal-fee",

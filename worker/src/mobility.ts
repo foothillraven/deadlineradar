@@ -215,6 +215,7 @@ export function normalizeRuleRow(raw: unknown): MobilityRuleRow | null {
     flux_note: str(r.flux_note),
     flux_summary: str(r.flux_summary),
     rule_changes_on: str(r.rule_changes_on),
+    forward_updated_for_change_on: str(r.forward_updated_for_change_on),
     home_state_substantially_equivalent: strictTriState(r.home_state_substantially_equivalent),
     home_state_substantially_equivalent_note: str(r.home_state_substantially_equivalent_note),
     // Roadmap #317 Phase 2 Part A. A malformed/non-array pathways value is
@@ -338,6 +339,22 @@ export interface MobilityRuleRow {
    * can warn ahead of time instead of silently going stale on the morning
    * the new rule takes effect. */
   rule_changes_on: string | null;
+
+  /**
+   * FLUX-3 (AuditLab, 2026-08-22): FLUX-2's `verified_date >= rule_changes_on`
+   * guard is only satisfiable by re-verifying ON OR AFTER the change date --
+   * a researcher who does Missouri's workflow (reads the future-effective
+   * text and forward-updates the row's fields BEFORE the change date
+   * arrives, which is the whole point of tracking a known future date at
+   * all) can never post-date verified_date to a day that hasn't happened,
+   * so that work is otherwise invisible to fluxHasSettled() and the row
+   * still silently blocks on its own change date. Set this to the EXACT
+   * rule_changes_on value the forward-update was performed for -- fixed to
+   * one value, not a boolean, so a later edit to rule_changes_on (a
+   * corrected date, a newly-discovered second change) can't let a flag
+   * meant for one date silently cover a different one. null = no
+   * deliberate forward-update has been recorded for this row. */
+  forward_updated_for_change_on: string | null;
 
   /**
    * Roadmap #317 Phase 1 (2026-08-08). A HOME-state fact, independent of
@@ -617,15 +634,21 @@ function fluxHasSettled(rule: MobilityRuleRow, now: Date): boolean {
   if (changesOn > now.getTime()) return false;
   // FLUX-2 (2026-08-22): the change date passing is not enough on its own --
   // it only proves the OLD rule has expired, not that this row's fields were
-  // forward-updated to the NEW one. Missouri's workflow (re-verify against
-  // the future-effective text, then bump verified_date, before the change
-  // date arrives) is what actually makes a settle safe; require its result
-  // instead of trusting the date alone, or a stale row silently starts
-  // serving the superseded rule as a verified answer the moment it lapses.
-  if (!rule.verified_date) return false;
-  const verifiedDate = Date.parse(rule.verified_date);
-  if (Number.isNaN(verifiedDate)) return false;
-  return verifiedDate >= changesOn;
+  // forward-updated to the NEW one. A POST-HOC re-verification (verified_date
+  // on or after the change date) is one safe signal for that.
+  if (rule.verified_date) {
+    const verifiedDate = Date.parse(rule.verified_date);
+    if (!Number.isNaN(verifiedDate) && verifiedDate >= changesOn) return true;
+  }
+  // FLUX-3 (AuditLab, 2026-08-22): verified_date can ONLY be post-dated
+  // after the fact -- a researcher who forward-updates a row BEFORE its
+  // change date (Missouri's real workflow: read the future-effective text,
+  // write the new field values, in advance) can never satisfy the check
+  // above on the date they did the work, so that legitimate case needs its
+  // own explicit signal rather than being inferred from verified_date.
+  // Exact-match against rule_changes_on so a later edit to that date can't
+  // let a flag recorded for one change silently cover a different one.
+  return rule.forward_updated_for_change_on === rule.rule_changes_on;
 }
 
 /**

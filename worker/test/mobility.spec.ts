@@ -34,6 +34,7 @@ function verifiedPermissiveRule(over: Partial<MobilityRuleRow> = {}): MobilityRu
     flux_note: null,
     flux_summary: null,
     rule_changes_on: null,
+    forward_updated_for_change_on: null,
     home_state_substantially_equivalent: null,
     home_state_substantially_equivalent_note: null,
     individual_criteria_pathways: null,
@@ -124,6 +125,7 @@ describe("SAFETY: the engine must never assert a clearance it cannot cite", () =
       flux_note: null,
       flux_summary: null,
       rule_changes_on: null,
+      forward_updated_for_change_on: null,
       home_state_substantially_equivalent: null,
       home_state_substantially_equivalent_note: null,
       individual_criteria_pathways: null,
@@ -723,7 +725,7 @@ describe("FLUX-2 (2026-08-22): rule_changes_on passing is not enough -- the row 
     expect(res.individual.requirements.join(" ")).not.toMatch(/changed on 2026-01-01/i);
   });
 
-  it("Missouri's real pattern: forward-updating verified_date to on/after rule_changes_on DOES settle it", () => {
+  it("a POST-HOC re-verification (verified_date on/after rule_changes_on) DOES settle it", () => {
     // rule_changes_on must be recent enough that verified_date on/after it
     // doesn't also trip the separate staleness guard (isRuleStale) -- use
     // yesterday, not a fixed far-past date, so this stays valid over time.
@@ -731,7 +733,7 @@ describe("FLUX-2 (2026-08-22): rule_changes_on passing is not enough -- the row 
     const rule = verifiedPermissiveRule({
       rule_in_flux: true,
       rule_changes_on: changesOn,
-      verified_date: changesOn, // re-verified against the future-effective text before the date arrived
+      verified_date: changesOn, // re-verified on/after the change date
     });
     const res = evaluateMobility(input(), rule);
     expect(res.overall).toBe("clear");
@@ -743,6 +745,51 @@ describe("FLUX-2 (2026-08-22): rule_changes_on passing is not enough -- the row 
       rule_in_flux: true,
       rule_changes_on: "2026-01-01",
       verified_date: null,
+    });
+    expect(evaluateMobility(input(), rule).overall).toBe("not_verified");
+  });
+});
+
+describe("FLUX-3 (AuditLab, 2026-08-22): verified_date can't be post-dated in advance -- forward_updated_for_change_on is the real signal for that", () => {
+  it("Missouri's REAL pattern: forward_updated_for_change_on set BEFORE the change date settles it, even though verified_date is still in the past", () => {
+    // Simulate "now" as ON the change date -- forward_updated_for_change_on
+    // is exactly the case where the research happened days EARLIER (its own
+    // point) and verified_date can never be bumped to cover it.
+    const changesOn = new Date(Date.now() - 1 * 86_400_000).toISOString().slice(0, 10);
+    const researchedEarlier = new Date(Date.now() - 12 * 86_400_000).toISOString().slice(0, 10);
+    const rule = verifiedPermissiveRule({
+      rule_in_flux: true,
+      rule_changes_on: changesOn,
+      verified_date: researchedEarlier, // the actual research date -- BEFORE the change, can never satisfy verified_date >= rule_changes_on
+      forward_updated_for_change_on: changesOn, // the deliberate signal: fields were forward-updated for this exact change
+    });
+    const res = evaluateMobility(input(), rule);
+    expect(res.overall).toBe("clear");
+    expect(res.individual.requirements.join(" ")).toMatch(new RegExp(`changed on ${changesOn}`, "i"));
+  });
+
+  it("a forward_updated_for_change_on recorded for a DIFFERENT date than the current rule_changes_on does not settle it", () => {
+    // Guards the exact risk the field's own docstring names: rule_changes_on
+    // gets corrected/revised (still in the past, so the naive date check
+    // alone would pass) and a stale forward-update flag recorded for the
+    // OLD date must not silently carry over to cover the new one.
+    const revisedChangesOn = new Date(Date.now() - 1 * 86_400_000).toISOString().slice(0, 10);
+    const staleForwardUpdate = new Date(Date.now() - 10 * 86_400_000).toISOString().slice(0, 10);
+    const researchedEvenEarlier = new Date(Date.now() - 20 * 86_400_000).toISOString().slice(0, 10);
+    const rule = verifiedPermissiveRule({
+      rule_in_flux: true,
+      rule_changes_on: revisedChangesOn,
+      verified_date: researchedEvenEarlier, // also before revisedChangesOn -- doesn't satisfy the post-hoc path either
+      forward_updated_for_change_on: staleForwardUpdate, // recorded for the OLD, since-revised date
+    });
+    expect(evaluateMobility(input(), rule).overall).toBe("not_verified");
+  });
+
+  it("forward_updated_for_change_on alone (no rule_changes_on at all) does not settle an undated flux row", () => {
+    const rule = verifiedPermissiveRule({
+      rule_in_flux: true,
+      rule_changes_on: null,
+      forward_updated_for_change_on: "2026-08-28",
     });
     expect(evaluateMobility(input(), rule).overall).toBe("not_verified");
   });

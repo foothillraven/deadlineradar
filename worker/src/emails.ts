@@ -1692,7 +1692,11 @@ export function buildStaffUnsubscribedNotificationEmail(
 ): BuiltEmail {
   const addr = mailingAddress();
   const displayName = (staffLabel || staffEmail).replace(/[\r\n]+/g, " ");
-  const subject = `${displayName} unsubscribed from ${firmName}'s Deadline-Radar roster`;
+  // CRLF-1 (AuditLab, 2026-08-22): firmName is attacker-influenceable text
+  // with no control-char stripping of its own at this layer, same as every
+  // other subject-line interpolation site in this file -- this one missed it.
+  const safeFirmName = firmName.replace(/[\r\n]+/g, " ");
+  const subject = `${displayName} unsubscribed from ${safeFirmName}'s Deadline-Radar roster`;
   // UX-11 (2026-08-21): was `subject` verbatim -- stateName is already in
   // scope and not in the subject line, and this names what already
   // happened (reminders stopped) rather than repeating who/what firm.

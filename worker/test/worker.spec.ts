@@ -4150,6 +4150,20 @@ describe("emails.ts buildConfirmationEmail", () => {
   });
 });
 
+describe("AuditLab CRLF-1: buildStaffUnsubscribedNotificationEmail strips CRLF from firmName too", () => {
+  it("a firmName containing CRLF cannot inject a second header line into the subject", async () => {
+    const { buildStaffUnsubscribedNotificationEmail } = await import("../src/emails");
+    const built = buildStaffUnsubscribedNotificationEmail(
+      "Evil Firm\r\nBcc: attacker@example.com",
+      "Jane Staffer",
+      "jane@example.com",
+      "California"
+    );
+    expect(built.subject).not.toMatch(/[\r\n]/);
+    expect(built.subject).toContain("Evil Firm Bcc: attacker@example.com");
+  });
+});
+
 describe("scheduler.ts nextDueThreshold -- escalation logic", () => {
   it("returns the nearest newly-due threshold", async () => {
     const { nextDueThreshold } = await import("../src/scheduler");

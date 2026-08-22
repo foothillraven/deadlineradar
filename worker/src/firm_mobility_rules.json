@@ -315,14 +315,14 @@
     "peer_review_conditions_permit": {
       "exists": true,
       "citation": "22 TAC section 527.4",
-      "citation_url": "http://txrules.elaws.us/rule/title22_chapter527_sec.527.4",
-      "notes": "A firm subject to peer review cannot have its office license renewed unless peer review requirements are met. Narrow exemptions for PCAOB-only-inspected firms or SSARS-only firms (must request exemption at renewal)."
+      "citation_url": "https://www.law.cornell.edu/regulations/texas/22-Tex-Admin-Code-SS-527-4",
+      "notes": "A firm subject to peer review cannot have its office license renewed unless peer review requirements are met. Narrow exemptions for PCAOB-only-inspected firms or SSARS-only firms (must request exemption at renewal). CITE-57 (2026-08-21): repointed from txrules.elaws.us (confirmed real platform outage -- 503 on both dcrules.elaws.us and txrules.elaws.us, same host, ~50 minutes across 3 observations/2 clients) to Cornell LII, matching the sibling firm claims (attest_exemption/physical_office_trigger) which already cite texas.public.law and matching this same dataset's existing tx-cpe precedent of using Cornell LII as Texas's stable TAC mirror (no linkable official state URL exists per that record's data_gap_note). Verified: correct breadcrumb (Title 22 > Part 22 Texas State Board of Public Accountancy > Chapter 527 Peer Review > 527.4 Enrollment and Participation) and body text confirms attest-triggered enrollment plus the PCAOB-only/SSARS-only exemptions."
     },
     "confidence": "dual_source",
     "source_disagreement": null,
     "state_slug": "texas",
     "state": "Texas",
-    "verified_date": "2026-08-07"
+    "verified_date": "2026-08-21"
   },
   "utah": {
     "attest_exemption": {

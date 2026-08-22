@@ -1442,7 +1442,20 @@ def check_partial_citation_flag_set(repo_root: Path) -> list[str]:
     cpa_deadlines-only; the other three datasets carry the same kind of
     prose in data_gap_note), same loop shape as
     check_retired_claims_absent_from_guides's sibling fix for the identical
-    one-dataset-only gap."""
+    one-dataset-only gap.
+
+    CITE-60 (AuditLab, 2026-08-21): the CITE-32 fix above widened which
+    FILES got scanned but left an `or` short-circuit on which FIELD got
+    scanned per record -- `r.get("cycle_description") or
+    r.get("data_gap_note")` means data_gap_note is only ever reached when
+    cycle_description is falsy. Every cpa_deadlines record has a truthy
+    cycle_description, so that dataset's data_gap_note was NEVER examined --
+    the same asymmetry recurring one level down, on the 10 cpa_deadlines
+    records that carry both fields. Zero live exposure when found (proven by
+    replicating the gate against both fields independently), but exactly the
+    population -- records that already disclose a gap -- most likely to pick
+    up admission-shaped prose in a future edit. Now scans both fields
+    independently per record rather than taking the first truthy one."""
     errors = []
     for name in ("cpa_deadlines", "cpe_hours", "reinstatement", "renewal_fees"):
         data_path = repo_root / "data" / f"{name}.json"
@@ -1452,20 +1465,21 @@ def check_partial_citation_flag_set(repo_root: Path) -> list[str]:
         for r in data["records"]:
             if r.get("citation_class") == "operational_record":
                 continue  # trust_line() never renders the codified-law sentence for these -- no contradiction possible
-            prose = r.get("cycle_description") or r.get("data_gap_note")
-            if not isinstance(prose, str):
-                continue
-            match = _PARTIAL_CITATION_ADMISSION_RE.search(prose)
-            if not match:
-                continue
             if r.get("citation_covers_full_claim", True) is False:
                 continue  # already flagged -- the contradiction is already suppressed
-            errors.append(
-                f"[CITE29][{name}.json:{r.get('id')}] admits its citation doesn't establish the "
-                f"full claim ({match.group(0)!r}), but citation_covers_full_claim is unset (defaults "
-                f"True) -- trust_line() will render the confident 'not just a board webpage' sentence "
-                f"directly beside this admission. Set citation_covers_full_claim: false."
-            )
+            for field in ("cycle_description", "data_gap_note"):
+                prose = r.get(field)
+                if not isinstance(prose, str):
+                    continue
+                match = _PARTIAL_CITATION_ADMISSION_RE.search(prose)
+                if not match:
+                    continue
+                errors.append(
+                    f"[CITE29][{name}.json:{r.get('id')}] {field} admits its citation doesn't establish "
+                    f"the full claim ({match.group(0)!r}), but citation_covers_full_claim is unset "
+                    f"(defaults True) -- trust_line() will render the confident 'not just a board "
+                    f"webpage' sentence directly beside this admission. Set citation_covers_full_claim: false."
+                )
     return errors
 
 

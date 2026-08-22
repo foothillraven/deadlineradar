@@ -19839,12 +19839,6 @@ def _renewal_fee_html(state_slug: str, renewal_fees_by_slug: dict[str, dict]) ->
     record = renewal_fees_by_slug.get(state_slug)
     if not record:
         return ""
-    if record["fee_usd"] is None:
-        gap_note = record.get("data_gap_note", "No confirmable flat renewal fee found from an official source.")
-        return (
-            f'<p class="backlink-cross"><strong>Renewal fee:</strong> not independently confirmable -- '
-            f'{esc(gap_note)}</p>'
-        )
     confidence_note = (
         f' <span class="state-confidence" title="{esc(record.get("data_gap_note", ""))}">Confidence: '
         f'{esc(record["confidence"])}</span>'
@@ -19863,6 +19857,13 @@ def _renewal_fee_html(state_slug: str, renewal_fees_by_slug: dict[str, dict]) ->
     # source_url; we simply weren't showing it. Fall back to it, labelled for
     # what it actually is, so the figure always reaches its source and the
     # label never implies codified law where there is none.
+    # SRC-15 (AuditLab, 2026-08-21): cite_link used to be computed only in the
+    # has-fee_usd branch below, so a null-fee_usd record with real fee_notes
+    # and a real citation (Illinois: per-year rate, not a single flat total,
+    # but codified and cited) lost BOTH the sourced text and the link and
+    # rendered a false "not independently confirmable" claim instead -- the
+    # null branch conflated "no single flat figure" with "nothing sourced".
+    # Moved up so both branches can use it.
     cite_link = ""
     if record.get("citation_url") and record.get("citation"):
         cite_link = (
@@ -19874,6 +19875,17 @@ def _renewal_fee_html(state_slug: str, renewal_fees_by_slug: dict[str, dict]) ->
             f' <a class="cite-link" href="{http_href(record["source_url"])}" '
             f'title="This amount is set administratively rather than fixed in rule text, so the '
             f'source is the board\'s own published schedule.">see the board&rsquo;s page &rarr;</a>'
+        )
+    if record["fee_usd"] is None:
+        if record.get("fee_notes"):
+            return (
+                f'<p class="backlink-cross"><strong>Renewal fee:</strong> '
+                f'{esc(record["fee_notes"])}{cite_link}{confidence_note}</p>'
+            )
+        gap_note = record.get("data_gap_note", "No confirmable flat renewal fee found from an official source.")
+        return (
+            f'<p class="backlink-cross"><strong>Renewal fee:</strong> not independently confirmable -- '
+            f'{esc(gap_note)}{cite_link}</p>'
         )
     return (
         f'<p class="backlink-cross"><strong>Renewal fee:</strong> ${record["fee_usd"]:,}. '
@@ -19955,13 +19967,27 @@ def _state_faq_html_and_schema(
     ]
     if renewal_fee_record:
         if renewal_fee_record["fee_usd"] is None:
-            gap_note = renewal_fee_record.get(
-                "data_gap_note", "No confirmable flat renewal fee found from an official source."
-            )
-            qa.append((
-                f"How much does it cost to renew a CPA license in {state_name}?",
-                f"Not independently confirmable from an official source -- {gap_note}",
-            ))
+            # SRC-15 (AuditLab, 2026-08-21): fee_usd=None means "no single
+            # FLAT figure" (e.g. Illinois' rate is per-year-of-cycle, not a
+            # total), not "nothing sourced" -- a record with real fee_notes
+            # and a codified citation was rendering a false "not
+            # independently confirmable" claim, including in this FAQ's
+            # FAQPage JSON-LD (a Google rich-result surface). Prefer the
+            # sourced fee_notes text when present; only fall back to the
+            # generic disclosure when the record genuinely has none.
+            if renewal_fee_record.get("fee_notes"):
+                qa.append((
+                    f"How much does it cost to renew a CPA license in {state_name}?",
+                    renewal_fee_record["fee_notes"],
+                ))
+            else:
+                gap_note = renewal_fee_record.get(
+                    "data_gap_note", "No confirmable flat renewal fee found from an official source."
+                )
+                qa.append((
+                    f"How much does it cost to renew a CPA license in {state_name}?",
+                    f"Not independently confirmable from an official source -- {gap_note}",
+                ))
         else:
             qa.append((
                 f"How much does it cost to renew a CPA license in {state_name}?",

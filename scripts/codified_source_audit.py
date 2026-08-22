@@ -2,7 +2,11 @@
 """Codified-source audit (2026-07-06, prevention-loop for the P2 failure class;
 extended 2026-07-06 for the citation<->link-mismatch class the trust-pass review
 caught -- a citation naming one rule while "read the rule" links to a different
-one, or to a generic homepage with no specific section reference at all).
+one, or to a generic homepage with no specific section reference at all;
+extended 2026-08-21 per SRC-14 to cover all four cited datasets instead of
+cpa_deadlines.json only -- see _PUBLISHED_VALUE_FIELDS below for how "this
+record has a published answer worth auditing" generalizes across their
+different schemas).
 
 ADVISORY ONLY -- does not exit non-zero, does not block a build. Two independent
 checks, both heuristic triage tools that tell you WHERE to spend a human/agent
@@ -77,6 +81,31 @@ def host_is_codified(url: str) -> bool:
     return any(h in netloc for h in CODIFIED_HOST_HINTS)
 
 
+# SRC-14 (2026-08-21): the analog of cpa_deadlines.json's `next_deadline_computed`
+# for the other three datasets, which don't share that field or schema. A given
+# record only ever has ONE of these four fields at all (they come from different
+# files), so checking "is any of them non-null" generalizes the old
+# "published (non-null) date" gate to all four datasets without needing the
+# caller to track which file a record came from.
+_PUBLISHED_VALUE_FIELDS = (
+    "next_deadline_computed",  # cpa_deadlines.json
+    "total_hours",              # cpe_hours.json
+    "reinstatement_fee_usd",    # reinstatement.json
+    "fee_usd",                  # renewal_fees.json
+)
+
+
+def _published_value(r: dict):
+    """The record's own customer-facing answer, whichever of the four
+    per-dataset fields holds it -- or None if the record has no published
+    answer yet (e.g. a genuine gap, not audited)."""
+    for f in _PUBLISHED_VALUE_FIELDS:
+        v = r.get(f)
+        if v is not None:
+            return v
+    return None
+
+
 def audit(records: list[dict]) -> dict:
     flagged = []      # no codified reference found anywhere -- the hard flag
     weak_independence = []  # has a codified reference, but secondary source is
@@ -84,8 +113,9 @@ def audit(records: list[dict]) -> dict:
                              # lighter second look, not a hard flag
 
     for r in records:
-        if not r.get("next_deadline_computed"):
-            continue  # audit only covers published (non-null) dates
+        published_value = _published_value(r)
+        if published_value is None:
+            continue  # audit only covers records with a published (non-null) answer
 
         source_url = r.get("source_url", "")
         secondary_url = r.get("secondary_source_url", "")
@@ -105,7 +135,7 @@ def audit(records: list[dict]) -> dict:
             flagged.append({
                 "id": r["id"],
                 "state": r["state"],
-                "next_deadline_computed": r["next_deadline_computed"],
+                "published_value": published_value,
                 "source_url": source_url,
                 "secondary_source_url": secondary_url,
                 "reason": "no codified-law host or citation text found anywhere on this record",
@@ -119,7 +149,7 @@ def audit(records: list[dict]) -> dict:
             weak_independence.append({
                 "id": r["id"],
                 "state": r["state"],
-                "next_deadline_computed": r["next_deadline_computed"],
+                "published_value": published_value,
                 "source_url": source_url,
                 "secondary_source_url": secondary_url,
                 "reason": (
@@ -277,6 +307,22 @@ def run_freshness_sweep(records: list[dict], snapshot_path: Path) -> dict:
     }
 
 
+# SRC-14 (2026-08-21): all four datasets this audit now covers -- previously
+# hardcoded to cpa_deadlines.json only, which left 157 of 246 cited rows
+# (cpe_hours/reinstatement/renewal_fees) unaudited.
+DATASET_FILES = [
+    "cpa_deadlines.json", "cpe_hours.json", "reinstatement.json", "renewal_fees.json",
+]
+
+
+def _load_all_records(repo_root: Path) -> list[dict]:
+    records = []
+    for fname in DATASET_FILES:
+        data = json.loads((repo_root / "data" / fname).read_text(encoding="utf-8"))
+        records.extend(data["records"])
+    return records
+
+
 def main():
     repo_root = Path(sys.argv[1]) if len(sys.argv) > 1 and not sys.argv[1].startswith("--") \
         else Path(__file__).resolve().parent.parent
@@ -285,8 +331,8 @@ def main():
 
     if sweep:
         import datetime
-        data = json.loads((repo_root / "data" / "cpa_deadlines.json").read_text(encoding="utf-8"))
-        nonnull = [r for r in data["records"] if r.get("next_deadline_computed")]
+        all_records = _load_all_records(repo_root)
+        nonnull = [r for r in all_records if _published_value(r) is not None]
         log_dir = repo_root / "freshness_sweep_log"
         log_dir.mkdir(exist_ok=True)
         snapshot_path = log_dir / "_snapshots.json"
@@ -318,14 +364,14 @@ def main():
             )
         return
 
-    data = json.loads((repo_root / "data" / "cpa_deadlines.json").read_text(encoding="utf-8"))
-    nonnull = [r for r in data["records"] if r.get("next_deadline_computed")]
-    result = audit(data["records"])
+    all_records = _load_all_records(repo_root)
+    nonnull = [r for r in all_records if _published_value(r) is not None]
+    result = audit(all_records)
 
-    print(f"Audited {len(nonnull)} published (non-null) records.\n")
+    print(f"Audited {len(nonnull)} published (non-null) records across {len(DATASET_FILES)} datasets.\n")
     print(f"FLAGGED -- no codified-law reference found ({len(result['flagged'])}):")
     for f in result["flagged"]:
-        print(f"  [{f['id']}] {f['state']} -- {f['next_deadline_computed']} -- {f['reason']}")
+        print(f"  [{f['id']}] {f['state']} -- {f['published_value']} -- {f['reason']}")
         print(f"    source_url: {f['source_url']}")
         if f["secondary_source_url"]:
             print(f"    secondary_source_url: {f['secondary_source_url']}")
@@ -333,14 +379,14 @@ def main():
     print(f"\nWEAK INDEPENDENCE -- has a codified reference, but the second source is "
           f"missing or same-domain ({len(result['weak_independence'])}):")
     for f in result["weak_independence"]:
-        print(f"  [{f['id']}] {f['state']} -- {f['next_deadline_computed']} -- {f['reason']}")
+        print(f"  [{f['id']}] {f['state']} -- {f['published_value']} -- {f['reason']}")
 
     print(f"\nTotal candidates for adversarial re-verification: "
           f"{len(result['flagged']) + len(result['weak_independence'])} of {len(nonnull)}")
 
     if check_links:
         print("\n--check-links: fetching every citation_url, this takes a while...")
-        link_problems = check_citation_link_consistency(data["records"])
+        link_problems = check_citation_link_consistency(all_records)
         print(f"\nCITATION<->LINK MISMATCHES ({len(link_problems)}):")
         for p in link_problems:
             print(f"  [{p['id']}] citation={p['citation']!r}")

@@ -1,10 +1,24 @@
 #!/usr/bin/env python3
-"""Amendment-currency check (2026-07-13) -- a sibling to codified_source_audit.py's
-freshness sweep, closing a DIFFERENT gap that sweep exposed: the South Dakota `52 SDR
-125` miss. That sweep diffs a text WINDOW around the citation fragment against its own
-last snapshot -- it only notices a change once it's already run past it, and it goes
-blind whenever the fetch fails (PDF binaries, JS-rendered pages), which the 2026-07-13
-sweep log shows happens for 13+ of our ~47 cited records already.
+"""Amendment-currency check (2026-07-13, extended 2026-08-21 per SRC-14) -- a sibling
+to codified_source_audit.py's freshness sweep, closing a DIFFERENT gap that sweep
+exposed: the South Dakota `52 SDR 125` miss. That sweep diffs a text WINDOW around the
+citation fragment against its own last snapshot -- it only notices a change once it's
+already run past it, and it goes blind whenever the fetch fails (PDF binaries,
+JS-rendered pages), which the 2026-07-13 sweep log shows happens for 13+ of our ~47
+cited records already.
+
+SRC-14 (2026-08-21): this check originally ran against data/cpa_deadlines.json only.
+The other three datasets (cpe_hours.json, reinstatement.json, renewal_fees.json --
+157 of 246 total cited rows) had per-dataset *staleness* checks (age against a
+threshold, "have we looked recently") but no *amendment-currency* check ("is it still
+true") -- a different question the staleness scripts don't answer, and the gap was
+invisible because every dataset having a staleness script made the coverage matrix
+look complete. Now runs against all four. Records from the three newly-added datasets
+are NOT pre-classified in SOURCE_REGISTRY below (that classification took a dedicated
+per-record research pass for the original 41 cpa_deadlines sources -- doing the same
+for 157 more rows is future work, not part of this fix) -- they report as
+UNREGISTERED, the same honest "not yet machine-checked" bucket unclassified
+cpa_deadlines rows already fell into, not a silent skip.
 
 This script instead tries to read each source's own AMENDMENT-HISTORY metadata (a
 "History:", "Source:", "Amended", "[L ...]", "(A ...)" style line -- every state
@@ -15,7 +29,7 @@ is exactly the class of miss this exists to catch -- regardless of whether the
 citation-fragment text itself happens to look unchanged.
 
 ADVISORY ONLY -- does not exit non-zero, does not block a build, and does not touch
-cpa_deadlines.json. It is a heuristic year-extractor (regex over fetched text, not
+any of the four datasets it reads. It is a heuristic year-extractor (regex over fetched text, not
 real parsing of each state's citation grammar), so:
   - a clean extraction with year <= last_verified's year is NOT proof nothing changed
     (the SD case had a valid amendment predating this check's own snapshot horizon
@@ -171,7 +185,10 @@ def check_amendment_currency(records: list[dict]) -> dict:
         rid = r["id"]
         citation = r.get("citation")
         url = r.get("citation_url")
-        last_verified = r.get("last_verified")
+        # cpa_deadlines.json uses last_verified; cpe_hours/reinstatement/renewal_fees
+        # use verified_date -- 140 rows vs 106 rows respectively (SRC-14). Checking
+        # only one silently skips whichever dataset uses the other name.
+        last_verified = r.get("last_verified") or r.get("verified_date")
         if not citation or not url or not last_verified:
             continue
 
@@ -212,16 +229,23 @@ def check_amendment_currency(records: list[dict]) -> dict:
     }
 
 
+DATASET_FILES = [
+    "cpa_deadlines.json", "cpe_hours.json", "reinstatement.json", "renewal_fees.json",
+]
+
+
 def main():
     repo_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent
     import datetime
 
-    data = json.loads((repo_root / "data" / "cpa_deadlines.json").read_text(encoding="utf-8"))
-    cited = [r for r in data["records"] if r.get("citation") and r.get("citation_url")]
+    cited = []
+    for fname in DATASET_FILES:
+        data = json.loads((repo_root / "data" / fname).read_text(encoding="utf-8"))
+        cited.extend(r for r in data["records"] if r.get("citation") and r.get("citation_url"))
     result = check_amendment_currency(cited)
 
     today = datetime.date.today().isoformat()
-    lines = [f"Amendment-currency check -- {today}", ""]
+    lines = [f"Amendment-currency check -- {today}", f"Datasets: {', '.join(DATASET_FILES)}", ""]
     lines.append(f"Checked, no newer amendment found: {len(result['checked_clean'])}")
     lines.append(
         f"\nFLAGGED -- source shows an amendment year newer than last_verified ({len(result['flagged'])}):"

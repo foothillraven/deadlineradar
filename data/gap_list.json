@@ -427,7 +427,7 @@
       "state": "Nevada",
       "state_slug": "nevada",
       "field": "data_gap_note",
-      "note": "No fixed dollar figure is codified -- NRS 628.380 delegates the amount to the Board, and NAC 628.016(3)(g) only caps it at \"not to exceed $200\" annually. The Board's actual current-year fee is not published on an official .gov page that could be confirmed; only third-party aggregators report a figure (~$120-$140), which this site does not use for a final claim.",
+      "note": "No fixed dollar figure is codified -- NRS 628.380 delegates the amount to the Board, and NAC 628.016(3)(g) only caps it at \"will not exceed $200\" annually. The Board's actual current-year fee is not published on an official .gov page that could be confirmed; only third-party aggregators report a figure (~$120-$140), which this site does not use for a final claim.",
       "is_block_claim": false
     },
     {

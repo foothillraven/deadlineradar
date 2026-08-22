@@ -614,7 +614,18 @@ function fluxHasSettled(rule: MobilityRuleRow, now: Date): boolean {
   if (!rule.rule_changes_on) return false; // undated source disagreement -- never "settled"
   const changesOn = Date.parse(rule.rule_changes_on);
   if (Number.isNaN(changesOn)) return false;
-  return changesOn <= now.getTime();
+  if (changesOn > now.getTime()) return false;
+  // FLUX-2 (2026-08-22): the change date passing is not enough on its own --
+  // it only proves the OLD rule has expired, not that this row's fields were
+  // forward-updated to the NEW one. Missouri's workflow (re-verify against
+  // the future-effective text, then bump verified_date, before the change
+  // date arrives) is what actually makes a settle safe; require its result
+  // instead of trusting the date alone, or a stale row silently starts
+  // serving the superseded rule as a verified answer the moment it lapses.
+  if (!rule.verified_date) return false;
+  const verifiedDate = Date.parse(rule.verified_date);
+  if (Number.isNaN(verifiedDate)) return false;
+  return verifiedDate >= changesOn;
 }
 
 /**

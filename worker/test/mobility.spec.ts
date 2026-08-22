@@ -709,6 +709,45 @@ describe("flux SEVERITY split (2026-08-03): rule_changes_on vs today, not one bl
   });
 });
 
+describe("FLUX-2 (2026-08-22): rule_changes_on passing is not enough -- the row must be forward-updated", () => {
+  it("a PAST rule_changes_on does NOT settle a row whose verified_date predates it (never forward-updated)", () => {
+    const rule = verifiedPermissiveRule({
+      rule_in_flux: true,
+      rule_changes_on: "2026-01-01",
+      verified_date: "2025-12-01", // verified BEFORE the change -- still describes the old rule
+      equivalence_test: "other",
+      flux_note: "The board's page still shows the pre-change test as of the last check.",
+    });
+    const res = evaluateMobility(input(), rule);
+    expect(res.overall).toBe("not_verified");
+    expect(res.individual.requirements.join(" ")).not.toMatch(/changed on 2026-01-01/i);
+  });
+
+  it("Missouri's real pattern: forward-updating verified_date to on/after rule_changes_on DOES settle it", () => {
+    // rule_changes_on must be recent enough that verified_date on/after it
+    // doesn't also trip the separate staleness guard (isRuleStale) -- use
+    // yesterday, not a fixed far-past date, so this stays valid over time.
+    const changesOn = new Date(Date.now() - 1 * 86_400_000).toISOString().slice(0, 10);
+    const rule = verifiedPermissiveRule({
+      rule_in_flux: true,
+      rule_changes_on: changesOn,
+      verified_date: changesOn, // re-verified against the future-effective text before the date arrived
+    });
+    const res = evaluateMobility(input(), rule);
+    expect(res.overall).toBe("clear");
+    expect(res.individual.requirements.join(" ")).toMatch(new RegExp(`changed on ${changesOn}`, "i"));
+  });
+
+  it("a missing verified_date on a past-dated flux row fails closed (stays not_verified), not open", () => {
+    const rule = verifiedPermissiveRule({
+      rule_in_flux: true,
+      rule_changes_on: "2026-01-01",
+      verified_date: null,
+    });
+    expect(evaluateMobility(input(), rule).overall).toBe("not_verified");
+  });
+});
+
 describe("REGRESSION: the critical undefined-is-not-null defect (2026-07-30 review)", () => {
   it("an OMITTED field must NOT produce a permissive verdict -- reproduced over HTTP before the fix", () => {
     // The natural failure: a researcher adds a state with the citation they

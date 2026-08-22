@@ -3068,6 +3068,90 @@ def check_snoozed_until_cleared_on_cycle_bump(repo_root: Path) -> list[str]:
     return errors
 
 
+def _skip_return_type_to_body_brace(text: str, i: int) -> int | None:
+    """GATE-13 (AuditLab, 2026-08-22, found by mutation testing):
+    `_balanced_brace_function_bodies` used to take the FIRST `{` after the
+    parameter list as the body-open -- wrong whenever the return type
+    itself contains a `{`, e.g. `Promise<{ id: string }>` or a bare/union
+    object-literal return type (`{ ok: true } | { ok: false; error:
+    string }`, real code in worker/src/password.ts). 26 real store.ts
+    functions were invisible to both check_write_endpoint_rate_limits
+    (SEC-2) and check_demo_locked_mutation_coverage (DEMO-9) because of
+    this -- their bodies were truncated to just the return type's own
+    object literal, which contains no SQL and no demo_locked reference.
+
+    `i` is the position right after the parameter list's closing `)`.
+    Returns the index of the real body-opening `{`, or None if the shape
+    is unrecognizable (caller should skip this match, same as before).
+
+    Walks the return-type expression (everything between `:` and the
+    body), tracking balanced `<...>` (generics), `(...)` (function
+    types), and `[...]` (array types) so a `{` inside any of those is
+    never mistaken for the body. A bare top-level `{...}` block (object
+    literal type, not nested in any of the above) is scanned to its own
+    close, then re-examined: if immediately followed by another `{` or by
+    a `|`/`&` connector (a union/intersection of object-literal types),
+    it was type syntax and scanning continues past it; otherwise it WAS
+    the function body, and its own opening position is the answer. Does
+    not currently handle an intersection/union chain broken by an
+    unparenthesized non-object type between two object-literal arms
+    (e.g. `{ a: 1 } | SomeAlias | { b: 2 }`) -- not a shape this codebase
+    uses; would fall through to the "not '{' or '|'/'&'" default-skip
+    branch below and likely still resolve correctly since SomeAlias itself
+    is just skipped character-by-character before the next `|`/`{`."""
+    n = len(text)
+
+    def skip_ws(pos: int) -> int:
+        while pos < n and text[pos].isspace():
+            pos += 1
+        return pos
+
+    def skip_balanced(pos: int, open_ch: str, close_ch: str) -> int | None:
+        depth = 0
+        j = pos
+        while j < n:
+            if text[j] == open_ch:
+                depth += 1
+            elif text[j] == close_ch:
+                depth -= 1
+                if depth == 0:
+                    return j + 1
+            j += 1
+        return None
+
+    i = skip_ws(i)
+    if i < n and text[i] == "{":
+        return i  # no return-type annotation at all
+    if i >= n or text[i] != ":":
+        return None
+    i += 1
+    while True:
+        i = skip_ws(i)
+        if i >= n:
+            return None
+        c = text[i]
+        if c == "{":
+            close = skip_balanced(i, "{", "}")
+            if close is None:
+                return None
+            block_start = i
+            k = skip_ws(close)
+            if k < n and text[k] == "{":
+                i = k
+                continue
+            if k < n and text[k] in "|&":
+                i = k + 1
+                continue
+            return block_start  # nothing type-shaped follows -- this was the body
+        if c in "<([":
+            close = skip_balanced(i, c, {"<": ">", "(": ")", "[": "]"}[c])
+            if close is None:
+                return None
+            i = close
+            continue
+        i += 1  # an identifier/keyword/connector character -- keep scanning
+
+
 def _balanced_brace_function_bodies(text: str, name_pattern: str) -> list[tuple[str, str]]:
     """Balanced-brace parse: for every `(export )?(async )?function <name>(...)`
     whose name matches `name_pattern`, returns (name, full body text
@@ -3075,20 +3159,38 @@ def _balanced_brace_function_bodies(text: str, name_pattern: str) -> list[tuple[
     posture every sibling guard in this file uses so it runs without a
     TypeScript toolchain."""
     results = []
-    for m in re.finditer(rf"(?:export )?(?:async )?function ({name_pattern})\s*\([^)]*\)[^{{]*\{{", text):
+    for m in re.finditer(rf"(?:export )?(?:async )?function ({name_pattern})\s*\(", text):
         name = m.group(1)
-        start = m.end() - 1
+        # Balance the parameter list's own parens (a default value like
+        # `now: Date = new Date()` has a nested pair) rather than assuming
+        # the first ')' anywhere is the real close.
         depth = 0
-        i = start
+        i = m.end() - 1
         while i < len(text):
-            if text[i] == "{":
+            if text[i] == "(":
                 depth += 1
-            elif text[i] == "}":
+            elif text[i] == ")":
+                depth -= 1
+                if depth == 0:
+                    i += 1
+                    break
+            i += 1
+        else:
+            continue
+        start = _skip_return_type_to_body_brace(text, i)
+        if start is None:
+            continue
+        depth = 0
+        j = start
+        while j < len(text):
+            if text[j] == "{":
+                depth += 1
+            elif text[j] == "}":
                 depth -= 1
                 if depth == 0:
                     break
-            i += 1
-        results.append((name, text[start : i + 1]))
+            j += 1
+        results.append((name, text[start : j + 1]))
     return results
 
 
@@ -3199,6 +3301,16 @@ def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
         "handleDripCourseUnsubscribe": "consumes a drip-course enrollment's own unsubscribe token (store.stopDripCourseByToken) -- same one-click, no-login, token-is-the-credential shape as handleUnsubscribe",
         "handleFirmAdminUnsubscribe": "consumes a firm's own admin_unsubscribe_token (store.findFirmByAdminUnsubscribeToken, migration 0062, AuditLab UNSUB-2) -- same one-click, no-login, token-is-the-credential shape as handleUnsubscribe, RFC 8058 List-Unsubscribe-Post requires this to work without a session",
         "handleFeatureIdeaSignupUnsubscribe": "consumes a feature-idea signup row's own id-as-token (store.optOutFeatureIdeaSignupByToken, migration 0065, AuditLab UNSUB-4) -- same one-click, no-login, token-is-the-credential shape as handleUnsubscribe, RFC 8058 List-Unsubscribe-Post requires this to work without a session",
+        # AuditLab GATE-13 (2026-08-22): these 4 were invisible to this gate
+        # until _balanced_brace_function_bodies' return-type-brace bug was
+        # fixed (their bodies had been truncated to Promise<...>'s own
+        # return-type text). Each is the exact same one-click, no-login,
+        # token-is-the-credential shape as handleUnsubscribe right above --
+        # not a newly-discovered gap, just newly visible.
+        "handleConfirm": "consumes a subscriber's own confirm_token (store.confirmIfPending) -- same one-click, no-login, token-is-the-credential shape as handleUnsubscribe",
+        "handleRenewed": "consumes a subscriber's own token via store.stop(..., \"renewed\") -- the exact same call handleUnsubscribe makes with a different reason string, same token-is-the-credential shape",
+        "handleNewsletterConfirm": "consumes a newsletter subscriber's own confirm token (store.confirmNewsletterSubscriberIfPending) -- same one-click, no-login, token-is-the-credential shape as handleUnsubscribe",
+        "handleNewsletterUnsubscribe": "consumes a newsletter subscriber's own unsubscribe token (store.unsubscribeNewsletterSubscriber) -- same one-click, no-login, token-is-the-credential shape as handleUnsubscribe, RFC 8058 List-Unsubscribe-Post requires this to work without a session",
     }
 
     errors = []

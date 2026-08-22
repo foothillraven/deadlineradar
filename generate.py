@@ -10214,7 +10214,7 @@ _MY_DASHBOARD_JS_HTML = """<script>
     // client-only state that a background poll/re-render should not
     // clobber once the person has actually submitted a phone number, but
     // a genuine server-confirmed opted-in status should always win.
-    drRenderSmsPanel(Boolean(data.sms_opted_in), data.phone_last4 || null);
+    drRenderSmsPanel(Boolean(data.sms_opted_in), data.phone_last4 || null, data.sms_unavailable_state_names || []);
   }
 
   // Roadmap #22 (2026-08-09): SMS opt-in, double opt-in flow (send a code,
@@ -10222,14 +10222,28 @@ _MY_DASHBOARD_JS_HTML = """<script>
   // a new channel with real TCPA consent requirements. Three UI states:
   // not opted in (phone input), awaiting a code (code input), opted in
   // (status + opt-out button).
-  function drRenderSmsPanel(optedIn, phoneLast4) {
+  function drRenderSmsPanel(optedIn, phoneLast4, unavailableStateNames) {
     var disconnectedEl = document.getElementById('dr-sms-disconnected');
     var awaitingEl = document.getElementById('dr-sms-awaiting-code');
     var connectedEl = document.getElementById('dr-sms-connected');
     var statusEl = document.getElementById('dr-sms-status-text');
+    var noteEl = document.getElementById('dr-sms-unavailable-note');
     if (!disconnectedEl || !awaitingEl || !connectedEl) return;
     if (optedIn) {
       if (statusEl) statusEl.textContent = 'Texts enabled for the number ending in ' + (phoneLast4 || '????') + '.';
+      // SMS-5: a mixed-state subscriber opts in successfully but one of
+      // their states can't be texted (fixed cron time falls outside its
+      // local daytime hours) -- disclose it here rather than let "texts
+      // enabled" silently imply full coverage.
+      if (noteEl) {
+        if (unavailableStateNames && unavailableStateNames.length > 0) {
+          noteEl.textContent = "Text reminders are not available yet for " + unavailableStateNames.join(' or ') +
+            " (timezone) -- you will still get email reminders for " + (unavailableStateNames.length === 1 ? 'it' : 'those') + ".";
+          noteEl.hidden = false;
+        } else {
+          noteEl.hidden = true;
+        }
+      }
       connectedEl.hidden = false;
       disconnectedEl.hidden = true;
       awaitingEl.hidden = true;
@@ -10735,6 +10749,7 @@ def build_my_page(cpe_hours_by_slug: dict[str, dict]) -> str:
     </div>
     <div id="dr-sms-connected" hidden>
       <p id="dr-sms-status-text"></p>
+      <p id="dr-sms-unavailable-note" class="field-hint" hidden></p>
       <button type="button" id="dr-sms-opt-out-btn" class="dr-btn-secondary">Turn off text reminders</button>
     </div>
     <p id="dr-sms-ok" class="dr-account-ok" hidden></p>

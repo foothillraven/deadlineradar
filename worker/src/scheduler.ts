@@ -442,6 +442,17 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
         threshold = Math.min(...thresholds);
       } else {
         summary.skipped_grace_period += 1;
+        // SILENT-2 (AuditLab, 2026-08-22): unlike the two branches above
+        // (no_computable_deadline / unknown_state), this one never called
+        // logSilentDrop -- for a state-derived subscriber whose deadline
+        // never rolls forward (DATE-2's unprotected records), this branch
+        // is entered every day forever with nothing recorded and no
+        // operator signal. Best-effort, same reasoning as the calls above.
+        try {
+          await store.logSilentDrop(env.DB, sub.id, sub.email, sub.state_slug, "past_deadline_no_reminder");
+        } catch {
+          // See comment above -- never let this fail the pass.
+        }
         continue;
       }
     } else {
@@ -1725,6 +1736,15 @@ export async function runSmsAlertPass(env: Env, opts: RunSmsAlertOptions = {}): 
     // "evaluated at all" gate as snoozed_until below.
     if (!isWithinSmsQuietHours(sub.state_slug, asOf)) {
       summary.skippedQuietHours += 1;
+      // SMS-5 (AuditLab, 2026-08-22): for Guam/CNMI this fires every day,
+      // permanently (their local hour never falls inside the fixed cron's
+      // window) -- same never-read-counter shape SILENT-2 fixed for the
+      // grace-period skip. Best-effort, same reasoning as SILENT-2's call.
+      try {
+        await store.logSilentDrop(env.DB, sub.id, sub.email, sub.state_slug, "sms_unavailable_timezone");
+      } catch {
+        // See comment above -- never let this fail the pass.
+      }
       continue;
     }
 

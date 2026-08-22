@@ -485,6 +485,29 @@ describe("runSmsAlertPass", () => {
     expect(summary.skippedQuietHours).toBeGreaterThan(0);
   });
 
+  it("AuditLab SMS-5: a Guam subscriber's permanent quiet-hours skip now logs a silent drop", async () => {
+    // Guam's local hour never falls inside the fixed cron's daytime window
+    // (offset +10 -> local 04:00), so this branch fires every run, forever
+    // -- the exact shape SILENT-2 fixed for the grace-period skip.
+    const { runSmsAlertPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(2500);
+    const cronAsOf = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate(), 18, 0, 0));
+    const email = `smse2e-silent5-${Date.now()}@example.com`;
+    const sub = await seedConfirmedSubscriber("guam", isoDaysFromUtcMidnight(cronAsOf, 30), email);
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+16711110004", "sms-consent-2026-08-09", "203.0.113.99");
+
+    const summary = await runSmsAlertPass(env, { asOf: cronAsOf, send: async () => true });
+    expect(summary.skippedQuietHours).toBeGreaterThan(0);
+
+    const row = await env.DB.prepare(`SELECT reason, resolved_at FROM silent_drop_log WHERE subscriber_id = ?1`)
+      .bind(sub.id)
+      .first<{ reason: string; resolved_at: string | null }>();
+    expect(row?.reason).toBe("sms_unavailable_timezone");
+    expect(row?.resolved_at).toBeNull();
+
+    await env.DB.prepare(`DELETE FROM silent_drop_log WHERE subscriber_id = ?1`).bind(sub.id).run();
+  });
+
   it("independent of email/Slack/Teams' own dedup tables", async () => {
     const { runSmsAlertPass } = await import("../src/scheduler");
     const asOf = freshAsOf(3000);

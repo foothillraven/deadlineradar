@@ -5032,6 +5032,12 @@ async function handleSubscriberLicensesList(request: Request, env: Env): Promise
     // does. Firm-entered, but it's a fact about this subscriber's own hours,
     // not internal firm data -- no reason to withhold it from their own page.
     carryover_hours: r.carryover_hours,
+    // SMS-5: SMS-1's opt-in refusal only fires when EVERY licensed state is
+    // unavailable -- a mixed-state subscriber opts in successfully and gets
+    // silent, undisclosed non-delivery for just this row. Per-row so the
+    // connected-state panel can name the specific state(s) affected instead
+    // of a blanket (and here wrong) "texts are on" implication.
+    sms_unavailable: SMS_UNAVAILABLE_STATE_SLUGS.has(r.state_slug),
     // Intentionally ABSENT: unsubscribe_token, confirm_token,
     // renewed_token, cooldown_key, firm_id, staff_label. The tokens are
     // live bearer credentials and must never reach a page; firm_id and
@@ -5074,6 +5080,10 @@ async function handleSubscriberLicensesList(request: Request, env: Env): Promise
     // the sensitive value" posture as Slack/Teams' own webhook URLs.
     phone_last4: maskPhoneLast4(rows[0]?.phone_number ?? null),
     sms_opted_in: (rows[0]?.sms_opted_in ?? 0) !== 0,
+    // SMS-5: names, not just flags -- the connected-state panel's caveat
+    // reads directly off this rather than re-deriving state names from
+    // per-license sms_unavailable itself.
+    sms_unavailable_state_names: items.filter((i) => i.sms_unavailable).map((i) => i.state_name),
     licenses: items,
   });
 }

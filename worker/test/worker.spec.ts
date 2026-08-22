@@ -4980,6 +4980,40 @@ describe("store.logSilentDrop / resolveSilentDrop (AuditLab SILENT-1)", () => {
   });
 });
 
+describe("AuditLab SILENT-2: the grace-period skip now logs a silent drop too", () => {
+  it("runReminderPass logs a silent drop (not just the never-read counter) once a subscriber falls past the grace window", async () => {
+    const { runReminderPass } = await import("../src/scheduler");
+    const email = `sched-silent2-${Date.now()}@example.com`;
+    // A user-provided (BYOD) deadline far in the past, well beyond
+    // GRACE_PERIOD_PAST_DEADLINE_DAYS -- same shape SILENT-2 was filed
+    // against: a deadline that computes cleanly but never rolls forward.
+    const rec = await store.addPending(env.DB, {
+      email,
+      stateSlug: "new-jersey",
+      deadlineFields: {},
+      firstName: "Tester",
+      deadlineSource: "user",
+      userDeadline: "2026-06-01",
+      skipConfirmation: true,
+    });
+    // neverNotified must be false so the run lands in the grace-period skip
+    // branch directly, not the bounded first-ever catch-up branch.
+    await env.DB.prepare(`UPDATE subscribers SET reminders_sent = ?1 WHERE id = ?2`).bind(JSON.stringify([30]), rec.id).run();
+
+    const asOf = new Date(Date.UTC(2026, 6, 24)); // 53 days past the 2026-06-01 deadline
+    const summary = await runReminderPass(env, { asOf, send: async () => true });
+    expect(summary.skipped_grace_period).toBeGreaterThan(0);
+
+    const row = await env.DB.prepare(`SELECT reason, resolved_at FROM silent_drop_log WHERE subscriber_id = ?1`)
+      .bind(rec.id)
+      .first<{ reason: string; resolved_at: string | null }>();
+    expect(row?.reason).toBe("past_deadline_no_reminder");
+    expect(row?.resolved_at).toBeNull();
+
+    await env.DB.prepare(`DELETE FROM silent_drop_log WHERE subscriber_id = ?1`).bind(rec.id).run();
+  });
+});
+
 describe("emails.ts buildStaleDataAlertEmail (AuditLab STALE-3)", () => {
   it("numeric ageDays: subject and body both name the actual age", async () => {
     const { buildStaleDataAlertEmail } = await import("../src/emails");

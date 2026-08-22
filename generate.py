@@ -12175,18 +12175,28 @@ var DR_ACTIVITY_ICON = {
 function drLoadActivity() {
   return fetch('/api/firm/activity', {credentials: 'include'})
     .then(function(res) {
-      if (!res.ok) return null;
+      // UX-12 (AuditLab, 2026-08-21): used to collapse a failed load to []
+      // right here (before drRenderActivity ever saw the difference), so
+      // "No activity yet." rendered for a 500/network failure exactly the
+      // same as a genuinely empty log. Pass the false sentinel through
+      // instead so the render function can distinguish them, same pattern
+      // as the sibling security panels above.
+      if (!res.ok) return false;
       return res.json();
     })
     .then(function(data) {
-      drRenderActivity((data && data.events) || []);
+      drRenderActivity(data === false ? false : ((data && data.events) || []));
     })
-    .catch(function() {});
+    .catch(function() { drRenderActivity(false); });
 }
 
 function drRenderActivity(events) {
   var el = document.getElementById('dr-activity-list');
   if (!el) return;
+  if (events === false) {
+    el.innerHTML = '<li class="dr-panel-empty">Couldn\\u2019t load this right now. Please refresh the page.</li>';
+    return;
+  }
   events = events.slice(0, 6);
   if (events.length === 0) {
     el.innerHTML = '<li class="dr-panel-empty">No activity yet.</li>';
@@ -13537,6 +13547,14 @@ function drWireMapTooltip() {
 // ---------------------------------------------------------------------------
 
 var drCpeEntries = [];
+// UX-12 (AuditLab, 2026-08-21): drCpeEntries feeds five renderers off one
+// load (drRenderCpeStaffSelect/Summary/StaffProgress/Recent/Report) --
+// unlike the single-purpose panels above, it can't use a false-sentinel
+// array without breaking every consumer that expects a real array. This
+// flag is checked only by drRenderCpeRecent() (the one UX-12 named, whose
+// "Nothing logged yet." previously rendered identically on a load failure)
+// -- the other four renderers were not part of that finding.
+var drCpeEntriesLoadFailed = false;
 
 function drCpeCycleWindow(nextDeadlineIso, periodYears) {
   if (!nextDeadlineIso || !periodYears) return null;
@@ -13781,6 +13799,10 @@ function drRenderCpeStaffSelect() {
 function drRenderCpeRecent() {
   var el = document.getElementById('dr-cpe-recent-body');
   if (!el) return;
+  if (drCpeEntriesLoadFailed) {
+    el.innerHTML = '<p class="dr-panel-empty">Couldn\\u2019t load this right now. Please refresh the page.</p>';
+    return;
+  }
   if (drCpeEntries.length === 0) {
     el.innerHTML = '<p class="dr-panel-empty">Nothing logged yet.</p>';
     return;
@@ -14130,18 +14152,22 @@ function drLoadCpeEntries() {
   return fetch('/api/firm/cpe', {credentials: 'include'})
     .then(function(res) {
       if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
-      if (!res.ok) return null;
+      if (!res.ok) { drCpeEntriesLoadFailed = true; return null; }
       return res.json();
     })
     .then(function(data) {
-      drCpeEntries = (data && data.entries) || [];
+      if (data) { drCpeEntriesLoadFailed = false; drCpeEntries = data.entries || []; }
+      else if (!drCpeEntriesLoadFailed) return; // 401 -- navigating away, nothing to render
       drRenderCpeStaffSelect();
       drRenderCpeSummary();
       drRenderCpeStaffProgress();
       drRenderCpeRecent();
       drRenderReport();
     })
-    .catch(function() {});
+    .catch(function() {
+      drCpeEntriesLoadFailed = true;
+      drRenderCpeRecent();
+    });
 }
 
 // Practice-privilege completion tracking (2026-08-04, migration 0016).
@@ -14281,6 +14307,13 @@ function drRemoveCpeEntry(id, label) {
 function drRenderIdentities(items) {
   var el = document.getElementById('dr-identities-body');
   if (!el) return;
+  // UX-12 (AuditLab, 2026-08-21): see drRenderSessions()'s comment just
+  // below -- same load-FAILED sentinel, checked before the empty-list
+  // branch for the same reason.
+  if (items === false) {
+    el.innerHTML = '<p class="dr-panel-empty">Couldn\\u2019t load this right now. Please refresh the page.</p>';
+    return;
+  }
   if (!items || items.length === 0) {
     el.innerHTML = '<p class="dr-panel-empty">None connected. You sign in with a password or an emailed link.</p>';
     return;
@@ -14303,6 +14336,17 @@ function drRenderIdentities(items) {
 function drRenderSessions(items) {
   var el = document.getElementById('dr-sessions-list');
   if (!el) return;
+  // UX-12 (AuditLab, 2026-08-21): items===false is the load-FAILED sentinel
+  // drLoadSessions() passes on a non-401 error or network failure -- must
+  // be checked before the empty-list branch below, or a failed load renders
+  // "No active sessions." as a statement of fact. That's the sharpest
+  // instance of this bug: this panel exists specifically so a user can
+  // check whether someone else is signed into their account, and "none"
+  // on a failed request is false reassurance on exactly that surface.
+  if (items === false) {
+    el.innerHTML = '<p class="dr-panel-empty">Couldn\\u2019t load this right now. Please refresh the page.</p>';
+    return;
+  }
   if (!items || items.length === 0) {
     el.innerHTML = '<p class="dr-panel-empty">No active sessions.</p>';
     return;
@@ -14323,11 +14367,11 @@ function drLoadSessions() {
   return fetch('/api/firm/sessions', {credentials: 'include'})
     .then(function(res) {
       if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
-      if (!res.ok) return null;
+      if (!res.ok) { drRenderSessions(false); return null; }
       return res.json();
     })
-    .then(function(data) { drRenderSessions(data && data.sessions); })
-    .catch(function() {});
+    .then(function(data) { if (data) drRenderSessions(data.sessions || []); })
+    .catch(function() { drRenderSessions(false); });
 }
 
 function drRevokeSession(id) {
@@ -14349,11 +14393,11 @@ function drLoadIdentities() {
   return fetch('/api/firm/oauth-identities', {credentials: 'include'})
     .then(function(res) {
       if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
-      if (!res.ok) return null;
+      if (!res.ok) { drRenderIdentities(false); return null; }
       return res.json();
     })
-    .then(function(data) { drRenderIdentities(data && data.identities); })
-    .catch(function() {});
+    .then(function(data) { if (data) drRenderIdentities(data.identities || []); })
+    .catch(function() { drRenderIdentities(false); });
 }
 
 function drRemoveIdentity(id, label) {
@@ -14382,10 +14426,19 @@ function drTeamStatusLabel(m) {
 }
 
 function drRenderTeam(members) {
-  drTeamMembers = members || [];
+  // UX-12 (AuditLab, 2026-08-21): members===false is the load-FAILED
+  // sentinel drLoadTeam() passes on a non-401 error or network failure --
+  // checked before drTeamMembers is set from it, same reasoning as
+  // drRenderSessions()/drRenderIdentities() above. Everything below this
+  // (upgrade notice, invite form) is unaffected by whether the list itself
+  // loaded, so it still runs normally either way.
+  var loadFailed = members === false;
+  drTeamMembers = loadFailed ? [] : (members || []);
   var listEl = document.getElementById('dr-team-list');
   if (listEl) {
-    if (drTeamMembers.length === 0) {
+    if (loadFailed) {
+      listEl.innerHTML = '<p class="dr-panel-empty">Couldn\\u2019t load this right now. Please refresh the page.</p>';
+    } else if (drTeamMembers.length === 0) {
       listEl.innerHTML = '<p class="dr-panel-empty">No team members yet.</p>';
     } else {
       listEl.innerHTML = drTeamMembers.map(function(m) {
@@ -14451,11 +14504,11 @@ function drLoadTeam() {
   return fetch('/api/firm/members', {credentials: 'include'})
     .then(function(res) {
       if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
-      if (!res.ok) return null;
+      if (!res.ok) { drRenderTeam(false); return null; }
       return res.json();
     })
-    .then(function(data) { drRenderTeam(data && data.members); })
-    .catch(function() {});
+    .then(function(data) { if (data) drRenderTeam(data.members || []); })
+    .catch(function() { drRenderTeam(false); });
 }
 
 function drSubmitTeamInvite(form) {
@@ -15940,12 +15993,28 @@ function drSubmitDocumentUpload(ev) {
 
 function drRemoveDocument(id, label) {
   if (!window.confirm('Remove "' + label + '"? This cannot be undone.')) return;
+  var errEl = document.getElementById('dr-documents-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
   fetch('/api/firm/documents/' + encodeURIComponent(id), {method: 'DELETE', credentials: 'include'})
     .then(function(res) {
-      if (res.status === 401) { window.location.href = '/firm-login/'; return; }
-      drLoadDocumentsList();
+      if (res.status === 401) { window.location.href = '/firm-login/'; return null; }
+      // UX-12 (AuditLab, 2026-08-21): used to reload the list on ANY non-401
+      // response (403/404/409/500 alike), so a rejected delete looked
+      // identical to a successful one -- the user confirmed an
+      // irreversible action, watched the panel refresh, and had no way to
+      // know it didn't happen. Branch on res.ok first, same as
+      // drSubmitDocumentUpload() right above this function.
+      return drReadJsonSafe(res).then(function(data) {
+        if (!res.ok) {
+          if (errEl) { errEl.textContent = (data && data.error) ? data.error : 'Could not remove that document. Please try again.'; errEl.hidden = false; }
+          return;
+        }
+        drLoadDocumentsList();
+      });
     })
-    .catch(function() {});
+    .catch(function() {
+      if (errEl) { errEl.textContent = 'Something went wrong, please try again.'; errEl.hidden = false; }
+    });
 }
 
 // ---------------------------------------------------------------------------

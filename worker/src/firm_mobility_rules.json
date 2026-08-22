@@ -1315,14 +1315,14 @@
     "peer_review_conditions_permit": {
       "exists": true,
       "citation": "17 DCMR section 2548; renewal mechanics at 17 DCMR section 2547",
-      "citation_url": "http://dcrules.elaws.us/dcmr/17-2548",
-      "notes": "Firms performing audits/reviews/compilations/SSAE-SAS-SSARS engagements must enroll in/complete board-approved peer review. Direct 'condition of renewal' cross-reference in section 2547 not found verbatim in the excerpt retrieved -- inferred from the regulatory scheme."
+      "citation_url": "https://dcregs.dc.gov/Common/DCMR/SectionList.aspx?SectionNumber=17-2548",
+      "notes": "Firms performing audits/reviews/compilations/SSAE-SAS-SSARS engagements must enroll in/complete board-approved peer review. Direct 'condition of renewal' cross-reference in section 2547 not found verbatim in the excerpt retrieved -- inferred from the regulatory scheme. CITE-56 (2026-08-21): repointed from a third-party mirror (dcrules.elaws.us, 503 for the path and host root) to DC's own Office of Documents and Administrative Issuances DCMR database, matching the sibling firm claims which already cite the official code.dccouncil.gov. Verified live and session-independent (fresh curl, no cookies): heading 'PEER REVIEW REQUIREMENT', Title 17 Business Occupations and Professionals, Chapter 17-25 Accountants, effective 5/18/2012."
     },
     "confidence": "dual_source",
     "source_disagreement": null,
     "state_slug": "dc",
     "state": "District of Columbia",
-    "verified_date": "2026-08-07"
+    "verified_date": "2026-08-21"
   },
   "florida": {
     "attest_exemption": {

@@ -560,7 +560,7 @@
         "type": "fixed_calendar_recurring_no_anchor",
         "fixed_date": "08-31",
         "period_years": 3,
-        "note": "Expires August 31 every 3 years for all firm registrations board-wide. Anchor confirmed 2026-08-20 (CITE-26): the cycle is 2023 -> 2026 -> 2029, established by the register's own last-renewed-date split (firms last renewed 2023-2025 are due 2026-08-31; firms already renewed in the current 2026 cycle roll to 2029-08-31, not a second issue-year cohort). Next published occurrence after 2026-08-31 elapses is 2029-08-31, not 2027-08-31 -- this is a static value, not code-computed (grep for fixed_calendar_recurring_no_anchor returns zero hits outside this file), so it needs a manual update at rollover."
+        "note": "Expires August 31 every 3 years for all firm registrations board-wide. Anchor confirmed 2026-08-20 (CITE-26): the cycle is 2023 -> 2026 -> 2029, established by the register's own last-renewed-date split (firms last renewed 2023-2025 are due 2026-08-31; firms already renewed in the current 2026 cycle roll to 2029-08-31, not a second issue-year cohort). Next published occurrence after 2026-08-31 elapses is 2029-08-31, not 2027-08-31 -- this value now rolls forward automatically (generate.py's _roll_forward_recurring_deadline() and worker/src/deadline.ts's rollForwardRecurringDeadline() both read this computation block), no manual update needed at rollover (DATE-2/DATE-3/DATE-4)."
       },
       "source_url": "https://dpo.colorado.gov/Accountancy/Applications",
       "last_verified": "2026-08-20",

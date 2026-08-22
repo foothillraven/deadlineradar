@@ -134,8 +134,8 @@
     "physical_office_trigger": {
       "exists": true,
       "citation": "Ala. Code section 34-1-10",
-      "citation_url": "https://codes.findlaw.com/al/title-34-professions-and-businesses/al-code-sect-34-1-10.html",
-      "notes": "Each office established/maintained in Alabama for public accounting practice must register."
+      "citation_url": "https://alison.legislature.state.al.us/code-of-alabama?section=34-1-10",
+      "notes": "Each office established/maintained in Alabama for public accounting practice must register. CITE-58 (2026-08-21): repointed from a dead FindLaw URL (HTTP 200 titled '404 Error: Page not found', confirmed URL-specific via 7 sibling FindLaw URLs live in the same session) to the official Alabama Legislature Code of Alabama site, per this sweep's official-source-first priority order. The site is a JS-rendered SPA (a plain fetch returns only the app shell; Chrome renders the real text) -- verified in Chrome with the exact statute text: '(a) Each office established or maintained in this state...shall be registered annually...(b) No firm or office not located in this state...shall be required to register under this section.' Same JS-dependency shape already accepted elsewhere in this dataset (Indiana's 872 IAC site)."
     },
     "peer_review_conditions_permit": {
       "exists": true,
@@ -147,7 +147,7 @@
     "source_disagreement": null,
     "state_slug": "alabama",
     "state": "Alabama",
-    "verified_date": "2026-08-07"
+    "verified_date": "2026-08-21"
   },
   "alaska": {
     "attest_exemption": {

@@ -15367,6 +15367,13 @@ function drSubmitTeamsWebhook(form) {
 }
 
 function drTeamsClear() {
+  // UX-14 (AuditLab, 2026-08-21): 7 of 9 destructive dashboard controls
+  // confirm first; this was one of the two that didn't, and the wrong
+  // direction for it -- a firm-wide notification-channel removal whose
+  // failure mode is silence (no error, no bounce, just alerts that never
+  // arrive again), while a personal, fully-recoverable action like removing
+  // one sign-in method already gets a confirm.
+  if (!window.confirm('Clear the Teams webhook? Deadline reminders will stop being posted to your Teams channel.')) return;
   var okEl = document.getElementById('dr-teams-ok');
   var errEl = document.getElementById('dr-teams-error');
   if (okEl) { okEl.hidden = true; okEl.textContent = ''; }
@@ -15397,6 +15404,9 @@ function drTeamsClear() {
 }
 
 function drSlackDisconnect() {
+  // UX-14 (AuditLab, 2026-08-21): same fix as drTeamsClear() -- see its
+  // comment for the full reasoning.
+  if (!window.confirm('Disconnect Slack? Deadline reminders will stop being posted to your channel.')) return;
   var okEl = document.getElementById('dr-slack-ok');
   var errEl = document.getElementById('dr-slack-error');
   if (okEl) { okEl.hidden = true; okEl.textContent = ''; }

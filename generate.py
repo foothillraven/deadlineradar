@@ -21048,6 +21048,81 @@ deadline) runs on its own separate clock.
 """,
     },
     {
+        # 2026-08-22: GSC-steered pick -- /minnesota/ is the site's highest-impression
+        # guide-less state page (43 impressions/28-day window, position 24.7, real
+        # repeated renewal-intent queries like "mn cpa license renewal" not yet ranking
+        # well), ahead of every other uncovered state (Georgia 39, Massachusetts 36,
+        # South Dakota 32). Repackages mn-individual/mn-firm (data/cpa_deadlines.json),
+        # mn-cpe (data/cpe_hours.json), minnesota-renewal-fee (data/renewal_fees.json),
+        # and minnesota-reinstatement (data/reinstatement.json) -- zero new legal
+        # research beyond confirming the certificate-vs-firm-permit citation split
+        # (Minn. Stat. § 326A.04 vs § 326A.05, per § 326A.01's own definitions) that
+        # both AuditLab and the orchestrator caught in the first review round.
+        "slug": "minnesota-cpa-license-renewal-guide",
+        "published": "2026-08-22",  # first-introduction commit date, from git history
+        "title": "How CPA License Renewal Works in Minnesota: One Deadline, Three Different Fees",
+        "meta_description": (
+            "Minnesota CPA license renewal: the December 31 deadline every license and "
+            "firm shares, the rolling 3-year CPE clock, and why a firm's own renewal can "
+            "fail even when the firm itself did everything right."
+        ),
+        "body_html": """
+<p class="intro">Minnesota keeps every CPA license and firm permit on the same calendar-year clock &mdash;
+December 31, no exceptions, no grace period. What isn't obvious from that simple headline is that three
+genuinely different fees can apply depending on exactly how and when you miss it, and that a firm's own
+renewal can be blocked by something entirely outside the firm's control. Here's exactly how each piece
+works, sourced to Minnesota's own statutes and administrative rules.</p>
+
+<h2>One fixed date for everyone: December 31, no grace period</h2>
+<p>Every Minnesota CPA certificate (Minn. Stat. &sect; 326A.04, subd. 2(a)) and every firm permit
+(&sect; 326A.05, subd. 2(a)) expires December 31 every year. The Board of Accountancy states this in
+plain language on its own site:
+"All CPAs with a status of Active or Inactive, as well as all firms, must renew by December 31 every
+year," and adds explicitly: "There is no grace period for unlicensed practice or holding out. All
+licenses and permits expire on December 31 each year." <a href="../../minnesota/">Confirm your own next
+Minnesota CPA renewal deadline here</a>.</p>
+
+<h2>CPE: a rolling 3-year count, not a simple annual reset</h2>
+<p>Minnesota requires 120 CPE hours in a rolling 3-year period, with a 20-hour minimum every single
+year (Minn. R. 1105.3000). At least 8 of those 120 hours must be in regulatory or behavioral ethics
+(Minn. R. 1105.3100, subpart 4, item F). The "rolling" part is the detail worth sitting with: this
+isn't a fixed 3-year block that resets on a set date the way some states run it &mdash; it's checked
+against a continuously moving 3-year window, so the annual 20-hour floor exists specifically to keep
+you from back-loading all 120 hours into the final year and coming up short if your plans change.
+CPE for the year ending June 30 must be reported to the Board by December 31 of that same year &mdash;
+ahead of, but on the same December 31 deadline as, your license renewal itself.</p>
+
+<h2>Three fees on the books &mdash; and a real gap in exactly which one applies to a late filing</h2>
+<p>Active-status renewal itself costs $100 per year (Minn. Stat. &sect; 326A.04, subd. 5(b)(2)). The
+same fee schedule also lists a $50 "annual late processing delinquency fee for permit, certificate, or
+registration renewal applications not received prior to expiration date" (subd. 5(b)(6)) and a $20 fee
+for "applications for reinstatement" (subd. 5(b)(9)). Both exist in the statute; what the statute text
+does <em>not</em> spell out is the line between them &mdash; subd. 2(a) states certificates expire
+December 31 with no grace period at all, which reads as though a late-filed renewal is already, by
+definition, a renewal of an expired certificate. Minn. Stat. &sect; 326A.09 separately allows the board
+discretion to require CPE makeup hours (up to a full 120-hour/3-year-cycle equivalent) as a condition of
+reinstating an expired certificate, on top of whichever fee applies. If you're filing after December 31,
+the honest answer is to confirm directly with the Board of Accountancy which fee and process apply to
+your specific situation rather than assume the cheaper of the two.</p>
+
+<h2>The firm-permit trap: your own paperwork isn't the only thing that can block it</h2>
+<p>Firm permits share the same December 31 date and the same board &mdash; but the board's own site
+adds a condition that has nothing to do with the firm's own renewal filing: 100% of the firm's
+Minnesota-licensed owners must themselves be individually renewed by March 1 of the following year for
+the firm permit renewal to be valid. In other words, a firm can file its own renewal correctly and on
+time and still end up with an invalid permit if even one licensed owner lets their own individual
+license lapse. If you're a firm's compliance contact, that makes every owner's individual renewal
+status part of the firm's own deadline &mdash; not a separate, lower-priority item.</p>
+
+<p><strong>Bottom line</strong>: track four things, not one &mdash; the shared December 31 deadline for
+every license and firm permit, your rolling 3-year/120-hour CPE count with its 20-hour annual floor, which
+of the three fees (renewal, late, or reinstatement) actually applies to your situation, and &mdash; if
+you're on a firm's compliance side &mdash; every individually-licensed owner's own renewal status ahead
+of the March 1 firm-permit deadline. <a href="../../minnesota/">Set a reminder for your Minnesota
+deadline here</a> so none of these get missed.</p>
+""",
+    },
+    {
         "slug": "new-york-to-new-jersey-cpa-mobility",
         "published": "2026-08-13",  # first-introduction commit date, from git history
         "title": "New York CPA Practicing in New Jersey — What Actually Applies",

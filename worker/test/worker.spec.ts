@@ -20,6 +20,7 @@ import {
   TERMS_VERSION,
 } from "../src/validation";
 import * as store from "../src/store";
+import { REMINDER_PASS_SILENT_DROP_REASONS } from "../src/scheduler";
 import { isUsFederalHoliday as isUsFederalHolidayForTest } from "../src/holidays";
 import { hashPassword, verifyPassword } from "../src/password";
 import type { CpeEntryRow, FirmLeadRow, FirmRow, SubscriberRow } from "../src/store";
@@ -4919,7 +4920,7 @@ describe("store.logSilentDrop / resolveSilentDrop (AuditLab SILENT-1)", () => {
     expect(second?.reason).toBe("unknown_state");
 
     // Resolved: a clean deadline computation closes the row.
-    await store.resolveSilentDrop(env.DB, id);
+    await store.resolveSilentDrop(env.DB, id, REMINDER_PASS_SILENT_DROP_REASONS);
     const resolved = await env.DB.prepare(`SELECT resolved_at FROM silent_drop_log WHERE subscriber_id = ?1`)
       .bind(id)
       .first<{ resolved_at: string | null }>();
@@ -4930,7 +4931,7 @@ describe("store.logSilentDrop / resolveSilentDrop (AuditLab SILENT-1)", () => {
     // should have one stable answer, not a moving one).
     const resolvedAt = resolved!.resolved_at;
     await new Promise((r) => setTimeout(r, 5));
-    await store.resolveSilentDrop(env.DB, id);
+    await store.resolveSilentDrop(env.DB, id, REMINDER_PASS_SILENT_DROP_REASONS);
     const resolvedAgain = await env.DB.prepare(`SELECT resolved_at FROM silent_drop_log WHERE subscriber_id = ?1`)
       .bind(id)
       .first<{ resolved_at: string | null }>();
@@ -4947,7 +4948,7 @@ describe("store.logSilentDrop / resolveSilentDrop (AuditLab SILENT-1)", () => {
   });
 
   it("resolving a subscriber with no drop row is a harmless no-op", async () => {
-    await expect(store.resolveSilentDrop(env.DB, "never-was-dropped-xyz")).resolves.toBeUndefined();
+    await expect(store.resolveSilentDrop(env.DB, "never-was-dropped-xyz", REMINDER_PASS_SILENT_DROP_REASONS)).resolves.toBeUndefined();
   });
 
   it("runReminderPass actually calls logSilentDrop/resolveSilentDrop -- not just tested in isolation", async () => {

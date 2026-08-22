@@ -93,6 +93,13 @@ export const ESCALATION_THRESHOLDS_DAYS = [1, 3, 7, 14, 30, 60];
 const GRACE_PERIOD_PAST_DEADLINE_DAYS = 3;
 const NEVER_NOTIFIED_CATCHUP_WINDOW_DAYS = 14;
 
+/** SILENT-3 (AuditLab, 2026-08-22): the exhaustive set of silent_drop_log
+ * `reason` values runReminderPass() itself ever writes -- passed to
+ * resolveSilentDrop() so it only closes rows THIS pass owns, never a
+ * sibling pass's (e.g. runSmsAlertPass's "sms_unavailable_timezone").
+ * Keep in sync with every logSilentDrop() call inside runReminderPass(). */
+export const REMINDER_PASS_SILENT_DROP_REASONS = ["no_computable_deadline", "unknown_state", "past_deadline_no_reminder"] as const;
+
 // AuditLab DIGEST-1 (2026-08-09): a threshold at or below this many days
 // remaining bypasses a still-closed digest window rather than waiting for
 // it to reopen -- otherwise a 1- or 3-day item claimed mid-window can sit
@@ -381,7 +388,7 @@ export async function runReminderPass(env: Env, opts: RunReminderOptions = {}): 
     // no-op (a conditional UPDATE matching zero rows) for the common case
     // of a subscriber who was never affected.
     try {
-      await store.resolveSilentDrop(env.DB, sub.id);
+      await store.resolveSilentDrop(env.DB, sub.id, REMINDER_PASS_SILENT_DROP_REASONS);
     } catch {
       // Best-effort, same reasoning as the two logSilentDrop() calls above.
     }

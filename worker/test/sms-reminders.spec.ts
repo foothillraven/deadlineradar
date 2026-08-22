@@ -508,6 +508,38 @@ describe("runSmsAlertPass", () => {
     await env.DB.prepare(`DELETE FROM silent_drop_log WHERE subscriber_id = ?1`).bind(sub.id).run();
   });
 
+  it("AuditLab SILENT-3: the reminder pass no longer resolves a still-true SMS silent drop it doesn't own", async () => {
+    const { runSmsAlertPass, runReminderPass } = await import("../src/scheduler");
+    const asOf = freshAsOf(2600);
+    const cronAsOf = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate(), 18, 0, 0));
+    const email = `smse2e-silent3-${Date.now()}@example.com`;
+    // A normal, computable, NOT-past-due deadline -- this subscriber must
+    // reach runReminderPass's unconditional resolveSilentDrop() call (the
+    // clean-computation path), not its own grace-period skip, to isolate
+    // the cross-pass collision from SILENT-2's own mechanism.
+    const sub = await seedConfirmedSubscriber("guam", isoDaysFromUtcMidnight(cronAsOf, 30), email);
+    await store.setSubscriberSmsOptedIn(env.DB, store.normalizeEmail(email), "+16711110005", "sms-consent-2026-08-09", "203.0.113.99");
+
+    await runSmsAlertPass(env, { asOf: cronAsOf, send: async () => true });
+    const afterSms = await env.DB.prepare(`SELECT reason, resolved_at FROM silent_drop_log WHERE subscriber_id = ?1`)
+      .bind(sub.id)
+      .first<{ reason: string; resolved_at: string | null }>();
+    expect(afterSms?.reason).toBe("sms_unavailable_timezone");
+    expect(afterSms?.resolved_at).toBeNull();
+
+    // Same cron tick's OTHER pass runs next -- must NOT close the row the
+    // SMS pass just wrote, since it's still true and isn't runReminderPass's
+    // to resolve.
+    await runReminderPass(env, { asOf: cronAsOf, send: async () => true });
+    const afterReminder = await env.DB.prepare(`SELECT reason, resolved_at FROM silent_drop_log WHERE subscriber_id = ?1`)
+      .bind(sub.id)
+      .first<{ reason: string; resolved_at: string | null }>();
+    expect(afterReminder?.reason).toBe("sms_unavailable_timezone");
+    expect(afterReminder?.resolved_at).toBeNull(); // still open -- the collision this fix closes
+
+    await env.DB.prepare(`DELETE FROM silent_drop_log WHERE subscriber_id = ?1`).bind(sub.id).run();
+  });
+
   it("independent of email/Slack/Teams' own dedup tables", async () => {
     const { runSmsAlertPass } = await import("../src/scheduler");
     const asOf = freshAsOf(3000);

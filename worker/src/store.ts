@@ -4996,11 +4996,24 @@ export async function logSilentDrop(
  * no-op rather than a needless write; only a subscriber with a real open
  * row is actually touched. resolved_at is left in place on subsequent
  * clean runs (not re-written), so it answers "when did this get fixed",
- * not just "was it ever fixed". */
-export async function resolveSilentDrop(db: D1Database, subscriberId: string): Promise<void> {
+ * not just "was it ever fixed".
+ *
+ * SILENT-3 (AuditLab, 2026-08-22): the table is keyed on subscriber_id
+ * ALONE, and the original unconditional version resolved ANY open row for
+ * that subscriber regardless of which pass wrote it or why -- so
+ * runReminderPass's own resolve (called for every subscriber whose
+ * deadline just computed cleanly, unrelated to SMS) closed a row
+ * runSmsAlertPass had written moments earlier for a completely different,
+ * still-true reason (e.g. "sms_unavailable_timezone" for a Guam
+ * subscriber), making that signal flap open/closed instead of persisting.
+ * `ownedReasons` scopes the resolve to only the reasons the CALLING pass
+ * itself ever writes, so a sibling pass's still-open row survives. */
+export async function resolveSilentDrop(db: D1Database, subscriberId: string, ownedReasons: readonly string[]): Promise<void> {
+  if (ownedReasons.length === 0) return;
+  const placeholders = ownedReasons.map((_, i) => `?${i + 3}`).join(", ");
   await db
-    .prepare(`UPDATE silent_drop_log SET resolved_at = ?1 WHERE subscriber_id = ?2 AND resolved_at IS NULL`)
-    .bind(nowIso(), subscriberId)
+    .prepare(`UPDATE silent_drop_log SET resolved_at = ?1 WHERE subscriber_id = ?2 AND resolved_at IS NULL AND reason IN (${placeholders})`)
+    .bind(nowIso(), subscriberId, ...ownedReasons)
     .run();
 }
 

@@ -3786,6 +3786,48 @@ def print_guide_review_staleness_advisory(repo_root: Path) -> None:
         pass
 
 
+def print_changelog_staleness_advisory(repo_root: Path) -> None:
+    """DOC-4 (AuditLab, 2026-08-21): the public /changelog/ opens with "every
+    change that could affect what a visitor sees," but it's hand-curated
+    (schema_note says so deliberately -- raw commit messages reference
+    internal tooling/finding codes never meant for public copy) and nothing
+    was watching whether it kept up. It sat 15 days stale, missing several
+    real visitor-visible corrections, before anyone noticed.
+
+    Deliberately simple: an AGE check (days since the newest entry), same
+    shape as guide_review_staleness_check.py's own age-based tripwire, not a
+    diff against dataset verified_date/last_verified bumps. Most bumps are
+    routine re-verification with no visible change, so diffing against them
+    would produce mostly noise; age since the last entry is what actually
+    correlates with "has anyone reviewed whether recent ships need an
+    entry," which is the failure mode this exists to catch. Advisory only --
+    never blocks a build, same as every sibling staleness check here."""
+    import datetime
+
+    changelog_path = repo_root / "data" / "changelog.json"
+    print("\n--- changelog-staleness advisory (does not affect gate exit code) ---")
+    if not changelog_path.exists():
+        print("  (skipping -- data/changelog.json not found)")
+        return
+    try:
+        entries = json.loads(changelog_path.read_text(encoding="utf-8"))["entries"]
+        newest = max(e["date"] for e in entries)
+        age_days = (datetime.date.today() - datetime.date.fromisoformat(newest)).days
+    except (KeyError, ValueError, TypeError):
+        print("  (skipping -- could not parse data/changelog.json's entries/dates)")
+        return
+    threshold = 14
+    if age_days > threshold:
+        print(
+            f"REVIEW -- newest changelog entry is {newest} ({age_days} days old, "
+            f"threshold {threshold}d). Check recent commits for visitor-visible "
+            f"corrections (a live citation/fee/copy fix, not internal tooling) "
+            f"that should get a plain-language entry."
+        )
+    else:
+        print(f"Fresh -- newest changelog entry is {newest} ({age_days} days old).")
+
+
 def main():
     repo_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent
     docs_dir = repo_root / "docs"
@@ -3881,6 +3923,7 @@ def main():
         print_renewal_fee_staleness_advisory(repo_root)
         print_rule_change_monitoring_staleness_advisory(repo_root)
         print_guide_review_staleness_advisory(repo_root)
+        print_changelog_staleness_advisory(repo_root)
         print_dual_credential_citation_advisory(repo_root)
         print_gap_list_advisory(repo_root)
         print_es_translation_review_advisory(repo_root)
@@ -3895,6 +3938,7 @@ def main():
     print_renewal_fee_staleness_advisory(repo_root)
     print_rule_change_monitoring_staleness_advisory(repo_root)
     print_guide_review_staleness_advisory(repo_root)
+    print_changelog_staleness_advisory(repo_root)
     print_dual_credential_citation_advisory(repo_root)
     print_gap_list_advisory(repo_root)
     print_es_translation_review_advisory(repo_root)

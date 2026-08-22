@@ -2,6 +2,30 @@
   "schema_note": "Roadmap #49 (2026-08-07): a curated public changelog of material corrections and updates to this site's data -- hand-maintained (not auto-generated from commit history), since raw internal commit messages reference internal tooling/finding codes never meant for public copy. Each entry here is a genuine, dated, already-verified change, rewritten in plain language. Newest first.",
   "entries": [
     {
+      "date": "2026-08-21",
+      "summary": "Illinois: corrected a renewal-fee page that had wrongly said no fee amount could be confirmed -- it now shows the codified $40/year rate and its source."
+    },
+    {
+      "date": "2026-08-21",
+      "summary": "Nevada: corrected a quoted phrase on the renewal-fee page to match the cited rule's exact wording."
+    },
+    {
+      "date": "2026-08-21",
+      "summary": "Colorado: corrected a renewal-fee citation that pointed at a statute section that doesn't exist."
+    },
+    {
+      "date": "2026-08-21",
+      "summary": "Alaska, Massachusetts, Texas, Alabama, and the District of Columbia: repointed several firm-mobility citation links that had gone dead or pointed at outdated snapshots, to current official or authoritative sources."
+    },
+    {
+      "date": "2026-08-21",
+      "summary": "Minnesota: briefly downgraded a source-confidence label, then restored it the same day after further checking confirmed both original sources are live."
+    },
+    {
+      "date": "2026-08-14",
+      "summary": "Iowa: updated citations across all affected pages after the state renumbered its administrative code."
+    },
+    {
       "date": "2026-08-06",
       "summary": "Missouri: replaced a dead CPE source link with the current one."
     },

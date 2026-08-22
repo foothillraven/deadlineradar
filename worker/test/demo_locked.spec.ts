@@ -222,3 +222,65 @@ describe("demo_locked firms -- the other consequential actions (adversarial-revi
     expect(resp.status).toBe(400);
   });
 });
+
+/**
+ * AuditLab DEMO-9 (MEDIUM, 2026-08-22): /firm/demo-login mints a session
+ * with no memberId, which store.createSession() resolves to the firm's own
+ * primary_member_id -- a Partner, same as newFirmWithSession() above
+ * models. Three member-management mutations had no demo_locked check at
+ * all, reachable by any anonymous demo visitor. Needs a SECOND Partner
+ * seeded (via store.createFirmMember) to be exploitable at all -- these
+ * tests confirm the gate fires regardless, which is what actually matters
+ * for a shared demo whose member count can change over time.
+ */
+describe("demo_locked firms -- member-management mutations (DEMO-9)", () => {
+  async function newFirmWithSecondPartner(label: string): Promise<{ id: string; cookie: string; otherPartnerId: string }> {
+    const adminEmail = `${label}-${Date.now()}-${Math.floor(performance.now())}@examplefirm.com`;
+    const { id } = await store.createFirm(env.DB, { name: "Demo Member Gate Test LLC", adminEmail });
+    const otherPartner = await store.createFirmMember(env.DB, {
+      firmId: id,
+      email: `${label}-other-${Date.now()}@examplefirm.com`,
+      role: "partner",
+    });
+    const { rawSessionToken } = await store.createSession(env.DB, id); // no memberId -- resolves to primary_member_id, exactly like /firm/demo-login
+    return { id, cookie: `dr_firm_session=${rawSessionToken}`, otherPartnerId: otherPartner.id };
+  }
+
+  it("PATCH /firm/members/:id (role change) refuses a demo_locked firm", async () => {
+    const { id, cookie, otherPartnerId } = await newFirmWithSecondPartner("demo-member-role");
+    await setDemoLocked(id, true);
+    const resp = await SELF.fetch(`${BASE}/firm/members/${otherPartnerId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", Cookie: cookie },
+      body: JSON.stringify({ role: "staff" }),
+    });
+    expect(resp.status).toBe(403);
+    const row = await env.DB.prepare(`SELECT role FROM firm_members WHERE id = ?1`).bind(otherPartnerId).first<{ role: string }>();
+    expect(row?.role).toBe("partner"); // unchanged
+  });
+
+  it("DELETE /firm/members/:id (remove) refuses a demo_locked firm", async () => {
+    const { id, cookie, otherPartnerId } = await newFirmWithSecondPartner("demo-member-remove");
+    await setDemoLocked(id, true);
+    const resp = await SELF.fetch(`${BASE}/firm/members/${otherPartnerId}`, {
+      method: "DELETE",
+      headers: { Cookie: cookie },
+    });
+    expect(resp.status).toBe(403);
+    const row = await env.DB.prepare(`SELECT removed_at FROM firm_members WHERE id = ?1`).bind(otherPartnerId).first<{ removed_at: string | null }>();
+    expect(row?.removed_at).toBeNull(); // never removed
+  });
+
+  it("POST /firm/members/:id/make-primary refuses a demo_locked firm", async () => {
+    const { id, cookie, otherPartnerId } = await newFirmWithSecondPartner("demo-member-primary");
+    const before = await env.DB.prepare(`SELECT primary_member_id FROM firms WHERE id = ?1`).bind(id).first<{ primary_member_id: string }>();
+    await setDemoLocked(id, true);
+    const resp = await SELF.fetch(`${BASE}/firm/members/${otherPartnerId}/make-primary`, {
+      method: "POST",
+      headers: { Cookie: cookie },
+    });
+    expect(resp.status).toBe(403);
+    const after = await env.DB.prepare(`SELECT primary_member_id FROM firms WHERE id = ?1`).bind(id).first<{ primary_member_id: string }>();
+    expect(after?.primary_member_id).toBe(before?.primary_member_id); // unchanged
+  });
+});

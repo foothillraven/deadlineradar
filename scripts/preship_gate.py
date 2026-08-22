@@ -2745,6 +2745,87 @@ def check_demo_locked_email_coverage(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_demo_locked_mutation_coverage(repo_root: Path) -> list[str]:
+    """AuditLab DEMO-9 (MEDIUM, 2026-08-22): the 5th sibling-decay in this
+    family (after DEMO-4/5's email version and SEC-2's rate-limit version).
+    Task #27 found 3 Account-tab mutations the demo_locked front-door check
+    never actually covered; DEMO-9 found 3 MORE (handleFirmMemberRoleChange/
+    Remove/MakePrimary) via the same reachability chain
+    (/firm/demo-login -> a memberId-less session -> resolves to the demo
+    firm's own Partner) -- because coverage was hand-maintained per route,
+    exactly the decay shape every sibling in this file exists to close.
+
+    Scope: index.ts's handle* functions that (a) are gated by
+    requireFirmRole(/requireFirmSession( -- i.e. operate on an existing
+    firm session, the only way a mutation here is reachable at all -- and
+    (b) call a mutating store.* function (same source-of-truth derivation
+    check_write_endpoint_rate_limits() already uses against store.ts's own
+    .prepare() SQL). Each such handler must reference demo_locked in a live
+    if() condition, unless allowlisted below with the reason it's safe --
+    same opt-out shape as check_demo_locked_email_coverage()'s allowlist."""
+    index_ts = repo_root / "worker" / "src" / "index.ts"
+    store_ts = repo_root / "worker" / "src" / "store.ts"
+    if not index_ts.exists() or not store_ts.exists():
+        print("  (skipping demo-locked-mutation-coverage check -- worker/ tree not present in this checkout)")
+        return []
+
+    store_src = store_ts.read_text(encoding="utf-8")
+    mutating_fns = _mutating_store_functions(store_src)
+
+    # name -> reason a demo_locked check doesn't apply here. Every entry
+    # names why, same discipline every sibling allowlist in this file uses.
+    # The first 6 are DEMO-9's own "data-playground mutation" carve-out
+    # (DEMO-3's line: the demo's data is deliberately mutable so a visitor
+    # can try the product); the last 3 are session lifecycle, not a roster/
+    # identity/permission change.
+    allowlisted = {
+        "handleCpeEntryCreate": "demo data-playground mutation (DEMO-3) -- the shared demo's CPE log is deliberately editable so a visitor can try the feature, not a roster/permission change",
+        "handleCpeEntryDelete": "demo data-playground mutation (DEMO-3), same category as handleCpeEntryCreate",
+        "handleDocumentDelete": "demo data-playground mutation (DEMO-3) -- deleting a demo document doesn't alter who can sign in or what they can do",
+        "handleFirmLicenseDelete": "demo data-playground mutation (DEMO-3) -- deleting a demo license row doesn't alter the roster or its permissions",
+        "handleFirmLicenseRenew": "demo data-playground mutation (DEMO-3), same category as handleFirmLicenseDelete -- advances a license row's own renewal cycle, not the roster or its permissions",
+        "handleMobilityCompletionCreate": "demo data-playground mutation (DEMO-3), same category as handleCpeEntryCreate",
+        "handleMobilityCompletionDelete": "demo data-playground mutation (DEMO-3), same category as handleCpeEntryDelete",
+        "handleDocumentUpload": "demo data-playground mutation (DEMO-3), the exact mirror of handleDocumentDelete's already-allowlisted case -- rate-limited (RATE_LIMIT_FIRM_DOCUMENT_UPLOAD) and doesn't alter the roster or its permissions",
+        "handleFirmLogout": "session lifecycle, not a roster/permission change -- deletes the caller's OWN session by its own random token, same posture as any sign-out",
+        "handleFirmSessionRevoke": "session lifecycle -- revokes one of the CALLER's own other sessions (store.ts scopes the delete to session.firmId), never another member's",
+        "handleFirmPasswordLogin": "session lifecycle (mints a session, does not require one) -- demo_locked is a property of an EXISTING firm session and doesn't gate signing in to begin with",
+    }
+
+    index_src = index_ts.read_text(encoding="utf-8")
+    errors = []
+    found_names = set()
+    for name, raw_body in _balanced_brace_function_bodies(index_src, r"handle\w+"):
+        found_names.add(name)
+        body = _blank_strings_and_comments(raw_body)
+        body = _strip_dead_if_false_blocks(body)
+        if not re.search(r"\brequireFirmRole\(|\brequireFirmSession\(", body):
+            continue
+        if not any(f"store.{fn}(" in body for fn in mutating_fns):
+            continue
+        guarded = any(
+            "demo_locked" in cond and not _condition_is_constant_false(cond)
+            for cond, _, _ in _find_if_conditions(body)
+        )
+        if guarded:
+            continue
+        if name in allowlisted:
+            continue
+        errors.append(
+            f"[DEMO-MUTATION] {name}() is gated by an existing firm session and calls a mutating "
+            "store.* function, but has no demo_locked check and isn't in "
+            "check_demo_locked_mutation_coverage()'s allowlist -- either gate the mutation for a "
+            "demo_locked firm, or add it to the allowlist with the reason it's safe"
+        )
+
+    stale_allowlist = sorted(set(allowlisted) - found_names)
+    if stale_allowlist:
+        errors.append(
+            f"[DEMO-MUTATION] allowlist entry for function(s) that no longer exist: {', '.join(stale_allowlist)}"
+        )
+    return errors
+
+
 def check_retention_coverage(repo_root: Path) -> list[str]:
     """AuditLab RETAIN-1 (MEDIUM, 2026-08-07): store.hardDeleteExpiredFirms()'s
     table list is hand-maintained with nothing enforcing it -- 5 firm-scoped
@@ -2951,6 +3032,42 @@ def _balanced_brace_function_bodies(text: str, name_pattern: str) -> list[tuple[
     return results
 
 
+def _mutating_store_functions(store_src: str) -> set[str]:
+    """AuditLab (self-found, 2026-08-22, while building DEMO-9's structural
+    gate): the SQL-keyword regex this derivation runs is meant to search
+    the CONTENTS of a `.prepare(\\`...\\`)` template literal -- but
+    `_blank_strings_and_comments()` blanks every string/template literal's
+    contents (space-for-char, by design, so a comment or unrelated string
+    mentioning a keyword can't be misread as real code). Run in sequence,
+    the blank pass erases the SQL text before the keyword regex ever sees
+    it. The result: this derivation has matched ZERO functions against the
+    real store.ts since it was written -- verified directly, not inferred --
+    which means both of its callers (`check_write_endpoint_rate_limits`
+    SEC-2 and `check_demo_locked_mutation_coverage` DEMO-9) have been
+    silently vacuous: every handler's `if not any(f"store.{{fn}}(" ...):
+    continue` always continues, so neither gate has ever been able to
+    flag a real missing-rate-limit or missing-demo_locked defect. `/security/`'s
+    "every write endpoint is rate-limited" claim has been resting on
+    discipline alone, not on the gate that was built to enforce it.
+
+    Fix: run the SQL-keyword regex against the RAW body (comments/strings
+    intact) instead -- `_balanced_brace_function_bodies` and
+    `_strip_dead_if_false_blocks` already brace-count raw, unblanked text
+    elsewhere in this file (SQL/strings in this codebase never contain an
+    unbalanced brace), so this is no less safe, and a `.prepare(` call
+    appearing coincidentally inside a comment is not a real pattern this
+    codebase has anywhere -- checked via a positive control (a synthetic
+    store.ts fixture where blanking would produce zero matches and this
+    version correctly finds 3, matching setPrimaryMember/updateFirmMemberRole/
+    removeFirmMember's real shapes) before wiring this into either caller."""
+    mutating_fns = set()
+    for name, body in _balanced_brace_function_bodies(store_src, r"\w+"):
+        live_body = _strip_dead_if_false_blocks(body)
+        if re.search(r"\.prepare\(\s*[`\"'][^`\"']*?\b(?:INSERT|UPDATE|DELETE)\b", live_body, re.IGNORECASE):
+            mutating_fns.add(name)
+    return mutating_fns
+
+
 def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
     """AuditLab SEC-2 (LOW, 2026-08-07): the third hand-maintained-list
     decay found in ~24 hours, and the one sibling of the pattern that
@@ -2986,15 +3103,7 @@ def check_write_endpoint_rate_limits(repo_root: Path) -> list[str]:
         return []
 
     store_src = store_ts.read_text(encoding="utf-8")
-    mutating_fns = set()
-    for name, body in _balanced_brace_function_bodies(store_src, r"\w+"):
-        # GUARD-1 (AuditLab, 2026-08-20): same hardening as
-        # check_demo_locked_email_coverage -- single-pass tokenizer, then
-        # strip dead if(false) blocks, before the substring search.
-        body = _blank_strings_and_comments(body)
-        body = _strip_dead_if_false_blocks(body)
-        if re.search(r"\.prepare\(\s*[`\"'][^`\"']*?\b(?:INSERT|UPDATE|DELETE)\b", body, re.IGNORECASE):
-            mutating_fns.add(name)
+    mutating_fns = _mutating_store_functions(store_src)
 
     index_src = index_ts.read_text(encoding="utf-8")
 
@@ -3902,6 +4011,7 @@ def main():
     all_errors += check_snoozed_until_cleared_on_cycle_bump(repo_root)
     all_errors += check_sitemap_completeness(html_files, docs_dir)
     all_errors += check_demo_locked_email_coverage(repo_root)
+    all_errors += check_demo_locked_mutation_coverage(repo_root)
     all_errors += check_write_endpoint_rate_limits(repo_root)
     all_errors += check_email_link_helper_usage(repo_root)
     all_errors += check_i18n_reviewed_entries_not_stale(repo_root)

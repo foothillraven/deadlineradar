@@ -3074,6 +3074,14 @@ async function handleFirmMemberRoleChange(request: Request, env: Env, memberId: 
     return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
   }
 
+  // DEMO-9 (AuditLab, 2026-08-22): /firm/demo-login mints a Partner session
+  // with no memberId, so this is reachable by any anonymous demo visitor --
+  // same class Task #27 fixed for billing/email/account-deletion, missed
+  // here because roster/role changes aren't a data-playground mutation.
+  if (session.firm.demo_locked) {
+    return jsonResponse(403, { error: "This is a shared demo account. Changing member roles isn't available for this account." });
+  }
+
   const target = await store.getFirmMemberById(env.DB, session.firmId, memberId);
   if (!target || target.firm_id !== session.firmId) {
     return jsonResponse(404, { error: "Not found." });
@@ -3125,6 +3133,14 @@ async function handleFirmMemberRemove(request: Request, env: Env, memberId: stri
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_member_remove", RATE_LIMIT_FIRM_MEMBER_REMOVE);
   if (!allowed) {
     return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
+  }
+
+  // DEMO-9 (AuditLab, 2026-08-22): same reachability as
+  // handleFirmMemberRoleChange's identical comment above -- this also ends
+  // the removed member's sessions and outstanding tokens, permanently
+  // altering the shared demo roster for every later visitor.
+  if (session.firm.demo_locked) {
+    return jsonResponse(403, { error: "This is a shared demo account. Removing team members isn't available for this account." });
   }
 
   const target = await store.getFirmMemberById(env.DB, session.firmId, memberId);
@@ -3186,6 +3202,13 @@ async function handleFirmMemberMakePrimary(request: Request, env: Env, memberId:
   const allowed = await checkRateLimit(env.DB, session.firmId, "firm_member_make_primary", RATE_LIMIT_FIRM_MEMBER_MAKE_PRIMARY);
   if (!allowed) {
     return jsonResponse(429, { error: "Too many changes today. Please try again in 24 hours." });
+  }
+
+  // DEMO-9 (AuditLab, 2026-08-22): same reachability as the two sibling
+  // handlers above -- this repoints firms.primary_member_id, the exact
+  // value every future /firm/demo-login session is minted as.
+  if (session.firm.demo_locked) {
+    return jsonResponse(403, { error: "This is a shared demo account. Changing the primary contact isn't available for this account." });
   }
 
   const target = await store.getFirmMemberById(env.DB, session.firmId, memberId);
